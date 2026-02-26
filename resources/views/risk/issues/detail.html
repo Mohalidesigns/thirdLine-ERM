@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Issue Detail &amp; Remediation Tracking - ISS-2024-0041</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#351a5b",
+                        "secondary": "#2D7D46",
+                        "accent": "#D4AF37",
+                        "background-light": "#F7FAFC",
+                        "background-dark": "#18131f",
+                        "error": "#C53030",
+                        "error-light": "#FFF5F5"
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                colors: {
+                    primary: '#1A365D',
+                    secondary: '#2D7D46',
+                    accent: '#D4AF37',
+                }
+            }
+        }
+    }
+</script>
+</head>
+<body class="bg-[#F7FAFC] min-h-screen">
+<aside id="sidebar" class="fixed left-0 top-0 h-screen w-[260px] bg-[#1A365D] text-white overflow-y-auto z-50 flex flex-col" style="scrollbar-width:thin;scrollbar-color:#2D4A7A #1A365D">
+    <!-- Brand -->
+    <div class="px-5 pt-5 pb-3 border-b border-white/10">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span class="material-symbols-outlined text-[#D4AF37] text-xl">shield</span>
+            </div>
+            <div>
+                <div class="text-[13px] font-bold text-white leading-tight">GRC Risk Management</div>
+                <div class="text-[10px] text-white/50 font-medium">Enterprise Risk Platform</div>
+            </div>
+        </div>
+    </div>
+
+    <nav class="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
+        <!-- Command Centre -->
+        <a href="../risk-register/dashboard.html" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-white/70 hover:text-white hover:bg-white/8 transition-all text-[13px] mb-2">
+            <span class="material-symbols-outlined text-[18px]">home</span>
+            <span>Command Centre</span>
+        </a>
+
+        <div class="h-px bg-white/10 mx-1 mb-2"></div>
+
+        <!-- Risk Register -->
+        <div class="nav-group">
+            <button onclick="toggleNav('risk_register')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">assessment</span>
+                    <span>Risk Register</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_risk_register">expand_more</span>
+            </button>
+            <div id="nav_risk_register" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../risk-register/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Dashboard</a>
+                <a href="../risk-register/register.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Register</a>
+                <a href="../risk-register/new.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Create New Risk</a>
+                <a href="../risk-register/detail.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Detail</a>
+            </div>
+        </div>
+
+        <!-- KRI Monitoring -->
+        <div class="nav-group">
+            <button onclick="toggleNav('kri_monitoring')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">speed</span>
+                    <span>KRI Monitoring</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_kri_monitoring">expand_more</span>
+            </button>
+            <div id="nav_kri_monitoring" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../kri-monitoring/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">KRI Dashboard</a>
+                <a href="../kri-monitoring/library.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">KRI Library</a>
+                <a href="../kri-monitoring/thresholds.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Thresholds</a>
+                <a href="../kri-monitoring/breaches.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Breach Alerts</a>
+            </div>
+        </div>
+
+        <!-- RCSA -->
+        <div class="nav-group">
+            <button onclick="toggleNav('rcsa')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">fact_check</span>
+                    <span>RCSA</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_rcsa">expand_more</span>
+            </button>
+            <div id="nav_rcsa" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../rcsa/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">RCSA Dashboard</a>
+                <a href="../rcsa/worksheet.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Assessment Worksheet</a>
+                <a href="../rcsa/matrix.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Matrix</a>
+                <a href="../rcsa/controls.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Control Assessment</a>
+            </div>
+        </div>
+
+        <!-- Treatment Plans -->
+        <div class="nav-group">
+            <button onclick="toggleNav('treatment_plans')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">healing</span>
+                    <span>Treatment Plans</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_treatment_plans">expand_more</span>
+            </button>
+            <div id="nav_treatment_plans" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../treatment-plans/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Plans Dashboard</a>
+                <a href="../treatment-plans/active.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Active Plans</a>
+                <a href="../treatment-plans/new.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Create Plan</a>
+                <a href="../treatment-plans/review.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Plan Review</a>
+            </div>
+        </div>
+
+        <!-- Risk Analysis -->
+        <div class="nav-group">
+            <button onclick="toggleNav('analysis')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">analytics</span>
+                    <span>Risk Analysis</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_analysis">expand_more</span>
+            </button>
+            <div id="nav_analysis" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../analysis/heatmap.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Heatmap</a>
+                <a href="../analysis/trends.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Trend Analysis</a>
+                <a href="../analysis/correlation.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Correlation</a>
+                <a href="../analysis/bowtie.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Bow-Tie Analysis</a>
+            </div>
+        </div>
+
+        <!-- Loss Events -->
+        <div class="nav-group">
+            <button onclick="toggleNav('loss_events')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">report_problem</span>
+                    <span>Loss Events</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_loss_events">expand_more</span>
+            </button>
+            <div id="nav_loss_events" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../loss-events/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Events Dashboard</a>
+                <a href="../loss-events/register.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Event Register</a>
+                <a href="../loss-events/new-step-1.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Log New Event</a>
+                <a href="../loss-events/near-misses.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Near Misses</a>
+                <a href="../loss-events/rca.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Root Cause Analysis</a>
+                <a href="../loss-events/approvals.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Approvals</a>
+                <a href="../loss-events/reports.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">CBN Reports</a>
+            </div>
+        </div>
+
+        <!-- Issues & Findings -->
+        <div class="nav-group">
+            <button onclick="toggleNav('issues')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium bg-white/12 text-white transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-[#D4AF37]">bug_report</span>
+                    <span>Issues &amp; Findings</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 rotate-180 text-white/40" id="chevron_issues">expand_more</span>
+            </button>
+            <div id="nav_issues" class="block mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Issues Dashboard</a>
+                <a href="register.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Issues Register</a>
+                <a href="new.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Log New Issue</a>
+                <a href="detail.html" class="block px-3 py-1.5 rounded-md text-[12px] font-semibold bg-[#D4AF37] text-[#1A365D] transition-all">Issue Detail</a>
+                <a href="ageing.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Ageing Report</a>
+                <a href="closure.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Closure Verification</a>
+            </div>
+        </div>
+
+        <!-- Risk Quantification -->
+        <div class="nav-group">
+            <button onclick="toggleNav('quantification')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">calculate</span>
+                    <span>Risk Quantification</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_quantification">expand_more</span>
+            </button>
+            <div id="nav_quantification" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../quantification/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Quant Dashboard</a>
+                <a href="../quantification/library.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Model Library</a>
+                <a href="../quantification/scenarios.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Scenario Analysis</a>
+                <a href="../quantification/simulate.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Run Simulation</a>
+                <a href="../quantification/results.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Results</a>
+                <a href="../quantification/icaap.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">ICAAP Integration</a>
+                <a href="../quantification/settings.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Settings</a>
+                <a href="../quantification/reports.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Quant Reports</a>
+            </div>
+        </div>
+
+        <!-- Reports -->
+        <div class="nav-group">
+            <button onclick="toggleNav('reports')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">summarize</span>
+                    <span>Reports</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_reports">expand_more</span>
+            </button>
+            <div id="nav_reports" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../reports/executive.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Executive Summary</a>
+                <a href="../reports/board.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Board Report</a>
+                <a href="../reports/regulatory.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Regulatory Report</a>
+                <a href="../reports/custom.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Custom Reports</a>
+            </div>
+        </div>
+
+        <!-- AI Risk Intelligence -->
+        <div class="nav-group">
+            <button onclick="toggleNav('ai_intelligence')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">psychology</span>
+                    <span>AI Risk Intelligence</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_ai_intelligence">expand_more</span>
+            </button>
+            <div id="nav_ai_intelligence" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../ai-intelligence/radar.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">AI Risk Radar</a>
+                <a href="../ai-intelligence/predictive.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Predictive Alerts</a>
+                <a href="../ai-intelligence/regulatory-pulse.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Regulatory Pulse</a>
+                <a href="../ai-intelligence/benchmarking.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Peer Benchmarking</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Footer -->
+    <div class="px-4 py-3 border-t border-white/10 mt-auto">
+        <div class="flex items-center gap-2 text-[10px] text-white/30">
+            <span class="material-symbols-outlined text-[14px]">verified</span>
+            <span>CBN ORMS Compliant</span>
+        </div>
+    </div>
+</aside>
+<header class="fixed top-0 left-[260px] right-0 h-14 bg-white border-b border-gray-200 z-40 flex items-center justify-between px-6">
+        <div class="flex items-center gap-2 text-sm">
+            <span class="text-gray-400 text-xs">Risk Management</span>
+            <span class="text-gray-300">/</span>
+            <span class="text-gray-400 text-xs">Issues & Findings</span>
+            <span class="text-gray-300">/</span>
+            <span class="text-[#1A365D] font-semibold text-xs">Issue Detail</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <button class="p-1.5 rounded-lg hover:bg-gray-100 relative">
+                <span class="material-symbols-outlined text-gray-500 text-xl">notifications</span>
+                <span class="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+            </button>
+            <button class="p-1.5 rounded-lg hover:bg-gray-100">
+                <span class="material-symbols-outlined text-gray-500 text-xl">settings</span>
+            </button>
+            <div class="h-6 w-px bg-gray-200"></div>
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-[#1A365D] rounded-full flex items-center justify-center text-white text-[11px] font-bold">MA</div>
+                <div class="hidden md:block">
+                    <div class="text-[12px] font-semibold text-gray-700 leading-tight">Mohammed Ali</div>
+                    <div class="text-[10px] text-gray-400">Risk Analyst</div>
+                </div>
+                <span class="material-symbols-outlined text-gray-400 text-[16px]">expand_more</span>
+            </div>
+        </div>
+    </header>
+
+
+<style>
+  #grc-top-nav { display: none !important; }
+  #grc-left-nav {
+    position: fixed; top: 0; left: 0; bottom: 0;
+    width: 248px; z-index: 99999;
+    background: #0c1020;
+    border-right: 1px solid rgba(255,255,255,0.07);
+    display: flex; flex-direction: column;
+    font-family: 'Inter','Segoe UI',system-ui,sans-serif;
+    overflow-y: auto; overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.08) transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+  #grc-left-nav::-webkit-scrollbar { width: 3px; }
+  #grc-left-nav::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1);border-radius:4px; }
+  #grc-left-nav .gnav-brand {
+    display:flex; align-items:center; gap:10px;
+    padding:16px 14px 14px;
+    border-bottom:1px solid rgba(255,255,255,0.07);
+    flex-shrink:0; text-decoration:none;
+  }
+  #grc-left-nav .gnav-icon {
+    width:36px; height:36px; border-radius:10px;
+    background:linear-gradient(135deg,#2d3561,#1a1f3c);
+    border:1px solid rgba(255,255,255,0.14);
+    display:flex; align-items:center; justify-content:center;
+    font-size:10px; font-weight:900; color:#f0a500;
+    flex-shrink:0; letter-spacing:-0.5px; line-height:1;
+  }
+  #grc-left-nav .gnav-title { font-size:13px;font-weight:700;color:#f0f4ff;line-height:1.2; }
+  #grc-left-nav .gnav-sub { font-size:9px;color:rgba(255,255,255,0.3);margin-top:2px; }
+  #grc-left-nav .gnav-home {
+    display:flex; align-items:center; gap:8px;
+    padding:8px 14px; font-size:11px; font-weight:500;
+    color:rgba(255,255,255,0.4); text-decoration:none;
+    border-bottom:1px solid rgba(255,255,255,0.05);
+    transition:color .15s,background .15s;
+  }
+  #grc-left-nav .gnav-home:hover { color:rgba(255,255,255,0.75);background:rgba(255,255,255,0.04); }
+  #grc-left-nav .gnav-section { border-bottom:1px solid rgba(255,255,255,0.05); }
+  #grc-left-nav .gnav-section:last-of-type { border-bottom:none; }
+  #grc-left-nav .gnav-toggle {
+    display:flex; align-items:center; gap:8px;
+    padding:9px 14px 8px;
+    cursor:pointer; user-select:none;
+    transition:background .14s;
+    border:none; background:none; width:100%; text-align:left;
+  }
+  #grc-left-nav .gnav-toggle:hover { background:rgba(255,255,255,0.03); }
+  #grc-left-nav .gnav-badge {
+    width:22px; height:22px; border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:8px; font-weight:800; flex-shrink:0;
+  }
+  #grc-left-nav .gnav-module-name {
+    font-size:9.5px; font-weight:700; letter-spacing:0.6px;
+    text-transform:uppercase; flex:1;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  #grc-left-nav .gnav-chevron {
+    width:14px; height:14px; flex-shrink:0;
+    transition:transform .22s ease; opacity:0.4;
+  }
+  #grc-left-nav .gnav-section.open .gnav-chevron { transform:rotate(180deg); opacity:0.7; }
+  #grc-left-nav .gr .gnav-badge  { background:rgba(99,102,241,.18); color:#6366f1; }
+  #grc-left-nav .gr .gnav-module-name { color:#6366f1; }
+  #grc-left-nav .gr .stag { background:rgba(99,102,241,.18);color:#6366f1; }
+  #grc-left-nav .gr .gnav-link.active { border-left-color:#6366f1; color:#6366f1; }
+  #grc-left-nav .gk .gnav-badge  { background:rgba(6,182,212,.18); color:#06b6d4; }
+  #grc-left-nav .gk .gnav-module-name { color:#06b6d4; }
+  #grc-left-nav .gk .stag { background:rgba(6,182,212,.18);color:#06b6d4; }
+  #grc-left-nav .gk .gnav-link.active { border-left-color:#06b6d4; color:#06b6d4; }
+  #grc-left-nav .gc .gnav-badge  { background:rgba(139,92,246,.18); color:#8b5cf6; }
+  #grc-left-nav .gc .gnav-module-name { color:#8b5cf6; }
+  #grc-left-nav .gc .stag { background:rgba(139,92,246,.18);color:#8b5cf6; }
+  #grc-left-nav .gc .gnav-link.active { border-left-color:#8b5cf6; color:#8b5cf6; }
+  #grc-left-nav .gt .gnav-badge  { background:rgba(16,185,129,.18); color:#10b981; }
+  #grc-left-nav .gt .gnav-module-name { color:#10b981; }
+  #grc-left-nav .gt .stag { background:rgba(16,185,129,.18);color:#10b981; }
+  #grc-left-nav .gt .gnav-link.active { border-left-color:#10b981; color:#10b981; }
+  #grc-left-nav .ga .gnav-badge  { background:rgba(245,158,11,.18); color:#f59e0b; }
+  #grc-left-nav .ga .gnav-module-name { color:#f59e0b; }
+  #grc-left-nav .ga .stag { background:rgba(245,158,11,.18);color:#f59e0b; }
+  #grc-left-nav .ga .gnav-link.active { border-left-color:#f59e0b; color:#f59e0b; }
+  #grc-left-nav .g1 .gnav-badge  { background:rgba(240,165,0,.18); color:#f0a500; }
+  #grc-left-nav .g1 .gnav-module-name { color:#f0a500; }
+  #grc-left-nav .g1 .stag { background:rgba(240,165,0,.18);color:#f0a500; }
+  #grc-left-nav .g1 .gnav-link.active { border-left-color:#f0a500; color:#f0a500; }
+  #grc-left-nav .g2 .gnav-badge  { background:rgba(52,199,145,.18); color:#34c791; }
+  #grc-left-nav .g2 .gnav-module-name { color:#34c791; }
+  #grc-left-nav .g2 .stag { background:rgba(52,199,145,.18);color:#34c791; }
+  #grc-left-nav .g2 .gnav-link.active { border-left-color:#34c791; color:#34c791; }
+  #grc-left-nav .g3 .gnav-badge  { background:rgba(230,115,55,.18); color:#e67337; }
+  #grc-left-nav .g3 .gnav-module-name { color:#e67337; }
+  #grc-left-nav .g3 .stag { background:rgba(230,115,55,.18);color:#e67337; }
+  #grc-left-nav .g3 .gnav-link.active { border-left-color:#e67337; color:#e67337; }
+  #grc-left-nav .gp .gnav-badge  { background:rgba(236,72,153,.18); color:#ec4899; }
+  #grc-left-nav .gp .gnav-module-name { color:#ec4899; }
+  #grc-left-nav .gp .stag { background:rgba(236,72,153,.18);color:#ec4899; }
+  #grc-left-nav .gp .gnav-link.active { border-left-color:#ec4899; color:#ec4899; }
+  #grc-left-nav .gi .gnav-badge  { background:rgba(20,184,166,.18); color:#14b8a6; }
+  #grc-left-nav .gi .gnav-module-name { color:#14b8a6; }
+  #grc-left-nav .gi .stag { background:rgba(20,184,166,.18);color:#14b8a6; }
+  #grc-left-nav .gi .gnav-link.active { border-left-color:#14b8a6; color:#14b8a6; }
+
+  #grc-left-nav .gnav-links {
+    overflow:hidden; max-height:0;
+    transition:max-height .28s ease;
+  }
+  #grc-left-nav .gnav-section.open .gnav-links { max-height:600px; }
+  #grc-left-nav .gnav-link {
+    display:flex; align-items:center;
+    border-left:2px solid transparent;
+    text-decoration:none; transition:background .12s; position:relative;
+  }
+  #grc-left-nav .gnav-link:hover { background:rgba(255,255,255,0.04); }
+  #grc-left-nav .gnav-link .link-inner {
+    display:flex; align-items:center; gap:8px;
+    padding:6px 12px 6px 22px; flex:1; min-width:0;
+  }
+  #grc-left-nav .gnav-link .dot {
+    width:5px; height:5px; border-radius:50%;
+    background:rgba(255,255,255,0.16); flex-shrink:0;
+    transition:background .12s;
+  }
+  #grc-left-nav .gnav-link:hover .dot { background:rgba(255,255,255,0.45); }
+  #grc-left-nav .gnav-link .lbl {
+    font-size:11px; font-weight:450;
+    color:rgba(255,255,255,0.55);
+    flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    transition:color .12s;
+  }
+  #grc-left-nav .gnav-link:hover .lbl { color:rgba(255,255,255,0.85); }
+  #grc-left-nav .gnav-link .stag {
+    font-size:7px; font-weight:700;
+    padding:1px 4px; border-radius:3px;
+    flex-shrink:0; opacity:0.35; margin-right:8px; letter-spacing:0.3px;
+  }
+  #grc-left-nav .gnav-link.active { background:rgba(255,255,255,0.06); }
+  #grc-left-nav .gnav-link.active .dot { background:currentColor; opacity:1; }
+  #grc-left-nav .gnav-link.active .lbl { color:#fff; font-weight:600; }
+  #grc-left-nav .gnav-link.active .stag { opacity:0.8; }
+  #grc-left-nav .gnav-footer {
+    padding:10px 14px; font-size:8px;
+    color:rgba(255,255,255,0.18); letter-spacing:0.3px;
+    border-top:1px solid rgba(255,255,255,0.05);
+    flex-shrink:0; line-height:1.7; margin-top:auto;
+  }
+</style>
+
+<nav id="grc-left-nav">
+  <a class="gnav-brand" href="../../index.html">
+    <div class="gnav-icon">ORM</div>
+    <div>
+      <div class="gnav-title">Risk Management</div>
+      <div class="gnav-sub">Operational Risk Platform</div>
+    </div>
+  </a>
+  <a class="gnav-home" href="../../index.html">
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1L1 7h2v7h4v-4h2v4h4V7h2z"/></svg>
+    Command Centre
+  </a>
+
+  <!-- ── Risk Register ── -->
+  <div class="gnav-section gr" id="gnav-rr">
+    <button class="gnav-toggle" onclick="gnavToggle('gnav-rr')">
+      <span class="gnav-badge">RR</span>
+      <span class="gnav-module-name">Risk Register</span>
+      <svg class="gnav-chevron" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+    <div class="gnav-links">
+      <a class="gnav-link" href="../risk-register/dashboard.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Dashboard</span><span class="stag">S1</span></span></a>
+      <a class="gnav-link" href="../risk-register/register.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Risk Register</span><span class="stag">S2</span></span></a>
+      <a class="gnav-link" href="../risk-register/new.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Add New Risk</span><span class="stag">S3</span></span></a>
+    </div>
+  </div>
+
+  <!-- ── KRI Monitoring ── -->
+  <div class="gnav-section gk" id="gnav-kri">
+    <button class="gnav-toggle" onclick="gnavToggle('gnav-kri')">
+      <span class="gnav-badge">KR</span>
+      <span class="gnav-module-name">KRI Monitoring</span>
+      <svg class="gnav-chevron" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+    <div class="gnav-links">
+      <a class="gnav-link" href="../kri-monitoring/dashboard.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Dashboard</span><span class="stag">S1</span></span></a>
+      <a class="gnav-link" href="../kri-monitoring/library.html"><span class="link-inner"><span class="dot"></span><span class="lbl">KRI Library</span><span class="stag">S2</span></span></a>
+      <a class="gnav-link" href="../kri-monitoring/thresholds.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Threshold Config</span><span class="stag">S3</span></span></a>
+      <a class="gnav-link" href="../kri-monitoring/breaches.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Breach Alerts</span><span class="stag">S4</span></span></a>
+    </div>
+  </div>
+
+  <!-- ── RCSA ── -->
+  <div class="gnav-section gc" id="gnav-rcsa">
+    <button class="gnav-toggle" onclick="gnavToggle('gnav-rcsa')">
+      <span class="gnav-badge">RC</span>
+      <span class="gnav-module-name">RCSA</span>
+      <svg class="gnav-chevron" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+    <div class="gnav-links">
+      <a class="gnav-link" href="../rcsa/dashboard.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Dashboard</span><span class="stag">S1</span></span></a>
+      <a class="gnav-link" href="../rcsa/worksheet.html"><span class="link-inner"><span class="dot"></span><span class="lbl">RCSA Worksheet</span><span class="stag">S2</span></span></a>
+      <a class="gnav-link" href="../rcsa/matrix.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Assessment Matrix</span><span class="stag">S3</span></span></a>
+      <a class="gnav-link" href="../rcsa/controls.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Control Library</span><span class="stag">S4</span></span></a>
+    </div>
+  </div>
+
+  <!-- ── Treatment Plans ── -->
+  <div class="gnav-section gt" id="gnav-tp">
+    <button class="gnav-toggle" onclick="gnavToggle('gnav-tp')">
+      <span class="gnav-badge">TP</span>
+      <span class="gnav-module-name">Treatment Plans</span>
+      <svg class="gnav-chevron" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+    <div class="gnav-links">
+      <a class="gnav-link" href="../treatment-plans/dashboard.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Dashboard</span><span class="stag">S1</span></span></a>
+      <a class="gnav-link" href="../treatment-plans/active.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Active Plans</span><span class="stag">S2</span></span></a>
+      <a class="gnav-link" href="../treatment-plans/new.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Create Plan</span><span class="stag">S3</span></span></a>
+      <a class="gnav-link" href="../treatment-plans/review.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Effectiveness Review</span><span class="stag">S4</span></span></a>
+    </div>
+  </div>
+
+  <!-- ── Risk Analysis ── -->
+  <div class="gnav-section ga" id="gnav-an">
+    <button class="gnav-toggle" onclick="gnavToggle('gnav-an')">
+      <span class="gnav-badge">AN</span>
+      <span class="gnav-module-name">Risk Analysis</span>
+      <svg class="gnav-chevron" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+    <div class="gnav-links">
+      <a class="gnav-link" href="../analysis/heatmap.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Risk Heat Map</span><span class="stag">S1</span></span></a>
+      <a class="gnav-link" href="../analysis/trends.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Trend Analysis</span><span class="stag">S2</span></span></a>
+      <a class="gnav-link" href="../analysis/correlation.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Correlation Matrix</span><span class="stag">S3</span></span></a>
+      <a class="gnav-link" href="../analysis/bowtie.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Bow-Tie Analysis</span><span class="stag">S4</span></span></a>
+    </div>
+  </div>
+
+  <!-- ── Loss Events ── -->
+  <div class="gnav-section g1" id="gnav-g1">
+    <button class="gnav-toggle" onclick="gnavToggle('gnav-g1')">
+      <span class="gnav-badge">LE</span>
+      <span class="gnav-module-name">Loss Events</span>
+      <svg class="gnav-chevron" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+    <div class="gnav-links">
+      <a class="gnav-link" href="../loss-events/dashboard.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Dashboard</span><span class="stag">S1</span></span></a>
+      <a class="gnav-link" href="../loss-events/register.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Event Register</span><span class="stag">S2</span></span></a>
+      <a class="gnav-link" href="../loss-events/new-step-1.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Report New Event</span><span class="stag">S3</span></span></a>
+      <a class="gnav-link" href="../loss-events/new-step-2.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Classify Event</span><span class="stag">S4</span></span></a>
+      <a class="gnav-link" href="../loss-events/new-step-3.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Financial Impact</span><span class="stag">S5</span></span></a>
+      <a class="gnav-link" href="../loss-events/rca.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Root Cause Analysis</span><span class="stag">S6</span></span></a>
+      <a class="gnav-link" href="../loss-events/near-misses.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Near-Miss Register</span><span class="stag">S7</span></span></a>
+      <a class="gnav-link" href="../loss-events/approvals.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Approvals</span><span class="stag">S8</span></span></a>
+      <a class="gnav-link" href="../loss-events/reports.html"><span class="link-inner"><span class="dot"></span><span class="lbl">CBN Reports</span><span class="stag">S9</span></span></a>
+    </div>
+  </div>
+
+  <!-- ── Issues & Findings ── -->
+  <div class="gnav-section g2" id="gnav-g2">
+    <button class="gnav-toggle" onclick="gnavToggle('gnav-g2')">
+      <span class="gnav-badge">IF</span>
+      <span class="gnav-module-name">Issues &amp; Findings</span>
+      <svg class="gnav-chevron" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+    <div class="gnav-links">
+      <a class="gnav-link" href="../issues/dashboard.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Dashboard</span><span class="stag">S1</span></span></a>
+      <a class="gnav-link" href="../issues/register.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Issues Register</span><span class="stag">S2</span></span></a>
+      <a class="gnav-link" href="../issues/new.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Raise New Issue</span><span class="stag">S3</span></span></a>
+      <a class="gnav-link" href="../issues/detail.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Detail & Remediation</span><span class="stag">S4</span></span></a>
+      <a class="gnav-link" href="../issues/ageing.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Ageing Report</span><span class="stag">S5</span></span></a>
+      <a class="gnav-link" href="../issues/closure.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Issue Closure</span><span class="stag">S6</span></span></a>
+    </div>
+  </div>
+
+  <!-- ── Risk Quantification ── -->
+  <div class="gnav-section g3" id="gnav-g3">
+    <button class="gnav-toggle" onclick="gnavToggle('gnav-g3')">
+      <span class="gnav-badge">RQ</span>
+      <span class="gnav-module-name">Risk Quantification</span>
+      <svg class="gnav-chevron" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+    <div class="gnav-links">
+      <a class="gnav-link" href="../quantification/dashboard.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Dashboard</span><span class="stag">S1</span></span></a>
+      <a class="gnav-link" href="../quantification/scenarios.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Scenario Builder</span><span class="stag">S2</span></span></a>
+      <a class="gnav-link" href="../quantification/simulate.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Monte Carlo Sim.</span><span class="stag">S3</span></span></a>
+      <a class="gnav-link" href="../quantification/results.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Results & VaR</span><span class="stag">S4</span></span></a>
+      <a class="gnav-link" href="../quantification/icaap.html"><span class="link-inner"><span class="dot"></span><span class="lbl">ICAAP View</span><span class="stag">S5</span></span></a>
+      <a class="gnav-link" href="../quantification/library.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Scenario Library</span><span class="stag">S6</span></span></a>
+      <a class="gnav-link" href="../quantification/reports.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Reports & Export</span><span class="stag">S7</span></span></a>
+      <a class="gnav-link" href="../quantification/settings.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Settings</span><span class="stag">S8</span></span></a>
+    </div>
+  </div>
+
+  <!-- ── Reports ── -->
+  <div class="gnav-section gp" id="gnav-rp">
+    <button class="gnav-toggle" onclick="gnavToggle('gnav-rp')">
+      <span class="gnav-badge">RP</span>
+      <span class="gnav-module-name">Reports</span>
+      <svg class="gnav-chevron" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+    <div class="gnav-links">
+      <a class="gnav-link" href="../reports/executive.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Executive Dashboard</span><span class="stag">S1</span></span></a>
+      <a class="gnav-link" href="../reports/board.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Board Risk Report</span><span class="stag">S2</span></span></a>
+      <a class="gnav-link" href="../reports/regulatory.html"><span class="link-inner"><span class="dot"></span><span class="lbl">CBN Regulatory</span><span class="stag">S3</span></span></a>
+      <a class="gnav-link" href="../reports/custom.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Custom Builder</span><span class="stag">S4</span></span></a>
+    </div>
+  </div>
+
+  <!-- ── Risk Intelligence ── -->
+  <div class="gnav-section gi" id="gnav-ai">
+    <button class="gnav-toggle" onclick="gnavToggle('gnav-ai')">
+      <span class="gnav-badge">AI</span>
+      <span class="gnav-module-name">Risk Intelligence</span>
+      <svg class="gnav-chevron" viewBox="0 0 16 16" fill="currentColor"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+    <div class="gnav-links">
+      <a class="gnav-link" href="../ai-intelligence/radar.html"><span class="link-inner"><span class="dot"></span><span class="lbl">AI Risk Radar</span><span class="stag">S1</span></span></a>
+      <a class="gnav-link" href="../ai-intelligence/predictive.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Predictive Alerts</span><span class="stag">S2</span></span></a>
+      <a class="gnav-link" href="../ai-intelligence/regulatory-pulse.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Regulatory Pulse</span><span class="stag">S3</span></span></a>
+      <a class="gnav-link" href="../ai-intelligence/benchmarking.html"><span class="link-inner"><span class="dot"></span><span class="lbl">Peer Benchmarking</span><span class="stag">S4</span></span></a>
+    </div>
+  </div>
+
+  <div class="gnav-footer">CBN ORMS Compliant &bull; v4.0<br>50 Screens &bull; 10 Modules</div>
+</nav>
+
+<script>
+function gnavToggle(id) {
+  var sec = document.getElementById(id);
+  if (!sec) return;
+  sec.classList.toggle('open');
+}
+(function() {
+  var path = window.location.pathname;
+  var parts = path.split('/').filter(Boolean);
+  var fname = parts[parts.length - 1];
+  var dir   = parts[parts.length - 2] || '';
+  var dirMap = {'ai-intelligence': 'gnav-ai',
+    'analysis': 'gnav-an',
+    'issues': 'gnav-g2',
+    'kri-monitoring': 'gnav-kri',
+    'loss-events': 'gnav-g1',
+    'quantification': 'gnav-g3',
+    'rcsa': 'gnav-rcsa',
+    'reports': 'gnav-rp',
+    'risk-register': 'gnav-rr',
+    'treatment-plans': 'gnav-tp'};
+  var activeSection = dirMap[dir];
+  if (activeSection) {
+    var sec = document.getElementById(activeSection);
+    if (sec) sec.classList.add('open');
+  }
+  document.querySelectorAll('#grc-left-nav .gnav-link').forEach(function(a) {
+    var href = (a.getAttribute('href') || '').split('/').filter(Boolean);
+    if (!href.length) return;
+    var hFile = href[href.length - 1];
+    var hDir  = href[href.length - 2] || '';
+    if (hFile === fname && hDir === dir) a.classList.add('active');
+  });
+})();
+</script>
+
+
+
+
+
+
+!-- Critical Overdue Banner -->
+<div class="w-full bg-error-light border-b border-error/20 px-6 py-3">
+<div class="max-w-7xl mx-auto flex items-center justify-between">
+<div class="flex items-center gap-3 text-error">
+<span class="material-symbols-outlined fill-current">warning</span>
+<p class="text-sm font-bold uppercase tracking-wider">Overdue 84 days — Critical Attention Required</p>
+</div>
+<div class="hidden sm:block">
+<button class="text-xs font-bold text-error underline underline-offset-4 decoration-2">View Escalation History</button>
+</div>
+</div>
+</div>
+<main class="ml-[260px] mt-14 min-h-[calc(100vh-4rem)]"><div class="flex items-center justify-between mb-8 px-2">
+<nav class="flex items-center gap-2 text-sm font-medium text-slate-500">
+<a class="hover:text-[#1A365D]" href="#">Issues &amp; Findings</a>
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+<span class="text-slate-900">ISS-2024-0041</span>
+</nav>
+<div class="flex items-center gap-4">
+<div class="text-right">
+<div class="text-sm font-bold text-slate-900">Chukwuemeka Obi</div>
+<div class="text-[10px] text-slate-500">Operational Risk Manager</div>
+</div>
+<div class="size-10 rounded-full border-2 border-white shadow-sm overflow-hidden">
+<img alt="User" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXBcLRMGkB_AgteGrumP3_zqE0JCB60xMgPV_NxQSjzsB2vcUU7dxBy62tr5oTX-iIczVTWw7R4b2Wa20LBHhCnqG78DCj4VVjs7fX5kz3lKedFD8Q3Pe6DITCkfFbhLOLkESZep4cZXWila0-7v3jds7wzXGf5wvmSw2EybcEk1DZbXnX54FpA1-ELYbnxohGhbzS6oHzE379QrPYfCEWYokGfjSSAvY1usBi5AXJWQvdlCH268VTsVE2Vz_ADr1CPt1OEw7VV3bh"/>
+</div>
+</div>
+</div>
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+<div class="space-y-2">
+<div class="flex items-center gap-3">
+<span class="px-2 py-1 bg-slate-200 text-slate-700 rounded text-xs font-bold tracking-widest uppercase">ISS-2024-0041</span>
+<span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-bold uppercase tracking-widest border border-red-200">High Risk</span>
+<span class="px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs font-bold uppercase tracking-widest border border-amber-200">Open Status</span>
+</div>
+<h2 class="text-3xl font-black text-slate-900 leading-tight">ATM Reconciliation Controls — Daily Variance Not Flagged</h2>
+<div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-500">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-base">person</span> Owner: David Chen</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-base">corporate_fare</span> Dept: Retail Banking Operations</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-base">calendar_today</span> Discovery: Jan 12, 2024</span>
+</div>
+</div>
+<div class="flex gap-3">
+<button class="bg-white border border-slate-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 transition-colors">
+                    Request Extension
+                </button>
+<button class="bg-[#1A365D] text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg shadow-primary/20 hover:bg-[#1A365D]/90 transition-all bg-[#1A365D] hover:bg-[#1A365D]/90">Update Progress</button>
+</div>
+</div>
+<div class="flex flex-col lg:flex-row gap-8">
+<!-- Left Side (65%) -->
+<div class="lg:w-[65%] space-y-6">
+<!-- Tabs Container -->
+<div class="bg-white shadow-sm border border-slate-200 overflow-hidden rounded-lg">
+<div class="border-b border-slate-200 px-6">
+<nav class="flex gap-8">
+<button class="py-4 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">Details</button>
+<button class="py-4 text-sm font-bold text-[#1A365D] border-b-2 border-[#1A365D] text-[#1A365D] border-[#1A365D]">Remediation Plan</button>
+<button class="py-4 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">Progress Updates</button>
+<button class="py-4 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">Evidence (3)</button>
+</nav>
+</div>
+<div class="p-6">
+<!-- Progress Summary -->
+<div class="mb-8 p-6 bg-slate-50 rounded-lg">
+<div class="flex justify-between items-center mb-4">
+<h3 class="text-sm font-bold uppercase tracking-wider text-slate-500">Overall Remediation Progress</h3>
+<span class="text-2xl font-black text-[#1A365D]">25%</span>
+</div>
+<div class="w-full bg-slate-200 h-3 rounded-full overflow-hidden">
+<div class="bg-[#1A365D] h-full rounded-full transition-all duration-500" style="width: 25%; background-color: #1A365D;"></div>
+</div>
+<p class="mt-3 text-sm text-slate-500 italic">Target completion: June 30, 2024 (Projected delay: 45 days)</p>
+</div>
+<!-- Action Table -->
+<div class="overflow-hidden border border-slate-200 rounded-lg">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50">
+<th class="p-4 text-xs font-bold uppercase text-slate-500">Action Item</th>
+<th class="p-4 text-xs font-bold uppercase text-slate-500">Owner</th>
+<th class="p-4 text-xs font-bold uppercase text-slate-500">Due Date</th>
+<th class="p-4 text-xs font-bold uppercase text-slate-500 text-right">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100">
+<tr>
+<td class="p-4">
+<p class="font-semibold text-sm">Update Daily Reconciliation Logic</p>
+<p class="text-xs text-slate-500">Patch SQL scripts for variance flagging</p>
+</td>
+<td class="p-4 text-sm">Engineering</td>
+<td class="p-4 text-sm">Feb 15, 2024</td>
+<td class="p-4 text-right">
+<span class="inline-flex items-center gap-1 text-[#2D7D46] font-bold text-xs uppercase">
+<span class="material-symbols-outlined text-sm">check_circle</span> Complete
+                                            </span>
+</td>
+</tr>
+<tr class="bg-slate-50/30">
+<td class="p-4">
+<p class="font-semibold text-sm">UAT Environment Testing</p>
+<p class="text-xs text-slate-500">Verify logic across 400 sample ATMs</p>
+</td>
+<td class="p-4 text-sm">QA Team</td>
+<td class="p-4 text-sm text-error font-bold">Mar 10, 2024</td>
+<td class="p-4 text-right">
+<span class="inline-flex items-center gap-1 text-error font-bold text-xs uppercase">
+<span class="material-symbols-outlined text-sm">pending</span> Overdue
+                                            </span>
+</td>
+</tr>
+<tr>
+<td class="p-4">
+<p class="font-semibold text-sm">Regional Manager Training</p>
+<p class="text-xs text-slate-500">Webinar on new reporting dashboard</p>
+</td>
+<td class="p-4 text-sm">L&amp;D</td>
+<td class="p-4 text-sm">Apr 05, 2024</td>
+<td class="p-4 text-right">
+<span class="inline-flex items-center gap-1 text-slate-400 font-bold text-xs uppercase">
+<span class="material-symbols-outlined text-sm">schedule</span> Pending
+                                            </span>
+</td>
+</tr>
+<tr class="bg-slate-50/30">
+<td class="p-4">
+<p class="font-semibold text-sm">Internal Audit Sign-off</p>
+<p class="text-xs text-slate-500">Final review and closure</p>
+</td>
+<td class="p-4 text-sm">Audit Dept</td>
+<td class="p-4 text-sm">May 15, 2024</td>
+<td class="p-4 text-right">
+<span class="inline-flex items-center gap-1 text-slate-400 font-bold text-xs uppercase">
+<span class="material-symbols-outlined text-sm">lock</span> Blocked
+                                            </span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- Progress Updates Timeline -->
+<div class="bg-white shadow-sm border border-slate-200 p-6 rounded-lg">
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-lg font-bold text-slate-900">Recent Activity</h3>
+<button class="text-sm font-bold text-[#1A365D] flex items-center gap-1">
+<span class="material-symbols-outlined text-lg">add</span> Add Update
+                        </button>
+</div>
+<div class="space-y-8 relative before:absolute before:inset-0 before:ml-4 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-slate-200 before:via-slate-200 before:to-transparent">
+<!-- Item 1 -->
+<div class="relative flex items-start gap-6">
+<div class="absolute left-0 size-8 rounded-full bg-white border-2 border-[#1A365D] flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-[#1A365D] text-sm">chat</span>
+</div>
+<div class="ml-10">
+<div class="flex items-center gap-2 mb-1">
+<span class="font-bold text-sm">David Chen</span>
+<span class="text-xs text-slate-400">2 days ago</span>
+</div>
+<p class="text-sm text-slate-600">UAT testing delayed due to logic errors found in Region 4 data set. Engineering is reviewing the SQL patch.</p>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="relative flex items-start gap-6">
+<div class="absolute left-0 size-8 rounded-full bg-white border-2 border-[#2D7D46] flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-[#2D7D46] text-sm">attachment</span>
+</div>
+<div class="ml-10">
+<div class="flex items-center gap-2 mb-1">
+<span class="font-bold text-sm">System Automated</span>
+<span class="text-xs text-slate-400">12 days ago</span>
+</div>
+<p class="text-sm text-slate-600">New Evidence Uploaded: <a class="text-[#1A365D] font-medium hover:underline" href="#">Rec_Logic_V2_Draft.pdf</a></p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Side (35%) -->
+<div class="lg:w-[35%] space-y-6">
+<!-- Issue Lifecycle -->
+<div class="bg-white shadow-sm border border-slate-200 p-6 rounded-lg">
+<h3 class="text-sm font-bold uppercase tracking-wider text-slate-500 mb-6">Issue Lifecycle</h3>
+<div class="space-y-4">
+<div class="flex items-center gap-3">
+<div class="size-6 rounded-full bg-[#2D7D46] text-white flex items-center justify-center">
+<span class="material-symbols-outlined text-xs">check</span>
+</div>
+<span class="text-sm font-bold text-slate-900">Identified</span>
+<span class="ml-auto text-xs text-slate-400">Jan 12</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="size-6 rounded-full bg-[#2D7D46] text-white flex items-center justify-center">
+<span class="material-symbols-outlined text-xs">check</span>
+</div>
+<span class="text-sm font-bold text-slate-900">Risk Evaluated</span>
+<span class="ml-auto text-xs text-slate-400">Jan 15</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="size-6 rounded-full bg-[#1A365D] text-white flex items-center justify-center border-4 border-[#1A365D]/20">
+<span class="material-symbols-outlined text-xs">edit_note</span>
+</div>
+<span class="text-sm font-bold text-slate-900">Remediation</span>
+<span class="ml-auto text-xs font-bold text-[#1A365D]">Active</span>
+</div>
+<div class="flex items-center gap-3 opacity-40">
+<div class="size-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center">
+<span class="material-symbols-outlined text-xs">verified</span>
+</div>
+<span class="text-sm font-medium">Verification</span>
+</div>
+<div class="flex items-center gap-3 opacity-40">
+<div class="size-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center">
+<span class="material-symbols-outlined text-xs">task_alt</span>
+</div>
+<span class="text-sm font-medium">Closed</span>
+</div>
+</div>
+</div>
+<!-- Escalation History -->
+<div class="bg-white shadow-sm border border-slate-200 p-6 rounded-lg">
+<h3 class="text-sm font-bold uppercase tracking-wider text-slate-500 mb-6">Escalation History</h3>
+<div class="space-y-4">
+<div class="p-3 bg-red-50 rounded-lg border border-red-100">
+<div class="flex justify-between items-center mb-1">
+<span class="text-xs font-black text-error uppercase">Day 84 (Critical)</span>
+<span class="text-[10px] text-slate-500">Today</span>
+</div>
+<p class="text-xs font-semibold text-slate-700">Escalated to Executive Compliance Committee</p>
+</div>
+<div class="p-3 bg-amber-50 rounded-lg border border-amber-100">
+<div class="flex justify-between items-center mb-1">
+<span class="text-xs font-black text-amber-700 uppercase">Day 30 (L3)</span>
+<span class="text-[10px] text-slate-500">Feb 11</span>
+</div>
+<p class="text-xs font-semibold text-slate-700">Escalated to Regional Head of Operations</p>
+</div>
+<div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+<div class="flex justify-between items-center mb-1">
+<span class="text-xs font-black text-slate-500 uppercase">Day 7 (L1)</span>
+<span class="text-[10px] text-slate-500">Jan 19</span>
+</div>
+<p class="text-xs font-semibold text-slate-700">Auto-notification to Dept. Manager</p>
+</div>
+</div>
+</div>
+<!-- Linked Items & Quick Actions -->
+<div class="bg-white shadow-sm border border-slate-200 overflow-hidden rounded-lg">
+<div class="p-6 border-b border-slate-200">
+<h3 class="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4">Linked Risk Items</h3>
+<a class="flex items-center justify-between p-3 border border-[#1A365D]/20 bg-[#1A365D]/5 rounded-lg hover:bg-[#1A365D]/10 transition-colors" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#1A365D]">link</span>
+<div>
+<p class="text-sm font-bold text-[#1A365D]">RR-2024-067</p>
+<p class="text-[11px] text-slate-500">Corporate Risk Register Entry</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-[#1A365D] text-sm">open_in_new</span>
+</a>
+</div>
+<div class="p-4 grid grid-cols-1 gap-2">
+<button class="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100:bg-slate-800 rounded-lg transition-colors">
+<span>Assign Stakeholders</span>
+<span class="material-symbols-outlined text-lg">group_add</span>
+</button>
+<button class="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100:bg-slate-800 rounded-lg transition-colors">
+<span>Export Issue Report (PDF)</span>
+<span class="material-symbols-outlined text-lg">download</span>
+</button>
+<button class="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-error hover:bg-error-light:bg-red-900/20 rounded-lg transition-colors">
+<span>Transfer Ownership</span>
+<span class="material-symbols-outlined text-lg">move_item</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Information -->
+
+<footer class="ml-[260px] bg-white border-t border-gray-200 py-3 px-6">
+        <div class="flex items-center justify-between text-[11px] text-gray-400">
+            <span>GRC Risk Management Platform v2.0 &copy; 2025</span>
+            <span>CBN ORMS Compliant &middot; Basel III Aligned &middot; NDPA Certified</span>
+        </div>
+    </footer>
+
+    <script>
+        function toggleNav(id) {
+            const nav = document.getElementById('nav_' + id);
+            const chevron = document.getElementById('chevron_' + id);
+            if (nav && chevron) {
+                nav.classList.toggle('hidden');
+                chevron.classList.toggle('rotate-180');
+            }
+        }
+    </script>
+</body></html>

@@ -1,0 +1,107 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
+
+class Control extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected $fillable = [
+        'organization_id',
+        'control_code',
+        'name',
+        'description',
+        'control_type',
+        'control_nature',
+        'frequency',
+        'automation_level',
+        'owner_id',
+        'business_unit_id',
+        'effectiveness_rating',
+        'effectiveness_pct',
+        'last_test_date',
+        'next_test_due',
+        'status',
+        'metadata',
+        'created_by',
+    ];
+
+    protected $casts = [
+        'metadata'          => 'array',
+        'effectiveness_pct' => 'decimal:2',
+        'last_test_date'    => 'date',
+        'next_test_due'     => 'date',
+    ];
+
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::creating(function (self $model) {
+            if (empty($model->uuid)) {
+                $model->uuid = (string) Str::uuid();
+            }
+        });
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Relationships                                                      */
+    /* ------------------------------------------------------------------ */
+
+    public function organization()
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function entity()
+    {
+        return $this->belongsTo(Entity::class);
+    }
+
+    public function owner()
+    {
+        return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    public function businessUnit()
+    {
+        return $this->belongsTo(BusinessUnit::class);
+    }
+
+    public function risks()
+    {
+        return $this->belongsToMany(Risk::class, 'risk_control_mapping')
+            ->withPivot('control_weight', 'is_key_control', 'mapping_rationale')
+            ->withTimestamps();
+    }
+
+    public function riskMappings()
+    {
+        return $this->risks();
+    }
+
+    public function controlOwner()
+    {
+        return $this->owner();
+    }
+
+    public function nearMisses()
+    {
+        return $this->hasMany(NearMiss::class, 'linked_control_id');
+    }
+
+    public function lossEventControls()
+    {
+        return $this->hasMany(LossEventControl::class);
+    }
+
+    public function failedInEvents()
+    {
+        return $this->hasManyThrough(LossEvent::class, LossEventControl::class, 'control_id', 'id', 'id', 'loss_event_id');
+    }
+}

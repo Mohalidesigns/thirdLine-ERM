@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create New Risk - GRC Risk Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                    colors: {
+                        primary: '#1A365D',
+                        secondary: '#2D7D46',
+                        accent: '#D4AF37',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; background: #F7FAFC; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E0; border-radius: 3px; }
+        .risk-critical { background: #FED7D7; color: #C53030; }
+        .risk-high { background: #FEEBC8; color: #DD6B20; }
+        .risk-medium { background: #FEFCBF; color: #B7791F; }
+        .risk-low { background: #C6F6D5; color: #2F855A; }
+        .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+        .trend-up { color: #C53030; }
+        .trend-down { color: #2D7D46; }
+        .trend-flat { color: #718096; }
+        .kpi-card { background: white; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #E2E8F0; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th { background: #F7FAFC; padding: 10px 12px; text-align: left; font-size: 0.75rem; font-weight: 600; color: #4A5568; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #E2E8F0; }
+        .data-table td { padding: 10px 12px; font-size: 0.8125rem; color: #2D3748; border-bottom: 1px solid #EDF2F7; }
+        .data-table tr:hover { background: #F7FAFC; }
+        .tab-active { border-bottom: 2px solid #1A365D; color: #1A365D; font-weight: 600; }
+        .tab-inactive { border-bottom: 2px solid transparent; color: #718096; }
+    </style>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                colors: {
+                    primary: '#1A365D',
+                    secondary: '#2D7D46',
+                    accent: '#D4AF37',
+                }
+            }
+        }
+    }
+</script>
+</head>
+<body class="bg-[#F7FAFC] min-h-screen">
+<aside id="sidebar" class="fixed left-0 top-0 h-screen w-[260px] bg-[#1A365D] text-white overflow-y-auto z-50 flex flex-col" style="scrollbar-width:thin;scrollbar-color:#2D4A7A #1A365D">
+    <!-- Brand -->
+    <div class="px-5 pt-5 pb-3 border-b border-white/10">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span class="material-symbols-outlined text-[#D4AF37] text-xl">shield</span>
+            </div>
+            <div>
+                <div class="text-[13px] font-bold text-white leading-tight">GRC Risk Management</div>
+                <div class="text-[10px] text-white/50 font-medium">Enterprise Risk Platform</div>
+            </div>
+        </div>
+    </div>
+
+    <nav class="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
+        <!-- Command Centre -->
+        <a href="dashboard.html" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-white/70 hover:text-white hover:bg-white/8 transition-all text-[13px] mb-2">
+            <span class="material-symbols-outlined text-[18px]">home</span>
+            <span>Command Centre</span>
+        </a>
+
+        <div class="h-px bg-white/10 mx-1 mb-2"></div>
+
+        <!-- Risk Register -->
+        <div class="nav-group">
+            <button onclick="toggleNav('risk_register')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium bg-white/12 text-white transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-[#D4AF37]">assessment</span>
+                    <span>Risk Register</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 rotate-180 text-white/40" id="chevron_risk_register">expand_more</span>
+            </button>
+            <div id="nav_risk_register" class="block mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Dashboard</a>
+                <a href="register.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Register</a>
+                <a href="new.html" class="block px-3 py-1.5 rounded-md text-[12px] font-semibold bg-[#D4AF37] text-[#1A365D] transition-all">Create New Risk</a>
+                <a href="detail.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Detail</a>
+            </div>
+        </div>
+
+        <!-- KRI Monitoring -->
+        <div class="nav-group">
+            <button onclick="toggleNav('kri_monitoring')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">speed</span>
+                    <span>KRI Monitoring</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_kri_monitoring">expand_more</span>
+            </button>
+            <div id="nav_kri_monitoring" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../kri-monitoring/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">KRI Dashboard</a>
+                <a href="../kri-monitoring/library.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">KRI Library</a>
+                <a href="../kri-monitoring/thresholds.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Thresholds</a>
+                <a href="../kri-monitoring/breaches.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Breach Alerts</a>
+            </div>
+        </div>
+
+        <!-- RCSA -->
+        <div class="nav-group">
+            <button onclick="toggleNav('rcsa')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">fact_check</span>
+                    <span>RCSA</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_rcsa">expand_more</span>
+            </button>
+            <div id="nav_rcsa" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../rcsa/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">RCSA Dashboard</a>
+                <a href="../rcsa/worksheet.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Assessment Worksheet</a>
+                <a href="../rcsa/matrix.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Matrix</a>
+                <a href="../rcsa/controls.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Control Assessment</a>
+            </div>
+        </div>
+
+        <!-- Treatment Plans -->
+        <div class="nav-group">
+            <button onclick="toggleNav('treatment_plans')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">healing</span>
+                    <span>Treatment Plans</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_treatment_plans">expand_more</span>
+            </button>
+            <div id="nav_treatment_plans" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../treatment-plans/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Plans Dashboard</a>
+                <a href="../treatment-plans/active.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Active Plans</a>
+                <a href="../treatment-plans/new.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Create Plan</a>
+                <a href="../treatment-plans/review.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Plan Review</a>
+            </div>
+        </div>
+
+        <!-- Risk Analysis -->
+        <div class="nav-group">
+            <button onclick="toggleNav('analysis')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">analytics</span>
+                    <span>Risk Analysis</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_analysis">expand_more</span>
+            </button>
+            <div id="nav_analysis" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../analysis/heatmap.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Heatmap</a>
+                <a href="../analysis/trends.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Trend Analysis</a>
+                <a href="../analysis/correlation.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Correlation</a>
+                <a href="../analysis/bowtie.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Bow-Tie Analysis</a>
+            </div>
+        </div>
+
+        <!-- Loss Events -->
+        <div class="nav-group">
+            <button onclick="toggleNav('loss_events')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">report_problem</span>
+                    <span>Loss Events</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_loss_events">expand_more</span>
+            </button>
+            <div id="nav_loss_events" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../loss-events/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Events Dashboard</a>
+                <a href="../loss-events/register.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Event Register</a>
+                <a href="../loss-events/new-step-1.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Log New Event</a>
+                <a href="../loss-events/near-misses.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Near Misses</a>
+                <a href="../loss-events/rca.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Root Cause Analysis</a>
+                <a href="../loss-events/approvals.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Approvals</a>
+                <a href="../loss-events/reports.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">CBN Reports</a>
+            </div>
+        </div>
+
+        <!-- Issues & Findings -->
+        <div class="nav-group">
+            <button onclick="toggleNav('issues')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">bug_report</span>
+                    <span>Issues &amp; Findings</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_issues">expand_more</span>
+            </button>
+            <div id="nav_issues" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../issues/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Issues Dashboard</a>
+                <a href="../issues/register.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Issues Register</a>
+                <a href="../issues/new.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Log New Issue</a>
+                <a href="../issues/detail.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Issue Detail</a>
+                <a href="../issues/ageing.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Ageing Report</a>
+                <a href="../issues/closure.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Closure Verification</a>
+            </div>
+        </div>
+
+        <!-- Risk Quantification -->
+        <div class="nav-group">
+            <button onclick="toggleNav('quantification')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">calculate</span>
+                    <span>Risk Quantification</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_quantification">expand_more</span>
+            </button>
+            <div id="nav_quantification" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../quantification/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Quant Dashboard</a>
+                <a href="../quantification/library.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Model Library</a>
+                <a href="../quantification/scenarios.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Scenario Analysis</a>
+                <a href="../quantification/simulate.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Run Simulation</a>
+                <a href="../quantification/results.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Results</a>
+                <a href="../quantification/icaap.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">ICAAP Integration</a>
+                <a href="../quantification/settings.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Settings</a>
+                <a href="../quantification/reports.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Quant Reports</a>
+            </div>
+        </div>
+
+        <!-- Reports -->
+        <div class="nav-group">
+            <button onclick="toggleNav('reports')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">summarize</span>
+                    <span>Reports</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_reports">expand_more</span>
+            </button>
+            <div id="nav_reports" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../reports/executive.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Executive Summary</a>
+                <a href="../reports/board.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Board Report</a>
+                <a href="../reports/regulatory.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Regulatory Report</a>
+                <a href="../reports/custom.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Custom Reports</a>
+            </div>
+        </div>
+
+        <!-- AI Risk Intelligence -->
+        <div class="nav-group">
+            <button onclick="toggleNav('ai_intelligence')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">psychology</span>
+                    <span>AI Risk Intelligence</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_ai_intelligence">expand_more</span>
+            </button>
+            <div id="nav_ai_intelligence" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../ai-intelligence/radar.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">AI Risk Radar</a>
+                <a href="../ai-intelligence/predictive.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Predictive Alerts</a>
+                <a href="../ai-intelligence/regulatory-pulse.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Regulatory Pulse</a>
+                <a href="../ai-intelligence/benchmarking.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Peer Benchmarking</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Footer -->
+    <div class="px-4 py-3 border-t border-white/10 mt-auto">
+        <div class="flex items-center gap-2 text-[10px] text-white/30">
+            <span class="material-symbols-outlined text-[14px]">verified</span>
+            <span>CBN ORMS Compliant</span>
+        </div>
+    </div>
+</aside>
+<header class="fixed top-0 left-[260px] right-0 h-14 bg-white border-b border-gray-200 z-40 flex items-center justify-between px-6">
+        <div class="flex items-center gap-2 text-sm">
+            <span class="text-gray-400 text-xs">Risk Management</span>
+            <span class="text-gray-300">/</span>
+            <span class="text-gray-400 text-xs">Risk Register</span>
+            <span class="text-gray-300">/</span>
+            <span class="text-[#1A365D] font-semibold text-xs">Create New Risk</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <button class="p-1.5 rounded-lg hover:bg-gray-100 relative">
+                <span class="material-symbols-outlined text-gray-500 text-xl">notifications</span>
+                <span class="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+            </button>
+            <button class="p-1.5 rounded-lg hover:bg-gray-100">
+                <span class="material-symbols-outlined text-gray-500 text-xl">settings</span>
+            </button>
+            <div class="h-6 w-px bg-gray-200"></div>
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-[#1A365D] rounded-full flex items-center justify-center text-white text-[11px] font-bold">MA</div>
+                <div class="hidden md:block">
+                    <div class="text-[12px] font-semibold text-gray-700 leading-tight">Mohammed Ali</div>
+                    <div class="text-[10px] text-gray-400">Risk Analyst</div>
+                </div>
+                <span class="material-symbols-outlined text-gray-400 text-[16px]">expand_more</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Header -->
+    
+
+    
+
+    <!-- Main Content -->
+    <main class="ml-[260px] mt-14 min-h-[calc(100vh-4rem)]">
+        <!-- Breadcrumb -->
+        <div class="px-6 py-3 bg-white border-b border-gray-100">
+            <div class="flex items-center gap-2 text-xs text-gray-500">
+                <a href="dashboard.html" class="hover:text-[#1A365D]">Home</a>
+                <span class="text-gray-400">/</span> <a href="register.html" class="hover:text-[#1A365D]">Risk Register</a> <span class="text-gray-400">/</span> <a href="new.html" class="hover:text-[#1A365D]">Create New Risk</a> 
+            </div>
+        </div>
+        
+        <!-- Page Content -->
+        <div class="p-6">
+            
+    <!-- Page Header -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-[#1A365D]">Create New Risk</h1>
+        <p class="text-sm text-gray-500 mt-1">4-Step Wizard for Risk Identification & Assessment</p>
+    </div>
+
+    <!-- Step Indicator -->
+    <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between">
+            <div class="flex-1">
+                <div class="flex items-center">
+                    <div class="flex items-center flex-1">
+                        <div class="step-circle active" data-step="1">
+                            <span>1</span>
+                        </div>
+                        <div class="step-line active"></div>
+                        <div class="step-circle" data-step="2">
+                            <span>2</span>
+                        </div>
+                        <div class="step-line"></div>
+                        <div class="step-circle" data-step="3">
+                            <span>3</span>
+                        </div>
+                        <div class="step-line"></div>
+                        <div class="step-circle" data-step="4">
+                            <span>4</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-12 mt-4 text-xs">
+            <div class="flex-1">
+                <p class="font-semibold text-[#1A365D]">Step 1: Identification</p>
+            </div>
+            <div class="flex-1">
+                <p class="font-semibold text-gray-400">Step 2: Classification</p>
+            </div>
+            <div class="flex-1">
+                <p class="font-semibold text-gray-400">Step 3: Assessment</p>
+            </div>
+            <div class="flex-1">
+                <p class="font-semibold text-gray-400">Step 4: Treatment</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 1: Identification -->
+    <div id="step-1" class="step-content">
+        <div class="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-[#1A365D] mb-6">Step 1: Risk Identification</h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Risk ID -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Risk ID (Auto-Generated)</label>
+                    <input type="text" value="RSK-2025-047" disabled class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600" />
+                    <p class="text-xs text-gray-500 mt-1">Automatically assigned</p>
+                </div>
+
+                <!-- Risk Name -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Risk Name <span class="text-red-500">*</span></label>
+                    <input type="text" placeholder="e.g. Credit Concentration Risk - Oil & Gas" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D] focus:border-transparent" />
+                </div>
+
+                <!-- Risk Statement (Cause-Event-Effect) -->
+                <div class="lg:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Risk Statement (Cause-Event-Effect) <span class="text-red-500">*</span></label>
+                    <textarea placeholder="Cause: [What causes the risk]&#10;Event: [What could happen]&#10;Effect: [What is the impact]" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D] focus:border-transparent font-mono text-xs"></textarea>
+                </div>
+
+                <!-- Category -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Risk Category <span class="text-red-500">*</span></label>
+                    <select class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D] focus:border-transparent">
+                        <option value="">Select Category</option>
+                        <option value="credit">Credit Risk</option>
+                        <option value="operational">Operational Risk</option>
+                        <option value="market">Market Risk</option>
+                        <option value="compliance">Compliance Risk</option>
+                        <option value="technology">Technology Risk</option>
+                        <option value="people">People Risk</option>
+                    </select>
+                </div>
+
+                <!-- Subcategory -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Subcategory <span class="text-red-500">*</span></label>
+                    <input type="text" placeholder="e.g. Sector Concentration" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D] focus:border-transparent" />
+                </div>
+
+                <!-- Description -->
+                <div class="lg:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Description <span class="text-red-500">*</span></label>
+                    <textarea placeholder="Detailed description of the risk..." rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D] focus:border-transparent"></textarea>
+                </div>
+
+                <!-- Risk Owner -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Risk Owner <span class="text-red-500">*</span></label>
+                    <select class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D] focus:border-transparent">
+                        <option value="">Select Owner</option>
+                        <option value="oluwaseun">Oluwaseun Adeyemi (Chief Credit Officer)</option>
+                        <option value="chidinma">Chidinma Okonkwo (CTO)</option>
+                        <option value="ibrahim">Ibrahim Musa (Treasurer)</option>
+                        <option value="amina">Amina Bello (Compliance Officer)</option>
+                        <option value="emeka">Emeka Ibe (Operations Head)</option>
+                        <option value="joy">Joy Okafor (AML Officer)</option>
+                        <option value="folake">Folake Ogundimu (Risk Manager)</option>
+                    </select>
+                </div>
+
+                <!-- Business Unit -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Business Unit <span class="text-red-500">*</span></label>
+                    <select class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D] focus:border-transparent">
+                        <option value="">Select Unit</option>
+                        <option value="credit">Credit Risk Management</option>
+                        <option value="treasury">Treasury & Markets</option>
+                        <option value="operations">Operations</option>
+                        <option value="compliance">Compliance & AML</option>
+                        <option value="technology">Technology & Infrastructure</option>
+                    </select>
+                </div>
+
+                <!-- Date Identified -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Date Identified <span class="text-red-500">*</span></label>
+                    <input type="date" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D] focus:border-transparent" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Classification -->
+    <div id="step-2" class="step-content hidden">
+        <div class="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-[#1A365D] mb-6">Step 2: Risk Classification</h2>
+            
+            <!-- Visual Category Cards -->
+            <div class="mb-8">
+                <label class="block text-sm font-medium text-gray-700 mb-4">Select Risk Category (Visual)</label>
+                <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="category-card p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-[#1A365D] text-center" data-category="credit">
+                        <div class="text-3xl mb-2">💳</div>
+                        <p class="font-semibold text-sm">Credit Risk</p>
+                    </div>
+                    <div class="category-card p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-[#1A365D] text-center" data-category="operational">
+                        <div class="text-3xl mb-2">⚙️</div>
+                        <p class="font-semibold text-sm">Operational</p>
+                    </div>
+                    <div class="category-card p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-[#1A365D] text-center" data-category="market">
+                        <div class="text-3xl mb-2">📈</div>
+                        <p class="font-semibold text-sm">Market Risk</p>
+                    </div>
+                    <div class="category-card p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-[#1A365D] text-center" data-category="compliance">
+                        <div class="text-3xl mb-2">⚖️</div>
+                        <p class="font-semibold text-sm">Compliance</p>
+                    </div>
+                    <div class="category-card p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-[#1A365D] text-center" data-category="technology">
+                        <div class="text-3xl mb-2">🔐</div>
+                        <p class="font-semibold text-sm">Technology</p>
+                    </div>
+                    <div class="category-card p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-[#1A365D] text-center" data-category="people">
+                        <div class="text-3xl mb-2">👥</div>
+                        <p class="font-semibold text-sm">People Risk</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Basel II Event Type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Basel II Event Type</label>
+                    <select class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D] focus:border-transparent">
+                        <option value="">Select Event Type</option>
+                        <option value="irr">Interest Rate Risk (IRR)</option>
+                        <option value="crr">Credit Risk (CRR)</option>
+                        <option value="mrr">Market Risk (MRR)</option>
+                        <option value="or">Operational Risk (OR)</option>
+                    </select>
+                </div>
+
+                <!-- Regulatory Alignment -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Regulatory Alignment</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" class="rounded" /> <span class="text-sm">CBN ORMS</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" class="rounded" /> <span class="text-sm">Basel III</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" class="rounded" /> <span class="text-sm">NDPA</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" class="rounded" /> <span class="text-sm">NFIU</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Risk Appetite Category -->
+                <div class="lg:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Risk Appetite Category</label>
+                    <select class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D] focus:border-transparent">
+                        <option value="">Select Appetite Level</option>
+                        <option value="minimal">Minimal - Near zero tolerance</option>
+                        <option value="conservative">Conservative - Tightly controlled</option>
+                        <option value="moderate">Moderate - Balanced approach</option>
+                        <option value="growth">Growth - Calculated risks</option>
+                        <option value="aggressive">Aggressive - Higher risk tolerance</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Assessment -->
+    <div id="step-3" class="step-content hidden">
+        <div class="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-[#1A365D] mb-6">Step 3: Risk Assessment (5x5 Matrix)</h2>
+            
+            <!-- Likelihood Scale -->
+            <div class="mb-8">
+                <label class="block text-sm font-medium text-gray-700 mb-4">Likelihood (Select 1-5)</label>
+                <div class="flex gap-4 items-center">
+                    <div class="flex gap-2">
+                        <button class="likelihood-btn px-4 py-2 border-2 border-gray-300 rounded-lg hover:border-[#1A365D]" data-score="1">1: Rare</button>
+                        <button class="likelihood-btn px-4 py-2 border-2 border-gray-300 rounded-lg hover:border-[#1A365D]" data-score="2">2: Unlikely</button>
+                        <button class="likelihood-btn px-4 py-2 border-2 border-gray-300 rounded-lg hover:border-[#1A365D]" data-score="3">3: Possible</button>
+                        <button class="likelihood-btn px-4 py-2 border-2 border-gray-300 rounded-lg hover:border-[#1A365D]" data-score="4">4: Likely</button>
+                        <button class="likelihood-btn px-4 py-2 border-2 border-gray-300 rounded-lg hover:border-[#1A365D]" data-score="5">5: Almost Certain</button>
+                    </div>
+                    <span id="likelihood-selected" class="text-sm font-semibold text-gray-600 min-w-32">None selected</span>
+                </div>
+            </div>
+
+            <!-- Impact Scale -->
+            <div class="mb-8">
+                <label class="block text-sm font-medium text-gray-700 mb-4">Impact (Select 1-5) - Nigerian Context</label>
+                <div class="grid gap-2">
+                    <button class="impact-btn text-left p-3 border-2 border-gray-300 rounded-lg hover:border-[#1A365D]" data-score="1">
+                        <span class="font-semibold">1: Insignificant</span>
+                        <span class="text-xs text-gray-600">&lt;₦10M loss</span>
+                    </button>
+                    <button class="impact-btn text-left p-3 border-2 border-gray-300 rounded-lg hover:border-[#1A365D]" data-score="2">
+                        <span class="font-semibold">2: Minor</span>
+                        <span class="text-xs text-gray-600">₦10M - ₦50M loss</span>
+                    </button>
+                    <button class="impact-btn text-left p-3 border-2 border-gray-300 rounded-lg hover:border-[#1A365D]" data-score="3">
+                        <span class="font-semibold">3: Moderate</span>
+                        <span class="text-xs text-gray-600">₦50M - ₦300M loss</span>
+                    </button>
+                    <button class="impact-btn text-left p-3 border-2 border-gray-300 rounded-lg hover:border-[#1A365D]" data-score="4">
+                        <span class="font-semibold">4: Major</span>
+                        <span class="text-xs text-gray-600">₦300M - ₦1B loss</span>
+                    </button>
+                    <button class="impact-btn text-left p-3 border-2 border-gray-300 rounded-lg hover:border-[#1A365D]" data-score="5">
+                        <span class="font-semibold">5: Catastrophic</span>
+                        <span class="text-xs text-gray-600">&gt;₦5B loss</span>
+                    </button>
+                </div>
+                <span id="impact-selected" class="text-sm font-semibold text-gray-600 block mt-2">None selected</span>
+            </div>
+
+            <!-- Multi-Dimension Impact -->
+            <div class="mb-8">
+                <label class="block text-sm font-medium text-gray-700 mb-4">Multi-Dimension Impact Assessment</label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-700 mb-2">Financial Impact</p>
+                        <input type="range" min="0" max="100" value="0" class="w-full" /> 
+                        <p class="text-xs text-gray-500 mt-1">Direct financial loss</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-semibold text-gray-700 mb-2">Operational Impact</p>
+                        <input type="range" min="0" max="100" value="0" class="w-full" />
+                        <p class="text-xs text-gray-500 mt-1">Business continuity disruption</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-semibold text-gray-700 mb-2">Regulatory Impact</p>
+                        <input type="range" min="0" max="100" value="0" class="w-full" />
+                        <p class="text-xs text-gray-500 mt-1">CBN penalties & sanctions</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-semibold text-gray-700 mb-2">Reputational Impact</p>
+                        <input type="range" min="0" max="100" value="0" class="w-full" />
+                        <p class="text-xs text-gray-500 mt-1">Brand & customer trust</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inherent Risk Score -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p class="text-sm text-gray-600">Inherent Risk Score (Auto-Calculated)</p>
+                <div class="flex items-baseline gap-2">
+                    <span class="text-3xl font-bold text-[#1A365D]" id="inherent-score">0</span>
+                    <span class="text-sm text-gray-600">/25 (Likelihood × Impact)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 4: Treatment -->
+    <div id="step-4" class="step-content hidden">
+        <div class="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-[#1A365D] mb-6">Step 4: Treatment Strategy</h2>
+            
+            <!-- Treatment Strategy Cards -->
+            <div class="mb-8">
+                <label class="block text-sm font-medium text-gray-700 mb-4">Select Treatment Strategy</label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="treatment-card p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-[#1A365D]" data-strategy="mitigate">
+                        <div class="text-2xl mb-2">🛡️</div>
+                        <p class="font-semibold text-sm">Mitigate</p>
+                        <p class="text-xs text-gray-600 mt-1">Reduce likelihood or impact</p>
+                    </div>
+                    <div class="treatment-card p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-[#1A365D]" data-strategy="accept">
+                        <div class="text-2xl mb-2">✅</div>
+                        <p class="font-semibold text-sm">Accept</p>
+                        <p class="text-xs text-gray-600 mt-1">Accept within appetite</p>
+                    </div>
+                    <div class="treatment-card p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-[#1A365D]" data-strategy="transfer">
+                        <div class="text-2xl mb-2">🔄</div>
+                        <p class="font-semibold text-sm">Transfer</p>
+                        <p class="text-xs text-gray-600 mt-1">Insurance or outsourcing</p>
+                    </div>
+                    <div class="treatment-card p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-[#1A365D]" data-strategy="avoid">
+                        <div class="text-2xl mb-2">⛔</div>
+                        <p class="font-semibold text-sm">Avoid</p>
+                        <p class="text-xs text-gray-600 mt-1">Exit the risk activity</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Items -->
+            <div class="mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Action Items</label>
+                    <button class="text-xs text-[#1A365D] font-medium hover:underline" onclick="addActionItem()">+ Add Action</button>
+                </div>
+                <div id="actions-list" class="space-y-3">
+                    <div class="flex gap-2">
+                        <input type="text" placeholder="Action description" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                        <input type="text" placeholder="Owner" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                        <input type="date" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                        <button class="text-red-500 hover:text-red-700">✕</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cost & Target -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Cost Estimate (₦)</label>
+                    <input type="number" placeholder="e.g. 50000000" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D] focus:border-transparent" />
+                    <p class="text-xs text-gray-500 mt-1">Treatment implementation cost</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Target Residual Score</label>
+                    <input type="number" placeholder="e.g. 12" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D] focus:border-transparent" />
+                    <p class="text-xs text-gray-500 mt-1">Expected score after treatment</p>
+                </div>
+            </div>
+
+            <!-- Approval Chain Preview -->
+            <div class="bg-gray-50 rounded-lg p-4">
+                <p class="text-sm font-semibold text-gray-700 mb-3">Approval Chain Preview</p>
+                <div class="space-y-2 text-xs">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold">OA</div>
+                        <span>Oluwaseun Adeyemi</span>
+                        <span class="text-gray-500">(Risk Owner - Pending)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-[10px] font-bold">CRM</div>
+                        <span>Chief Risk Manager</span>
+                        <span class="text-gray-500">(Pending)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-[10px] font-bold">RSC</div>
+                        <span>Risk Steering Committee</span>
+                        <span class="text-gray-500">(Pending)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Buttons -->
+    <div class="flex justify-between gap-4 mt-8">
+        <button id="back-btn" class="px-6 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50" onclick="previousStep()">Back</button>
+        <div class="flex gap-2">
+            <button class="px-6 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Save Draft</button>
+            <button id="next-btn" class="px-6 py-2 bg-[#1A365D] text-white rounded-lg text-sm font-medium hover:bg-[#2D4A7A]" onclick="nextStep()">Next</button>
+        </div>
+    </div>
+
+    <style>
+        .step-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            border: 2px solid #E2E8F0;
+            background: white;
+            color: #718096;
+            position: relative;
+            flex-shrink: 0;
+        }
+        .step-circle.active {
+            background: #1A365D;
+            color: white;
+            border-color: #1A365D;
+        }
+        .step-line {
+            flex: 1;
+            height: 2px;
+            background: #E2E8F0;
+            margin: 0 8px;
+        }
+        .step-line.active {
+            background: #1A365D;
+        }
+        .category-card.selected, .treatment-card.selected {
+            border-color: #1A365D;
+            background: #F0F4F8;
+        }
+        .likelihood-btn.selected, .impact-btn.selected {
+            border-color: #1A365D;
+            background: #F0F4F8;
+            color: #1A365D;
+        }
+    </style>
+
+    <script>
+        let currentStep = 1;
+        const totalSteps = 4;
+
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateStep();
+            } else {
+                alert('Risk created successfully!');
+                // Submit form
+            }
+        }
+
+        function previousStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateStep();
+            }
+        }
+
+        function updateStep() {
+            // Hide all steps
+            document.querySelectorAll('.step-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById('step-' + currentStep).classList.remove('hidden');
+
+            // Update step indicators
+            document.querySelectorAll('.step-circle').forEach((el, idx) => {
+                if (idx + 1 <= currentStep) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+            document.querySelectorAll('.step-line').forEach((el, idx) => {
+                if (idx + 1 < currentStep) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+
+            // Update button text
+            document.getElementById('back-btn').style.display = currentStep === 1 ? 'none' : 'block';
+            document.getElementById('next-btn').textContent = currentStep === totalSteps ? 'Submit' : 'Next';
+        }
+
+        // Category card selection
+        document.querySelectorAll('.category-card').forEach(card => {
+            card.addEventListener('click', function() {
+                document.querySelectorAll('.category-card').forEach(c => c.classList.remove('selected'));
+                this.classList.add('selected');
+            });
+        });
+
+        // Treatment card selection
+        document.querySelectorAll('.treatment-card').forEach(card => {
+            card.addEventListener('click', function() {
+                document.querySelectorAll('.treatment-card').forEach(c => c.classList.remove('selected'));
+                this.classList.add('selected');
+            });
+        });
+
+        // Likelihood buttons
+        document.querySelectorAll('.likelihood-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.likelihood-btn').forEach(b => b.classList.remove('selected'));
+                this.classList.add('selected');
+                document.getElementById('likelihood-selected').textContent = this.textContent;
+                calculateInherentScore();
+            });
+        });
+
+        // Impact buttons
+        document.querySelectorAll('.impact-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.impact-btn').forEach(b => b.classList.remove('selected'));
+                this.classList.add('selected');
+                const score = this.getAttribute('data-score');
+                document.getElementById('impact-selected').textContent = `Score: ${score} selected`;
+                calculateInherentScore();
+            });
+        });
+
+        function calculateInherentScore() {
+            const likelihood = document.querySelector('.likelihood-btn.selected')?.getAttribute('data-score') || 0;
+            const impact = document.querySelector('.impact-btn.selected')?.getAttribute('data-score') || 0;
+            const score = likelihood * impact;
+            document.getElementById('inherent-score').textContent = score;
+        }
+
+        function addActionItem() {
+            const list = document.getElementById('actions-list');
+            const div = document.createElement('div');
+            div.className = 'flex gap-2';
+            div.innerHTML = `
+                <input type="text" placeholder="Action description" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <input type="text" placeholder="Owner" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <input type="date" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <button class="text-red-500 hover:text-red-700" onclick="this.parentElement.remove()">✕</button>
+            `;
+            list.appendChild(div);
+        }
+    </script>
+    
+        </div>
+    </main>
+
+    <!-- Footer -->
+    
+
+    
+<footer class="ml-[260px] bg-white border-t border-gray-200 py-3 px-6">
+        <div class="flex items-center justify-between text-[11px] text-gray-400">
+            <span>GRC Risk Management Platform v2.0 &copy; 2025</span>
+            <span>CBN ORMS Compliant &middot; Basel III Aligned &middot; NDPA Certified</span>
+        </div>
+    </footer>
+
+    <script>
+        function toggleNav(id) {
+            const nav = document.getElementById('nav_' + id);
+            const chevron = document.getElementById('chevron_' + id);
+            if (nav && chevron) {
+                nav.classList.toggle('hidden');
+                chevron.classList.toggle('rotate-180');
+            }
+        }
+    </script>
+</body>
+</html>

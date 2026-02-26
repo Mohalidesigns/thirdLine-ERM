@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Risk Radar - GRC Risk Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                    colors: {
+                        primary: '#1A365D',
+                        secondary: '#2D7D46',
+                        accent: '#D4AF37',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; background: #F7FAFC; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E0; border-radius: 3px; }
+        .risk-critical { background: #FED7D7; color: #C53030; }
+        .risk-high { background: #FEEBC8; color: #DD6B20; }
+        .risk-medium { background: #FEFCBF; color: #B7791F; }
+        .risk-low { background: #C6F6D5; color: #2F855A; }
+        .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+        .trend-up { color: #C53030; }
+        .trend-down { color: #2D7D46; }
+        .trend-flat { color: #718096; }
+        .kpi-card { background: white; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #E2E8F0; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th { background: #F7FAFC; padding: 10px 12px; text-align: left; font-size: 0.75rem; font-weight: 600; color: #4A5568; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #E2E8F0; }
+        .data-table td { padding: 10px 12px; font-size: 0.8125rem; color: #2D3748; border-bottom: 1px solid #EDF2F7; }
+        .data-table tr:hover { background: #F7FAFC; }
+        .tab-active { border-bottom: 2px solid #1A365D; color: #1A365D; font-weight: 600; }
+        .tab-inactive { border-bottom: 2px solid transparent; color: #718096; }
+    </style>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                colors: {
+                    primary: '#1A365D',
+                    secondary: '#2D7D46',
+                    accent: '#D4AF37',
+                }
+            }
+        }
+    }
+</script>
+</head>
+<body class="bg-[#F7FAFC] min-h-screen">
+<aside id="sidebar" class="fixed left-0 top-0 h-screen w-[260px] bg-[#1A365D] text-white overflow-y-auto z-50 flex flex-col" style="scrollbar-width:thin;scrollbar-color:#2D4A7A #1A365D">
+    <!-- Brand -->
+    <div class="px-5 pt-5 pb-3 border-b border-white/10">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span class="material-symbols-outlined text-[#D4AF37] text-xl">shield</span>
+            </div>
+            <div>
+                <div class="text-[13px] font-bold text-white leading-tight">GRC Risk Management</div>
+                <div class="text-[10px] text-white/50 font-medium">Enterprise Risk Platform</div>
+            </div>
+        </div>
+    </div>
+
+    <nav class="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
+        <!-- Command Centre -->
+        <a href="../risk-register/dashboard.html" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-white/70 hover:text-white hover:bg-white/8 transition-all text-[13px] mb-2">
+            <span class="material-symbols-outlined text-[18px]">home</span>
+            <span>Command Centre</span>
+        </a>
+
+        <div class="h-px bg-white/10 mx-1 mb-2"></div>
+
+        <!-- Risk Register -->
+        <div class="nav-group">
+            <button onclick="toggleNav('risk_register')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">assessment</span>
+                    <span>Risk Register</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_risk_register">expand_more</span>
+            </button>
+            <div id="nav_risk_register" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../risk-register/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Dashboard</a>
+                <a href="../risk-register/register.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Register</a>
+                <a href="../risk-register/new.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Create New Risk</a>
+                <a href="../risk-register/detail.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Detail</a>
+            </div>
+        </div>
+
+        <!-- KRI Monitoring -->
+        <div class="nav-group">
+            <button onclick="toggleNav('kri_monitoring')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">speed</span>
+                    <span>KRI Monitoring</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_kri_monitoring">expand_more</span>
+            </button>
+            <div id="nav_kri_monitoring" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../kri-monitoring/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">KRI Dashboard</a>
+                <a href="../kri-monitoring/library.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">KRI Library</a>
+                <a href="../kri-monitoring/thresholds.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Thresholds</a>
+                <a href="../kri-monitoring/breaches.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Breach Alerts</a>
+            </div>
+        </div>
+
+        <!-- RCSA -->
+        <div class="nav-group">
+            <button onclick="toggleNav('rcsa')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">fact_check</span>
+                    <span>RCSA</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_rcsa">expand_more</span>
+            </button>
+            <div id="nav_rcsa" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../rcsa/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">RCSA Dashboard</a>
+                <a href="../rcsa/worksheet.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Assessment Worksheet</a>
+                <a href="../rcsa/matrix.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Matrix</a>
+                <a href="../rcsa/controls.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Control Assessment</a>
+            </div>
+        </div>
+
+        <!-- Treatment Plans -->
+        <div class="nav-group">
+            <button onclick="toggleNav('treatment_plans')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">healing</span>
+                    <span>Treatment Plans</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_treatment_plans">expand_more</span>
+            </button>
+            <div id="nav_treatment_plans" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../treatment-plans/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Plans Dashboard</a>
+                <a href="../treatment-plans/active.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Active Plans</a>
+                <a href="../treatment-plans/new.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Create Plan</a>
+                <a href="../treatment-plans/review.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Plan Review</a>
+            </div>
+        </div>
+
+        <!-- Risk Analysis -->
+        <div class="nav-group">
+            <button onclick="toggleNav('analysis')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">analytics</span>
+                    <span>Risk Analysis</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_analysis">expand_more</span>
+            </button>
+            <div id="nav_analysis" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../analysis/heatmap.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Heatmap</a>
+                <a href="../analysis/trends.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Trend Analysis</a>
+                <a href="../analysis/correlation.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Correlation</a>
+                <a href="../analysis/bowtie.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Bow-Tie Analysis</a>
+            </div>
+        </div>
+
+        <!-- Loss Events -->
+        <div class="nav-group">
+            <button onclick="toggleNav('loss_events')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">report_problem</span>
+                    <span>Loss Events</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_loss_events">expand_more</span>
+            </button>
+            <div id="nav_loss_events" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../loss-events/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Events Dashboard</a>
+                <a href="../loss-events/register.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Event Register</a>
+                <a href="../loss-events/new-step-1.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Log New Event</a>
+                <a href="../loss-events/near-misses.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Near Misses</a>
+                <a href="../loss-events/rca.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Root Cause Analysis</a>
+                <a href="../loss-events/approvals.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Approvals</a>
+                <a href="../loss-events/reports.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">CBN Reports</a>
+            </div>
+        </div>
+
+        <!-- Issues & Findings -->
+        <div class="nav-group">
+            <button onclick="toggleNav('issues')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">bug_report</span>
+                    <span>Issues &amp; Findings</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_issues">expand_more</span>
+            </button>
+            <div id="nav_issues" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../issues/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Issues Dashboard</a>
+                <a href="../issues/register.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Issues Register</a>
+                <a href="../issues/new.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Log New Issue</a>
+                <a href="../issues/detail.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Issue Detail</a>
+                <a href="../issues/ageing.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Ageing Report</a>
+                <a href="../issues/closure.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Closure Verification</a>
+            </div>
+        </div>
+
+        <!-- Risk Quantification -->
+        <div class="nav-group">
+            <button onclick="toggleNav('quantification')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">calculate</span>
+                    <span>Risk Quantification</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_quantification">expand_more</span>
+            </button>
+            <div id="nav_quantification" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../quantification/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Quant Dashboard</a>
+                <a href="../quantification/library.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Model Library</a>
+                <a href="../quantification/scenarios.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Scenario Analysis</a>
+                <a href="../quantification/simulate.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Run Simulation</a>
+                <a href="../quantification/results.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Results</a>
+                <a href="../quantification/icaap.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">ICAAP Integration</a>
+                <a href="../quantification/settings.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Settings</a>
+                <a href="../quantification/reports.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Quant Reports</a>
+            </div>
+        </div>
+
+        <!-- Reports -->
+        <div class="nav-group">
+            <button onclick="toggleNav('reports')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">summarize</span>
+                    <span>Reports</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_reports">expand_more</span>
+            </button>
+            <div id="nav_reports" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../reports/executive.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Executive Summary</a>
+                <a href="../reports/board.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Board Report</a>
+                <a href="../reports/regulatory.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Regulatory Report</a>
+                <a href="../reports/custom.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Custom Reports</a>
+            </div>
+        </div>
+
+        <!-- AI Risk Intelligence -->
+        <div class="nav-group">
+            <button onclick="toggleNav('ai_intelligence')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium bg-white/12 text-white transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-[#D4AF37]">psychology</span>
+                    <span>AI Risk Intelligence</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 rotate-180 text-white/40" id="chevron_ai_intelligence">expand_more</span>
+            </button>
+            <div id="nav_ai_intelligence" class="block mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="radar.html" class="block px-3 py-1.5 rounded-md text-[12px] font-semibold bg-[#D4AF37] text-[#1A365D] transition-all">AI Risk Radar</a>
+                <a href="predictive.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Predictive Alerts</a>
+                <a href="regulatory-pulse.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Regulatory Pulse</a>
+                <a href="benchmarking.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Peer Benchmarking</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Footer -->
+    <div class="px-4 py-3 border-t border-white/10 mt-auto">
+        <div class="flex items-center gap-2 text-[10px] text-white/30">
+            <span class="material-symbols-outlined text-[14px]">verified</span>
+            <span>CBN ORMS Compliant</span>
+        </div>
+    </div>
+</aside>
+<header class="fixed top-0 left-[260px] right-0 h-14 bg-white border-b border-gray-200 z-40 flex items-center justify-between px-6">
+        <div class="flex items-center gap-2 text-sm">
+            <span class="text-gray-400 text-xs">Risk Management</span>
+            <span class="text-gray-300">/</span>
+            <span class="text-gray-400 text-xs">AI Risk Intelligence</span>
+            <span class="text-gray-300">/</span>
+            <span class="text-[#1A365D] font-semibold text-xs">AI Risk Radar</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <button class="p-1.5 rounded-lg hover:bg-gray-100 relative">
+                <span class="material-symbols-outlined text-gray-500 text-xl">notifications</span>
+                <span class="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+            </button>
+            <button class="p-1.5 rounded-lg hover:bg-gray-100">
+                <span class="material-symbols-outlined text-gray-500 text-xl">settings</span>
+            </button>
+            <div class="h-6 w-px bg-gray-200"></div>
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-[#1A365D] rounded-full flex items-center justify-center text-white text-[11px] font-bold">MA</div>
+                <div class="hidden md:block">
+                    <div class="text-[12px] font-semibold text-gray-700 leading-tight">Mohammed Ali</div>
+                    <div class="text-[10px] text-gray-400">Risk Analyst</div>
+                </div>
+                <span class="material-symbols-outlined text-gray-400 text-[16px]">expand_more</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Header -->
+    
+
+    
+
+    <!-- Main Content -->
+    <main class="ml-[260px] mt-14 min-h-[calc(100vh-4rem)]">
+        <!-- Breadcrumb -->
+        <div class="px-6 py-3 bg-white border-b border-gray-100">
+            <div class="flex items-center gap-2 text-xs text-gray-500">
+                <a href="../risk-register/dashboard.html" class="hover:text-[#1A365D]">Home</a>
+                <span class="text-gray-400">/</span> <a href="radar.html" class="hover:text-[#1A365D]">AI Intelligence</a> <span class="text-gray-400">/</span> <a href="#" class="hover:text-[#1A365D]">Radar</a> 
+            </div>
+        </div>
+        
+        <!-- Page Content -->
+        <div class="p-6">
+            
+    <!-- Page Header -->
+    <div>
+        <h1 class="text-2xl font-bold text-[#1A365D]">AI Risk Radar</h1>
+        <p class="text-sm text-gray-500 mt-1">Real-time risk signal detection and insights</p>
+    </div>
+
+    <!-- Radar Visualization -->
+    <div class="bg-white rounded-xl border border-gray-200 p-6 mt-6 mb-6">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">Risk Signal Radar</h3>
+        <div class="flex items-center justify-center">
+            <svg width="400" height="400" class="max-w-full" viewBox="0 0 400 400">
+                <!-- Concentric Rings -->
+                <circle cx="200" cy="200" r="150" fill="none" stroke="#E2E8F0" stroke-width="1"></circle>
+                <circle cx="200" cy="200" r="115" fill="none" stroke="#E2E8F0" stroke-width="1"></circle>
+                <circle cx="200" cy="200" r="80" fill="none" stroke="#E2E8F0" stroke-width="1"></circle>
+                <circle cx="200" cy="200" r="45" fill="none" stroke="#E2E8F0" stroke-width="1"></circle>
+                
+                <!-- Risk Level Labels -->
+                <text x="200" y="50" text-anchor="middle" class="text-xs fill-gray-500">CRITICAL</text>
+                <text x="200" y="95" text-anchor="middle" class="text-xs fill-gray-500">HIGH</text>
+                <text x="200" y="140" text-anchor="middle" class="text-xs fill-gray-500">MEDIUM</text>
+                <text x="200" y="185" text-anchor="middle" class="text-xs fill-gray-500">LOW</text>
+                
+                <!-- Sectors -->
+                <g class="text-xs font-medium fill-gray-700">
+                    <text x="200" y="25" text-anchor="middle">Credit</text>
+                    <text x="350" y="205" text-anchor="middle">Market</text>
+                    <text x="200" y="380" text-anchor="middle">Operational</text>
+                    <text x="50" y="205" text-anchor="middle">Compliance</text>
+                    <text x="290" y="80" text-anchor="middle">Technology</text>
+                </g>
+                
+                <!-- Spokes -->
+                <line x1="200" y1="50" x2="200" y2="350" stroke="#E2E8F0" stroke-width="1"></line>
+                <line x1="350" y1="200" x2="50" y2="200" stroke="#E2E8F0" stroke-width="1"></line>
+                <line x1="310" y1="90" x2="90" y2="310" stroke="#E2E8F0" stroke-width="1"></line>
+                <line x1="310" y1="310" x2="90" y2="90" stroke="#E2E8F0" stroke-width="1"></line>
+                
+                <!-- Risk Blips (animated) -->
+                <circle cx="200" cy="100" r="5" fill="#C53030" opacity="0.8">
+                    <animate attributeName="opacity" values="0.8;0.3;0.8" dur="1.5s" repeatCount="indefinite"></animate>
+                </circle>
+                <circle cx="280" cy="200" r="4" fill="#DD6B20" opacity="0.7"></circle>
+                <circle cx="200" cy="280" r="3" fill="#F6AD55" opacity="0.6"></circle>
+                <circle cx="120" cy="180" r="4" fill="#DD6B20" opacity="0.7"></circle>
+                <circle cx="240" cy="130" r="3" fill="#FBD38D" opacity="0.5"></circle>
+            </svg>
+        </div>
+    </div>
+
+    <!-- AI Insights Cards -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div class="bg-red-50 border-l-4 border-red-500 rounded-lg p-4">
+            <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-1">
+                    <span class="material-symbols-outlined text-red-600 text-sm">error</span>
+                </div>
+                <div class="flex-1">
+                    <div class="text-sm font-semibold text-gray-700">Critical: Cybersecurity Threat Escalation</div>
+                    <div class="text-xs text-gray-600 mt-1">AI detected 340% increase in APT signatures in banking sector. Historical pattern suggests major ransomware campaign imminent.</div>
+                    <div class="text-xs text-red-600 font-medium mt-2">Action Required: Deploy enhanced monitoring & incident response readiness</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-orange-50 border-l-4 border-orange-500 rounded-lg p-4">
+            <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-1">
+                    <span class="material-symbols-outlined text-orange-600 text-sm">warning</span>
+                </div>
+                <div class="flex-1">
+                    <div class="text-sm font-semibold text-gray-700">High: Credit Quality Deterioration Signal</div>
+                    <div class="text-xs text-gray-600 mt-1">AI models show subtle early warning signs in O&G sector portfolio. NPL migration probability increasing. Economic stress indicators rising.</div>
+                    <div class="text-xs text-orange-600 font-medium mt-2">Recommended: Accelerate portfolio review & stress testing</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-yellow-50 border-l-4 border-yellow-500 rounded-lg p-4">
+            <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0 mt-1">
+                    <span class="material-symbols-outlined text-yellow-600 text-sm">info</span>
+                </div>
+                <div class="flex-1">
+                    <div class="text-sm font-semibold text-gray-700">Medium: Regulatory Changes Detected</div>
+                    <div class="text-xs text-gray-600 mt-1">CBN likely to enhance capital requirements in next circular (predicted Feb-Mar 2025). Impact on CAR estimated at -0.8-1.2%.</div>
+                    <div class="text-xs text-gray-600 font-medium mt-2">Status: Current buffer adequate; continue monitoring</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-green-50 border-l-4 border-green-500 rounded-lg p-4">
+            <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 mt-1">
+                    <span class="material-symbols-outlined text-green-600 text-sm">check_circle</span>
+                </div>
+                <div class="flex-1">
+                    <div class="text-sm font-semibold text-gray-700">Low: Positive Treatment Progress</div>
+                    <div class="text-xs text-gray-600 mt-1">AI tracking shows TRT-2025-001 (Credit Concentration) on pace to achieve 10% target by Apr 30. Portfolio diversification metrics improving steadily.</div>
+                    <div class="text-xs text-green-600 font-medium mt-2">Status: No action needed; continue as planned</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Feed -->
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">Real-Time Alert Feed (Last 24 hrs)</h3>
+        <div class="space-y-3">
+            <div class="flex items-center gap-3 p-3 border-b border-gray-100">
+                <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                <div class="flex-1">
+                    <div class="text-xs font-medium text-gray-700">Cybersecurity: Phishing campaign targeting banking sector</div>
+                    <div class="text-xs text-gray-500">21:35 - High confidence match</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 p-3 border-b border-gray-100">
+                <span class="w-2 h-2 rounded-full bg-orange-500"></span>
+                <div class="flex-1">
+                    <div class="text-xs font-medium text-gray-700">Market: Oil price volatility spike detected</div>
+                    <div class="text-xs text-gray-500">18:15 - Moderate impact on O&G exposures</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 p-3 border-b border-gray-100">
+                <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+                <div class="flex-1">
+                    <div class="text-xs font-medium text-gray-700">Regulatory: CBN Governor speech hints at policy shifts</div>
+                    <div class="text-xs text-gray-500">14:45 - Sentiment analysis in progress</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 p-3">
+                <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+                <div class="flex-1">
+                    <div class="text-xs font-medium text-gray-700">Credit: Three major clients announce restructuring</div>
+                    <div class="text-xs text-gray-500">09:20 - Impact assessment pending</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+        </div>
+    </main>
+
+    <!-- Footer -->
+    
+
+    
+<footer class="ml-[260px] bg-white border-t border-gray-200 py-3 px-6">
+        <div class="flex items-center justify-between text-[11px] text-gray-400">
+            <span>GRC Risk Management Platform v2.0 &copy; 2025</span>
+            <span>CBN ORMS Compliant &middot; Basel III Aligned &middot; NDPA Certified</span>
+        </div>
+    </footer>
+
+    <script>
+        function toggleNav(id) {
+            const nav = document.getElementById('nav_' + id);
+            const chevron = document.getElementById('chevron_' + id);
+            if (nav && chevron) {
+                nav.classList.toggle('hidden');
+                chevron.classList.toggle('rotate-180');
+            }
+        }
+    </script>
+</body>
+</html>

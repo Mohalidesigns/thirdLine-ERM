@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Register - GRC Risk Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                    colors: {
+                        primary: '#1A365D',
+                        secondary: '#2D7D46',
+                        accent: '#D4AF37',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; background: #F7FAFC; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E0; border-radius: 3px; }
+        .risk-critical { background: #FED7D7; color: #C53030; }
+        .risk-high { background: #FEEBC8; color: #DD6B20; }
+        .risk-medium { background: #FEFCBF; color: #B7791F; }
+        .risk-low { background: #C6F6D5; color: #2F855A; }
+        .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+        .trend-up { color: #C53030; }
+        .trend-down { color: #2D7D46; }
+        .trend-flat { color: #718096; }
+        .kpi-card { background: white; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #E2E8F0; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th { background: #F7FAFC; padding: 10px 12px; text-align: left; font-size: 0.75rem; font-weight: 600; color: #4A5568; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #E2E8F0; }
+        .data-table td { padding: 10px 12px; font-size: 0.8125rem; color: #2D3748; border-bottom: 1px solid #EDF2F7; }
+        .data-table tr:hover { background: #F7FAFC; }
+        .tab-active { border-bottom: 2px solid #1A365D; color: #1A365D; font-weight: 600; }
+        .tab-inactive { border-bottom: 2px solid transparent; color: #718096; }
+    </style>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                colors: {
+                    primary: '#1A365D',
+                    secondary: '#2D7D46',
+                    accent: '#D4AF37',
+                }
+            }
+        }
+    }
+</script>
+</head>
+<body class="bg-[#F7FAFC] min-h-screen">
+<aside id="sidebar" class="fixed left-0 top-0 h-screen w-[260px] bg-[#1A365D] text-white overflow-y-auto z-50 flex flex-col" style="scrollbar-width:thin;scrollbar-color:#2D4A7A #1A365D">
+    <!-- Brand -->
+    <div class="px-5 pt-5 pb-3 border-b border-white/10">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span class="material-symbols-outlined text-[#D4AF37] text-xl">shield</span>
+            </div>
+            <div>
+                <div class="text-[13px] font-bold text-white leading-tight">GRC Risk Management</div>
+                <div class="text-[10px] text-white/50 font-medium">Enterprise Risk Platform</div>
+            </div>
+        </div>
+    </div>
+
+    <nav class="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
+        <!-- Command Centre -->
+        <a href="dashboard.html" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-white/70 hover:text-white hover:bg-white/8 transition-all text-[13px] mb-2">
+            <span class="material-symbols-outlined text-[18px]">home</span>
+            <span>Command Centre</span>
+        </a>
+
+        <div class="h-px bg-white/10 mx-1 mb-2"></div>
+
+        <!-- Risk Register -->
+        <div class="nav-group">
+            <button onclick="toggleNav('risk_register')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium bg-white/12 text-white transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-[#D4AF37]">assessment</span>
+                    <span>Risk Register</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 rotate-180 text-white/40" id="chevron_risk_register">expand_more</span>
+            </button>
+            <div id="nav_risk_register" class="block mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Dashboard</a>
+                <a href="register.html" class="block px-3 py-1.5 rounded-md text-[12px] font-semibold bg-[#D4AF37] text-[#1A365D] transition-all">Risk Register</a>
+                <a href="new.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Create New Risk</a>
+                <a href="detail.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Detail</a>
+            </div>
+        </div>
+
+        <!-- KRI Monitoring -->
+        <div class="nav-group">
+            <button onclick="toggleNav('kri_monitoring')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">speed</span>
+                    <span>KRI Monitoring</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_kri_monitoring">expand_more</span>
+            </button>
+            <div id="nav_kri_monitoring" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../kri-monitoring/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">KRI Dashboard</a>
+                <a href="../kri-monitoring/library.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">KRI Library</a>
+                <a href="../kri-monitoring/thresholds.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Thresholds</a>
+                <a href="../kri-monitoring/breaches.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Breach Alerts</a>
+            </div>
+        </div>
+
+        <!-- RCSA -->
+        <div class="nav-group">
+            <button onclick="toggleNav('rcsa')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">fact_check</span>
+                    <span>RCSA</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_rcsa">expand_more</span>
+            </button>
+            <div id="nav_rcsa" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../rcsa/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">RCSA Dashboard</a>
+                <a href="../rcsa/worksheet.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Assessment Worksheet</a>
+                <a href="../rcsa/matrix.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Matrix</a>
+                <a href="../rcsa/controls.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Control Assessment</a>
+            </div>
+        </div>
+
+        <!-- Treatment Plans -->
+        <div class="nav-group">
+            <button onclick="toggleNav('treatment_plans')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">healing</span>
+                    <span>Treatment Plans</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_treatment_plans">expand_more</span>
+            </button>
+            <div id="nav_treatment_plans" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../treatment-plans/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Plans Dashboard</a>
+                <a href="../treatment-plans/active.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Active Plans</a>
+                <a href="../treatment-plans/new.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Create Plan</a>
+                <a href="../treatment-plans/review.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Plan Review</a>
+            </div>
+        </div>
+
+        <!-- Risk Analysis -->
+        <div class="nav-group">
+            <button onclick="toggleNav('analysis')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">analytics</span>
+                    <span>Risk Analysis</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_analysis">expand_more</span>
+            </button>
+            <div id="nav_analysis" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../analysis/heatmap.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Risk Heatmap</a>
+                <a href="../analysis/trends.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Trend Analysis</a>
+                <a href="../analysis/correlation.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Correlation</a>
+                <a href="../analysis/bowtie.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Bow-Tie Analysis</a>
+            </div>
+        </div>
+
+        <!-- Loss Events -->
+        <div class="nav-group">
+            <button onclick="toggleNav('loss_events')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">report_problem</span>
+                    <span>Loss Events</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_loss_events">expand_more</span>
+            </button>
+            <div id="nav_loss_events" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../loss-events/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Events Dashboard</a>
+                <a href="../loss-events/register.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Event Register</a>
+                <a href="../loss-events/new-step-1.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Log New Event</a>
+                <a href="../loss-events/near-misses.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Near Misses</a>
+                <a href="../loss-events/rca.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Root Cause Analysis</a>
+                <a href="../loss-events/approvals.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Approvals</a>
+                <a href="../loss-events/reports.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">CBN Reports</a>
+            </div>
+        </div>
+
+        <!-- Issues & Findings -->
+        <div class="nav-group">
+            <button onclick="toggleNav('issues')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">bug_report</span>
+                    <span>Issues &amp; Findings</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_issues">expand_more</span>
+            </button>
+            <div id="nav_issues" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../issues/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Issues Dashboard</a>
+                <a href="../issues/register.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Issues Register</a>
+                <a href="../issues/new.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Log New Issue</a>
+                <a href="../issues/detail.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Issue Detail</a>
+                <a href="../issues/ageing.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Ageing Report</a>
+                <a href="../issues/closure.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Closure Verification</a>
+            </div>
+        </div>
+
+        <!-- Risk Quantification -->
+        <div class="nav-group">
+            <button onclick="toggleNav('quantification')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">calculate</span>
+                    <span>Risk Quantification</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_quantification">expand_more</span>
+            </button>
+            <div id="nav_quantification" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../quantification/dashboard.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Quant Dashboard</a>
+                <a href="../quantification/library.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Model Library</a>
+                <a href="../quantification/scenarios.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Scenario Analysis</a>
+                <a href="../quantification/simulate.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Run Simulation</a>
+                <a href="../quantification/results.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Results</a>
+                <a href="../quantification/icaap.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">ICAAP Integration</a>
+                <a href="../quantification/settings.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Settings</a>
+                <a href="../quantification/reports.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Quant Reports</a>
+            </div>
+        </div>
+
+        <!-- Reports -->
+        <div class="nav-group">
+            <button onclick="toggleNav('reports')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">summarize</span>
+                    <span>Reports</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_reports">expand_more</span>
+            </button>
+            <div id="nav_reports" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../reports/executive.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Executive Summary</a>
+                <a href="../reports/board.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Board Report</a>
+                <a href="../reports/regulatory.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Regulatory Report</a>
+                <a href="../reports/custom.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Custom Reports</a>
+            </div>
+        </div>
+
+        <!-- AI Risk Intelligence -->
+        <div class="nav-group">
+            <button onclick="toggleNav('ai_intelligence')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium text-white/60 hover:bg-white/6 hover:text-white/80 transition-all group">
+                <div class="flex items-center gap-2.5">
+                    <span class="material-symbols-outlined text-[18px] text-white/40 group-hover:text-white/60">psychology</span>
+                    <span>AI Risk Intelligence</span>
+                </div>
+                <span class="material-symbols-outlined text-[16px] transition-transform duration-200 text-white/40" id="chevron_ai_intelligence">expand_more</span>
+            </button>
+            <div id="nav_ai_intelligence" class="hidden mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <a href="../ai-intelligence/radar.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">AI Risk Radar</a>
+                <a href="../ai-intelligence/predictive.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Predictive Alerts</a>
+                <a href="../ai-intelligence/regulatory-pulse.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Regulatory Pulse</a>
+                <a href="../ai-intelligence/benchmarking.html" class="block px-3 py-1.5 rounded-md text-[12px] text-white/50 hover:text-white hover:bg-white/6 transition-all">Peer Benchmarking</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Footer -->
+    <div class="px-4 py-3 border-t border-white/10 mt-auto">
+        <div class="flex items-center gap-2 text-[10px] text-white/30">
+            <span class="material-symbols-outlined text-[14px]">verified</span>
+            <span>CBN ORMS Compliant</span>
+        </div>
+    </div>
+</aside>
+<header class="fixed top-0 left-[260px] right-0 h-14 bg-white border-b border-gray-200 z-40 flex items-center justify-between px-6">
+        <div class="flex items-center gap-2 text-sm">
+            <span class="text-gray-400 text-xs">Risk Management</span>
+            <span class="text-gray-300">/</span>
+            <span class="text-gray-400 text-xs">Risk Register</span>
+            <span class="text-gray-300">/</span>
+            <span class="text-[#1A365D] font-semibold text-xs">Risk Register</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <button class="p-1.5 rounded-lg hover:bg-gray-100 relative">
+                <span class="material-symbols-outlined text-gray-500 text-xl">notifications</span>
+                <span class="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+            </button>
+            <button class="p-1.5 rounded-lg hover:bg-gray-100">
+                <span class="material-symbols-outlined text-gray-500 text-xl">settings</span>
+            </button>
+            <div class="h-6 w-px bg-gray-200"></div>
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-[#1A365D] rounded-full flex items-center justify-center text-white text-[11px] font-bold">MA</div>
+                <div class="hidden md:block">
+                    <div class="text-[12px] font-semibold text-gray-700 leading-tight">Mohammed Ali</div>
+                    <div class="text-[10px] text-gray-400">Risk Analyst</div>
+                </div>
+                <span class="material-symbols-outlined text-gray-400 text-[16px]">expand_more</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Header -->
+    
+
+    
+
+    <!-- Main Content -->
+    <main class="ml-[260px] mt-14 min-h-[calc(100vh-4rem)]">
+        <!-- Breadcrumb -->
+        <div class="px-6 py-3 bg-white border-b border-gray-100">
+            <div class="flex items-center gap-2 text-xs text-gray-500">
+                <a href="dashboard.html" class="hover:text-[#1A365D]">Home</a>
+                <span class="text-gray-400">/</span> <a href="register.html" class="hover:text-[#1A365D]">Risk Register</a> <span class="text-gray-400">/</span> <a href="#" class="hover:text-[#1A365D]">Register</a> 
+            </div>
+        </div>
+        
+        <!-- Page Content -->
+        <div class="p-6">
+            
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-[#1A365D]">Risk Register</h1>
+            <p class="text-sm text-gray-500 mt-1">247 risks registered &middot; Last updated: Feb 20, 2025</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="new.html" class="px-4 py-2 bg-[#1A365D] text-white rounded-lg text-sm font-medium hover:bg-[#2D4A7A] flex items-center gap-2">
+                <span class="material-symbols-outlined text-lg">add_circle</span> New Risk
+            </a>
+            <button class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                <span class="material-symbols-outlined text-lg">upload</span> Import
+            </button>
+            <button class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                <span class="material-symbols-outlined text-lg">download</span> Export
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Filter Tabs -->
+    <div class="flex gap-1 mb-4 bg-white rounded-lg border border-gray-200 p-1 w-fit">
+        <button class="px-3 py-1.5 text-xs font-medium rounded-md bg-[#1A365D] text-white">All (247)</button>
+        <button class="px-3 py-1.5 text-xs font-medium rounded-md text-gray-600 hover:bg-gray-100">Critical (18)</button>
+        <button class="px-3 py-1.5 text-xs font-medium rounded-md text-gray-600 hover:bg-gray-100">High (45)</button>
+        <button class="px-3 py-1.5 text-xs font-medium rounded-md text-gray-600 hover:bg-gray-100">Medium (80)</button>
+        <button class="px-3 py-1.5 text-xs font-medium rounded-md text-gray-600 hover:bg-gray-100">Low (104)</button>
+        <button class="px-3 py-1.5 text-xs font-medium rounded-md text-gray-600 hover:bg-gray-100">Open (156)</button>
+        <button class="px-3 py-1.5 text-xs font-medium rounded-md text-gray-600 hover:bg-gray-100">Overdue (23)</button>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+        <div class="flex flex-wrap gap-3 items-center">
+            <div class="flex-1 min-w-[200px]">
+                <div class="relative">
+                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">search</span>
+                    <input type="text" placeholder="Search by Risk ID, name, owner..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
+                </div>
+            </div>
+            <select class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700">
+                <option>All Categories</option><option>Credit Risk</option><option>Operational Risk</option><option>Market Risk</option><option>Compliance Risk</option><option>Technology Risk</option><option>People Risk</option>
+            </select>
+            <select class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700">
+                <option>All Statuses</option><option>Open</option><option>Mitigating</option><option>Monitoring</option><option>Accepted</option><option>Closed</option>
+            </select>
+            <select class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700">
+                <option>All Owners</option><option>Oluwaseun Adeyemi</option><option>Chidinma Okonkwo</option><option>Ibrahim Musa</option>
+            </select>
+            <button class="text-xs text-[#1A365D] font-medium hover:underline">Clear Filters</button>
+        </div>
+    </div>
+
+    <!-- Register Table -->
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th class="w-8"><input type="checkbox" class="rounded"></th>
+                        <th>Risk ID</th>
+                        <th>Risk Name</th>
+                        <th>Category</th>
+                        <th>Subcategory</th>
+                        <th>Inherent Rating</th>
+                        <th>Residual Rating</th>
+                        <th>Trend</th>
+                        <th>Risk Owner</th>
+                        <th>Status</th>
+                        <th>Appetite</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="hover:bg-blue-50/50">
+                        <td><input type="checkbox" class="rounded"></td>
+                        <td class="font-medium text-[#1A365D]"><a href="detail.html" class="hover:underline">RSK-2025-001</a></td>
+                        <td class="max-w-[200px]"><div class="truncate">Credit Concentration Risk - Oil &amp; Gas Sector</div></td>
+                        <td><span class="text-xs">Credit Risk</span></td>
+                        <td><span class="text-xs">Concentration</span></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-red-100 text-red-700">Critical</span> <span class="text-xs text-gray-500">20</span></div></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-orange-100 text-orange-700">High</span> <span class="text-xs text-gray-500">15</span></div></td>
+                        <td class="text-center"><span class="material-symbols-outlined text-sm text-gray-400">remove</span></td>
+                        <td><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold">OA</div><span class="text-xs">O. Adeyemi</span></div></td>
+                        <td><span class="badge bg-blue-100 text-blue-700">Mitigating</span></td>
+                        <td class="text-center"><span class="w-3 h-3 rounded-full bg-red-500 inline-block" title="Exceeds"></span></td>
+                        <td><button class="p-1 hover:bg-gray-100 rounded"><span class="material-symbols-outlined text-gray-400 text-lg">more_vert</span></button></td>
+                    </tr>
+                    <tr class="hover:bg-blue-50/50">
+                        <td><input type="checkbox" class="rounded"></td>
+                        <td class="font-medium text-[#1A365D]"><a href="#" class="hover:underline">RSK-2025-002</a></td>
+                        <td class="max-w-[200px]"><div class="truncate">Cybersecurity Threat - Ransomware &amp; APT</div></td>
+                        <td><span class="text-xs">Technology Risk</span></td>
+                        <td><span class="text-xs">Cyber</span></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-red-100 text-red-700">Critical</span> <span class="text-xs text-gray-500">20</span></div></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-red-100 text-red-700">Critical</span> <span class="text-xs text-gray-500">20</span></div></td>
+                        <td class="text-center"><span class="material-symbols-outlined text-sm text-red-500">arrow_upward</span></td>
+                        <td><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-bold">CO</div><span class="text-xs">C. Okonkwo</span></div></td>
+                        <td><span class="badge bg-blue-100 text-blue-700">Mitigating</span></td>
+                        <td class="text-center"><span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span></td>
+                        <td><button class="p-1 hover:bg-gray-100 rounded"><span class="material-symbols-outlined text-gray-400 text-lg">more_vert</span></button></td>
+                    </tr>
+                    <tr class="hover:bg-blue-50/50">
+                        <td><input type="checkbox" class="rounded"></td>
+                        <td class="font-medium text-[#1A365D]"><a href="#" class="hover:underline">RSK-2025-003</a></td>
+                        <td class="max-w-[200px]"><div class="truncate">Naira FX Volatility &amp; Currency Risk</div></td>
+                        <td><span class="text-xs">Market Risk</span></td>
+                        <td><span class="text-xs">Foreign Exchange</span></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-orange-100 text-orange-700">High</span> <span class="text-xs text-gray-500">16</span></div></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-orange-100 text-orange-700">High</span> <span class="text-xs text-gray-500">16</span></div></td>
+                        <td class="text-center"><span class="material-symbols-outlined text-sm text-red-500">arrow_upward</span></td>
+                        <td><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-bold">IM</div><span class="text-xs">I. Musa</span></div></td>
+                        <td><span class="badge bg-purple-100 text-purple-700">Monitoring</span></td>
+                        <td class="text-center"><span class="w-3 h-3 rounded-full bg-orange-500 inline-block"></span></td>
+                        <td><button class="p-1 hover:bg-gray-100 rounded"><span class="material-symbols-outlined text-gray-400 text-lg">more_vert</span></button></td>
+                    </tr>
+                    <tr class="hover:bg-blue-50/50">
+                        <td><input type="checkbox" class="rounded"></td>
+                        <td class="font-medium text-[#1A365D]"><a href="#" class="hover:underline">RSK-2025-004</a></td>
+                        <td class="max-w-[200px]"><div class="truncate">Regulatory Compliance - CBN Directives</div></td>
+                        <td><span class="text-xs">Compliance Risk</span></td>
+                        <td><span class="text-xs">Regulatory</span></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-red-100 text-red-700">Critical</span> <span class="text-xs text-gray-500">20</span></div></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-orange-100 text-orange-700">High</span> <span class="text-xs text-gray-500">15</span></div></td>
+                        <td class="text-center"><span class="material-symbols-outlined text-sm text-green-500">arrow_downward</span></td>
+                        <td><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-[10px] font-bold">AB</div><span class="text-xs">A. Bello</span></div></td>
+                        <td><span class="badge bg-blue-100 text-blue-700">In Progress</span></td>
+                        <td class="text-center"><span class="w-3 h-3 rounded-full bg-orange-500 inline-block"></span></td>
+                        <td><button class="p-1 hover:bg-gray-100 rounded"><span class="material-symbols-outlined text-gray-400 text-lg">more_vert</span></button></td>
+                    </tr>
+                    <tr class="hover:bg-blue-50/50">
+                        <td><input type="checkbox" class="rounded"></td>
+                        <td class="font-medium text-[#1A365D]"><a href="#" class="hover:underline">RSK-2025-005</a></td>
+                        <td class="max-w-[200px]"><div class="truncate">Operational Resilience - Core Banking System</div></td>
+                        <td><span class="text-xs">Operational Risk</span></td>
+                        <td><span class="text-xs">Technology</span></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-red-100 text-red-700">Critical</span> <span class="text-xs text-gray-500">25</span></div></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-orange-100 text-orange-700">High</span> <span class="text-xs text-gray-500">15</span></div></td>
+                        <td class="text-center"><span class="material-symbols-outlined text-sm text-gray-400">remove</span></td>
+                        <td><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold">EI</div><span class="text-xs">E. Ibe</span></div></td>
+                        <td><span class="badge bg-blue-100 text-blue-700">Mitigating</span></td>
+                        <td class="text-center"><span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span></td>
+                        <td><button class="p-1 hover:bg-gray-100 rounded"><span class="material-symbols-outlined text-gray-400 text-lg">more_vert</span></button></td>
+                    </tr>
+                    <tr class="hover:bg-blue-50/50">
+                        <td><input type="checkbox" class="rounded"></td>
+                        <td class="font-medium text-[#1A365D]"><a href="#" class="hover:underline">RSK-2025-006</a></td>
+                        <td class="max-w-[200px]"><div class="truncate">AML/CFT Compliance Gap</div></td>
+                        <td><span class="text-xs">Compliance Risk</span></td>
+                        <td><span class="text-xs">AML</span></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-orange-100 text-orange-700">High</span> <span class="text-xs text-gray-500">16</span></div></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-yellow-100 text-yellow-700">Medium</span> <span class="text-xs text-gray-500">9</span></div></td>
+                        <td class="text-center"><span class="material-symbols-outlined text-sm text-green-500">arrow_downward</span></td>
+                        <td><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-bold">JO</div><span class="text-xs">J. Okafor</span></div></td>
+                        <td><span class="badge bg-blue-100 text-blue-700">In Progress</span></td>
+                        <td class="text-center"><span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span></td>
+                        <td><button class="p-1 hover:bg-gray-100 rounded"><span class="material-symbols-outlined text-gray-400 text-lg">more_vert</span></button></td>
+                    </tr>
+                    <tr class="hover:bg-blue-50/50">
+                        <td><input type="checkbox" class="rounded"></td>
+                        <td class="font-medium text-[#1A365D]"><a href="#" class="hover:underline">RSK-2025-007</a></td>
+                        <td class="max-w-[200px]"><div class="truncate">Third Party / Vendor Dependency Risk</div></td>
+                        <td><span class="text-xs">Operational Risk</span></td>
+                        <td><span class="text-xs">Vendor Mgmt</span></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-orange-100 text-orange-700">High</span> <span class="text-xs text-gray-500">12</span></div></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-yellow-100 text-yellow-700">Medium</span> <span class="text-xs text-gray-500">8</span></div></td>
+                        <td class="text-center"><span class="material-symbols-outlined text-sm text-gray-400">remove</span></td>
+                        <td><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center text-[10px] font-bold">FO</div><span class="text-xs">F. Ogundimu</span></div></td>
+                        <td><span class="badge bg-gray-100 text-gray-700">Accepted</span></td>
+                        <td class="text-center"><span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span></td>
+                        <td><button class="p-1 hover:bg-gray-100 rounded"><span class="material-symbols-outlined text-gray-400 text-lg">more_vert</span></button></td>
+                    </tr>
+                    <tr class="hover:bg-blue-50/50">
+                        <td><input type="checkbox" class="rounded"></td>
+                        <td class="font-medium text-[#1A365D]"><a href="#" class="hover:underline">RSK-2025-008</a></td>
+                        <td class="max-w-[200px]"><div class="truncate">Liquidity Risk - Funding Gap</div></td>
+                        <td><span class="text-xs">Financial Risk</span></td>
+                        <td><span class="text-xs">Liquidity</span></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-orange-100 text-orange-700">High</span> <span class="text-xs text-gray-500">16</span></div></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-orange-100 text-orange-700">High</span> <span class="text-xs text-gray-500">12</span></div></td>
+                        <td class="text-center"><span class="material-symbols-outlined text-sm text-red-500">arrow_upward</span></td>
+                        <td><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-pink-100 text-pink-700 flex items-center justify-center text-[10px] font-bold">KA</div><span class="text-xs">K. Adeoye</span></div></td>
+                        <td><span class="badge bg-red-100 text-red-700">Escalated</span></td>
+                        <td class="text-center"><span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span></td>
+                        <td><button class="p-1 hover:bg-gray-100 rounded"><span class="material-symbols-outlined text-gray-400 text-lg">more_vert</span></button></td>
+                    </tr>
+                    <tr class="hover:bg-blue-50/50">
+                        <td><input type="checkbox" class="rounded"></td>
+                        <td class="font-medium text-[#1A365D]"><a href="#" class="hover:underline">RSK-2025-009</a></td>
+                        <td class="max-w-[200px]"><div class="truncate">Talent Attrition - Key Person Dependency</div></td>
+                        <td><span class="text-xs">People Risk</span></td>
+                        <td><span class="text-xs">Retention</span></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-orange-100 text-orange-700">High</span> <span class="text-xs text-gray-500">12</span></div></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-yellow-100 text-yellow-700">Medium</span> <span class="text-xs text-gray-500">9</span></div></td>
+                        <td class="text-center"><span class="material-symbols-outlined text-sm text-red-500">arrow_upward</span></td>
+                        <td><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center text-[10px] font-bold">NE</div><span class="text-xs">N. Eze</span></div></td>
+                        <td><span class="badge bg-purple-100 text-purple-700">Monitoring</span></td>
+                        <td class="text-center"><span class="w-3 h-3 rounded-full bg-orange-500 inline-block"></span></td>
+                        <td><button class="p-1 hover:bg-gray-100 rounded"><span class="material-symbols-outlined text-gray-400 text-lg">more_vert</span></button></td>
+                    </tr>
+                    <tr class="hover:bg-blue-50/50">
+                        <td><input type="checkbox" class="rounded"></td>
+                        <td class="font-medium text-[#1A365D]"><a href="#" class="hover:underline">RSK-2025-010</a></td>
+                        <td class="max-w-[200px]"><div class="truncate">Data Privacy - NDPA Compliance</div></td>
+                        <td><span class="text-xs">Compliance Risk</span></td>
+                        <td><span class="text-xs">Data Privacy</span></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-orange-100 text-orange-700">High</span> <span class="text-xs text-gray-500">12</span></div></td>
+                        <td><div class="flex items-center gap-1"><span class="badge bg-yellow-100 text-yellow-700">Medium</span> <span class="text-xs text-gray-500">8</span></div></td>
+                        <td class="text-center"><span class="material-symbols-outlined text-sm text-green-500">arrow_downward</span></td>
+                        <td><div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-lime-100 text-lime-700 flex items-center justify-center text-[10px] font-bold">UA</div><span class="text-xs">U. Anyanwu</span></div></td>
+                        <td><span class="badge bg-blue-100 text-blue-700">In Progress</span></td>
+                        <td class="text-center"><span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span></td>
+                        <td><button class="p-1 hover:bg-gray-100 rounded"><span class="material-symbols-outlined text-gray-400 text-lg">more_vert</span></button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="p-4 border-t border-gray-100 flex items-center justify-between">
+            <span class="text-xs text-gray-500">Showing 1-10 of 247 risks</span>
+            <div class="flex gap-1">
+                <button class="px-3 py-1 border border-gray-300 rounded text-xs text-gray-500">Previous</button>
+                <button class="px-3 py-1 bg-[#1A365D] text-white rounded text-xs">1</button>
+                <button class="px-3 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-50">2</button>
+                <button class="px-3 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-50">3</button>
+                <button class="px-3 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-50">...</button>
+                <button class="px-3 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-50">25</button>
+                <button class="px-3 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-50">Next</button>
+            </div>
+        </div>
+    </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    
+
+    
+<footer class="ml-[260px] bg-white border-t border-gray-200 py-3 px-6">
+        <div class="flex items-center justify-between text-[11px] text-gray-400">
+            <span>GRC Risk Management Platform v2.0 &copy; 2025</span>
+            <span>CBN ORMS Compliant &middot; Basel III Aligned &middot; NDPA Certified</span>
+        </div>
+    </footer>
+
+    <script>
+        function toggleNav(id) {
+            const nav = document.getElementById('nav_' + id);
+            const chevron = document.getElementById('chevron_' + id);
+            if (nav && chevron) {
+                nav.classList.toggle('hidden');
+                chevron.classList.toggle('rotate-180');
+            }
+        }
+    </script>
+</body>
+</html>

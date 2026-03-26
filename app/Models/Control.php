@@ -29,6 +29,10 @@ class Control extends Model
         'status',
         'metadata',
         'created_by',
+        'last_test_result',
+        'tests_passed_count',
+        'tests_failed_count',
+        'total_tests_count',
     ];
 
     protected $casts = [
@@ -103,5 +107,32 @@ class Control extends Model
     public function failedInEvents()
     {
         return $this->hasManyThrough(LossEvent::class, LossEventControl::class, 'control_id', 'id', 'id', 'loss_event_id');
+    }
+
+    // ── Control Testing ──────────────────────────────────────────────
+    public function tests()
+    {
+        return $this->hasMany(ControlTest::class);
+    }
+
+    public function latestTest()
+    {
+        return $this->hasOne(ControlTest::class)->latest('completed_date');
+    }
+
+    public function updateTestStats(): void
+    {
+        $total   = $this->tests()->where('status', 'completed')->count();
+        $passed  = $this->tests()->where('status', 'completed')->where('result', 'effective')->count();
+        $failed  = $this->tests()->where('status', 'completed')->where('result', 'ineffective')->count();
+        $latest  = $this->tests()->where('status', 'completed')->latest('completed_date')->first();
+
+        $this->update([
+            'total_tests_count'  => $total,
+            'tests_passed_count' => $passed,
+            'tests_failed_count' => $failed,
+            'last_test_result'   => $latest?->result,
+            'last_test_date'     => $latest?->completed_date,
+        ]);
     }
 }

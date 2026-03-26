@@ -17,6 +17,12 @@ use App\Http\Controllers\Risk\ReportController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
 use App\Http\Controllers\Risk\ScopingController;
 use App\Http\Controllers\Risk\ExportController;
+use App\Http\Controllers\Risk\ControlTestController;
+use App\Http\Controllers\Risk\CampaignController;
+use App\Http\Controllers\Risk\QuestionnaireController;
+use App\Http\Controllers\Risk\WorkflowController;
+use App\Http\Controllers\Risk\RegulatoryComplianceController;
+use App\Http\Controllers\Risk\DataImportController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\OrganizationSettingsController;
@@ -197,4 +203,85 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     Route::post('approvals/{approval}/approve', [\App\Http\Controllers\Risk\ApprovalController::class, 'approve'])->name('risk.approvals.approve');
     Route::post('approvals/{approval}/reject', [\App\Http\Controllers\Risk\ApprovalController::class, 'reject'])->name('risk.approvals.reject');
     Route::get('approvals/history', [\App\Http\Controllers\Risk\ApprovalController::class, 'history'])->name('risk.approvals.history');
+
+    // ══════════════════════════════════════════════════════════════════
+    // UPGRADE: Control Testing
+    // ══════════════════════════════════════════════════════════════════
+    Route::get('control-tests/dashboard', [ControlTestController::class, 'dashboard'])->name('risk.control-tests.dashboard');
+    Route::get('control-tests', [ControlTestController::class, 'index'])->name('risk.control-tests.index');
+    Route::get('control-tests/create', [ControlTestController::class, 'create'])->name('risk.control-tests.create');
+    Route::post('control-tests', [ControlTestController::class, 'store'])->name('risk.control-tests.store');
+    Route::get('control-tests/{controlTest}', [ControlTestController::class, 'show'])->name('risk.control-tests.show');
+    Route::get('control-tests/{controlTest}/edit', [ControlTestController::class, 'edit'])->name('risk.control-tests.edit');
+    Route::put('control-tests/{controlTest}', [ControlTestController::class, 'update'])->name('risk.control-tests.update');
+    Route::post('control-tests/{controlTest}/start', [ControlTestController::class, 'startTest'])->name('risk.control-tests.start');
+    Route::post('control-tests/{controlTest}/complete', [ControlTestController::class, 'completeTest'])->name('risk.control-tests.complete');
+    Route::post('control-tests/{controlTest}/review', [ControlTestController::class, 'reviewTest'])->name('risk.control-tests.review');
+    Route::post('control-tests/{controlTest}/evidence', [ControlTestController::class, 'uploadEvidence'])->name('risk.control-tests.upload-evidence');
+
+    // ══════════════════════════════════════════════════════════════════
+    // UPGRADE: Assessment Campaigns
+    // ══════════════════════════════════════════════════════════════════
+    Route::get('campaigns/dashboard', [CampaignController::class, 'dashboard'])->name('risk.campaigns.dashboard');
+    Route::get('campaigns', [CampaignController::class, 'index'])->name('risk.campaigns.index');
+    Route::get('campaigns/create', [CampaignController::class, 'create'])->name('risk.campaigns.create');
+    Route::post('campaigns', [CampaignController::class, 'store'])->name('risk.campaigns.store');
+    Route::get('campaigns/{campaign}', [CampaignController::class, 'show'])->name('risk.campaigns.show');
+    Route::post('campaigns/{campaign}/assignments', [CampaignController::class, 'addAssignment'])->name('risk.campaigns.add-assignment');
+    Route::post('campaigns/{campaign}/launch', [CampaignController::class, 'launch'])->name('risk.campaigns.launch');
+    Route::post('campaigns/{campaign}/close', [CampaignController::class, 'closeCampaign'])->name('risk.campaigns.close');
+    Route::get('campaigns/assignments/{assignment}/respond', [CampaignController::class, 'respond'])->name('risk.campaigns.respond');
+    Route::post('campaigns/assignments/{assignment}/submit', [CampaignController::class, 'submitResponse'])->name('risk.campaigns.submit-response');
+    Route::post('campaigns/assignments/{assignment}/review', [CampaignController::class, 'reviewAssignment'])->name('risk.campaigns.review-assignment');
+
+    // ══════════════════════════════════════════════════════════════════
+    // UPGRADE: Questionnaire Engine
+    // ══════════════════════════════════════════════════════════════════
+    Route::get('questionnaires', [QuestionnaireController::class, 'index'])->name('risk.questionnaires.index');
+    Route::get('questionnaires/create', [QuestionnaireController::class, 'create'])->name('risk.questionnaires.create');
+    Route::post('questionnaires', [QuestionnaireController::class, 'store'])->name('risk.questionnaires.store');
+    Route::get('questionnaires/{questionnaire}', [QuestionnaireController::class, 'show'])->name('risk.questionnaires.show');
+    Route::get('questionnaires/{questionnaire}/edit', [QuestionnaireController::class, 'edit'])->name('risk.questionnaires.edit');
+    Route::post('questionnaires/{questionnaire}/sections', [QuestionnaireController::class, 'addSection'])->name('risk.questionnaires.add-section');
+    Route::post('questionnaires/sections/{section}/questions', [QuestionnaireController::class, 'addQuestion'])->name('risk.questionnaires.add-question');
+    Route::delete('questionnaires/questions/{question}', [QuestionnaireController::class, 'removeQuestion'])->name('risk.questionnaires.remove-question');
+    Route::post('questionnaires/{questionnaire}/publish', [QuestionnaireController::class, 'publish'])->name('risk.questionnaires.publish');
+    Route::get('question-library', [QuestionnaireController::class, 'library'])->name('risk.questionnaires.library');
+    Route::post('question-library', [QuestionnaireController::class, 'storeLibraryQuestion'])->name('risk.questionnaires.store-library');
+
+    // ══════════════════════════════════════════════════════════════════
+    // UPGRADE: Workflow Engine
+    // ══════════════════════════════════════════════════════════════════
+    Route::get('workflows/dashboard', [WorkflowController::class, 'dashboard'])->name('risk.workflows.dashboard');
+    Route::get('workflows/definitions', [WorkflowController::class, 'definitions'])->name('risk.workflows.definitions');
+    Route::get('workflows/definitions/create', [WorkflowController::class, 'createDefinition'])->name('risk.workflows.create-definition');
+    Route::post('workflows/definitions', [WorkflowController::class, 'storeDefinition'])->name('risk.workflows.store-definition');
+    Route::post('workflows/start', [WorkflowController::class, 'startWorkflow'])->name('risk.workflows.start');
+    Route::get('workflows/{instance}', [WorkflowController::class, 'showInstance'])->name('risk.workflows.show-instance');
+    Route::post('workflows/{instance}/act', [WorkflowController::class, 'actOnWorkflow'])->name('risk.workflows.act');
+
+    // ══════════════════════════════════════════════════════════════════
+    // UPGRADE: Regulatory Compliance
+    // ══════════════════════════════════════════════════════════════════
+    Route::get('regulatory/dashboard', [RegulatoryComplianceController::class, 'dashboard'])->name('risk.regulatory.dashboard');
+    Route::get('regulatory/calendar', [RegulatoryComplianceController::class, 'calendar'])->name('risk.regulatory.calendar');
+    Route::get('regulatory/deadlines', [RegulatoryComplianceController::class, 'deadlines'])->name('risk.regulatory.deadlines');
+    Route::get('regulatory/deadlines/create', [RegulatoryComplianceController::class, 'createDeadline'])->name('risk.regulatory.create-deadline');
+    Route::post('regulatory/deadlines', [RegulatoryComplianceController::class, 'storeDeadline'])->name('risk.regulatory.store-deadline');
+    Route::post('regulatory/deadlines/{deadline}/filing', [RegulatoryComplianceController::class, 'submitFiling'])->name('risk.regulatory.submit-filing');
+    Route::get('regulatory/circulars', [RegulatoryComplianceController::class, 'circulars'])->name('risk.regulatory.circulars');
+    Route::get('regulatory/circulars/create', [RegulatoryComplianceController::class, 'createCircular'])->name('risk.regulatory.create-circular');
+    Route::post('regulatory/circulars', [RegulatoryComplianceController::class, 'storeCircular'])->name('risk.regulatory.store-circular');
+    Route::get('regulatory/circulars/{circular}', [RegulatoryComplianceController::class, 'showCircular'])->name('risk.regulatory.show-circular');
+    Route::patch('regulatory/circulars/{circular}/compliance', [RegulatoryComplianceController::class, 'updateCompliance'])->name('risk.regulatory.update-compliance');
+    Route::get('regulatory/taxonomy', [RegulatoryComplianceController::class, 'taxonomyIndex'])->name('risk.regulatory.taxonomy');
+    Route::post('regulatory/taxonomy', [RegulatoryComplianceController::class, 'storeTaxonomy'])->name('risk.regulatory.store-taxonomy');
+
+    // ══════════════════════════════════════════════════════════════════
+    // UPGRADE: Data Import
+    // ══════════════════════════════════════════════════════════════════
+    Route::get('imports', [DataImportController::class, 'index'])->name('risk.imports.index');
+    Route::get('imports/create', [DataImportController::class, 'create'])->name('risk.imports.create');
+    Route::post('imports/upload', [DataImportController::class, 'upload'])->name('risk.imports.upload');
+    Route::post('imports/{import}/process', [DataImportController::class, 'processImport'])->name('risk.imports.process');
 });

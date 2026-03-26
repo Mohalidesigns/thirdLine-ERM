@@ -15,6 +15,11 @@ class Risk extends Model
     protected $fillable = [
         'organization_id',
         'entity_id',
+        'parent_risk_id',
+        'risk_level',
+        'hierarchy_path',
+        'roll_up_weight',
+        'hierarchy_depth',
         'risk_code',
         'title',
         'description',
@@ -49,7 +54,7 @@ class Risk extends Model
         'regulatory_mapping',
         'cbn_risk_type',
         'basel_event_type',
-        'identified_date',
+        'date_identified',
         'identified_by',
         'last_assessment_date',
         'next_review_date',
@@ -72,7 +77,7 @@ class Risk extends Model
         'metadata'                => 'array',
         'control_effectiveness_pct' => 'decimal:2',
         'financial_exposure_ngn'    => 'decimal:2',
-        'identified_date'         => 'date',
+        'date_identified'         => 'date',
         'last_assessment_date'    => 'date',
         'next_review_date'        => 'date',
     ];
@@ -100,6 +105,42 @@ class Risk extends Model
     public function entity()
     {
         return $this->belongsTo(Entity::class);
+    }
+
+    // ── Hierarchy Relationships ──────────────────────────────────────
+    public function parentRisk()
+    {
+        return $this->belongsTo(self::class, 'parent_risk_id');
+    }
+
+    public function childRisks()
+    {
+        return $this->hasMany(self::class, 'parent_risk_id');
+    }
+
+    public function allDescendants()
+    {
+        return $this->childRisks()->with('allDescendants');
+    }
+
+    public function controlTests()
+    {
+        return $this->hasManyThrough(ControlTest::class, Control::class, 'id', 'control_id')
+            ->whereIn('controls.id', function ($q) {
+                $q->select('control_id')->from('risk_control_mapping')->where('risk_id', $this->id);
+            });
+    }
+
+    /**
+     * Calculate the roll-up score from child risks.
+     */
+    public function calculateRollUpScore(): ?float
+    {
+        $children = $this->childRisks()->whereNotNull('residual_score')->get();
+        if ($children->isEmpty()) return null;
+        $totalWeight = $children->sum('roll_up_weight');
+        if ($totalWeight == 0) return null;
+        return $children->sum(fn ($c) => $c->residual_score * $c->roll_up_weight) / $totalWeight;
     }
 
     public function category()

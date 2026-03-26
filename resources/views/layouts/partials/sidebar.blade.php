@@ -69,9 +69,13 @@
             'label' => 'Control Library',
             'icon' => 'verified_user',
             'prefix' => 'risk/controls',
+            'altPrefix' => 'risk/control-tests',
             'items' => [
                 ['label' => 'All Controls', 'url' => '/risk/controls'],
                 ['label' => 'New Control', 'url' => '/risk/controls/create'],
+                ['label' => 'Testing Dashboard', 'url' => '/risk/control-tests/dashboard'],
+                ['label' => 'All Tests', 'url' => '/risk/control-tests'],
+                ['label' => 'Schedule Test', 'url' => '/risk/control-tests/create'],
             ],
         ],
         [
@@ -129,6 +133,34 @@
             ],
         ],
 
+        // ── Assessment Campaigns & Questionnaires ───────────────────
+        [
+            'id' => 'campaigns',
+            'label' => 'Campaigns',
+            'icon' => 'campaign',
+            'prefix' => 'risk/campaigns',
+            'altPrefix' => 'risk/questionnaires',
+            'items' => [
+                ['label' => 'Dashboard', 'url' => '/risk/campaigns/dashboard'],
+                ['label' => 'All Campaigns', 'url' => '/risk/campaigns'],
+                ['label' => 'New Campaign', 'url' => '/risk/campaigns/create'],
+                ['label' => 'Questionnaires', 'url' => '/risk/questionnaires'],
+                ['label' => 'Question Library', 'url' => '/risk/question-library'],
+            ],
+        ],
+
+        // ── Workflow Engine ──────────────────────────────────────────
+        [
+            'id' => 'workflows',
+            'label' => 'Workflows',
+            'icon' => 'device_hub',
+            'prefix' => 'risk/workflows',
+            'items' => [
+                ['label' => 'Dashboard', 'url' => '/risk/workflows/dashboard'],
+                ['label' => 'Definitions', 'url' => '/risk/workflows/definitions'],
+            ],
+        ],
+
         // ── Phase 5: Analysis & Quantification ─────────────────────
         [
             'id' => 'analysis',
@@ -156,6 +188,33 @@
                 ['label' => 'Library', 'url' => '/risk/quantification/library'],
                 ['label' => 'Settings', 'url' => '/risk/quantification/settings'],
                 ['label' => 'Reports', 'url' => '/risk/quantification/reports'],
+            ],
+        ],
+
+        // ── Regulatory Compliance ────────────────────────────────────
+        [
+            'id' => 'regulatory',
+            'label' => 'Regulatory',
+            'icon' => 'gavel',
+            'prefix' => 'risk/regulatory',
+            'items' => [
+                ['label' => 'Dashboard', 'url' => '/risk/regulatory/dashboard'],
+                ['label' => 'Calendar', 'url' => '/risk/regulatory/calendar'],
+                ['label' => 'Deadlines', 'url' => '/risk/regulatory/deadlines'],
+                ['label' => 'Circulars', 'url' => '/risk/regulatory/circulars'],
+                ['label' => 'Taxonomy', 'url' => '/risk/regulatory/taxonomy'],
+            ],
+        ],
+
+        // ── Data Import ─────────────────────────────────────────────
+        [
+            'id' => 'imports',
+            'label' => 'Data Import',
+            'icon' => 'upload_file',
+            'prefix' => 'risk/imports',
+            'items' => [
+                ['label' => 'Import History', 'url' => '/risk/imports'],
+                ['label' => 'New Import', 'url' => '/risk/imports/create'],
             ],
         ],
 

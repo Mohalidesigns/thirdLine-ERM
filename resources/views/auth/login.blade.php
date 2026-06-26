@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Login - GRC Risk Management</title>
+    <title>Sign In - Atheris ERM GRC Suite</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -34,49 +34,100 @@
     </script>
 
     <style>
-        body {
-            font-family: 'Inter', system-ui, sans-serif;
-        }
-
+        body { font-family: 'Inter', system-ui, sans-serif; }
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center" style="background: linear-gradient(135deg, #1A365D 0%, #2D7D46 100%);">
+<body class="min-h-screen bg-gray-50">
 
-    <div class="w-full max-w-md px-4">
-        <!-- Logo/Branding Area -->
-        <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-white/20 backdrop-blur-sm mb-4">
-                <span class="material-symbols-outlined text-white text-4xl">shield_lock</span>
+    <div class="min-h-screen grid lg:grid-cols-2">
+
+        {{-- Left: brand panel --}}
+        <div class="relative bg-[#0F2544] text-white p-10 lg:p-14 flex flex-col justify-between overflow-hidden">
+            {{-- Subtle pattern overlay --}}
+            <div class="absolute inset-0 opacity-[0.08] pointer-events-none"
+                 style="background-image: radial-gradient(circle at 20% 20%, #ffffff 1px, transparent 1px), radial-gradient(circle at 80% 60%, #ffffff 1px, transparent 1px); background-size: 48px 48px, 64px 64px;"></div>
+
+            <div class="relative">
+                {{-- Logo --}}
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-lg bg-[#D4AF37] flex items-center justify-center shadow-md">
+                        <span class="material-symbols-outlined text-[#1A365D]" style="font-size: 28px;">verified_user</span>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold leading-tight">Atheris ERM</h1>
+                        <p class="text-xs text-white/70">GRC Suite</p>
+                    </div>
+                </div>
             </div>
-            <h1 class="text-white text-3xl font-bold">GRC Platform</h1>
-            <p class="text-white/70 text-sm mt-2">Enterprise Risk & Compliance Management</p>
+
+            <div class="relative mt-16 lg:mt-0">
+                <h2 class="text-3xl lg:text-4xl font-bold leading-tight">Enterprise Risk Management</h2>
+                <p class="mt-4 text-sm lg:text-base text-white/80 max-w-lg leading-relaxed">
+                    Enterprise-grade governance, risk, and compliance platform built for the African market. Manage risks, ensure compliance, and protect your organization.
+                </p>
+
+                <div class="mt-8 grid grid-cols-2 gap-y-3 gap-x-6 max-w-md">
+                    @foreach (['COSO ERM Aligned', 'CBN ORMS Compliant', 'ISO 31000', 'Basel III Ready'] as $feature)
+                        <div class="flex items-center gap-2 text-sm">
+                            <span class="w-1.5 h-1.5 rounded-full bg-[#D4AF37] flex-shrink-0"></span>
+                            <span class="text-white/90">{{ $feature }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="relative mt-12 lg:mt-0">
+                <p class="text-xs text-white/50">&copy; {{ date('Y') }} Atheris ERM GRC Suite. All rights reserved.</p>
+            </div>
         </div>
 
-        <!-- Login Card -->
-        <div class="bg-white rounded-xl shadow-2xl overflow-hidden">
-            <div class="p-8">
-                <h2 class="text-2xl font-bold text-gray-900 mb-1">Welcome Back</h2>
-                <p class="text-gray-500 text-sm mb-6">Sign in to your account to continue</p>
+        {{-- Right: sign-in form --}}
+        <div class="flex items-center justify-center p-6 lg:p-14 bg-gray-50">
+            <div class="w-full max-w-md">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-8 lg:p-10">
+                    <h2 class="text-2xl font-bold text-gray-900">Sign In</h2>
+                    <p class="text-sm text-gray-500 mt-1">Access your GRC dashboard</p>
 
-                @if ($errors->any())
-                    <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-                        @foreach ($errors->all() as $error)
-                            <p class="text-red-600 text-sm">{{ $error }}</p>
-                        @endforeach
-                    </div>
-                @endif
+                    @if(session('success'))
+                        <div class="mt-6 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                            <span class="material-symbols-outlined text-green-600 text-[18px]">check_circle</span>
+                            <p class="text-green-700 text-sm">{{ session('success') }}</p>
+                        </div>
+                    @endif
 
-                <form method="POST" action="{{ route('login') }}" class="space-y-5">
-                    @csrf
+                    @if(session('error'))
+                        <div class="mt-6 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+                            <span class="material-symbols-outlined text-red-600 text-[18px]">error</span>
+                            <p class="text-red-700 text-sm">{{ session('error') }}</p>
+                        </div>
+                    @endif
 
-                    <!-- Email Field -->
-                    <div>
-                        <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                        <div class="relative">
-                            <span class="absolute left-3 top-3.5 material-symbols-outlined text-gray-400 text-[20px]">mail</span>
+                    @if(session('warning'))
+                        <div class="mt-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-2">
+                            <span class="material-symbols-outlined text-yellow-600 text-[18px]">warning</span>
+                            <p class="text-yellow-700 text-sm">{{ session('warning') }}</p>
+                        </div>
+                    @endif
+
+                    @if ($errors->any())
+                        <div class="mt-6 p-3 bg-red-50 border border-red-200 rounded-lg space-y-1">
+                            @foreach ($errors->all() as $error)
+                                <p class="text-red-600 text-sm flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-[16px]">error</span>
+                                    {{ $error }}
+                                </p>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    <form method="POST" action="{{ route('login') }}" class="mt-6 space-y-5">
+                        @csrf
+
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-gray-800 mb-1.5">Email Address</label>
                             <input
                                 type="email"
                                 id="email"
@@ -84,54 +135,45 @@
                                 value="{{ old('email') }}"
                                 required
                                 autofocus
-                                class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition"
-                                placeholder="you@example.com"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] transition"
                             >
                         </div>
-                    </div>
 
-                    <!-- Password Field -->
-                    <div>
-                        <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                        <div class="relative">
-                            <span class="absolute left-3 top-3.5 material-symbols-outlined text-gray-400 text-[20px]">lock</span>
+                        <div>
+                            <label for="password" class="block text-sm font-medium text-gray-800 mb-1.5">Password</label>
                             <input
                                 type="password"
                                 id="password"
                                 name="password"
                                 required
-                                class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition"
-                                placeholder="••••••••"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] transition"
                             >
                         </div>
-                    </div>
 
-                    <!-- Remember Me & Forgot Password -->
-                    <div class="flex items-center justify-between">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" name="remember" class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary">
-                            <span class="text-sm text-gray-600">Remember me</span>
-                        </label>
-                        <a href="{{ route('password.request') }}" class="text-sm text-primary hover:text-primary/80 font-medium">Forgot Password?</a>
-                    </div>
+                        <div class="flex items-center justify-between">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="remember" class="w-4 h-4 rounded border-gray-300 text-[#1A365D] focus:ring-[#1A365D]">
+                                <span class="text-sm text-gray-600">Remember me</span>
+                            </label>
+                            <a href="{{ route('password.request') }}" class="text-sm text-[#1A365D] hover:text-[#1A365D]/80 font-semibold">Forgot password?</a>
+                        </div>
 
-                    <!-- Login Button -->
-                    <button
-                        type="submit"
-                        class="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-2.5 rounded-lg transition duration-200 mt-7"
-                    >
-                        Sign In
-                    </button>
-                </form>
-            </div>
+                        <button
+                            type="submit"
+                            class="w-full bg-[#1A365D] hover:bg-[#2D4A7A] text-white font-semibold py-3 rounded-lg transition duration-200"
+                        >
+                            Sign In
+                        </button>
+                    </form>
 
-            <!-- Footer -->
-            <div class="px-8 py-4 bg-gray-50 border-t border-gray-100">
-                <p class="text-center text-sm text-gray-500">
-                    GRC Platform v2.0 | CBN ORMS Compliant | Basel III Aligned
-                </p>
+                    <p class="mt-6 text-center text-sm text-gray-500">
+                        Don't have an account?
+                        <a href="mailto:admin@yourorg.com?subject=GRC%20Suite%20account%20request" class="font-semibold text-[#1A365D] hover:underline">Create one</a>
+                    </p>
+                </div>
             </div>
         </div>
+
     </div>
 
 </body>

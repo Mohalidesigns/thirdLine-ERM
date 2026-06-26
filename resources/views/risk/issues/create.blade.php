@@ -152,7 +152,7 @@
                     <select name="owner_id" required
                             class="w-full text-sm border border-gray-200 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] @error('owner_id') border-red-300 @enderror">
                         <option value="">Select Owner</option>
-                        @foreach (($owners ?? []) as $owner)
+                        @foreach (($users ?? []) as $owner)
                             <option value="{{ $owner->id }}" {{ old('owner_id') == $owner->id ? 'selected' : '' }}>{{ $owner->name }}</option>
                         @endforeach
                     </select>

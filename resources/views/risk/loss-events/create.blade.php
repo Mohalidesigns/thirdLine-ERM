@@ -345,10 +345,42 @@
                         </div>
                     </div>
 
-                    {{-- Placeholder for alignment --}}
-                    <div></div>
+                    {{-- Near Miss --}}
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1.5">Near Miss</label>
+                        <label class="flex items-start gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:border-[#1A365D]/30">
+                            <input type="checkbox" name="is_near_miss" id="isNearMiss" value="1" {{ old('is_near_miss') ? 'checked' : '' }}
+                                   class="mt-0.5 rounded border-gray-300 text-[#1A365D] focus:ring-[#1A365D]"
+                                   onchange="handleNearMissToggle(this)">
+                            <div>
+                                <div class="text-xs font-semibold text-gray-700">Flag as near miss</div>
+                                <div class="text-[11px] text-gray-500 mt-0.5">No actual loss occurred but risk exposure was realised. Gross loss will be set to 0.</div>
+                            </div>
+                        </label>
+                    </div>
                 </div>
             </div>
+
+            <script>
+                function handleNearMissToggle(cb) {
+                    const grossLoss = document.getElementById('grossLossAmount');
+                    if (!grossLoss) return;
+                    if (cb.checked) {
+                        grossLoss.dataset.previous = grossLoss.value;
+                        grossLoss.value = '0';
+                        grossLoss.readOnly = true;
+                        grossLoss.classList.add('bg-gray-50');
+                    } else {
+                        grossLoss.readOnly = false;
+                        grossLoss.classList.remove('bg-gray-50');
+                        if (grossLoss.dataset.previous) grossLoss.value = grossLoss.dataset.previous;
+                    }
+                }
+                document.addEventListener('DOMContentLoaded', () => {
+                    const cb = document.getElementById('isNearMiss');
+                    if (cb && cb.checked) handleNearMissToggle(cb);
+                });
+            </script>
 
             {{-- Regulatory Flags --}}
             <div class="bg-white rounded-xl border border-gray-200 p-6 mt-6">

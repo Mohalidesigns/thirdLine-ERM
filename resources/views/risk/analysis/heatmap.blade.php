@@ -20,15 +20,20 @@
         </div>
         <div class="flex items-center gap-3">
             <div class="flex bg-white rounded-lg border border-gray-200 p-0.5">
-                <button id="btnInherent" class="px-4 py-1.5 text-xs font-medium rounded-md bg-[#1A365D] text-white" onclick="toggleHeatmap('inherent')">Inherent</button>
-                <button id="btnResidual" class="px-4 py-1.5 text-xs font-medium rounded-md text-gray-600 hover:bg-gray-100" onclick="toggleHeatmap('residual')">Residual</button>
+                <a href="{{ route('risk.analysis.heatmap', array_merge(request()->except('view_type'), ['view_type' => 'inherent'])) }}"
+                   class="px-4 py-1.5 text-xs font-medium rounded-md {{ $viewType === 'inherent' ? 'bg-[#1A365D] text-white' : 'text-gray-600 hover:bg-gray-100' }}">Inherent</a>
+                <a href="{{ route('risk.analysis.heatmap', array_merge(request()->except('view_type'), ['view_type' => 'residual'])) }}"
+                   class="px-4 py-1.5 text-xs font-medium rounded-md {{ $viewType === 'residual' ? 'bg-[#1A365D] text-white' : 'text-gray-600 hover:bg-gray-100' }}">Residual</a>
             </div>
-            <select id="categoryFilter" class="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-600">
-                <option value="">All Categories</option>
-                @foreach (($categories ?? []) as $cat)
-                    <option value="{{ $cat }}">{{ $cat }}</option>
-                @endforeach
-            </select>
+            <form method="GET" action="{{ route('risk.analysis.heatmap') }}">
+                <input type="hidden" name="view_type" value="{{ $viewType }}">
+                <select name="category_id" onchange="this.form.submit()" class="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-600">
+                    <option value="">All Categories</option>
+                    @foreach (($categories ?? []) as $cat)
+                        <option value="{{ $cat->id }}" {{ request('category_id') == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                    @endforeach
+                </select>
+            </form>
         </div>
     </div>
 
@@ -72,7 +77,10 @@
                                 @for ($iScore = 1; $iScore <= 5; $iScore++)
                                     @php
                                         $key = $lScore . '-' . $iScore;
-                                        $risksInCell = collect($risks ?? [])->filter(function($r) use ($lScore, $iScore) {
+                                        $risksInCell = collect($risks ?? [])->filter(function($r) use ($lScore, $iScore, $viewType) {
+                                            if ($viewType === 'residual' && $r->residual_likelihood && $r->residual_impact) {
+                                                return $r->residual_likelihood == $lScore && $r->residual_impact == $iScore;
+                                            }
                                             return ($r->inherent_likelihood ?? 0) == $lScore && ($r->inherent_impact ?? 0) == $iScore;
                                         });
                                     @endphp
@@ -144,6 +152,9 @@
 
 @push('scripts')
 <script>
+const HEATMAP_RISKS = @json($risksForJs ?? []);
+const HEATMAP_VIEW_TYPE = @json($viewType ?? 'inherent');
+
 document.addEventListener('DOMContentLoaded', function() {
     const movData = @json($chartMovementData);
     new Chart(document.getElementById('movementChart'), {
@@ -152,25 +163,68 @@ document.addEventListener('DOMContentLoaded', function() {
             labels: movData.labels,
             datasets: [
                 { label: 'Critical', data: movData.critical, borderColor: '#C53030', tension: 0.3, pointRadius: 3 },
-                { label: 'High', data: movData.high, borderColor: '#DD6B20', tension: 0.3, pointRadius: 3 },
-                { label: 'Medium', data: movData.medium, borderColor: '#D4AF37', tension: 0.3, pointRadius: 3 },
-                { label: 'Low', data: movData.low, borderColor: '#2D7D46', tension: 0.3, pointRadius: 3 },
+                { label: 'High',     data: movData.high,     borderColor: '#DD6B20', tension: 0.3, pointRadius: 3 },
+                { label: 'Medium',   data: movData.medium,   borderColor: '#D4AF37', tension: 0.3, pointRadius: 3 },
+                { label: 'Low',      data: movData.low,      borderColor: '#2D7D46', tension: 0.3, pointRadius: 3 },
             ]
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 9 }, usePointStyle: true } } }, scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { beginAtZero: true, grid: { color: '#F0F0F0' }, ticks: { font: { size: 10 }, stepSize: 1 } } } }
     });
 });
 
-function toggleHeatmap(type) {
-    document.getElementById('btnInherent').className = type === 'inherent' ? 'px-4 py-1.5 text-xs font-medium rounded-md bg-[#1A365D] text-white' : 'px-4 py-1.5 text-xs font-medium rounded-md text-gray-600 hover:bg-gray-100';
-    document.getElementById('btnResidual').className = type === 'residual' ? 'px-4 py-1.5 text-xs font-medium rounded-md bg-[#1A365D] text-white' : 'px-4 py-1.5 text-xs font-medium rounded-md text-gray-600 hover:bg-gray-100';
-    // In production, this would reload data via AJAX
+function ratingClass(rating) {
+    const r = (rating || '').toLowerCase();
+    if (r === 'critical') return 'bg-red-100 text-red-700';
+    if (r === 'high')     return 'bg-orange-100 text-orange-700';
+    if (r === 'medium')   return 'bg-yellow-100 text-yellow-700';
+    if (r === 'low')      return 'bg-green-100 text-green-700';
+    return 'bg-gray-100 text-gray-700';
 }
 
 function showCellRisks(likelihood, impact) {
     const panel = document.getElementById('cellDetails');
-    panel.innerHTML = '<h3 class="text-sm font-semibold text-[#1A365D] mb-4">Cell: L=' + likelihood + ', I=' + impact + ' (Score: ' + (likelihood*impact) + ')</h3><div class="text-xs text-gray-500">Loading risks...</div>';
-    // In production, this would load cell risks via AJAX
+    const score = likelihood * impact;
+
+    const matches = HEATMAP_RISKS.filter(r => {
+        if (HEATMAP_VIEW_TYPE === 'residual' && r.residual_l && r.residual_i) {
+            return r.residual_l == likelihood && r.residual_i == impact;
+        }
+        return r.inherent_l == likelihood && r.inherent_i == impact;
+    });
+
+    const header = `<div class="flex items-start justify-between mb-3">
+        <div>
+            <h3 class="text-sm font-semibold text-[#1A365D]">Cell: L=${likelihood}, I=${impact}</h3>
+            <p class="text-[10px] text-gray-500">Score ${score} · ${HEATMAP_VIEW_TYPE} view</p>
+        </div>
+        <span class="text-[11px] font-semibold bg-[#1A365D]/10 text-[#1A365D] px-2 py-0.5 rounded-full">${matches.length} risk${matches.length === 1 ? '' : 's'}</span>
+    </div>`;
+
+    if (matches.length === 0) {
+        panel.innerHTML = header + `<div class="text-center py-4 text-gray-400 text-xs">
+            <span class="material-symbols-outlined text-2xl mb-1 block">inbox</span>
+            No risks in this cell
+        </div>`;
+        return;
+    }
+
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+    const items = matches.map(r => {
+        const rating = HEATMAP_VIEW_TYPE === 'residual' ? r.residual_rating : r.inherent_rating;
+        const sc = HEATMAP_VIEW_TYPE === 'residual' ? r.residual_score : r.inherent_score;
+        return `<a href="${encodeURI(r.url ?? '#')}" class="block p-2 rounded-lg border border-gray-100 hover:bg-blue-50 mb-2">
+            <div class="flex items-center justify-between gap-2">
+                <span class="text-[11px] font-semibold text-[#1A365D]">${esc(r.code ?? '')}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${ratingClass(rating)}">${esc(rating ?? '—')} · ${esc(sc ?? '—')}</span>
+            </div>
+            <p class="text-xs text-gray-700 mt-1 line-clamp-2">${esc(r.title ?? '')}</p>
+            <p class="text-[10px] text-gray-400 mt-0.5">${esc(r.category ?? '—')}${r.business_unit ? ' · ' + esc(r.business_unit) : ''}</p>
+        </a>`;
+    }).join('');
+
+    panel.innerHTML = header + `<div class="max-h-[340px] overflow-y-auto">${items}</div>`;
 }
 </script>
 @endpush

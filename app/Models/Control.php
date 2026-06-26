@@ -42,6 +42,14 @@ class Control extends Model
         'next_test_due'     => 'date',
     ];
 
+    // Standard % values for each effectiveness rating, used when
+    // `effectiveness_pct` is not explicitly set on the control.
+    public const EFFECTIVENESS_PERCENT_MAP = [
+        'effective'            => 100,
+        'partially_effective'  => 50,
+        'ineffective'          => 0,
+    ];
+
     protected static function boot(): void
     {
         parent::boot();
@@ -51,6 +59,31 @@ class Control extends Model
                 $model->uuid = (string) Str::uuid();
             }
         });
+    }
+
+    /**
+     * Numeric effectiveness % — uses the explicit `effectiveness_pct` column
+     * when set, otherwise falls back to the standardized mapping from the
+     * `effectiveness_rating` string.
+     */
+    public function getEffectivenessPercentAttribute(): int
+    {
+        if (($this->attributes['effectiveness_pct'] ?? null) !== null) {
+            return (int) round((float) $this->attributes['effectiveness_pct']);
+        }
+        $rating = strtolower((string) ($this->attributes['effectiveness_rating'] ?? ''));
+        return self::EFFECTIVENESS_PERCENT_MAP[$rating] ?? 0;
+    }
+
+    public function getEffectivenessLabelAttribute(): string
+    {
+        $rating = strtolower((string) ($this->attributes['effectiveness_rating'] ?? ''));
+        return match ($rating) {
+            'effective'           => 'Effective',
+            'partially_effective' => 'Partially Effective',
+            'ineffective'         => 'Ineffective',
+            default               => 'Not Rated',
+        };
     }
 
     /* ------------------------------------------------------------------ */

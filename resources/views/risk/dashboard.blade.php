@@ -51,15 +51,31 @@
     </div>
 
     {{-- ════════════════════════════════════════════════════════════════
-         Section 1 — Executive KPI Strip (8 cards)
+         Section 1 — Executive KPI Strip (8 cards, 4 per row)
          ════════════════════════════════════════════════════════════════ --}}
-    <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4 mb-6">
+    @php
+        // Compact Naira amounts so large numbers fit inside narrow KPI cards.
+        $compactNaira = function ($amount) {
+            $a = abs((float) $amount);
+            if ($a >= 1e9) return '₦' . number_format($amount / 1e9, 2) . 'B';
+            if ($a >= 1e6) return '₦' . number_format($amount / 1e6, 2) . 'M';
+            if ($a >= 1e3) return '₦' . number_format($amount / 1e3, 1) . 'K';
+            return '₦' . number_format($amount, 0);
+        };
+    @endphp
+    <style>
+        /* Compact variant for the Command Centre KPI strip so 8 cards stack
+           comfortably on a 4-column grid without values overflowing. */
+        .kpi-strip .kpi-card { padding: 0.85rem 1rem; }
+        .kpi-strip .kpi-card .text-2xl { font-size: 1.25rem; line-height: 1.75rem; }
+    </style>
+    <div class="kpi-strip grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <x-kpi-card title="Active Risks"   :value="$totalActiveRisks"   icon="security"         color="primary" subtitle="In register" />
         <x-kpi-card title="Critical Risks"  :value="$criticalRisks"     icon="error"             color="danger"  subtitle="Residual rating" />
         <x-kpi-card title="High Risks"      :value="$highRisks"         icon="warning"           color="warning" subtitle="Residual rating" />
         <x-kpi-card title="KRI Breaches"    :value="$kriBreaches"       icon="speed"             color="danger"  subtitle="Red threshold" />
         <x-kpi-card title="Open Issues"     :value="$openIssues"        icon="bug_report"        color="warning" subtitle="Active issues" />
-        <x-kpi-card title="YTD Net Loss"    :value="'₦' . number_format($ytdNetLoss, 0)" icon="payments" color="danger" subtitle="{{ now()->year }} year to date" />
+        <x-kpi-card title="YTD Net Loss"    :value="$compactNaira($ytdNetLoss)" icon="payments" color="danger" subtitle="{{ now()->year }} year to date" />
         <x-kpi-card title="Overdue Plans"   :value="$overdueTreatments" icon="schedule"          color="warning" subtitle="Treatment plans" />
         <x-kpi-card title="CAR (%)"         :value="($carPercentage !== null ? $carPercentage . '%' : 'N/A')" icon="account_balance" color="{{ $carPercentage !== null && (float)$carPercentage >= 15 ? 'success' : 'danger' }}" subtitle="Capital adequacy" />
     </div>

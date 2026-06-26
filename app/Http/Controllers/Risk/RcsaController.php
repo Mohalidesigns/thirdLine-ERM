@@ -19,33 +19,115 @@ class RcsaController extends Controller
     {
         $orgId = auth()->user()->organization_id ?? 1;
 
-        $stats = [
-            'total_risks_assessed' => Risk::where('organization_id', $orgId)->whereNotNull('last_assessment_date')->count(),
-            'total_controls' => Control::where('organization_id', $orgId)->count(),
-            'effective_controls' => Control::where('organization_id', $orgId)->where('effectiveness_rating', 'effective')->count(),
-            'partially_effective' => Control::where('organization_id', $orgId)->where('effectiveness_rating', 'partially_effective')->count(),
-            'ineffective_controls' => Control::where('organization_id', $orgId)->where('effectiveness_rating', 'ineffective')->count(),
-            'risks_without_controls' => Risk::where('organization_id', $orgId)
-                ->where('status', 'active')
-                ->whereDoesntHave('controlMappings')
-                ->count(),
-        ];
+        $totalAssessments = Risk::where('organization_id', $orgId)->where('status', 'active')->count();
+        $completedAssessments = Risk::where('organization_id', $orgId)
+            ->where('status', 'active')
+            ->whereNotNull('last_assessment_date')
+            ->where('last_assessment_date', '>=', now()->subMonths(12))
+            ->count();
+        $inProgressAssessments = Risk::where('organization_id', $orgId)
+            ->where('status', 'active')
+            ->whereNotNull('last_assessment_date')
+            ->where('last_assessment_date', '<', now()->subMonths(12))
+            ->where('last_assessment_date', '>=', now()->subMonths(18))
+            ->count();
+        $notStartedAssessments = Risk::where('organization_id', $orgId)
+            ->where('status', 'active')
+            ->whereNull('last_assessment_date')
+            ->count();
+        $overdueAssessments = Risk::where('organization_id', $orgId)
+            ->where('status', 'active')
+            ->where(function ($q) {
+                $q->whereNull('last_assessment_date')
+                  ->orWhere('last_assessment_date', '<', now()->subMonths(12));
+            })
+            ->count();
+        $completionRate = $totalAssessments > 0
+            ? (int) round(($completedAssessments / $totalAssessments) * 100)
+            : 0;
 
-        // Business units RCSA completion status
         $businessUnits = BusinessUnit::where('organization_id', $orgId)
             ->withCount([
-                'risks' => function ($q) {
+                'risks as total_risks' => function ($q) {
                     $q->where('status', 'active');
                 },
-                'risks as assessed_risks_count' => function ($q) {
-                    $q->whereNotNull('last_assessment_date')
-                      ->where('last_assessment_date', '>=', now()->subYear());
+                'risks as assessed' => function ($q) {
+                    $q->where('status', 'active')
+                      ->whereNotNull('last_assessment_date')
+                      ->where('last_assessment_date', '>=', now()->subMonths(12));
+                },
+                'risks as high_risks' => function ($q) {
+                    $q->where('status', 'active')->whereIn('residual_rating', ['High', 'Critical']);
                 },
             ])
-            ->orderBy('name')
+            ->orderByDesc('total_risks')
             ->get();
 
-        return view('risk.rcsa.dashboard', compact('stats', 'businessUnits'));
+        $unitProgress = $businessUnits->map(function ($bu) {
+            $progress = $bu->total_risks > 0 ? (int) round(($bu->assessed / $bu->total_risks) * 100) : 0;
+            return (object) [
+                'name' => $bu->name,
+                'total_risks' => $bu->total_risks,
+                'assessed' => $bu->assessed,
+                'progress' => $progress,
+                'high_risks' => $bu->high_risks,
+                'control_gaps' => 0,
+                'status' => $progress >= 80 ? 'Completed' : ($progress >= 50 ? 'In Progress' : 'Behind'),
+                'due_date' => now()->addDays(30)->format('d M Y'),
+            ];
+        });
+
+        $topRisks = Risk::where('organization_id', $orgId)
+            ->where('status', 'active')
+            ->orderByRaw("FIELD(residual_rating,'Critical','High','Medium','Low')")
+            ->orderByDesc('residual_score')
+            ->limit(8)
+            ->get()
+            ->map(fn($r) => (object) [
+                'title' => $r->title,
+                'business_unit' => optional($r->businessUnit)->name ?? '-',
+                'inherent_rating' => $r->inherent_rating,
+                'residual_rating' => $r->residual_rating,
+                'control_effectiveness' => 'partially',
+                'action_required' => 'Review control design and operating effectiveness',
+            ]);
+
+        $completionByUnitData = [
+            'labels' => $unitProgress->pluck('name')->toArray(),
+            'values' => $unitProgress->pluck('progress')->toArray(),
+        ];
+        $riskDistCounts = Risk::where('organization_id', $orgId)
+            ->where('status', 'active')
+            ->selectRaw('residual_rating, COUNT(*) c')
+            ->groupBy('residual_rating')->pluck('c', 'residual_rating');
+        $riskDistData = [
+            'labels' => ['Critical','High','Medium','Low'],
+            'values' => [
+                (int) ($riskDistCounts['Critical'] ?? 0),
+                (int) ($riskDistCounts['High'] ?? 0),
+                (int) ($riskDistCounts['Medium'] ?? 0),
+                (int) ($riskDistCounts['Low'] ?? 0),
+            ],
+        ];
+        $effCounts = Control::where('organization_id', $orgId)
+            ->selectRaw('effectiveness_rating r, COUNT(*) c')
+            ->groupBy('r')->pluck('c', 'r');
+        $controlEffData = [
+            'labels' => ['Effective','Partially Effective','Ineffective','Not Tested'],
+            'values' => [
+                (int) ($effCounts['effective'] ?? 0),
+                (int) ($effCounts['partially_effective'] ?? 0),
+                (int) ($effCounts['ineffective'] ?? 0),
+                (int) ($effCounts['not_tested'] ?? 0),
+            ],
+        ];
+
+        return view('risk.rcsa.dashboard', compact(
+            'totalAssessments', 'completedAssessments', 'inProgressAssessments',
+            'notStartedAssessments', 'overdueAssessments', 'completionRate',
+            'unitProgress', 'topRisks',
+            'completionByUnitData', 'riskDistData', 'controlEffData'
+        ));
     }
 
     /**
@@ -126,24 +208,38 @@ class RcsaController extends Controller
 
         $mappings = $query->get();
 
-        // Get unique risks and controls for matrix headers
-        $risks = $mappings->pluck('risk')->unique('id')->sortBy('risk_code');
-        $controls = $mappings->pluck('control')->unique('id')->sortBy('control_code');
+        $matrixRisks    = $mappings->pluck('risk')->filter()->unique('id')->sortBy('risk_code')->values();
+        $matrixControls = $mappings->pluck('control')->filter()->unique('id')->sortBy('control_code')->values();
 
-        // Build matrix data
-        $matrixData = [];
-        foreach ($risks as $risk) {
-            foreach ($controls as $control) {
-                $mapping = $mappings->first(function ($m) use ($risk, $control) {
-                    return $m->risk_id === $risk->id && $m->control_id === $control->id;
-                });
-                $matrixData[$risk->id][$control->id] = $mapping;
+        // Pre-compute per-risk effectiveness for each control + overall
+        // coverage so the Blade can read them straight off $risk.
+        foreach ($matrixRisks as $risk) {
+            $riskMappings = $mappings->where('risk_id', $risk->id);
+            $perControl = [];
+            foreach ($matrixControls as $control) {
+                $m = $riskMappings->firstWhere('control_id', $control->id);
+                if (! $m) {
+                    $perControl[] = (object) ['control_id' => $control->id, 'effectiveness' => 'na'];
+                    continue;
+                }
+                $rating = strtolower((string) ($m->control->effectiveness_rating ?? ''));
+                $bucket = match ($rating) {
+                    'effective'            => 'effective',
+                    'partially_effective'  => 'partially',
+                    'ineffective'          => 'ineffective',
+                    default                => 'na',
+                };
+                $perControl[] = (object) ['control_id' => $control->id, 'effectiveness' => $bucket];
             }
+            $risk->setAttribute('control_mappings', $perControl);
+            $risk->setAttribute('control_coverage', $matrixControls->count() > 0
+                ? (int) round($riskMappings->count() / $matrixControls->count() * 100)
+                : 0);
         }
 
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
 
-        return view('risk.rcsa.matrix', compact('risks', 'controls', 'matrixData', 'mappings', 'businessUnits'));
+        return view('risk.rcsa.matrix', compact('matrixRisks', 'matrixControls', 'mappings', 'businessUnits'));
     }
 
     /**

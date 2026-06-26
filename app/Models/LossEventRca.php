@@ -14,22 +14,35 @@ class LossEventRca extends Model
 
     protected $fillable = [
         'loss_event_id',
+        'organization_id',
         'methodology',
-        'root_cause',
-        'contributory_factors',
-        'immediate_cause',
-        'systemic_issues',
-        'findings',
+        'root_cause_category',
+        'root_cause_description',
+        'contributing_factors_text',
+        'analysis_details',
         'recommendations',
+        'lessons_learned',
+        'status',
+        'rca_status',
+        'performed_by',
+        'analysis_date',
         'completed_by',
         'completed_at',
         'approved_by',
         'approved_at',
-        'status',
+        // 5-Whys fields
+        'why_1_question', 'why_1_answer',
+        'why_2_question', 'why_2_answer',
+        'why_3_question', 'why_3_answer',
+        'why_4_question', 'why_4_answer',
+        'why_5_question', 'why_5_answer',
+        'root_cause_statement',
+        'contributory_factors',
     ];
 
     protected $casts = [
         'contributory_factors' => 'array',
+        'analysis_date'        => 'datetime',
         'completed_at'         => 'datetime',
         'approved_at'          => 'datetime',
     ];

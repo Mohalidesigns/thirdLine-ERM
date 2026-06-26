@@ -42,7 +42,22 @@
     @endif
 
     {{-- KPI Cards --}}
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+    @php
+        // Compact Naira so large budgets fit inside narrow KPI cards.
+        $compactNaira = function ($amount) {
+            $a = abs((float) $amount);
+            if ($a >= 1e9) return '₦' . number_format($amount / 1e9, 2) . 'B';
+            if ($a >= 1e6) return '₦' . number_format($amount / 1e6, 2) . 'M';
+            if ($a >= 1e3) return '₦' . number_format($amount / 1e3, 1) . 'K';
+            return '₦' . number_format($amount, 0);
+        };
+    @endphp
+    <style>
+        /* Compact variant so 6 KPI cards stack comfortably without overflow. */
+        .kpi-strip .kpi-card { padding: 0.85rem 1rem; }
+        .kpi-strip .kpi-card .text-2xl { font-size: 1.25rem; line-height: 1.75rem; }
+    </style>
+    <div class="kpi-strip grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         <x-kpi-card
             title="Total Plans"
             :value="$totalPlans ?? 0"
@@ -75,7 +90,7 @@
         />
         <x-kpi-card
             title="Total Budget"
-            :value="'₦' . number_format($totalBudget ?? 0)"
+            :value="$compactNaira($totalBudget ?? 0)"
             icon="account_balance"
             color="warning"
             subtitle="Allocated resources"

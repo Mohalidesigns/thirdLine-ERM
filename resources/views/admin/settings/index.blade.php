@@ -36,7 +36,7 @@
                 :class="{ 'tab-active': activeTab === 'risk', 'tab-inactive': activeTab !== 'risk' }"
                 class="px-6 py-3 font-medium transition"
             >
-                <span class="material-symbols-outlined inline text-[18px] mr-2">assess</span>
+                <span class="material-symbols-outlined inline text-[18px] mr-2">assessment</span>
                 Risk Scoring
             </button>
             <button

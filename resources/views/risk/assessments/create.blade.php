@@ -100,7 +100,7 @@
 
             {{-- Calculated Score --}}
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p class="text-sm text-gray-600">Calculated Risk Score</p>
+                <p class="text-sm text-gray-600">Inherent Risk Score</p>
                 <div class="flex items-baseline gap-2">
                     <span class="text-3xl font-bold text-[#1A365D]" id="calcScore">0</span>
                     <span class="text-sm text-gray-600">/25 (Likelihood x Max Impact)</span>
@@ -108,9 +108,44 @@
             </div>
         </div>
 
+        {{-- Residual Rating (after controls) --}}
+        <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+            <div class="flex items-center gap-2 mb-6"><div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">3</div><h2 class="text-lg font-semibold text-[#1A365D]">Residual Rating (after controls)</h2></div>
+            <p class="text-xs text-gray-500 mb-4">Re-rate the risk taking existing controls into account. Leave blank if not yet assessed.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="residual_likelihood" class="block text-sm font-medium text-gray-700 mb-2">Residual Likelihood</label>
+                    <select id="residual_likelihood" name="residual_likelihood" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] @error('residual_likelihood') border-red-500 @enderror">
+                        <option value="">Not assessed</option>
+                        @foreach ([1 => 'Rare', 2 => 'Unlikely', 3 => 'Possible', 4 => 'Likely', 5 => 'Almost Certain'] as $score => $label)
+                            <option value="{{ $score }}" {{ old('residual_likelihood') == $score ? 'selected' : '' }}>{{ $score }}: {{ $label }}</option>
+                        @endforeach
+                    </select>
+                    @error('residual_likelihood')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label for="residual_impact" class="block text-sm font-medium text-gray-700 mb-2">Residual Impact</label>
+                    <select id="residual_impact" name="residual_impact" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] @error('residual_impact') border-red-500 @enderror">
+                        <option value="">Not assessed</option>
+                        @foreach ([1 => 'Insignificant', 2 => 'Minor', 3 => 'Moderate', 4 => 'Major', 5 => 'Catastrophic'] as $score => $label)
+                            <option value="{{ $score }}" {{ old('residual_impact') == $score ? 'selected' : '' }}>{{ $score }}: {{ $label }}</option>
+                        @endforeach
+                    </select>
+                    @error('residual_impact')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                </div>
+            </div>
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
+                <p class="text-sm text-gray-600">Residual Risk Score</p>
+                <div class="flex items-baseline gap-2">
+                    <span class="text-3xl font-bold text-[#1A365D]" id="residualScore">—</span>
+                    <span class="text-sm text-gray-600" id="residualRating">/25</span>
+                </div>
+            </div>
+        </div>
+
         {{-- Assessment Notes --}}
         <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <div class="flex items-center gap-2 mb-6"><div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">3</div><h2 class="text-lg font-semibold text-[#1A365D]">Assessment Notes</h2></div>
+            <div class="flex items-center gap-2 mb-6"><div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">4</div><h2 class="text-lg font-semibold text-[#1A365D]">Assessment Notes</h2></div>
             <div class="grid grid-cols-1 gap-6">
                 <div>
                     <label for="rationale" class="block text-sm font-medium text-gray-700 mb-2">Assessment Rationale <span class="text-red-500">*</span></label>
@@ -137,6 +172,13 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    function ratingFromScore(score) {
+        if (score >= 20) return 'Critical';
+        if (score >= 12) return 'High';
+        if (score >= 5)  return 'Medium';
+        if (score >= 1)  return 'Low';
+        return '';
+    }
     function calcScore() {
         const likelihood = document.querySelector('input[name="likelihood"]:checked');
         const impacts = ['impact_financial','impact_operational','impact_reputational','impact_regulatory','impact_strategic','impact_people'];
@@ -145,9 +187,25 @@ document.addEventListener('DOMContentLoaded', function() {
         const score = (likelihood ? parseInt(likelihood.value) : 0) * maxImpact;
         document.getElementById('calcScore').textContent = score;
     }
+    function calcResidual() {
+        const rl = parseInt(document.querySelector('select[name="residual_likelihood"]').value) || 0;
+        const ri = parseInt(document.querySelector('select[name="residual_impact"]').value) || 0;
+        const score = rl * ri;
+        const scoreEl = document.getElementById('residualScore');
+        const ratingEl = document.getElementById('residualRating');
+        if (score > 0) {
+            scoreEl.textContent = score;
+            ratingEl.textContent = '/25 — ' + ratingFromScore(score);
+        } else {
+            scoreEl.textContent = '—';
+            ratingEl.textContent = '/25';
+        }
+    }
     document.querySelectorAll('input[name="likelihood"]').forEach(r => r.addEventListener('change', calcScore));
     ['impact_financial','impact_operational','impact_reputational','impact_regulatory','impact_strategic','impact_people'].forEach(f => { const s = document.querySelector('select[name="'+f+'"]'); if (s) s.addEventListener('change', calcScore); });
+    ['residual_likelihood','residual_impact'].forEach(f => { const s = document.querySelector('select[name="'+f+'"]'); if (s) s.addEventListener('change', calcResidual); });
     calcScore();
+    calcResidual();
 });
 </script>
 @endpush

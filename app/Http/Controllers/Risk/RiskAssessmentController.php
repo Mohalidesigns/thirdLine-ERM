@@ -7,6 +7,8 @@ use App\Models\Risk;
 use App\Models\RiskAssessment;
 use App\Models\RiskAuditTrail;
 use App\Models\User;
+use App\Services\ApprovalService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -76,52 +78,74 @@ class RiskAssessmentController extends Controller
 
         $validated = $request->validate([
             'risk_id' => 'required|exists:risks,id',
-            'assessment_type' => 'required|in:initial,periodic,triggered,annual',
+            'assessment_type' => 'required|in:initial,periodic,event_driven,triggered,annual',
             'assessment_date' => 'required|date',
-            'assessed_likelihood' => 'required|integer|min:1|max:5',
-            'assessed_impact' => 'required|integer|min:1|max:5',
-            'control_effectiveness' => 'nullable|in:effective,partially_effective,ineffective',
+            'likelihood' => 'required|integer|min:1|max:5',
+            'impact_financial' => 'required|integer|min:1|max:5',
+            'impact_operational' => 'required|integer|min:1|max:5',
+            'impact_reputational' => 'required|integer|min:1|max:5',
+            'impact_regulatory' => 'required|integer|min:1|max:5',
+            'impact_strategic' => 'nullable|integer|min:1|max:5',
             'residual_likelihood' => 'nullable|integer|min:1|max:5',
             'residual_impact' => 'nullable|integer|min:1|max:5',
-            'assessment_notes' => 'nullable|string|max:5000',
-            'methodology' => 'nullable|string|max:500',
-            'assessor_id' => 'nullable|exists:users,id',
-            'next_assessment_date' => 'nullable|date|after:assessment_date',
+            'rationale' => 'required|string|max:5000',
+            'recommendations' => 'nullable|string|max:5000',
+            'action' => 'nullable|in:draft,submit',
         ]);
 
         // Verify risk belongs to org
-        $risk = Risk::where('id', $validated['risk_id'])
+        Risk::where('id', $validated['risk_id'])
             ->where('organization_id', $orgId)
             ->firstOrFail();
 
-        return DB::transaction(function () use ($validated, $orgId, $risk) {
-            // Calculate scores
-            $inherentScore = $validated['assessed_likelihood'] * $validated['assessed_impact'];
-            $inherentRating = $this->calculateRating($inherentScore);
+        return DB::transaction(function () use ($validated, $orgId, $request) {
+            $impactScore = max(
+                (int) $validated['impact_financial'],
+                (int) $validated['impact_operational'],
+                (int) $validated['impact_reputational'],
+                (int) $validated['impact_regulatory'],
+                (int) ($validated['impact_strategic'] ?? 0),
+            );
+            $overallScore = (int) $validated['likelihood'] * $impactScore;
+            $overallRating = $this->calculateRating($overallScore);
 
             $residualScore = null;
             $residualRating = null;
             if (!empty($validated['residual_likelihood']) && !empty($validated['residual_impact'])) {
-                $residualScore = $validated['residual_likelihood'] * $validated['residual_impact'];
+                $residualScore = (int) $validated['residual_likelihood'] * (int) $validated['residual_impact'];
                 $residualRating = $this->calculateRating($residualScore);
             }
 
-            $assessment = RiskAssessment::create(array_merge($validated, [
+            $notes = trim(
+                ($validated['rationale'] ?? '')
+                . (!empty($validated['recommendations']) ? "\n\nRecommendations:\n" . $validated['recommendations'] : '')
+            );
+
+            $assessment = RiskAssessment::create([
                 'organization_id' => $orgId,
-                'inherent_score' => $inherentScore,
-                'inherent_rating' => $inherentRating,
+                'risk_id' => $validated['risk_id'],
+                'assessment_type' => $validated['assessment_type'],
+                'assessment_date' => $validated['assessment_date'],
+                'assessor_id' => auth()->id(),
+                'likelihood_score' => (int) $validated['likelihood'],
+                'impact_financial' => (int) $validated['impact_financial'],
+                'impact_operational' => (int) $validated['impact_operational'],
+                'impact_reputational' => (int) $validated['impact_reputational'],
+                'impact_regulatory' => (int) $validated['impact_regulatory'],
+                'impact_strategic' => isset($validated['impact_strategic']) ? (int) $validated['impact_strategic'] : null,
+                'impact_score' => $impactScore,
+                'overall_score' => $overallScore,
+                'overall_rating' => $overallRating,
+                'residual_likelihood' => $validated['residual_likelihood'] ?? null,
+                'residual_impact' => $validated['residual_impact'] ?? null,
                 'residual_score' => $residualScore,
                 'residual_rating' => $residualRating,
-                'status' => 'draft',
-                'assessor_id' => $validated['assessor_id'] ?? auth()->id(),
-                'created_by' => auth()->id(),
-            ]));
-
-            // Audit trail
-            \App\Services\AuditTrailService::record($assessment, 'create');
+                'assessment_notes' => $notes ?: null,
+                'status' => $request->input('action') === 'submit' ? 'in_review' : 'draft',
+            ]);
 
             return redirect()->route('risk.assessments.show', $assessment)
-                ->with('success', 'Risk assessment created as draft.');
+                ->with('success', 'Risk assessment saved.');
         });
     }
 
@@ -165,39 +189,60 @@ class RiskAssessmentController extends Controller
         }
 
         $validated = $request->validate([
-            'assessment_type' => 'required|in:initial,periodic,triggered,annual',
+            'assessment_type' => 'required|in:initial,periodic,event_driven,triggered,annual',
             'assessment_date' => 'required|date',
-            'assessed_likelihood' => 'required|integer|min:1|max:5',
-            'assessed_impact' => 'required|integer|min:1|max:5',
-            'control_effectiveness' => 'nullable|in:effective,partially_effective,ineffective',
+            'likelihood' => 'required|integer|min:1|max:5',
+            'impact_financial' => 'required|integer|min:1|max:5',
+            'impact_operational' => 'required|integer|min:1|max:5',
+            'impact_reputational' => 'required|integer|min:1|max:5',
+            'impact_regulatory' => 'required|integer|min:1|max:5',
+            'impact_strategic' => 'nullable|integer|min:1|max:5',
             'residual_likelihood' => 'nullable|integer|min:1|max:5',
             'residual_impact' => 'nullable|integer|min:1|max:5',
-            'assessment_notes' => 'nullable|string|max:5000',
-            'methodology' => 'nullable|string|max:500',
-            'next_assessment_date' => 'nullable|date|after:assessment_date',
+            'rationale' => 'required|string|max:5000',
+            'recommendations' => 'nullable|string|max:5000',
         ]);
 
-        $original = $assessment->getAttributes();
-
-        $inherentScore = $validated['assessed_likelihood'] * $validated['assessed_impact'];
-        $inherentRating = $this->calculateRating($inherentScore);
+        $impactScore = max(
+            (int) $validated['impact_financial'],
+            (int) $validated['impact_operational'],
+            (int) $validated['impact_reputational'],
+            (int) $validated['impact_regulatory'],
+            (int) ($validated['impact_strategic'] ?? 0),
+        );
+        $overallScore = (int) $validated['likelihood'] * $impactScore;
+        $overallRating = $this->calculateRating($overallScore);
 
         $residualScore = null;
         $residualRating = null;
         if (!empty($validated['residual_likelihood']) && !empty($validated['residual_impact'])) {
-            $residualScore = $validated['residual_likelihood'] * $validated['residual_impact'];
+            $residualScore = (int) $validated['residual_likelihood'] * (int) $validated['residual_impact'];
             $residualRating = $this->calculateRating($residualScore);
         }
 
-        $assessment->update(array_merge($validated, [
-            'inherent_score' => $inherentScore,
-            'inherent_rating' => $inherentRating,
+        $notes = trim(
+            ($validated['rationale'] ?? '')
+            . (!empty($validated['recommendations']) ? "\n\nRecommendations:\n" . $validated['recommendations'] : '')
+        );
+
+        $assessment->update([
+            'assessment_type' => $validated['assessment_type'],
+            'assessment_date' => $validated['assessment_date'],
+            'likelihood_score' => (int) $validated['likelihood'],
+            'impact_financial' => (int) $validated['impact_financial'],
+            'impact_operational' => (int) $validated['impact_operational'],
+            'impact_reputational' => (int) $validated['impact_reputational'],
+            'impact_regulatory' => (int) $validated['impact_regulatory'],
+            'impact_strategic' => isset($validated['impact_strategic']) ? (int) $validated['impact_strategic'] : null,
+            'impact_score' => $impactScore,
+            'overall_score' => $overallScore,
+            'overall_rating' => $overallRating,
+            'residual_likelihood' => $validated['residual_likelihood'] ?? null,
+            'residual_impact' => $validated['residual_impact'] ?? null,
             'residual_score' => $residualScore,
             'residual_rating' => $residualRating,
-        ]));
-
-        // Audit trail
-        \App\Services\AuditTrailService::recordChanges($assessment, $original);
+            'assessment_notes' => $notes ?: null,
+        ]);
 
         return redirect()->route('risk.assessments.show', $assessment)
             ->with('success', 'Assessment updated successfully.');
@@ -206,7 +251,7 @@ class RiskAssessmentController extends Controller
     /**
      * Submit assessment from draft to in_review.
      */
-    public function submit(RiskAssessment $assessment)
+    public function submit(RiskAssessment $assessment, ApprovalService $approvals)
     {
         $orgId = auth()->user()->organization_id ?? 1;
 
@@ -214,15 +259,35 @@ class RiskAssessmentController extends Controller
             abort(403, 'Unauthorized access to this assessment.');
         }
 
-        if ($assessment->status !== 'draft') {
-            return back()->with('error', 'Only draft assessments can be submitted for review.');
+        if (! in_array($assessment->status, ['draft', 'rejected'])) {
+            return back()->with('error', 'Only draft or rejected assessments can be submitted for review.');
         }
 
-        $assessment->update([
-            'status' => 'in_review',
-            'submitted_at' => now(),
-            'submitted_by' => auth()->id(),
-        ]);
+        $assessment->update(['status' => 'in_review']);
+
+        $approvals->requestApproval(
+            $assessment,
+            'approve_risk_assessment',
+            payload: ['overall_score' => $assessment->overall_score, 'residual_score' => $assessment->residual_score],
+            reviewerId: $assessment->reviewer_id,
+        );
+
+        // If no specific reviewer assigned, notify everyone with the approver role.
+        if (! $assessment->reviewer_id) {
+            $approvers = User::role(['risk-manager', 'chief-risk-officer'])
+                ->where('organization_id', $orgId)
+                ->get();
+            foreach ($approvers as $approver) {
+                NotificationService::send(
+                    $orgId,
+                    $approver->id,
+                    'approval_request',
+                    "Risk assessment awaiting review: ASS-" . str_pad($assessment->id, 4, '0', STR_PAD_LEFT),
+                    "Assessment for risk {$assessment->risk?->risk_code} has been submitted for review.",
+                    ['entity_type' => 'RiskAssessment', 'entity_id' => $assessment->id]
+                );
+            }
+        }
 
         return redirect()->route('risk.assessments.show', $assessment)
             ->with('success', 'Assessment submitted for review.');
@@ -231,32 +296,36 @@ class RiskAssessmentController extends Controller
     /**
      * Approve assessment and update parent risk scores.
      */
-    public function approve(Request $request, RiskAssessment $assessment)
+    public function approve(Request $request, RiskAssessment $assessment, ApprovalService $approvals)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-
-        if ($assessment->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this assessment.');
-        }
+        abort_unless(auth()->user()->can('approve-risk-assessment', $assessment), 403,
+            'Only the assigned reviewer or a risk-manager/CRO can approve this assessment.');
 
         if ($assessment->status !== 'in_review') {
             return back()->with('error', 'Only in-review assessments can be approved.');
         }
 
-        return DB::transaction(function () use ($assessment, $orgId) {
+        $validated = $request->validate([
+            'comments' => 'nullable|string|max:1000',
+        ]);
+
+        return DB::transaction(function () use ($assessment, $approvals, $validated) {
             $assessment->update([
                 'status' => 'approved',
-                'approved_at' => now(),
                 'approved_by' => auth()->id(),
+                'approved_date' => now()->toDateString(),
             ]);
+
+            $pending = $approvals->latestPending($assessment) ?? $approvals->requestApproval($assessment, 'approve_risk_assessment');
+            $approvals->approve($pending, auth()->id(), $validated['comments'] ?? null);
 
             // Update parent risk with approved assessment scores
             $risk = $assessment->risk;
             $updateData = [
-                'inherent_likelihood' => $assessment->assessed_likelihood,
-                'inherent_impact' => $assessment->assessed_impact,
-                'inherent_score' => $assessment->inherent_score,
-                'inherent_rating' => $assessment->inherent_rating,
+                'inherent_likelihood' => $assessment->likelihood_score,
+                'inherent_impact' => $assessment->impact_score,
+                'inherent_score' => $assessment->overall_score,
+                'inherent_rating' => $assessment->overall_rating,
                 'last_assessment_date' => $assessment->assessment_date,
             ];
 
@@ -267,17 +336,7 @@ class RiskAssessmentController extends Controller
                 $updateData['residual_rating'] = $assessment->residual_rating;
             }
 
-            if ($assessment->next_assessment_date) {
-                $updateData['next_review_date'] = $assessment->next_assessment_date;
-            }
-
             $risk->update($updateData);
-
-            // Audit trail for assessment approval
-            \App\Services\AuditTrailService::record($assessment, 'approve');
-
-            // Audit trail for risk update
-            \App\Services\AuditTrailService::recordChanges($risk, $risk->getOriginal());
 
             return redirect()->route('risk.assessments.show', $assessment)
                 ->with('success', 'Assessment approved and risk scores updated.');
@@ -287,34 +346,54 @@ class RiskAssessmentController extends Controller
     /**
      * Reject assessment with comments.
      */
-    public function reject(Request $request, RiskAssessment $assessment)
+    public function reject(Request $request, RiskAssessment $assessment, ApprovalService $approvals)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-
-        if ($assessment->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this assessment.');
-        }
+        abort_unless(auth()->user()->can('approve-risk-assessment', $assessment), 403,
+            'Only the assigned reviewer or a risk-manager/CRO can reject this assessment.');
 
         if ($assessment->status !== 'in_review') {
             return back()->with('error', 'Only in-review assessments can be rejected.');
         }
 
-        $request->validate([
+        $validated = $request->validate([
             'rejection_reason' => 'required|string|max:2000',
         ]);
 
+        // `review_comments` is the existing text column; reuse it to stash the
+        // reviewer's rejection reason on the assessment row (the canonical
+        // audit trail lives in approval_requests).
         $assessment->update([
             'status' => 'rejected',
-            'rejection_reason' => $request->rejection_reason,
-            'rejected_at' => now(),
-            'rejected_by' => auth()->id(),
+            'review_comments' => $validated['rejection_reason'],
+            'reviewer_id' => $assessment->reviewer_id ?: auth()->id(),
+            'review_date' => now()->toDateString(),
         ]);
 
-        // Audit trail
-        \App\Services\AuditTrailService::record($assessment, 'reject');
+        $pending = $approvals->latestPending($assessment) ?? $approvals->requestApproval($assessment, 'approve_risk_assessment');
+        $approvals->reject($pending, auth()->id(), $validated['rejection_reason']);
 
         return redirect()->route('risk.assessments.show', $assessment)
-            ->with('success', 'Assessment has been rejected.');
+            ->with('success', 'Assessment rejected. The assessor has been notified.');
+    }
+
+    /**
+     * Assessor resubmits a rejected assessment — status moves back to draft.
+     */
+    public function resubmit(RiskAssessment $assessment)
+    {
+        abort_unless(auth()->user()->can('resubmit-risk-assessment', $assessment), 403,
+            'Only the original assessor can resubmit.');
+
+        if ($assessment->status !== 'rejected') {
+            return back()->with('error', 'Only rejected assessments can be resubmitted.');
+        }
+
+        $assessment->update([
+            'status' => 'draft',
+            'review_comments' => null,
+        ]);
+
+        return back()->with('success', 'Assessment returned to draft. Edit and submit again for review.');
     }
 
     /**

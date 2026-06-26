@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Control;
 use App\Models\ControlTest;
 use App\Models\ControlTestEvidence;
+use App\Services\ApprovalService;
 use App\Services\ReferenceCodeService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ControlTestController extends Controller
 {
@@ -75,11 +77,14 @@ class ControlTestController extends Controller
 
     public function store(Request $request)
     {
+        $orgId = auth()->user()->organization_id;
+
         $request->validate([
-            'control_id'     => 'required|exists:controls,id',
+            'control_id'     => ['required', Rule::exists('controls', 'id')->where('organization_id', $orgId)],
             'title'          => 'required|string|max:255',
             'test_type'      => 'required|in:design_effectiveness,operating_effectiveness,walkthrough,substantive',
-            'tester_id'      => 'required|exists:users,id',
+            'tester_id'      => ['required', Rule::exists('users', 'id')->where('organization_id', $orgId)],
+            'reviewer_id'    => ['nullable', Rule::exists('users', 'id')->where('organization_id', $orgId)],
             'scheduled_date' => 'required|date',
         ]);
 
@@ -136,7 +141,7 @@ class ControlTestController extends Controller
         return back()->with('success', 'Test started.');
     }
 
-    public function completeTest(Request $request, ControlTest $controlTest)
+    public function completeTest(Request $request, ControlTest $controlTest, ApprovalService $approvals)
     {
         $request->validate([
             'result'          => 'required|in:effective,partially_effective,ineffective',
@@ -156,32 +161,116 @@ class ControlTestController extends Controller
 
         $controlTest->control->updateTestStats();
 
-        return back()->with('success', 'Test completed successfully.');
+        // Open an approval request so the reviewer sees it in their queue and
+        // gets notified (in-app + email placeholder).
+        if ($controlTest->reviewer_id) {
+            $approvals->requestApproval(
+                $controlTest,
+                action: 'approve_control_test',
+                payload: ['result' => $controlTest->result, 'score' => $controlTest->score],
+                reviewerId: $controlTest->reviewer_id,
+            );
+        }
+
+        return back()->with('success', 'Test submitted'
+            . ($controlTest->reviewer_id ? ' for review. The reviewer has been notified.' : '.'));
     }
 
-    public function reviewTest(Request $request, ControlTest $controlTest)
+    public function reviewTest(Request $request, ControlTest $controlTest, ApprovalService $approvals)
     {
-        $request->validate([
-            'reviewer_notes' => 'nullable|string',
+        abort_unless(auth()->user()->can('review-control-test', $controlTest), 403,
+            'Only the assigned reviewer or an authorised approver can review this test.');
+
+        $validated = $request->validate([
             'action'         => 'required|in:approve,reject',
+            'reviewer_notes' => 'nullable|string|max:3000',
+            'rejection_reason' => 'required_if:action,reject|nullable|string|max:2000',
         ]);
 
-        $controlTest->update([
-            'reviewer_notes' => $request->reviewer_notes,
-            'reviewed_at'    => now(),
-            'reviewer_id'    => auth()->id(),
-            'status'         => $request->action === 'approve' ? 'completed' : 'in_progress',
-        ]);
+        if ($controlTest->status !== 'pending_review') {
+            return back()->with('error', 'Only tests pending review can be reviewed.');
+        }
+
+        if ($validated['action'] === 'approve') {
+            $controlTest->update([
+                'reviewer_notes' => $validated['reviewer_notes'] ?? null,
+                'reviewed_at'    => now(),
+                'reviewer_id'    => auth()->id(),
+                'status'         => 'completed',
+            ]);
+            $approvals->approve(
+                $approvals->latestPending($controlTest) ?? $approvals->requestApproval($controlTest, 'approve_control_test'),
+                auth()->id(),
+                $validated['reviewer_notes'] ?? null,
+            );
+            $message = 'Test approved.';
+        } else {
+            $controlTest->update([
+                'reviewer_notes' => $validated['reviewer_notes'] ?? null,
+                'reviewed_at'    => now(),
+                'reviewer_id'    => auth()->id(),
+                'status'         => 'rejected',
+            ]);
+            $approvals->reject(
+                $approvals->latestPending($controlTest) ?? $approvals->requestApproval($controlTest, 'approve_control_test'),
+                auth()->id(),
+                $validated['rejection_reason'],
+            );
+            $message = 'Test rejected. The tester has been notified.';
+        }
 
         $controlTest->control->updateTestStats();
 
-        return back()->with('success', 'Test review ' . ($request->action === 'approve' ? 'approved' : 'returned') . '.');
+        return back()->with('success', $message);
+    }
+
+    /**
+     * Tester re-submits a rejected test after rework.
+     * Status moves rejected -> in_progress (so they can update result again).
+     */
+    public function resubmit(ControlTest $controlTest)
+    {
+        abort_unless(auth()->user()->can('resubmit-control-test', $controlTest), 403,
+            'Only the tester or original creator can resubmit this test.');
+
+        if ($controlTest->status !== 'rejected') {
+            return back()->with('error', 'Only rejected tests can be resubmitted.');
+        }
+
+        $controlTest->update([
+            'status' => 'in_progress',
+            'result' => null,
+            'reviewer_notes' => null,
+            'reviewed_at' => null,
+        ]);
+
+        return back()->with('success', 'Test returned to in-progress for rework.');
+    }
+
+    public function downloadEvidence(ControlTest $controlTest, ControlTestEvidence $evidence)
+    {
+        $orgId = auth()->user()->organization_id ?? 1;
+        if ($controlTest->organization_id !== $orgId || $evidence->control_test_id !== $controlTest->id) {
+            abort(403, 'Unauthorized access.');
+        }
+
+        $disk = \Illuminate\Support\Facades\Storage::disk('public');
+        if (! $disk->exists($evidence->file_path)) {
+            abort(404, 'Evidence file not found.');
+        }
+
+        return $disk->download($evidence->file_path, $evidence->file_name);
     }
 
     public function uploadEvidence(Request $request, ControlTest $controlTest)
     {
+        $orgId = auth()->user()->organization_id ?? 1;
+        if ($controlTest->organization_id !== $orgId) {
+            abort(403, 'Unauthorized access.');
+        }
+
         $request->validate([
-            'file'        => 'required|file|max:10240',
+            'file'        => 'required|file|max:10240|mimes:pdf,doc,docx,xls,xlsx,csv,ppt,pptx,txt,png,jpg,jpeg,gif',
             'description' => 'nullable|string|max:500',
         ]);
 

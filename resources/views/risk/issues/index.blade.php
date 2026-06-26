@@ -142,7 +142,7 @@
             <tr class="{{ $issue->is_overdue ? 'bg-red-50/30' : '' }}">
                 <td>
                     <a href="{{ url('/risk/issues/' . $issue->id) }}" class="text-[#1A365D] font-semibold hover:underline text-xs">
-                        {{ $issue->reference }}
+                        {{ $issue->issue_code ?? '-' }}
                     </a>
                 </td>
                 <td class="max-w-[200px]">

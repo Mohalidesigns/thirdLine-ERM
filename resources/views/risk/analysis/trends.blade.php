@@ -18,12 +18,12 @@
             <h1 class="text-xl font-bold text-[#1A365D]">Risk Trend Analysis</h1>
             <p class="text-sm text-gray-500 mt-1">Multi-metric trend analysis across risk categories and time periods</p>
         </div>
-        <div class="flex items-center gap-3">
-            <input type="date" id="dateFrom" value="{{ request('from', now()->subMonths(12)->format('Y-m-d')) }}" class="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white">
+        <form method="GET" action="{{ route('risk.analysis.trends') }}" class="flex items-center gap-3">
+            <input type="date" name="from" value="{{ $fromValue ?? now()->subMonths(12)->format('Y-m-d') }}" class="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white">
             <span class="text-xs text-gray-400">to</span>
-            <input type="date" id="dateTo" value="{{ request('to', now()->format('Y-m-d')) }}" class="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white">
-            <button onclick="applyDateFilter()" class="px-3 py-2 bg-[#1A365D] text-white rounded-lg text-xs font-medium hover:bg-[#2D4A7A]">Apply</button>
-        </div>
+            <input type="date" name="to" value="{{ $toValue ?? now()->format('Y-m-d') }}" class="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white">
+            <button type="submit" class="px-3 py-2 bg-[#1A365D] text-white rounded-lg text-xs font-medium hover:bg-[#2D4A7A]">Apply</button>
+        </form>
     </div>
 
     {{-- KPI Trend Cards --}}
@@ -105,12 +105,6 @@
 
 @push('scripts')
 <script>
-function applyDateFilter() {
-    const from = document.getElementById('dateFrom').value;
-    const to = document.getElementById('dateTo').value;
-    window.location.href = '?from=' + from + '&to=' + to;
-}
-
 document.addEventListener('DOMContentLoaded', function() {
     const ratingTrend = @json($ratingTrendDataChart);
     new Chart(document.getElementById('ratingTrendChart'), {

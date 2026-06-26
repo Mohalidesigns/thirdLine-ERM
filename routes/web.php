@@ -15,6 +15,7 @@ use App\Http\Controllers\Risk\RcsaController;
 use App\Http\Controllers\Risk\AnalysisController;
 use App\Http\Controllers\Risk\ReportController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
+use App\Http\Controllers\Risk\AiToolsController;
 use App\Http\Controllers\Risk\ScopingController;
 use App\Http\Controllers\Risk\ExportController;
 use App\Http\Controllers\Risk\ControlTestController;
@@ -44,6 +45,10 @@ Route::post('mfa/verify', [AuthController::class, 'verifyMfa']);
 Route::middleware(['auth'])->group(function() {
     Route::get('mfa/setup', [AuthController::class, 'showMfaSetup'])->name('mfa.setup');
     Route::post('mfa/enable', [AuthController::class, 'enableMfa'])->name('mfa.enable');
+
+    Route::get('notifications', [\App\Http\Controllers\NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/read-all', [\App\Http\Controllers\NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::get('notifications/{id}/read', [\App\Http\Controllers\NotificationController::class, 'read'])->name('notifications.read');
 });
 
 // Admin routes
@@ -68,6 +73,7 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     Route::resource('scoping', ScopingController::class)->names('risk.scoping');
 
     // Risk Register
+    Route::post('register/{register}/map-control', [RiskRegisterController::class, 'mapControl'])->name('risk.register.map-control');
     Route::resource('register', RiskRegisterController::class)->names('risk.register');
 
     // Risk Assessments
@@ -79,6 +85,7 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     Route::post('assessments/{assessment}/submit', [RiskAssessmentController::class, 'submit'])->name('risk.assessments.submit');
     Route::post('assessments/{assessment}/approve', [RiskAssessmentController::class, 'approve'])->name('risk.assessments.approve');
     Route::post('assessments/{assessment}/reject', [RiskAssessmentController::class, 'reject'])->name('risk.assessments.reject');
+    Route::post('assessments/{assessment}/resubmit', [RiskAssessmentController::class, 'resubmit'])->name('risk.assessments.resubmit');
 
     // Controls
     Route::resource('controls', ControlController::class)->names('risk.controls');
@@ -89,8 +96,10 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     Route::get('treatments/dashboard', [TreatmentPlanController::class, 'dashboard'])->name('risk.treatments.dashboard');
     Route::get('treatments/review', [TreatmentPlanController::class, 'review'])->name('risk.treatments.review');
     Route::resource('treatments', TreatmentPlanController::class)->names('risk.treatments');
+    Route::post('treatments/{treatment}/submit', [TreatmentPlanController::class, 'submitForReview'])->name('risk.treatments.submit');
     Route::post('treatments/{treatment}/approve', [TreatmentPlanController::class, 'approve'])->name('risk.treatments.approve');
     Route::post('treatments/{treatment}/reject', [TreatmentPlanController::class, 'reject'])->name('risk.treatments.reject');
+    Route::post('treatments/{treatment}/resubmit', [TreatmentPlanController::class, 'resubmit'])->name('risk.treatments.resubmit');
     Route::post('treatments/{treatment}/comment', [TreatmentPlanController::class, 'comment'])->name('risk.treatments.comment');
 
     // KRI Monitoring
@@ -118,6 +127,9 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     Route::get('loss-events/{lossEvent}/rca', [LossEventController::class, 'rca'])->name('risk.loss-events.show-rca');
     Route::post('loss-events/{lossEvent}/rca', [LossEventController::class, 'storeRca'])->name('risk.loss-events.store-rca');
     Route::post('loss-events/{lossEvent}/rca/approve', [LossEventController::class, 'approveRca'])->name('risk.loss-events.approve-rca');
+    Route::post('loss-events/{lossEvent}/attachments', [LossEventController::class, 'uploadAttachment'])->name('risk.loss-events.upload-attachment');
+    Route::get('loss-events/{lossEvent}/attachments/{attachment}/download', [LossEventController::class, 'downloadAttachment'])->name('risk.loss-events.download-attachment');
+    Route::delete('loss-events/{lossEvent}/attachments/{attachment}', [LossEventController::class, 'deleteAttachment'])->name('risk.loss-events.delete-attachment');
     Route::patch('loss-events/{lossEvent}/status', [LossEventController::class, 'updateStatus'])->name('risk.loss-events.update-status');
     Route::post('loss-events/{lossEvent}/approval', [LossEventController::class, 'submitApproval'])->name('risk.loss-events.submit-approval');
     Route::resource('loss-events', LossEventController::class)->names('risk.loss-events');
@@ -133,7 +145,11 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     Route::post('issues/{issue}/request-closure', [IssueController::class, 'requestClosure'])->name('risk.issues.request-closure');
     Route::post('issues/{issue}/approve-closure', [IssueController::class, 'approveClosure'])->name('risk.issues.approve-closure');
     Route::post('issues/{issue}/reject-closure', [IssueController::class, 'rejectClosure'])->name('risk.issues.reject-closure');
+    Route::get('issues/{issue}/attachments/{attachment}/download', [IssueController::class, 'downloadAttachment'])->name('risk.issues.download-attachment');
     Route::resource('issues', IssueController::class)->names('risk.issues');
+
+    // Unified document/evidence repository
+    Route::get('documents', [\App\Http\Controllers\Risk\DocumentRepositoryController::class, 'index'])->name('risk.documents.index');
 
     // Quantification
     Route::get('quantification/dashboard', [QuantificationController::class, 'dashboard'])->name('risk.quantification.dashboard');
@@ -153,6 +169,10 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     Route::get('quantification/settings', [QuantificationController::class, 'settings'])->name('risk.quantification.settings');
     Route::put('quantification/settings', [QuantificationController::class, 'updateSettings'])->name('risk.quantification.update-settings');
     Route::get('quantification/reports', [QuantificationController::class, 'reports'])->name('risk.quantification.reports');
+    Route::get('quantification/reports/capital-adequacy', [QuantificationController::class, 'capitalAdequacyReport'])->name('risk.quantification.reports.capital-adequacy');
+    Route::get('quantification/reports/stress-testing',   [QuantificationController::class, 'stressTestingReport'])->name('risk.quantification.reports.stress-testing');
+    Route::get('quantification/reports/risk-contribution',[QuantificationController::class, 'riskContributionReport'])->name('risk.quantification.reports.risk-contribution');
+    Route::get('quantification/reports/regulatory-pack',  [QuantificationController::class, 'regulatoryPack'])->name('risk.quantification.reports.regulatory-pack');
 
     // RCSA
     Route::get('rcsa/dashboard', [RcsaController::class, 'dashboard'])->name('risk.rcsa.dashboard');
@@ -172,13 +192,23 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     Route::get('reports/board', [ReportController::class, 'board'])->name('risk.reports.board');
     Route::get('reports/regulatory', [ReportController::class, 'regulatory'])->name('risk.reports.regulatory');
     Route::get('reports/custom', [ReportController::class, 'custom'])->name('risk.reports.custom');
-    Route::post('reports/custom', [ReportController::class, 'generateCustom'])->name('risk.reports.custom.generate');
+    Route::match(['get','post'], 'reports/custom/generate', [ReportController::class, 'generateCustom'])->name('risk.reports.custom.generate');
 
     // AI Intelligence
     Route::get('ai/predictive', [AiIntelligenceController::class, 'predictive'])->name('risk.ai.predictive');
     Route::get('ai/radar', [AiIntelligenceController::class, 'radar'])->name('risk.ai.radar');
     Route::get('ai/regulatory-pulse', [AiIntelligenceController::class, 'regulatoryPulse'])->name('risk.ai.regulatory-pulse');
     Route::get('ai/benchmarking', [AiIntelligenceController::class, 'benchmarking'])->name('risk.ai.benchmarking');
+
+    // AI Tools (live LLM)
+    Route::get('ai/tools/health', [AiToolsController::class, 'health'])->name('risk.ai.tools.health');
+    Route::post('ai/tools/risk-statement', [AiToolsController::class, 'riskStatement'])->name('risk.ai.tools.risk-statement');
+    Route::post('ai/tools/control-recommendations', [AiToolsController::class, 'controlRecommendations'])->name('risk.ai.tools.control-recommendations');
+    Route::post('ai/tools/kri-suggestions', [AiToolsController::class, 'kriSuggestions'])->name('risk.ai.tools.kri-suggestions');
+    Route::post('ai/tools/control-description', [AiToolsController::class, 'controlDescription'])->name('risk.ai.tools.control-description');
+    Route::post('ai/tools/treatment-description', [AiToolsController::class, 'treatmentDescription'])->name('risk.ai.tools.treatment-description');
+    Route::post('ai/tools/kri-description', [AiToolsController::class, 'kriDescription'])->name('risk.ai.tools.kri-description');
+    Route::post('ai/tools/executive-narrative', [AiToolsController::class, 'executiveNarrative'])->name('risk.ai.tools.executive-narrative');
 
     // Exports (CSV Downloads)
     Route::get('export/dashboard', [ExportController::class, 'dashboard'])->name('risk.export.dashboard');
@@ -191,12 +221,12 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     Route::get('export/issues-ageing', [ExportController::class, 'issuesAgeing'])->name('risk.export.issues-ageing');
     Route::get('export/loss-events', [ExportController::class, 'lossEvents'])->name('risk.export.loss-events');
     Route::get('export/quantification-results', [ExportController::class, 'quantificationResults'])->name('risk.export.quantification-results');
-    Route::post('loss-events/reports/cbn-orms', [ExportController::class, 'lossEventsCbnOrms'])->name('risk.export.loss-events.cbn-orms');
-    Route::post('loss-events/reports/basel', [ExportController::class, 'lossEventsBasel'])->name('risk.export.loss-events.basel');
-    Route::post('loss-events/reports/management', [ExportController::class, 'lossEventsManagement'])->name('risk.export.loss-events.management');
-    Route::post('loss-events/reports/nfiu', [ExportController::class, 'lossEventsNfiu'])->name('risk.export.loss-events.nfiu');
-    Route::post('loss-events/reports/trends', [ExportController::class, 'lossEventsTrends'])->name('risk.export.loss-events.trends');
-    Route::post('loss-events/reports/export', [ExportController::class, 'lossEventsFullExport'])->name('risk.export.loss-events.full');
+    Route::match(['get','post'], 'loss-events/reports/cbn-orms', [ExportController::class, 'lossEventsCbnOrms'])->name('risk.export.loss-events.cbn-orms');
+    Route::match(['get','post'], 'loss-events/reports/basel', [ExportController::class, 'lossEventsBasel'])->name('risk.export.loss-events.basel');
+    Route::match(['get','post'], 'loss-events/reports/management', [ExportController::class, 'lossEventsManagement'])->name('risk.export.loss-events.management');
+    Route::match(['get','post'], 'loss-events/reports/nfiu', [ExportController::class, 'lossEventsNfiu'])->name('risk.export.loss-events.nfiu');
+    Route::match(['get','post'], 'loss-events/reports/trends', [ExportController::class, 'lossEventsTrends'])->name('risk.export.loss-events.trends');
+    Route::match(['get','post'], 'loss-events/reports/export', [ExportController::class, 'lossEventsFullExport'])->name('risk.export.loss-events.full');
 
     // Approvals
     Route::get('approvals', [\App\Http\Controllers\Risk\ApprovalController::class, 'dashboard'])->name('risk.approvals.dashboard');
@@ -217,7 +247,9 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     Route::post('control-tests/{controlTest}/start', [ControlTestController::class, 'startTest'])->name('risk.control-tests.start');
     Route::post('control-tests/{controlTest}/complete', [ControlTestController::class, 'completeTest'])->name('risk.control-tests.complete');
     Route::post('control-tests/{controlTest}/review', [ControlTestController::class, 'reviewTest'])->name('risk.control-tests.review');
+    Route::post('control-tests/{controlTest}/resubmit', [ControlTestController::class, 'resubmit'])->name('risk.control-tests.resubmit');
     Route::post('control-tests/{controlTest}/evidence', [ControlTestController::class, 'uploadEvidence'])->name('risk.control-tests.upload-evidence');
+    Route::get('control-tests/{controlTest}/evidence/{evidence}/download', [ControlTestController::class, 'downloadEvidence'])->name('risk.control-tests.download-evidence');
 
     // ══════════════════════════════════════════════════════════════════
     // UPGRADE: Assessment Campaigns

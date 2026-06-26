@@ -111,14 +111,21 @@
                 </div>
 
                 <div class="bg-white rounded-xl border border-gray-200 p-6">
-                    <h3 class="text-sm font-semibold text-[#1A365D] mb-4">Saved Templates</h3>
+                    <h3 class="text-sm font-semibold text-[#1A365D] mb-4">Recent Reports</h3>
                     @forelse (($savedTemplates ?? []) as $template)
-                        <button type="button" class="w-full text-left p-3 bg-gray-50 rounded-lg mb-2 hover:bg-blue-50 text-xs">
-                            <p class="font-medium text-gray-700">{{ $template->name ?? '-' }}</p>
-                            <p class="text-gray-500">{{ $template->description ?? '' }}</p>
-                        </button>
+                        <a href="{{ $template->download_url ?? '#' }}"
+                           class="block p-3 bg-gray-50 rounded-lg mb-2 hover:bg-blue-50 text-xs">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0 flex-1">
+                                    <p class="font-medium text-gray-700 truncate">{{ $template->name }}</p>
+                                    <p class="text-gray-500 truncate">{{ $template->description }}</p>
+                                    <p class="text-[10px] text-gray-400 mt-0.5">{{ $template->created_at?->diffForHumans() }}</p>
+                                </div>
+                                <span class="material-symbols-outlined text-sm text-[#1A365D]">download</span>
+                            </div>
+                        </a>
                     @empty
-                        <p class="text-xs text-gray-400 text-center py-4">No saved templates</p>
+                        <p class="text-xs text-gray-400 text-center py-4">No reports generated yet</p>
                     @endforelse
                 </div>
 

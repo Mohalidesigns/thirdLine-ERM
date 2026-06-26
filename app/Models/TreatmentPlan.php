@@ -95,6 +95,26 @@ class TreatmentPlan extends Model
         return $this->belongsTo(Risk::class);
     }
 
+    /* ------------------------------------------------------------------ */
+    /*  Accessors — bridge original (action_*) and extended (treatment_*)  */
+    /*  column pairs so views can use a single canonical field name.       */
+    /* ------------------------------------------------------------------ */
+
+    public function getTitleAttribute(): ?string
+    {
+        return $this->treatment_title ?? $this->action_title;
+    }
+
+    public function getDescriptionAttribute(): ?string
+    {
+        return $this->treatment_description ?? $this->action_description;
+    }
+
+    public function getProgressAttribute(): int
+    {
+        return (int) ($this->progress_percentage ?? $this->progress_pct ?? 0);
+    }
+
     public function owner()
     {
         return $this->belongsTo(User::class, 'owner_id');

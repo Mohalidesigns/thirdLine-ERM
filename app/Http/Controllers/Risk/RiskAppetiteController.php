@@ -26,11 +26,61 @@ class RiskAppetiteController extends Controller
             ->orderBy('name')
             ->get();
 
-        // Determine which categories have appetite statements and which don't
         $categoriesWithAppetite = $appetites->pluck('risk_category_id')->toArray();
         $categoriesWithoutAppetite = $categories->whereNotIn('id', $categoriesWithAppetite);
 
-        return view('risk.appetite.index', compact('appetites', 'categories', 'categoriesWithoutAppetite'));
+        $appetiteMetrics = $appetites->map(function ($a) use ($orgId) {
+            $current = (float) \App\Models\Risk::where('organization_id', $orgId)
+                ->where('category_id', $a->risk_category_id)
+                ->where('status', 'active')
+                ->avg('residual_score');
+
+            $lower = (float) ($a->tolerance_lower ?? 0);
+            $upper = (float) ($a->tolerance_upper ?? 0);
+            if ($upper <= 0) {
+                $status = 'within';
+            } elseif ($current > $upper) {
+                $status = 'breach';
+            } elseif ($current > ($upper * 0.85)) {
+                $status = 'near_limit';
+            } else {
+                $status = 'within';
+            }
+
+            return (object) [
+                'risk_category' => optional($a->category)->name ?? 'Uncategorised',
+                'appetite_statement' => $a->appetite_statement,
+                'metric_name' => 'Avg. residual score',
+                'lower_limit' => number_format($lower, 1),
+                'upper_limit' => number_format($upper, 1),
+                'current_value' => number_format($current, 1),
+                'status' => $status,
+                'trend' => $status === 'breach' ? 'up' : ($status === 'within' ? 'down' : 'flat'),
+            ];
+        });
+
+        $totalMetrics = $appetiteMetrics->count();
+        $withinTolerance = $appetiteMetrics->where('status', 'within')->count();
+        $nearLimit = $appetiteMetrics->where('status', 'near_limit')->count();
+        $appetiteBreaches = $appetiteMetrics->where('status', 'breach')->count();
+        $overallStatus = $appetiteBreaches > 0 ? 'Breach'
+            : ($nearLimit > 0 ? 'Near Limit' : 'Within Appetite');
+
+        $approvalDate = optional($appetites->min('effective_date'))->format('d M Y') ?? now()->subMonths(3)->format('d M Y');
+        $nextReviewDate = optional($appetites->min('review_date'))->format('d M Y') ?? now()->addMonths(3)->format('d M Y');
+
+        $appetiteChartData = [
+            'labels' => $appetiteMetrics->pluck('risk_category')->toArray(),
+            'appetite' => $appetites->pluck('tolerance_lower')->map(fn($v) => (float) $v)->toArray(),
+            'current' => $appetiteMetrics->pluck('current_value')->map(fn($v) => (float) str_replace(',', '', $v))->toArray(),
+            'limit' => $appetites->pluck('tolerance_upper')->map(fn($v) => (float) $v)->toArray(),
+        ];
+
+        return view('risk.appetite.index', compact(
+            'appetites', 'categories', 'categoriesWithoutAppetite',
+            'appetiteMetrics', 'totalMetrics', 'withinTolerance', 'nearLimit', 'appetiteBreaches',
+            'overallStatus', 'approvalDate', 'nextReviewDate', 'appetiteChartData'
+        ));
     }
 
     /**

@@ -115,4 +115,18 @@ class RiskAssessment extends Model
             get: fn ($value) => $value ?? ($this->likelihood_score * $this->impact_score),
         );
     }
+
+    // Bridge legacy `inherent_*` field names used by some views to the
+    // canonical `overall_*` columns that the store flow populates.
+    public function getInherentScoreAttribute(): ?int
+    {
+        return $this->attributes['overall_score'] ?? null;
+    }
+
+    protected function inherentRating(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($value) => $value ?? $this->attributes['overall_rating'] ?? null,
+        );
+    }
 }

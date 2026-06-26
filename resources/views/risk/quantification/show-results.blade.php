@@ -27,13 +27,28 @@
     </div>
 
     {{-- Key Metrics --}}
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <x-kpi-card title="Expected Loss" :value="'₦' . number_format($result->expected_loss ?? 0)" icon="payments" color="primary" />
-        <x-kpi-card title="VaR (95%)" :value="'₦' . number_format($result->var_95 ?? 0)" icon="trending_up" color="warning" />
-        <x-kpi-card title="VaR (99%)" :value="'₦' . number_format($result->var_99 ?? 0)" icon="trending_up" color="warning" />
-        <x-kpi-card title="VaR (99.5%)" :value="'₦' . number_format($result->var_995 ?? 0)" icon="priority_high" color="danger" />
-        <x-kpi-card title="Expected Shortfall" :value="'₦' . number_format($result->expected_shortfall ?? 0)" icon="warning" color="danger" />
-        <x-kpi-card title="Max Simulated Loss" :value="'₦' . number_format($result->max_loss ?? 0)" icon="error" color="danger" />
+    @php
+        // Compact Naira so large amounts fit inside narrow KPI cards.
+        $compactNaira = function ($amount) {
+            $a = abs((float) $amount);
+            if ($a >= 1e9) return '₦' . number_format($amount / 1e9, 2) . 'B';
+            if ($a >= 1e6) return '₦' . number_format($amount / 1e6, 2) . 'M';
+            if ($a >= 1e3) return '₦' . number_format($amount / 1e3, 1) . 'K';
+            return '₦' . number_format($amount, 0);
+        };
+    @endphp
+    <style>
+        /* Compact variant so 6 KPI cards stack comfortably without overflow. */
+        .kpi-strip .kpi-card { padding: 0.85rem 1rem; }
+        .kpi-strip .kpi-card .text-2xl { font-size: 1.25rem; line-height: 1.75rem; }
+    </style>
+    <div class="kpi-strip grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+        <x-kpi-card title="Expected Loss" :value="$compactNaira($result->expected_loss ?? 0)" icon="payments" color="primary" />
+        <x-kpi-card title="VaR (95%)" :value="$compactNaira($result->var_95 ?? 0)" icon="trending_up" color="warning" />
+        <x-kpi-card title="VaR (99%)" :value="$compactNaira($result->var_99 ?? 0)" icon="trending_up" color="warning" />
+        <x-kpi-card title="VaR (99.5%)" :value="$compactNaira($result->var_995 ?? 0)" icon="priority_high" color="danger" />
+        <x-kpi-card title="Expected Shortfall" :value="$compactNaira($result->expected_shortfall ?? 0)" icon="warning" color="danger" />
+        <x-kpi-card title="Max Simulated Loss" :value="$compactNaira($result->max_loss ?? 0)" icon="error" color="danger" />
     </div>
 
     {{-- Charts --}}

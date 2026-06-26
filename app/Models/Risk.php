@@ -203,8 +203,9 @@ class Risk extends Model
 
     public function kris()
     {
-        return $this->belongsToMany(KeyRiskIndicator::class, 'risk_kri_mapping', 'risk_id', 'kri_id')
-            ->withTimestamps();
+        // KRIs are linked to risks via the direct FK `key_risk_indicators.risk_id`
+        // (see KriController::store). The legacy `risk_kri_mapping` pivot is unused.
+        return $this->hasMany(KeyRiskIndicator::class, 'risk_id');
     }
 
     public function relatedRisks()

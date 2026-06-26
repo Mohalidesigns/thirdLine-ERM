@@ -89,7 +89,8 @@
                                name="search"
                                value="{{ request('search') }}"
                                placeholder="Search by Risk ID, name, owner..."
-                               class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
+                               class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]"
+                               data-live-search>
                     </div>
                 </div>
 

@@ -62,6 +62,16 @@
                 ['label' => 'Risk Matrix', 'url' => '/risk/rcsa/matrix'],
             ],
         ],
+        [
+            'id' => 'assessments',
+            'label' => 'Risk Assessments',
+            'icon' => 'rate_review',
+            'prefix' => 'risk/assessments',
+            'items' => [
+                ['label' => 'All Assessments', 'url' => '/risk/assessments'],
+                ['label' => 'New Assessment', 'url' => '/risk/assessments/create'],
+            ],
+        ],
 
         // ── Phase 3: Controls & Treatment ──────────────────────────
         [
@@ -113,7 +123,6 @@
                 ['label' => 'Dashboard', 'url' => '/risk/loss-events/dashboard'],
                 ['label' => 'Event Register', 'url' => '/risk/loss-events'],
                 ['label' => 'New Event', 'url' => '/risk/loss-events/create'],
-                ['label' => 'Near Misses', 'url' => '/risk/loss-events/near-misses'],
                 ['label' => 'Approvals', 'url' => '/risk/loss-events/approvals'],
                 ['label' => 'Root Cause', 'url' => '/risk/loss-events/rca'],
                 ['label' => 'Reports', 'url' => '/risk/loss-events/reports'],
@@ -218,6 +227,17 @@
             ],
         ],
 
+        // ── Document Repository ────────────────────────────────────
+        [
+            'id' => 'documents',
+            'label' => 'Documents',
+            'icon' => 'folder_open',
+            'prefix' => 'risk/documents',
+            'items' => [
+                ['label' => 'Repository', 'url' => '/risk/documents'],
+            ],
+        ],
+
         // ── Phase 6: Reporting & Intelligence ──────────────────────
         [
             'id' => 'reports',
@@ -255,8 +275,8 @@
                 <span class="material-symbols-outlined text-[#D4AF37] text-xl">shield</span>
             </div>
             <div>
-                <div class="text-[13px] font-bold text-white leading-tight">GRC Risk Management</div>
-                <div class="text-[10px] text-white/50 font-medium">Enterprise Risk Platform</div>
+                <div class="text-[13px] font-bold text-white leading-tight">Atheris ERM</div>
+                <div class="text-[10px] text-white/50 font-medium">GRC Suite</div>
             </div>
         </div>
     </div>

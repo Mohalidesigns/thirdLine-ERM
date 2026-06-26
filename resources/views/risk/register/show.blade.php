@@ -40,24 +40,44 @@
     </div>
 
     {{-- KPI Cards --}}
+    @php
+        $latestAssessment = $risk->assessments?->first();
+        $effectiveInherentScore  = $risk->inherent_score  ?? $latestAssessment?->inherent_score;
+        $effectiveInherentRating = $risk->inherent_rating ?? $latestAssessment?->inherent_rating;
+        $effectiveResidualScore  = $risk->residual_score  ?? $latestAssessment?->residual_score;
+        $effectiveResidualRating = $risk->residual_rating ?? $latestAssessment?->residual_rating;
+        $isPendingApproval = is_null($risk->residual_score) && $latestAssessment && $latestAssessment->residual_score;
+
+        // Control Effectiveness: use explicit pct on risk, else average across mapped controls.
+        if ($risk->control_effectiveness_pct !== null) {
+            $controlEffectivenessPct = (int) round((float) $risk->control_effectiveness_pct);
+            $controlEffectivenessSubtitle = 'Effectiveness';
+        } elseif ($risk->controlMappings && $risk->controlMappings->count()) {
+            $controlEffectivenessPct = (int) round($risk->controlMappings->avg(fn ($c) => $c->effectiveness_percent));
+            $controlEffectivenessSubtitle = $risk->controlMappings->count() . ' mapped control' . ($risk->controlMappings->count() === 1 ? '' : 's');
+        } else {
+            $controlEffectivenessPct = 0;
+            $controlEffectivenessSubtitle = 'No controls mapped';
+        }
+    @endphp
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <x-kpi-card
             icon="error"
             title="Inherent Score"
-            :value="($risk->inherent_score ?? 0) . '/25'"
-            :subtitle="$risk->inherent_rating ?? 'Not Assessed'"
+            :value="($effectiveInherentScore ?? 0) . '/25'"
+            :subtitle="$effectiveInherentRating ?? 'Not Assessed'"
         />
         <x-kpi-card
             icon="warning"
             title="Residual Score"
-            :value="($risk->residual_score ?? 0) . '/25'"
-            :subtitle="$risk->residual_rating ?? 'Not Assessed'"
+            :value="($effectiveResidualScore ?? 0) . '/25'"
+            :subtitle="$effectiveResidualRating ? ($effectiveResidualRating . ($isPendingApproval ? ' (pending approval)' : '')) : 'Not Assessed'"
         />
         <x-kpi-card
             icon="trending_down"
             title="Control Effectiveness"
-            :value="($risk->control_effectiveness_pct ?? 0) . '%'"
-            subtitle="Effectiveness"
+            :value="$controlEffectivenessPct . '%'"
+            :subtitle="$controlEffectivenessSubtitle"
         />
         <x-kpi-card
             icon="build_circle"
@@ -72,7 +92,7 @@
         {{-- Tab Navigation --}}
         <div class="bg-white rounded-t-xl border-b border-gray-200">
             <div class="flex gap-8 px-6">
-                @foreach (['overview' => 'Overview', 'assessment' => 'Assessment', 'controls' => 'Controls', 'treatment' => 'Treatment', 'kris' => 'KRIs', 'history' => 'History'] as $tab => $label)
+                @foreach (['overview' => 'Overview', 'controls' => 'Controls', 'assessment' => 'Assessment', 'treatment' => 'Treatment', 'kris' => 'KRIs', 'history' => 'History'] as $tab => $label)
                     <button @click="activeTab = '{{ $tab }}'"
                             :class="activeTab === '{{ $tab }}' ? 'border-[#1A365D] text-[#1A365D] font-semibold' : 'border-transparent text-gray-600 hover:text-[#1A365D]'"
                             class="border-b-2 py-4 text-sm transition-colors">
@@ -146,15 +166,15 @@
                             <div class="space-y-4">
                                 <div>
                                     <p class="text-xs text-white/60">Inherent Score</p>
-                                    <p class="text-xl font-bold">{{ $risk->inherent_score ?? 0 }} <span class="text-sm font-normal text-white/60">({{ $risk->inherent_rating ?? 'N/A' }})</span></p>
+                                    <p class="text-xl font-bold">{{ $effectiveInherentScore ?? 0 }} <span class="text-sm font-normal text-white/60">({{ $effectiveInherentRating ?? 'N/A' }})</span></p>
                                 </div>
                                 <div>
                                     <p class="text-xs text-white/60">Residual Score</p>
-                                    <p class="text-xl font-bold">{{ $risk->residual_score ?? 0 }} <span class="text-sm font-normal text-white/60">({{ $risk->residual_rating ?? 'N/A' }})</span></p>
+                                    <p class="text-xl font-bold">{{ $effectiveResidualScore ?? 0 }} <span class="text-sm font-normal text-white/60">({{ $effectiveResidualRating ?? 'N/A' }}{{ $isPendingApproval ? ' · pending' : '' }})</span></p>
                                 </div>
                                 <div>
                                     <p class="text-xs text-white/60">Control Effectiveness</p>
-                                    <p class="text-xl font-bold">{{ $risk->control_effectiveness_pct ?? 0 }}%</p>
+                                    <p class="text-xl font-bold">{{ $controlEffectivenessPct }}%</p>
                                 </div>
                                 <div>
                                     <p class="text-xs text-white/60">Treatment Strategy</p>
@@ -233,7 +253,13 @@
 
             {{-- Assessment Tab --}}
             <div x-show="activeTab === 'assessment'" style="display: none;">
-                <h3 class="text-sm font-semibold text-gray-700 mb-4">Assessment History</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold text-gray-700">Assessment History</h3>
+                    <a href="{{ route('risk.assessments.create', ['risk_id' => $risk->id]) }}"
+                       class="px-4 py-2 bg-[#1A365D] text-white rounded-lg text-sm font-medium hover:bg-[#2D4A7A] flex items-center gap-2">
+                        <span class="material-symbols-outlined text-lg">add</span> New Assessment
+                    </a>
+                </div>
                 @if ($risk->assessments && $risk->assessments->count())
                     <x-data-table id="assessmentTable">
                         <x-slot name="head">
@@ -267,13 +293,70 @@
                     <div class="text-center py-8">
                         <span class="material-symbols-outlined text-4xl text-gray-300">fact_check</span>
                         <p class="text-sm text-gray-500 mt-2">No assessments recorded yet.</p>
+                        <a href="{{ route('risk.assessments.create', ['risk_id' => $risk->id]) }}"
+                           class="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-[#1A365D] text-white rounded-lg text-sm font-medium hover:bg-[#2D4A7A]">
+                            <span class="material-symbols-outlined text-lg">add</span> Conduct First Assessment
+                        </a>
                     </div>
                 @endif
             </div>
 
             {{-- Controls Tab --}}
-            <div x-show="activeTab === 'controls'" style="display: none;">
-                <h3 class="text-sm font-semibold text-gray-700 mb-4">Mapped Controls</h3>
+            <div x-show="activeTab === 'controls'" style="display: none;" x-data="{ mapping: false }">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold text-gray-700">Mapped Controls</h3>
+                    <div class="flex gap-2">
+                        <button type="button" @click="mapping = !mapping"
+                                class="flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-xs text-gray-700 rounded-lg hover:bg-gray-50">
+                            <span class="material-symbols-outlined text-sm">link</span>
+                            <span x-text="mapping ? 'Cancel' : 'Map Existing'"></span>
+                        </button>
+                        <a href="{{ route('risk.controls.create', ['risk_id' => $risk->id]) }}"
+                           class="flex items-center gap-1 px-3 py-1.5 bg-[#1A365D] text-white text-xs rounded-lg hover:bg-[#2D4A7A]">
+                            <span class="material-symbols-outlined text-sm">add</span> Create New
+                        </a>
+                    </div>
+                </div>
+
+                {{-- Map Existing Control form --}}
+                <form x-show="mapping" x-cloak method="POST" action="{{ route('risk.register.map-control', $risk) }}"
+                      class="mb-4 p-4 border border-gray-200 rounded-lg bg-gray-50 space-y-3">
+                    @csrf
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Control <span class="text-red-500">*</span></label>
+                            <select name="control_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
+                                <option value="">Select a control…</option>
+                                @foreach (($availableControls ?? []) as $c)
+                                    <option value="{{ $c->id }}">{{ $c->control_code }} — {{ \Illuminate\Support\Str::limit($c->name, 60) }}</option>
+                                @endforeach
+                            </select>
+                            @if (($availableControls ?? collect())->isEmpty())
+                                <p class="text-xs text-gray-500 mt-1">No unmapped controls in the library. <a href="{{ route('risk.controls.create', ['risk_id' => $risk->id]) }}" class="text-[#1A365D] underline">Create one</a>.</p>
+                            @endif
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Control Weight (%)</label>
+                            <input type="number" name="control_weight" min="0" max="100" step="0.01" placeholder="e.g. 25"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Mapping Rationale</label>
+                        <textarea name="mapping_rationale" rows="2" maxlength="1000" placeholder="Why this control mitigates this risk…"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]"></textarea>
+                    </div>
+                    <label class="flex items-center gap-2 text-xs text-gray-700">
+                        <input type="checkbox" name="is_key_control" value="1" class="rounded border-gray-300">
+                        Mark as Key Control
+                    </label>
+                    <div class="flex justify-end">
+                        <button type="submit" class="flex items-center gap-1 px-4 py-2 bg-[#1A365D] text-white text-xs rounded-lg hover:bg-[#2D4A7A]">
+                            <span class="material-symbols-outlined text-sm">link</span> Map Control
+                        </button>
+                    </div>
+                </form>
+
                 @if ($risk->controlMappings && $risk->controlMappings->count())
                     <x-data-table id="controlsTable">
                         <x-slot name="head">
@@ -291,11 +374,15 @@
                                 <td class="text-sm">{{ ucfirst($control->control_type ?? '-') }}</td>
                                 <td>
                                     @if ($control->effectiveness_rating)
+                                        @php
+                                            $effPct = $control->effectiveness_percent;
+                                            $barColor = $effPct >= 75 ? 'bg-green-500' : ($effPct >= 40 ? 'bg-yellow-500' : 'bg-red-500');
+                                        @endphp
                                         <div class="flex items-center gap-2">
                                             <div class="w-16 bg-gray-200 rounded-full h-1.5">
-                                                <div class="h-1.5 rounded-full bg-green-500" style="width: {{ $control->effectiveness_rating }}%"></div>
+                                                <div class="h-1.5 rounded-full {{ $barColor }}" style="width: {{ $effPct }}%"></div>
                                             </div>
-                                            <span class="text-xs">{{ $control->effectiveness_rating }}%</span>
+                                            <span class="text-xs">{{ $effPct }}% &middot; {{ $control->effectiveness_label }}</span>
                                         </div>
                                     @else
                                         <span class="text-xs text-gray-400">N/A</span>
@@ -316,13 +403,29 @@
                     <div class="text-center py-8">
                         <span class="material-symbols-outlined text-4xl text-gray-300">shield</span>
                         <p class="text-sm text-gray-500 mt-2">No controls mapped to this risk.</p>
+                        <div class="flex justify-center gap-2 mt-3">
+                            <button type="button" @click="mapping = true"
+                                    class="inline-flex items-center gap-1 px-4 py-2 border border-gray-300 text-xs text-gray-700 rounded-lg hover:bg-gray-50">
+                                <span class="material-symbols-outlined text-sm">link</span> Map Existing
+                            </button>
+                            <a href="{{ route('risk.controls.create', ['risk_id' => $risk->id]) }}"
+                               class="inline-flex items-center gap-1 px-4 py-2 bg-[#1A365D] text-white text-xs rounded-lg hover:bg-[#2D4A7A]">
+                                <span class="material-symbols-outlined text-sm">add</span> Create Control
+                            </a>
+                        </div>
                     </div>
                 @endif
             </div>
 
             {{-- Treatment Tab --}}
             <div x-show="activeTab === 'treatment'" style="display: none;">
-                <h3 class="text-sm font-semibold text-gray-700 mb-4">Treatment Plans</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold text-gray-700">Treatment Plans</h3>
+                    <a href="{{ route('risk.treatments.create', ['risk_id' => $risk->id]) }}"
+                       class="flex items-center gap-1 px-3 py-1.5 bg-[#1A365D] text-white text-xs rounded-lg hover:bg-[#2D4A7A]">
+                        <span class="material-symbols-outlined text-sm">add</span> New Treatment Plan
+                    </a>
+                </div>
                 @if ($risk->treatmentPlans && $risk->treatmentPlans->count())
                     @foreach ($risk->treatmentPlans as $plan)
                         <div class="bg-gray-50 rounded-xl p-4 mb-4">
@@ -342,13 +445,23 @@
                     <div class="text-center py-8">
                         <span class="material-symbols-outlined text-4xl text-gray-300">healing</span>
                         <p class="text-sm text-gray-500 mt-2">No treatment plans created yet.</p>
+                        <a href="{{ route('risk.treatments.create', ['risk_id' => $risk->id]) }}"
+                           class="mt-3 inline-flex items-center gap-1 px-4 py-2 bg-[#1A365D] text-white text-xs rounded-lg hover:bg-[#2D4A7A]">
+                            <span class="material-symbols-outlined text-sm">add</span> Create First Treatment Plan
+                        </a>
                     </div>
                 @endif
             </div>
 
             {{-- KRIs Tab --}}
             <div x-show="activeTab === 'kris'" style="display: none;">
-                <h3 class="text-sm font-semibold text-gray-700 mb-4">Key Risk Indicators</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold text-gray-700">Key Risk Indicators</h3>
+                    <a href="{{ route('risk.kri.create', ['risk_id' => $risk->id]) }}"
+                       class="flex items-center gap-1 px-3 py-1.5 bg-[#1A365D] text-white text-xs rounded-lg hover:bg-[#2D4A7A]">
+                        <span class="material-symbols-outlined text-sm">add</span> New KRI
+                    </a>
+                </div>
                 @if ($risk->keyRiskIndicators && $risk->keyRiskIndicators->count())
                     <x-data-table id="krisTable">
                         <x-slot name="head">
@@ -379,6 +492,10 @@
                     <div class="text-center py-8">
                         <span class="material-symbols-outlined text-4xl text-gray-300">speed</span>
                         <p class="text-sm text-gray-500 mt-2">No KRIs linked to this risk.</p>
+                        <a href="{{ route('risk.kri.create', ['risk_id' => $risk->id]) }}"
+                           class="mt-3 inline-flex items-center gap-1 px-4 py-2 bg-[#1A365D] text-white text-xs rounded-lg hover:bg-[#2D4A7A]">
+                            <span class="material-symbols-outlined text-sm">add</span> Create First KRI
+                        </a>
                     </div>
                 @endif
             </div>

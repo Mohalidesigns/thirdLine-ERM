@@ -59,23 +59,51 @@ class AnalysisController extends Controller
             }
         }
 
-        // Risk summary counts
-        $criticalCount = $risks->filter(fn($r) => ($r->inherent_score ?? ($r->inherent_likelihood * $r->inherent_impact)) >= 20)->count();
-        $highCount     = $risks->filter(fn($r) => ($s = $r->inherent_score ?? ($r->inherent_likelihood * $r->inherent_impact)) >= 12 && $s < 20)->count();
-        $mediumCount   = $risks->filter(fn($r) => ($s = $r->inherent_score ?? ($r->inherent_likelihood * $r->inherent_impact)) >= 5 && $s < 12)->count();
-        $lowCount      = $risks->filter(fn($r) => ($r->inherent_score ?? ($r->inherent_likelihood * $r->inherent_impact)) < 5)->count();
+        // Score helper honours the active view type so summary counts stay
+        // in sync with what the grid displays.
+        $scoreOf = function ($r) use ($viewType) {
+            if ($viewType === 'residual' && $r->residual_likelihood && $r->residual_impact) {
+                return $r->residual_score ?? ($r->residual_likelihood * $r->residual_impact);
+            }
+            return $r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0));
+        };
+
+        $criticalCount = $risks->filter(fn ($r) => $scoreOf($r) >= 20)->count();
+        $highCount     = $risks->filter(fn ($r) => ($s = $scoreOf($r)) >= 12 && $s < 20)->count();
+        $mediumCount   = $risks->filter(fn ($r) => ($s = $scoreOf($r)) >= 5 && $s < 12)->count();
+        $lowCount      = $risks->filter(fn ($r) => $scoreOf($r) < 5 && $scoreOf($r) > 0)->count();
 
         // Movement data for chart (quarterly trend)
         $movementData = $this->buildRiskMovementData($orgId);
 
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
 
-        // Categories as strings for the view dropdown
+        // Categories with id + name so the dropdown can filter by id.
         $categories = RiskCategory::where('organization_id', $orgId)
-            ->orderBy('name')->pluck('name');
+            ->orderBy('name')->get(['id', 'name']);
+
+        // JS payload — click-to-show-risks resolves against this map without
+        // extra round-trips, and respects the active view type.
+        $risksForJs = $risks->map(fn ($r) => [
+            'id' => $r->id,
+            'code' => $r->risk_code,
+            'title' => $r->title,
+            'category' => $r->category?->name,
+            'business_unit' => $r->businessUnit?->name,
+            'owner' => $r->riskOwner?->name,
+            'inherent_l' => $r->inherent_likelihood,
+            'inherent_i' => $r->inherent_impact,
+            'inherent_score' => $r->inherent_score,
+            'inherent_rating' => $r->inherent_rating,
+            'residual_l' => $r->residual_likelihood,
+            'residual_i' => $r->residual_impact,
+            'residual_score' => $r->residual_score,
+            'residual_rating' => $r->residual_rating,
+            'url' => route('risk.register.show', $r->id),
+        ])->values();
 
         return view('risk.analysis.heatmap', compact(
-            'risks', 'heatmapData', 'viewType', 'businessUnits', 'categories',
+            'risks', 'risksForJs', 'heatmapData', 'viewType', 'businessUnits', 'categories',
             'criticalCount', 'highCount', 'mediumCount', 'lowCount', 'movementData'
         ));
     }
@@ -162,8 +190,26 @@ class AnalysisController extends Controller
     {
         $orgId = auth()->user()->organization_id ?? 1;
 
-        $period    = (int) $request->get('period', 12);
-        $startDate = now()->subMonths($period);
+        // Accept explicit from/to dates from the date picker. Fall back to the
+        // last 12 months if nothing (or invalid input) is provided.
+        try {
+            $startDate = $request->filled('from')
+                ? \Carbon\Carbon::parse($request->string('from')->toString())->startOfDay()
+                : now()->subMonths(12)->startOfDay();
+        } catch (\Throwable) {
+            $startDate = now()->subMonths(12)->startOfDay();
+        }
+        try {
+            $endDate = $request->filled('to')
+                ? \Carbon\Carbon::parse($request->string('to')->toString())->endOfDay()
+                : now()->endOfDay();
+        } catch (\Throwable) {
+            $endDate = now()->endOfDay();
+        }
+        // Swap if user inverted the range so the window is always valid.
+        if ($startDate->gt($endDate)) {
+            [$startDate, $endDate] = [$endDate->copy()->startOfDay(), $startDate->copy()->endOfDay()];
+        }
 
         // KPI metrics
         $activeRisks = Risk::where('organization_id', $orgId)->where('status', 'active');
@@ -171,19 +217,19 @@ class AnalysisController extends Controller
         $avgRiskScore = $activeRisks->avg('inherent_score') ?? 0;
 
         $newRisks = Risk::where('organization_id', $orgId)
-            ->where('created_at', '>=', $startDate)
+            ->whereBetween('created_at', [$startDate, $endDate])
             ->count();
 
         $closedRisks = Risk::where('organization_id', $orgId)
             ->whereIn('status', ['closed', 'retired'])
-            ->where('updated_at', '>=', $startDate)
+            ->whereBetween('updated_at', [$startDate, $endDate])
             ->count();
 
-        // Changes (simplified: compare current vs 3 months ago)
-        $threeMonthsAgo = now()->subMonths(3);
+        // Changes — compare current vs the mid-point of the selected range.
+        $midpoint = $startDate->copy()->addSeconds((int) ($endDate->diffInSeconds($startDate) / 2));
         $activeRisksOld = Risk::where('organization_id', $orgId)
             ->where('status', 'active')
-            ->where('created_at', '<', $threeMonthsAgo)
+            ->where('created_at', '<', $midpoint)
             ->count();
         $activeRisksChange    = $totalActiveRisks - $activeRisksOld;
         $activeRisksDirection = $activeRisksChange >= 0 ? 'up' : 'down';
@@ -191,28 +237,34 @@ class AnalysisController extends Controller
 
         $avgScoreOld = Risk::where('organization_id', $orgId)
             ->where('status', 'active')
-            ->where('created_at', '<', $threeMonthsAgo)
+            ->where('created_at', '<', $midpoint)
             ->avg('inherent_score') ?? 0;
         $scoreChange      = round($avgRiskScore - $avgScoreOld, 1);
         $avgScoreChange   = ($scoreChange >= 0 ? '+' : '') . $scoreChange;
         $avgScoreDirection = $scoreChange >= 0 ? 'up' : 'down';
 
-        // Build trend charts
-        $ratingTrendData    = $this->buildRatingTrendData($orgId, $startDate);
-        $scoreTrendData     = $this->buildScoreTrendData($orgId, $startDate);
-        $categoryTrendData  = $this->buildCategoryTrendData($orgId, $startDate);
-        $treatmentTrendData = $this->buildTreatmentTrendData($orgId, $startDate);
+        // Build trend charts over the selected window.
+        $ratingTrendData    = $this->buildRatingTrendData($orgId, $startDate, $endDate);
+        $scoreTrendData     = $this->buildScoreTrendData($orgId, $startDate, $endDate);
+        $categoryTrendData  = $this->buildCategoryTrendData($orgId, $startDate, $endDate);
+        $treatmentTrendData = $this->buildTreatmentTrendData($orgId, $startDate, $endDate);
 
         // Risk movers
         $riskIncreasers = $this->buildRiskMovers($orgId, 'up');
         $riskDecreasers = $this->buildRiskMovers($orgId, 'down');
 
+        // Echo the resolved window back to the view so the date picker stays in
+        // sync with what was actually applied (handles defaults + swaps).
+        $fromValue = $startDate->format('Y-m-d');
+        $toValue   = $endDate->format('Y-m-d');
+
         return view('risk.analysis.trends', compact(
             'totalActiveRisks', 'activeRisksChange', 'activeRisksDirection',
             'avgRiskScore', 'avgScoreChange', 'avgScoreDirection',
-            'newRisks', 'closedRisks', 'period',
+            'newRisks', 'closedRisks',
             'ratingTrendData', 'scoreTrendData', 'categoryTrendData', 'treatmentTrendData',
-            'riskIncreasers', 'riskDecreasers'
+            'riskIncreasers', 'riskDecreasers',
+            'fromValue', 'toValue'
         ));
     }
 
@@ -223,22 +275,25 @@ class AnalysisController extends Controller
     {
         $orgId = auth()->user()->organization_id ?? 1;
 
-        // Get active risks with scores
+        $selectedCategoryId = $request->integer('category_id') ?: null;
+
+        // Get active risks with scores, optionally narrowed to a single category.
         $risks = Risk::where('organization_id', $orgId)
             ->where('status', 'active')
             ->whereNotNull('inherent_score')
+            ->when($selectedCategoryId, fn ($q) => $q->where('category_id', $selectedCategoryId))
             ->with(['category', 'businessUnit'])
             ->orderByDesc('inherent_score')
             ->get();
 
-        // Categories as strings for the dropdown
+        // Categories for the dropdown — use models so we can key by id and
+        // preserve the selected state on refresh.
         $categories = RiskCategory::where('organization_id', $orgId)
-            ->orderBy('name')->pluck('name');
+            ->orderBy('name')->get(['id', 'name']);
 
-        // Build correlation data from shared controls
-        $controlMappings = RiskControlMapping::whereHas('risk', function ($q) use ($orgId) {
-                $q->where('organization_id', $orgId);
-            })
+        // Build correlation data from shared controls, scoped to the visible risks.
+        $visibleRiskIds = $risks->pluck('id');
+        $controlMappings = RiskControlMapping::whereIn('risk_id', $visibleRiskIds)
             ->with(['risk', 'control'])
             ->get();
 
@@ -281,7 +336,7 @@ class AnalysisController extends Controller
         $correlationMatrix = $this->buildCorrelationMatrix($risks, $riskControls);
 
         return view('risk.analysis.correlation', compact(
-            'risks', 'categories',
+            'risks', 'categories', 'selectedCategoryId',
             'positiveCorrelations', 'negativeCorrelations', 'correlationMatrix'
         ));
     }
@@ -408,7 +463,7 @@ class AnalysisController extends Controller
     /**
      * Build rating trend data (monthly counts by rating).
      */
-    private function buildRatingTrendData(int $orgId, $startDate): array
+    private function buildRatingTrendData(int $orgId, $startDate, $endDate = null): array
     {
         $labels = [];
         $critical = [];
@@ -417,7 +472,7 @@ class AnalysisController extends Controller
         $low = [];
 
         $current = $startDate->copy()->startOfMonth();
-        $end = now()->endOfMonth();
+        $end = ($endDate ?? now())->copy()->endOfMonth();
 
         while ($current <= $end) {
             $labels[] = $current->format('M Y');
@@ -441,13 +496,13 @@ class AnalysisController extends Controller
     /**
      * Build avg score trend data (monthly).
      */
-    private function buildScoreTrendData(int $orgId, $startDate): array
+    private function buildScoreTrendData(int $orgId, $startDate, $endDate = null): array
     {
         $labels = [];
         $values = [];
 
         $current = $startDate->copy()->startOfMonth();
-        $end = now()->endOfMonth();
+        $end = ($endDate ?? now())->copy()->endOfMonth();
 
         while ($current <= $end) {
             $labels[] = $current->format('M Y');
@@ -467,14 +522,14 @@ class AnalysisController extends Controller
     /**
      * Build category trend data for stacked bar chart.
      */
-    private function buildCategoryTrendData(int $orgId, $startDate): array
+    private function buildCategoryTrendData(int $orgId, $startDate, $endDate = null): array
     {
         $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
         $labels = [];
         $datasets = [];
 
         $current = $startDate->copy()->startOfMonth();
-        $end = now()->endOfMonth();
+        $end = ($endDate ?? now())->copy()->endOfMonth();
 
         while ($current <= $end) {
             $labels[] = $current->format('M Y');
@@ -502,14 +557,14 @@ class AnalysisController extends Controller
     /**
      * Build treatment trend data.
      */
-    private function buildTreatmentTrendData(int $orgId, $startDate): array
+    private function buildTreatmentTrendData(int $orgId, $startDate, $endDate = null): array
     {
         $labels    = [];
         $completed = [];
         $overdue   = [];
 
         $current = $startDate->copy()->startOfMonth();
-        $end = now()->endOfMonth();
+        $end = ($endDate ?? now())->copy()->endOfMonth();
 
         while ($current <= $end) {
             $labels[] = $current->format('M Y');

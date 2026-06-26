@@ -8,6 +8,8 @@ use App\Models\RiskCategory;
 use App\Models\BusinessUnit;
 use App\Models\User;
 use App\Models\RiskAuditTrail;
+use App\Models\Control;
+use App\Models\RiskControlMapping;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -44,14 +46,14 @@ class RiskRegisterController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('risk_code', 'like', "%{$search}%")
-                  ->orWhere('risk_title', 'like', "%{$search}%")
-                  ->orWhere('risk_description', 'like', "%{$search}%");
+                  ->orWhere('title', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
         $sortBy = $request->get('sort', 'inherent_score');
         $sortDir = $request->get('direction', 'desc');
-        $allowedSorts = ['risk_code', 'risk_title', 'inherent_score', 'residual_score', 'status', 'created_at'];
+        $allowedSorts = ['risk_code', 'title', 'inherent_score', 'residual_score', 'status', 'created_at'];
         if (in_array($sortBy, $allowedSorts)) {
             $query->orderBy($sortBy, $sortDir === 'asc' ? 'asc' : 'desc');
         }
@@ -209,7 +211,59 @@ class RiskRegisterController extends Controller
             },
         ]);
 
-        return view('risk.register.show', compact('risk'));
+        // Controls in the org that aren't already mapped to this risk — used
+        // to populate the "Map Existing Control" dropdown on the Controls tab.
+        $mappedControlIds = $risk->controlMappings->pluck('id')->all();
+        $availableControls = Control::where('organization_id', $orgId)
+            ->whereNotIn('id', $mappedControlIds)
+            ->orderBy('control_code')
+            ->get(['id', 'control_code', 'name']);
+
+        return view('risk.register.show', compact('risk', 'availableControls'));
+    }
+
+    /**
+     * Map an existing control to a risk (inline form on the Controls tab).
+     */
+    public function mapControl(Request $request, Risk $risk)
+    {
+        $orgId = auth()->user()->organization_id ?? 1;
+
+        if ($risk->organization_id !== $orgId) {
+            abort(403, 'Unauthorized access to this risk.');
+        }
+
+        $validated = $request->validate([
+            'control_id' => 'required|exists:controls,id',
+            'is_key_control' => 'nullable|boolean',
+            'control_weight' => 'nullable|numeric|min:0|max:100',
+            'mapping_rationale' => 'nullable|string|max:1000',
+        ]);
+
+        $control = Control::where('id', $validated['control_id'])
+            ->where('organization_id', $orgId)
+            ->firstOrFail();
+
+        // Idempotent: skip if mapping already exists.
+        $exists = RiskControlMapping::where('risk_id', $risk->id)
+            ->where('control_id', $control->id)
+            ->exists();
+
+        if ($exists) {
+            return redirect()->route('risk.register.show', $risk)
+                ->with('error', "{$control->control_code} is already mapped to this risk.");
+        }
+
+        RiskControlMapping::create([
+            'risk_id' => $risk->id,
+            'control_id' => $control->id,
+            'is_key_control' => (bool) ($validated['is_key_control'] ?? false),
+            'control_weight' => $validated['control_weight'] ?? null,
+            'mapping_rationale' => $validated['mapping_rationale'] ?? null,
+        ]);
+
+        return redirect()->route('risk.register.show', $risk)
+            ->with('success', "Control {$control->control_code} mapped successfully.");
     }
 
     /**

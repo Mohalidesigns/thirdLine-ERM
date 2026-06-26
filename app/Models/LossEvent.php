@@ -48,6 +48,7 @@ class LossEvent extends Model
         'insurance_provider',
         'insurance_claim_status',
         'event_severity',
+        'is_near_miss',
         'current_status',
         'cbn_reportable',
         'cbn_reporting_deadline',
@@ -114,6 +115,7 @@ class LossEvent extends Model
         'ndic_reportable'          => 'boolean',
         'law_enforcement_notified' => 'boolean',
         'efcc_reported'            => 'boolean',
+        'is_near_miss'             => 'boolean',
         // Alignment columns
         'reporting_deadline'       => 'date',
         'is_regulatory_reportable' => 'boolean',
@@ -228,6 +230,14 @@ class LossEvent extends Model
     /* ------------------------------------------------------------------ */
     /*  Accessors                                                          */
     /* ------------------------------------------------------------------ */
+
+    // Bridge legacy column names used by some views.
+    protected function reference(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->event_reference,
+        );
+    }
 
     protected function netLossAmountKobo(): Attribute
     {

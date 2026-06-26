@@ -7,7 +7,8 @@ use App\Models\BusinessUnit;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
+use Illuminate\Support\Str;
+use Spatie\Permission\Models\Role;
 
 class UserManagementController extends Controller
 {
@@ -16,13 +17,16 @@ class UserManagementController extends Controller
      */
     public function index(Request $request)
     {
-        $query = User::query();
+        $query = User::with(['roles', 'businessUnit']);
 
         // Search by name or email
         if ($request->filled('search')) {
             $search = $request->input('search');
-            $query->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('staff_id', 'like', "%{$search}%");
+            });
         }
 
         // Filter by role
@@ -45,11 +49,15 @@ class UserManagementController extends Controller
             $query->where('business_unit_id', $request->input('business_unit'));
         }
 
-        $users = $query->orderBy('name')->paginate(15);
+        $users = $query->orderBy('name')->paginate(15)->withQueryString();
+        $roles = Role::orderBy('name')->get();
+        $businessUnits = BusinessUnit::orderBy('name')->get();
 
         return view('admin.users.index', [
             'users' => $users,
-            'search' => $request->input('search'),
+            'roles' => $roles,
+            'businessUnits' => $businessUnits,
+            'filters' => $request->only(['search', 'role', 'status', 'business_unit']),
         ]);
     }
 
@@ -58,10 +66,10 @@ class UserManagementController extends Controller
      */
     public function create()
     {
-        $orgId = auth()->user()->organization_id;
-        $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
+        $businessUnits = BusinessUnit::orderBy('name')->get();
+        $roles = Role::orderBy('name')->get();
 
-        return view('admin.users.create', compact('businessUnits'));
+        return view('admin.users.create', compact('businessUnits', 'roles'));
     }
 
     /**
@@ -81,7 +89,7 @@ class UserManagementController extends Controller
         ]);
 
         // Create user with temporary password
-        $tempPassword = \Illuminate\Support\Str::random(12);
+        $tempPassword = Str::random(12);
 
         $user = User::create([
             'name' => $validated['name'],
@@ -92,6 +100,7 @@ class UserManagementController extends Controller
             'department' => $validated['department'],
             'phone' => $validated['phone'],
             'business_unit_id' => $validated['business_unit_id'],
+            'organization_id' => auth()->user()->organization_id,
             'is_active' => true,
             'must_change_password' => true,
             'password_changed_at' => now(),
@@ -109,9 +118,10 @@ class UserManagementController extends Controller
      */
     public function show(User $user)
     {
+        $user->load(['roles.permissions', 'businessUnit', 'organization']);
+
         return view('admin.users.show', [
             'user' => $user,
-            'recentActivity' => $user->ownedRisks()->latest()->take(5)->get(),
         ]);
     }
 
@@ -120,12 +130,13 @@ class UserManagementController extends Controller
      */
     public function edit(User $user)
     {
-        $orgId = auth()->user()->organization_id;
-        $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
+        $businessUnits = BusinessUnit::orderBy('name')->get();
+        $roles = Role::orderBy('name')->get();
 
         return view('admin.users.edit', [
             'user' => $user,
             'businessUnits' => $businessUnits,
+            'roles' => $roles,
         ]);
     }
 
@@ -155,7 +166,7 @@ class UserManagementController extends Controller
             'business_unit_id' => $validated['business_unit_id'],
         ]);
 
-        // Sync roles if changed
+        // Sync roles
         $user->syncRoles($validated['roles']);
 
         return redirect()->route('admin.users.show', $user)
@@ -167,9 +178,13 @@ class UserManagementController extends Controller
      */
     public function destroy(User $user)
     {
-        if ($user->is_active) {
-            $user->update(['is_active' => false]);
+        // Prevent deactivating yourself
+        if ($user->id === auth()->id()) {
+            return redirect()->route('admin.users.index')
+                ->with('error', 'You cannot deactivate your own account.');
         }
+
+        $user->update(['is_active' => false]);
 
         return redirect()->route('admin.users.index')
             ->with('success', 'User deactivated successfully.');
@@ -180,6 +195,11 @@ class UserManagementController extends Controller
      */
     public function toggleActive(User $user)
     {
+        // Prevent toggling yourself
+        if ($user->id === auth()->id()) {
+            return back()->with('error', 'You cannot change your own account status.');
+        }
+
         $user->update(['is_active' => !$user->is_active]);
 
         $status = $user->is_active ? 'activated' : 'deactivated';
@@ -193,12 +213,14 @@ class UserManagementController extends Controller
      */
     public function resetPassword(Request $request, User $user)
     {
-        $tempPassword = \Illuminate\Support\Str::random(12);
+        $tempPassword = Str::random(12);
 
         $user->update([
             'password' => Hash::make($tempPassword),
             'must_change_password' => true,
             'password_changed_at' => now(),
+            'login_attempts' => 0,
+            'locked_until' => null,
         ]);
 
         return redirect()->route('admin.users.show', $user)

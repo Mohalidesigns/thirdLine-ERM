@@ -18,12 +18,14 @@
             <h1 class="text-xl font-bold text-[#1A365D]">Risk Correlation Analysis</h1>
             <p class="text-sm text-gray-500 mt-1">Identify interdependencies and correlations between risk events</p>
         </div>
-        <select class="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-600">
-            <option>All Categories</option>
-            @foreach (($categories ?? []) as $cat)
-                <option>{{ $cat }}</option>
-            @endforeach
-        </select>
+        <form method="GET" action="{{ route('risk.analysis.correlation') }}" data-live-filter>
+            <select name="category_id" class="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-600">
+                <option value="">All Categories</option>
+                @foreach (($categories ?? []) as $cat)
+                    <option value="{{ $cat->id }}" {{ (int) ($selectedCategoryId ?? 0) === (int) $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                @endforeach
+            </select>
+        </form>
     </div>
 
     {{-- Correlation Matrix --}}

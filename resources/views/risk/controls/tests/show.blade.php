@@ -76,8 +76,91 @@
             </div>
             @endif
 
+            {{-- Review panel: reviewer sees approve/reject; tester sees "pending" status --}}
+            @if($controlTest->status === 'pending_review')
+                @can('review-control-test', $controlTest)
+                <div class="bg-white rounded-xl border border-blue-200 shadow-sm p-6" x-data="{ rejecting: false }">
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="material-symbols-outlined text-blue-600">rate_review</span>
+                        <h3 class="text-sm font-semibold text-gray-900">Review Required</h3>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-4">You are the assigned reviewer for this test. Approve to finalise, or reject with a reason so the tester can rework.</p>
+
+                    {{-- Approve form --}}
+                    <form method="POST" action="{{ route('risk.control-tests.review', $controlTest) }}" class="space-y-3 mb-4" x-show="!rejecting">
+                        @csrf
+                        <input type="hidden" name="action" value="approve">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Reviewer Notes (optional)</label>
+                            <textarea name="reviewer_notes" rows="2" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="Any observations…"></textarea>
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">check</span> Approve
+                            </button>
+                            <button type="button" @click="rejecting = true" class="px-4 py-2 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">close</span> Reject
+                            </button>
+                        </div>
+                    </form>
+
+                    {{-- Reject form --}}
+                    <form method="POST" action="{{ route('risk.control-tests.review', $controlTest) }}" class="space-y-3" x-show="rejecting" x-cloak>
+                        @csrf
+                        <input type="hidden" name="action" value="reject">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Reason for rejection <span class="text-red-500">*</span></label>
+                            <textarea name="rejection_reason" rows="3" required maxlength="2000" class="w-full border border-red-200 rounded-lg px-3 py-2 text-sm focus:border-red-400" placeholder="Explain what needs to change…"></textarea>
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">close</span> Confirm Rejection
+                            </button>
+                            <button type="button" @click="rejecting = false" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+                @else
+                <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-start gap-3">
+                    <span class="material-symbols-outlined text-yellow-600">hourglass_empty</span>
+                    <div>
+                        <p class="text-sm font-semibold text-yellow-800">Pending Reviewer Approval</p>
+                        <p class="text-xs text-yellow-700 mt-1">Awaiting review by <strong>{{ $controlTest->reviewer?->name ?? 'the assigned reviewer' }}</strong>. They have been notified by email.</p>
+                    </div>
+                </div>
+                @endcan
+            @endif
+
+            {{-- Rejected banner + resubmit --}}
+            @if($controlTest->status === 'rejected')
+                <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <div class="flex items-start gap-3 mb-3">
+                        <span class="material-symbols-outlined text-red-600">block</span>
+                        <div class="flex-1">
+                            <p class="text-sm font-semibold text-red-800">Test Rejected</p>
+                            @if($controlTest->reviewer_notes)
+                                <p class="text-xs text-red-700 mt-1 whitespace-pre-line"><strong>Reviewer comment:</strong> {{ $controlTest->reviewer_notes }}</p>
+                            @endif
+                            @php $pendingReq = \App\Models\ApprovalRequest::where('entity_type','ControlTest')->where('entity_id',$controlTest->id)->where('status','rejected')->latest('reviewed_at')->first(); @endphp
+                            @if($pendingReq && $pendingReq->rejection_reason)
+                                <p class="text-xs text-red-700 mt-1 whitespace-pre-line"><strong>Reason:</strong> {{ $pendingReq->rejection_reason }}</p>
+                            @endif
+                            <p class="text-[11px] text-red-600 mt-2">Reviewed by {{ $controlTest->reviewer?->name ?? 'Reviewer' }} on {{ $controlTest->reviewed_at?->format('M d, Y H:i') }}</p>
+                        </div>
+                    </div>
+                    @can('resubmit-control-test', $controlTest)
+                    <form method="POST" action="{{ route('risk.control-tests.resubmit', $controlTest) }}">
+                        @csrf
+                        <button type="submit" class="px-4 py-2 bg-[#1A365D] text-white rounded-lg text-sm font-medium hover:bg-[#2D4A7A] flex items-center gap-1">
+                            <span class="material-symbols-outlined text-sm">refresh</span> Resubmit for rework
+                        </button>
+                    </form>
+                    @endcan
+                </div>
+            @endif
+
             {{-- Results Display --}}
-            @if($controlTest->status === 'completed' || $controlTest->status === 'pending_review')
+            @if(in_array($controlTest->status, ['completed', 'pending_review', 'rejected']))
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
                 <h3 class="text-sm font-semibold text-gray-900 mb-4">Test Results</h3>
                 <div class="space-y-3">
@@ -116,7 +199,7 @@
             {{-- Status Card --}}
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
                 <h3 class="text-sm font-semibold text-gray-900 mb-3">Status</h3>
-                @php $statusColors = ['scheduled'=>'gray','in_progress'=>'blue','pending_review'=>'yellow','completed'=>'green','cancelled'=>'red']; @endphp
+                @php $statusColors = ['scheduled'=>'gray','in_progress'=>'blue','pending_review'=>'yellow','completed'=>'green','rejected'=>'red','cancelled'=>'red']; @endphp
                 <span class="badge bg-{{ $statusColors[$controlTest->status] ?? 'gray' }}-100 text-{{ $statusColors[$controlTest->status] ?? 'gray' }}-700 text-sm">
                     {{ ucfirst(str_replace('_', ' ', $controlTest->status)) }}
                 </span>

@@ -64,7 +64,8 @@
                     <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">search</span>
                     <input type="text" name="search" value="{{ request('search') }}"
                            placeholder="Search by Risk ID, name, description..."
-                           class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
+                           class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]"
+                           data-live-search>
                 </div>
             </div>
             <select name="category" onchange="this.form.submit()"

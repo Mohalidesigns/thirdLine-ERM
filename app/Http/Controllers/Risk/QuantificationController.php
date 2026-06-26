@@ -621,6 +621,218 @@ class QuantificationController extends Controller
     }
 
     /**
+     * Capital Adequacy Summary — condensed view of the latest ICAAP: CAR,
+     * tier breakdown, Pillar 1/2 demand, buffer headroom.
+     */
+    public function capitalAdequacyReport()
+    {
+        $orgId = auth()->user()->organization_id ?? 1;
+
+        $icaap = IcaapAssessment::where('organization_id', $orgId)
+            ->orderByDesc('created_at')->first();
+
+        $kobo = fn ($v) => round(((float) ($v ?? 0)) / 100, 2);
+
+        $data = (object) [
+            'as_of'                 => $icaap?->created_at,
+            'total_capital'         => $icaap ? $kobo($icaap->total_qualifying_capital_kobo) : 0,
+            'tier1'                 => $icaap ? $kobo($icaap->tier1_capital_kobo) : 0,
+            'tier2'                 => $icaap ? $kobo($icaap->tier2_capital_kobo) : 0,
+            'car_actual'            => $icaap ? (float) ($icaap->car_actual ?? 0) : 0,
+            'car_required'          => $icaap ? (float) ($icaap->car_required ?? 10) : 10,
+            'conservation_buffer'   => $icaap ? (float) ($icaap->conservation_buffer ?? 2.5) : 2.5,
+            'pillar1_credit'        => $icaap ? $kobo($icaap->pillar2a_credit_kobo) : 0,
+            'pillar1_market'        => $icaap ? $kobo($icaap->pillar2a_market_kobo) : 0,
+            'pillar1_operational'   => $icaap ? $kobo($icaap->pillar2a_operational_kobo) : 0,
+            'pillar2_buffer'        => $icaap ? $kobo($icaap->pillar2b_stress_buffer_kobo) : 0,
+            'pillar2_other'         => $icaap ? $kobo($icaap->pillar2a_other_kobo) : 0,
+        ];
+        $data->total_pillar1 = $data->pillar1_credit + $data->pillar1_market + $data->pillar1_operational;
+        $data->total_pillar2 = $data->pillar2_buffer + $data->pillar2_other;
+        $data->headroom      = max(0, $data->total_capital - $data->total_pillar1 - $data->total_pillar2);
+        $data->car_surplus   = round($data->car_actual - $data->car_required, 2);
+
+        return view('risk.quantification.reports.capital-adequacy', [
+            'd' => $data, 'hasData' => (bool) $icaap,
+        ]);
+    }
+
+    /**
+     * Stress Testing Report — scenario impacts drawn from the latest
+     * ICAAP's stress simulation, with fallbacks when none is attached.
+     */
+    public function stressTestingReport()
+    {
+        $orgId = auth()->user()->organization_id ?? 1;
+
+        $icaap = IcaapAssessment::where('organization_id', $orgId)
+            ->orderByDesc('created_at')->first();
+
+        $totalCapital = $icaap ? round(((float) ($icaap->total_qualifying_capital_kobo ?? 0)) / 100, 2) : 0;
+        $car = $icaap ? (float) ($icaap->car_actual ?? 0) : 0;
+
+        $stressSim = null;
+        if ($icaap && $icaap->stress_simulation_id) {
+            $stressSim = SimulationRun::find($icaap->stress_simulation_id);
+        }
+        // Fall back to the latest completed simulation if no stress run is bound.
+        $stressSim = $stressSim ?? SimulationRun::where('organization_id', $orgId)
+            ->where('status', 'completed')->orderByDesc('completed_at')->first();
+
+        $baseImpact = $stressSim?->var_99 ?? round($totalCapital * 0.1, 2);
+
+        $scenarios = collect([
+            ['name' => 'Severe Recession',            'car_drop' => 3.5, 'factor' => 0.6],
+            ['name' => 'Oil Price Shock',             'car_drop' => 2.1, 'factor' => 0.4],
+            ['name' => 'Naira Devaluation',           'car_drop' => 2.8, 'factor' => 0.5],
+            ['name' => 'Cyber Attack + Market Crash', 'car_drop' => 5.2, 'factor' => 1.0],
+            ['name' => 'Liquidity Squeeze',           'car_drop' => 1.6, 'factor' => 0.3],
+        ])->map(function ($s) use ($baseImpact, $car, $totalCapital) {
+            $impact = round($baseImpact * $s['factor'], 2);
+            $carAfter = max($car - $s['car_drop'], 0);
+            $shortfall = max(0, round((10 - $carAfter) * $totalCapital / 100, 2));
+            return (object) [
+                'scenario'       => $s['name'],
+                'capital_impact' => $impact,
+                'car_before'     => $car,
+                'car_after'      => round($carAfter, 2),
+                'shortfall'      => $shortfall,
+                'verdict'        => $carAfter >= 10 ? 'Pass' : ($carAfter >= 8 ? 'Marginal' : 'Fail'),
+            ];
+        });
+
+        return view('risk.quantification.reports.stress-testing', [
+            'scenarios'    => $scenarios,
+            'totalCapital' => $totalCapital,
+            'car'          => $car,
+            'stressSim'    => $stressSim,
+            'hasData'      => (bool) ($icaap || $stressSim),
+        ]);
+    }
+
+    /**
+     * Risk Contribution Analysis — economic-capital allocation by risk
+     * type (simulation scenario_contributions) and by business unit
+     * (aggregated residual scores).
+     */
+    public function riskContributionReport()
+    {
+        $orgId = auth()->user()->organization_id ?? 1;
+
+        $latestSim = SimulationRun::where('organization_id', $orgId)
+            ->where('status', 'completed')
+            ->orderByDesc('completed_at')->first();
+
+        // By risk type — use scenario contributions when present.
+        $byType = collect();
+        if ($latestSim) {
+            $contribs = $latestSim->scenario_contributions;
+            if ($contribs && $contribs->count()) {
+                $byType = $contribs->map(fn ($c) => (object) [
+                    'label'     => $c->scenario_name,
+                    'capital'   => (float) ($c->expected_loss ?? 0),
+                    'share_pct' => (float) ($c->contribution_pct ?? 0),
+                ])->sortByDesc('capital')->values();
+            }
+        }
+
+        // Fallback: use risk categories weighted by residual score when no
+        // simulation contributions exist.
+        if ($byType->isEmpty()) {
+            $byType = Risk::where('organization_id', $orgId)
+                ->where('status', 'active')
+                ->with('category')
+                ->get()
+                ->groupBy(fn ($r) => optional($r->category)->name ?? 'Uncategorised')
+                ->map(fn ($group, $label) => (object) [
+                    'label'   => $label,
+                    'capital' => round($group->sum('residual_score'), 2),
+                ])->values();
+            $total = max(1, $byType->sum('capital'));
+            $byType = $byType->map(function ($row) use ($total) {
+                $row->share_pct = round(($row->capital / $total) * 100, 2);
+                return $row;
+            })->sortByDesc('capital')->values();
+        }
+
+        // By business unit — residual score aggregated.
+        $byUnit = Risk::where('organization_id', $orgId)
+            ->where('status', 'active')
+            ->with('businessUnit')
+            ->get()
+            ->groupBy(fn ($r) => optional($r->businessUnit)->name ?? 'Unassigned')
+            ->map(fn ($group, $label) => (object) [
+                'label'   => $label,
+                'risks'   => $group->count(),
+                'capital' => round($group->sum('residual_score'), 2),
+            ])->values();
+        $totalUnit = max(1, $byUnit->sum('capital'));
+        $byUnit = $byUnit->map(function ($row) use ($totalUnit) {
+            $row->share_pct = round(($row->capital / $totalUnit) * 100, 2);
+            return $row;
+        })->sortByDesc('capital')->values();
+
+        return view('risk.quantification.reports.risk-contribution', [
+            'byType'    => $byType,
+            'byUnit'    => $byUnit,
+            'latestSim' => $latestSim,
+            'hasData'   => $byType->isNotEmpty() || $byUnit->isNotEmpty(),
+        ]);
+    }
+
+    /**
+     * Regulatory Compliance Pack — combined reporting snapshot pulling
+     * capital, KRI, loss-event, and issues data for a one-page regulatory
+     * view aligned to CBN ORMS expectations.
+     */
+    public function regulatoryPack()
+    {
+        $orgId = auth()->user()->organization_id ?? 1;
+        $year = now()->year;
+
+        $icaap = IcaapAssessment::where('organization_id', $orgId)
+            ->orderByDesc('created_at')->first();
+
+        $summary = (object) [
+            'car_actual'         => $icaap ? (float) ($icaap->car_actual ?? 0) : 0,
+            'car_required'       => $icaap ? (float) ($icaap->car_required ?? 10) : 10,
+            'total_capital'      => $icaap ? round(((float) ($icaap->total_qualifying_capital_kobo ?? 0)) / 100, 2) : 0,
+            'active_risks'       => Risk::where('organization_id', $orgId)->where('status', 'active')->count(),
+            'critical_risks'     => Risk::where('organization_id', $orgId)->where('residual_rating', 'Critical')->count(),
+            'high_risks'         => Risk::where('organization_id', $orgId)->where('residual_rating', 'High')->count(),
+            'red_kris'           => \App\Models\KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'red')->count(),
+            'amber_kris'         => \App\Models\KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'amber')->count(),
+            'loss_events_ytd'    => \App\Models\LossEvent::where('organization_id', $orgId)->whereYear('date_of_loss', $year)->count(),
+            'net_loss_ytd'       => (float) \App\Models\LossEvent::where('organization_id', $orgId)->whereYear('date_of_loss', $year)->sum('net_loss_amount'),
+            'open_issues'        => \App\Models\Issue::where('organization_id', $orgId)->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->count(),
+            'overdue_issues'     => \App\Models\Issue::where('organization_id', $orgId)->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->where('remediation_due_date', '<', now())->count(),
+            'regulatory_issues'  => \App\Models\Issue::where('organization_id', $orgId)->where('regulatory_reportable', true)->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->count(),
+        ];
+
+        // Checklist of filing items with a simple pass/warning/fail indicator.
+        $checklist = [
+            ['item' => 'CAR above CBN minimum (10%)', 'status' => $summary->car_actual >= $summary->car_required ? 'pass' : 'fail',
+             'detail' => $summary->car_actual . '% actual vs ' . $summary->car_required . '% required'],
+            ['item' => 'ICAAP submitted this cycle', 'status' => $icaap ? 'pass' : 'fail',
+             'detail' => $icaap ? 'Last assessment: ' . $icaap->created_at->format('d M Y') : 'No ICAAP on record'],
+            ['item' => 'No critical residual risks', 'status' => $summary->critical_risks === 0 ? 'pass' : 'warning',
+             'detail' => $summary->critical_risks . ' critical residual risks open'],
+            ['item' => 'KRI breaches under threshold', 'status' => $summary->red_kris === 0 ? 'pass' : 'warning',
+             'detail' => $summary->red_kris . ' red / ' . $summary->amber_kris . ' amber'],
+            ['item' => 'Regulatory issues closed',  'status' => $summary->regulatory_issues === 0 ? 'pass' : 'fail',
+             'detail' => $summary->regulatory_issues . ' regulatory issues still open'],
+            ['item' => 'No overdue issues',         'status' => $summary->overdue_issues === 0 ? 'pass' : 'warning',
+             'detail' => $summary->overdue_issues . ' overdue issues'],
+        ];
+
+        return view('risk.quantification.reports.regulatory-pack', [
+            'summary' => $summary,
+            'checklist' => collect($checklist),
+            'icaap' => $icaap,
+        ]);
+    }
+
+    /**
      * Edit a quantification scenario.
      */
     public function editScenario(QuantificationScenario $scenario)

@@ -24,17 +24,67 @@ class KriController extends Controller
             ->orderByRaw("FIELD(current_status, 'red', 'amber', 'yellow', 'green') ASC")
             ->get();
 
-        $stats = [
-            'total_kris' => $kris->count(),
-            'red' => $kris->where('current_status', 'red')->count(),
-            'amber' => $kris->where('current_status', 'amber')->count(),
-            'yellow' => $kris->where('current_status', 'yellow')->count(),
-            'green' => $kris->where('current_status', 'green')->count(),
+        $totalKris = $kris->count();
+        $redCount = $kris->where('current_status', 'red')->count();
+        $amberCount = $kris->where('current_status', 'amber')->count();
+        $yellowCount = $kris->where('current_status', 'yellow')->count();
+        $greenCount = $kris->where('current_status', 'green')->count();
+        $activeBreaches = $redCount + $amberCount;
+
+        $healthyCount = $greenCount + $yellowCount;
+        $avgHealthScore = $totalKris > 0 ? (int) round(($healthyCount / $totalKris) * 100) : 0;
+
+        $breachedKris = $kris->whereIn('current_status', ['red', 'amber'])->values();
+
+        $recentBreaches = $breachedKris->take(10)->map(function ($kri) {
+            $m = $kri->latestMeasurement;
+            return (object) [
+                'kri_id' => $kri->id,
+                'kri_name' => $kri->name,
+                'name' => $kri->name,
+                'current_value' => $kri->current_value !== null
+                    ? number_format((float) $kri->current_value, 2) . ($kri->unit ?? '')
+                    : '-',
+                'threshold_value' => $kri->red_threshold !== null
+                    ? number_format((float) $kri->red_threshold, 2) . ($kri->unit ?? '')
+                    : '-',
+                'level' => $kri->current_status,
+                'category' => $kri->category,
+                'owner' => optional($kri->risk)->risk_owner_id,
+                'breach_date' => optional($m)->measured_at ?? optional($m)->measurement_date,
+            ];
+        });
+
+        $statusDistData = [
+            'labels' => ['Green', 'Amber', 'Red'],
+            'values' => [$greenCount + $yellowCount, $amberCount, $redCount],
         ];
 
-        $breachedKris = $kris->where('current_status', 'red');
+        $trendLabels = [];
+        $redTrend = [];
+        $amberTrend = [];
+        for ($i = 11; $i >= 0; $i--) {
+            $month = now()->subMonths($i);
+            $trendLabels[] = $month->format('M');
+            $redTrend[] = KriMeasurement::whereHas('kri', fn($q) => $q->where('organization_id', $orgId))
+                ->whereYear('measurement_date', $month->year)
+                ->whereMonth('measurement_date', $month->month)
+                ->where('status', 'red')
+                ->count();
+            $amberTrend[] = KriMeasurement::whereHas('kri', fn($q) => $q->where('organization_id', $orgId))
+                ->whereYear('measurement_date', $month->year)
+                ->whereMonth('measurement_date', $month->month)
+                ->where('status', 'amber')
+                ->count();
+        }
+        $breachTrendData = ['labels' => $trendLabels, 'red' => $redTrend, 'amber' => $amberTrend];
 
-        return view('risk.kri.dashboard', compact('kris', 'stats', 'breachedKris'));
+        return view('risk.kri.dashboard', compact(
+            'kris', 'breachedKris', 'recentBreaches',
+            'totalKris', 'redCount', 'amberCount', 'yellowCount', 'greenCount',
+            'activeBreaches', 'avgHealthScore',
+            'statusDistData', 'breachTrendData'
+        ));
     }
 
     /**

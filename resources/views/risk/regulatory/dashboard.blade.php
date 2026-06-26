@@ -38,7 +38,7 @@
                         <p class="text-xs text-gray-500">{{ $dl->regulator }} &middot; {{ $dl->report_type }}</p>
                     </div>
                     <div class="text-right">
-                        @php $days = now()->diffInDays($dl->deadline_date, false); @endphp
+                        @php $days = (int) now()->startOfDay()->diffInDays($dl->deadline_date, false); @endphp
                         <span class="text-xs font-semibold {{ $days <= 7 ? 'text-red-600' : ($days <= 14 ? 'text-yellow-600' : 'text-gray-600') }}">{{ $dl->deadline_date->format('M d, Y') }}</span>
                         <p class="text-[10px] text-gray-400">{{ $days >= 0 ? $days . ' days left' : abs($days) . ' days overdue' }}</p>
                     </div>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
+use App\Models\GeneratedReport;
 use App\Models\Risk;
 use App\Models\RiskCategory;
 use App\Models\LossEvent;
@@ -14,6 +15,7 @@ use App\Models\BusinessUnit;
 use App\Services\RegulatoryReportService;
 use App\Services\RiskAppetiteService;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
@@ -260,6 +262,20 @@ class ReportController extends Controller
         $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
 
+        // Prior custom reports (what the Saved Templates panel shows — we now
+        // use it as a "Recent Reports" list so users can re-download).
+        $savedTemplates = GeneratedReport::where('organization_id', $orgId)
+            ->where('scope', 'custom_report')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get()
+            ->map(fn ($r) => (object) [
+                'name' => $r->name,
+                'description' => ($r->period ? $r->period . ' · ' : '') . $r->file_name,
+                'download_url' => $r->download_url,
+                'created_at' => $r->created_at,
+            ]);
+
         $reportData = null;
 
         if ($request->filled('report_type')) {
@@ -289,18 +305,108 @@ class ReportController extends Controller
             $reportData = $query->with(['category', 'riskOwner', 'businessUnit'])->get();
         }
 
-        return view('risk.reports.custom', compact('categories', 'businessUnits', 'reportData'));
+        return view('risk.reports.custom', compact('categories', 'businessUnits', 'reportData', 'savedTemplates'));
     }
 
     /**
-     * Generate custom report (POST).
+     * Generate custom report (POST) — streams a CSV download and records
+     * the run in the `generated_reports` table so it appears in Recent.
      */
-    public function generateCustom(Request $request)
+    public function generateCustom(Request $request): StreamedResponse
     {
-        // Redirect back to custom with the filter params as GET to reuse the view logic
-        return redirect()->route('risk.reports.custom', $request->only([
-            'report_type', 'category_id', 'business_unit_id', 'rating', 'status', 'date_from', 'date_to'
-        ]))->with('success', 'Report generated.');
+        $orgId = auth()->user()->organization_id ?? 1;
+
+        $validated = $request->validate([
+            'report_name' => 'required|string|max:200',
+            'report_type' => 'nullable|string|max:40',
+            'date_from'   => 'nullable|date',
+            'date_to'     => 'nullable|date',
+            'format'      => 'nullable|in:pdf,excel,html,pptx',
+            'categories'  => 'nullable|array',
+            'categories.*' => 'integer',
+            'ratings'     => 'nullable|array',
+            'ratings.*'   => 'string',
+            'business_units' => 'nullable|array',
+            'business_units.*' => 'integer',
+            'sections'    => 'nullable|array',
+        ]);
+
+        $query = Risk::where('organization_id', $orgId)
+            ->with(['category', 'businessUnit', 'riskOwner']);
+
+        if (! empty($validated['categories'])) {
+            $query->whereIn('category_id', $validated['categories']);
+        }
+        if (! empty($validated['ratings'])) {
+            $query->whereIn(\DB::raw('LOWER(inherent_rating)'), array_map('strtolower', $validated['ratings']));
+        }
+        if (! empty($validated['business_units'])) {
+            $query->whereIn('business_unit_id', $validated['business_units']);
+        }
+        if (! empty($validated['date_from'])) {
+            $query->where('created_at', '>=', $validated['date_from']);
+        }
+        if (! empty($validated['date_to'])) {
+            $query->where('created_at', '<=', $validated['date_to'] . ' 23:59:59');
+        }
+
+        $risks = $query->orderBy('risk_code')->get();
+
+        $headers = [
+            'Risk Code', 'Title', 'Category', 'Business Unit', 'Owner',
+            'Inherent Score', 'Inherent Rating', 'Residual Score', 'Residual Rating',
+            'Control Effectiveness (%)', 'Treatment Strategy', 'Status', 'Identified', 'Last Assessment',
+        ];
+        $rows = $risks->map(fn ($r) => [
+            $r->risk_code,
+            $r->title,
+            $r->category?->name ?? '',
+            $r->businessUnit?->name ?? '',
+            $r->riskOwner?->name ?? '',
+            $r->inherent_score ?? '',
+            $r->inherent_rating ?? '',
+            $r->residual_score ?? '',
+            $r->residual_rating ?? '',
+            $r->control_effectiveness_pct ?? '',
+            $r->treatment_strategy ?? '',
+            $r->status ?? '',
+            $r->date_identified?->format('Y-m-d') ?? '',
+            $r->last_assessment_date?->format('Y-m-d') ?? '',
+        ]);
+
+        $format = $validated['format'] ?? 'excel';
+        $ext = $format === 'excel' ? 'csv' : ($format === 'html' ? 'csv' : 'csv'); // all collapse to CSV for now
+        $safeName = \Illuminate\Support\Str::slug($validated['report_name']);
+        $fileName = $safeName . '_' . now()->format('Ymd_His') . '.' . $ext;
+
+        $period = ! empty($validated['date_from']) || ! empty($validated['date_to'])
+            ? trim(($validated['date_from'] ?? '') . ' to ' . ($validated['date_to'] ?? ''))
+            : 'All time';
+
+        GeneratedReport::create([
+            'organization_id' => $orgId,
+            'generated_by' => auth()->id(),
+            'name' => $validated['report_name'],
+            'report_type' => $validated['report_type'] ?? 'custom',
+            'scope' => 'custom_report',
+            'period' => $period,
+            'file_name' => $fileName,
+            'download_route' => 'risk.reports.custom.generate',
+            'parameters' => $request->only([
+                'report_name', 'report_type', 'date_from', 'date_to', 'format',
+                'categories', 'ratings', 'business_units', 'sections',
+            ]),
+        ]);
+
+        return response()->streamDownload(function () use ($headers, $rows) {
+            $handle = fopen('php://output', 'w');
+            fwrite($handle, "\xEF\xBB\xBF"); // UTF-8 BOM for Excel
+            fputcsv($handle, $headers);
+            foreach ($rows as $row) {
+                fputcsv($handle, $row);
+            }
+            fclose($handle);
+        }, $fileName, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
     /**

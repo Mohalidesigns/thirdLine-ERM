@@ -21,12 +21,41 @@
         </div>
     @endif
 
+    @php
+        // Recompute status from the current value against the saved thresholds so
+        // edits to thresholds (or the value itself) are immediately reflected,
+        // without waiting for the next measurement to refresh `current_status`.
+        $isHigherWorse = in_array($kri->threshold_direction ?? null, ['higher_worse', 'higher_is_worse'])
+                      || ($kri->direction ?? '') === 'higher_is_worse';
+        $cv = $kri->current_value;
+        $kriStatus = $kri->current_status ?? 'green';
+        if ($cv !== null) {
+            $val = (float) $cv;
+            if ($isHigherWorse) {
+                if ($kri->red_threshold_min !== null && $val >= (float) $kri->red_threshold_min) {
+                    $kriStatus = 'red';
+                } elseif ($kri->amber_threshold_min !== null && $val >= (float) $kri->amber_threshold_min) {
+                    $kriStatus = 'amber';
+                } elseif ($kri->green_threshold_max !== null && $val <= (float) $kri->green_threshold_max) {
+                    $kriStatus = 'green';
+                }
+            } else {
+                if ($kri->red_threshold_max !== null && $val <= (float) $kri->red_threshold_max) {
+                    $kriStatus = 'red';
+                } elseif ($kri->amber_threshold_max !== null && $val <= (float) $kri->amber_threshold_max) {
+                    $kriStatus = 'amber';
+                } elseif ($kri->green_threshold_min !== null && $val >= (float) $kri->green_threshold_min) {
+                    $kriStatus = 'green';
+                }
+            }
+        }
+    @endphp
+
     <div class="mb-6">
         <div class="flex items-center justify-between">
             <div>
                 <div class="flex items-center gap-3">
                     <h1 class="text-2xl font-bold text-[#1A365D]">{{ $kri->name }}</h1>
-                    @php $kriStatus = $kri->current_status ?? 'green'; @endphp
                     <span class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold
                         {{ $kriStatus === 'red' ? 'bg-red-100 text-red-700' : ($kriStatus === 'amber' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700') }}">
                         <span class="w-2 h-2 rounded-full {{ $kriStatus === 'red' ? 'bg-red-500' : ($kriStatus === 'amber' ? 'bg-yellow-500' : 'bg-green-500') }}"></span>
@@ -44,9 +73,6 @@
 
     {{-- KPI Cards --}}
     @php
-        $isHigherWorse = in_array($kri->threshold_direction, ['higher_worse', 'higher_is_worse'])
-                      || ($kri->direction ?? '') === 'higher_is_worse';
-
         $currentVal = number_format((float) ($kri->current_value ?? 0), 2) . ' ' . ($kri->unit_of_measure ?? '');
 
         if ($isHigherWorse) {

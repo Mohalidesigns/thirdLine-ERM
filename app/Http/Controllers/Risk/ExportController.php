@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Risk;
 use App\Http\Controllers\Controller;
 use App\Models\Risk;
 use App\Models\Control;
+use App\Models\GeneratedReport;
 use App\Models\Issue;
 use App\Models\LossEvent;
 use App\Models\RiskAppetite;
@@ -434,7 +435,16 @@ class ExportController extends Controller
             ($e->cbn_reportable || $e->is_regulatory_reportable) ? 'Yes' : 'No',
         ]);
 
-        return $this->streamCsv("cbn_orms_report_{$quarter}_{$year}.csv", $headers, $rows);
+        $file = "cbn_orms_report_{$quarter}_{$year}.csv";
+        $this->logGeneration(
+            name: "CBN ORMS Report — {$quarter} {$year}",
+            reportType: 'cbn_orms',
+            fileName: $file,
+            downloadRoute: 'risk.export.loss-events.cbn-orms',
+            period: "{$quarter} {$year}",
+            parameters: compact('quarter', 'year'),
+        );
+        return $this->streamCsv($file, $headers, $rows);
     }
 
     /**
@@ -474,7 +484,16 @@ class ExportController extends Controller
             $e->event_severity ?? $e->severity ?? '',
         ]);
 
-        return $this->streamCsv("basel_loss_data_{$from}_{$to}.csv", $headers, $rows);
+        $file = "basel_loss_data_{$from}_{$to}.csv";
+        $this->logGeneration(
+            name: "Basel Loss Data — {$from} to {$to}",
+            reportType: 'basel',
+            fileName: $file,
+            downloadRoute: 'risk.export.loss-events.basel',
+            period: "{$from} to {$to}",
+            parameters: compact('from', 'to'),
+        );
+        return $this->streamCsv($file, $headers, $rows);
     }
 
     /**
@@ -517,7 +536,16 @@ class ExportController extends Controller
             $e->corrective_action_summary ?? '',
         ]);
 
-        return $this->streamCsv("management_loss_summary_{$period}.csv", $headers, $rows);
+        $file = "management_loss_summary_{$period}.csv";
+        $this->logGeneration(
+            name: "Management Loss Summary — " . ucfirst($period),
+            reportType: 'loss_event_management',
+            fileName: $file,
+            downloadRoute: 'risk.export.loss-events.management',
+            period: ucfirst($period),
+            parameters: compact('period'),
+        );
+        return $this->streamCsv($file, $headers, $rows);
     }
 
     /**
@@ -561,7 +589,16 @@ class ExportController extends Controller
             $e->law_enforcement_notified ? 'Yes' : 'No',
         ]);
 
-        return $this->streamCsv("nfiu_str_report.csv", $headers, $rows);
+        $file = "nfiu_str_report_{$from}_{$to}.csv";
+        $this->logGeneration(
+            name: "NFIU STR Report — {$from} to {$to}",
+            reportType: 'nfiu_str',
+            fileName: $file,
+            downloadRoute: 'risk.export.loss-events.nfiu',
+            period: "{$from} to {$to}",
+            parameters: compact('from', 'to'),
+        );
+        return $this->streamCsv($file, $headers, $rows);
     }
 
     /**
@@ -598,7 +635,16 @@ class ExportController extends Controller
             ]);
         }
 
-        return $this->streamCsv("loss_events_trend_{$range}.csv", $headers, $rows);
+        $file = "loss_events_trend_{$range}.csv";
+        $this->logGeneration(
+            name: "Loss Event Trends — last " . ($months ?: 12) . ' months',
+            reportType: 'loss_event_trends',
+            fileName: $file,
+            downloadRoute: 'risk.export.loss-events.trends',
+            period: "Last {$months} months",
+            parameters: compact('range'),
+        );
+        return $this->streamCsv($file, $headers, $rows);
     }
 
     /**
@@ -606,7 +652,41 @@ class ExportController extends Controller
      */
     public function lossEventsFullExport(Request $request): StreamedResponse
     {
+        $this->logGeneration(
+            name: "Full Loss Event Register — " . now()->format('d M Y'),
+            reportType: 'loss_events_full',
+            fileName: 'loss_events_register.csv',
+            downloadRoute: 'risk.export.loss-events.full',
+            period: 'All time',
+            parameters: [],
+        );
         return $this->lossEvents($request);
+    }
+
+    /**
+     * Persist a row in `generated_reports` so the Reports page can list
+     * recently produced outputs. The download_route lets the user re-run.
+     */
+    private function logGeneration(
+        string $name,
+        string $reportType,
+        string $fileName,
+        string $downloadRoute,
+        ?string $period = null,
+        array $parameters = [],
+        string $scope = 'loss_events'
+    ): void {
+        GeneratedReport::create([
+            'organization_id' => auth()->user()->organization_id ?? 1,
+            'generated_by' => auth()->id(),
+            'name' => $name,
+            'report_type' => $reportType,
+            'scope' => $scope,
+            'period' => $period,
+            'file_name' => $fileName,
+            'download_route' => $downloadRoute,
+            'parameters' => $parameters,
+        ]);
     }
 
     /**

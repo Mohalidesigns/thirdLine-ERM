@@ -23,11 +23,11 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         @foreach ([
             ['ICAAP Report', 'Full Internal Capital Adequacy Assessment Process report including stress testing and capital planning', 'assessment', route('risk.quantification.icaap')],
-            ['Capital Adequacy Summary', 'Summary of capital position with Pillar 1 and Pillar 2 breakdown for CBN submission', 'account_balance', '#'],
+            ['Capital Adequacy Summary', 'Summary of capital position with Pillar 1 and Pillar 2 breakdown for CBN submission', 'account_balance', route('risk.quantification.reports.capital-adequacy')],
             ['Simulation Results Report', 'Detailed Monte Carlo simulation output with VaR, Expected Shortfall, and risk contributions', 'calculate', route('risk.quantification.results')],
-            ['Stress Testing Report', 'Comprehensive stress test results under various macroeconomic scenarios', 'crisis_alert', '#'],
-            ['Risk Contribution Analysis', 'Breakdown of economic capital by risk type and business unit', 'pie_chart', '#'],
-            ['Regulatory Compliance Pack', 'Combined regulatory reporting package for CBN ORMS compliance', 'gavel', '#'],
+            ['Stress Testing Report', 'Comprehensive stress test results under various macroeconomic scenarios', 'crisis_alert', route('risk.quantification.reports.stress-testing')],
+            ['Risk Contribution Analysis', 'Breakdown of economic capital by risk type and business unit', 'pie_chart', route('risk.quantification.reports.risk-contribution')],
+            ['Regulatory Compliance Pack', 'Combined regulatory reporting package for CBN ORMS compliance', 'gavel', route('risk.quantification.reports.regulatory-pack')],
         ] as [$title, $desc, $icon, $link])
             <div class="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
                 <div class="flex items-center gap-3 mb-3">

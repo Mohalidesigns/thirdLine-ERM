@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'llm' => [
+        'enabled' => env('LLM_ENABLED', false),
+        'driver' => env('LLM_DRIVER', 'ollama'),
+        'endpoint' => rtrim(env('LLM_ENDPOINT', 'http://localhost:11434'), '/'),
+        'model' => env('LLM_MODEL', 'granite4:micro'),
+        'timeout' => (int) env('LLM_TIMEOUT_SECONDS', 20),
+        'temperature' => (float) env('LLM_TEMPERATURE', 0.2),
+    ],
+
 ];

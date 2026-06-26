@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
 use App\Models\Issue;
+use App\Models\IssueAttachment;
 use App\Models\IssueRemediationAction;
 use App\Models\IssueProgressUpdate;
 use App\Models\IssueEscalationLog;
@@ -12,6 +13,7 @@ use App\Models\BusinessUnit;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class IssueController extends Controller
 {
@@ -597,14 +599,60 @@ class IssueController extends Controller
             ->orderBy('created_at')
             ->get()
             ->map(function ($issue) {
-                $issue->age_days = now()->diffInDays($issue->created_at);
+                $issue->age_days = (int) $issue->created_at->diffInDays(now());
                 $issue->age_bucket = $this->getAgeBucket($issue->age_days);
                 return $issue;
             });
 
+        $bands = ['0-30', '31-60', '61-90', '90+'];
+        $priorities = ['critical', 'high', 'medium', 'low'];
+        $ageingMatrix = [];
+        foreach ($priorities as $p) {
+            $ageingMatrix[$p] = array_fill_keys($bands, 0);
+        }
+        foreach ($issues as $issue) {
+            $p = strtolower($issue->issue_priority ?? $issue->priority ?? 'medium');
+            $p = in_array($p, $priorities) ? $p : 'medium';
+            if (isset($ageingMatrix[$p][$issue->age_bucket])) {
+                $ageingMatrix[$p][$issue->age_bucket]++;
+            }
+        }
+
+        $ageingByPriorityData = [
+            'labels' => $bands,
+            'datasets' => [
+                ['label' => 'Critical', 'data' => array_values($ageingMatrix['critical']), 'backgroundColor' => '#dc2626'],
+                ['label' => 'High',     'data' => array_values($ageingMatrix['high']),     'backgroundColor' => '#f97316'],
+                ['label' => 'Medium',   'data' => array_values($ageingMatrix['medium']),   'backgroundColor' => '#eab308'],
+                ['label' => 'Low',      'data' => array_values($ageingMatrix['low']),      'backgroundColor' => '#16a34a'],
+            ],
+        ];
+
+        $trendLabels = [];
+        $openedSeries = [];
+        $closedSeries = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $m = now()->subMonths($i);
+            $trendLabels[] = $m->format('M');
+            $openedSeries[] = Issue::where('organization_id', $orgId)
+                ->whereYear('created_at', $m->year)->whereMonth('created_at', $m->month)->count();
+            $closedSeries[] = Issue::where('organization_id', $orgId)
+                ->where('issue_status', 'CLOSED')
+                ->whereYear('updated_at', $m->year)->whereMonth('updated_at', $m->month)->count();
+        }
+        $ageingTrendData = [
+            'labels' => $trendLabels,
+            'opened' => $openedSeries,
+            'closed' => $closedSeries,
+        ];
+
+        $agedIssues = $issues->sortByDesc('age_days')->take(15)->values();
         $bucketSummary = $issues->groupBy('age_bucket')->map->count();
 
-        return view('risk.issues.ageing', compact('issues', 'bucketSummary'));
+        return view('risk.issues.ageing', compact(
+            'issues', 'bucketSummary', 'ageingMatrix',
+            'ageingByPriorityData', 'ageingTrendData', 'agedIssues'
+        ));
     }
 
     /**
@@ -632,5 +680,20 @@ class IssueController extends Controller
         if ($days <= 60) return '31-60 days';
         if ($days <= 90) return '61-90 days';
         return '90+ days';
+    }
+
+    public function downloadAttachment(Issue $issue, IssueAttachment $attachment)
+    {
+        $orgId = auth()->user()->organization_id ?? 1;
+        if ($issue->organization_id !== $orgId || $attachment->issue_id !== $issue->id) {
+            abort(403, 'Unauthorized access.');
+        }
+
+        $disk = Storage::disk('local');
+        if (! $disk->exists($attachment->storage_path)) {
+            abort(404, 'File not found.');
+        }
+
+        return $disk->download($attachment->storage_path, $attachment->file_name);
     }
 }

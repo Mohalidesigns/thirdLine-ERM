@@ -7,6 +7,7 @@ use App\Models\TreatmentPlan;
 use App\Models\Risk;
 use App\Models\User;
 use App\Models\RiskAuditTrail;
+use App\Services\ApprovalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -19,31 +20,93 @@ class TreatmentPlanController extends Controller
     {
         $orgId = auth()->user()->organization_id ?? 1;
 
-        $stats = [
-            'total' => TreatmentPlan::where('organization_id', $orgId)->count(),
-            'in_progress' => TreatmentPlan::where('organization_id', $orgId)->where('status', 'in_progress')->count(),
-            'completed' => TreatmentPlan::where('organization_id', $orgId)->where('status', 'completed')->count(),
-            'overdue' => TreatmentPlan::where('organization_id', $orgId)->where('status', 'overdue')->count(),
-            'not_started' => TreatmentPlan::where('organization_id', $orgId)->where('status', 'not_started')->count(),
-            'cancelled' => TreatmentPlan::where('organization_id', $orgId)->where('status', 'cancelled')->count(),
+        $base = fn() => TreatmentPlan::where('organization_id', $orgId);
+
+        $totalPlans     = $base()->count();
+        $activePlans    = $base()->whereIn('status', ['in_progress', 'in-progress', 'open', 'not_started'])->count();
+        $completedPlans = $base()->where('status', 'completed')->count();
+        $overduePlans   = $base()->whereIn('status', ['in_progress', 'in-progress', 'open'])
+            ->whereNotNull('target_date')->where('target_date', '<', now())->count();
+        $totalBudget    = (float) $base()->sum('cost_estimate_ngn') + (float) $base()->sum('estimated_cost');
+        $avgEffectiveness = (int) round((float) $base()->whereNotNull('progress_pct')->avg('progress_pct'));
+
+        $activeTreatments = $base()
+            ->whereIn('status', ['in_progress', 'in-progress', 'open', 'not_started'])
+            ->with(['risk', 'owner'])
+            ->orderBy('target_date')
+            ->limit(10)
+            ->get();
+
+        $recentActivities = $base()
+            ->with('owner')
+            ->orderByDesc('updated_at')
+            ->limit(8)
+            ->get()
+            ->map(fn($p) => (object) [
+                'description' => 'Treatment plan "' . ($p->title ?? 'Untitled') . '" was updated',
+                'icon' => 'update',
+                'user' => $p->owner,
+                'created_at' => $p->updated_at,
+            ]);
+
+        $strategyCounts = $base()->selectRaw('LOWER(strategy) s, COUNT(*) c')->groupBy('s')->pluck('c', 's');
+        $strategyChartData = [
+            'labels' => ['Mitigate', 'Transfer', 'Accept', 'Avoid'],
+            'values' => [
+                (int) ($strategyCounts['mitigate'] ?? 0),
+                (int) ($strategyCounts['transfer'] ?? 0),
+                (int) ($strategyCounts['accept'] ?? 0),
+                (int) ($strategyCounts['avoid'] ?? 0),
+            ],
         ];
 
-        $overduePlans = TreatmentPlan::where('organization_id', $orgId)
-            ->where('status', 'overdue')
+        $statusChartData = [
+            'labels' => ['Not Started', 'In Progress', 'Completed', 'Overdue', 'On Hold'],
+            'values' => [
+                $base()->where('status', 'not_started')->count(),
+                $base()->whereIn('status', ['in_progress','in-progress','open'])->count(),
+                $completedPlans,
+                $overduePlans,
+                $base()->where('status', 'on_hold')->count(),
+            ],
+        ];
+
+        $monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        $createdByMonth = [];
+        $completedByMonth = [];
+        $year = now()->year;
+        for ($m = 1; $m <= 12; $m++) {
+            $createdByMonth[] = $base()->whereYear('created_at', $year)->whereMonth('created_at', $m)->count();
+            $completedByMonth[] = $base()->where('status', 'completed')
+                ->whereYear('updated_at', $year)->whereMonth('updated_at', $m)->count();
+        }
+        $completionTrendData = ['labels' => $monthLabels, 'created' => $createdByMonth, 'completed' => $completedByMonth];
+
+        $budgetByStrategy = $base()
+            ->selectRaw('LOWER(strategy) s, COALESCE(SUM(cost_estimate_ngn),0) + COALESCE(SUM(estimated_cost),0) as b, COALESCE(SUM(actual_cost_ngn),0) + COALESCE(SUM(actual_cost),0) as a')
+            ->groupBy('s')->get()->keyBy('s');
+        $budgetChartData = [
+            'labels' => ['Mitigate', 'Transfer', 'Accept', 'Avoid'],
+            'budget' => array_map(fn($k) => (float) (optional($budgetByStrategy->get($k))->b ?? 0), ['mitigate','transfer','accept','avoid']),
+            'actual' => array_map(fn($k) => (float) (optional($budgetByStrategy->get($k))->a ?? 0), ['mitigate','transfer','accept','avoid']),
+        ];
+
+        $upcomingDeadlines = $base()
+            ->whereIn('status', ['in_progress', 'in-progress', 'open'])
+            ->whereNotNull('target_date')
+            ->where('target_date', '<=', now()->addDays(30))
             ->with(['risk', 'owner'])
-            ->orderBy('target_completion_date')
+            ->orderBy('target_date')
             ->limit(10)
             ->get();
 
-        $upcomingDeadlines = TreatmentPlan::where('organization_id', $orgId)
-            ->where('status', 'in_progress')
-            ->where('target_completion_date', '<=', now()->addDays(30))
-            ->with(['risk', 'owner'])
-            ->orderBy('target_completion_date')
-            ->limit(10)
-            ->get();
-
-        return view('risk.treatments.dashboard', compact('stats', 'overduePlans', 'upcomingDeadlines'));
+        return view('risk.treatments.dashboard', compact(
+            'totalPlans', 'activePlans', 'completedPlans', 'overduePlans',
+            'totalBudget', 'avgEffectiveness',
+            'activeTreatments', 'recentActivities',
+            'strategyChartData', 'statusChartData', 'completionTrendData', 'budgetChartData',
+            'upcomingDeadlines'
+        ));
     }
 
     /**
@@ -306,11 +369,14 @@ class TreatmentPlanController extends Controller
 
         DB::transaction(function () use ($treatment, $orgId, $code, $riskId) {
             RiskAuditTrail::create([
-                'risk_id' => $riskId,
                 'organization_id' => $orgId,
-                'action' => 'treatment_deleted',
-                'description' => "Treatment plan {$code} deleted",
-                'performed_by' => auth()->id(),
+                'entity_type' => 'TreatmentPlan',
+                'entity_id' => $treatment->id,
+                'action_type' => 'deleted',
+                'changed_by' => auth()->id(),
+                'changed_at' => now(),
+                'change_reason' => "Treatment plan {$code} deleted",
+                'ip_address' => request()->ip(),
             ]);
 
             $treatment->delete();
@@ -323,12 +389,18 @@ class TreatmentPlanController extends Controller
     /**
      * Approve a treatment plan.
      */
-    public function approve(Request $request, TreatmentPlan $treatment)
+    public function approve(Request $request, TreatmentPlan $treatment, ApprovalService $approvals)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-        if ($treatment->organization_id !== $orgId) {
-            abort(403);
+        abort_unless(auth()->user()->can('approve-treatment-plan', $treatment), 403,
+            'Only users with risk-manager or CRO role can approve treatment plans.');
+
+        if ($treatment->status !== 'pending_review') {
+            return back()->with('error', 'Only plans pending review can be approved.');
         }
+
+        $validated = $request->validate([
+            'comments' => 'nullable|string|max:1000',
+        ]);
 
         $treatment->update([
             'status' => 'approved',
@@ -336,41 +408,101 @@ class TreatmentPlanController extends Controller
             'approved_at' => now(),
         ]);
 
-        RiskAuditTrail::create([
-            'risk_id' => $treatment->risk_id,
-            'organization_id' => $orgId,
-            'action' => 'treatment_approved',
-            'description' => "Treatment plan {$treatment->treatment_code} approved",
-            'performed_by' => auth()->id(),
-        ]);
+        $pending = $approvals->latestPending($treatment) ?? $approvals->requestApproval($treatment, 'approve_treatment_plan');
+        $approvals->approve($pending, auth()->id(), $validated['comments'] ?? null);
 
-        return redirect()->route('risk.treatments.review')->with('success', 'Treatment plan approved.');
+        return back()->with('success', 'Treatment plan approved.');
     }
 
     /**
-     * Reject a treatment plan.
+     * Reject a treatment plan with a required reason.
      */
-    public function reject(Request $request, TreatmentPlan $treatment)
+    public function reject(Request $request, TreatmentPlan $treatment, ApprovalService $approvals)
+    {
+        abort_unless(auth()->user()->can('approve-treatment-plan', $treatment), 403,
+            'Only users with risk-manager or CRO role can reject treatment plans.');
+
+        if ($treatment->status !== 'pending_review') {
+            return back()->with('error', 'Only plans pending review can be rejected.');
+        }
+
+        $validated = $request->validate([
+            'rejection_reason' => 'required|string|max:2000',
+        ]);
+
+        $treatment->update([
+            'status' => 'rejected',
+            'rejection_reason' => $validated['rejection_reason'],
+        ]);
+
+        $pending = $approvals->latestPending($treatment) ?? $approvals->requestApproval($treatment, 'approve_treatment_plan');
+        $approvals->reject($pending, auth()->id(), $validated['rejection_reason']);
+
+        return back()->with('success', 'Treatment plan rejected. The plan owner has been notified.');
+    }
+
+    /**
+     * Owner submits a draft plan for review.
+     */
+    public function submitForReview(TreatmentPlan $treatment, ApprovalService $approvals)
     {
         $orgId = auth()->user()->organization_id ?? 1;
         if ($treatment->organization_id !== $orgId) {
             abort(403);
         }
 
+        if (! in_array($treatment->status, ['draft', 'rejected', 'not_started'])) {
+            return back()->with('error', 'This plan is not in a state that can be submitted for review.');
+        }
+
+        $treatment->update(['status' => 'pending_review']);
+
+        // No assigned reviewer on treatment_plans — reviewers are role-based,
+        // so we create the ApprovalRequest without a direct notification target.
+        // All users with the approve-treatment-plan gate will see it in the queue.
+        $approvals->requestApproval(
+            $treatment,
+            'approve_treatment_plan',
+            payload: ['treatment_code' => $treatment->treatment_code],
+            reviewerId: null,
+        );
+
+        // Notify every user who has the approver role so someone picks it up.
+        $approvers = User::role(['risk-manager', 'chief-risk-officer'])
+            ->where('organization_id', $orgId)
+            ->get();
+        foreach ($approvers as $approver) {
+            \App\Services\NotificationService::send(
+                $orgId,
+                $approver->id,
+                'approval_request',
+                "Treatment plan awaiting review: {$treatment->title}",
+                "Treatment plan #{$treatment->id} ({$treatment->treatment_code}) has been submitted for review.",
+                ['entity_type' => 'TreatmentPlan', 'entity_id' => $treatment->id]
+            );
+        }
+
+        return back()->with('success', 'Plan submitted for review.');
+    }
+
+    /**
+     * Owner resubmits a rejected plan after rework.
+     */
+    public function resubmit(TreatmentPlan $treatment)
+    {
+        abort_unless(auth()->user()->can('resubmit-treatment-plan', $treatment), 403,
+            'Only the plan owner or creator can resubmit.');
+
+        if ($treatment->status !== 'rejected') {
+            return back()->with('error', 'Only rejected plans can be resubmitted.');
+        }
+
         $treatment->update([
-            'status' => 'rejected',
-            'rejection_reason' => $request->input('reason'),
+            'status' => 'draft',
+            'rejection_reason' => null,
         ]);
 
-        RiskAuditTrail::create([
-            'risk_id' => $treatment->risk_id,
-            'organization_id' => $orgId,
-            'action' => 'treatment_rejected',
-            'description' => "Treatment plan {$treatment->treatment_code} rejected",
-            'performed_by' => auth()->id(),
-        ]);
-
-        return redirect()->route('risk.treatments.review')->with('success', 'Treatment plan rejected.');
+        return back()->with('success', 'Plan returned to draft. Edit it and submit again for review.');
     }
 
     /**
@@ -384,11 +516,14 @@ class TreatmentPlanController extends Controller
         }
 
         RiskAuditTrail::create([
-            'risk_id' => $treatment->risk_id,
             'organization_id' => $orgId,
-            'action' => 'treatment_comment',
-            'description' => $request->input('comment', 'Comment added'),
-            'performed_by' => auth()->id(),
+            'entity_type' => 'TreatmentPlan',
+            'entity_id' => $treatment->id,
+            'action_type' => 'commented',
+            'changed_by' => auth()->id(),
+            'changed_at' => now(),
+            'change_reason' => $request->input('comment', 'Comment added'),
+            'ip_address' => request()->ip(),
         ]);
 
         return back()->with('success', 'Comment added.');

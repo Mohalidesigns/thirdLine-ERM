@@ -56,12 +56,133 @@
         </div>
     </div>
 
+    {{-- Approval workflow panel --}}
+    @if ($plan->status === 'pending_review')
+        @can('approve-treatment-plan', $plan)
+            <div class="mb-6 bg-white rounded-xl border border-blue-200 shadow-sm p-5" x-data="{ rejecting: false }">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="material-symbols-outlined text-blue-600">rate_review</span>
+                    <h3 class="text-sm font-semibold text-gray-900">Review Required</h3>
+                </div>
+                <p class="text-sm text-gray-600 mb-4">Approve to finalise this treatment plan, or reject with a reason so the owner can rework.</p>
+
+                <form method="POST" action="{{ route('risk.treatments.approve', $plan) }}" x-show="!rejecting" class="space-y-3">
+                    @csrf
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Comments (optional)</label>
+                        <textarea name="comments" rows="2" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></textarea>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-1">
+                            <span class="material-symbols-outlined text-sm">check</span> Approve
+                        </button>
+                        <button type="button" @click="rejecting = true" class="px-4 py-2 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 flex items-center gap-1">
+                            <span class="material-symbols-outlined text-sm">close</span> Reject
+                        </button>
+                    </div>
+                </form>
+
+                <form method="POST" action="{{ route('risk.treatments.reject', $plan) }}" x-show="rejecting" x-cloak class="space-y-3">
+                    @csrf
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Reason for rejection <span class="text-red-500">*</span></label>
+                        <textarea name="rejection_reason" rows="3" required maxlength="2000" class="w-full border border-red-200 rounded-lg px-3 py-2 text-sm focus:border-red-400" placeholder="Explain what needs to change…"></textarea>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 flex items-center gap-1">
+                            <span class="material-symbols-outlined text-sm">close</span> Confirm Rejection
+                        </button>
+                        <button type="button" @click="rejecting = false" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        @else
+            <div class="mb-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-start gap-3">
+                <span class="material-symbols-outlined text-yellow-600">hourglass_empty</span>
+                <div>
+                    <p class="text-sm font-semibold text-yellow-800">Pending Approver Review</p>
+                    <p class="text-xs text-yellow-700 mt-1">This plan is awaiting review by a risk manager or CRO.</p>
+                </div>
+            </div>
+        @endcan
+    @endif
+
+    @if ($plan->status === 'rejected')
+        <div class="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
+            <div class="flex items-start gap-3 mb-3">
+                <span class="material-symbols-outlined text-red-600">block</span>
+                <div class="flex-1">
+                    <p class="text-sm font-semibold text-red-800">Plan Rejected</p>
+                    @if ($plan->rejection_reason)
+                        <p class="text-xs text-red-700 mt-1 whitespace-pre-line"><strong>Reason:</strong> {{ $plan->rejection_reason }}</p>
+                    @endif
+                </div>
+            </div>
+            @can('resubmit-treatment-plan', $plan)
+                <form method="POST" action="{{ route('risk.treatments.resubmit', $plan) }}">
+                    @csrf
+                    <button type="submit" class="px-4 py-2 bg-[#1A365D] text-white rounded-lg text-sm font-medium hover:bg-[#2D4A7A] flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">refresh</span> Return to Draft for rework
+                    </button>
+                </form>
+            @endcan
+        </div>
+    @endif
+
+    @if (in_array($plan->status, ['draft', 'not_started']))
+        @can('resubmit-treatment-plan', $plan)
+            <div class="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-semibold text-blue-800">Ready for review?</p>
+                    <p class="text-xs text-blue-700 mt-0.5">Submit this plan to notify approvers.</p>
+                </div>
+                <form method="POST" action="{{ route('risk.treatments.submit', $plan) }}">
+                    @csrf
+                    <button type="submit" class="px-4 py-2 bg-[#1A365D] text-white rounded-lg text-sm font-medium hover:bg-[#2D4A7A] flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">send</span> Submit for Review
+                    </button>
+                </form>
+            </div>
+        @endcan
+    @endif
+
     {{-- Progress Overview --}}
+    @php
+        // Compact Naira so large budgets fit inside narrow KPI cards.
+        $compactNaira = function ($amount) {
+            $a = abs((float) $amount);
+            if ($a >= 1e9) return '₦' . number_format($amount / 1e9, 2) . 'B';
+            if ($a >= 1e6) return '₦' . number_format($amount / 1e6, 2) . 'M';
+            if ($a >= 1e3) return '₦' . number_format($amount / 1e3, 1) . 'K';
+            return '₦' . number_format($amount, 0);
+        };
+
+        // Days-remaining: Carbon 3's diffInDays returns a signed float, so
+        // floor+abs it and pluralise properly.
+        $target = $plan->target_date ?? $plan->target_completion_date ?? null;
+        if ($target) {
+            $diffDays = (int) floor(now()->startOfDay()->diffInDays($target->copy()->startOfDay(), false));
+            if ($diffDays < 0) {
+                $n = abs($diffDays);
+                $daysValue = 'Overdue by ' . $n . ' ' . \Illuminate\Support\Str::plural('day', $n);
+                $daysColor = 'danger';
+            } elseif ($diffDays === 0) {
+                $daysValue = 'Due today';
+                $daysColor = 'warning';
+            } else {
+                $daysValue = $diffDays . ' ' . \Illuminate\Support\Str::plural('day', $diffDays);
+                $daysColor = 'success';
+            }
+        } else {
+            $daysValue = 'N/A';
+            $daysColor = 'primary';
+        }
+    @endphp
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
         <x-kpi-card title="Overall Progress" :value="$planProgress . '%'" icon="speed" color="primary" />
-        <x-kpi-card title="Budget Allocated" :value="'₦' . number_format($planBudget)" icon="account_balance" color="warning" />
-        <x-kpi-card title="Actual Spend" :value="'₦' . number_format($planActualSpend)" icon="payments" :color="$planActualSpend > $planBudget ? 'danger' : 'success'" />
-        <x-kpi-card title="Days Remaining" :value="$plan->target_date ? (now()->gt($plan->target_date) ? 'Overdue by ' . now()->diffInDays($plan->target_date) : now()->diffInDays($plan->target_date)) : 'N/A'" icon="schedule" :color="$plan->target_date && now()->gt($plan->target_date) ? 'danger' : 'success'" />
+        <x-kpi-card title="Budget Allocated" :value="$compactNaira($planBudget)" icon="account_balance" color="warning" />
+        <x-kpi-card title="Actual Spend" :value="$compactNaira($planActualSpend)" icon="payments" :color="$planActualSpend > $planBudget ? 'danger' : 'success'" />
+        <x-kpi-card title="Days Remaining" :value="$daysValue" icon="schedule" :color="$daysColor" />
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">

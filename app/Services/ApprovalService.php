@@ -10,16 +10,22 @@ use Illuminate\Support\Facades\DB;
 class ApprovalService
 {
     /**
-     * Create a new approval request for a model
+     * Create a new approval request for a model.
+     * If $reviewerId is supplied, stores it in payload and notifies the reviewer.
      */
     public function requestApproval(
         Model $entity,
         string $action,
         ?array $payload = null,
-        ?int $userId = null
+        ?int $userId = null,
+        ?int $reviewerId = null
     ): ApprovalRequest {
         $userId = $userId ?? auth()->id();
         $orgId = $entity->organization_id ?? auth()->user()->organization_id;
+
+        if ($reviewerId !== null) {
+            $payload = array_merge($payload ?? [], ['reviewer_id' => $reviewerId]);
+        }
 
         $approval = ApprovalRequest::create([
             'organization_id' => $orgId,
@@ -32,7 +38,23 @@ class ApprovalService
             'requested_at' => now(),
         ]);
 
+        if ($reviewerId !== null) {
+            $this->notifyReviewer($approval, $reviewerId, $entity);
+        }
+
         return $approval;
+    }
+
+    /**
+     * Get the current pending approval request for a given entity (if any).
+     */
+    public function latestPending(Model $entity): ?ApprovalRequest
+    {
+        return ApprovalRequest::where('entity_type', class_basename($entity))
+            ->where('entity_id', $entity->id)
+            ->where('status', 'pending')
+            ->latest('requested_at')
+            ->first();
     }
 
     /**
@@ -71,6 +93,8 @@ class ApprovalService
             );
         });
 
+        $this->notifyRequester($approval->fresh(), 'approved', $comments);
+
         return $approval->fresh();
     }
 
@@ -99,7 +123,78 @@ class ApprovalService
             "Approval for {$approval->entity_type} ID {$approval->entity_id} rejected: {$reason}"
         );
 
+        $this->notifyRequester($approval->fresh(), 'rejected', $reason);
+
         return $approval->fresh();
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Notifications (in-app + mail placeholder)                          */
+    /* ------------------------------------------------------------------ */
+
+    protected function notifyReviewer(ApprovalRequest $approval, int $reviewerId, Model $entity): void
+    {
+        $label = class_basename($entity) . ' #' . $entity->id;
+        $subject = "Review required: {$label}";
+        $body = "You have been assigned as reviewer for {$label}. Please review and approve or reject.";
+
+        NotificationService::send(
+            $approval->organization_id,
+            $reviewerId,
+            'approval_request',
+            $subject,
+            $body,
+            [
+                'approval_request_id' => $approval->id,
+                'entity_type' => $approval->entity_type,
+                'entity_id'   => $approval->entity_id,
+                'action'      => $approval->action,
+            ]
+        );
+
+        $this->sendMailPlaceholder($reviewerId, $subject, $body);
+    }
+
+    protected function notifyRequester(ApprovalRequest $approval, string $decision, ?string $comment): void
+    {
+        $label = $approval->entity_type . ' #' . $approval->entity_id;
+        $subject = ucfirst($decision) . ": {$label}";
+        $body = "Your {$label} has been {$decision}." . ($comment ? "\n\nComment: {$comment}" : '');
+
+        NotificationService::send(
+            $approval->organization_id,
+            $approval->requested_by,
+            'approval_' . $decision,
+            $subject,
+            $body,
+            ['approval_request_id' => $approval->id]
+        );
+
+        $this->sendMailPlaceholder($approval->requested_by, $subject, $body);
+    }
+
+    /**
+     * Email delivery placeholder. Routed via MAIL_MAILER=log (.env) — writes
+     * to storage/logs/laravel.log. Switch MAIL_MAILER to smtp + set
+     * MAIL_HOST/USERNAME/PASSWORD when real delivery is ready; no code change
+     * required here.
+     */
+    protected function sendMailPlaceholder(?int $userId, string $subject, string $body): void
+    {
+        if (! $userId) {
+            return;
+        }
+        $user = User::find($userId);
+        if (! $user || ! $user->email) {
+            return;
+        }
+        try {
+            \Illuminate\Support\Facades\Mail::raw($body, function ($m) use ($user, $subject) {
+                $m->to($user->email, $user->name)->subject($subject);
+            });
+        } catch (\Throwable $e) {
+            \Log::warning('ApprovalService mail placeholder failed: ' . $e->getMessage());
+        }
     }
 
     /**

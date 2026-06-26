@@ -15,10 +15,79 @@
     {{-- Right: Actions & User --}}
     <div class="flex items-center gap-3">
         {{-- Notifications --}}
-        <button class="p-1.5 rounded-lg hover:bg-gray-100 relative">
-            <span class="material-symbols-outlined text-gray-500 text-xl">notifications</span>
-            <span class="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-        </button>
+        <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+            <button @click="open = !open" class="p-1.5 rounded-lg hover:bg-gray-100 relative">
+                <span class="material-symbols-outlined text-gray-500 text-xl">notifications</span>
+                @if (($unreadCount ?? 0) > 0)
+                    <span class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                        {{ $unreadCount > 9 ? '9+' : $unreadCount }}
+                    </span>
+                @endif
+            </button>
+
+            {{-- Dropdown --}}
+            <div x-show="open" x-cloak x-transition
+                 class="absolute right-0 top-full mt-2 w-96 max-h-[70vh] bg-white rounded-xl shadow-xl border border-gray-200 z-50 flex flex-col">
+                <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-sm font-semibold text-gray-900">Notifications</h3>
+                        @if (($unreadCount ?? 0) > 0)
+                            <span class="text-[10px] font-semibold bg-red-100 text-red-600 rounded-full px-2 py-0.5">{{ $unreadCount }} unread</span>
+                        @endif
+                    </div>
+                    @if (($unreadCount ?? 0) > 0)
+                        <form method="POST" action="{{ route('notifications.read-all') }}">
+                            @csrf
+                            <button type="submit" class="text-xs text-[#1A365D] font-medium hover:underline">Mark all read</button>
+                        </form>
+                    @endif
+                </div>
+
+                <div class="flex-1 overflow-y-auto">
+                    @forelse (($recent ?? []) as $n)
+                        @php
+                            $isUnread = is_null($n->read_at);
+                            $iconMap = [
+                                'approval_request'  => ['icon' => 'rate_review', 'cls' => 'bg-blue-100 text-blue-600'],
+                                'approval_approved' => ['icon' => 'check_circle', 'cls' => 'bg-green-100 text-green-600'],
+                                'approval_rejected' => ['icon' => 'cancel', 'cls' => 'bg-red-100 text-red-600'],
+                            ];
+                            $vis = $iconMap[$n->type] ?? ['icon' => 'notifications', 'cls' => 'bg-gray-100 text-gray-600'];
+                            $priorityCls = match ($n->priority ?? 'normal') {
+                                'high' => 'border-l-red-500',
+                                'low' => 'border-l-gray-200',
+                                default => 'border-l-blue-500',
+                            };
+                        @endphp
+                        <a href="{{ route('notifications.read', $n->id) }}"
+                           class="flex gap-3 px-4 py-3 border-b border-gray-50 hover:bg-gray-50 border-l-4 {{ $isUnread ? $priorityCls . ' bg-blue-50/30' : 'border-l-transparent' }}">
+                            <div class="w-8 h-8 rounded-full {{ $vis['cls'] }} flex items-center justify-center flex-shrink-0">
+                                <span class="material-symbols-outlined text-sm">{{ $vis['icon'] }}</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-start justify-between gap-2">
+                                    <p class="text-xs font-semibold text-gray-900 {{ $isUnread ? '' : 'text-gray-600' }}">{{ $n->subject }}</p>
+                                    @if ($isUnread)
+                                        <span class="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1"></span>
+                                    @endif
+                                </div>
+                                <p class="text-xs text-gray-600 mt-0.5 line-clamp-2 whitespace-pre-line">{{ \Illuminate\Support\Str::limit($n->body, 140) }}</p>
+                                <p class="text-[10px] text-gray-400 mt-1">{{ \Carbon\Carbon::parse($n->created_at)->diffForHumans() }}</p>
+                            </div>
+                        </a>
+                    @empty
+                        <div class="text-center py-10 text-gray-400">
+                            <span class="material-symbols-outlined text-3xl block mb-1">notifications_off</span>
+                            <p class="text-xs">No notifications</p>
+                        </div>
+                    @endforelse
+                </div>
+
+                <div class="px-4 py-2 border-t border-gray-100 text-center">
+                    <a href="{{ route('notifications.index') }}" class="text-xs text-[#1A365D] font-medium hover:underline">View all notifications</a>
+                </div>
+            </div>
+        </div>
 
         {{-- Settings --}}
         <button class="p-1.5 rounded-lg hover:bg-gray-100">

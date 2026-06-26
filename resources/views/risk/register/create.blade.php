@@ -34,6 +34,41 @@
         <p class="text-sm text-gray-500 mt-1">Risk Identification & Assessment</p>
     </div>
 
+    {{-- AI Risk Statement Builder --}}
+    <div x-data="riskStatementBuilder()" class="mb-6 bg-gradient-to-br from-[#1A365D] to-[#2c4a7a] rounded-xl p-5 text-white shadow-lg">
+        <div class="flex items-start gap-3 mb-3">
+            <div class="w-9 h-9 rounded-lg bg-[#D4AF37]/20 border border-[#D4AF37]/40 flex items-center justify-center flex-shrink-0">
+                <span class="material-symbols-outlined text-[#D4AF37]" style="font-size: 20px;">auto_awesome</span>
+            </div>
+            <div class="flex-1">
+                <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-semibold">AI Risk Statement Builder</h3>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40">Local LLM · Granite</span>
+                </div>
+                <p class="text-xs text-white/70 mt-0.5">Describe the scenario in plain English — the model drafts a board-ready Cause → Event → Consequence statement and prefills the form.</p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <input type="text" x-model="scenario" x-ref="scenarioInput"
+                   @keydown.enter.prevent="draft()"
+                   placeholder='e.g. "Phishing on tellers stealing customer OTPs" or "Exposure to single oil & gas borrower above single-obligor limit"'
+                   class="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/60">
+            <button type="button" @click="draft()" :disabled="loading || scenario.length < 3"
+                    class="px-4 py-2 rounded-lg bg-[#D4AF37] hover:bg-[#c09e2d] disabled:opacity-40 disabled:cursor-not-allowed text-[#1A365D] text-sm font-semibold flex items-center gap-1.5 transition">
+                <span x-show="!loading" class="material-symbols-outlined" style="font-size: 16px;">bolt</span>
+                <span x-show="loading" class="material-symbols-outlined animate-spin" style="font-size: 16px;">progress_activity</span>
+                <span x-text="loading ? 'Drafting…' : 'Draft with AI'"></span>
+            </button>
+        </div>
+        <div x-show="error" x-cloak class="mt-3 text-xs bg-red-500/20 border border-red-400/40 rounded-lg px-3 py-2 text-red-100">
+            <span class="font-semibold">AI unavailable.</span> <span x-text="error"></span> You can fill the form manually below.
+        </div>
+        <div x-show="lastResult" x-cloak class="mt-3 text-xs text-white/80">
+            <span class="material-symbols-outlined align-middle" style="font-size: 14px;">check_circle</span>
+            Draft inserted. Review and edit before saving. Generated in <span x-text="lastResult?.elapsed_ms"></span>ms.
+        </div>
+    </div>
+
     <form method="POST" action="{{ route('risk.register.store') }}">
         @csrf
 
@@ -374,4 +409,66 @@
             </button>
         </div>
     </form>
+
+    <script>
+        function riskStatementBuilder() {
+            return {
+                scenario: '',
+                loading: false,
+                error: null,
+                lastResult: null,
+                async draft() {
+                    if (this.scenario.trim().length < 3) return;
+                    this.loading = true;
+                    this.error = null;
+                    this.lastResult = null;
+
+                    const catSelect = document.getElementById('category_id');
+                    const buSelect = document.getElementById('business_unit_id');
+                    const category = catSelect?.options[catSelect.selectedIndex]?.text || null;
+                    const businessUnit = buSelect?.options[buSelect.selectedIndex]?.text || null;
+
+                    const started = performance.now();
+                    try {
+                        const res = await fetch('{{ route('risk.ai.tools.risk-statement') }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            },
+                            body: JSON.stringify({
+                                scenario: this.scenario,
+                                category: category && category !== 'Select Category' ? category : null,
+                                business_unit: businessUnit && businessUnit !== 'Select Business Unit' ? businessUnit : null,
+                            }),
+                        });
+                        const json = await res.json();
+                        const elapsed = Math.round(performance.now() - started);
+
+                        if (!json.ok) {
+                            this.error = json.error || 'The local LLM did not return a usable draft.';
+                            return;
+                        }
+
+                        const d = json.data;
+                        const titleEl = document.getElementById('title');
+                        const descEl = document.getElementById('description');
+                        if (titleEl) titleEl.value = d.title;
+                        if (descEl) {
+                            descEl.value = 'Cause: ' + d.cause
+                                + '\nEvent: ' + d.event
+                                + '\nConsequence: ' + d.consequence
+                                + '\n\n' + d.description;
+                        }
+                        this.lastResult = { elapsed_ms: elapsed };
+                    } catch (e) {
+                        this.error = 'Network error: ' + e.message;
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+            };
+        }
+    </script>
 @endsection

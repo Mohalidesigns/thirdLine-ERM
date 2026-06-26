@@ -13,15 +13,20 @@ class LossEventApproval extends Model
 
     protected $fillable = [
         'loss_event_id',
-        'approval_stage',
-        'actioned_by',
+        'stage',
         'action',
+        'decision',
         'comments',
+        'conditions',
+        'cbn_notified',
+        'actioned_by',
         'actioned_at',
+        'days_in_stage',
     ];
 
     protected $casts = [
         'actioned_at' => 'datetime',
+        'cbn_notified' => 'boolean',
     ];
 
     /* ------------------------------------------------------------------ */

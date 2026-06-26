@@ -64,7 +64,7 @@
                 @forelse (($criticalRisksForBoard ?? []) as $risk)
                     <tr class="border-l-4 border-l-red-500">
                         <td class="font-medium text-[#1A365D]">{{ $risk->title ?? '-' }}</td>
-                        <td class="text-xs">{{ $risk->category ?? '-' }}</td>
+                        <td class="text-xs">{{ $risk->category?->name ?? '-' }}</td>
                         <td><x-risk-badge :rating="$risk->residual_rating ?? 'critical'" /></td>
                         <td class="text-xs font-semibold">₦{{ number_format($risk->financial_exposure ?? 0) }}</td>
                         <td>

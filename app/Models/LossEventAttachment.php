@@ -4,20 +4,52 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class LossEventAttachment extends Model
 {
     use HasFactory;
 
+    protected static function boot(): void
+    {
+        parent::boot();
+        static::creating(function (self $model) {
+            if (empty($model->uuid)) {
+                $model->uuid = (string) Str::uuid();
+            }
+        });
+    }
+
     protected $fillable = [
         'loss_event_id',
         'file_name',
-        'file_path',
+        'file_size_bytes',
         'file_type',
-        'file_size',
+        'storage_path',
+        'document_type',
+        'is_regulatory',
         'uploaded_by',
-        'description',
     ];
+
+    protected $casts = [
+        'is_regulatory' => 'boolean',
+    ];
+
+    public function getDownloadUrlAttribute(): string
+    {
+        return route('risk.loss-events.download-attachment', [
+            'lossEvent' => $this->loss_event_id,
+            'attachment' => $this->id,
+        ]);
+    }
+
+    public function getSizeFormattedAttribute(): string
+    {
+        $bytes = (int) $this->file_size_bytes;
+        if ($bytes >= 1048576) return number_format($bytes / 1048576, 1) . ' MB';
+        if ($bytes >= 1024) return number_format($bytes / 1024, 1) . ' KB';
+        return $bytes . ' B';
+    }
 
     /* ------------------------------------------------------------------ */
     /*  Relationships                                                      */

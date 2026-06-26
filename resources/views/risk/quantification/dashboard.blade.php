@@ -35,13 +35,28 @@
     @endif
 
     {{-- KPI Cards --}}
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <x-kpi-card title="Total Economic Capital" :value="'₦' . number_format($totalEconomicCapital ?? 0)" icon="account_balance" color="primary" subtitle="99.9% confidence" />
+    @php
+        // Compact Naira so large amounts fit inside narrow KPI cards.
+        $compactNaira = function ($amount) {
+            $a = abs((float) $amount);
+            if ($a >= 1e9) return '₦' . number_format($amount / 1e9, 2) . 'B';
+            if ($a >= 1e6) return '₦' . number_format($amount / 1e6, 2) . 'M';
+            if ($a >= 1e3) return '₦' . number_format($amount / 1e3, 1) . 'K';
+            return '₦' . number_format($amount, 0);
+        };
+    @endphp
+    <style>
+        /* Compact variant so 6 KPI cards stack comfortably without overflow. */
+        .kpi-strip .kpi-card { padding: 0.85rem 1rem; }
+        .kpi-strip .kpi-card .text-2xl { font-size: 1.25rem; line-height: 1.75rem; }
+    </style>
+    <div class="kpi-strip grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+        <x-kpi-card title="Total Economic Capital" :value="$compactNaira($totalEconomicCapital ?? 0)" icon="account_balance" color="primary" subtitle="99.9% confidence" />
         <x-kpi-card title="Capital Adequacy Ratio" :value="($capitalAdequacyRatio ?? 0) . '%'" icon="shield" :color="($capitalAdequacyRatio ?? 0) >= 15 ? 'success' : (($capitalAdequacyRatio ?? 0) >= 10 ? 'warning' : 'danger')" subtitle="CBN minimum: 10%" />
         <x-kpi-card title="Active Scenarios" :value="$activeScenarios ?? 0" icon="category" color="info" />
         <x-kpi-card title="Simulations Run" :value="$simulationsRun ?? 0" icon="calculate" color="primary" />
-        <x-kpi-card title="VaR (95%)" :value="'₦' . number_format($var95 ?? 0)" icon="trending_up" color="warning" />
-        <x-kpi-card title="Expected Shortfall" :value="'₦' . number_format($expectedShortfall ?? 0)" icon="priority_high" color="danger" />
+        <x-kpi-card title="VaR (95%)" :value="$compactNaira($var95 ?? 0)" icon="trending_up" color="warning" />
+        <x-kpi-card title="Expected Shortfall" :value="$compactNaira($expectedShortfall ?? 0)" icon="priority_high" color="danger" />
     </div>
 
     {{-- Charts Row --}}

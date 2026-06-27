@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Server-side deploy script — invoked by the GitHub Actions runner over SSH.
-# Pulls latest main, rebuilds, migrates, and restarts services.
+# Server-side deploy script — invoked by the GitHub Actions runner over SSH
+# as the unprivileged `deploy` user. Pulls latest main, rebuilds, migrates,
+# and restarts services (restarts via scoped passwordless sudo).
 set -euo pipefail
 
 APP_DIR=/var/www/thirdLine-ERM
@@ -12,7 +13,6 @@ git fetch --all --prune
 git reset --hard origin/main
 
 echo "==> PHP dependencies"
-export COMPOSER_ALLOW_SUPERUSER=1
 composer install --no-dev --optimize-autoloader --no-interaction
 
 echo "==> Frontend build"
@@ -27,12 +27,14 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-echo "==> Permissions"
-chown -R www-data:www-data "$APP_DIR"
-chmod -R 775 "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
+# Files are owned deploy:www-data with setgid dirs, so www-data inherits
+# group ownership automatically — only runtime-writable trees need g+w.
+echo "==> Ensure runtime-writable permissions"
+find storage bootstrap/cache -type d -exec chmod 2775 {} \;
+find storage bootstrap/cache -type f -exec chmod 664 {} \;
 
 echo "==> Restart services"
-systemctl restart php8.4-fpm
-systemctl restart risk-queue
+sudo /usr/bin/systemctl restart php8.4-fpm
+sudo /usr/bin/systemctl restart risk-queue
 
 echo "==> Deploy complete: $(git rev-parse --short HEAD)"

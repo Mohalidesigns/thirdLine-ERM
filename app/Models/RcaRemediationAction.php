@@ -12,22 +12,21 @@ class RcaRemediationAction extends Model
     protected $fillable = [
         'rca_id',
         'loss_event_id',
-        'action_description',
+        'action_number',
+        'description',
         'owner_id',
+        'department',
         'priority',
-        'due_date',
-        'completion_date',
+        'target_date',
+        'actual_close_date',
         'status',
-        'evidence_ref',
+        'completion_notes',
         'verified_by',
-        'verified_at',
-        'notes',
     ];
 
     protected $casts = [
-        'due_date'        => 'date',
-        'completion_date' => 'date',
-        'verified_at'     => 'datetime',
+        'target_date'       => 'date',
+        'actual_close_date' => 'date',
     ];
 
     /* ------------------------------------------------------------------ */

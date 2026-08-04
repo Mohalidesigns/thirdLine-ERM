@@ -223,9 +223,21 @@ class AuthController extends Controller
         // For now, using cache with 1 hour expiry
         cache()->put('password_reset_' . $request->email, $token, now()->addHour());
 
-        // TODO: Send email with reset link
-        // $resetUrl = url()->signedRoute('password.reset', ['token' => $token]);
-        // Mail::send('emails.reset-password', ['url' => $resetUrl, 'user' => $user], ...);
+        $resetUrl = route('password.reset', ['token' => $token]) . '?email=' . urlencode($user->email);
+
+        try {
+            \Illuminate\Support\Facades\Mail::raw(
+                "Hello {$user->name},\n\n"
+                . "A password reset was requested for your Atheris ERM account.\n\n"
+                . "Reset your password using the link below (valid for 1 hour):\n{$resetUrl}\n\n"
+                . "If you did not request this, you can safely ignore this email.",
+                function ($message) use ($user) {
+                    $message->to($user->email)->subject('Atheris ERM — Password Reset');
+                }
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Password reset mail failed: ' . $e->getMessage(), ['email' => $user->email]);
+        }
 
         return back()->with('status', 'If that email exists, a reset link has been sent.');
     }

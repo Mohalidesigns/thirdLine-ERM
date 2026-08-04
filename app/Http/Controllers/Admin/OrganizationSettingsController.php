@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Organization;
 use Illuminate\Http\Request;
 
 class OrganizationSettingsController extends Controller
@@ -12,7 +13,16 @@ class OrganizationSettingsController extends Controller
      */
     public function index()
     {
-        return view('admin.settings.index');
+        $organization = $this->organization();
+        $settings = $organization->settings ?? [];
+
+        return view('admin.settings.index', [
+            'organization' => $organization,
+            'orgSettings' => $settings['org_profile'] ?? [],
+            'riskThresholds' => $settings['risk_thresholds'] ?? [],
+            'riskSettings' => $settings['risk_settings'] ?? [],
+            'notificationPrefs' => $settings['notification_prefs'] ?? [],
+        ]);
     }
 
     /**
@@ -28,9 +38,11 @@ class OrganizationSettingsController extends Controller
             'regulatory_framework' => 'required|string|max:255',
         ]);
 
-        // TODO: Update organization settings in database
-        // For now just a placeholder
-        session()->put('org_settings', $validated);
+        $organization = $this->organization();
+        $organization->update([
+            'name' => $validated['org_name'],
+            'settings' => array_merge($organization->settings ?? [], ['org_profile' => $validated]),
+        ]);
 
         return back()->with('success', 'Organization profile updated successfully.');
     }
@@ -48,8 +60,7 @@ class OrganizationSettingsController extends Controller
             'capital_requirement_percentage' => 'required|numeric|min:0|max:100',
         ]);
 
-        // TODO: Update thresholds in database
-        session()->put('risk_thresholds', $validated);
+        $this->mergeSettings('risk_thresholds', $validated);
 
         return back()->with('success', 'Regulatory thresholds updated successfully.');
     }
@@ -67,8 +78,7 @@ class OrganizationSettingsController extends Controller
             'review_frequency' => 'required|string',
         ]);
 
-        // TODO: Update risk settings in database
-        session()->put('risk_settings', $validated);
+        $this->mergeSettings('risk_settings', $validated);
 
         return back()->with('success', 'Risk scoring settings updated successfully.');
     }
@@ -86,9 +96,23 @@ class OrganizationSettingsController extends Controller
             'notification_email' => 'required|email',
         ]);
 
-        // TODO: Update notification preferences in database
-        session()->put('notification_prefs', $validated);
+        $this->mergeSettings('notification_prefs', $validated);
 
         return back()->with('success', 'Notification preferences updated successfully.');
+    }
+
+    private function organization(): Organization
+    {
+        $orgId = auth()->user()->organization_id ?? 1;
+
+        return Organization::findOrFail($orgId);
+    }
+
+    private function mergeSettings(string $key, array $values): void
+    {
+        $organization = $this->organization();
+        $organization->update([
+            'settings' => array_merge($organization->settings ?? [], [$key => $values]),
+        ]);
     }
 }

@@ -163,7 +163,21 @@ class LossEventController extends Controller
 
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
 
-        return view('risk.loss-events.index', compact('lossEvents', 'businessUnits'));
+        $baselL1Categories = LossEvent::where('organization_id', $orgId)
+            ->whereNotNull('basel_event_type')
+            ->distinct()
+            ->orderBy('basel_event_type')
+            ->pluck('basel_event_type')
+            ->map(fn ($v) => (object) ['id' => $v, 'name' => \Illuminate\Support\Str::of($v)->replace('_', ' ')->title()]);
+
+        $cbnCategories = LossEvent::where('organization_id', $orgId)
+            ->whereNotNull('cbn_loss_category')
+            ->distinct()
+            ->orderBy('cbn_loss_category')
+            ->pluck('cbn_loss_category')
+            ->map(fn ($v) => (object) ['id' => $v, 'name' => $v]);
+
+        return view('risk.loss-events.index', compact('lossEvents', 'businessUnits', 'baselL1Categories', 'cbnCategories'));
     }
 
     /**
@@ -260,7 +274,13 @@ class LossEventController extends Controller
                 'event_severity' => strtoupper($validated['severity'] ?? 'MODERATE'),
                 'is_near_miss' => $isNearMiss,
                 'current_status' => 'REPORTED',
+                // Keep kobo columns in sync — the regulatory threshold engine
+                // (CBN/NDIC/EFCC alerts) and AI data services read these.
+                'gross_loss_amount_kobo' => (int) round($validated['gross_loss_amount'] * 100),
+                'insurance_recovery_kobo' => (int) round(($validated['insurance_recovery'] ?? 0) * 100),
             ]));
+
+            \App\Events\LossEventCreated::dispatch($lossEvent);
 
             // Evaluate regulatory thresholds
             $regulatoryService = new \App\Services\RegulatoryThresholdService();
@@ -375,10 +395,18 @@ class LossEventController extends Controller
             'cbn_risk_category' => $validated['cbn_loss_category'] ?? $lossEvent->cbn_risk_category,
             'loss_category' => $validated['event_type'] ?? $lossEvent->loss_category,
             'event_severity' => strtoupper($validated['severity'] ?? $lossEvent->event_severity),
+            'gross_loss_amount_kobo' => (int) round($validated['gross_loss_amount'] * 100),
+            'insurance_recovery_kobo' => (int) round(($validated['insurance_recovery'] ?? 0) * 100),
         ]));
 
         // Audit trail
         \App\Services\AuditTrailService::recordChanges($lossEvent, $original);
+
+        $newKobo = (int) round($validated['gross_loss_amount'] * 100);
+        $oldKobo = (int) ($original['gross_loss_amount_kobo'] ?? 0);
+        if ($newKobo !== $oldKobo) {
+            \App\Events\LossEventAmountChanged::dispatch($lossEvent, $oldKobo, $newKobo);
+        }
 
         return redirect()->route('risk.loss-events.show', $lossEvent)
             ->with('success', "Loss event {$lossEvent->event_reference} has been updated.");
@@ -464,9 +492,8 @@ class LossEventController extends Controller
             abort(403, 'Unauthorized access to this loss event.');
         }
 
-        $lossEvent->load(['rca.remediationActions', 'risk']);
-
-        return view('risk.loss-events.rca', compact('lossEvent'));
+        // The RCA form and details live on the loss event detail page.
+        return redirect()->route('risk.loss-events.show', ['loss_event' => $lossEvent, 'tab' => 'rca']);
     }
 
     /**
@@ -619,12 +646,40 @@ class LossEventController extends Controller
     {
         $orgId = auth()->user()->organization_id ?? 1;
 
-        $rcas = LossEventRca::where('organization_id', $orgId)
-            ->with(['lossEvent'])
-            ->orderByDesc('analysis_date')
-            ->paginate(25);
+        $rcaEvents = LossEvent::where('organization_id', $orgId)
+            ->with('rca')
+            ->orderByDesc('date_of_loss')
+            ->paginate(25)
+            ->withQueryString();
 
-        return view('risk.loss-events.rca-index', compact('rcas'));
+        $rcaBase = LossEventRca::where('organization_id', $orgId);
+        $totalRcas = (clone $rcaBase)->count();
+        $completedRcas = (clone $rcaBase)->whereIn('status', ['approved', 'completed'])->count();
+        $inProgressRcas = (clone $rcaBase)->whereIn('status', ['draft', 'in_progress'])->count();
+        $pendingRcas = LossEvent::where('organization_id', $orgId)->whereDoesntHave('rca')->count();
+
+        $categoryLabels = ['People', 'Process', 'Systems', 'External', 'Governance'];
+        $categoryCounts = (clone $rcaBase)
+            ->selectRaw('root_cause_category, COUNT(*) as c')
+            ->groupBy('root_cause_category')
+            ->pluck('c', 'root_cause_category');
+        $rcaCategoryData = [
+            'labels' => $categoryLabels,
+            'values' => array_map(
+                fn ($label) => (int) ($categoryCounts[strtolower($label === 'Systems' ? 'system' : $label)] ?? 0),
+                $categoryLabels
+            ),
+        ];
+
+        $rcaStatusData = [
+            'labels' => ['Completed', 'In Progress', 'Pending'],
+            'values' => [$completedRcas, $inProgressRcas, $pendingRcas],
+        ];
+
+        return view('risk.loss-events.rca', compact(
+            'rcaEvents', 'totalRcas', 'completedRcas', 'inProgressRcas', 'pendingRcas',
+            'rcaCategoryData', 'rcaStatusData'
+        ));
     }
 
     /**
@@ -669,11 +724,20 @@ class LossEventController extends Controller
             });
         }
 
-        $nearMisses = $query->orderByDesc('date_occurred')->paginate(25)->withQueryString();
+        $nearMissEvents = $query->orderByDesc('date_occurred')->paginate(25)->withQueryString();
 
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
 
-        return view('risk.loss-events.near-misses', compact('nearMisses', 'businessUnits'));
+        $allNearMisses = NearMiss::where('organization_id', $orgId);
+        $totalNearMisses = (clone $allNearMisses)->count();
+        $openNearMisses = (clone $allNearMisses)->where('status', 'open')->count();
+        $underReviewNearMisses = (clone $allNearMisses)->whereIn('status', ['investigating', 'under review'])->count();
+        $potentialLossAvoided = ((clone $allNearMisses)->sum('potential_loss_kobo') ?? 0) / 100;
+
+        return view('risk.loss-events.near-misses', compact(
+            'nearMissEvents', 'businessUnits',
+            'totalNearMisses', 'openNearMisses', 'underReviewNearMisses', 'potentialLossAvoided'
+        ));
     }
 
     /**
@@ -686,8 +750,9 @@ class LossEventController extends Controller
         $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
         $users = User::where('organization_id', $orgId)->orderBy('name')->get();
+        $controls = \App\Models\Control::where('organization_id', $orgId)->orderBy('control_code')->get();
 
-        return view('risk.loss-events.create-near-miss', compact('risks', 'businessUnits', 'users'));
+        return view('risk.loss-events.create-near-miss', compact('risks', 'businessUnits', 'users', 'controls'));
     }
 
     /**
@@ -702,33 +767,48 @@ class LossEventController extends Controller
             'description' => 'required|string|max:5000',
             'date_occurred' => 'required|date',
             'business_unit_id' => 'required|exists:business_units,id',
-            'risk_id' => 'nullable|exists:risks,id',
-            'potential_impact' => 'required|in:insignificant,minor,moderate,major,catastrophic',
+            'risk_register_id' => 'nullable|exists:risks,id',
+            'severity' => 'required|in:low,medium,high,critical',
             'potential_loss_amount' => 'nullable|numeric|min:0',
-            'how_detected' => 'nullable|string|max:1000',
-            'preventive_action' => 'nullable|string|max:2000',
+            'control_gap_identified' => 'nullable|boolean',
+            'control_gap_description' => 'nullable|string|max:2000',
+            'linked_control_id' => 'nullable|exists:controls,id',
             'reported_by' => 'required|exists:users,id',
         ]);
 
-        // Auto-generate near miss reference: NM-YYYY-NNNN
+        // Auto-generate near miss reference: NM-YYYY-NNN
         $year = now()->year;
         $lastNm = NearMiss::where('organization_id', $orgId)
-            ->where('event_reference', 'like', "NM-{$year}-%")
-            ->orderByDesc('event_reference')
+            ->where('reference', 'like', "NM-{$year}-%")
+            ->orderByDesc('reference')
             ->first();
 
-        $nextNumber = $lastNm ? ((int) substr($lastNm->event_reference, -4)) + 1 : 1;
-        $eventReference = sprintf('NM-%d-%04d', $year, $nextNumber);
+        $nextNumber = $lastNm ? ((int) substr($lastNm->reference, -3)) + 1 : 1;
+        $reference = sprintf('NM-%d-%03d', $year, $nextNumber);
 
-        $nearMiss = NearMiss::create(array_merge($validated, [
+        $nearMiss = NearMiss::create([
             'organization_id' => $orgId,
-            'event_reference' => $eventReference,
-            'status' => 'reported',
-            'created_by' => auth()->id(),
-        ]));
+            'reference' => $reference,
+            'event_reference' => $reference,
+            'title' => $validated['title'],
+            'description' => $validated['description'],
+            'date_occurred' => $validated['date_occurred'],
+            'date_reported' => now()->toDateString(),
+            'business_unit_id' => $validated['business_unit_id'],
+            'risk_register_id' => $validated['risk_register_id'] ?? null,
+            'severity' => $validated['severity'],
+            'potential_loss_kobo' => isset($validated['potential_loss_amount'])
+                ? (int) round($validated['potential_loss_amount'] * 100)
+                : null,
+            'control_gap_identified' => (bool) ($validated['control_gap_identified'] ?? false),
+            'control_gap_description' => $validated['control_gap_description'] ?? null,
+            'linked_control_id' => $validated['linked_control_id'] ?? null,
+            'status' => 'open',
+            'reported_by' => $validated['reported_by'],
+        ]);
 
         return redirect()->route('risk.loss-events.near-misses')
-            ->with('success', "Near miss {$eventReference} has been reported.");
+            ->with('success', "Near miss {$reference} has been reported.");
     }
 
     /**
@@ -823,12 +903,12 @@ class LossEventController extends Controller
             'organization_id' => $orgId,
             'event_reference' => \App\Services\ReferenceCodeService::generate('loss_events', 'event_reference', 'LE'),
             'title' => 'Converted: ' . $nearMiss->title,
-            'description' => $nearMiss->description . "\n\n[Converted from Near-Miss: {$nearMiss->event_code}]",
+            'description' => $nearMiss->description . "\n\n[Converted from Near-Miss: {$nearMiss->reference}]",
             'date_of_loss' => $nearMiss->date_occurred,
             'date_discovered' => $nearMiss->date_reported,
             'business_unit_id' => $nearMiss->business_unit_id,
             'gross_loss_amount_kobo' => $nearMiss->potential_loss_kobo ?? 0,
-            'event_severity' => $nearMiss->potential_impact,
+            'event_severity' => strtoupper($nearMiss->severity ?? 'MEDIUM'),
             'risk_register_id' => $nearMiss->risk_register_id,
             'current_status' => 'draft',
             'created_by' => auth()->id(),
@@ -842,7 +922,9 @@ class LossEventController extends Controller
         ]);
 
         // Audit trail
-        \App\Services\AuditTrailService::record($lossEvent, 'create', null, null, null, "Converted from near-miss: {$nearMiss->event_code}");
+        \App\Services\AuditTrailService::record($lossEvent, 'create', null, null, null, "Converted from near-miss: {$nearMiss->reference}");
+
+        \App\Events\NearMissConverted::dispatch($nearMiss, $lossEvent);
 
         return redirect()->route('risk.loss-events.edit', $lossEvent)
             ->with('success', 'Near-miss converted to loss event successfully. Please complete the remaining fields.');

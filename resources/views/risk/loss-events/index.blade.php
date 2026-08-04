@@ -68,10 +68,10 @@
                 {{-- Basel L1 Category --}}
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Basel L1 Category</label>
-                    <select name="basel_l1" class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#1A365D] focus:border-[#1A365D]">
+                    <select name="basel_event_type" class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#1A365D] focus:border-[#1A365D]">
                         <option value="">All Categories</option>
                         @foreach (($baselL1Categories ?? []) as $cat)
-                            <option value="{{ $cat->id }}" {{ request('basel_l1') == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                            <option value="{{ $cat->id }}" {{ request('basel_event_type') == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -172,7 +172,7 @@
             <tr>
                 <td>
                     <a href="{{ url('/risk/loss-events/' . $event->id) }}" class="text-[#1A365D] font-semibold hover:underline text-xs">
-                        {{ $event->reference }}
+                        {{ $event->event_reference }}
                     </a>
                 </td>
                 <td class="max-w-[200px]">

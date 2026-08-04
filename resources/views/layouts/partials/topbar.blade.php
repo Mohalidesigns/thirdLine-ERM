@@ -116,7 +116,7 @@
 
             {{-- User Dropdown --}}
             <div class="hidden group-hover:block absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                <a href="#" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <a href="{{ route('admin.users.show', auth()->id()) }}" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                     <span class="material-symbols-outlined text-[18px] text-gray-400">person</span>
                     Profile
                 </a>

@@ -533,7 +533,17 @@ class QuantificationController extends Controller
      */
     public function library()
     {
-        $libraryScenarios = collect([
+        $libraryScenarios = $this->libraryScenarios();
+
+        return view('risk.quantification.library', compact('libraryScenarios'));
+    }
+
+    /**
+     * Pre-built scenario library definitions (industry-benchmark demo data).
+     */
+    private function libraryScenarios(): \Illuminate\Support\Collection
+    {
+        return collect([
             (object) ['id' => 'lib-1', 'name' => 'Internal Fraud - Unauthorized Trading', 'risk_category' => 'Operational Risk', 'distribution_type' => 'lognormal', 'description' => 'Losses from unauthorized transactions, mismarking, or rogue trading activities in Nigerian banking sector', 'mean' => 850000000, 'std_dev' => 425000000, 'frequency_per_year' => 1.5, 'source' => 'CBN ORMS Data'],
             (object) ['id' => 'lib-2', 'name' => 'External Fraud - Cyber Attack', 'risk_category' => 'Operational Risk', 'distribution_type' => 'pareto', 'description' => 'Losses from cyber intrusion, phishing, BEC, or electronic fraud targeting bank systems', 'mean' => 1200000000, 'std_dev' => 800000000, 'frequency_per_year' => 3.2, 'source' => 'CBN ORMS Data'],
             (object) ['id' => 'lib-3', 'name' => 'IT System Failure', 'risk_category' => 'Operational Risk', 'distribution_type' => 'lognormal', 'description' => 'Losses from core banking system outages, data center failures, or IT infrastructure disruptions', 'mean' => 500000000, 'std_dev' => 250000000, 'frequency_per_year' => 2.0, 'source' => 'Industry Benchmark'],
@@ -545,8 +555,6 @@ class QuantificationController extends Controller
             (object) ['id' => 'lib-9', 'name' => 'Third-Party Vendor Failure', 'risk_category' => 'Operational Risk', 'distribution_type' => 'lognormal', 'description' => 'Losses from critical vendor failures including payment processors, cloud providers, and network providers', 'mean' => 600000000, 'std_dev' => 400000000, 'frequency_per_year' => 1.8, 'source' => 'Industry Benchmark'],
             (object) ['id' => 'lib-10', 'name' => 'Liquidity Stress - Deposit Run', 'risk_category' => 'Liquidity Risk', 'distribution_type' => 'lognormal', 'description' => 'Losses from a bank run scenario triggered by social media rumors or macroeconomic instability', 'mean' => 10000000000, 'std_dev' => 7000000000, 'frequency_per_year' => 0.2, 'source' => 'CBN Stress Test Framework'],
         ]);
-
-        return view('risk.quantification.library', compact('libraryScenarios'));
     }
 
     /**
@@ -851,13 +859,65 @@ class QuantificationController extends Controller
     /**
      * Import scenario from library.
      */
-    public function importLibrary(Request $request)
+    public function importLibrary(Request $request, string $libraryId)
     {
         $orgId = auth()->user()->organization_id ?? 1;
 
-        // Placeholder for library import logic
-        return redirect()->route('risk.quantification.library')
-            ->with('success', 'Library scenario imported successfully.');
+        $template = $this->libraryScenarios()->firstWhere('id', $libraryId);
+
+        if (! $template) {
+            return redirect()->route('risk.quantification.library')
+                ->with('error', 'Library scenario not found.');
+        }
+
+        // Skip if this template was already imported for the organization
+        $existing = QuantificationScenario::where('organization_id', $orgId)
+            ->where('name', $template->name)
+            ->first();
+
+        if ($existing) {
+            return redirect()->route('risk.quantification.show-scenario', $existing)
+                ->with('success', "Scenario \"{$template->name}\" is already in your register ({$existing->scenario_reference}).");
+        }
+
+        // Auto-generate scenario reference: SCN-YYYY-NNN
+        $year = now()->year;
+        $lastScenario = QuantificationScenario::where('organization_id', $orgId)
+            ->where('scenario_reference', 'like', "SCN-{$year}-%")
+            ->orderByDesc('scenario_reference')
+            ->first();
+
+        $nextNumber = $lastScenario ? ((int) substr($lastScenario->scenario_reference, -3)) + 1 : 1;
+        $scenarioReference = sprintf('SCN-%d-%03d', $year, $nextNumber);
+
+        $meanNaira   = (float) $template->mean;
+        $stdDevNaira = (float) $template->std_dev;
+        $meanKobo    = round($meanNaira * 100);
+        $freqYear    = (float) $template->frequency_per_year;
+
+        $mu    = $meanKobo > 0 ? log($meanKobo) : 0;
+        $sigma = ($stdDevNaira > 0 && $meanNaira > 0) ? sqrt(log(1 + ($stdDevNaira / $meanNaira) ** 2)) : 1.0;
+
+        $scenario = QuantificationScenario::create([
+            'organization_id'              => $orgId,
+            'scenario_reference'           => $scenarioReference,
+            'name'                         => $template->name,
+            'description'                  => $template->description . " (Imported from library — source: {$template->source})",
+            'cbn_risk_category'            => $template->risk_category,
+            'severity_distribution'        => $template->distribution_type,
+            'frequency_distribution'       => 'poisson',
+            'frequency_lambda'             => $freqYear,
+            'expected_annual_frequency'    => $freqYear,
+            'severity_mu'                  => round($mu, 6),
+            'severity_sigma'               => round($sigma, 6),
+            'expected_loss_per_event_kobo' => $meanKobo,
+            'expected_annual_loss_kobo'    => round($meanKobo * $freqYear),
+            'status'                       => 'active',
+            'created_by'                   => auth()->id(),
+        ]);
+
+        return redirect()->route('risk.quantification.show-scenario', $scenario)
+            ->with('success', "Scenario {$scenarioReference} imported from library.");
     }
 
     /* ------------------------------------------------------------------ */

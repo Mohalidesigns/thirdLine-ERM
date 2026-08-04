@@ -163,7 +163,7 @@
                             <tr>
                                 <td>
                                     <a href="{{ url('/risk/loss-events/' . $event->id) }}" class="text-[#1A365D] font-medium hover:underline">
-                                        {{ $event->reference }}
+                                        {{ $event->event_reference }}
                                     </a>
                                 </td>
                                 <td class="max-w-[200px] truncate">{{ $event->title }}</td>

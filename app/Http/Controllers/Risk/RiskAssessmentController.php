@@ -170,7 +170,74 @@ class RiskAssessmentController extends Controller
             ->orderByDesc('assessment_date')
             ->first();
 
-        return view('risk.assessments.show', compact('assessment', 'previousAssessment'));
+        // Full assessment history for this risk, with per-assessment score change
+        // computed against the chronologically preceding assessment.
+        $history = RiskAssessment::where('risk_id', $assessment->risk_id)
+            ->where('organization_id', $orgId)
+            ->with('assessor')
+            ->orderBy('assessment_date')
+            ->orderBy('id')
+            ->get();
+
+        $previousScore = null;
+        foreach ($history as $item) {
+            $item->setAttribute(
+                'score_change',
+                $previousScore === null ? 0 : ((int) $item->overall_score - $previousScore)
+            );
+            $previousScore = (int) $item->overall_score;
+        }
+
+        $assessmentHistory = $history->sortByDesc('assessment_date')->values();
+
+        // Mirror the computed change onto the assessment shown in the KPI cards
+        $currentInHistory = $history->firstWhere('id', $assessment->id);
+        $assessment->setAttribute('score_change', $currentInHistory?->score_change ?? 0);
+
+        // Radar chart: impact dimension scores, current vs previous
+        $dimensionData = [
+            'labels' => ['Financial', 'Operational', 'Reputational', 'Regulatory', 'Strategic'],
+            'current' => [
+                (int) $assessment->impact_financial,
+                (int) $assessment->impact_operational,
+                (int) $assessment->impact_reputational,
+                (int) $assessment->impact_regulatory,
+                (int) ($assessment->impact_strategic ?? 0),
+            ],
+            'previous' => $previousAssessment ? [
+                (int) $previousAssessment->impact_financial,
+                (int) $previousAssessment->impact_operational,
+                (int) $previousAssessment->impact_reputational,
+                (int) $previousAssessment->impact_regulatory,
+                (int) ($previousAssessment->impact_strategic ?? 0),
+            ] : [0, 0, 0, 0, 0],
+        ];
+
+        // Bar chart: side-by-side comparison with the previous assessment
+        $comparisonData = [
+            'labels' => ['Likelihood', 'Financial', 'Operational', 'Reputational', 'Regulatory', 'Strategic'],
+            'current' => [
+                (int) $assessment->likelihood_score,
+                (int) $assessment->impact_financial,
+                (int) $assessment->impact_operational,
+                (int) $assessment->impact_reputational,
+                (int) $assessment->impact_regulatory,
+                (int) ($assessment->impact_strategic ?? 0),
+            ],
+            'previous' => $previousAssessment ? [
+                (int) $previousAssessment->likelihood_score,
+                (int) $previousAssessment->impact_financial,
+                (int) $previousAssessment->impact_operational,
+                (int) $previousAssessment->impact_reputational,
+                (int) $previousAssessment->impact_regulatory,
+                (int) ($previousAssessment->impact_strategic ?? 0),
+            ] : [0, 0, 0, 0, 0, 0],
+        ];
+
+        return view('risk.assessments.show', compact(
+            'assessment', 'previousAssessment',
+            'assessmentHistory', 'dimensionData', 'comparisonData'
+        ));
     }
 
     /**
@@ -337,6 +404,8 @@ class RiskAssessmentController extends Controller
             }
 
             $risk->update($updateData);
+
+            \App\Events\AssessmentApproved::dispatch($assessment, $risk);
 
             return redirect()->route('risk.assessments.show', $assessment)
                 ->with('success', 'Assessment approved and risk scores updated.');

@@ -115,6 +115,13 @@ class TreatmentPlan extends Model
         return (int) ($this->progress_percentage ?? $this->progress_pct ?? 0);
     }
 
+    public function getCostEstimateAttribute(): float
+    {
+        $ngn = (float) ($this->cost_estimate_ngn ?? 0);
+
+        return $ngn > 0 ? $ngn : (float) ($this->estimated_cost ?? 0);
+    }
+
     public function owner()
     {
         return $this->belongsTo(User::class, 'owner_id');

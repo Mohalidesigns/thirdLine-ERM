@@ -96,7 +96,7 @@ class ApprovalController extends Controller
         $orgId = auth()->user()->organization_id ?? 1;
 
         $entityType = $request->get('entity_type');
-        $history = $this->approvalService->getHistory($orgId, $entityType, 100);
+        $history = $this->approvalService->getHistoryPaginated($orgId, $entityType, 25);
 
         // Get unique entity types for filter
         $entityTypes = ApprovalRequest::where('organization_id', $orgId)

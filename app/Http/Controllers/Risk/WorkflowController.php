@@ -16,10 +16,17 @@ class WorkflowController extends Controller
 
         $activeWorkflows   = WorkflowInstance::whereHas('definition', fn($q) => $q->where('organization_id', $orgId))->where('status', 'active')->count();
         $completedToday    = WorkflowInstance::whereHas('definition', fn($q) => $q->where('organization_id', $orgId))->where('status', 'completed')->whereDate('completed_at', today())->count();
-        $pendingMyAction   = WorkflowInstance::whereHas('definition', fn($q) => $q->where('organization_id', $orgId))
+        // Active instances whose current stage approver role matches one of the user's roles.
+        $userRoles = auth()->user()->getRoleNames()->all();
+        $pendingMyAction = WorkflowInstance::whereHas('definition', fn($q) => $q->where('organization_id', $orgId))
             ->where('status', 'active')
-            ->whereHas('definition', function ($q) {
-                // Simplified: in reality, check current stage approver
+            ->with('definition')
+            ->get()
+            ->filter(function ($instance) use ($userRoles) {
+                $stage = $instance->definition->stages[$instance->current_stage] ?? null;
+                $approverRole = $stage['approver_role'] ?? null;
+
+                return $approverRole !== null && in_array($approverRole, $userRoles, true);
             })
             ->count();
         $totalDefinitions  = WorkflowDefinition::where('organization_id', $orgId)->where('is_active', true)->count();
@@ -39,7 +46,37 @@ class WorkflowController extends Controller
     {
         $orgId = auth()->user()->organization_id;
         $definitions = WorkflowDefinition::where('organization_id', $orgId)->with('creator')->latest()->paginate(20);
-        return view('risk.workflows.definitions', compact('definitions'));
+
+        // Selectable entities per definition entity_type, so instances can be started from this screen.
+        $entityOptions = [
+            'issue' => [
+                'class' => \App\Models\Issue::class,
+                'items' => \App\Models\Issue::where('organization_id', $orgId)->orderByDesc('id')->limit(100)->get()
+                    ->map(fn ($i) => ['id' => $i->id, 'label' => trim(($i->issue_reference ?? "ISS-{$i->id}") . ' — ' . ($i->title ?? $i->issue_title ?? ''))]),
+            ],
+            'loss_event' => [
+                'class' => \App\Models\LossEvent::class,
+                'items' => \App\Models\LossEvent::where('organization_id', $orgId)->orderByDesc('id')->limit(100)->get()
+                    ->map(fn ($e) => ['id' => $e->id, 'label' => trim(($e->event_reference ?? "LE-{$e->id}") . ' — ' . ($e->title ?? ''))]),
+            ],
+            'regulatory_circular' => [
+                'class' => \App\Models\RegulatoryCircular::class,
+                'items' => \App\Models\RegulatoryCircular::where('organization_id', $orgId)->orderByDesc('id')->limit(100)->get()
+                    ->map(fn ($c) => ['id' => $c->id, 'label' => trim(($c->circular_ref ?? "CIR-{$c->id}") . ' — ' . ($c->title ?? ''))]),
+            ],
+            'risk_assessment' => [
+                'class' => \App\Models\RiskAssessment::class,
+                'items' => \App\Models\RiskAssessment::where('organization_id', $orgId)->with('risk')->orderByDesc('id')->limit(100)->get()
+                    ->map(fn ($a) => ['id' => $a->id, 'label' => trim("ASMT-{$a->id} — " . ($a->risk->title ?? 'Risk') . ' (' . optional($a->assessment_date)->format('d M Y') . ')')]),
+            ],
+            'treatment_plan' => [
+                'class' => \App\Models\TreatmentPlan::class,
+                'items' => \App\Models\TreatmentPlan::where('organization_id', $orgId)->orderByDesc('id')->limit(100)->get()
+                    ->map(fn ($t) => ['id' => $t->id, 'label' => trim("TP-{$t->id} — " . ($t->title ?? $t->treatment_title ?? ''))]),
+            ],
+        ];
+
+        return view('risk.workflows.definitions', compact('definitions', 'entityOptions'));
     }
 
     public function createDefinition()

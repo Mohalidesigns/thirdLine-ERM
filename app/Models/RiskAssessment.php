@@ -18,7 +18,6 @@ class RiskAssessment extends Model
         'assessment_type',
         'assessor_id',
         'reviewer_id',
-        'approver_id',
         'status',
         'likelihood_score',
         'impact_financial',
@@ -30,12 +29,10 @@ class RiskAssessment extends Model
         'overall_score',
         'overall_rating',
         'control_effectiveness_data',
-        'control_effectiveness_rating',
         'residual_likelihood',
         'residual_impact',
         'residual_score',
         'residual_rating',
-        'direction_of_travel',
         'assessment_notes',
         'evidence_refs',
         'previous_assessment_id',
@@ -128,5 +125,24 @@ class RiskAssessment extends Model
         return Attribute::make(
             get: fn ($value) => $value ?? $this->attributes['overall_rating'] ?? null,
         );
+    }
+
+    // Bridge the short field names used by the assessment views to the
+    // canonical columns (`likelihood_score`, `impact_score`, `overall_rating`).
+    public function getLikelihoodAttribute(): ?int
+    {
+        return isset($this->attributes['likelihood_score'])
+            ? (int) $this->attributes['likelihood_score']
+            : null;
+    }
+
+    public function getMaxImpactAttribute(): ?int
+    {
+        return $this->impact_score !== null ? (int) $this->impact_score : null;
+    }
+
+    public function getRatingAttribute(): ?string
+    {
+        return $this->attributes['overall_rating'] ?? null;
     }
 }

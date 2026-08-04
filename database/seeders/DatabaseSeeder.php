@@ -70,5 +70,17 @@ class DatabaseSeeder extends Seeder
         /* ------------------------------------------------------------------ */
 
         $this->call(RiskAnalysisSeeder::class);
+
+        /* ------------------------------------------------------------------ */
+        /*  8. Business process catalogue (idempotent)                        */
+        /* ------------------------------------------------------------------ */
+
+        $this->call(BusinessProcessSeeder::class);
+
+        /* ------------------------------------------------------------------ */
+        /*  9. Enterprise gap-fill demo data (idempotent)                     */
+        /* ------------------------------------------------------------------ */
+
+        $this->call(EnterpriseGapSeeder::class);
     }
 }

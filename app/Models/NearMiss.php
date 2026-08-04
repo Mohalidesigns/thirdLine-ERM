@@ -15,35 +15,40 @@ class NearMiss extends Model
 
     protected $fillable = [
         'organization_id',
-        'event_code',
+        'reference',
+        'event_reference',
         'title',
         'description',
         'date_occurred',
         'date_reported',
         'business_unit_id',
-        'risk_category',
-        'potential_impact',
         'potential_loss_kobo',
+        'severity',
+        'control_gap_identified',
+        'control_gap_description',
         'linked_control_id',
-        'cause_description',
-        'prevention_taken',
-        'reported_by',
-        'reported_at',
-        'investigator_id',
-        'investigation_notes',
-        'risk_register_id',
-        'converted_to_loss_event',
-        'converted_loss_event_id',
         'status',
-        'created_by',
+        'converted_loss_event_id',
+        'investigator_id',
+        'investigation_deadline',
+        'risk_register_id',
+        'reported_by',
     ];
 
     protected $casts = [
-        'date_occurred'           => 'date',
-        'date_reported'           => 'date',
-        'reported_at'             => 'datetime',
-        'converted_to_loss_event' => 'boolean',
+        'date_occurred'          => 'date',
+        'date_reported'          => 'date',
+        'investigation_deadline' => 'date',
+        'control_gap_identified' => 'boolean',
     ];
+
+    /**
+     * Potential loss in naira (stored in kobo).
+     */
+    public function getPotentialLossAttribute(): float
+    {
+        return ($this->potential_loss_kobo ?? 0) / 100;
+    }
 
     protected static function boot(): void
     {

@@ -1,13 +1,13 @@
 @extends('layouts.app')
 
-@section('title', ($lossEvent->reference ?? 'Loss Event') . ' - GRC Platform')
+@section('title', ($lossEvent->event_reference ?? 'Loss Event') . ' - GRC Platform')
 
 @section('breadcrumbs')
     <span>Risk Management</span>
     <span class="text-gray-300">/</span>
     <span>Loss Events</span>
     <span class="text-gray-300">/</span>
-    <span class="text-[#1A365D] font-semibold">{{ $lossEvent->reference ?? 'Detail' }}</span>
+    <span class="text-[#1A365D] font-semibold">{{ $lossEvent->event_reference ?? 'Detail' }}</span>
 @endsection
 
 @section('content')
@@ -29,7 +29,7 @@
     <div class="flex items-start justify-between mb-6">
         <div>
             <div class="flex items-center gap-3 mb-2">
-                <span class="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{{ $lossEvent->reference }}</span>
+                <span class="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{{ $lossEvent->event_reference }}</span>
                 <x-risk-badge :rating="$lossEvent->severity ?? 'low'" />
                 <x-status-badge :status="$lossEvent->status ?? 'draft'" />
             </div>
@@ -40,6 +40,29 @@
             </p>
         </div>
         <div class="flex items-center gap-2">
+            @php
+                $statusTransitions = [
+                    'reported' => ['under_investigation' => 'Start Investigation', 'pending_approval' => 'Submit for Approval'],
+                    'under_investigation' => ['pending_approval' => 'Submit for Approval'],
+                    'pending_approval' => ['under_investigation' => 'Return to Investigation'],
+                    'approved' => ['closed' => 'Close Event', 'reopened' => 'Reopen'],
+                    'closed' => ['reopened' => 'Reopen'],
+                    'reopened' => ['under_investigation' => 'Start Investigation'],
+                ];
+                $availableTransitions = $statusTransitions[$lossEvent->status] ?? [];
+            @endphp
+            @foreach ($availableTransitions as $newStatus => $label)
+                <form method="POST" action="{{ route('risk.loss-events.update-status', $lossEvent) }}" class="inline">
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="status" value="{{ $newStatus }}">
+                    <button type="submit"
+                            class="flex items-center gap-1 px-3 py-2 bg-[#1A365D] text-white rounded-lg text-xs font-semibold hover:bg-[#2D4A7A] transition">
+                        <span class="material-symbols-outlined text-sm">arrow_forward</span>
+                        {{ $label }}
+                    </button>
+                </form>
+            @endforeach
             <a href="{{ url('/risk/loss-events/' . $lossEvent->id . '/edit') }}"
                class="flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 transition">
                 <span class="material-symbols-outlined text-sm">edit</span>

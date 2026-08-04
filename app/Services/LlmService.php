@@ -46,6 +46,9 @@ class LlmService
         }
         try {
             $res = Http::timeout(3)->get($this->endpoint . '/api/tags');
+            if (! $res->successful()) {
+                $this->lastError = 'LLM endpoint returned HTTP ' . $res->status();
+            }
             return $res->successful();
         } catch (Throwable $e) {
             $this->lastError = 'LLM endpoint unreachable: ' . $e->getMessage();
@@ -132,6 +135,7 @@ class LlmService
 
             if (! $res->successful()) {
                 $this->lastError = 'LLM HTTP ' . $res->status();
+                Log::warning('LlmService completeJson failed: ' . $this->lastError);
                 return [];
             }
 
@@ -145,6 +149,7 @@ class LlmService
             return $parsed;
         } catch (Throwable $e) {
             $this->lastError = $e->getMessage();
+            Log::warning('LlmService completeJson exception: ' . $this->lastError);
             return [];
         }
     }

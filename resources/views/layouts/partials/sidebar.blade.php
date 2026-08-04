@@ -100,6 +100,25 @@
                 ['label' => 'Review', 'url' => '/risk/treatments/review'],
             ],
         ],
+        [
+            'id' => 'risk_appetite',
+            'label' => 'Risk Appetite',
+            'icon' => 'tune',
+            'prefix' => 'risk/appetite',
+            'items' => [
+                ['label' => 'Appetite Statements', 'url' => '/risk/appetite'],
+            ],
+        ],
+        [
+            'id' => 'approvals',
+            'label' => 'Approvals',
+            'icon' => 'approval',
+            'prefix' => 'risk/approvals',
+            'items' => [
+                ['label' => 'Pending Approvals', 'url' => '/risk/approvals'],
+                ['label' => 'Approval History', 'url' => '/risk/approvals/history'],
+            ],
+        ],
 
         // ── Phase 4: Monitoring & Events ───────────────────────────
         [
@@ -123,6 +142,7 @@
                 ['label' => 'Dashboard', 'url' => '/risk/loss-events/dashboard'],
                 ['label' => 'Event Register', 'url' => '/risk/loss-events'],
                 ['label' => 'New Event', 'url' => '/risk/loss-events/create'],
+                ['label' => 'Near Misses', 'url' => '/risk/loss-events/near-misses'],
                 ['label' => 'Approvals', 'url' => '/risk/loss-events/approvals'],
                 ['label' => 'Root Cause', 'url' => '/risk/loss-events/rca'],
                 ['label' => 'Reports', 'url' => '/risk/loss-events/reports'],

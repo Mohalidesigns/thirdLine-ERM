@@ -16,15 +16,21 @@ class IssueEscalationLog extends Model
     protected $fillable = [
         'issue_id',
         'escalation_level',
+        'escalated_to_role',
         'escalated_to_user_id',
+        'is_auto',
+        'reason',
+        'acknowledged',
+        'acknowledged_at',
         'escalated_by',
         'escalated_at',
-        'reason',
-        'notes',
     ];
 
     protected $casts = [
         'escalated_at' => 'datetime',
+        'acknowledged_at' => 'datetime',
+        'is_auto' => 'boolean',
+        'acknowledged' => 'boolean',
     ];
 
     /* ------------------------------------------------------------------ */

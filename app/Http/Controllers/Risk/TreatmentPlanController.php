@@ -27,7 +27,11 @@ class TreatmentPlanController extends Controller
         $completedPlans = $base()->where('status', 'completed')->count();
         $overduePlans   = $base()->whereIn('status', ['in_progress', 'in-progress', 'open'])
             ->whereNotNull('target_date')->where('target_date', '<', now())->count();
-        $totalBudget    = (float) $base()->sum('cost_estimate_ngn') + (float) $base()->sum('estimated_cost');
+        // Schema drift: some rows populate cost_estimate_ngn, others estimated_cost
+        // (one row has both, with equal values). Coalesce per row to avoid double counting.
+        $totalBudget    = (float) $base()
+            ->selectRaw('COALESCE(SUM(COALESCE(NULLIF(cost_estimate_ngn, 0), estimated_cost, 0)), 0) as total')
+            ->value('total');
         $avgEffectiveness = (int) round((float) $base()->whereNotNull('progress_pct')->avg('progress_pct'));
 
         $activeTreatments = $base()
@@ -83,7 +87,7 @@ class TreatmentPlanController extends Controller
         $completionTrendData = ['labels' => $monthLabels, 'created' => $createdByMonth, 'completed' => $completedByMonth];
 
         $budgetByStrategy = $base()
-            ->selectRaw('LOWER(strategy) s, COALESCE(SUM(cost_estimate_ngn),0) + COALESCE(SUM(estimated_cost),0) as b, COALESCE(SUM(actual_cost_ngn),0) + COALESCE(SUM(actual_cost),0) as a')
+            ->selectRaw('LOWER(strategy) s, COALESCE(SUM(COALESCE(NULLIF(cost_estimate_ngn, 0), estimated_cost, 0)), 0) as b, COALESCE(SUM(COALESCE(NULLIF(actual_cost_ngn, 0), actual_cost, 0)), 0) as a')
             ->groupBy('s')->get()->keyBy('s');
         $budgetChartData = [
             'labels' => ['Mitigate', 'Transfer', 'Accept', 'Avoid'],
@@ -116,13 +120,15 @@ class TreatmentPlanController extends Controller
     {
         $orgId = auth()->user()->organization_id ?? 1;
 
-        $plans = TreatmentPlan::where('organization_id', $orgId)
-            ->whereIn('status', ['pending_review', 'in_progress'])
+        // The view iterates $pendingPlans and renders Approve/Reject actions,
+        // which are only valid for plans in pending_review status.
+        $pendingPlans = TreatmentPlan::where('organization_id', $orgId)
+            ->where('status', 'pending_review')
             ->with(['risk', 'owner'])
-            ->orderBy('target_completion_date')
-            ->paginate(25);
+            ->orderByRaw('COALESCE(target_completion_date, target_date) asc')
+            ->get();
 
-        return view('risk.treatments.review', compact('plans'));
+        return view('risk.treatments.review', compact('pendingPlans'));
     }
 
     /**
@@ -348,6 +354,10 @@ class TreatmentPlanController extends Controller
 
         // Audit trail
         \App\Services\AuditTrailService::recordChanges($treatment, $original);
+
+        if (($original['status'] ?? null) !== 'completed' && $treatment->status === 'completed' && $treatment->risk) {
+            \App\Events\TreatmentCompleted::dispatch($treatment, $treatment->risk);
+        }
 
         return redirect()->route('risk.treatments.show', $treatment)
             ->with('success', "Treatment plan {$treatment->treatment_code} has been updated.");

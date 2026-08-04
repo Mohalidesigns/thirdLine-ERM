@@ -146,6 +146,7 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     Route::post('issues/{issue}/approve-closure', [IssueController::class, 'approveClosure'])->name('risk.issues.approve-closure');
     Route::post('issues/{issue}/reject-closure', [IssueController::class, 'rejectClosure'])->name('risk.issues.reject-closure');
     Route::get('issues/{issue}/attachments/{attachment}/download', [IssueController::class, 'downloadAttachment'])->name('risk.issues.download-attachment');
+    Route::post('issues/{issue}/attachments', [IssueController::class, 'uploadAttachment'])->name('risk.issues.upload-attachment');
     Route::resource('issues', IssueController::class)->names('risk.issues');
 
     // Unified document/evidence repository
@@ -165,7 +166,7 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     Route::get('quantification/results/{simulation}', [QuantificationController::class, 'showResults'])->name('risk.quantification.show-results');
     Route::get('quantification/icaap', [QuantificationController::class, 'icaap'])->name('risk.quantification.icaap');
     Route::get('quantification/library', [QuantificationController::class, 'library'])->name('risk.quantification.library');
-    Route::post('quantification/library/import', [QuantificationController::class, 'importLibrary'])->name('risk.quantification.library.import');
+    Route::post('quantification/library/import/{libraryId}', [QuantificationController::class, 'importLibrary'])->name('risk.quantification.library.import');
     Route::get('quantification/settings', [QuantificationController::class, 'settings'])->name('risk.quantification.settings');
     Route::put('quantification/settings', [QuantificationController::class, 'updateSettings'])->name('risk.quantification.update-settings');
     Route::get('quantification/reports', [QuantificationController::class, 'reports'])->name('risk.quantification.reports');

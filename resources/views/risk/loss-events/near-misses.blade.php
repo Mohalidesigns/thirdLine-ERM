@@ -18,7 +18,7 @@
             <p class="text-sm text-gray-500 mt-1">Track near-miss events that could have resulted in operational losses</p>
         </div>
         <div class="flex items-center gap-3">
-            <a href="{{ url('/risk/loss-events/create?type=near_miss') }}" class="flex items-center gap-2 px-4 py-2 bg-[#1A365D] text-white rounded-lg text-xs font-semibold hover:bg-[#2D4A7A] transition">
+            <a href="{{ route('risk.loss-events.create-near-miss') }}" class="flex items-center gap-2 px-4 py-2 bg-[#1A365D] text-white rounded-lg text-xs font-semibold hover:bg-[#2D4A7A] transition">
                 <span class="material-symbols-outlined text-sm">add</span>
                 Log Near Miss
             </a>
@@ -110,18 +110,20 @@
                 <td class="max-w-[200px]">
                     <div class="truncate text-sm font-medium text-gray-800">{{ $event->title }}</div>
                 </td>
-                <td class="text-gray-500 text-xs">{{ $event->date_of_discovery?->format('d M Y') ?? '-' }}</td>
+                <td class="text-gray-500 text-xs">{{ $event->date_occurred?->format('d M Y') ?? '-' }}</td>
                 <td class="text-xs text-gray-600">{{ $event->businessUnit->name ?? '-' }}</td>
                 <td class="font-semibold text-sm text-gray-900">₦{{ number_format($event->potential_loss ?? 0, 2) }}</td>
                 <td><x-risk-badge :rating="$event->severity ?? 'low'" /></td>
                 <td><x-status-badge :status="$event->status ?? 'open'" /></td>
                 <td>
                     <div class="flex items-center gap-1">
-                        <a href="{{ url('/risk/loss-events/' . $event->id) }}" class="p-1 rounded hover:bg-gray-100" title="View">
-                            <span class="material-symbols-outlined text-gray-500 text-lg">visibility</span>
-                        </a>
+                        @if ($event->converted_loss_event_id)
+                            <a href="{{ route('risk.loss-events.show', $event->converted_loss_event_id) }}" class="p-1 rounded hover:bg-gray-100" title="View Converted Loss Event">
+                                <span class="material-symbols-outlined text-gray-500 text-lg">visibility</span>
+                            </a>
+                        @endif
                         @if ($event->status !== 'converted')
-                            <form method="POST" action="{{ url('/risk/loss-events/' . $event->id . '/convert') }}" class="inline"
+                            <form method="POST" action="{{ route('risk.loss-events.convert-near-miss', $event) }}" class="inline"
                                   onsubmit="return confirm('Convert this near miss to a loss event?')">
                                 @csrf
                                 <button type="submit" class="p-1 rounded hover:bg-yellow-50" title="Convert to Loss Event">

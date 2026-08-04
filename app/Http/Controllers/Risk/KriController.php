@@ -95,7 +95,7 @@ class KriController extends Controller
         $orgId = auth()->user()->organization_id ?? 1;
 
         $query = KeyRiskIndicator::where('organization_id', $orgId)
-            ->with(['risk']);
+            ->with(['risk.category', 'owner']);
 
         if ($request->filled('status')) {
             $query->where('current_status', $request->status);
@@ -103,6 +103,14 @@ class KriController extends Controller
 
         if ($request->filled('risk_id')) {
             $query->where('risk_id', $request->risk_id);
+        }
+
+        if ($request->filled('category')) {
+            $query->whereHas('risk.category', fn ($q) => $q->where('name', $request->category));
+        }
+
+        if ($request->filled('frequency')) {
+            $query->where('measurement_frequency', $request->frequency);
         }
 
         if ($request->filled('search')) {
@@ -115,9 +123,29 @@ class KriController extends Controller
 
         $kris = $query->orderBy('kri_code')->paginate(25)->withQueryString();
 
+        // KRIs have no category column — a KRI's category is that of its linked risk.
+        $kris->getCollection()->each(function ($kri) {
+            $kri->setAttribute('category', $kri->risk?->category?->name);
+            $kri->setAttribute('frequency', $kri->measurement_frequency);
+        });
+
+        // KRIs whose latest measurement pushed them into red breach territory
+        // (current_status is refreshed by recordMeasurement on every entry).
+        $activeBreachCount = KeyRiskIndicator::where('organization_id', $orgId)
+            ->where('current_status', 'red')
+            ->count();
+
+        // Distinct categories across the org's KRIs (via their linked risks)
+        $categories = KeyRiskIndicator::where('key_risk_indicators.organization_id', $orgId)
+            ->join('risks', 'risks.id', '=', 'key_risk_indicators.risk_id')
+            ->join('risk_categories', 'risk_categories.id', '=', 'risks.category_id')
+            ->distinct()
+            ->orderBy('risk_categories.name')
+            ->pluck('risk_categories.name');
+
         $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
 
-        return view('risk.kri.index', compact('kris', 'risks'));
+        return view('risk.kri.index', compact('kris', 'risks', 'activeBreachCount', 'categories'));
     }
 
     /**
@@ -425,15 +453,99 @@ class KriController extends Controller
     {
         $orgId = auth()->user()->organization_id ?? 1;
 
-        $breaches = KriMeasurement::whereHas('kri', function ($q) use ($orgId) {
+        $query = KriMeasurement::whereHas('kri', function ($q) use ($orgId) {
                 $q->where('organization_id', $orgId);
             })
-            ->where('status', 'red')
-            ->with(['kri.risk'])
-            ->orderByDesc('measurement_date')
-            ->paginate(25);
+            ->whereIn('status', ['red', 'amber'])
+            ->with(['kri.risk.category', 'kri.owner']);
 
-        return view('risk.kri.breaches', compact('breaches'));
+        if ($request->filled('level')) {
+            $query->where('status', $request->level);
+        }
+
+        if ($request->filled('category')) {
+            $query->whereHas('kri.risk.category', fn ($q) => $q->where('name', $request->category));
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->whereHas('kri', function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('kri_code', 'like', "%{$search}%");
+            });
+        }
+
+        $breaches = $query->orderByDesc('measurement_date')->paginate(25)->withQueryString();
+
+        // Enrich each measurement row with the display fields the table expects.
+        $breaches->getCollection()->transform(function ($m) {
+            $kri = $m->kri;
+            $unit = $kri?->unit_of_measure ?? '';
+            $higherWorse = in_array($kri?->threshold_direction, ['higher_worse', 'higher_is_worse'])
+                || ($kri?->direction === 'higher_is_worse');
+
+            $threshold = $m->status === 'red'
+                ? ($higherWorse ? $kri?->red_threshold_min : $kri?->red_threshold_max)
+                : ($higherWorse ? $kri?->amber_threshold_min : $kri?->amber_threshold_max);
+
+            $m->setAttribute('kri_name', $kri?->name);
+            $m->setAttribute('category', $kri?->risk?->category?->name);
+            $m->setAttribute('current_value', number_format((float) $m->value, 2) . ($unit !== '' ? ' ' . $unit : ''));
+            $m->setAttribute('threshold_value', $threshold !== null
+                ? number_format((float) $threshold, 2) . ($unit !== '' ? ' ' . $unit : '')
+                : null);
+            $m->setAttribute('level', $m->status);
+            $m->setAttribute('days_in_breach', $m->measurement_date
+                ? (int) abs(now()->diffInDays($m->measurement_date))
+                : 0);
+            $m->setAttribute('owner', $kri?->owner?->name);
+            $m->setAttribute('breach_date', $m->measurement_date);
+
+            return $m;
+        });
+
+        // Summary KPIs — KRIs currently in breach (status maintained by recordMeasurement)
+        $redBreaches = KeyRiskIndicator::where('organization_id', $orgId)
+            ->where('current_status', 'red')->count();
+        $amberBreaches = KeyRiskIndicator::where('organization_id', $orgId)
+            ->where('current_status', 'amber')->count();
+
+        // Average days each currently-breached KRI has been in breach: walk back
+        // through its measurement history until the last non-breach reading.
+        $breachedKris = KeyRiskIndicator::where('organization_id', $orgId)
+            ->whereIn('current_status', ['red', 'amber'])
+            ->with('measurements')
+            ->get();
+
+        $breachDays = [];
+        foreach ($breachedKris as $kri) {
+            $breachStart = null;
+            foreach ($kri->measurements->sortByDesc('measurement_date')->values() as $measurement) {
+                if (! in_array($measurement->status, ['red', 'amber'])) {
+                    break;
+                }
+                $breachStart = $measurement->measurement_date;
+            }
+            $breachStart = $breachStart ?? $kri->last_measurement_date ?? $kri->updated_at;
+            if ($breachStart) {
+                $breachDays[] = (int) abs(now()->diffInDays($breachStart));
+            }
+        }
+        $avgDaysInBreach = count($breachDays) > 0
+            ? (int) round(array_sum($breachDays) / count($breachDays))
+            : 0;
+
+        // Distinct categories for the filter dropdown (via linked risks)
+        $categories = KeyRiskIndicator::where('key_risk_indicators.organization_id', $orgId)
+            ->join('risks', 'risks.id', '=', 'key_risk_indicators.risk_id')
+            ->join('risk_categories', 'risk_categories.id', '=', 'risks.category_id')
+            ->distinct()
+            ->orderBy('risk_categories.name')
+            ->pluck('risk_categories.name');
+
+        return view('risk.kri.breaches', compact(
+            'breaches', 'redBreaches', 'amberBreaches', 'avgDaysInBreach', 'categories'
+        ));
     }
 
     /**

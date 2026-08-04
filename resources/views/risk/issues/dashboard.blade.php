@@ -137,7 +137,7 @@
                         <tr class="bg-red-50/30">
                             <td>
                                 <a href="{{ url('/risk/issues/' . $issue->id) }}" class="text-[#1A365D] font-semibold hover:underline text-xs">
-                                    {{ $issue->reference }}
+                                    {{ $issue->issue_reference }}
                                 </a>
                             </td>
                             <td class="max-w-[200px]">
@@ -145,10 +145,10 @@
                             </td>
                             <td><x-risk-badge :rating="$issue->priority ?? 'medium'" /></td>
                             <td class="text-xs text-gray-600">{{ $issue->owner->name ?? '-' }}</td>
-                            <td class="text-xs text-red-600 font-medium">{{ $issue->due_date?->format('d M Y') ?? '-' }}</td>
+                            <td class="text-xs text-red-600 font-medium">{{ $issue->target_resolution_date?->format('d M Y') ?? '-' }}</td>
                             <td>
                                 @php
-                                    $daysOverdue = $issue->due_date ? $issue->due_date->diffInDays(now()) : 0;
+                                    $daysOverdue = $issue->target_resolution_date ? (int) $issue->target_resolution_date->diffInDays(now()) : 0;
                                 @endphp
                                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold
                                     {{ $daysOverdue > 60 ? 'bg-red-100 text-red-700' : ($daysOverdue > 30 ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700') }}">

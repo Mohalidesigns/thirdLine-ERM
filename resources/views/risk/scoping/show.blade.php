@@ -262,7 +262,7 @@
                     @forelse ($issues as $issue)
                         <tr class="hover:bg-blue-50/50">
                             <td class="font-semibold text-[#1A365D]">
-                                <a href="{{ route('risk.issues.show', $issue) }}" class="hover:underline">{{ $issue->issue_code }}</a>
+                                <a href="{{ route('risk.issues.show', $issue) }}" class="hover:underline">{{ $issue->issue_reference }}</a>
                             </td>
                             <td class="text-sm">{{ Str::limit($issue->title, 50) }}</td>
                             <td><x-risk-badge :rating="ucfirst($issue->severity ?? 'medium')" /></td>

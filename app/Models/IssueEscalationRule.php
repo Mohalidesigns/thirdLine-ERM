@@ -11,22 +11,16 @@ class IssueEscalationRule extends Model
 
     protected $fillable = [
         'organization_id',
-        'name',
-        'description',
-        'severity',
-        'days_overdue_trigger',
+        'priority',
+        'issue_source',
         'escalation_level',
-        'notify_roles',
-        'notify_user_ids',
-        'auto_escalate',
+        'escalation_to_role',
+        'days_overdue_trigger',
         'is_active',
     ];
 
     protected $casts = [
-        'notify_roles'    => 'array',
-        'notify_user_ids' => 'array',
-        'auto_escalate'   => 'boolean',
-        'is_active'       => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     /* ------------------------------------------------------------------ */

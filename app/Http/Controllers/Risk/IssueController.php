@@ -161,7 +161,20 @@ class IssueController extends Controller
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
         $users = User::where('organization_id', $orgId)->orderBy('name')->get();
 
-        return view('risk.issues.create', compact('risks', 'businessUnits', 'users'));
+        $defaultCategories = [
+            'Process Deficiency', 'Control Weakness', 'Policy Non-Compliance', 'System Issue',
+            'Governance Gap', 'Documentation Gap', 'Regulatory Non-Compliance', 'Data Quality', 'Other',
+        ];
+        $categories = Issue::where('organization_id', $orgId)
+            ->whereNotNull('issue_category')
+            ->distinct()
+            ->pluck('issue_category')
+            ->merge($defaultCategories)
+            ->unique()
+            ->sort()
+            ->values();
+
+        return view('risk.issues.create', compact('risks', 'businessUnits', 'users', 'categories'));
     }
 
     /**
@@ -184,15 +197,24 @@ class IssueController extends Controller
             'impact_description' => 'nullable|string|max:2000',
             'recommended_action' => 'nullable|string|max:3000',
             'source_reference' => 'nullable|string|max:255',
+            'category' => 'nullable|string|max:100',
         ]);
 
         return DB::transaction(function () use ($validated, $orgId) {
             // Auto-generate issue reference using ReferenceCodeService
             $issueReference = \App\Services\ReferenceCodeService::generate('issues', 'issue_reference', 'ISS');
 
+            $issueCategory = $validated['category'] ?? null;
+            unset($validated['category']);
+
+            // Map form field risk_id to actual DB column risk_register_id
+            $validated['risk_register_id'] = $validated['risk_id'] ?? null;
+            unset($validated['risk_id']);
+
             $issue = Issue::create(array_merge($validated, [
                 'organization_id' => $orgId,
                 'issue_reference' => $issueReference,
+                'issue_category' => $issueCategory,
                 'issue_status' => 'OPEN',
                 'escalation_level' => 0,
                 'created_by' => auth()->id(),
@@ -349,10 +371,9 @@ class IssueController extends Controller
         // Log the status change as a progress update
         IssueProgressUpdate::create([
             'issue_id' => $issue->id,
-            'organization_id' => $orgId,
             'update_type' => 'status_change',
-            'description' => "Status changed from {$current} to {$new}. " . ($validated['status_notes'] ?? ''),
-            'updated_by' => auth()->id(),
+            'content' => "Status changed from {$current} to {$new}. " . ($validated['status_notes'] ?? ''),
+            'created_by' => auth()->id(),
         ]);
 
         // Audit trail
@@ -426,10 +447,9 @@ class IssueController extends Controller
         if ($pendingActions === 0) {
             IssueProgressUpdate::create([
                 'issue_id' => $issue->id,
-                'organization_id' => $orgId,
                 'update_type' => 'milestone',
-                'description' => 'All remediation actions have been completed.',
-                'updated_by' => auth()->id(),
+                'content' => 'All remediation actions have been completed.',
+                'created_by' => auth()->id(),
             ]);
         }
 
@@ -453,15 +473,16 @@ class IssueController extends Controller
             'progress_pct' => 'nullable|integer|min:0|max:100',
         ]);
 
-        IssueProgressUpdate::create(array_merge($validated, [
+        IssueProgressUpdate::create([
             'issue_id' => $issue->id,
-            'organization_id' => $orgId,
-            'updated_by' => auth()->id(),
-        ]));
+            'update_type' => $validated['update_type'],
+            'content' => $validated['description'],
+            'created_by' => auth()->id(),
+        ]);
 
         // Update issue progress if provided
         if (!empty($validated['progress_pct'])) {
-            $issue->update(['progress_pct' => $validated['progress_pct']]);
+            $issue->update(['progress_percentage' => $validated['progress_pct']]);
         }
 
         return back()->with('success', 'Progress update has been added.');
@@ -499,10 +520,9 @@ class IssueController extends Controller
 
         IssueProgressUpdate::create([
             'issue_id' => $issue->id,
-            'organization_id' => $orgId,
             'update_type' => 'milestone',
-            'description' => 'Closure requested: ' . $validated['closure_justification'],
-            'updated_by' => auth()->id(),
+            'content' => 'Closure requested: ' . $validated['closure_justification'],
+            'created_by' => auth()->id(),
         ]);
 
         // Audit trail
@@ -537,10 +557,9 @@ class IssueController extends Controller
 
         IssueProgressUpdate::create([
             'issue_id' => $issue->id,
-            'organization_id' => $orgId,
             'update_type' => 'milestone',
-            'description' => 'Issue closure approved.',
-            'updated_by' => auth()->id(),
+            'content' => 'Issue closure approved.',
+            'created_by' => auth()->id(),
         ]);
 
         // Audit trail
@@ -577,10 +596,9 @@ class IssueController extends Controller
 
         IssueProgressUpdate::create([
             'issue_id' => $issue->id,
-            'organization_id' => $orgId,
             'update_type' => 'milestone',
-            'description' => 'Closure rejected: ' . $validated['rejection_reason'],
-            'updated_by' => auth()->id(),
+            'content' => 'Closure rejected: ' . $validated['rejection_reason'],
+            'created_by' => auth()->id(),
         ]);
 
         return back()->with('success', "Issue closure has been rejected. Issue moved back to IN_PROGRESS.");
@@ -662,13 +680,35 @@ class IssueController extends Controller
     {
         $orgId = auth()->user()->organization_id ?? 1;
 
-        $issues = Issue::where('organization_id', $orgId)
+        $pendingClosures = Issue::where('organization_id', $orgId)
             ->where('issue_status', 'PENDING_CLOSURE')
             ->with(['issueOwner', 'businessUnit'])
             ->orderByDesc('closure_requested_at')
             ->paginate(25);
 
-        return view('risk.issues.closure', compact('issues'));
+        $pendingClosureCount = Issue::where('organization_id', $orgId)
+            ->where('issue_status', 'PENDING_CLOSURE')
+            ->count();
+
+        $closedThisMonth = Issue::where('organization_id', $orgId)
+            ->where('issue_status', 'CLOSED')
+            ->whereBetween('closed_at', [now()->startOfMonth(), now()->endOfMonth()])
+            ->count();
+
+        $returnedCount = Issue::where('organization_id', $orgId)
+            ->whereNotNull('closure_rejected_at')
+            ->where('issue_status', '!=', 'CLOSED')
+            ->count();
+
+        $avgClosureTime = (int) round(Issue::where('organization_id', $orgId)
+            ->where('issue_status', 'CLOSED')
+            ->whereNotNull('closed_at')
+            ->selectRaw('AVG(DATEDIFF(closed_at, created_at)) as avg_days')
+            ->value('avg_days') ?? 0);
+
+        return view('risk.issues.closure', compact(
+            'pendingClosures', 'pendingClosureCount', 'closedThisMonth', 'returnedCount', 'avgClosureTime'
+        ));
     }
 
     /**
@@ -680,6 +720,62 @@ class IssueController extends Controller
         if ($days <= 60) return '31-60 days';
         if ($days <= 90) return '61-90 days';
         return '90+ days';
+    }
+
+    /**
+     * Upload an attachment to an issue.
+     */
+    public function uploadAttachment(Request $request, Issue $issue)
+    {
+        $orgId = auth()->user()->organization_id ?? 1;
+
+        if ($issue->organization_id !== $orgId) {
+            abort(403, 'Unauthorized access to this issue.');
+        }
+
+        $validated = $request->validate([
+            'file' => 'required|file|max:10240|mimes:pdf,doc,docx,xls,xlsx,csv,png,jpg,jpeg,txt,msg,eml,zip',
+            'document_type' => 'nullable|string|max:50',
+            'is_regulatory' => 'nullable|boolean',
+        ]);
+
+        $file = $request->file('file');
+        $path = $file->store("issue-attachments/{$issue->id}", 'local');
+
+        IssueAttachment::create([
+            'issue_id' => $issue->id,
+            'file_name' => $file->getClientOriginalName(),
+            'file_size_bytes' => $file->getSize(),
+            'file_type' => $file->getClientOriginalExtension(),
+            'storage_path' => $path,
+            'document_type' => $validated['document_type'] ?? 'evidence',
+            'is_regulatory' => (bool) ($validated['is_regulatory'] ?? false),
+            'uploaded_by' => auth()->id(),
+        ]);
+
+        return back()->with('success', 'Attachment uploaded successfully.');
+    }
+
+    /**
+     * Soft-delete an issue.
+     */
+    public function destroy(Issue $issue)
+    {
+        $orgId = auth()->user()->organization_id ?? 1;
+
+        if ($issue->organization_id !== $orgId) {
+            abort(403, 'Unauthorized access to this issue.');
+        }
+
+        abort_unless(auth()->user()->can('issue.close') || auth()->user()->hasRole('super-admin'), 403,
+            'You do not have permission to delete issues.');
+
+        \App\Services\AuditTrailService::record($issue, 'delete');
+
+        $issue->delete();
+
+        return redirect()->route('risk.issues.index')
+            ->with('success', "Issue {$issue->issue_reference} has been deleted.");
     }
 
     public function downloadAttachment(Issue $issue, IssueAttachment $attachment)

@@ -142,7 +142,7 @@
             <tr class="{{ $issue->is_overdue ? 'bg-red-50/30' : '' }}">
                 <td>
                     <a href="{{ url('/risk/issues/' . $issue->id) }}" class="text-[#1A365D] font-semibold hover:underline text-xs">
-                        {{ $issue->issue_code ?? '-' }}
+                        {{ $issue->issue_reference ?? '-' }}
                     </a>
                 </td>
                 <td class="max-w-[200px]">
@@ -155,17 +155,17 @@
                 </td>
                 <td class="text-xs">
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-[11px] font-medium">
-                        {{ $issue->source ?? '-' }}
+                        {{ $issue->issue_source ?? '-' }}
                     </span>
                 </td>
                 <td><x-risk-badge :rating="$issue->priority ?? 'medium'" /></td>
-                <td><x-status-badge :status="$issue->status ?? 'open'" /></td>
+                <td><x-status-badge :status="str_replace('_', ' ', $issue->issue_status ?? 'open')" /></td>
                 <td class="text-xs text-gray-600">{{ $issue->owner->name ?? '-' }}</td>
                 <td class="text-xs {{ $issue->is_overdue ? 'text-red-600 font-semibold' : 'text-gray-500' }}">
-                    {{ $issue->due_date?->format('d M Y') ?? '-' }}
+                    {{ $issue->target_resolution_date?->format('d M Y') ?? '-' }}
                 </td>
                 <td class="text-xs text-gray-500">
-                    @if ($issue->status !== 'closed' && $issue->created_at)
+                    @if ($issue->issue_status !== 'CLOSED' && $issue->created_at)
                         {{ $issue->created_at->diffInDays(now()) }}d
                     @else
                         -

@@ -11,15 +11,9 @@ class IssueProgressUpdate extends Model
 
     protected $fillable = [
         'issue_id',
-        'update_date',
-        'progress_pct',
-        'status',
-        'notes',
+        'update_type',
+        'content',
         'created_by',
-    ];
-
-    protected $casts = [
-        'update_date' => 'date',
     ];
 
     /* ------------------------------------------------------------------ */

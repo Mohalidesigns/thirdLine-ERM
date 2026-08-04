@@ -12,20 +12,17 @@ class DomainEvent extends Model
     protected $fillable = [
         'organization_id',
         'event_type',
-        'aggregate_type',
-        'aggregate_id',
+        'source_module',
+        'source_id',
         'payload',
-        'actor_id',
-        'actor_type',
-        'ip_address',
-        'user_agent',
-        'occurred_at',
+        'status',
+        'retry_count',
+        'error_message',
         'processed_at',
     ];
 
     protected $casts = [
         'payload'      => 'array',
-        'occurred_at'  => 'datetime',
         'processed_at' => 'datetime',
     ];
 

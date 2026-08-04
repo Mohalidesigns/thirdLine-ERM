@@ -82,6 +82,17 @@ class DataImportController extends Controller
         $errorCount   = 0;
         $errors       = [];
 
+        if (! is_readable($filePath)) {
+            $import->update([
+                'status' => 'failed',
+                'errors' => ['Uploaded file could not be read from storage.'],
+                'completed_at' => now(),
+            ]);
+
+            return redirect()->route('risk.imports.index')
+                ->with('error', 'Import failed: the uploaded file could not be read.');
+        }
+
         if (($handle = fopen($filePath, 'r')) !== false) {
             $headers = fgetcsv($handle);
             $rowNum  = 1;

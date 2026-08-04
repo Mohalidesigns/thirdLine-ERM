@@ -64,6 +64,7 @@
                         type="text"
                         id="org_name"
                         name="org_name"
+                        value="{{ old('org_name', $orgSettings['org_name'] ?? ($organization->name ?? '')) }}"
                         placeholder="Enter organization name"
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     >
@@ -75,6 +76,7 @@
                         type="text"
                         id="org_code"
                         name="org_code"
+                        value="{{ old('org_code', $orgSettings['org_code'] ?? ($organization->cbn_institution_code ?? '')) }}"
                         placeholder="e.g., ORG-001"
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     >
@@ -87,6 +89,7 @@
                             type="text"
                             id="industry"
                             name="industry"
+                            value="{{ old('industry', $orgSettings['industry'] ?? 'Financial Services') }}"
                             placeholder="e.g., Financial Services"
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                         >
@@ -98,6 +101,7 @@
                             type="text"
                             id="country"
                             name="country"
+                            value="{{ old('country', $orgSettings['country'] ?? 'Nigeria') }}"
                             placeholder="Nigeria"
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                         >
@@ -110,6 +114,7 @@
                         type="text"
                         id="regulatory_framework"
                         name="regulatory_framework"
+                        value="{{ old('regulatory_framework', $orgSettings['regulatory_framework'] ?? 'Basel III, CBN ORMS') }}"
                         placeholder="e.g., Basel III, CBN ORMS"
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     >
@@ -140,6 +145,7 @@
                                 name="critical_threshold"
                                 min="0"
                                 max="100"
+                                value="{{ old('critical_threshold', $riskThresholds['critical_threshold'] ?? 80) }}"
                                 placeholder="80"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                             >
@@ -156,6 +162,7 @@
                                 name="high_threshold"
                                 min="0"
                                 max="100"
+                                value="{{ old('high_threshold', $riskThresholds['high_threshold'] ?? 60) }}"
                                 placeholder="60"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                             >
@@ -172,6 +179,7 @@
                                 name="medium_threshold"
                                 min="0"
                                 max="100"
+                                value="{{ old('medium_threshold', $riskThresholds['medium_threshold'] ?? 40) }}"
                                 placeholder="40"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                             >
@@ -188,6 +196,7 @@
                                 name="low_threshold"
                                 min="0"
                                 max="100"
+                                value="{{ old('low_threshold', $riskThresholds['low_threshold'] ?? 20) }}"
                                 placeholder="20"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                             >
@@ -205,6 +214,7 @@
                             name="capital_requirement_percentage"
                             min="0"
                             max="100"
+                            value="{{ old('capital_requirement_percentage', $riskThresholds['capital_requirement_percentage'] ?? 10) }}"
                             placeholder="10"
                             step="0.01"
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -235,10 +245,11 @@
                         name="scoring_methodology"
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     >
+                        @php $smVal = old('scoring_methodology', $riskSettings['scoring_methodology'] ?? 'basic'); @endphp
                         <option value="">Select methodology...</option>
-                        <option value="basic">Basic (Probability x Impact)</option>
-                        <option value="advanced">Advanced (Weighted factors)</option>
-                        <option value="custom">Custom</option>
+                        <option value="basic" {{ $smVal === 'basic' ? 'selected' : '' }}>Basic (Probability x Impact)</option>
+                        <option value="advanced" {{ $smVal === 'advanced' ? 'selected' : '' }}>Advanced (Weighted factors)</option>
+                        <option value="custom" {{ $smVal === 'custom' ? 'selected' : '' }}>Custom</option>
                     </select>
                 </div>
 
@@ -251,6 +262,7 @@
                             name="probability_scale"
                             min="1"
                             max="10"
+                            value="{{ old('probability_scale', $riskSettings['probability_scale'] ?? 5) }}"
                             placeholder="5"
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                         >
@@ -264,6 +276,7 @@
                             name="impact_scale"
                             min="1"
                             max="10"
+                            value="{{ old('impact_scale', $riskSettings['impact_scale'] ?? 5) }}"
                             placeholder="5"
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                         >
@@ -277,10 +290,11 @@
                         name="calculation_method"
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     >
+                        @php $cmVal = old('calculation_method', $riskSettings['calculation_method'] ?? 'multiplication'); @endphp
                         <option value="">Select method...</option>
-                        <option value="multiplication">Multiplication</option>
-                        <option value="weighted_average">Weighted Average</option>
-                        <option value="matrix">Matrix-based</option>
+                        <option value="multiplication" {{ $cmVal === 'multiplication' ? 'selected' : '' }}>Multiplication</option>
+                        <option value="weighted_average" {{ $cmVal === 'weighted_average' ? 'selected' : '' }}>Weighted Average</option>
+                        <option value="matrix" {{ $cmVal === 'matrix' ? 'selected' : '' }}>Matrix-based</option>
                     </select>
                 </div>
 
@@ -291,11 +305,12 @@
                         name="review_frequency"
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     >
+                        @php $rfVal = old('review_frequency', $riskSettings['review_frequency'] ?? 'quarterly'); @endphp
                         <option value="">Select frequency...</option>
-                        <option value="quarterly">Quarterly</option>
-                        <option value="semi-annual">Semi-Annual</option>
-                        <option value="annual">Annual</option>
-                        <option value="continuous">Continuous</option>
+                        <option value="quarterly" {{ $rfVal === 'quarterly' ? 'selected' : '' }}>Quarterly</option>
+                        <option value="semi-annual" {{ $rfVal === 'semi-annual' ? 'selected' : '' }}>Semi-Annual</option>
+                        <option value="annual" {{ $rfVal === 'annual' ? 'selected' : '' }}>Annual</option>
+                        <option value="continuous" {{ $rfVal === 'continuous' ? 'selected' : '' }}>Continuous</option>
                     </select>
                 </div>
 
@@ -320,6 +335,7 @@
                         type="email"
                         id="notification_email"
                         name="notification_email"
+                        value="{{ old('notification_email', $notificationPrefs['notification_email'] ?? auth()->user()->email) }}"
                         placeholder="admin@example.com"
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     >
@@ -331,6 +347,7 @@
                             type="checkbox"
                             name="critical_risk_notification"
                             value="1"
+                            {{ old('critical_risk_notification', $notificationPrefs['critical_risk_notification'] ?? true) ? 'checked' : '' }}
                             class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
                         >
                         <span class="text-sm font-medium text-gray-900">Notify on Critical Risk Detection</span>
@@ -341,6 +358,7 @@
                             type="checkbox"
                             name="approval_required_notification"
                             value="1"
+                            {{ old('approval_required_notification', $notificationPrefs['approval_required_notification'] ?? true) ? 'checked' : '' }}
                             class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
                         >
                         <span class="text-sm font-medium text-gray-900">Notify on Approval Required</span>
@@ -351,6 +369,7 @@
                             type="checkbox"
                             name="deadline_approaching_notification"
                             value="1"
+                            {{ old('deadline_approaching_notification', $notificationPrefs['deadline_approaching_notification'] ?? true) ? 'checked' : '' }}
                             class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
                         >
                         <span class="text-sm font-medium text-gray-900">Notify on Approaching Deadline</span>
@@ -361,6 +380,7 @@
                             type="checkbox"
                             name="report_ready_notification"
                             value="1"
+                            {{ old('report_ready_notification', $notificationPrefs['report_ready_notification'] ?? false) ? 'checked' : '' }}
                             class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
                         >
                         <span class="text-sm font-medium text-gray-900">Notify When Report is Ready</span>

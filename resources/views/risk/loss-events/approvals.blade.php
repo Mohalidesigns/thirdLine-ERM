@@ -46,35 +46,35 @@
                 <div class="flex items-start justify-between">
                     <div class="flex-1">
                         <div class="flex items-center gap-3 mb-2">
-                            <a href="{{ url('/risk/loss-events/' . $approval->lossEvent->id) }}" class="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded hover:bg-gray-200">
-                                {{ $approval->lossEvent->reference ?? '-' }}
+                            <a href="{{ route('risk.loss-events.show', $approval) }}" class="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded hover:bg-gray-200">
+                                {{ $approval->event_reference ?? '-' }}
                             </a>
-                            <x-risk-badge :rating="$approval->lossEvent->severity ?? 'low'" />
-                            @if ($approval->lossEvent->cbn_reportable)
+                            <x-risk-badge :rating="$approval->severity ?? 'low'" />
+                            @if ($approval->cbn_reportable)
                                 <span class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-red-50 text-red-600 text-[10px] font-bold">
                                     <span class="material-symbols-outlined text-xs">flag</span> CBN
                                 </span>
                             @endif
                         </div>
                         <h3 class="text-sm font-semibold text-[#1A365D] mb-1">
-                            <a href="{{ url('/risk/loss-events/' . $approval->lossEvent->id) }}" class="hover:underline">
-                                {{ $approval->lossEvent->title }}
+                            <a href="{{ route('risk.loss-events.show', $approval) }}" class="hover:underline">
+                                {{ $approval->title }}
                             </a>
                         </h3>
-                        <p class="text-xs text-gray-500 line-clamp-2 mb-3">{{ Str::limit($approval->lossEvent->description, 150) }}</p>
+                        <p class="text-xs text-gray-500 line-clamp-2 mb-3">{{ Str::limit($approval->description, 150) }}</p>
 
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                             <div>
                                 <span class="text-gray-400 block">Gross Loss</span>
-                                <span class="font-semibold text-red-600">₦{{ number_format($approval->lossEvent->gross_loss_amount ?? 0, 2) }}</span>
+                                <span class="font-semibold text-red-600">₦{{ number_format(($approval->gross_loss_amount_kobo ?? 0) / 100, 2) }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-400 block">Business Unit</span>
-                                <span class="font-medium text-gray-700">{{ $approval->lossEvent->businessUnit->name ?? '-' }}</span>
+                                <span class="font-medium text-gray-700">{{ $approval->businessUnit->name ?? '-' }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-400 block">Submitted By</span>
-                                <span class="font-medium text-gray-700">{{ $approval->submittedBy->name ?? '-' }}</span>
+                                <span class="font-medium text-gray-700">{{ $approval->reporter->name ?? '-' }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-400 block">Submitted</span>
@@ -86,8 +86,9 @@
 
                 {{-- Action Buttons --}}
                 <div class="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100">
-                    <form method="POST" action="{{ url('/risk/loss-events/approvals/' . $approval->id . '/approve') }}" class="inline">
+                    <form method="POST" action="{{ route('risk.loss-events.submit-approval', $approval) }}" class="inline">
                         @csrf
+                        <input type="hidden" name="decision" value="approved">
                         <button type="submit" class="flex items-center gap-1 px-4 py-2 bg-[#2D7D46] text-white text-xs font-semibold rounded-lg hover:bg-[#236B38] transition">
                             <span class="material-symbols-outlined text-sm">check</span>
                             Approve
@@ -99,14 +100,15 @@
                         <span class="material-symbols-outlined text-sm">undo</span>
                         Return
                     </button>
-                    <form method="POST" action="{{ url('/risk/loss-events/approvals/' . $approval->id . '/escalate') }}" class="inline">
+                    <form method="POST" action="{{ route('risk.loss-events.submit-approval', $approval) }}" class="inline">
                         @csrf
+                        <input type="hidden" name="decision" value="escalated">
                         <button type="submit" class="flex items-center gap-1 px-4 py-2 border border-red-300 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition">
                             <span class="material-symbols-outlined text-sm">arrow_upward</span>
                             Escalate
                         </button>
                     </form>
-                    <a href="{{ url('/risk/loss-events/' . $approval->lossEvent->id) }}"
+                    <a href="{{ route('risk.loss-events.show', $approval) }}"
                        class="ml-auto flex items-center gap-1 text-xs text-[#1A365D] font-medium hover:underline">
                         View Full Details
                         <span class="material-symbols-outlined text-sm">arrow_forward</span>
@@ -115,10 +117,11 @@
 
                 {{-- Return Comment Form (hidden) --}}
                 <div id="return-{{ $approval->id }}" class="hidden mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <form method="POST" action="{{ url('/risk/loss-events/approvals/' . $approval->id . '/return') }}">
+                    <form method="POST" action="{{ route('risk.loss-events.submit-approval', $approval) }}">
                         @csrf
+                        <input type="hidden" name="decision" value="rejected">
                         <label class="block text-xs font-semibold text-yellow-700 mb-1.5">Return Comments</label>
-                        <textarea name="comments" rows="3" required
+                        <textarea name="rejection_reason" rows="3" required
                                   class="w-full text-sm border border-yellow-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-200 focus:border-yellow-400"
                                   placeholder="Please specify the reason for returning this event..."></textarea>
                         <div class="flex items-center gap-2 mt-2">

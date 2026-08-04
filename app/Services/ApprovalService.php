@@ -246,6 +246,24 @@ class ApprovalService
     }
 
     /**
+     * Get paginated approval history for the history screen
+     */
+    public function getHistoryPaginated(int $orgId, ?string $entityType = null, int $perPage = 25): \Illuminate\Contracts\Pagination\LengthAwarePaginator
+    {
+        $query = ApprovalRequest::where('organization_id', $orgId)
+            ->whereIn('status', ['approved', 'rejected'])
+            ->with(['requestedBy', 'reviewedBy', 'organization']);
+
+        if ($entityType) {
+            $query->where('entity_type', $entityType);
+        }
+
+        return $query->orderByDesc('reviewed_at')
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    /**
      * Get approval statistics for dashboard
      */
     public function getStatistics(int $orgId): array

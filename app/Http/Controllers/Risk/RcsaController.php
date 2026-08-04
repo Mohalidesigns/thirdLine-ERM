@@ -184,7 +184,21 @@ class RcsaController extends Controller
 
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
 
-        return view('risk.rcsa.controls', compact('controls', 'businessUnits'));
+        // KPI tile counts (unfiltered, organization-wide)
+        $effectivenessCounts = Control::where('organization_id', $orgId)
+            ->selectRaw('effectiveness_rating, COUNT(*) as c')
+            ->groupBy('effectiveness_rating')
+            ->pluck('c', 'effectiveness_rating');
+
+        $totalControls       = (int) $effectivenessCounts->sum();
+        $effectiveControls   = (int) ($effectivenessCounts['effective'] ?? 0);
+        $partialControls     = (int) ($effectivenessCounts['partially_effective'] ?? 0);
+        $ineffectiveControls = (int) ($effectivenessCounts['ineffective'] ?? 0);
+
+        return view('risk.rcsa.controls', compact(
+            'controls', 'businessUnits',
+            'totalControls', 'effectiveControls', 'partialControls', 'ineffectiveControls'
+        ));
     }
 
     /**

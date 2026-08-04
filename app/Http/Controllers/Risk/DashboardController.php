@@ -61,8 +61,9 @@ class DashboardController extends Controller
         // Capital Adequacy Ratio from latest ICAAP
         $latestIcaap = IcaapAssessment::where('organization_id', $orgId)
             ->orderByDesc('created_at')->first();
+        // car_actual is already stored as a percentage (e.g. 16.67)
         $carPercentage = $latestIcaap
-            ? number_format(($latestIcaap->car_percentage ?? ($latestIcaap->car_actual ?? 0) * 100), 1)
+            ? number_format((float) ($latestIcaap->car_actual ?? 0), 1)
             : null;
 
         // ──────────────────────────────────────────────────────────

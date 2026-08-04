@@ -55,7 +55,7 @@
                     <div class="flex-1">
                         <div class="flex items-center gap-3 mb-2">
                             <a href="{{ url('/risk/issues/' . $issue->id) }}" class="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded hover:bg-gray-200">
-                                {{ $issue->reference }}
+                                {{ $issue->issue_reference }}
                             </a>
                             <x-risk-badge :rating="$issue->priority ?? 'medium'" />
                             @if ($issue->cbn_examination_finding)
@@ -72,7 +72,7 @@
                         <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-xs">
                             <div>
                                 <span class="text-gray-400 block">Source</span>
-                                <span class="font-medium text-gray-700">{{ $issue->source ?? '-' }}</span>
+                                <span class="font-medium text-gray-700">{{ $issue->issue_source ?? '-' }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-400 block">Owner</span>
@@ -90,18 +90,18 @@
                                 <span class="text-gray-400 block">Completion</span>
                                 <div class="flex items-center gap-2 mt-0.5">
                                     <div class="w-16 bg-gray-200 rounded-full h-1.5">
-                                        <div class="h-1.5 rounded-full bg-green-500" style="width: {{ min($issue->completion_percentage ?? 0, 100) }}%"></div>
+                                        <div class="h-1.5 rounded-full bg-green-500" style="width: {{ min($issue->progress_percentage ?? 0, 100) }}%"></div>
                                     </div>
-                                    <span class="font-medium text-gray-700">{{ $issue->completion_percentage ?? 0 }}%</span>
+                                    <span class="font-medium text-gray-700">{{ $issue->progress_percentage ?? 0 }}%</span>
                                 </div>
                             </div>
                         </div>
 
                         {{-- Closure Evidence --}}
-                        @if ($issue->closure_evidence)
+                        @if ($issue->closure_justification)
                             <div class="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
                                 <div class="text-[10px] font-semibold text-blue-700 uppercase mb-1">Closure Evidence / Notes</div>
-                                <p class="text-xs text-blue-800">{{ Str::limit($issue->closure_evidence, 200) }}</p>
+                                <p class="text-xs text-blue-800">{{ Str::limit($issue->closure_justification, 200) }}</p>
                             </div>
                         @endif
                     </div>
@@ -109,7 +109,7 @@
 
                 {{-- Action Buttons --}}
                 <div class="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100">
-                    <form method="POST" action="{{ url('/risk/issues/' . $issue->id . '/verify-closure') }}" class="inline">
+                    <form method="POST" action="{{ route('risk.issues.approve-closure', $issue) }}" class="inline">
                         @csrf
                         <button type="submit" class="flex items-center gap-1 px-4 py-2 bg-[#2D7D46] text-white text-xs font-semibold rounded-lg hover:bg-[#236B38] transition"
                                 onclick="return confirm('Verify and close this issue?')">
@@ -132,10 +132,10 @@
 
                 {{-- Return Comment Form (hidden) --}}
                 <div id="return-{{ $issue->id }}" class="hidden mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <form method="POST" action="{{ url('/risk/issues/' . $issue->id . '/return-closure') }}">
+                    <form method="POST" action="{{ route('risk.issues.reject-closure', $issue) }}">
                         @csrf
                         <label class="block text-xs font-semibold text-yellow-700 mb-1.5">Return Comments</label>
-                        <textarea name="return_comments" rows="3" required
+                        <textarea name="rejection_reason" rows="3" required
                                   class="w-full text-sm border border-yellow-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-200 focus:border-yellow-400"
                                   placeholder="Explain why this issue is being returned for rework..."></textarea>
                         <div class="flex items-center gap-2 mt-2">

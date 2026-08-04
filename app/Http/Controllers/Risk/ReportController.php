@@ -12,6 +12,10 @@ use App\Models\TreatmentPlan;
 use App\Models\KeyRiskIndicator;
 use App\Models\Control;
 use App\Models\BusinessUnit;
+use App\Models\IcaapAssessment;
+use App\Models\ApprovalRequest;
+use App\Models\RegulatoryDeadline;
+use App\Models\RegulatoryCircular;
 use App\Services\RegulatoryReportService;
 use App\Services\RiskAppetiteService;
 use Illuminate\Http\Request;
@@ -176,10 +180,84 @@ class ReportController extends Controller
             'current' => $risksByCategory->pluck('avg_inherent')->map(fn($v) => round($v / 5, 1))->toArray(),
         ];
 
+        // Real capital adequacy ratio from the latest ICAAP assessment
+        $latestIcaap = IcaapAssessment::where('organization_id', $orgId)
+            ->orderByDesc('created_at')
+            ->first();
+        $capitalAdequacyRatio = $latestIcaap !== null
+            ? round((float) $latestIcaap->car_actual, 1)
+            : null;
+
+        // Data-driven executive summary
+        $highRisks = Risk::where('organization_id', $orgId)->where('status', 'active')
+            ->where('inherent_rating', 'High')->count();
+        $openIssues = Issue::where('organization_id', $orgId)
+            ->whereIn('issue_status', ['OPEN', 'IN_PROGRESS', 'OVERDUE'])->count();
+        $ytdLosses = (float) LossEvent::where('organization_id', $orgId)
+            ->whereYear('date_of_loss', now()->year)
+            ->sum('net_loss_amount');
+
+        $ytdLossDisplay = $ytdLosses >= 1000000000
+            ? '₦' . number_format($ytdLosses / 1000000000, 2) . 'bn'
+            : '₦' . number_format($ytdLosses / 1000000, 1) . 'm';
+
+        $executiveSummary = sprintf(
+            'The organisation currently carries %d active risks, of which %d are rated Critical and %d High. '
+            . 'Appetite utilization stands at %d%% and overall control effectiveness at %s%%. '
+            . 'Year-to-date operational losses total %s across recorded loss events, and %d issues remain open or in progress. ',
+            $totalActiveRisks, $criticalRisks, $highRisks,
+            $appetiteUtilization, $controlEffectiveness, $ytdLossDisplay, $openIssues
+        );
+        $executiveSummary .= $capitalAdequacyRatio !== null
+            ? sprintf(
+                'Capital adequacy remains %s the regulatory minimum with a CAR of %s%% (CBN minimum: %s%%, period %s). ',
+                $capitalAdequacyRatio >= (float) ($latestIcaap->cbn_minimum_car ?? 10) ? 'above' : 'below',
+                $capitalAdequacyRatio,
+                rtrim(rtrim(number_format((float) ($latestIcaap->cbn_minimum_car ?? 10), 2), '0'), '.'),
+                $latestIcaap->period
+            )
+            : 'No ICAAP assessment is on record for the current period. ';
+        $executiveSummary .= $criticalRisks > 0
+            ? sprintf('%d critical risk%s require%s Board-level attention.', $criticalRisks, $criticalRisks === 1 ? '' : 's', $criticalRisks === 1 ? 's' : '')
+            : 'No critical risks currently require Board-level attention.';
+
+        // Key decisions / actions required from the Board:
+        // overdue treatment plans (real deadlines) plus pending approval requests.
+        $overdueTreatments = TreatmentPlan::where('organization_id', $orgId)
+            ->whereNotIn('status', ['completed', 'cancelled'])
+            ->whereNotNull('target_date')
+            ->where('target_date', '<', now())
+            ->with('owner')
+            ->orderBy('target_date')
+            ->limit(3)
+            ->get()
+            ->map(fn ($p) => (object) [
+                'title' => 'Overdue treatment plan: ' . ($p->title ?? $p->treatment_code),
+                'description' => 'Progress at ' . $p->progress . '% with the target date passed. Owner: ' . ($p->owner->name ?? 'Unassigned') . '.',
+                'priority' => ucfirst($p->priority ?? 'high'),
+                'due_date' => $p->target_date?->format('d M Y'),
+            ]);
+
+        $pendingApprovals = ApprovalRequest::where('organization_id', $orgId)
+            ->pending()
+            ->orderBy('requested_at')
+            ->limit(3)
+            ->get()
+            ->map(fn ($a) => (object) [
+                'title' => 'Pending approval: ' . ucwords(str_replace('_', ' ', $a->action)),
+                'description' => ucwords(str_replace('_', ' ', $a->entity_type)) . ' #' . $a->entity_id
+                    . ' has been awaiting a decision since ' . ($a->requested_at?->format('d M Y') ?? '-') . '.',
+                'priority' => 'High',
+                'due_date' => $a->requested_at?->format('d M Y'),
+            ]);
+
+        $boardActions = $overdueTreatments->concat($pendingApprovals)->take(6)->values();
+
         return view('risk.reports.board', compact(
             'criticalRisksForBoard', 'criticalRisks', 'appetiteUtilization',
             'controlEffectiveness', 'riskProfileScore',
-            'profileChartData', 'appetiteChartData'
+            'profileChartData', 'appetiteChartData',
+            'executiveSummary', 'capitalAdequacyRatio', 'boardActions'
         ));
     }
 
@@ -228,9 +306,48 @@ class ReportController extends Controller
         $kriCompRate = 100 - $kriBreachRate;
         $overallCompliance = round(($controlEffRate + $kriCompRate + $appetiteCompRate) / 3);
 
-        $pendingReturns = 0;
-        $overdueItems = 0;
-        $cbnDirectives = 0;
+        // Regulatory returns schedule (deadlines + filing status)
+        $deadlines = RegulatoryDeadline::where('organization_id', $orgId)
+            ->with(['filings.filer'])
+            ->orderBy('deadline_date')
+            ->get();
+
+        $regulatoryReturns = $deadlines->map(function ($d) {
+            $latestFiling = $d->filings->sortByDesc('filing_date')->first();
+            $status = $d->status;
+            if ($latestFiling && $latestFiling->status === 'submitted') {
+                $status = 'submitted';
+            } elseif ($d->isOverdue()) {
+                $status = 'overdue';
+            }
+
+            return (object) [
+                'name' => $d->title,
+                'regulator' => $d->regulator ?? 'CBN',
+                'frequency' => ucfirst($d->frequency ?? '-'),
+                'due_date' => $d->deadline_date?->format('d M Y'),
+                'status' => $status,
+                'filed_by' => $latestFiling?->filer?->name ?? '-',
+            ];
+        });
+
+        // Active regulator directives / circulars
+        $circulars = RegulatoryCircular::where('organization_id', $orgId)
+            ->orderByDesc('date_issued')
+            ->get();
+
+        $directives = $circulars->map(fn ($c) => (object) [
+            'reference' => $c->circular_ref,
+            'title' => $c->title,
+            'issued_date' => $c->date_issued?->format('d M Y'),
+            'deadline' => $c->effective_date?->format('d M Y'),
+            'status' => $c->compliance_status ?? 'pending',
+            'impact' => $c->impact_level ?? 'medium',
+        ]);
+
+        $pendingReturns = $regulatoryReturns->whereNotIn('status', ['submitted', 'not_applicable', 'overdue'])->count();
+        $overdueItems = $regulatoryReturns->where('status', 'overdue')->count();
+        $cbnDirectives = $circulars->where('regulator', 'CBN')->count();
 
         // ORMS scores derived from available data
         $ormsGovernance = $appetiteCompRate > 0 ? min(round($appetiteCompRate * 1.05), 100) : 85;
@@ -248,7 +365,8 @@ class ReportController extends Controller
             'year', 'quarter',
             'overallCompliance', 'pendingReturns', 'overdueItems', 'cbnDirectives',
             'ormsGovernance', 'ormsAppetite', 'ormsIdentification', 'ormsMonitoring',
-            'ormsMitigation', 'ormsCapital', 'ormsBCM', 'ormsStress'
+            'ormsMitigation', 'ormsCapital', 'ormsBCM', 'ormsStress',
+            'regulatoryReturns', 'directives'
         ));
     }
 

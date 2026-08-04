@@ -69,8 +69,8 @@
                     @forelse (($rcaEvents ?? []) as $event)
                         <tr>
                             <td>
-                                <a href="{{ url('/risk/loss-events/' . $event->id) }}" class="text-[#1A365D] font-semibold hover:underline text-xs">
-                                    {{ $event->reference }}
+                                <a href="{{ route('risk.loss-events.show', $event) }}" class="text-[#1A365D] font-semibold hover:underline text-xs">
+                                    {{ $event->event_reference }}
                                 </a>
                             </td>
                             <td class="max-w-[200px]">
@@ -78,13 +78,13 @@
                             </td>
                             <td><x-risk-badge :rating="$event->severity ?? 'low'" /></td>
                             <td class="font-semibold text-sm">₦{{ number_format($event->gross_loss_amount ?? 0, 2) }}</td>
-                            <td><x-status-badge :status="$event->rca_status ?? 'pending'" /></td>
-                            <td class="text-xs text-gray-600 max-w-[200px] truncate">{{ $event->root_cause_summary ?? 'Not yet determined' }}</td>
+                            <td><x-status-badge :status="$event->rca ? ($event->rca->status === 'approved' ? 'completed' : $event->rca->status) : 'pending'" /></td>
+                            <td class="text-xs text-gray-600 max-w-[200px] truncate">{{ $event->rca->root_cause_statement ?? $event->root_cause_summary ?? 'Not yet determined' }}</td>
                             <td>
-                                <a href="{{ url('/risk/loss-events/' . $event->id . '?tab=rca') }}"
+                                <a href="{{ route('risk.loss-events.show', ['loss_event' => $event, 'tab' => 'rca']) }}"
                                    class="flex items-center gap-1 text-xs text-[#1A365D] font-medium hover:underline">
                                     <span class="material-symbols-outlined text-sm">psychology</span>
-                                    {{ $event->rca_status === 'completed' ? 'View RCA' : 'Start RCA' }}
+                                    {{ $event->rca ? 'View RCA' : 'Start RCA' }}
                                 </a>
                             </td>
                         </tr>
@@ -113,7 +113,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Root Cause Categories
-    const rcaCatData = @json($rcaCategoryData ?? ['labels' => ['People', 'Process', 'Systems', 'External', 'Governance'], 'values' => [0, 0, 0, 0, 0]]);
+    const rcaCatData = {!! json_encode($rcaCategoryData ?? ['labels' => ['People', 'Process', 'Systems', 'External', 'Governance'], 'values' => [0, 0, 0, 0, 0]]) !!};
     new Chart(document.getElementById('rcaCategoryChart'), {
         type: 'bar',
         data: {
@@ -138,7 +138,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // RCA Status
-    const rcaStatusData = @json($rcaStatusData ?? ['labels' => ['Completed', 'In Progress', 'Pending'], 'values' => [0, 0, 0]]);
+    const rcaStatusData = {!! json_encode($rcaStatusData ?? ['labels' => ['Completed', 'In Progress', 'Pending'], 'values' => [0, 0, 0]]) !!};
     new Chart(document.getElementById('rcaStatusChart'), {
         type: 'doughnut',
         data: {

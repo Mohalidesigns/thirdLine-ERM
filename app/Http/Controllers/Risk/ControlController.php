@@ -190,6 +190,9 @@ class ControlController extends Controller
         // Audit trail
         \App\Services\AuditTrailService::recordChanges($control, $original);
 
+        $changedFields = array_keys(array_diff_assoc($control->getAttributes(), $original));
+        \App\Events\ControlUpdated::dispatch($control, $changedFields);
+
         return redirect()->route('risk.controls.show', $control)
             ->with('success', "Control {$control->control_code} has been updated.");
     }

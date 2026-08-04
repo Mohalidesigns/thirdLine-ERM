@@ -1,13 +1,13 @@
 @extends('layouts.app')
 
-@section('title', ($issue->reference ?? 'Issue') . ' - GRC Platform')
+@section('title', ($issue->issue_reference ?? 'Issue') . ' - GRC Platform')
 
 @section('breadcrumbs')
     <span>Risk Management</span>
     <span class="text-gray-300">/</span>
     <span>Issues & Findings</span>
     <span class="text-gray-300">/</span>
-    <span class="text-[#1A365D] font-semibold">{{ $issue->reference ?? 'Detail' }}</span>
+    <span class="text-[#1A365D] font-semibold">{{ $issue->issue_reference ?? 'Detail' }}</span>
 @endsection
 
 @section('content')
@@ -29,9 +29,9 @@
     <div class="flex items-start justify-between mb-6">
         <div>
             <div class="flex items-center gap-3 mb-2">
-                <span class="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{{ $issue->reference }}</span>
+                <span class="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{{ $issue->issue_reference }}</span>
                 <x-risk-badge :rating="$issue->priority ?? 'medium'" />
-                <x-status-badge :status="$issue->status ?? 'open'" />
+                <x-status-badge :status="str_replace('_', ' ', $issue->issue_status ?? 'open')" />
                 @if ($issue->is_overdue)
                     <span class="badge bg-red-100 text-red-700">OVERDUE</span>
                 @endif
@@ -41,9 +41,9 @@
             </div>
             <h1 class="text-xl font-bold text-[#1A365D]">{{ $issue->title }}</h1>
             <p class="text-sm text-gray-500 mt-1">
-                Source: {{ $issue->source ?? '-' }} &middot;
-                Identified: {{ $issue->date_identified?->format('d M Y') ?? '-' }} &middot;
-                Owner: {{ $issue->owner->name ?? '-' }}
+                Source: {{ $issue->issue_source ? ucwords(str_replace('_', ' ', $issue->issue_source)) : '-' }} &middot;
+                Identified: {{ $issue->created_at?->format('d M Y') ?? '-' }} &middot;
+                Owner: {{ $issue->issueOwner->name ?? '-' }}
             </p>
         </div>
         <div class="flex items-center gap-2">
@@ -71,7 +71,7 @@
             <div class="space-y-3">
                 <div class="flex justify-between text-xs">
                     <span class="text-gray-500">Category</span>
-                    <span class="font-medium text-gray-800">{{ $issue->category ?? '-' }}</span>
+                    <span class="font-medium text-gray-800">{{ $issue->issue_category ? ucwords(strtolower(str_replace('_', ' ', $issue->issue_category))) : '-' }}</span>
                 </div>
                 <div class="flex justify-between text-xs">
                     <span class="text-gray-500">Business Unit</span>
@@ -79,7 +79,7 @@
                 </div>
                 <div class="flex justify-between text-xs">
                     <span class="text-gray-500">Days Open</span>
-                    <span class="font-medium text-gray-800">{{ $issue->created_at ? $issue->created_at->diffInDays(now()) . ' days' : '-' }}</span>
+                    <span class="font-medium text-gray-800">{{ $issue->created_at ? (int) $issue->created_at->diffInDays(now()) . ' days' : '-' }}</span>
                 </div>
                 <div class="flex justify-between text-xs">
                     <span class="text-gray-500">Escalation Level</span>
@@ -102,20 +102,20 @@
                 <div class="flex justify-between text-xs">
                     <span class="text-gray-500">Due Date</span>
                     <span class="font-medium {{ $issue->is_overdue ? 'text-red-600' : 'text-gray-800' }}">
-                        {{ $issue->due_date?->format('d M Y') ?? '-' }}
+                        {{ ($issue->remediation_due_date ?? $issue->target_resolution_date)?->format('d M Y') ?? '-' }}
                     </span>
                 </div>
                 <div class="flex justify-between text-xs">
                     <span class="text-gray-500">Target Completion</span>
-                    <span class="font-medium text-gray-800">{{ $issue->target_completion_date?->format('d M Y') ?? '-' }}</span>
+                    <span class="font-medium text-gray-800">{{ $issue->target_resolution_date?->format('d M Y') ?? '-' }}</span>
                 </div>
                 <div class="flex justify-between text-xs">
                     <span class="text-gray-500">Completion %</span>
-                    <span class="font-medium text-gray-800">{{ $issue->completion_percentage ?? 0 }}%</span>
+                    <span class="font-medium text-gray-800">{{ $issue->progress_percentage ?? 0 }}%</span>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
-                    <div class="h-2 rounded-full {{ ($issue->completion_percentage ?? 0) >= 100 ? 'bg-green-500' : 'bg-[#1A365D]' }}"
-                         style="width: {{ min($issue->completion_percentage ?? 0, 100) }}%"></div>
+                    <div class="h-2 rounded-full {{ ($issue->progress_percentage ?? 0) >= 100 ? 'bg-green-500' : 'bg-[#1A365D]' }}"
+                         style="width: {{ min($issue->progress_percentage ?? 0, 100) }}%"></div>
                 </div>
             </div>
         </div>
@@ -201,13 +201,61 @@
         <div id="itab-remediation" class="issue-tab-panel p-6 hidden">
             <div class="flex items-center justify-between mb-4">
                 <h4 class="text-sm font-semibold text-[#1A365D]">Remediation Actions</h4>
-                @if ($issue->status !== 'closed')
-                    <button type="button" class="flex items-center gap-1 px-3 py-1.5 bg-[#1A365D] text-white text-xs rounded-lg hover:bg-[#2D4A7A]">
+                @if ($issue->issue_status !== 'CLOSED')
+                    <button type="button" onclick="document.getElementById('addActionForm').classList.toggle('hidden')"
+                            class="flex items-center gap-1 px-3 py-1.5 bg-[#1A365D] text-white text-xs rounded-lg hover:bg-[#2D4A7A]">
                         <span class="material-symbols-outlined text-sm">add</span>
                         Add Action
                     </button>
                 @endif
             </div>
+
+            @if ($issue->issue_status !== 'CLOSED')
+                <div id="addActionForm" class="hidden mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <form method="POST" action="{{ route('risk.issues.add-action', $issue) }}">
+                        @csrf
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Action Description <span class="text-red-500">*</span></label>
+                                <textarea name="description" rows="2" required maxlength="3000"
+                                    class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+                                    placeholder="Describe the remediation action..."></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Owner <span class="text-red-500">*</span></label>
+                                <select name="owner_id" required class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2">
+                                    @foreach (\App\Models\User::where('organization_id', $issue->organization_id)->orderBy('name')->get() as $u)
+                                        <option value="{{ $u->id }}">{{ $u->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Target Date <span class="text-red-500">*</span></label>
+                                <input type="date" name="target_date" required min="{{ now()->addDay()->toDateString() }}"
+                                    class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Priority <span class="text-red-500">*</span></label>
+                                <select name="priority" required class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2">
+                                    @foreach (['critical' => 'Critical', 'high' => 'High', 'medium' => 'Medium', 'low' => 'Low'] as $v => $l)
+                                        <option value="{{ $v }}">{{ $l }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Department</label>
+                                <input type="text" name="department" maxlength="255"
+                                    class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2">
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2 mt-3">
+                            <button type="button" class="px-3 py-1.5 text-xs text-gray-500"
+                                onclick="document.getElementById('addActionForm').classList.add('hidden')">Cancel</button>
+                            <button type="submit" class="px-4 py-1.5 bg-[#1A365D] text-white text-xs font-semibold rounded-lg hover:bg-[#2D4A7A]">Save Action</button>
+                        </div>
+                    </form>
+                </div>
+            @endif
 
             @if (($issue->remediationActions ?? collect())->isNotEmpty())
                 <div class="space-y-3">
@@ -237,13 +285,48 @@
         <div id="itab-progress" class="issue-tab-panel p-6 hidden">
             <div class="flex items-center justify-between mb-4">
                 <h4 class="text-sm font-semibold text-[#1A365D]">Progress Updates</h4>
-                @if ($issue->status !== 'closed')
-                    <button type="button" class="flex items-center gap-1 px-3 py-1.5 bg-[#1A365D] text-white text-xs rounded-lg hover:bg-[#2D4A7A]">
+                @if ($issue->issue_status !== 'CLOSED')
+                    <button type="button" onclick="document.getElementById('addUpdateForm').classList.toggle('hidden')"
+                            class="flex items-center gap-1 px-3 py-1.5 bg-[#1A365D] text-white text-xs rounded-lg hover:bg-[#2D4A7A]">
                         <span class="material-symbols-outlined text-sm">add</span>
                         Add Update
                     </button>
                 @endif
             </div>
+
+            @if ($issue->issue_status !== 'CLOSED')
+                <div id="addUpdateForm" class="hidden mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <form method="POST" action="{{ route('risk.issues.add-update', $issue) }}">
+                        @csrf
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Update <span class="text-red-500">*</span></label>
+                                <textarea name="description" rows="2" required maxlength="3000"
+                                    class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+                                    placeholder="Describe the progress made..."></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Update Type <span class="text-red-500">*</span></label>
+                                <select name="update_type" required class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2">
+                                    @foreach (['progress' => 'Progress', 'milestone' => 'Milestone', 'escalation' => 'Escalation', 'note' => 'Note'] as $v => $l)
+                                        <option value="{{ $v }}">{{ $l }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Progress (%)</label>
+                                <input type="number" name="progress_pct" min="0" max="100" value="{{ $issue->progress_percentage }}"
+                                    class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2">
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2 mt-3">
+                            <button type="button" class="px-3 py-1.5 text-xs text-gray-500"
+                                onclick="document.getElementById('addUpdateForm').classList.add('hidden')">Cancel</button>
+                            <button type="submit" class="px-4 py-1.5 bg-[#1A365D] text-white text-xs font-semibold rounded-lg hover:bg-[#2D4A7A]">Save Update</button>
+                        </div>
+                    </form>
+                </div>
+            @endif
 
             @if (($issue->progressUpdates ?? collect())->isNotEmpty())
                 <div class="space-y-4">
@@ -324,10 +407,44 @@
         <div id="itab-attachments" class="issue-tab-panel p-6 hidden">
             <div class="flex items-center justify-between mb-4">
                 <h4 class="text-sm font-semibold text-[#1A365D]">Attachments</h4>
-                <button type="button" class="flex items-center gap-1 px-3 py-1.5 bg-[#1A365D] text-white text-xs rounded-lg hover:bg-[#2D4A7A]">
+                <button type="button" onclick="document.getElementById('uploadFileForm').classList.toggle('hidden')"
+                        class="flex items-center gap-1 px-3 py-1.5 bg-[#1A365D] text-white text-xs rounded-lg hover:bg-[#2D4A7A]">
                     <span class="material-symbols-outlined text-sm">upload</span>
                     Upload File
                 </button>
+            </div>
+
+            <div id="uploadFileForm" class="hidden mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <form method="POST" action="{{ route('risk.issues.upload-attachment', $issue) }}" enctype="multipart/form-data">
+                    @csrf
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">File <span class="text-red-500">*</span></label>
+                            <input type="file" name="file" required
+                                class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Document Type</label>
+                            <select name="document_type" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2">
+                                @foreach (['evidence' => 'Evidence', 'report' => 'Report', 'remediation_plan' => 'Remediation Plan', 'correspondence' => 'Correspondence', 'other' => 'Other'] as $v => $l)
+                                    <option value="{{ $v }}">{{ $l }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="flex items-end pb-2">
+                            <label class="inline-flex items-center gap-2 text-xs font-semibold text-gray-700">
+                                <input type="hidden" name="is_regulatory" value="0">
+                                <input type="checkbox" name="is_regulatory" value="1" class="rounded border-gray-300 text-[#1A365D]">
+                                Regulatory document
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-3">
+                        <button type="button" class="px-3 py-1.5 text-xs text-gray-500"
+                            onclick="document.getElementById('uploadFileForm').classList.add('hidden')">Cancel</button>
+                        <button type="submit" class="px-4 py-1.5 bg-[#1A365D] text-white text-xs font-semibold rounded-lg hover:bg-[#2D4A7A]">Upload</button>
+                    </div>
+                </form>
             </div>
             @if (($issue->attachments ?? collect())->isNotEmpty())
                 <div class="space-y-2">
@@ -336,11 +453,11 @@
                             <div class="flex items-center gap-3">
                                 <span class="material-symbols-outlined text-gray-400">description</span>
                                 <div>
-                                    <div class="text-sm font-medium text-gray-800">{{ $attachment->filename }}</div>
+                                    <div class="text-sm font-medium text-gray-800">{{ $attachment->file_name }}</div>
                                     <div class="text-[10px] text-gray-400">{{ $attachment->created_at?->format('d M Y') }} &middot; {{ $attachment->size_formatted ?? '' }}</div>
                                 </div>
                             </div>
-                            <a href="{{ $attachment->download_url ?? '#' }}" class="p-1 rounded hover:bg-gray-100">
+                            <a href="{{ route('risk.issues.download-attachment', [$issue, $attachment]) }}" class="p-1 rounded hover:bg-gray-100">
                                 <span class="material-symbols-outlined text-gray-500 text-lg">download</span>
                             </a>
                         </div>

@@ -21,6 +21,20 @@
         </div>
     @endif
 
+    @if ($errors->any())
+        <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <div class="flex items-center gap-2 text-red-700 text-sm font-semibold mb-2">
+                <span class="material-symbols-outlined text-lg">error</span>
+                Please correct the following errors:
+            </div>
+            <ul class="list-disc list-inside text-xs text-red-600 space-y-1">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     @php
         // Recompute status from the current value against the saved thresholds so
         // edits to thresholds (or the value itself) are immediately reflected,
@@ -121,6 +135,37 @@
                     <div class="flex justify-between"><dt class="text-xs text-gray-500">Trend</dt><dd class="text-xs font-medium">{{ ucfirst($kri->trend_direction ?? '-') }}</dd></div>
                     <div class="flex justify-between"><dt class="text-xs text-gray-500">Last Updated</dt><dd class="text-xs">{{ $kri->last_measurement_at ? \Carbon\Carbon::parse($kri->last_measurement_at)->format('d M Y') : ($kri->updated_at?->format('d M Y') ?? '-') }}</dd></div>
                 </dl>
+            </div>
+
+            {{-- Record Measurement --}}
+            <div class="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 class="text-sm font-semibold text-[#1A365D] mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-lg">add_chart</span>
+                    Record Measurement
+                </h3>
+                <form method="POST" action="{{ route('risk.kri.record-measurement', $kri) }}" class="space-y-3">
+                    @csrf
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Measurement Date <span class="text-red-500">*</span></label>
+                        <input type="date" name="measurement_date" value="{{ old('measurement_date', now()->toDateString()) }}" required max="{{ now()->toDateString() }}"
+                            class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#1A365D] focus:border-[#1A365D]">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Value ({{ $kri->unit_of_measure ?? 'value' }}) <span class="text-red-500">*</span></label>
+                        <input type="number" name="value" value="{{ old('value') }}" required step="any"
+                            class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#1A365D] focus:border-[#1A365D]"
+                            placeholder="e.g. {{ number_format((float) ($kri->current_value ?? 0), 2) }}">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Notes</label>
+                        <textarea name="notes" rows="2" maxlength="1000"
+                            class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#1A365D] focus:border-[#1A365D]"
+                            placeholder="Context for this reading (optional)">{{ old('notes') }}</textarea>
+                    </div>
+                    <button type="submit" class="w-full px-4 py-2 bg-[#1A365D] text-white rounded-lg text-sm font-medium hover:bg-[#2D4A7A] flex items-center justify-center gap-2 transition-colors">
+                        <span class="material-symbols-outlined text-lg">save</span> Save Measurement
+                    </button>
+                </form>
             </div>
 
             @if ($kri->metric_formula)

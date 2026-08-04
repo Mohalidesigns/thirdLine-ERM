@@ -17,21 +17,18 @@ class RiskAppetite extends Model
     protected $fillable = [
         'organization_id',
         'risk_category_id',
-        'appetite_type',
-        'metric_name',
-        'metric_unit',
+        'appetite_level',
+        'appetite_statement',
+        'tolerance_metric',
         'max_tolerance',
         'target_min',
         'target_max',
         'current_position',
-        'breach_status',
-        'effective_from',
-        'effective_to',
+        'unit_of_measure',
+        'effective_date',
+        'expiry_date',
         'approved_by',
-        'approved_at',
-        'status',
-        'notes',
-        'created_by',
+        'approved_date',
     ];
 
     protected $casts = [
@@ -39,9 +36,9 @@ class RiskAppetite extends Model
         'target_min'       => 'decimal:4',
         'target_max'       => 'decimal:4',
         'current_position' => 'decimal:4',
-        'effective_from'   => 'date',
-        'effective_to'     => 'date',
-        'approved_at'      => 'datetime',
+        'effective_date'   => 'date',
+        'expiry_date'      => 'date',
+        'approved_date'    => 'date',
     ];
 
     protected static function boot(): void

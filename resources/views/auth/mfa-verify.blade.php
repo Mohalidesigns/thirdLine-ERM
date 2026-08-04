@@ -102,9 +102,9 @@
 
                 <!-- Additional Options -->
                 <div class="mt-6 space-y-3 border-t border-gray-200 pt-6">
-                    <a href="#" class="block text-center text-sm text-primary hover:text-primary/80 font-medium">
-                        Use backup code instead
-                    </a>
+                    <p class="text-center text-xs text-gray-500">
+                        Lost access to your authenticator? Contact your system administrator to reset MFA.
+                    </p>
                 </div>
             </div>
 

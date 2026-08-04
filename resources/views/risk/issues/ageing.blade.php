@@ -149,7 +149,7 @@
                         <tr class="bg-red-50/30">
                             <td>
                                 <a href="{{ url('/risk/issues/' . $issue->id) }}" class="text-[#1A365D] font-semibold hover:underline text-xs">
-                                    {{ $issue->reference }}
+                                    {{ $issue->issue_reference }}
                                 </a>
                             </td>
                             <td class="max-w-[200px]">
@@ -162,7 +162,7 @@
                                     {{ $issue->created_at ? $issue->created_at->diffInDays(now()) : 0 }}d
                                 </span>
                             </td>
-                            <td class="text-xs text-red-600 font-medium">{{ $issue->due_date?->format('d M Y') ?? '-' }}</td>
+                            <td class="text-xs text-red-600 font-medium">{{ $issue->target_resolution_date?->format('d M Y') ?? '-' }}</td>
                             <td>
                                 @php
                                     $escLevel = $issue->escalation_level ?? 0;

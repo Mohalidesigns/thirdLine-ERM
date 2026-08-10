@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\McpController;
 use App\Http\Controllers\Api\V1\GraphController;
 use App\Http\Controllers\Api\V1\JobRunController;
 use App\Http\Controllers\Api\V1\MeasureSeriesController;
@@ -130,3 +131,27 @@ Route::prefix('api/v1')
         Route::match(['put', 'patch'], '{resource}/{id}', [ResourceController::class, 'update'])
             ->middleware('scope.resource')->name('api.v1.update');
     });
+
+/*
+|--------------------------------------------------------------------------
+| MCP server (WP-07 TASK 5)
+|--------------------------------------------------------------------------
+|
+| JSON-RPC 2.0, authenticated with the same bearer token as the REST API — so an
+| agent has exactly the rights of the person who issued its token, and there is
+| no second credential to audit.
+|
+| Every tool is read-only. An agent that can write to a risk register can
+| fabricate a control test result, and nothing after the fact distinguishes that
+| from a real one. Governed writes go through the workflow engine and its
+| approval scope, not through here.
+|
+| dashboard.view is the "may use this application" permission; each tool then
+| applies the specific one it needs (risk.view, measure.view, task.view) against
+| the token AND its user.
+|
+*/
+
+Route::post('mcp', [McpController::class, 'handle'])
+    ->middleware(['api.auth', 'throttle:api-token', 'scope:dashboard.view'])
+    ->name('api.mcp');

@@ -7,6 +7,7 @@ use App\Models\LossEvent;
 use App\Models\RiskAssessment;
 use App\Models\TreatmentPlan;
 use App\Models\User;
+use App\Observers\WebhookEventObserver;
 use App\Observers\WorkflowTriggerObserver;
 use App\Support\MorphTypes;
 use App\Support\Tenancy\TenantContext;
@@ -59,6 +60,7 @@ class AppServiceProvider extends ServiceProvider
         Relation::enforceMorphMap(MorphTypes::map());
 
         $this->registerWorkflowTriggers();
+        $this->registerWebhookEvents();
 
         // WP-07. The spec lives at /api/docs, not Scramble's default /docs/api,
         // because that is where the work package says it is and where an
@@ -207,6 +209,25 @@ class AppServiceProvider extends ServiceProvider
 
             if ($class !== null && class_exists($class)) {
                 $class::observe(WorkflowTriggerObserver::class);
+            }
+        }
+    }
+
+    /**
+     * WP-07 TASK 3 — publish created / updated / deleted for everything the API
+     * publishes, so webhook event names and API resource names describe the
+     * same things and an integrator learns one vocabulary rather than two.
+     *
+     * Costs a cached existence check per organization when nobody is
+     * subscribed, which is the common case.
+     */
+    private function registerWebhookEvents(): void
+    {
+        foreach (\App\Http\Api\ApiResourceRegistry::all() as $definition) {
+            $model = $definition['model'];
+
+            if (class_exists($model)) {
+                $model::observe(WebhookEventObserver::class);
             }
         }
     }

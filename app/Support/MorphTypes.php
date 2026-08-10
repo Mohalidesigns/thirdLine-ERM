@@ -6,6 +6,8 @@ use App\Models\ApprovalRequest;
 use App\Models\AssessmentCampaign;
 use App\Models\BusinessProcess;
 use App\Models\BusinessUnit;
+use App\Models\Connector;
+use App\Models\ConnectorRun;
 use App\Models\Control;
 use App\Models\ControlTest;
 use App\Models\Entity;
@@ -14,6 +16,7 @@ use App\Models\GraphObject;
 use App\Models\IcaapAssessment;
 use App\Models\Issue;
 use App\Models\IssueRemediationAction;
+use App\Models\JobRun;
 use App\Models\KeyRiskIndicator;
 use App\Models\KriMeasurement;
 use App\Models\LossEvent;
@@ -34,6 +37,8 @@ use App\Models\RiskCategory;
 use App\Models\SimulationRun;
 use App\Models\TreatmentPlan;
 use App\Models\User;
+use App\Models\WebhookDelivery;
+use App\Models\WebhookSubscription;
 use App\Models\WorkflowDefinition;
 use App\Models\WorkflowInstance;
 use App\Models\WorkflowTask;
@@ -79,6 +84,11 @@ class MorphTypes
             'assessment_campaign' => AssessmentCampaign::class,
             'business_process' => BusinessProcess::class,
             'business_unit' => BusinessUnit::class,
+            // WP-07. The integration surface is audited and job-tracked, so
+            // these need aliases too: a job_runs row names its subject, and a
+            // connector run is something the audit trail records.
+            'connector' => Connector::class,
+            'connector_run' => ConnectorRun::class,
             'control' => Control::class,
             'control_test' => ControlTest::class,
             'entity' => Entity::class,
@@ -89,6 +99,7 @@ class MorphTypes
             'graph_object' => GraphObject::class,
             'icaap_assessment' => IcaapAssessment::class,
             'issue' => Issue::class,
+            'job_run' => JobRun::class,
             'issue_remediation_action' => IssueRemediationAction::class,
             'key_risk_indicator' => KeyRiskIndicator::class,
             'kri_measurement' => KriMeasurement::class,
@@ -114,6 +125,8 @@ class MorphTypes
             'simulation_run' => SimulationRun::class,
             'treatment_plan' => TreatmentPlan::class,
             'user' => User::class,
+            'webhook_delivery' => WebhookDelivery::class,
+            'webhook_subscription' => WebhookSubscription::class,
             'workflow_definition' => WorkflowDefinition::class,
             'workflow_instance' => WorkflowInstance::class,
             'workflow_task' => WorkflowTask::class,

@@ -1,10 +1,14 @@
 <?php
 
+use App\Http\Controllers\Admin\ApiTokenController;
 use App\Http\Controllers\Admin\ConfigurationBuilderController;
 use App\Http\Controllers\Admin\ConfigurationBundleController;
+use App\Http\Controllers\Admin\ConnectorController;
+use App\Http\Controllers\Admin\JobRunController;
 use App\Http\Controllers\Admin\OrganizationSettingsController;
 use App\Http\Controllers\Admin\SsoSettingsController;
 use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\Admin\WebhookController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\SsoController;
 use App\Http\Controllers\NotificationController;
@@ -169,6 +173,62 @@ Route::prefix('admin')->middleware(['auth'])->group(function () {
         Route::post('configuration/diff', [ConfigurationBundleController::class, 'diff'])->name('admin.configuration.diff');
         Route::post('configuration/{bundle}/apply', [ConfigurationBundleController::class, 'apply'])->name('admin.configuration.apply');
         Route::post('configuration/applications/{application}/rollback', [ConfigurationBundleController::class, 'rollback'])->name('admin.configuration.rollback');
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  WP-07 — the integration surface */
+    /* ------------------------------------------------------------------ */
+
+    // Webhooks. Viewing the delivery log and creating a subscription are
+    // separate grants: a delivery body carries risk data, and creating a
+    // subscription sends that data to an external URL — which is an
+    // integration decision, not a preference.
+    Route::middleware('permission:webhook.view')->group(function () {
+        Route::get('webhooks', [WebhookController::class, 'index'])->name('admin.webhooks.index');
+        Route::get('webhooks/{webhook}/deliveries', [WebhookController::class, 'deliveries'])->name('admin.webhooks.deliveries');
+    });
+
+    Route::middleware('permission:webhook.manage')->group(function () {
+        Route::post('webhooks', [WebhookController::class, 'store'])->name('admin.webhooks.store');
+        Route::match(['put', 'patch'], 'webhooks/{webhook}', [WebhookController::class, 'update'])->name('admin.webhooks.update');
+        Route::delete('webhooks/{webhook}', [WebhookController::class, 'destroy'])->name('admin.webhooks.destroy');
+        Route::post('webhooks/{webhook}/rotate-secret', [WebhookController::class, 'rotateSecret'])->name('admin.webhooks.rotate-secret');
+        Route::post('webhooks/{webhook}/test', [WebhookController::class, 'test'])->name('admin.webhooks.test');
+        Route::post('webhook-deliveries/{delivery}/replay', [WebhookController::class, 'replay'])->name('admin.webhooks.replay');
+    });
+
+    // API tokens. Issuing one for yourself is universal (a token can never
+    // exceed its owner's permissions); issuing a machine token, or revoking
+    // somebody else's, is not.
+    Route::middleware('permission:api.tokens')->group(function () {
+        Route::get('api-tokens', [ApiTokenController::class, 'index'])->name('admin.api-tokens.index');
+        Route::post('api-tokens', [ApiTokenController::class, 'store'])->name('admin.api-tokens.store');
+        Route::delete('api-tokens/{token}', [ApiTokenController::class, 'destroy'])->name('admin.api-tokens.destroy');
+    });
+
+    // Connectors: scheduled pulls into the measure engine, holding encrypted
+    // credentials for the systems they read.
+    Route::middleware('permission:connector.view')->group(function () {
+        Route::get('connectors', [ConnectorController::class, 'index'])->name('admin.connectors.index');
+        Route::get('connectors/{connector}', [ConnectorController::class, 'show'])->name('admin.connectors.show');
+    });
+
+    Route::middleware('permission:connector.manage')->group(function () {
+        Route::post('connectors', [ConnectorController::class, 'store'])->name('admin.connectors.store');
+        Route::match(['put', 'patch'], 'connectors/{connector}', [ConnectorController::class, 'update'])->name('admin.connectors.update');
+        Route::delete('connectors/{connector}', [ConnectorController::class, 'destroy'])->name('admin.connectors.destroy');
+        Route::post('connectors/{connector}/test', [ConnectorController::class, 'test'])->name('admin.connectors.test');
+    });
+
+    Route::middleware('permission:connector.run')->group(function () {
+        Route::post('connectors/{connector}/run', [ConnectorController::class, 'run'])->name('admin.connectors.run');
+    });
+
+    // Background jobs raised by this user. A job you started is yours to watch
+    // and to stop.
+    Route::middleware('permission:job.view')->group(function () {
+        Route::get('jobs', [JobRunController::class, 'index'])->name('admin.jobs.index');
+        Route::post('jobs/{jobRun}/cancel', [JobRunController::class, 'cancel'])->name('admin.jobs.cancel');
     });
 });
 

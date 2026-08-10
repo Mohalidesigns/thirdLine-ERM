@@ -31,6 +31,14 @@ Schedule::command('workflow:run-scheduled --cadence=weekly')->weeklyOn(1, '06:15
 Schedule::command('workflow:run-scheduled --cadence=monthly')->monthlyOn(1, '06:30');
 Schedule::command('workflow:run-scheduled --cadence=quarterly')->quarterlyOn(1, '06:45');
 
+// WP-07. Connector syncs, per cadence. A connector that has never run does its
+// first pass as a dry run, so its field mapping is proved against real rows
+// before anything reaches the measure engine.
+Schedule::command('connectors:run --schedule=hourly')->hourly()->withoutOverlapping();
+Schedule::command('connectors:run --schedule=daily')->dailyAt('05:30');
+Schedule::command('connectors:run --schedule=weekly')->weeklyOn(1, '05:45');
+Schedule::command('connectors:run --schedule=monthly')->monthlyOn(1, '06:00');
+
 // Formula thresholds are re-evaluated after a period closes. The close screen
 // runs this too — this is the safety net for periods closed by a job, and for a
 // denominator (capital, CPI) entered days after the close itself.

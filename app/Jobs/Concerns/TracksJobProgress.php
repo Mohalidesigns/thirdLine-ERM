@@ -28,8 +28,17 @@ use Throwable;
  */
 trait TracksJobProgress
 {
-    public ?int $jobRunId = null;
-
+    /**
+     * $jobRunId is DECLARED BY THE USING JOB, not here.
+     *
+     * Every job that tracks progress takes it as a promoted constructor
+     * property, and PHP treats a promoted property and a trait property of the
+     * same name as an incompatible redeclaration — the class simply will not
+     * compose. Declaring it here as well would mean either a fatal error at
+     * class-composition time or every job having to accept it some other way.
+     *
+     * The contract is therefore: `public ?int $jobRunId` on the job.
+     */
     private ?JobRun $jobRun = null;
 
     /** How often progress is written, as a fraction of total. */

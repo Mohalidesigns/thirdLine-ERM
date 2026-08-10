@@ -217,6 +217,47 @@ class RolesAndPermissionsSeeder extends Seeder
             // the narrowest grant in the product and is deliberately not part
             // of admin.metadata.
             'admin.configuration',
+
+            /* -------------------------------------------------------------- */
+            /*  Added by WP-07: the integration surface. */
+            /* -------------------------------------------------------------- */
+
+            // The queue dashboard. Held apart from admin.settings because a job
+            // payload IS the record it operates on — a queued notification
+            // carries its subject and body, an import job the file it reads —
+            // so Horizon on this platform shows loss events and examination
+            // findings, not just throughput.
+            'admin.queues',
+
+            // The OpenAPI specification: a complete map of the API surface,
+            // which on a risk register is reconnaissance material.
+            'api.docs',
+
+            // Issue and revoke one's OWN API tokens. Universal, like task.*:
+            // anyone who may use the application may automate their own use of
+            // it, and the token can never exceed its owner's permissions.
+            'api.tokens',
+
+            // Issue machine-to-machine tokens for the whole organization, and
+            // revoke anybody's. A separate, much narrower grant.
+            'api.tokens.manage',
+
+            // Webhook subscriptions. Creating one sends this tenant's data to
+            // an external URL on every matching event, so it is an integration
+            // decision rather than a preference.
+            'webhook.view',
+            'webhook.manage',
+
+            // Connectors: scheduled pulls into the measure engine, holding
+            // encrypted credentials for the systems they read.
+            'connector.view',
+            'connector.manage',
+            'connector.run',
+
+            // Background jobs raised by this user, and the ability to cancel
+            // them. Universal for the same reason as api.tokens: a job you
+            // started is yours to stop.
+            'job.view',
         ];
 
         foreach ($permissions as $permission) {
@@ -239,6 +280,11 @@ class RolesAndPermissionsSeeder extends Seeder
             // engine, not by this grant.
             'task.view',
             'task.act',
+            // WP-07. A job you started is yours to watch and to stop, and a
+            // token can never exceed the permissions of the person who issued
+            // it — so both are safe to grant universally.
+            'job.view',
+            'api.tokens',
         ];
 
         // 1. super-admin – gets ALL permissions

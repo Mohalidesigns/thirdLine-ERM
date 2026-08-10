@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\RunSimulationJob;
 use App\Models\IcaapAssessment;
 use App\Models\QuantificationScenario;
 use App\Models\QuantificationSetting;
@@ -352,18 +353,66 @@ class QuantificationController extends Controller
             'initiated_by' => auth()->id(),
         ]);
 
-        // Run Monte Carlo simulation
-        try {
-            $monteCarloService = new MonteCarloService;
-            $simulation = $monteCarloService->runSimulation($simulation, $validated['scenario_ids']);
+        // WP-07. This used to run 10,000 iterations x N scenarios inside the
+        // request. On a real scenario set the web server killed it partway,
+        // leaving status stuck on 'running' with no results and nothing on
+        // screen to say why.
+        //
+        // The seed is decided when the run is QUEUED rather than inside the
+        // worker, so the figure is recorded as re-derivable from the moment the
+        // user presses the button, and a replayed job cannot produce a
+        // different capital number from the same request. The draw itself lives
+        // in MonteCarloService — the one file allowed to hold an RNG.
+        $seed = MonteCarloService::drawSeed();
+        $simulation->update(['random_seed' => $seed]);
 
-            return redirect()->route('risk.quantification.show-results', $simulation)
-                ->with('success', "Simulation {$simReference} has been completed successfully.");
-        } catch (\Exception $e) {
-            $simulation->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
+        $jobRun = RunSimulationJob::track(
+            label: "Simulation {$simReference}",
+            subject: $simulation,
+            organizationId: $orgId,
+            creator: $request->user(),
+            total: $validated['iterations'] * count($validated['scenario_ids']),
+        );
 
-            return back()->with('error', 'Simulation failed: '.$e->getMessage());
+        $simulation->update(['job_run_id' => $jobRun->id]);
+
+        RunSimulationJob::dispatch(
+            $simulation->id,
+            $validated['scenario_ids'],
+            $seed,
+            $jobRun->id,
+        );
+
+        return redirect()->route('risk.quantification.show-results', $simulation)
+            ->with('success', "Simulation {$simReference} is running. This page updates as it progresses.");
+    }
+
+    /**
+     * Ask a running simulation to stop.
+     *
+     * A request, not an interrupt: a worker cannot be killed from here, only
+     * told. The job checks between iterations and stops at a point where
+     * nothing is half-written — a cancelled run has NO results, because a
+     * partial loss distribution is not a smaller answer, it is a wrong one.
+     */
+    public function cancelSimulation(Request $request, SimulationRun $simulation)
+    {
+        abort_unless($simulation->organization_id === TenantContext::organizationId(), 403);
+
+        if (! in_array($simulation->status, ['queued', 'running'], true)) {
+            return back()->with('error', 'That simulation has already finished.');
         }
+
+        $simulation->update(['cancel_requested_at' => now()]);
+
+        \App\Models\JobRun::withoutGlobalScopes()
+            ->whereKey($simulation->job_run_id)
+            ->update([
+                'cancel_requested_at' => now(),
+                'cancel_requested_by' => $request->user()->id,
+            ]);
+
+        return back()->with('success', 'Cancellation requested. The run stops at its next checkpoint.');
     }
 
     /**

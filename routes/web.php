@@ -503,6 +503,9 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         ->middleware('permission:quantification.view')->name('risk.quantification.results');
     Route::get('quantification/results/{simulation}', [QuantificationController::class, 'showResults'])
         ->middleware('permission:quantification.view')->name('risk.quantification.show-results');
+    // WP-07: a simulation now runs on a queue, so it needs a stop button.
+    Route::post('quantification/results/{simulation}/cancel', [QuantificationController::class, 'cancelSimulation'])
+        ->middleware('permission:quantification.run_simulation')->name('risk.quantification.cancel-simulation');
     Route::get('quantification/icaap', [QuantificationController::class, 'icaap'])
         ->middleware('permission:quantification.view')->name('risk.quantification.icaap');
     Route::get('quantification/library', [QuantificationController::class, 'library'])

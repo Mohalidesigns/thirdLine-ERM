@@ -1,8 +1,39 @@
 <?php
 
+use App\Http\Controllers\Api\V1\GraphController;
+use App\Http\Controllers\Api\V1\JobRunController;
+use App\Http\Controllers\Api\V1\MeasureSeriesController;
+use App\Http\Controllers\Api\V1\MeController;
+use App\Http\Controllers\Api\V1\ResourceController;
 use App\Http\Controllers\Scim\ScimGroupController;
 use App\Http\Controllers\Scim\ScimUserController;
+use App\Models\ApiToken;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
+
+/*
+ * WP-07 — the rate limit is PER TOKEN, and each token carries its own ceiling.
+ *
+ * Per IP would be wrong in both directions here: several integrations behind
+ * one corporate NAT would throttle each other, and one runaway script would be
+ * indistinguishable from the rest of the building. Per token also means a
+ * misbehaving integration can be given a lower ceiling without touching anyone
+ * else's.
+ */
+RateLimiter::for('api-token', function (Request $request) {
+    /** @var ApiToken|null $token */
+    $token = $request->attributes->get('api_token');
+
+    if ($token === null) {
+        // Unauthenticated attempts, keyed by IP. Deliberately tight: the only
+        // thing an unauthenticated caller can be doing here is guessing tokens.
+        return Limit::perMinute(20)->by('api-anon:'.$request->ip());
+    }
+
+    return Limit::perMinute(max(1, (int) $token->rate_limit_per_minute))->by('api-token:'.$token->id);
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -32,4 +63,70 @@ Route::prefix('scim/v2')
         Route::get('Groups', [ScimGroupController::class, 'index']);
         Route::get('Groups/{id}', [ScimGroupController::class, 'show']);
         Route::patch('Groups/{id}', [ScimGroupController::class, 'patch']);
+    });
+
+/*
+|--------------------------------------------------------------------------
+| REST API v1 (WP-07 TASK 2)
+|--------------------------------------------------------------------------
+|
+| Bearer token only — api.auth resolves the token, refuses it if revoked,
+| expired or owned by a deactivated user, and binds the tenant FROM THE TOKEN.
+| There is no parameter anywhere below that changes which organization a request
+| reads.
+|
+| Every route carries `scope:` — the API's authorization guard, which requires
+| BOTH the token's scope and the permission of the user behind it.
+| ApiAuthorizationTest fails if any route here is missing one.
+|
+| The version is in the path. A version stays available for at least 12 months
+| after its successor ships; removals are announced with Deprecation and Sunset
+| headers before they happen.
+|
+*/
+
+Route::prefix('api/v1')
+    ->middleware(['api.auth', 'throttle:api-token', 'idempotency'])
+    ->group(function () {
+        // What this API serves, and which scope each resource needs. An
+        // integrator has to be able to discover the surface before they know
+        // what to ask for.
+        Route::get('/', [ResourceController::class, 'catalogue'])
+            ->middleware('scope:dashboard.view')->name('api.v1.catalogue');
+
+        Route::get('me', [MeController::class, 'show'])
+            ->middleware('scope:dashboard.view')->name('api.v1.me');
+
+        // Graph traversal, which a flat resource list cannot express: "every
+        // risk under this business unit, including its sub-units".
+        Route::get('graph/{object}/descendants', [GraphController::class, 'descendants'])
+            ->middleware('scope:risk.view')->name('api.v1.graph.descendants');
+        Route::get('graph/{object}/ancestors', [GraphController::class, 'ancestors'])
+            ->middleware('scope:risk.view')->name('api.v1.graph.ancestors');
+        Route::get('graph/{object}/related', [GraphController::class, 'related'])
+            ->middleware('scope:risk.view')->name('api.v1.graph.related');
+
+        // A measure over time, which is the shape every reporting client wants
+        // and which paging over measure-values makes needlessly hard.
+        Route::get('measures/{measure}/series', [MeasureSeriesController::class, 'show'])
+            ->middleware('scope:measure.view')->name('api.v1.measures.series');
+
+        Route::get('jobs/{jobRun}', [JobRunController::class, 'show'])
+            ->middleware('scope:job.view')->name('api.v1.jobs.show');
+
+        // The generic resource surface. One controller, one allowlist per
+        // resource — see App\Http\Api\ApiResourceRegistry.
+        //
+        // `scope.resource` rather than `scope:` because the scope these need
+        // depends on which resource the path names: /risks wants risk.view,
+        // /loss-events wants loss_event.view. It resolves the resource from the
+        // route and applies the same two-sided check.
+        Route::get('{resource}', [ResourceController::class, 'index'])
+            ->middleware('scope.resource')->name('api.v1.index');
+        Route::post('{resource}', [ResourceController::class, 'store'])
+            ->middleware('scope.resource')->name('api.v1.store');
+        Route::get('{resource}/{id}', [ResourceController::class, 'show'])
+            ->middleware('scope.resource')->name('api.v1.show');
+        Route::match(['put', 'patch'], '{resource}/{id}', [ResourceController::class, 'update'])
+            ->middleware('scope.resource')->name('api.v1.update');
     });

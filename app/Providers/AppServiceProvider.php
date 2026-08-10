@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Observers\WorkflowTriggerObserver;
 use App\Support\MorphTypes;
 use App\Support\Tenancy\TenantContext;
+use Dedoc\Scramble\Scramble;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -58,6 +59,12 @@ class AppServiceProvider extends ServiceProvider
         Relation::enforceMorphMap(MorphTypes::map());
 
         $this->registerWorkflowTriggers();
+
+        // WP-07. The spec lives at /api/docs, not Scramble's default /docs/api,
+        // because that is where the work package says it is and where an
+        // integrator looks. Registration happens in app->booted(), so setting
+        // it here is early enough.
+        Scramble::configure()->expose(ui: 'api/docs', document: 'api/docs.json');
 
         // The `auth` group: authenticated, then past the second factor. MFA
         // sits in the group rather than on individual routes so a new screen

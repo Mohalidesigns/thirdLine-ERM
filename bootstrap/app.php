@@ -24,6 +24,16 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant' => \App\Http\Middleware\ResolveTenant::class,
             'scim.auth' => \App\Http\Middleware\AuthenticateScim::class,
             'feature' => \App\Http\Middleware\EnsureFeatureEnabled::class,
+
+            // WP-07. The API authenticates by bearer token and authorizes by
+            // scope. `scope:` takes a fixed permission; `scope.resource`
+            // derives it from the {resource} in the path, which the generic
+            // resource routes need because /risks and /loss-events want
+            // different permissions from the same route definition.
+            'api.auth' => \App\Http\Middleware\AuthenticateApiToken::class,
+            'scope' => \App\Http\Middleware\EnsureTokenScope::class,
+            'scope.resource' => \App\Http\Middleware\EnsureResourceScope::class,
+            'idempotency' => \App\Http\Middleware\IdempotentRequest::class,
         ]);
 
         // ResolveTenant must run after StartSession (so the user is known) but
@@ -45,12 +55,30 @@ return Application::configure(basePath: dirname(__DIR__))
             ],
         );
 
+        // ResolveTenant is REMOVED from the api group in WP-07. It reads the
+        // tenant from the session user, and an API request has no session — a
+        // machine token has no user at all. AuthenticateApiToken binds the
+        // tenant from the token instead, and it must run before
+        // SubstituteBindings for the same reason ResolveTenant does on the web:
+        // route-model binding resolves {measure}, {object} and friends, and
+        // without the tenant bound first those lookups read across tenants.
+        //
+        // SCIM keeps its own tenant resolution inside AuthenticateScim.
         $middleware->api(
             remove: [SubstituteBindings::class],
-            append: [
-                \App\Http\Middleware\ResolveTenant::class,
-                SubstituteBindings::class,
-            ],
+            append: [SubstituteBindings::class],
+        );
+
+        // api.auth is ROUTE middleware, and route middleware ordinarily runs
+        // after the group's. Without this, SubstituteBindings would resolve
+        // {measure}, {object} and {jobRun} before the token had bound the
+        // tenant, and those lookups would run untenanted — the global scope
+        // does not filter when no organization is set. The controllers check
+        // ownership explicitly as well, but the ordering is what makes the
+        // scope do its job rather than the check having to catch it.
+        $middleware->prependToPriorityList(
+            before: SubstituteBindings::class,
+            prepend: \App\Http\Middleware\AuthenticateApiToken::class,
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {

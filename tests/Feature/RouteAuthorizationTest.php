@@ -65,6 +65,19 @@ class RouteAuthorizationTest extends TestCase
                     // it also carries the tenant.
                     || $m === 'scim.auth'
                     || $m === \App\Http\Middleware\AuthenticateScim::class
+                    // WP-07. `scope:` is the API's equivalent of `permission:`
+                    // and is STRICTLY STRONGER: it requires the token's scope
+                    // AND the permission of the user behind it. `permission:`
+                    // cannot be used on these routes because a machine token
+                    // has no user for it to check.
+                    // `scope.resource` derives the permission from the
+                    // {resource} in the path, which the generic routes need
+                    // because one definition serves /risks and /loss-events.
+                    // ApiAuthorizationTest checks these separately and in more
+                    // detail than this test can.
+                    || str_starts_with($m, 'scope:')
+                    || $m === 'scope.resource'
+                    || $m === \App\Http\Middleware\EnsureResourceScope::class
                 )
             );
 
@@ -93,13 +106,27 @@ class RouteAuthorizationTest extends TestCase
 
         foreach ($this->guardableRoutes() as $route) {
             foreach ($route->gatherMiddleware() as $middleware) {
-                if (! is_string($middleware) || ! str_starts_with($middleware, 'permission:')) {
+                if (! is_string($middleware)) {
                     continue;
                 }
 
-                foreach (explode('|', substr($middleware, strlen('permission:'))) as $permission) {
-                    if ($permission !== '' && ! in_array($permission, $known, true)) {
-                        $unknown[$permission][] = $route->uri();
+                // WP-07: `scope:` names the same permissions as `permission:`,
+                // so a typo in one is exactly as damaging as in the other.
+                $prefix = match (true) {
+                    str_starts_with($middleware, 'permission:') => 'permission:',
+                    str_starts_with($middleware, 'scope:') => 'scope:',
+                    default => null,
+                };
+
+                if ($prefix === null) {
+                    continue;
+                }
+
+                foreach (explode('|', substr($middleware, strlen($prefix))) as $permission) {
+                    foreach (explode(',', $permission) as $one) {
+                        if ($one !== '' && ! in_array($one, $known, true)) {
+                            $unknown[$one][] = $route->uri();
+                        }
                     }
                 }
             }

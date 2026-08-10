@@ -1245,26 +1245,31 @@ class WorkflowEngine
         ]);
     }
 
-    /** @param list<int> $userIds */
+    /**
+     * WP-07: a task offered to a role fans out to every holder of it, which in
+     * a bank with two hundred risk managers is two hundred inserts inside the
+     * request that was somebody pressing Approve. sendMany() queues anything
+     * with more than one recipient and sends a single one inline.
+     *
+     * @param  list<int>  $userIds
+     */
     private function notify(array $userIds, WorkflowTask $task, string $subject, string $body): void
     {
-        foreach (array_unique($userIds) as $userId) {
-            NotificationService::send(
-                $task->organization_id,
-                $userId,
-                'workflow_task',
-                $subject,
-                $body,
-                [
-                    'workflow_task_id' => $task->id,
-                    'workflow_instance_id' => $task->instance_id,
-                    'entity_type' => $task->instance?->entity_type,
-                    'entity_id' => $task->instance?->entity_id,
-                ],
-                route('risk.my-tasks.index'),
-                $task->isOverdue() ? 'high' : 'medium',
-            );
-        }
+        NotificationService::sendMany(
+            $task->organization_id,
+            $userIds,
+            'workflow_task',
+            $subject,
+            $body,
+            [
+                'workflow_task_id' => $task->id,
+                'workflow_instance_id' => $task->instance_id,
+                'entity_type' => $task->instance?->entity_type,
+                'entity_id' => $task->instance?->entity_id,
+            ],
+            route('risk.my-tasks.index'),
+            $task->isOverdue() ? 'high' : 'medium',
+        );
     }
 
     private function taskLabel(WorkflowTask $task): string

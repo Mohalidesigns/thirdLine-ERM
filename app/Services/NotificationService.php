@@ -38,6 +38,48 @@ class NotificationService
     }
 
     /**
+     * Notify a list of people, on a queue.
+     *
+     * WP-07. One notification is a single insert and belongs inline; a fan-out
+     * to every holder of a role does not — in a bank with two hundred risk
+     * managers that is two hundred inserts and two hundred mail attempts inside
+     * the request that was somebody pressing Approve.
+     *
+     * A list of one is sent inline: queueing a single insert costs more than
+     * doing it.
+     *
+     * @param  list<int>  $userIds
+     * @param  array<string, mixed>  $metadata
+     */
+    public static function sendMany(
+        int $organizationId,
+        array $userIds,
+        string $type,
+        string $subject,
+        string $body,
+        array $metadata = [],
+        ?string $actionUrl = null,
+        string $priority = 'medium',
+        string $category = 'workflow'
+    ): void {
+        $userIds = array_values(array_unique(array_filter($userIds)));
+
+        if ($userIds === []) {
+            return;
+        }
+
+        if (count($userIds) === 1) {
+            static::send($organizationId, $userIds[0], $type, $subject, $body, $metadata, $actionUrl, $priority, $category);
+
+            return;
+        }
+
+        \App\Jobs\FanOutNotificationsJob::dispatch(
+            $organizationId, $userIds, $type, $subject, $body, $metadata, $actionUrl, $priority, $category,
+        );
+    }
+
+    /**
      * Map entity_type/entity_id in metadata to a deep-link route so every
      * call site produces consistent clickable notifications.
      */

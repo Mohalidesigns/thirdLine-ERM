@@ -47,6 +47,26 @@ class MonteCarloService
     }
 
     /**
+     * Draw a seed without constructing an engine.
+     *
+     * WP-07 dispatches the simulation to a worker, and the seed has to be
+     * decided and recorded when the run is QUEUED — otherwise the figure is not
+     * re-derivable until the job starts, and a replayed job would draw a
+     * different one and produce a different capital number from the same
+     * request.
+     *
+     * It lives here rather than in the controller on purpose: this file is the
+     * single allowlisted home for random number generation (see
+     * NoFabricatedNumbersTest and scripts/check-no-rng.sh), and the whole point
+     * of that allowlist is that a controller never contains an RNG call. WP-02
+     * removed twelve of them from exactly that layer.
+     */
+    public static function drawSeed(): int
+    {
+        return random_int(0, self::RANDOM_MAX);
+    }
+
+    /**
      * Uniform variate on [0, 1].
      */
     private function uniform(): float
@@ -85,10 +105,29 @@ class MonteCarloService
     }
 
     /**
-     * Run Monte Carlo simulation for a set of scenarios
+     * Run Monte Carlo simulation for a set of scenarios.
+     *
+     * WP-07: two optional hooks, both of which leave the arithmetic untouched.
+     *
+     *   $onProgress(int $completed, int $total)  called at a throttled interval
+     *   $shouldCancel(): bool                    checked at safe points only
+     *
+     * Neither draws from the randomizer, so a run with hooks and a run without
+     * them produce identical figures from the same seed — which is the property
+     * the WP-01 characterisation tests exist to hold, and the reason a
+     * regulator can re-derive an ICAAP number months later.
+     *
+     * A cancelled run writes NO results. A partial loss distribution is not a
+     * smaller answer, it is a wrong one, and leaving half a run in the results
+     * table is how a capital figure ends up computed from four scenarios out of
+     * seven with nothing on screen to say so.
      */
-    public function runSimulation(SimulationRun $run, array $scenarioIds): SimulationRun
-    {
+    public function runSimulation(
+        SimulationRun $run,
+        array $scenarioIds,
+        ?callable $onProgress = null,
+        ?callable $shouldCancel = null,
+    ): SimulationRun {
         // The seed is part of the result, not a private detail: it is what
         // makes the figure re-derivable months later during an ICAAP review.
         $run->update(['status' => 'running', 'started_at' => now(), 'random_seed' => $this->seed]);
@@ -130,6 +169,12 @@ class MonteCarloService
         $totalLosses = array_fill(0, $iterations, 0);
         $scenarioResults = [];
 
+        // Total units of work, so progress is a percentage of the whole run
+        // rather than of whichever scenario happens to be in flight.
+        $totalWork = max(1, $iterations * $scenarios->count());
+        $completedWork = 0;
+        $checkEvery = max(100, (int) ($iterations / 50));
+
         foreach ($scenarios as $scenario) {
             $scenarioLosses = [];
 
@@ -154,6 +199,26 @@ class MonteCarloService
 
                 $scenarioLosses[] = $annualLoss;
                 $totalLosses[$i] += $annualLoss;
+
+                // Checked on a stride rather than every iteration: at 10,000
+                // iterations a per-iteration database read would cost more than
+                // the simulation it is watching.
+                if (++$completedWork % $checkEvery === 0) {
+                    if ($onProgress !== null) {
+                        $onProgress($completedWork, $totalWork);
+                    }
+
+                    if ($shouldCancel !== null && $shouldCancel()) {
+                        $run->update([
+                            'status' => 'cancelled',
+                            'completed_at' => now(),
+                            'completed_iterations' => $completedWork,
+                            'runtime_seconds' => $run->started_at ? now()->diffInSeconds($run->started_at) : 0,
+                        ]);
+
+                        return $run->fresh();
+                    }
+                }
             }
 
             sort($scenarioLosses);
@@ -241,6 +306,8 @@ class MonteCarloService
 
         $run->update([
             'status' => 'completed',
+            'progress' => 100,
+            'completed_iterations' => $completedWork,
             'completed_at' => now(),
             'runtime_seconds' => $runtimeSeconds,
         ]);

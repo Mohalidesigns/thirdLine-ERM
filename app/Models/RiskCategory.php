@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasObjectIdentity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,7 +11,7 @@ use Illuminate\Support\Str;
 
 class RiskCategory extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
 
     protected $fillable = [
         'organization_id',
@@ -31,7 +33,7 @@ class RiskCategory extends Model
 
     protected $casts = [
         'assessment_criteria' => 'array',
-        'is_active'           => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     protected static function boot(): void
@@ -46,7 +48,7 @@ class RiskCategory extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasObjectIdentity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,7 +11,7 @@ use Illuminate\Support\Str;
 
 class BusinessUnit extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
 
     protected $fillable = [
         'organization_id',
@@ -38,7 +40,7 @@ class BusinessUnit extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()

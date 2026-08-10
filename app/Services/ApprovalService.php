@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ApprovalRequest;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\DB;
 
 class ApprovalService
@@ -20,8 +21,18 @@ class ApprovalService
         ?int $userId = null,
         ?int $reviewerId = null
     ): ApprovalRequest {
+        // May be null: a task raised by a scheduled job — threshold
+        // re-baselining at period close — has no authenticated requester, and
+        // attributing it to an arbitrary user would be a false compliance
+        // record. requested_by is nullable for exactly this case.
         $userId = $userId ?? auth()->id();
-        $orgId = $entity->organization_id ?? auth()->user()->organization_id;
+        $orgId = $entity->organization_id ?? auth()->user()?->organization_id;
+
+        if ($orgId === null) {
+            throw new \RuntimeException(
+                'An approval request needs an organization: '.$entity->getMorphClass().' #'.$entity->getKey().' has none.'
+            );
+        }
 
         if ($reviewerId !== null) {
             $payload = array_merge($payload ?? [], ['reviewer_id' => $reviewerId]);
@@ -29,7 +40,7 @@ class ApprovalService
 
         $approval = ApprovalRequest::create([
             'organization_id' => $orgId,
-            'entity_type' => class_basename($entity),
+            'entity_type' => $entity->getMorphClass(),
             'entity_id' => $entity->id,
             'action' => $action,
             'status' => 'pending',
@@ -50,7 +61,7 @@ class ApprovalService
      */
     public function latestPending(Model $entity): ?ApprovalRequest
     {
-        return ApprovalRequest::where('entity_type', class_basename($entity))
+        return ApprovalRequest::where('entity_type', $entity->getMorphClass())
             ->where('entity_id', $entity->id)
             ->where('status', 'pending')
             ->latest('requested_at')
@@ -75,7 +86,11 @@ class ApprovalService
 
             // If payload exists, apply changes to the entity
             if ($approval->payload) {
-                $entityClass = 'App\\Models\\' . $approval->entity_type;
+                // Resolve through the morph map rather than by string
+                // concatenation, so the stored alias stays independent of
+                // the namespace.
+                $entityClass = Relation::getMorphedModel($approval->entity_type)
+                    ?? 'App\\Models\\'.$approval->entity_type;
                 if (class_exists($entityClass)) {
                     $entity = $entityClass::findOrFail($approval->entity_id);
                     $entity->update($approval->payload);
@@ -129,12 +144,12 @@ class ApprovalService
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Notifications (in-app + mail placeholder)                          */
+    /*  Notifications (in-app + mail placeholder) */
     /* ------------------------------------------------------------------ */
 
     protected function notifyReviewer(ApprovalRequest $approval, int $reviewerId, Model $entity): void
     {
-        $label = class_basename($entity) . ' #' . $entity->id;
+        $label = class_basename($entity).' #'.$entity->id;
         $subject = "Review required: {$label}";
         $body = "You have been assigned as reviewer for {$label}. Please review and approve or reject.";
 
@@ -147,8 +162,8 @@ class ApprovalService
             [
                 'approval_request_id' => $approval->id,
                 'entity_type' => $approval->entity_type,
-                'entity_id'   => $approval->entity_id,
-                'action'      => $approval->action,
+                'entity_id' => $approval->entity_id,
+                'action' => $approval->action,
             ]
         );
 
@@ -157,14 +172,20 @@ class ApprovalService
 
     protected function notifyRequester(ApprovalRequest $approval, string $decision, ?string $comment): void
     {
-        $label = $approval->entity_type . ' #' . $approval->entity_id;
-        $subject = ucfirst($decision) . ": {$label}";
-        $body = "Your {$label} has been {$decision}." . ($comment ? "\n\nComment: {$comment}" : '');
+        // Nobody to tell: the task was raised by a scheduled job, and
+        // notifications_log.user_id is NOT NULL.
+        if ($approval->requested_by === null) {
+            return;
+        }
+
+        $label = $approval->entity_type.' #'.$approval->entity_id;
+        $subject = ucfirst($decision).": {$label}";
+        $body = "Your {$label} has been {$decision}.".($comment ? "\n\nComment: {$comment}" : '');
 
         NotificationService::send(
             $approval->organization_id,
             $approval->requested_by,
-            'approval_' . $decision,
+            'approval_'.$decision,
             $subject,
             $body,
             ['approval_request_id' => $approval->id]
@@ -193,7 +214,7 @@ class ApprovalService
                 $m->to($user->email, $user->name)->subject($subject);
             });
         } catch (\Throwable $e) {
-            \Log::warning('ApprovalService mail placeholder failed: ' . $e->getMessage());
+            \Log::warning('ApprovalService mail placeholder failed: '.$e->getMessage());
         }
     }
 
@@ -233,7 +254,7 @@ class ApprovalService
     public function getHistory(int $orgId, ?string $entityType = null, int $limit = 50): \Illuminate\Database\Eloquent\Collection
     {
         $query = ApprovalRequest::where('organization_id', $orgId)
-            ->whereIn('status', ['approved', 'rejected'])
+            ->whereIn('status', ['approved', 'rejected', 'superseded'])
             ->with(['requestedBy', 'reviewedBy', 'organization']);
 
         if ($entityType) {
@@ -251,7 +272,7 @@ class ApprovalService
     public function getHistoryPaginated(int $orgId, ?string $entityType = null, int $perPage = 25): \Illuminate\Contracts\Pagination\LengthAwarePaginator
     {
         $query = ApprovalRequest::where('organization_id', $orgId)
-            ->whereIn('status', ['approved', 'rejected'])
+            ->whereIn('status', ['approved', 'rejected', 'superseded'])
             ->with(['requestedBy', 'reviewedBy', 'organization']);
 
         if ($entityType) {

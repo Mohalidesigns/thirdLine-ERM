@@ -31,7 +31,28 @@
         {{-- Assessment Context --}}
         <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
             <div class="flex items-center gap-2 mb-6"><div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">1</div><h2 class="text-lg font-semibold text-[#1A365D]">Assessment Context</h2></div>
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label for="campaign_id" class="block text-sm font-medium text-gray-700 mb-2">Assessment Campaign</label>
+                    <select id="campaign_id" name="campaign_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
+                        <option value="">Current open RCSA campaign</option>
+                        @foreach (($campaigns ?? []) as $campaign)
+                            <option value="{{ $campaign->id }}" {{ old('campaign_id') == $campaign->id ? 'selected' : '' }}>
+                                {{ $campaign->campaign_code }} — {{ $campaign->title }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Leave as-is to file against the open RCSA campaign. If none is open, one is created for you —
+                        your worksheet is never discarded.
+                    </p>
+                </div>
+                <div>
+                    <label for="assessment_date" class="block text-sm font-medium text-gray-700 mb-2">Assessment Date <span class="text-red-500">*</span></label>
+                    <input type="date" id="assessment_date" name="assessment_date" value="{{ old('assessment_date', now()->format('Y-m-d')) }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]" required>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
                     <label for="business_unit_id" class="block text-sm font-medium text-gray-700 mb-2">Business Unit <span class="text-red-500">*</span></label>
                     <select id="business_unit_id" name="business_unit_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]" required>
@@ -49,10 +70,6 @@
                             <option value="{{ $process->id ?? $process }}" {{ old('process_id') == ($process->id ?? $process) ? 'selected' : '' }}>{{ $process->name ?? $process }}</option>
                         @endforeach
                     </select>
-                </div>
-                <div>
-                    <label for="assessment_date" class="block text-sm font-medium text-gray-700 mb-2">Assessment Date <span class="text-red-500">*</span></label>
-                    <input type="date" id="assessment_date" name="assessment_date" value="{{ old('assessment_date', now()->format('Y-m-d')) }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]" required>
                 </div>
             </div>
         </div>
@@ -103,6 +120,15 @@
                                 @foreach ([1=>'Insignificant',2=>'Minor',3=>'Moderate',4=>'Major',5=>'Catastrophic'] as $v => $l) <option value="{{ $v }}">{{ $v }}: {{ $l }}</option> @endforeach
                             </select>
                         </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Control Effectiveness</label>
+                        <select name="risks[0][control_effectiveness]" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="">Not assessed</option>
+                            @foreach (['effective' => 'Effective', 'partially_effective' => 'Partially effective', 'ineffective' => 'Ineffective', 'not_tested' => 'Not tested'] as $v => $l)
+                                <option value="{{ $v }}">{{ $l }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         <div>

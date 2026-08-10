@@ -6,39 +6,11 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Sign In - Atheris ERM GRC Suite</title>
 
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Google Fonts: Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-
-    <!-- Material Symbols Outlined -->
-    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
-
-    <!-- Tailwind Config -->
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-                    colors: {
-                        primary: '#1A365D',
-                        secondary: '#2D7D46',
-                        accent: '#D4AF37',
-                    }
-                }
-            }
-        }
-    </script>
-
-    <style>
-        body { font-family: 'Inter', system-ui, sans-serif; }
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-        }
-    </style>
+    {{-- All front-end assets are served from this deployment. Tailwind, Alpine,
+         Chart.js, Inter and Material Symbols were previously fetched from three
+         foreign CDNs on every page load, which no on-premise data-residency
+         claim survives. --}}
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-gray-50">
 
@@ -165,6 +137,38 @@
                             Sign In
                         </button>
                     </form>
+
+                    {{-- Single sign-on. The organization is identified from the
+                         email domain, so staff never need to know their
+                         organization's sign-in URL. --}}
+                    @if ($ssoAvailable ?? false)
+                        <div class="mt-6">
+                            <div class="relative">
+                                <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-200"></div></div>
+                                <div class="relative flex justify-center"><span class="bg-white px-3 text-xs text-gray-400">or</span></div>
+                            </div>
+
+                            <form method="POST" action="{{ route('sso.discover') }}" class="mt-6 space-y-3">
+                                @csrf
+                                <label for="sso_email" class="block text-sm font-medium text-gray-800">Sign in with your organization</label>
+                                <input
+                                    type="email"
+                                    id="sso_email"
+                                    name="email"
+                                    value="{{ old('email') }}"
+                                    placeholder="you@yourcompany.com"
+                                    required
+                                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] transition"
+                                >
+                                <button
+                                    type="submit"
+                                    class="w-full border border-[#1A365D] text-[#1A365D] hover:bg-[#1A365D]/5 font-semibold py-2.5 rounded-lg transition duration-200"
+                                >
+                                    Continue with single sign-on
+                                </button>
+                            </form>
+                        </div>
+                    @endif
 
                     <p class="mt-6 text-center text-sm text-gray-500">
                         Don't have an account?

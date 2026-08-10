@@ -49,11 +49,11 @@ class NotificationService
             return null;
         }
         $map = [
-            'ControlTest'    => 'risk.control-tests.show',
-            'TreatmentPlan'  => 'risk.treatments.show',
+            'ControlTest' => 'risk.control-tests.show',
+            'TreatmentPlan' => 'risk.treatments.show',
             'RiskAssessment' => 'risk.assessments.show',
-            'LossEvent'      => 'risk.loss-events.show',
-            'Risk'           => 'risk.register.show',
+            'LossEvent' => 'risk.loss-events.show',
+            'Risk' => 'risk.register.show',
         ];
         if (! isset($map[$type])) {
             return null;

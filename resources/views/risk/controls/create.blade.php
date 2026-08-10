@@ -13,6 +13,15 @@
 @endsection
 
 @section('content')
+    {{--
+        WP-05 TASK 2 — the field grid is rendered from object_attributes rather
+        than written out here. Adding a field to the Control type in the builder
+        puts it on this form, on the edit form and on the detail view, with its
+        validation, without a deploy.
+
+        The linked-risks section below stays hand-written on purpose: it edits a
+        relationship, not a field of the control, and it is the caller's to own.
+    --}}
     @if ($errors->any())
         <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
             <div class="flex items-center gap-2 mb-2"><span class="material-symbols-outlined text-red-600">error</span><span class="text-sm font-semibold text-red-700">Please correct the following errors:</span></div>
@@ -64,91 +73,22 @@
         @csrf
 
         <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <div class="flex items-center gap-2 mb-6"><div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">1</div><h2 class="text-lg font-semibold text-[#1A365D]">Control Details</h2></div>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="lg:col-span-2">
-                    <label for="name" class="block text-sm font-medium text-gray-700 mb-2">Control Name <span class="text-red-500">*</span></label>
-                    <input type="text" id="name" name="name" value="{{ old('name') }}" placeholder="e.g. Dual Authorization for Wire Transfers" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] @error('name') border-red-500 @enderror" required>
-                    @error('name')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-                <div class="lg:col-span-2">
-                    <label for="description" class="block text-sm font-medium text-gray-700 mb-2">Description <span class="text-red-500">*</span></label>
-                    <textarea id="description" name="description" rows="3" placeholder="Describe how this control operates..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] @error('description') border-red-500 @enderror" required>{{ old('description') }}</textarea>
-                    @error('description')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-                <div>
-                    <label for="control_type" class="block text-sm font-medium text-gray-700 mb-2">Control Type <span class="text-red-500">*</span></label>
-                    <select id="control_type" name="control_type" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]" required>
-                        <option value="">Select Type</option>
-                        @foreach (['preventive' => 'Preventive', 'detective' => 'Detective', 'corrective' => 'Corrective', 'directive' => 'Directive'] as $val => $label)
-                            <option value="{{ $val }}" {{ old('control_type') === $val ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                    @error('control_type')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-                <div>
-                    <label for="control_nature" class="block text-sm font-medium text-gray-700 mb-2">Control Nature</label>
-                    <select id="control_nature" name="control_nature" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
-                        <option value="">Select Nature</option>
-                        @foreach (['manual' => 'Manual', 'automated' => 'Automated', 'semi_automated' => 'Semi-Automated'] as $val => $label)
-                            <option value="{{ $val }}" {{ old('control_nature') === $val ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                    @error('control_nature')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-                <div>
-                    <label for="frequency" class="block text-sm font-medium text-gray-700 mb-2">Control Frequency</label>
-                    <select id="frequency" name="frequency" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
-                        <option value="">Select Frequency</option>
-                        @foreach (['continuous' => 'Continuous', 'daily' => 'Daily', 'weekly' => 'Weekly', 'monthly' => 'Monthly', 'quarterly' => 'Quarterly', 'annually' => 'Annually', 'ad_hoc' => 'Ad Hoc'] as $val => $label)
-                            <option value="{{ $val }}" {{ old('frequency') === $val ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                    @error('frequency')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-                <div>
-                    <label for="owner_id" class="block text-sm font-medium text-gray-700 mb-2">Control Owner <span class="text-red-500">*</span></label>
-                    <select id="owner_id" name="owner_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]" required>
-                        <option value="">Select Owner</option>
-                        @foreach (($users ?? []) as $user) <option value="{{ $user->id }}" {{ old('owner_id') == $user->id ? 'selected' : '' }}>{{ $user->name }}</option> @endforeach
-                    </select>
-                    @error('owner_id')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-                <div>
-                    <label for="business_unit_id" class="block text-sm font-medium text-gray-700 mb-2">Business Unit</label>
-                    <select id="business_unit_id" name="business_unit_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
-                        <option value="">Select Business Unit</option>
-                        @foreach (($businessUnits ?? []) as $bu) <option value="{{ $bu->id }}" {{ old('business_unit_id') == $bu->id ? 'selected' : '' }}>{{ $bu->name }}</option> @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label for="effectiveness_rating" class="block text-sm font-medium text-gray-700 mb-2">Effectiveness Rating</label>
-                    <select id="effectiveness_rating" name="effectiveness_rating" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
-                        <option value="">Select Rating</option>
-                        @foreach (['effective' => 'Effective', 'partially_effective' => 'Partially Effective', 'ineffective' => 'Ineffective'] as $val => $label)
-                            <option value="{{ $val }}" {{ old('effectiveness_rating') === $val ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label for="status" class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                    <select id="status" name="status" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
-                        @foreach (['active' => 'Active', 'inactive' => 'Inactive', 'under_review' => 'Under Review'] as $val => $label)
-                            <option value="{{ $val }}" {{ old('status', 'active') === $val ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
+            <div class="flex items-center gap-2 mb-6">
+                <div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">1</div>
+                <h2 class="text-lg font-semibold text-[#1A365D]">Control Details</h2>
             </div>
+
+            <x-dynamic-form type="Control" />
         </div>
 
         <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
             <div class="flex items-center gap-2 mb-6"><div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">2</div><h2 class="text-lg font-semibold text-[#1A365D]">Linked Risks</h2></div>
             <div class="space-y-2">
-                @foreach (($risks ?? []) as $risk)
+                @php
+                    $preselectedIds = old('risk_ids', request('risk_id') ? [(int) request('risk_id')] : []);
+                @endphp
+                @forelse (($risks ?? []) as $risk)
                     <label class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-blue-50 cursor-pointer">
-                        @php
-                            $preselectedIds = old('risk_ids', request('risk_id') ? [(int) request('risk_id')] : []);
-                        @endphp
                         <input type="checkbox" name="risk_ids[]" value="{{ $risk->id }}" class="rounded border-gray-300 text-[#1A365D]" {{ in_array($risk->id, $preselectedIds) ? 'checked' : '' }}>
                         <div>
                             <span class="text-xs font-semibold text-[#1A365D]">{{ $risk->risk_code }}</span>
@@ -156,7 +96,9 @@
                         </div>
                         <x-risk-badge :rating="$risk->residual_rating ?? 'medium'" class="ml-auto" />
                     </label>
-                @endforeach
+                @empty
+                    <p class="text-sm text-gray-400">No risks in the register yet — you can link this control later.</p>
+                @endforelse
             </div>
         </div>
 
@@ -179,10 +121,13 @@
                     this.error = null;
                     this.lastResult = null;
 
-                    const nameEl = document.getElementById('name');
-                    const typeSel = document.getElementById('control_type');
-                    const natureSel = document.getElementById('control_nature');
-                    const freqSel = document.getElementById('frequency');
+                    // The dynamic renderer ids fields as field-<code>, so that a
+                    // tenant-added field cannot collide with an element id
+                    // elsewhere on the page.
+                    const nameEl = document.getElementById('field-name');
+                    const typeSel = document.getElementById('field-control_type');
+                    const natureSel = document.getElementById('field-control_nature');
+                    const freqSel = document.getElementById('field-frequency');
 
                     const started = performance.now();
                     try {
@@ -210,9 +155,18 @@
                         }
 
                         const d = json.data;
-                        const descEl = document.getElementById('description');
-                        if (nameEl && !nameEl.value && d.name) nameEl.value = d.name;
-                        if (descEl) descEl.value = d.description;
+                        const descEl = document.getElementById('field-description');
+                        // Alpine owns these inputs through x-model, so a raw
+                        // value assignment has to be announced or the binding
+                        // overwrites it on the next render.
+                        const set = (el, value) => {
+                            if (!el || value == null) return;
+                            el.value = value;
+                            el.dispatchEvent(new Event('input', { bubbles: true }));
+                        };
+
+                        if (nameEl && !nameEl.value) set(nameEl, d.name);
+                        set(descEl, d.description);
                         this.lastResult = { elapsed_ms: elapsed };
                     } catch (e) {
                         this.error = 'Network error: ' + e.message;

@@ -16,7 +16,10 @@
     <div class="flex items-center justify-between mb-6">
         <div>
             <h1 class="text-xl font-bold text-[#1A365D]">Risk Heatmap</h1>
-            <p class="text-sm text-gray-500 mt-1">Interactive 5x5 risk matrix showing likelihood vs impact</p>
+            <p class="text-sm text-gray-500 mt-1">
+                Interactive {{ $profile->matrix_rows }}&times;{{ $profile->matrix_cols }} risk matrix showing likelihood vs impact
+                <span class="text-gray-400">&middot; {{ $profile->name }}</span>
+            </p>
         </div>
         <div class="flex items-center gap-3">
             <div class="flex bg-white rounded-lg border border-gray-200 p-0.5">
@@ -46,48 +49,60 @@
                     <span class="text-xs font-semibold text-gray-500 writing-mode-vertical" style="writing-mode: vertical-rl; transform: rotate(180deg);">LIKELIHOOD</span>
                 </div>
 
+                @php
+                    // WP-05 TASK 3 — the grid is sized and coloured by the
+                    // organisation's scoring profile.
+                    //
+                    // The 25-entry $cellColors literal that used to live here
+                    // was not merely hardcoded, it was internally inconsistent:
+                    // likelihood 4 × impact 1 and likelihood 2 × impact 2 both
+                    // score 4, and it painted the first yellow and the second
+                    // green. Likelihood 4 × impact 4 scores 16 — a High — and
+                    // it painted that the same red as a Critical. Deriving the
+                    // colour from the band the score actually falls into fixes
+                    // both, so some cells legitimately change colour on
+                    // upgrade. No score and no rating changes with them.
+                    $rows = $profile->matrix_rows;
+                    $cols = $profile->matrix_cols;
+                    $likelihoodLabels = $profile->axisLabels('likelihood');
+                    $impactLabels = $profile->axisLabels('impact');
+
+                    // Cells are drawn with an inline background because band
+                    // colours are tenant-configured hex values; a Tailwind
+                    // class name cannot be built at runtime from user data.
+                    $bandFor = fn (int $score) => $profile->bandFor($score);
+                @endphp
+
                 <div class="flex-1">
-                    {{-- Y-axis labels --}}
+                    {{-- X-axis labels --}}
                     <div class="flex">
                         <div class="w-24 flex-shrink-0"></div>
-                        <div class="flex-1 grid grid-cols-5 gap-1 mb-1">
-                            @foreach (['Insignificant', 'Minor', 'Moderate', 'Major', 'Catastrophic'] as $label)
-                                <div class="text-center text-[10px] text-gray-500 font-medium">{{ $label }}</div>
-                            @endforeach
+                        <div class="flex-1 grid gap-1 mb-1" style="grid-template-columns: repeat({{ $cols }}, minmax(0, 1fr));">
+                            @for ($iScore = 1; $iScore <= $cols; $iScore++)
+                                <div class="text-center text-[10px] text-gray-500 font-medium">{{ $impactLabels[$iScore] ?? $iScore }}</div>
+                            @endfor
                         </div>
                     </div>
 
-                    @php
-                        $likelihoodLabels = [5 => 'Almost Certain', 4 => 'Likely', 3 => 'Possible', 2 => 'Unlikely', 1 => 'Rare'];
-                        $cellColors = [
-                            '5-5' => 'bg-red-600', '5-4' => 'bg-red-600', '5-3' => 'bg-red-500', '5-2' => 'bg-orange-500', '5-1' => 'bg-yellow-500',
-                            '4-5' => 'bg-red-600', '4-4' => 'bg-red-500', '4-3' => 'bg-orange-500', '4-2' => 'bg-yellow-500', '4-1' => 'bg-yellow-400',
-                            '3-5' => 'bg-red-500', '3-4' => 'bg-orange-500', '3-3' => 'bg-yellow-500', '3-2' => 'bg-yellow-400', '3-1' => 'bg-green-400',
-                            '2-5' => 'bg-orange-500', '2-4' => 'bg-yellow-500', '2-3' => 'bg-yellow-400', '2-2' => 'bg-green-400', '2-1' => 'bg-green-500',
-                            '1-5' => 'bg-yellow-500', '1-4' => 'bg-yellow-400', '1-3' => 'bg-green-400', '1-2' => 'bg-green-500', '1-1' => 'bg-green-500',
-                        ];
-                    @endphp
-
-                    @foreach ($likelihoodLabels as $lScore => $lLabel)
+                    {{-- Highest likelihood at the top, as a heat map is read. --}}
+                    @for ($lScore = $rows; $lScore >= 1; $lScore--)
                         <div class="flex mb-1">
                             <div class="w-24 flex-shrink-0 flex items-center">
-                                <span class="text-[10px] text-gray-500 font-medium text-right w-full pr-2">{{ $lLabel }} ({{ $lScore }})</span>
+                                <span class="text-[10px] text-gray-500 font-medium text-right w-full pr-2">{{ $likelihoodLabels[$lScore] ?? $lScore }} ({{ $lScore }})</span>
                             </div>
-                            <div class="flex-1 grid grid-cols-5 gap-1">
-                                @for ($iScore = 1; $iScore <= 5; $iScore++)
+                            <div class="flex-1 grid gap-1" style="grid-template-columns: repeat({{ $cols }}, minmax(0, 1fr));">
+                                @for ($iScore = 1; $iScore <= $cols; $iScore++)
                                     @php
-                                        $key = $lScore . '-' . $iScore;
-                                        $risksInCell = collect($risks ?? [])->filter(function($r) use ($lScore, $iScore, $viewType) {
-                                            if ($viewType === 'residual' && $r->residual_likelihood && $r->residual_impact) {
-                                                return $r->residual_likelihood == $lScore && $r->residual_impact == $iScore;
-                                            }
-                                            return ($r->inherent_likelihood ?? 0) == $lScore && ($r->inherent_impact ?? 0) == $iScore;
-                                        });
+                                        $cellScore = $lScore * $iScore;
+                                        $cellBand = $bandFor($cellScore);
+                                        $risksInCell = collect($heatmapData[$lScore][$iScore] ?? []);
                                     @endphp
-                                    <div class="relative {{ $cellColors[$key] ?? 'bg-gray-200' }} rounded-lg min-h-[70px] p-1 cursor-pointer hover:opacity-80 transition-opacity heatmap-cell"
+                                    <div class="relative rounded-lg min-h-[70px] p-1 cursor-pointer hover:opacity-80 transition-opacity heatmap-cell"
+                                         style="background-color: {{ $cellBand['color'] ?? '#e5e7eb' }};"
+                                         title="{{ $cellBand['label'] ?? 'Unbanded' }} — score {{ $cellScore }}"
                                          data-likelihood="{{ $lScore }}" data-impact="{{ $iScore }}"
                                          onclick="showCellRisks({{ $lScore }}, {{ $iScore }})">
-                                        <div class="text-[9px] text-white/70 font-bold">{{ $lScore * $iScore }}</div>
+                                        <div class="text-[9px] text-white/70 font-bold">{{ $cellScore }}</div>
                                         <div class="flex flex-wrap gap-0.5 mt-0.5">
                                             @foreach ($risksInCell->take(6) as $r)
                                                 <div class="w-4 h-4 rounded-full bg-white/30 border border-white/50 flex items-center justify-center text-[7px] text-white font-bold" title="{{ $r->risk_code }}: {{ $r->title }}">
@@ -102,7 +117,7 @@
                                 @endfor
                             </div>
                         </div>
-                    @endforeach
+                    @endfor
 
                     {{-- X-axis label --}}
                     <div class="flex mt-2">
@@ -117,14 +132,19 @@
         <div class="space-y-4">
             <div class="bg-white rounded-xl border border-gray-200 p-5">
                 <h3 class="text-sm font-semibold text-[#1A365D] mb-4">Risk Summary</h3>
-                @php
-                    $riskSummaryLevels = ['Critical' => $criticalCount ?? 0, 'High' => $highCount ?? 0, 'Medium' => $mediumCount ?? 0, 'Low' => $lowCount ?? 0];
-                @endphp
+                {{--
+                    One row per band the profile defines, highest first, rather
+                    than four hardcoded levels. A tenant scoring on three bands
+                    gets three rows; one scoring on six gets six.
+                --}}
                 <div class="space-y-2">
-                    @foreach ($riskSummaryLevels as $level => $count)
+                    @foreach (array_reverse($bandCounts ?? []) as $code => $band)
                         <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50">
-                            <x-risk-badge :rating="strtolower($level)" />
-                            <span class="text-sm font-bold">{{ $count }}</span>
+                            <span class="inline-flex items-center gap-2 text-xs font-semibold text-gray-700">
+                                <span class="w-2.5 h-2.5 rounded-full" style="background-color: {{ $band['color'] ?? '#9ca3af' }};"></span>
+                                {{ $band['label'] }}
+                            </span>
+                            <span class="text-sm font-bold">{{ $band['count'] }}</span>
                         </div>
                     @endforeach
                 </div>

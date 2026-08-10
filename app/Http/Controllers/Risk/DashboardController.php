@@ -3,23 +3,24 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
-use App\Models\Risk;
-use App\Models\RiskAssessment;
-use App\Models\LossEvent;
-use App\Models\Issue;
-use App\Models\TreatmentPlan;
-use App\Models\KeyRiskIndicator;
 use App\Models\Control;
 use App\Models\IcaapAssessment;
+use App\Models\Issue;
+use App\Models\KeyRiskIndicator;
+use App\Models\LossEvent;
+use App\Models\Risk;
+use App\Models\RiskAssessment;
+use App\Models\TreatmentPlan;
 use App\Services\RiskAppetiteService;
-use Illuminate\Support\Facades\DB;
+use App\Support\Tenancy\TenantContext;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
     public function index()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         // ──────────────────────────────────────────────────────────
         // Section 1 — Executive KPI Strip
@@ -42,18 +43,11 @@ class DashboardController extends Controller
         $openIssues = Issue::where('organization_id', $orgId)
             ->whereIn('issue_status', ['OPEN', 'IN_PROGRESS', 'OVERDUE'])->count();
 
-        // YTD Net Loss — try decimal column first, fallback to kobo
-        $ytdNetLoss = LossEvent::where('organization_id', $orgId)
+        // YTD Net Loss, derived from the kobo columns — the single definition
+        // of net loss (see LossEvent::netLossKoboSql).
+        $ytdNetLoss = (float) LossEvent::where('organization_id', $orgId)
             ->whereYear('date_of_loss', now()->year)
-            ->sum('net_loss_amount');
-
-        if ($ytdNetLoss == 0) {
-            $ytdNetLossKobo = LossEvent::where('organization_id', $orgId)
-                ->whereYear('date_of_loss', now()->year)
-                ->selectRaw('SUM(COALESCE(gross_loss_amount_kobo, 0) - COALESCE(insurance_recovery_kobo, 0) - COALESCE(other_recovery_kobo, 0)) as total')
-                ->value('total') ?? 0;
-            $ytdNetLoss = $ytdNetLossKobo / 100;
-        }
+            ->sum(LossEvent::netLossNairaSql());
 
         $overdueTreatments = TreatmentPlan::where('organization_id', $orgId)
             ->where('status', 'overdue')->count();
@@ -104,14 +98,76 @@ class DashboardController extends Controller
         );
 
         // ──────────────────────────────────────────────────────────
+        // WP-04 — "as at" the selected period
+        // ──────────────────────────────────────────────────────────
+        //
+        // When the top bar is on a period that has already ended, the four
+        // score-derived views above are rebuilt from the measure engine as the
+        // scores stood at that period's close. The rest of this dashboard —
+        // open issues, overdue treatments, loss trends — is still current-state
+        // and is labelled as such on the page, because those facts are not yet
+        // period-stamped. Silently mixing "as at March" scores with "as of
+        // today" issue counts would be worse than saying which is which.
+        $selectedPeriod = \App\Support\Periods\PeriodContext::current();
+
+        // Null unless the view below is genuinely historic — the banner keys
+        // off this, and labelling a live dashboard "as at" would be worse than
+        // not labelling it at all.
+        $asOfPeriod = $selectedPeriod !== null && $selectedPeriod->end_date?->isPast()
+            ? $selectedPeriod
+            : null;
+
+        if ($asOfPeriod !== null) {
+            $asOfRisks = app(\App\Repositories\RiskRepository::class)
+                ->asOf($asOfPeriod, ['status' => 'active'], $orgId);
+
+            $totalActiveRisks = $asOfRisks->count();
+            $criticalRisks = $asOfRisks->where('residual_rating', 'Critical')->count();
+            $highRisks = $asOfRisks->where('residual_rating', 'High')->count();
+
+            $heatmapData = array_fill(0, 5, array_fill(0, 5, 0));
+
+            foreach ($asOfRisks as $asOfRisk) {
+                $likelihood = $asOfRisk->getAttributes()['residual_likelihood'] ?? null;
+                $impact = $asOfRisk->getAttributes()['residual_impact'] ?? null;
+
+                if ($likelihood === null || $impact === null) {
+                    continue;
+                }
+
+                $lRow = 5 - (int) round((float) $likelihood);
+                $iCol = (int) round((float) $impact) - 1;
+
+                if ($lRow >= 0 && $lRow < 5 && $iCol >= 0 && $iCol < 5) {
+                    $heatmapData[$lRow][$iCol]++;
+                }
+            }
+
+            $ratingDistribution = array_merge(
+                ['Critical' => 0, 'High' => 0, 'Medium' => 0, 'Low' => 0],
+                $asOfRisks->whereNotNull('residual_rating')
+                    ->groupBy('residual_rating')
+                    ->map->count()
+                    ->toArray()
+            );
+        }
+
+        // ──────────────────────────────────────────────────────────
         // Section 3 — Risk Trend (12 months) + Loss Trend (12 months)
         // ──────────────────────────────────────────────────────────
 
         // Risk trend: Use risk_assessments grouped by month and overall_rating
+        //
+        // The month key is built with a driver-appropriate expression rather
+        // than MySQL's DATE_FORMAT. The configured default connection is
+        // sqlite, which has no such function, so this whole screen returned a
+        // 500 on any deployment or test run that was not on MySQL.
         $twelveMonthsAgo = now()->subMonths(12)->startOfMonth();
+        $monthExpression = $this->monthExpression('assessment_date');
+
         $riskTrendRaw = RiskAssessment::where('organization_id', $orgId)
             ->where('assessment_date', '>=', $twelveMonthsAgo)
-            ->selectRaw("DATE_FORMAT(assessment_date, '%Y-%m') as month, overall_rating, COUNT(*) as count")
+            ->selectRaw("{$monthExpression} as month, overall_rating, COUNT(*) as count")
             ->groupBy('month', 'overall_rating')
             ->orderBy('month')
             ->get()
@@ -123,20 +179,22 @@ class DashboardController extends Controller
             $key = $month->format('Y-m');
             $monthData = $riskTrendRaw->get($key, collect());
             $riskTrendData[] = [
-                'label'    => $month->format('M'),
+                'label' => $month->format('M'),
                 'critical' => (int) $monthData->where('overall_rating', 'Critical')->sum('count'),
-                'high'     => (int) $monthData->where('overall_rating', 'High')->sum('count'),
-                'medium'   => (int) $monthData->where('overall_rating', 'Medium')->sum('count'),
-                'low'      => (int) $monthData->where('overall_rating', 'Low')->sum('count'),
+                'high' => (int) $monthData->where('overall_rating', 'High')->sum('count'),
+                'medium' => (int) $monthData->where('overall_rating', 'Medium')->sum('count'),
+                'low' => (int) $monthData->where('overall_rating', 'Low')->sum('count'),
             ];
         }
 
         // Loss event trend: monthly gross vs net
+        $lossMonthExpression = $this->monthExpression('date_of_loss');
+
         $lossTrendRaw = LossEvent::where('organization_id', $orgId)
             ->where('date_of_loss', '>=', $twelveMonthsAgo)
-            ->selectRaw("DATE_FORMAT(date_of_loss, '%Y-%m') as month,
-                SUM(COALESCE(gross_loss_amount, COALESCE(gross_loss_amount_kobo, 0) / 100)) as gross,
-                SUM(COALESCE(net_loss_amount, (COALESCE(gross_loss_amount_kobo, 0) - COALESCE(insurance_recovery_kobo, 0) - COALESCE(other_recovery_kobo, 0)) / 100)) as net,
+            ->selectRaw("{$lossMonthExpression} as month,
+                SUM(COALESCE(gross_loss_amount_kobo, 0)) / 100 as gross,
+                SUM(COALESCE(gross_loss_amount_kobo, 0) - COALESCE(insurance_recovery_kobo, 0) - COALESCE(other_recovery_kobo, 0)) / 100 as net,
                 COUNT(*) as event_count")
             ->groupBy('month')
             ->orderBy('month')
@@ -151,7 +209,7 @@ class DashboardController extends Controller
             $lossTrendData[] = [
                 'label' => $month->format('M'),
                 'gross' => $data ? round((float) $data->gross, 2) : 0,
-                'net'   => $data ? round((float) $data->net, 2) : 0,
+                'net' => $data ? round((float) $data->net, 2) : 0,
                 'count' => $data ? (int) $data->event_count : 0,
             ];
         }
@@ -163,7 +221,7 @@ class DashboardController extends Controller
         $kriStatusCounts = [
             'green' => KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'green')->count(),
             'amber' => KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'amber')->count(),
-            'red'   => KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'red')->count(),
+            'red' => KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'red')->count(),
         ];
 
         $breachedKris = KeyRiskIndicator::where('organization_id', $orgId)
@@ -175,24 +233,24 @@ class DashboardController extends Controller
         // Control effectiveness: group by percentage ranges
         $controlEffRaw = Control::where('organization_id', $orgId)
             ->where('status', 'active')
-            ->selectRaw("
+            ->selectRaw('
                 SUM(CASE WHEN effectiveness_pct >= 80 THEN 1 ELSE 0 END) as effective,
                 SUM(CASE WHEN effectiveness_pct >= 50 AND effectiveness_pct < 80 THEN 1 ELSE 0 END) as partial,
                 SUM(CASE WHEN effectiveness_pct < 50 OR effectiveness_pct IS NULL THEN 1 ELSE 0 END) as ineffective
-            ")
+            ')
             ->first();
 
         $controlEffectiveness = [
-            'Effective'           => (int) ($controlEffRaw->effective ?? 0),
+            'Effective' => (int) ($controlEffRaw->effective ?? 0),
             'Partially Effective' => (int) ($controlEffRaw->partial ?? 0),
-            'Ineffective'         => (int) ($controlEffRaw->ineffective ?? 0),
+            'Ineffective' => (int) ($controlEffRaw->ineffective ?? 0),
         ];
 
         // ──────────────────────────────────────────────────────────
         // Section 5 — Risk Appetite + Treatment Progress
         // ──────────────────────────────────────────────────────────
 
-        $appetiteService = new RiskAppetiteService();
+        $appetiteService = new RiskAppetiteService;
         $appetiteData = $appetiteService->getDashboardData($orgId);
 
         $treatmentStatusDist = TreatmentPlan::where('organization_id', $orgId)
@@ -227,15 +285,15 @@ class DashboardController extends Controller
             ->limit(5)
             ->get()
             ->map(fn ($e) => (object) [
-                'type'       => 'loss_event',
-                'icon'       => 'report_problem',
-                'icon_bg'    => 'bg-red-100',
+                'type' => 'loss_event',
+                'icon' => 'report_problem',
+                'icon_bg' => 'bg-red-100',
                 'icon_color' => 'text-red-600',
-                'code'       => $e->event_reference ?? $e->id,
-                'title'      => $e->title ?? $e->event_title ?? 'Loss Event',
-                'amount'     => $e->net_loss_amount ?? (($e->gross_loss_amount_kobo ?? 0) / 100),
-                'date'       => $e->date_of_loss ? Carbon::parse($e->date_of_loss) : $e->created_at,
-                'url'        => url('/risk/loss-events/' . $e->id),
+                'code' => $e->event_reference ?? $e->id,
+                'title' => $e->title ?? 'Loss Event',
+                'amount' => $e->net_loss_amount_kobo / 100,
+                'date' => $e->date_of_loss ? Carbon::parse($e->date_of_loss) : $e->created_at,
+                'url' => url('/risk/loss-events/'.$e->id),
             ]);
 
         $recentIssues = Issue::where('organization_id', $orgId)
@@ -243,15 +301,15 @@ class DashboardController extends Controller
             ->limit(5)
             ->get()
             ->map(fn ($i) => (object) [
-                'type'       => 'issue',
-                'icon'       => 'bug_report',
-                'icon_bg'    => 'bg-orange-100',
+                'type' => 'issue',
+                'icon' => 'bug_report',
+                'icon_bg' => 'bg-orange-100',
                 'icon_color' => 'text-orange-600',
-                'code'       => $i->issue_code ?? $i->id,
-                'title'      => $i->title ?? 'Issue',
-                'amount'     => null,
-                'date'       => $i->created_at,
-                'url'        => url('/risk/issues/' . $i->id),
+                'code' => $i->issue_reference ?? $i->id,
+                'title' => $i->title ?? 'Issue',
+                'amount' => null,
+                'date' => $i->created_at,
+                'url' => url('/risk/issues/'.$i->id),
             ]);
 
         $recentAssessments = RiskAssessment::where('organization_id', $orgId)
@@ -260,18 +318,25 @@ class DashboardController extends Controller
             ->with('risk')
             ->get()
             ->map(fn ($a) => (object) [
-                'type'       => 'assessment',
-                'icon'       => 'fact_check',
-                'icon_bg'    => 'bg-blue-100',
+                'type' => 'assessment',
+                'icon' => 'fact_check',
+                'icon_bg' => 'bg-blue-100',
                 'icon_color' => 'text-blue-600',
-                'code'       => $a->risk->risk_code ?? $a->id,
-                'title'      => 'Assessment: ' . ($a->risk->title ?? 'Risk Assessment'),
-                'amount'     => null,
-                'date'       => $a->assessment_date ? Carbon::parse($a->assessment_date) : $a->created_at,
-                'url'        => url('/risk/assessments/' . $a->id),
+                'code' => $a->risk->risk_code ?? $a->id,
+                'title' => 'Assessment: '.($a->risk->title ?? 'Risk Assessment'),
+                'amount' => null,
+                'date' => $a->assessment_date ? Carbon::parse($a->assessment_date) : $a->created_at,
+                'url' => url('/risk/assessments/'.$a->id),
             ]);
 
-        $activityFeed = $recentLossEvents
+        // Built from a base collection, not from whichever of the three is
+        // first. Eloquent's map() only downgrades to a base collection when it
+        // can see a non-model in the result, so an EMPTY source stayed an
+        // Eloquent collection — and merging plain objects into one calls
+        // getKey() on them and fatals. An organisation with no loss events but
+        // some issues took the whole dashboard down.
+        $activityFeed = collect()
+            ->merge($recentLossEvents)
             ->merge($recentIssues)
             ->merge($recentAssessments)
             ->sortByDesc('date')
@@ -286,7 +351,7 @@ class DashboardController extends Controller
             ->where('cbn_reportable', true)
             ->where(function ($q) {
                 $q->where('cbn_notification_sent', false)
-                  ->orWhereNull('cbn_notification_sent');
+                    ->orWhereNull('cbn_notification_sent');
             })
             ->count();
 
@@ -327,7 +392,27 @@ class DashboardController extends Controller
             // Section 7 — Activity
             'activityFeed',
             // Section 8 — Regulatory
-            'cbnReportableCount', 'upcomingReviews', 'overdueReviews', 'regulatoryIssues'
+            'cbnReportableCount', 'upcomingReviews', 'overdueReviews', 'regulatoryIssues',
+            // WP-04 — non-null when the score-derived views above are historic
+            'asOfPeriod'
         ));
+    }
+
+    /**
+     * A "YYYY-MM" grouping key for a date column, in the current driver's SQL.
+     *
+     * MySQL and SQLite disagree on how to format a date, and this application
+     * runs on both — MySQL in production, SQLite for the test suite. Hard-coding
+     * DATE_FORMAT made every trend on this dashboard a fatal error outside
+     * MySQL.
+     */
+    private function monthExpression(string $column): string
+    {
+        return match (DB::connection()->getDriverName()) {
+            'sqlite' => "strftime('%Y-%m', {$column})",
+            'pgsql' => "to_char({$column}, 'YYYY-MM')",
+            'sqlsrv' => "FORMAT({$column}, 'yyyy-MM')",
+            default => "DATE_FORMAT({$column}, '%Y-%m')",
+        };
     }
 }

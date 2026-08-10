@@ -3,40 +3,50 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
+use App\Models\BusinessUnit;
 use App\Models\LossEvent;
 use App\Models\LossEventApproval;
 use App\Models\LossEventAttachment;
 use App\Models\LossEventRca;
-use App\Models\LossEventControl;
 use App\Models\NearMiss;
 use App\Models\Risk;
-use App\Models\BusinessUnit;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LossEventController extends Controller
 {
+    /**
+     * Canonical current_status values that count as "still open".
+     *
+     * current_status is upper case (see docs/schema/canonical-columns.md); the
+     * lower-case `status` accessor exists only for the views.
+     */
+    private const OPEN_STATUSES = ['REPORTED', 'UNDER_INVESTIGATION'];
+
     /**
      * Loss event dashboard with statistics.
      */
     public function dashboard()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
         $currentYear = now()->year;
 
-        $baseQuery = fn() => LossEvent::where('organization_id', $orgId)->whereYear('date_of_loss', $currentYear);
+        $baseQuery = fn () => LossEvent::where('organization_id', $orgId)->whereYear('date_of_loss', $currentYear);
 
-        $totalEvents     = $baseQuery()->count();
-        $totalGrossLoss  = (float) $baseQuery()->sum('gross_loss_amount');
-        $recoveredAmount = (float) $baseQuery()->sum('recovery_amount');
-        $netLossYtd      = (float) $baseQuery()->sum('net_loss_amount');
+        // Money lives in kobo; the dashboard renders naira.
+        $totalEvents = $baseQuery()->count();
+        $totalGrossLoss = (float) $baseQuery()->sum('gross_loss_amount_kobo') / 100;
+        $recoveredAmount = (float) $baseQuery()
+            ->sum(DB::raw('insurance_recovery_kobo + other_recovery_kobo')) / 100;
+        $netLossYtd = (float) $baseQuery()
+            ->sum(DB::raw('gross_loss_amount_kobo - insurance_recovery_kobo - other_recovery_kobo')) / 100;
 
         $pendingCbnNotifications = LossEvent::where('organization_id', $orgId)
             ->where('is_regulatory_reportable', true)
-            ->whereIn('status', ['reported', 'under_investigation'])
+            ->whereIn('current_status', self::OPEN_STATUSES)
             ->count();
         $pendingNfiuFilings = LossEvent::where('organization_id', $orgId)
             ->where('nfiu_reportable', true)
@@ -45,7 +55,7 @@ class LossEventController extends Controller
             })
             ->count();
         $openInvestigations = LossEvent::where('organization_id', $orgId)
-            ->whereIn('status', ['reported', 'under_investigation'])
+            ->whereIn('current_status', self::OPEN_STATUSES)
             ->count();
         $nearMisses = NearMiss::where('organization_id', $orgId)
             ->whereYear('date_occurred', $currentYear)
@@ -54,11 +64,11 @@ class LossEventController extends Controller
         // Monthly loss trend, 12 months, zero-filled
         $raw = LossEvent::where('organization_id', $orgId)
             ->whereYear('date_of_loss', $currentYear)
-            ->selectRaw('MONTH(date_of_loss) as m, COUNT(*) as c, SUM(gross_loss_amount) as s')
+            ->selectRaw('MONTH(date_of_loss) as m, COUNT(*) as c, SUM(gross_loss_amount_kobo) / 100 as s')
             ->groupByRaw('MONTH(date_of_loss)')
             ->get()
             ->keyBy('m');
-        $monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        $monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         $counts = [];
         $losses = [];
         for ($m = 1; $m <= 12; $m++) {
@@ -71,13 +81,13 @@ class LossEventController extends Controller
         // By Basel category
         $baselRows = LossEvent::where('organization_id', $orgId)
             ->whereYear('date_of_loss', $currentYear)
-            ->selectRaw('basel_event_type, COUNT(*) as count, SUM(gross_loss_amount) as total_loss')
-            ->groupBy('basel_event_type')
+            ->selectRaw('basel_l1_category, COUNT(*) as count, SUM(gross_loss_amount_kobo) / 100 as total_loss')
+            ->groupBy('basel_l1_category')
             ->orderByDesc('total_loss')
             ->get();
         $baselCategoryData = [
-            'labels' => $baselRows->pluck('basel_event_type')->map(fn($v) => $v ?: 'Unclassified')->toArray(),
-            'values' => $baselRows->pluck('total_loss')->map(fn($v) => (float) $v)->toArray(),
+            'labels' => $baselRows->pluck('basel_l1_category')->map(fn ($v) => $v ?: 'Unclassified')->toArray(),
+            'values' => $baselRows->pluck('total_loss')->map(fn ($v) => (float) $v)->toArray(),
         ];
 
         $recentEvents = LossEvent::where('organization_id', $orgId)
@@ -87,15 +97,16 @@ class LossEventController extends Controller
 
         $regulatoryAlerts = LossEvent::where('organization_id', $orgId)
             ->where('is_regulatory_reportable', true)
-            ->whereIn('status', ['reported', 'under_investigation'])
+            ->whereIn('current_status', self::OPEN_STATUSES)
             ->orderBy('date_of_loss')
             ->limit(5)
             ->get()
             ->map(function ($e) {
                 $deadline = $e->date_of_loss ? $e->date_of_loss->copy()->addDays(3) : null;
+
                 return (object) [
                     'type' => 'CBN ORMS notification',
-                    'event_reference' => $e->reference ?? ('LE-' . $e->id),
+                    'event_reference' => $e->reference ?? ('LE-'.$e->id),
                     'deadline' => $deadline,
                     'is_overdue' => $deadline ? $deadline->isPast() : false,
                 ];
@@ -114,24 +125,26 @@ class LossEventController extends Controller
      */
     public function index(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $query = LossEvent::where('organization_id', $orgId);
 
+        // The filter values arrive from the views in the lower-case form the
+        // deprecated columns used; the canonical columns are upper case.
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('current_status', strtoupper($request->status));
         }
 
         if ($request->filled('basel_event_type')) {
-            $query->where('basel_event_type', $request->basel_event_type);
+            $query->where('basel_l1_category', strtoupper($request->basel_event_type));
         }
 
         if ($request->filled('cbn_category')) {
-            $query->where('cbn_loss_category', $request->cbn_category);
+            $query->where('cbn_risk_category', $request->cbn_category);
         }
 
         if ($request->filled('severity')) {
-            $query->where('severity', $request->severity);
+            $query->where('event_severity', strtoupper($request->severity));
         }
 
         if ($request->filled('date_from')) {
@@ -154,8 +167,8 @@ class LossEventController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('event_reference', 'like', "%{$search}%")
-                  ->orWhere('event_title', 'like', "%{$search}%")
-                  ->orWhere('event_description', 'like', "%{$search}%");
+                    ->orWhere('title', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -163,18 +176,23 @@ class LossEventController extends Controller
 
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
 
+        // Option ids stay in the lower-case form the filter above re-upper-cases,
+        // so existing bookmarked filter URLs keep resolving.
         $baselL1Categories = LossEvent::where('organization_id', $orgId)
-            ->whereNotNull('basel_event_type')
+            ->whereNotNull('basel_l1_category')
             ->distinct()
-            ->orderBy('basel_event_type')
-            ->pluck('basel_event_type')
-            ->map(fn ($v) => (object) ['id' => $v, 'name' => \Illuminate\Support\Str::of($v)->replace('_', ' ')->title()]);
+            ->orderBy('basel_l1_category')
+            ->pluck('basel_l1_category')
+            ->map(fn ($v) => (object) [
+                'id' => strtolower($v),
+                'name' => \Illuminate\Support\Str::of($v)->lower()->replace('_', ' ')->title(),
+            ]);
 
         $cbnCategories = LossEvent::where('organization_id', $orgId)
-            ->whereNotNull('cbn_loss_category')
+            ->whereNotNull('cbn_risk_category')
             ->distinct()
-            ->orderBy('cbn_loss_category')
-            ->pluck('cbn_loss_category')
+            ->orderBy('cbn_risk_category')
+            ->pluck('cbn_risk_category')
             ->map(fn ($v) => (object) ['id' => $v, 'name' => $v]);
 
         return view('risk.loss-events.index', compact('lossEvents', 'businessUnits', 'baselL1Categories', 'cbnCategories'));
@@ -185,7 +203,7 @@ class LossEventController extends Controller
      */
     public function create(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $step = $request->get('step', 1);
         $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
@@ -196,11 +214,75 @@ class LossEventController extends Controller
     }
 
     /**
+     * Form fields that are already canonical and pass straight through.
+     */
+    private const PASSTHROUGH_FIELDS = [
+        'date_of_loss',
+        'date_discovered',
+        'business_unit_id',
+        'reported_by',
+        'currency',
+        'corrective_action_summary',
+        'regulatory_body',
+        'reporting_deadline',
+        'is_regulatory_reportable',
+    ];
+
+    /**
+     * The subset of the validated input that already names canonical columns.
+     *
+     * Taken by allow-list rather than by unsetting the deprecated keys: an
+     * unset-list silently lets a newly added form field through to a column
+     * that may not exist, which is how the two-sources-of-truth problem got
+     * here in the first place.
+     */
+    private function retainedAttributes(array $validated): array
+    {
+        return array_intersect_key($validated, array_flip(self::PASSTHROUGH_FIELDS));
+    }
+
+    /**
+     * Translate the form's field names onto the canonical columns.
+     *
+     * The create/edit forms still post the 200038 names (event_title,
+     * gross_loss_amount, severity, …) because those are what the Blade
+     * templates and every bookmarked filter URL use. This is the single place
+     * that mapping happens; nothing else writes a deprecated column.
+     *
+     * Case matters. basel_l1_category, cbn_risk_category and event_severity
+     * are stored upper case because that is what RegulatoryThresholdService
+     * matches on — the previous lower-case write is why the NFIU STR, EFCC and
+     * cyber-fraud alerts never fired. See docs/schema/canonical-columns.md.
+     */
+    private function canonicalAttributes(array $validated): array
+    {
+        $baselCategory = strtoupper($validated['basel_event_type'] ?? 'OTHER');
+
+        return [
+            'title' => $validated['event_title'],
+            'description' => $validated['event_description'],
+            'initial_root_cause' => $validated['root_cause_summary'] ?? null,
+            'basel_l1_category' => $baselCategory,
+            // The form collects a single Basel classification. Mirroring it
+            // into L2 keeps the NOT NULL constraint satisfied and matches the
+            // behaviour this replaced; a genuine L2/L3 taxonomy is WP-10 work.
+            'basel_l2_category' => $baselCategory,
+            'cbn_risk_category' => strtoupper($validated['cbn_loss_category'] ?? 'OTHER'),
+            'loss_category' => $validated['event_type'] ?? 'actual_loss',
+            'event_severity' => strtoupper($validated['severity'] ?? 'MODERATE'),
+            // Money is stored in minor units, with the currency alongside it.
+            'gross_loss_amount_kobo' => (int) round(($validated['gross_loss_amount'] ?? 0) * 100),
+            'insurance_recovery_kobo' => (int) round(($validated['insurance_recovery'] ?? 0) * 100),
+            'other_recovery_kobo' => (int) round(($validated['recovery_amount'] ?? 0) * 100),
+        ];
+    }
+
+    /**
      * Store a newly created loss event.
      */
     public function store(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $validated = $request->validate([
             'event_title' => 'required|string|max:255',
@@ -242,11 +324,6 @@ class LossEventController extends Controller
                 $validated['event_type'] = 'near_miss';
             }
 
-            // Calculate net loss
-            $netLoss = $validated['gross_loss_amount']
-                - ($validated['recovery_amount'] ?? 0)
-                - ($validated['insurance_recovery'] ?? 0);
-
             // Auto-detect regulatory threshold (example: amounts over 10M NGN)
             $regulatoryThreshold = 10000000; // 10 million
             $isRegulatoryReportable = $validated['is_regulatory_reportable']
@@ -256,37 +333,27 @@ class LossEventController extends Controller
             $riskRegisterId = $validated['risk_id'] ?? null;
             unset($validated['risk_id']);
 
-            $lossEvent = LossEvent::create(array_merge($validated, [
-                'organization_id' => $orgId,
-                'event_reference' => $eventReference,
-                'risk_register_id' => $riskRegisterId,
-                'net_loss_amount' => max(0, $netLoss),
-                'is_regulatory_reportable' => $isRegulatoryReportable,
-                'status' => 'reported',
-                'created_by' => auth()->id(),
-                // Populate original NOT NULL columns from the primary migration
-                'title' => $validated['event_title'],
-                'description' => $validated['event_description'],
-                'basel_l1_category' => $validated['basel_event_type'] ?? 'Other',
-                'basel_l2_category' => $validated['basel_event_type'] ?? 'Other',
-                'cbn_risk_category' => $validated['cbn_loss_category'] ?? 'Other',
-                'loss_category' => $validated['event_type'] ?? 'actual_loss',
-                'event_severity' => strtoupper($validated['severity'] ?? 'MODERATE'),
-                'is_near_miss' => $isNearMiss,
-                'current_status' => 'REPORTED',
-                // Keep kobo columns in sync — the regulatory threshold engine
-                // (CBN/NDIC/EFCC alerts) and AI data services read these.
-                'gross_loss_amount_kobo' => (int) round($validated['gross_loss_amount'] * 100),
-                'insurance_recovery_kobo' => (int) round(($validated['insurance_recovery'] ?? 0) * 100),
-            ]));
+            $lossEvent = LossEvent::create(array_merge(
+                $this->retainedAttributes($validated),
+                $this->canonicalAttributes($validated),
+                [
+                    'organization_id' => $orgId,
+                    'event_reference' => $eventReference,
+                    'risk_register_id' => $riskRegisterId,
+                    'is_regulatory_reportable' => $isRegulatoryReportable,
+                    'is_near_miss' => $isNearMiss,
+                    'current_status' => 'REPORTED',
+                    'created_by' => auth()->id(),
+                ]
+            ));
 
             \App\Events\LossEventCreated::dispatch($lossEvent);
 
             // Evaluate regulatory thresholds
-            $regulatoryService = new \App\Services\RegulatoryThresholdService();
+            $regulatoryService = new \App\Services\RegulatoryThresholdService;
             $alerts = $regulatoryService->evaluateThresholds($lossEvent);
 
-            if (!empty($alerts)) {
+            if (! empty($alerts)) {
                 session()->flash('regulatory_alerts', $alerts);
             }
 
@@ -303,7 +370,7 @@ class LossEventController extends Controller
      */
     public function show(LossEvent $lossEvent)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($lossEvent->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this loss event.');
@@ -327,7 +394,7 @@ class LossEventController extends Controller
      */
     public function edit(LossEvent $lossEvent)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($lossEvent->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this loss event.');
@@ -345,7 +412,7 @@ class LossEventController extends Controller
      */
     public function update(Request $request, LossEvent $lossEvent)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($lossEvent->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this loss event.');
@@ -373,31 +440,20 @@ class LossEventController extends Controller
             'reporting_deadline' => 'nullable|date',
         ]);
 
-        $netLoss = $validated['gross_loss_amount']
-            - ($validated['recovery_amount'] ?? 0)
-            - ($validated['insurance_recovery'] ?? 0);
-
         // Map form field risk_id to actual DB column risk_register_id
         $riskRegisterId = $validated['risk_id'] ?? null;
         unset($validated['risk_id']);
 
         $original = $lossEvent->getAttributes();
 
-        $lossEvent->update(array_merge($validated, [
-            'risk_register_id' => $riskRegisterId,
-            'net_loss_amount' => max(0, $netLoss),
-            'updated_by' => auth()->id(),
-            // Keep original NOT NULL columns in sync
-            'title' => $validated['event_title'],
-            'description' => $validated['event_description'],
-            'basel_l1_category' => $validated['basel_event_type'] ?? $lossEvent->basel_l1_category,
-            'basel_l2_category' => $validated['basel_event_type'] ?? $lossEvent->basel_l2_category,
-            'cbn_risk_category' => $validated['cbn_loss_category'] ?? $lossEvent->cbn_risk_category,
-            'loss_category' => $validated['event_type'] ?? $lossEvent->loss_category,
-            'event_severity' => strtoupper($validated['severity'] ?? $lossEvent->event_severity),
-            'gross_loss_amount_kobo' => (int) round($validated['gross_loss_amount'] * 100),
-            'insurance_recovery_kobo' => (int) round(($validated['insurance_recovery'] ?? 0) * 100),
-        ]));
+        $lossEvent->update(array_merge(
+            $this->retainedAttributes($validated),
+            $this->canonicalAttributes($validated),
+            [
+                'risk_register_id' => $riskRegisterId,
+                'updated_by' => auth()->id(),
+            ]
+        ));
 
         // Audit trail
         \App\Services\AuditTrailService::recordChanges($lossEvent, $original);
@@ -417,13 +473,13 @@ class LossEventController extends Controller
      */
     public function destroy(LossEvent $lossEvent)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($lossEvent->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this loss event.');
         }
 
-        if (!in_array($lossEvent->status, ['reported', 'draft'])) {
+        if (! in_array($lossEvent->status, ['reported', 'draft'])) {
             return back()->with('error', 'Only reported or draft loss events can be deleted.');
         }
 
@@ -439,7 +495,7 @@ class LossEventController extends Controller
      */
     public function updateStatus(Request $request, LossEvent $lossEvent)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($lossEvent->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this loss event.');
@@ -463,14 +519,16 @@ class LossEventController extends Controller
         $currentStatus = $lossEvent->status;
         $newStatus = $validated['status'];
 
-        if (!isset($allowedTransitions[$currentStatus]) || !in_array($newStatus, $allowedTransitions[$currentStatus])) {
+        if (! isset($allowedTransitions[$currentStatus]) || ! in_array($newStatus, $allowedTransitions[$currentStatus])) {
             return back()->with('error', "Cannot transition from '{$currentStatus}' to '{$newStatus}'.");
         }
 
         $original = $lossEvent->getAttributes();
 
         $lossEvent->update([
-            'status' => $newStatus,
+            // Canonical column, upper case. $lossEvent->status above is the
+            // read-only lower-case accessor over this same value.
+            'current_status' => strtoupper($newStatus),
             'status_changed_at' => now(),
             'status_changed_by' => auth()->id(),
         ]);
@@ -486,7 +544,7 @@ class LossEventController extends Controller
      */
     public function rca(LossEvent $lossEvent)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($lossEvent->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this loss event.');
@@ -501,7 +559,7 @@ class LossEventController extends Controller
      */
     public function storeRca(Request $request, LossEvent $lossEvent)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($lossEvent->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this loss event.');
@@ -523,16 +581,19 @@ class LossEventController extends Controller
                 'organization_id' => $orgId,
                 'methodology' => $validated['methodology'],
                 'root_cause_category' => $validated['root_cause_category'],
-                'root_cause_description' => $validated['root_cause_description'],
-                'root_cause_statement' => $validated['root_cause_description'], // NOT NULL column
-                'contributing_factors_text' => $validated['contributing_factors'] ?? null,
+                // Canonical columns only — root_cause_description,
+                // contributing_factors_text, status, performed_by and
+                // analysis_date are deprecated duplicates.
+                'root_cause_statement' => $validated['root_cause_description'],
+                'contributory_factors' => isset($validated['contributing_factors'])
+                    ? [$validated['contributing_factors']]
+                    : null,
                 'analysis_details' => $validated['analysis_details'] ?? null,
                 'recommendations' => $validated['recommendations'] ?? null,
                 'lessons_learned' => $validated['lessons_learned'] ?? null,
-                'status' => 'draft',
                 'rca_status' => 'IN_PROGRESS',
-                'performed_by' => auth()->id(),
-                'analysis_date' => now(),
+                'completed_by' => auth()->id(),
+                'completed_at' => now(),
             ]
         );
 
@@ -545,7 +606,7 @@ class LossEventController extends Controller
      */
     public function uploadAttachment(Request $request, LossEvent $lossEvent)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($lossEvent->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this loss event.');
@@ -580,7 +641,7 @@ class LossEventController extends Controller
      */
     public function downloadAttachment(LossEvent $lossEvent, LossEventAttachment $attachment)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($lossEvent->organization_id !== $orgId || $attachment->loss_event_id !== $lossEvent->id) {
             abort(403, 'Unauthorized access.');
@@ -598,7 +659,7 @@ class LossEventController extends Controller
      */
     public function deleteAttachment(LossEvent $lossEvent, LossEventAttachment $attachment)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($lossEvent->organization_id !== $orgId || $attachment->loss_event_id !== $lossEvent->id) {
             abort(403, 'Unauthorized access.');
@@ -617,7 +678,7 @@ class LossEventController extends Controller
      */
     public function approveRca(Request $request, LossEvent $lossEvent)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($lossEvent->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this loss event.');
@@ -628,7 +689,7 @@ class LossEventController extends Controller
         $original = $rca->getAttributes();
 
         $rca->update([
-            'status' => 'approved',
+            'rca_status' => 'APPROVED',
             'approved_by' => auth()->id(),
             'approved_at' => now(),
         ]);
@@ -644,7 +705,7 @@ class LossEventController extends Controller
      */
     public function rcaIndex()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $rcaEvents = LossEvent::where('organization_id', $orgId)
             ->with('rca')
@@ -654,8 +715,8 @@ class LossEventController extends Controller
 
         $rcaBase = LossEventRca::where('organization_id', $orgId);
         $totalRcas = (clone $rcaBase)->count();
-        $completedRcas = (clone $rcaBase)->whereIn('status', ['approved', 'completed'])->count();
-        $inProgressRcas = (clone $rcaBase)->whereIn('status', ['draft', 'in_progress'])->count();
+        $completedRcas = (clone $rcaBase)->whereIn('rca_status', ['APPROVED', 'COMPLETED'])->count();
+        $inProgressRcas = (clone $rcaBase)->whereIn('rca_status', ['NOT_STARTED', 'IN_PROGRESS'])->count();
         $pendingRcas = LossEvent::where('organization_id', $orgId)->whereDoesntHave('rca')->count();
 
         $categoryLabels = ['People', 'Process', 'Systems', 'External', 'Governance'];
@@ -687,7 +748,7 @@ class LossEventController extends Controller
      */
     public function reports()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $lossEvents = LossEvent::where('organization_id', $orgId)
             ->orderByDesc('date_of_loss')
@@ -708,7 +769,7 @@ class LossEventController extends Controller
      */
     public function nearMisses(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $query = NearMiss::where('organization_id', $orgId);
 
@@ -720,7 +781,7 @@ class LossEventController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('event_reference', 'like', "%{$search}%")
-                  ->orWhere('title', 'like', "%{$search}%");
+                    ->orWhere('title', 'like', "%{$search}%");
             });
         }
 
@@ -745,7 +806,7 @@ class LossEventController extends Controller
      */
     public function createNearMiss()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
@@ -760,7 +821,7 @@ class LossEventController extends Controller
      */
     public function storeNearMiss(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
@@ -816,14 +877,14 @@ class LossEventController extends Controller
      */
     public function approvals(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $query = LossEvent::where('organization_id', $orgId)
-            ->where('status', 'pending_approval')
+            ->where('current_status', 'PENDING_APPROVAL')
             ->with(['businessUnit', 'reporter']);
 
         if ($request->filled('severity')) {
-            $query->where('severity', $request->severity);
+            $query->where('event_severity', strtoupper($request->severity));
         }
 
         $pendingApprovals = $query->orderByDesc('date_of_loss')->paginate(25);
@@ -834,7 +895,7 @@ class LossEventController extends Controller
     /**
      * Submit an approval decision for a loss event.
      */
-    public function submitApproval(Request $request, LossEvent $lossEvent, \App\Services\ApprovalService $approvals)
+    public function submitApproval(Request $request, LossEvent $lossEvent, \App\Services\Workflow\ModuleApprovals $approvals)
     {
         abort_unless(auth()->user()->can('approve-loss-event', $lossEvent), 403,
             'Only an assigned handler, loss-event-manager, compliance-officer or CRO can decide on loss events.');
@@ -846,44 +907,65 @@ class LossEventController extends Controller
             'approval_level' => 'nullable|in:level_1,level_2,level_3',
         ]);
 
-        return DB::transaction(function () use ($validated, $lossEvent, $approvals) {
-            $orgId = $lossEvent->organization_id;
+        $comments = $validated['decision'] === 'rejected'
+            ? $validated['rejection_reason']
+            : ($validated['comments'] ?? null);
 
-            // Always record the decision in the audit history table.
-            LossEventApproval::create([
-                'loss_event_id' => $lossEvent->id,
-                'stage' => $validated['approval_level'] ?? 'level_1',
-                'action' => $validated['decision'],
-                'decision' => $validated['decision'],
-                'comments' => $validated['decision'] === 'rejected'
-                    ? $validated['rejection_reason']
-                    : ($validated['comments'] ?? null),
-                'actioned_by' => auth()->id(),
-                'actioned_at' => now(),
-            ]);
+        // WP-06. The stages that used to be a free-text approval_level on a
+        // history row are now real nodes: level_1 → level_2 with a parallel
+        // compliance review for a CBN-reportable event. The engine decides
+        // which level this decision belongs to, and LossEventBinding keeps
+        // writing loss_event_approvals so the CBN screens are unaffected.
+        if ($validated['decision'] !== 'escalated'
+            && $approvals->decide($lossEvent, $validated['decision'] === 'approved' ? 'approve' : 'reject', $request->user(), [
+                'comments' => $comments,
+            ])) {
+            return back()->with('success', "Loss event {$lossEvent->event_reference}: "
+                .ucfirst($validated['decision']).'.');
+        }
 
-            // Mirror the decision through the generic ApprovalService so
-            // notifications + the approval_requests timeline stay consistent.
-            $pending = $approvals->latestPending($lossEvent)
-                ?? $approvals->requestApproval($lossEvent, 'approve_loss_event', reviewerId: $lossEvent->assigned_to_id ?? null);
+        // Escalation, and the tenant that has not published the definition yet.
+        return DB::transaction(function () use ($validated, $lossEvent, $comments, $approvals, $request) {
+            if ($validated['decision'] === 'escalated') {
+                $task = $approvals->taskFor($lossEvent, $request->user());
 
-            if ($validated['decision'] === 'approved') {
-                $lossEvent->update([
-                    'status' => 'approved',
-                    'approved_by' => auth()->id(),
-                    'approved_at' => now(),
+                if ($task !== null) {
+                    app(\App\Services\Workflow\WorkflowEngine::class)
+                        ->escalate($task, $comments, $request->user());
+                }
+
+                LossEventApproval::create([
+                    'loss_event_id' => $lossEvent->id,
+                    'stage' => $task?->node_code ?? ($validated['approval_level'] ?? 'level_1'),
+                    'action' => 'escalated',
+                    'decision' => 'escalated',
+                    'comments' => $comments,
+                    'actioned_by' => auth()->id(),
+                    'actioned_at' => now(),
                 ]);
-                $approvals->approve($pending, auth()->id(), $validated['comments'] ?? null);
-            } elseif ($validated['decision'] === 'rejected') {
-                $lossEvent->update(['status' => 'under_investigation']);
-                $approvals->reject($pending, auth()->id(), $validated['rejection_reason']);
+
+                $lossEvent->update(['current_status' => 'ESCALATED']);
             } else {
-                // escalated — leave approval pending so the next level can act.
-                $lossEvent->update(['status' => 'escalated']);
+                LossEventApproval::create([
+                    'loss_event_id' => $lossEvent->id,
+                    'stage' => $validated['approval_level'] ?? 'level_1',
+                    'action' => $validated['decision'],
+                    'decision' => $validated['decision'],
+                    'comments' => $comments,
+                    'actioned_by' => auth()->id(),
+                    'actioned_at' => now(),
+                ]);
+
+                $approvals->decideDirectly(
+                    $lossEvent,
+                    $validated['decision'] === 'approved' ? 'approve' : 'reject',
+                    $request->user(),
+                    $comments,
+                );
             }
 
-            $decisionLabel = ucfirst($validated['decision']);
-            return back()->with('success', "Loss event {$lossEvent->event_reference}: {$decisionLabel}.");
+            return back()->with('success', "Loss event {$lossEvent->event_reference}: "
+                .ucfirst($validated['decision']).'.');
         });
     }
 
@@ -892,7 +974,7 @@ class LossEventController extends Controller
      */
     public function convertNearMiss(NearMiss $nearMiss)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($nearMiss->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this near-miss.');
@@ -902,15 +984,23 @@ class LossEventController extends Controller
         $lossEvent = LossEvent::create([
             'organization_id' => $orgId,
             'event_reference' => \App\Services\ReferenceCodeService::generate('loss_events', 'event_reference', 'LE'),
-            'title' => 'Converted: ' . $nearMiss->title,
-            'description' => $nearMiss->description . "\n\n[Converted from Near-Miss: {$nearMiss->reference}]",
+            'title' => 'Converted: '.$nearMiss->title,
+            'description' => $nearMiss->description."\n\n[Converted from Near-Miss: {$nearMiss->reference}]",
             'date_of_loss' => $nearMiss->date_occurred,
             'date_discovered' => $nearMiss->date_reported,
             'business_unit_id' => $nearMiss->business_unit_id,
             'gross_loss_amount_kobo' => $nearMiss->potential_loss_kobo ?? 0,
             'event_severity' => strtoupper($nearMiss->severity ?? 'MEDIUM'),
             'risk_register_id' => $nearMiss->risk_register_id,
-            'current_status' => 'draft',
+            // These four are NOT NULL on loss_events and the near-miss record
+            // carries no equivalent, so the converted event starts explicitly
+            // unclassified — the edit screen this redirects to is where the
+            // handler completes the Basel and CBN ORMS classification.
+            'basel_l1_category' => 'UNCLASSIFIED',
+            'basel_l2_category' => 'UNCLASSIFIED',
+            'cbn_risk_category' => 'UNCLASSIFIED',
+            'loss_category' => 'actual_loss',
+            'current_status' => 'DRAFT',
             'created_by' => auth()->id(),
         ]);
 

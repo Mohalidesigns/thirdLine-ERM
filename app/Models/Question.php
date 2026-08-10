@@ -12,12 +12,15 @@ class Question extends Model
     ];
 
     protected $casts = [
-        'options'           => 'array',
-        'scoring_rules'     => 'array',
+        'options' => 'array',
+        'scoring_rules' => 'array',
         'conditional_logic' => 'array',
-        'is_required'       => 'boolean',
-        'weight'            => 'decimal:2',
+        'is_required' => 'boolean',
+        'weight' => 'decimal:2',
     ];
 
-    public function section() { return $this->belongsTo(QuestionnaireSection::class, 'section_id'); }
+    public function section()
+    {
+        return $this->belongsTo(QuestionnaireSection::class, 'section_id');
+    }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Risk;
 use App\Http\Controllers\Controller;
 use App\Models\ApprovalRequest;
 use App\Services\ApprovalService;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 
 class ApprovalController extends Controller
@@ -21,7 +22,7 @@ class ApprovalController extends Controller
      */
     public function dashboard()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $pending = $this->approvalService->getPendingApprovals($orgId);
         $stats = $this->approvalService->getStatistics($orgId);
@@ -37,13 +38,13 @@ class ApprovalController extends Controller
      */
     public function approve(ApprovalRequest $approval, Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($approval->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this approval.');
         }
 
-        if (!$approval->isPending()) {
+        if (! $approval->isPending()) {
             return back()->with('error', 'This approval request is no longer pending.');
         }
 
@@ -65,13 +66,13 @@ class ApprovalController extends Controller
      */
     public function reject(ApprovalRequest $approval, Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($approval->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this approval.');
         }
 
-        if (!$approval->isPending()) {
+        if (! $approval->isPending()) {
             return back()->with('error', 'This approval request is no longer pending.');
         }
 
@@ -93,7 +94,7 @@ class ApprovalController extends Controller
      */
     public function history(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $entityType = $request->get('entity_type');
         $history = $this->approvalService->getHistoryPaginated($orgId, $entityType, 25);

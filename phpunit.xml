@@ -18,6 +18,12 @@
         </include>
     </source>
     <php>
+        <!-- The suite peaks around 150 MB, and the WP-04 performance test
+             builds a 5,000-risk register in memory to prove the 12-period
+             trend query does not scale with the row count. PHP's 128M default
+             is below both, so the limit is set here rather than left to
+             whatever php.ini the CI image ships with. -->
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>

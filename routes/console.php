@@ -13,3 +13,25 @@ Schedule::command('issues:check-overdue')->dailyAt('08:00');
 Schedule::command('kri:check-breaches')->dailyAt('07:00');
 Schedule::command('treatments:check-overdue')->dailyAt('08:30');
 Schedule::command('regulatory:check-deadlines')->twiceDaily(8, 16);
+
+// WP-04. The CBN publishes rates on business days; the fetcher runs before the
+// KRI check so a monetary limit is evaluated against that morning's rate.
+Schedule::command('fx:fetch-cbn-rates')->weekdays()->dailyAt('06:30');
+
+// WP-06. Hourly, not nightly: an SLA measured in hours cannot be enforced by a
+// job that runs once a day, and a loss event's level-1 decision sits inside the
+// CBN seven-day reporting window.
+Schedule::command('workflow:sweep-slas')->hourly()->withoutOverlapping();
+
+// Definitions that trigger on a schedule — a quarterly re-attestation of
+// accepted risks, an annual policy review. Nothing runs unless a definition
+// declares the matching cadence.
+Schedule::command('workflow:run-scheduled --cadence=daily')->dailyAt('06:00');
+Schedule::command('workflow:run-scheduled --cadence=weekly')->weeklyOn(1, '06:15');
+Schedule::command('workflow:run-scheduled --cadence=monthly')->monthlyOn(1, '06:30');
+Schedule::command('workflow:run-scheduled --cadence=quarterly')->quarterlyOn(1, '06:45');
+
+// Formula thresholds are re-evaluated after a period closes. The close screen
+// runs this too — this is the safety net for periods closed by a job, and for a
+// denominator (capital, CPI) entered days after the close itself.
+Schedule::command('measures:rebaseline-thresholds')->monthlyOn(2, '05:00');

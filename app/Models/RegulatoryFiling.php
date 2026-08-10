@@ -12,6 +12,13 @@ class RegulatoryFiling extends Model
 
     protected $casts = ['filing_date' => 'date'];
 
-    public function deadline() { return $this->belongsTo(RegulatoryDeadline::class, 'deadline_id'); }
-    public function filer()    { return $this->belongsTo(User::class, 'filed_by'); }
+    public function deadline()
+    {
+        return $this->belongsTo(RegulatoryDeadline::class, 'deadline_id');
+    }
+
+    public function filer()
+    {
+        return $this->belongsTo(User::class, 'filed_by');
+    }
 }

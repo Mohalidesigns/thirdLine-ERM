@@ -32,9 +32,15 @@ class EventServiceProvider extends ServiceProvider
         ],
         \App\Events\AssessmentApproved::class => [
             \App\Listeners\UpdateRiskFromAssessment::class,
+            // Runs after the risk columns are refreshed, so the period-stamped
+            // copy and the denormalised current value agree.
+            \App\Listeners\RecordAssessmentMeasures::class,
             \App\Listeners\SendNotification::class,
         ],
         \App\Events\NearMissConverted::class => [
+            \App\Listeners\SendNotification::class,
+        ],
+        \App\Events\RcsaWorksheetSubmitted::class => [
             \App\Listeners\SendNotification::class,
         ],
     ];

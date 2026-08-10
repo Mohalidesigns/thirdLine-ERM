@@ -34,10 +34,18 @@
     </div>
 
     {{-- Summary Cards --}}
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <x-kpi-card title="Red Breaches" :value="$redBreaches ?? 0" icon="error" color="danger" subtitle="Critical - Immediate action required" />
-        <x-kpi-card title="Amber Warnings" :value="$amberBreaches ?? 0" icon="warning" color="warning" subtitle="Approaching threshold" />
-        <x-kpi-card title="Avg. Days in Breach" :value="$avgDaysInBreach ?? 0" icon="schedule" color="info" />
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <x-kpi-card title="Red Breaches" :value="$redBreaches ?? 0" icon="error" color="danger" subtitle="Open - immediate action required" />
+        <x-kpi-card title="Amber Warnings" :value="$amberBreaches ?? 0" icon="warning" color="warning" subtitle="Open - approaching threshold" />
+        <x-kpi-card title="Avg. Days Open" :value="$avgDaysInBreach ?? 0" icon="schedule" color="info"
+                    :subtitle="($unacknowledged ?? 0) . ' awaiting acknowledgement'" />
+        {{-- Mean time to resolve is computed from the resolved rows in the
+             breach register. Before WP-04 a breach existed only as a
+             notification, so this number could not be produced at all. --}}
+        <x-kpi-card title="Mean Time to Resolve"
+                    :value="isset($mttrHours) ? number_format($mttrHours / 24, 1) . ' d' : 'n/a'"
+                    icon="timer" color="success"
+                    :subtitle="isset($mttrHours) ? 'Across resolved breaches' : 'No breach resolved yet'" />
     </div>
 
     {{-- Filter --}}
@@ -63,7 +71,13 @@
                         <option value="{{ $cat }}" {{ request('category') === $cat ? 'selected' : '' }}>{{ $cat }}</option>
                     @endforeach
                 </select>
-                @if (request()->hasAny(['search', 'level', 'category']))
+                {{-- The register defaults to the work list, not the archive. --}}
+                <select name="status" class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700" onchange="document.getElementById('filterForm').submit()">
+                    <option value="active" {{ ($status ?? 'active') === 'active' ? 'selected' : '' }}>Open &amp; acknowledged</option>
+                    <option value="closed" {{ ($status ?? '') === 'closed' ? 'selected' : '' }}>Closed</option>
+                    <option value="all" {{ ($status ?? '') === 'all' ? 'selected' : '' }}>All</option>
+                </select>
+                @if (request()->hasAny(['search', 'level', 'category', 'status']))
                     <a href="{{ route('risk.kri.breaches') }}" class="text-xs text-[#1A365D] font-medium hover:underline">Clear</a>
                 @endif
             </div>
@@ -81,7 +95,7 @@
             <th>Days in Breach</th>
             <th>Owner</th>
             <th>Breach Date</th>
-            <th>Action Taken</th>
+            <th>Status</th>
             <th>Actions</th>
         </x-slot>
 
@@ -101,9 +115,49 @@
                 <td class="text-xs font-semibold {{ ($breach->days_in_breach ?? 0) > 14 ? 'text-red-600' : 'text-gray-700' }}">{{ $breach->days_in_breach ?? 0 }} days</td>
                 <td class="text-xs">{{ $breach->owner ?? '-' }}</td>
                 <td class="text-xs text-gray-500">{{ isset($breach->breach_date) ? $breach->breach_date->format('d M Y') : '-' }}</td>
-                <td class="text-xs">{{ Str::limit($breach->action_taken ?? 'Pending', 30) }}</td>
+                <td class="text-xs">
+                    @php
+                        $statusClasses = [
+                            'open' => 'bg-red-100 text-red-700',
+                            'acknowledged' => 'bg-blue-100 text-blue-700',
+                            'resolved' => 'bg-green-100 text-green-700',
+                            'false_positive' => 'bg-gray-100 text-gray-600',
+                        ];
+                    @endphp
+                    <span class="badge {{ $statusClasses[$breach->status] ?? 'bg-gray-100 text-gray-600' }}">
+                        {{ ucfirst(str_replace('_', ' ', $breach->status)) }}
+                    </span>
+                    @if ($breach->acknowledgedBy)
+                        <div class="text-[10px] text-gray-400 mt-0.5">by {{ $breach->acknowledgedBy->name }}</div>
+                    @endif
+                </td>
                 <td>
-                    <a href="{{ route('risk.kri.show', $breach->kri_id ?? $breach->id) }}" class="p-1 hover:bg-gray-100 rounded"><span class="material-symbols-outlined text-gray-400 text-lg">visibility</span></a>
+                    <div class="flex items-center gap-1">
+                        @if ($breach->kri_id)
+                            <a href="{{ route('risk.kri.show', $breach->kri_id) }}" class="p-1 hover:bg-gray-100 rounded" title="Open KRI">
+                                <span class="material-symbols-outlined text-gray-400 text-lg">visibility</span>
+                            </a>
+                        @endif
+                        @can('kri.acknowledge_breach')
+                            @if ($breach->status === 'open')
+                                <form method="POST" action="{{ route('risk.kri.breaches.acknowledge', $breach) }}">
+                                    @csrf
+                                    <button type="submit" class="p-1 hover:bg-blue-50 rounded" title="Acknowledge">
+                                        <span class="material-symbols-outlined text-blue-500 text-lg">how_to_reg</span>
+                                    </button>
+                                </form>
+                            @endif
+                            @if (in_array($breach->status, ['open', 'acknowledged'], true))
+                                <form method="POST" action="{{ route('risk.kri.breaches.resolve', $breach) }}">
+                                    @csrf
+                                    <input type="hidden" name="outcome" value="resolved">
+                                    <button type="submit" class="p-1 hover:bg-green-50 rounded" title="Close as resolved">
+                                        <span class="material-symbols-outlined text-green-600 text-lg">task_alt</span>
+                                    </button>
+                                </form>
+                            @endif
+                        @endcan
+                    </div>
                 </td>
             </tr>
         @empty

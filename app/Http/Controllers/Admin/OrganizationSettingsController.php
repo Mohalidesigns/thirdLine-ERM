@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
+use App\Models\ScoringProfile;
+use App\Services\Scoring\ScoringProfileProvisioner;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 
 class OrganizationSettingsController extends Controller
@@ -72,15 +75,48 @@ class OrganizationSettingsController extends Controller
     {
         $validated = $request->validate([
             'scoring_methodology' => 'required|string',
-            'probability_scale' => 'required|integer|min:1|max:10',
-            'impact_scale' => 'required|integer|min:1|max:10',
-            'calculation_method' => 'required|string',
+            // A matrix below 3×3 cannot distinguish anything and one above
+            // 10×10 is unreadable. The old bound of 1 allowed a 1×1 matrix.
+            'probability_scale' => 'required|integer|min:3|max:10',
+            'impact_scale' => 'required|integer|min:3|max:10',
+            'calculation_method' => 'required|string|in:max,weighted,average,worst_two',
             'review_frequency' => 'required|string',
         ]);
 
         $this->mergeSettings('risk_settings', $validated);
 
-        return back()->with('success', 'Risk scoring settings updated successfully.');
+        // WP-05 TASK 3 — write through to the scoring profile. Until this
+        // release these five values were stored and then read by nothing: a
+        // user could set a 4×4 matrix, see a success message, and watch every
+        // screen carry on rendering five columns. The profile is what the
+        // calculations and the heat map actually read, so the save has to
+        // reach it or the screen is still lying.
+        $organization = $this->organization();
+        $provisioner = app(ScoringProfileProvisioner::class);
+
+        $profile = $provisioner->resize(
+            $organization,
+            (int) $validated['probability_scale'],
+            (int) $validated['impact_scale'],
+        );
+
+        $profile->impact_aggregation = $validated['calculation_method'];
+        $profile->save();
+
+        ScoringProfile::flushResolutionCache();
+
+        $bands = collect($profile->rating_bands)
+            ->map(fn ($band) => "{$band['label']} {$band['min']}–{$band['max']}")
+            ->implode(', ');
+
+        // A resize re-rates the whole register. Saying so, with the new
+        // boundaries, is the difference between a configuration change and a
+        // surprise on tomorrow's dashboard.
+        return back()->with(
+            'success',
+            "Risk scoring settings updated. The matrix is now {$profile->matrix_rows}×{$profile->matrix_cols} "
+            ."and ratings are banded {$bands}. Existing risks are re-rated against the new bands."
+        );
     }
 
     /**
@@ -103,7 +139,7 @@ class OrganizationSettingsController extends Controller
 
     private function organization(): Organization
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         return Organization::findOrFail($orgId);
     }

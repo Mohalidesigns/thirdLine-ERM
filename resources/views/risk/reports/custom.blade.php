@@ -101,7 +101,10 @@
                 <div class="bg-white rounded-xl border border-gray-200 p-6">
                     <h3 class="text-sm font-semibold text-[#1A365D] mb-4">Output Format</h3>
                     <div class="space-y-3">
-                        @foreach (['pdf' => 'PDF Document', 'excel' => 'Excel Spreadsheet', 'html' => 'Web View', 'pptx' => 'PowerPoint'] as $fmt => $label)
+                        {{-- Only the formats the renderer actually produces are
+                             offered. This list previously included Web View and
+                             PowerPoint, and every selection returned a CSV. --}}
+                        @foreach (['pdf' => 'PDF document', 'xlsx' => 'Excel workbook (.xlsx)', 'csv' => 'CSV'] as $fmt => $label)
                             <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-blue-50">
                                 <input type="radio" name="format" value="{{ $fmt }}" class="text-[#1A365D] focus:ring-[#1A365D]" {{ $fmt === 'pdf' ? 'checked' : '' }}>
                                 <span class="text-sm text-gray-700">{{ $label }}</span>

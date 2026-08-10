@@ -2,19 +2,21 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 class SimulationRun extends Model
 {
-    use HasFactory;
+    use BelongsToOrganization, HasFactory;
 
     protected $fillable = [
         'organization_id',
         'simulation_reference',
         'status',
         'iterations',
+        'random_seed',
         'horizon_years',
         'correlation_method',
         'confidence_levels',
@@ -30,10 +32,10 @@ class SimulationRun extends Model
 
     protected $casts = [
         'confidence_levels' => 'array',
-        'scenario_ids'      => 'array',
-        'stress_config'     => 'array',
-        'started_at'        => 'datetime',
-        'completed_at'      => 'datetime',
+        'scenario_ids' => 'array',
+        'stress_config' => 'array',
+        'started_at' => 'datetime',
+        'completed_at' => 'datetime',
     ];
 
     protected static function boot(): void
@@ -48,7 +50,7 @@ class SimulationRun extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()
@@ -67,7 +69,7 @@ class SimulationRun extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  View-compatible accessors                                          */
+    /*  View-compatible accessors */
     /* ------------------------------------------------------------------ */
 
     public function getNameAttribute()
@@ -92,24 +94,28 @@ class SimulationRun extends Model
     public function getVar95Attribute()
     {
         $agg = $this->aggregate_result;
+
         return $agg ? round(($agg->var_95_kobo ?? 0) / 100, 2) : 0;
     }
 
     public function getVar99Attribute()
     {
         $agg = $this->aggregate_result;
+
         return $agg ? round(($agg->var_99_kobo ?? 0) / 100, 2) : 0;
     }
 
     public function getVar995Attribute()
     {
         $agg = $this->aggregate_result;
+
         return $agg ? round(($agg->var_99_9_kobo ?? 0) / 100, 2) : 0;
     }
 
     public function getExpectedLossAttribute()
     {
         $agg = $this->aggregate_result;
+
         return $agg ? round(($agg->expected_annual_loss_kobo ?? 0) / 100, 2) : 0;
     }
 
@@ -117,6 +123,7 @@ class SimulationRun extends Model
     {
         // ES approximated as average of losses above VaR 95
         $agg = $this->aggregate_result;
+
         return $agg ? round(($agg->var_99_kobo ?? 0) / 100, 2) : 0;
     }
 
@@ -124,6 +131,7 @@ class SimulationRun extends Model
     {
         $agg = $this->aggregate_result;
         $dist = $agg->percentile_distribution ?? [];
+
         return isset($dist['p99.9']) ? round($dist['p99.9'] / 100, 2) : $this->var_995;
     }
 
@@ -138,6 +146,7 @@ class SimulationRun extends Model
                 $formatted[$label] = round($dist[$key] / 100, 2);
             }
         }
+
         return $formatted;
     }
 

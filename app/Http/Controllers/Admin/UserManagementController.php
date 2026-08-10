@@ -24,8 +24,8 @@ class UserManagementController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('staff_id', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('staff_id', 'like', "%{$search}%");
             });
         }
 
@@ -110,7 +110,7 @@ class UserManagementController extends Controller
         $user->syncRoles($validated['roles']);
 
         return redirect()->route('admin.users.show', $user)
-            ->with('success', 'User created successfully. Temporary password: ' . $tempPassword);
+            ->with('success', 'User created successfully. Temporary password: '.$tempPassword);
     }
 
     /**
@@ -147,8 +147,8 @@ class UserManagementController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
-            'staff_id' => 'required|string|unique:users,staff_id,' . $user->id,
+            'email' => 'required|email|unique:users,email,'.$user->id,
+            'staff_id' => 'required|string|unique:users,staff_id,'.$user->id,
             'job_title' => 'required|string',
             'department' => 'required|string',
             'phone' => 'required|string',
@@ -200,12 +200,12 @@ class UserManagementController extends Controller
             return back()->with('error', 'You cannot change your own account status.');
         }
 
-        $user->update(['is_active' => !$user->is_active]);
+        $user->update(['is_active' => ! $user->is_active]);
 
         $status = $user->is_active ? 'activated' : 'deactivated';
 
         return redirect()->route('admin.users.show', $user)
-            ->with('success', 'User ' . $status . ' successfully.');
+            ->with('success', 'User '.$status.' successfully.');
     }
 
     /**
@@ -224,6 +224,6 @@ class UserManagementController extends Controller
         ]);
 
         return redirect()->route('admin.users.show', $user)
-            ->with('success', 'Password reset. New temporary password: ' . $tempPassword);
+            ->with('success', 'Password reset. New temporary password: '.$tempPassword);
     }
 }

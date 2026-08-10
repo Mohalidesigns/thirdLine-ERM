@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Enums\ControlTestStatus;
+use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasObjectIdentity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ControlTest extends Model
 {
-    use SoftDeletes;
+    use BelongsToOrganization, HasObjectIdentity, SoftDeletes;
 
     protected $fillable = [
         'organization_id', 'control_id', 'test_code', 'title', 'description',
@@ -17,19 +20,57 @@ class ControlTest extends Model
     ];
 
     protected $casts = [
-        'evidence_refs'  => 'array',
+        'evidence_refs' => 'array',
         'scheduled_date' => 'date',
-        'started_date'   => 'date',
+        'started_date' => 'date',
         'completed_date' => 'date',
-        'reviewed_at'    => 'datetime',
+        'reviewed_at' => 'datetime',
     ];
 
-    public function organization() { return $this->belongsTo(Organization::class); }
-    public function control()      { return $this->belongsTo(Control::class); }
-    public function tester()       { return $this->belongsTo(User::class, 'tester_id'); }
-    public function reviewer()     { return $this->belongsTo(User::class, 'reviewer_id'); }
-    public function creator()      { return $this->belongsTo(User::class, 'created_by'); }
-    public function evidence()     { return $this->hasMany(ControlTestEvidence::class); }
+    /**
+     * The status as an enum.
+     *
+     * Deliberately NOT a `$casts` entry. Casting the attribute would make
+     * every existing `$test->status !== 'pending_review'` comparison in the
+     * controllers and views compare an enum against a string — always true —
+     * silently inverting the approval and resubmit guards. Converting those
+     * ~21 call sites is a separate change; this accessor lets new code work
+     * with the enum in the meantime.
+     */
+    public function statusEnum(): ?ControlTestStatus
+    {
+        return ControlTestStatus::tryFrom((string) $this->status);
+    }
+
+    public function organization()
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function control()
+    {
+        return $this->belongsTo(Control::class);
+    }
+
+    public function tester()
+    {
+        return $this->belongsTo(User::class, 'tester_id');
+    }
+
+    public function reviewer()
+    {
+        return $this->belongsTo(User::class, 'reviewer_id');
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function evidence()
+    {
+        return $this->hasMany(ControlTestEvidence::class);
+    }
 
     public function isPassed(): bool
     {

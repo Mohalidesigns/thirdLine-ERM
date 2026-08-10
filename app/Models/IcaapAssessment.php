@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,7 +10,7 @@ use Illuminate\Support\Str;
 
 class IcaapAssessment extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, SoftDeletes;
 
     protected $fillable = [
         'organization_id',
@@ -39,8 +40,8 @@ class IcaapAssessment extends Model
     ];
 
     protected $casts = [
-        'car_actual'          => 'decimal:4',
-        'cbn_minimum_car'     => 'decimal:4',
+        'car_actual' => 'decimal:4',
+        'cbn_minimum_car' => 'decimal:4',
         'conservation_buffer' => 'decimal:4',
         'board_approval_date' => 'date',
         'cbn_submission_date' => 'date',
@@ -58,7 +59,7 @@ class IcaapAssessment extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()

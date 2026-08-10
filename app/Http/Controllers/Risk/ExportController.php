@@ -3,15 +3,15 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
-use App\Models\Risk;
 use App\Models\Control;
 use App\Models\GeneratedReport;
 use App\Models\Issue;
 use App\Models\LossEvent;
+use App\Models\Risk;
 use App\Models\RiskAppetite;
 use App\Models\RiskControlMapping;
-use App\Models\KeyRiskIndicator;
 use App\Models\SimulationRun;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -22,7 +22,7 @@ class ExportController extends Controller
      */
     public function risks(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $risks = Risk::where('organization_id', $orgId)
             ->with(['category', 'riskOwner', 'businessUnit'])
@@ -38,7 +38,7 @@ class ExportController extends Controller
             'Date Identified', 'Next Review Date',
         ];
 
-        $rows = $risks->map(fn($r) => [
+        $rows = $risks->map(fn ($r) => [
             $r->risk_code,
             $r->title,
             $r->category->name ?? '',
@@ -60,7 +60,7 @@ class ExportController extends Controller
             $r->next_review_date,
         ]);
 
-        return $this->streamCsv("risk_register_export.csv", $headers, $rows);
+        return $this->streamCsv('risk_register_export.csv', $headers, $rows);
     }
 
     /**
@@ -68,7 +68,7 @@ class ExportController extends Controller
      */
     public function dashboard(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $risks = Risk::where('organization_id', $orgId)
             ->where('status', 'active')
@@ -83,7 +83,7 @@ class ExportController extends Controller
             'Treatment Strategy',
         ];
 
-        $rows = $risks->map(fn($r) => [
+        $rows = $risks->map(fn ($r) => [
             $r->risk_code,
             $r->title,
             $r->category->name ?? '',
@@ -96,7 +96,7 @@ class ExportController extends Controller
             $r->treatment_strategy ?? '',
         ]);
 
-        return $this->streamCsv("dashboard_risks_export.csv", $headers, $rows);
+        return $this->streamCsv('dashboard_risks_export.csv', $headers, $rows);
     }
 
     /**
@@ -104,7 +104,7 @@ class ExportController extends Controller
      */
     public function controls(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $controls = Control::where('organization_id', $orgId)
             ->orderBy('control_code')
@@ -116,7 +116,7 @@ class ExportController extends Controller
             'Status', 'Last Test Date', 'Next Test Due',
         ];
 
-        $rows = $controls->map(fn($c) => [
+        $rows = $controls->map(fn ($c) => [
             $c->control_code,
             $c->name,
             $c->description ?? '',
@@ -131,7 +131,7 @@ class ExportController extends Controller
             $c->next_test_due ?? '',
         ]);
 
-        return $this->streamCsv("controls_export.csv", $headers, $rows);
+        return $this->streamCsv('controls_export.csv', $headers, $rows);
     }
 
     /**
@@ -139,7 +139,7 @@ class ExportController extends Controller
      */
     public function issues(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $issues = Issue::where('organization_id', $orgId)
             ->with(['issueOwner', 'businessUnit'])
@@ -154,9 +154,9 @@ class ExportController extends Controller
             'Progress %', 'Created At',
         ];
 
-        $rows = $issues->map(fn($i) => [
+        $rows = $issues->map(fn ($i) => [
             $i->issue_reference,
-            $i->title ?? $i->issue_title ?? '',
+            $i->title ?? '',
             $i->issue_source ?? '',
             $i->issue_category ?? '',
             $i->priority ?? '',
@@ -164,14 +164,14 @@ class ExportController extends Controller
             $i->businessUnit->name ?? '',
             $i->issueOwner->name ?? '',
             $i->regulatory_reportable ? 'Yes' : 'No',
-            $i->escalation_level ?? $i->current_escalation_level ?? '',
-            $i->target_resolution_date ?? $i->remediation_due_date ?? '',
-            $i->actual_resolution_date ?? $i->actual_close_date ?? '',
+            $i->current_escalation_level ?? '',
+            $i->remediation_due_date ?? '',
+            $i->actual_close_date ?? '',
             $i->progress_percentage ?? '',
             $i->created_at?->format('Y-m-d'),
         ]);
 
-        return $this->streamCsv("issues_export.csv", $headers, $rows);
+        return $this->streamCsv('issues_export.csv', $headers, $rows);
     }
 
     /**
@@ -179,7 +179,7 @@ class ExportController extends Controller
      */
     public function issuesAgeing(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $issues = Issue::where('organization_id', $orgId)
             ->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])
@@ -195,6 +195,7 @@ class ExportController extends Controller
                     $ageDays <= 90 => '61-90 days',
                     default => '90+ days',
                 };
+
                 return $issue;
             });
 
@@ -204,20 +205,20 @@ class ExportController extends Controller
             'Target Resolution Date', 'Created At',
         ];
 
-        $rows = $issues->map(fn($i) => [
+        $rows = $issues->map(fn ($i) => [
             $i->issue_reference,
-            $i->title ?? $i->issue_title ?? '',
+            $i->title ?? '',
             $i->priority ?? '',
             $i->issue_status ?? '',
             $i->issueOwner->name ?? '',
             $i->businessUnit->name ?? '',
             $i->age_days,
             $i->age_bucket,
-            $i->target_resolution_date ?? $i->remediation_due_date ?? '',
+            $i->remediation_due_date ?? '',
             $i->created_at?->format('Y-m-d'),
         ]);
 
-        return $this->streamCsv("issues_ageing_export.csv", $headers, $rows);
+        return $this->streamCsv('issues_ageing_export.csv', $headers, $rows);
     }
 
     /**
@@ -225,7 +226,7 @@ class ExportController extends Controller
      */
     public function lossEvents(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $events = LossEvent::where('organization_id', $orgId)
             ->orderByDesc('date_of_loss')
@@ -238,23 +239,23 @@ class ExportController extends Controller
             'Regulatory Reportable', 'Created At',
         ];
 
-        $rows = $events->map(fn($e) => [
+        $rows = $events->map(fn ($e) => [
             $e->event_reference,
-            $e->title ?? $e->event_title ?? '',
+            $e->title ?? '',
             $e->date_of_loss,
             $e->date_discovered ?? '',
-            $e->basel_l1_category ?? $e->basel_event_type ?? '',
-            $e->cbn_risk_category ?? $e->cbn_loss_category ?? '',
+            $e->basel_l1_category ?? '',
+            $e->cbn_risk_category ?? '',
             $e->event_severity ?? $e->severity ?? '',
             $e->current_status ?? $e->status ?? '',
-            $e->gross_loss_amount ?? ($e->gross_loss_amount_kobo ? $e->gross_loss_amount_kobo / 100 : 0),
-            $e->recovery_amount ?? (($e->insurance_recovery_kobo ?? 0) + ($e->other_recovery_kobo ?? 0)) / 100,
-            $e->net_loss_amount ?? (($e->gross_loss_amount_kobo ?? 0) - ($e->insurance_recovery_kobo ?? 0) - ($e->other_recovery_kobo ?? 0)) / 100,
+            (int) $e->gross_loss_amount_kobo / 100,
+            ((int) $e->insurance_recovery_kobo + (int) $e->other_recovery_kobo) / 100,
+            $e->net_loss_amount_kobo / 100,
             ($e->is_regulatory_reportable ?? $e->cbn_reportable) ? 'Yes' : 'No',
             $e->created_at?->format('Y-m-d'),
         ]);
 
-        return $this->streamCsv("loss_events_export.csv", $headers, $rows);
+        return $this->streamCsv('loss_events_export.csv', $headers, $rows);
     }
 
     /**
@@ -262,7 +263,7 @@ class ExportController extends Controller
      */
     public function appetite(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $appetites = RiskAppetite::where('organization_id', $orgId)
             ->with('category')
@@ -276,7 +277,7 @@ class ExportController extends Controller
             'Effective Date', 'Expiry Date',
         ];
 
-        $rows = $appetites->map(fn($a) => [
+        $rows = $appetites->map(fn ($a) => [
             $a->category->name ?? '',
             $a->appetite_level ?? '',
             $a->appetite_statement ?? '',
@@ -290,7 +291,7 @@ class ExportController extends Controller
             $a->expiry_date ?? '',
         ]);
 
-        return $this->streamCsv("risk_appetite_export.csv", $headers, $rows);
+        return $this->streamCsv('risk_appetite_export.csv', $headers, $rows);
     }
 
     /**
@@ -298,7 +299,7 @@ class ExportController extends Controller
      */
     public function rcsaMatrix(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $mappings = RiskControlMapping::where('organization_id', $orgId)
             ->with(['risk', 'control'])
@@ -309,7 +310,7 @@ class ExportController extends Controller
             'Control Weight', 'Is Key Control', 'Mapping Rationale',
         ];
 
-        $rows = $mappings->map(fn($m) => [
+        $rows = $mappings->map(fn ($m) => [
             $m->risk->risk_code ?? '',
             $m->risk->title ?? '',
             $m->control->control_code ?? '',
@@ -319,7 +320,7 @@ class ExportController extends Controller
             $m->mapping_rationale ?? '',
         ]);
 
-        return $this->streamCsv("rcsa_matrix_export.csv", $headers, $rows);
+        return $this->streamCsv('rcsa_matrix_export.csv', $headers, $rows);
     }
 
     /**
@@ -327,7 +328,7 @@ class ExportController extends Controller
      */
     public function quantificationResults(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $runs = SimulationRun::where('organization_id', $orgId)
             ->orderByDesc('created_at')
@@ -339,7 +340,7 @@ class ExportController extends Controller
             'Runtime (Seconds)',
         ];
 
-        $rows = $runs->map(fn($r) => [
+        $rows = $runs->map(fn ($r) => [
             $r->simulation_reference ?? '',
             $r->status ?? '',
             $r->iterations ?? '',
@@ -350,7 +351,7 @@ class ExportController extends Controller
             $r->runtime_seconds ?? '',
         ]);
 
-        return $this->streamCsv("quantification_results_export.csv", $headers, $rows);
+        return $this->streamCsv('quantification_results_export.csv', $headers, $rows);
     }
 
     /**
@@ -358,7 +359,7 @@ class ExportController extends Controller
      */
     public function assessments(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $risks = Risk::where('organization_id', $orgId)
             ->with(['category', 'riskOwner', 'businessUnit'])
@@ -373,7 +374,7 @@ class ExportController extends Controller
             'Target Rating', 'Last Assessment Date', 'Next Review Date',
         ];
 
-        $rows = $risks->map(fn($r) => [
+        $rows = $risks->map(fn ($r) => [
             $r->risk_code,
             $r->title,
             $r->category->name ?? '',
@@ -393,7 +394,7 @@ class ExportController extends Controller
             $r->next_review_date ?? '',
         ]);
 
-        return $this->streamCsv("risk_assessments_export.csv", $headers, $rows);
+        return $this->streamCsv('risk_assessments_export.csv', $headers, $rows);
     }
 
     /**
@@ -401,12 +402,12 @@ class ExportController extends Controller
      */
     public function lossEventsCbnOrms(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
         $quarter = $request->input('quarter', 'Q1');
         $year = $request->input('year', date('Y'));
 
-        $quarterMonths = ['Q1' => [1,2,3], 'Q2' => [4,5,6], 'Q3' => [7,8,9], 'Q4' => [10,11,12]];
-        $months = $quarterMonths[$quarter] ?? [1,2,3];
+        $quarterMonths = ['Q1' => [1, 2, 3], 'Q2' => [4, 5, 6], 'Q3' => [7, 8, 9], 'Q4' => [10, 11, 12]];
+        $months = $quarterMonths[$quarter] ?? [1, 2, 3];
 
         $events = LossEvent::where('organization_id', $orgId)
             ->whereYear('date_of_loss', $year)
@@ -420,17 +421,17 @@ class ExportController extends Controller
             'Net Loss (NGN)', 'Severity', 'Regulatory Reportable',
         ];
 
-        $rows = $events->map(fn($e) => [
+        $rows = $events->map(fn ($e) => [
             $e->event_reference,
-            $e->title ?? $e->event_title ?? '',
+            $e->title ?? '',
             $e->date_of_loss,
             $e->basel_l1_category ?? '',
             $e->basel_l2_category ?? '',
             $e->cbn_risk_category ?? '',
             $e->cbn_orms_event_type ?? '',
-            $e->gross_loss_amount ?? ($e->gross_loss_amount_kobo ? $e->gross_loss_amount_kobo / 100 : 0),
-            $e->recovery_amount ?? (($e->insurance_recovery_kobo ?? 0) + ($e->other_recovery_kobo ?? 0)) / 100,
-            $e->net_loss_amount ?? (($e->gross_loss_amount_kobo ?? 0) - ($e->insurance_recovery_kobo ?? 0) - ($e->other_recovery_kobo ?? 0)) / 100,
+            (int) $e->gross_loss_amount_kobo / 100,
+            ((int) $e->insurance_recovery_kobo + (int) $e->other_recovery_kobo) / 100,
+            $e->net_loss_amount_kobo / 100,
             $e->event_severity ?? $e->severity ?? '',
             ($e->cbn_reportable || $e->is_regulatory_reportable) ? 'Yes' : 'No',
         ]);
@@ -444,6 +445,7 @@ class ExportController extends Controller
             period: "{$quarter} {$year}",
             parameters: compact('quarter', 'year'),
         );
+
         return $this->streamCsv($file, $headers, $rows);
     }
 
@@ -452,7 +454,7 @@ class ExportController extends Controller
      */
     public function lossEventsBasel(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
         $from = $request->input('from_date', now()->startOfYear()->toDateString());
         $to = $request->input('to_date', now()->toDateString());
 
@@ -468,19 +470,19 @@ class ExportController extends Controller
             'Other Recovery (NGN)', 'Net Loss (NGN)', 'Severity',
         ];
 
-        $rows = $events->map(fn($e) => [
+        $rows = $events->map(fn ($e) => [
             $e->event_reference,
-            $e->title ?? $e->event_title ?? '',
+            $e->title ?? '',
             $e->date_of_loss,
             $e->date_discovered ?? '',
             $e->basel_l1_category ?? '',
             $e->basel_l2_category ?? '',
             $e->basel_l3_detail ?? '',
             $e->cbn_product_line ?? '',
-            $e->gross_loss_amount ?? ($e->gross_loss_amount_kobo ? $e->gross_loss_amount_kobo / 100 : 0),
-            $e->insurance_recovery ?? ($e->insurance_recovery_kobo ? $e->insurance_recovery_kobo / 100 : 0),
+            (int) $e->gross_loss_amount_kobo / 100,
+            (int) $e->insurance_recovery_kobo / 100,
             ($e->other_recovery_kobo ?? 0) / 100,
-            $e->net_loss_amount ?? (($e->gross_loss_amount_kobo ?? 0) - ($e->insurance_recovery_kobo ?? 0) - ($e->other_recovery_kobo ?? 0)) / 100,
+            $e->net_loss_amount_kobo / 100,
             $e->event_severity ?? $e->severity ?? '',
         ]);
 
@@ -493,6 +495,7 @@ class ExportController extends Controller
             period: "{$from} to {$to}",
             parameters: compact('from', 'to'),
         );
+
         return $this->streamCsv($file, $headers, $rows);
     }
 
@@ -501,7 +504,7 @@ class ExportController extends Controller
      */
     public function lossEventsManagement(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
         $period = $request->input('period', 'quarterly');
 
         $startDate = match ($period) {
@@ -523,28 +526,29 @@ class ExportController extends Controller
             'Root Cause Summary', 'Corrective Action',
         ];
 
-        $rows = $events->map(fn($e) => [
+        $rows = $events->map(fn ($e) => [
             $e->event_reference,
-            $e->title ?? $e->event_title ?? '',
+            $e->title ?? '',
             $e->date_of_loss,
             $e->cbn_risk_category ?? $e->basel_l1_category ?? '',
-            $e->gross_loss_amount ?? ($e->gross_loss_amount_kobo ? $e->gross_loss_amount_kobo / 100 : 0),
-            $e->net_loss_amount ?? (($e->gross_loss_amount_kobo ?? 0) - ($e->insurance_recovery_kobo ?? 0) - ($e->other_recovery_kobo ?? 0)) / 100,
+            (int) $e->gross_loss_amount_kobo / 100,
+            $e->net_loss_amount_kobo / 100,
             $e->event_severity ?? $e->severity ?? '',
             $e->current_status ?? $e->status ?? '',
-            $e->root_cause_summary ?? $e->initial_root_cause ?? '',
+            $e->initial_root_cause ?? '',
             $e->corrective_action_summary ?? '',
         ]);
 
         $file = "management_loss_summary_{$period}.csv";
         $this->logGeneration(
-            name: "Management Loss Summary — " . ucfirst($period),
+            name: 'Management Loss Summary — '.ucfirst($period),
             reportType: 'loss_event_management',
             fileName: $file,
             downloadRoute: 'risk.export.loss-events.management',
             period: ucfirst($period),
             parameters: compact('period'),
         );
+
         return $this->streamCsv($file, $headers, $rows);
     }
 
@@ -553,17 +557,17 @@ class ExportController extends Controller
      */
     public function lossEventsNfiu(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
         $from = $request->input('from_date', now()->startOfYear()->toDateString());
         $to = $request->input('to_date', now()->toDateString());
 
         $events = LossEvent::where('organization_id', $orgId)
             ->where(function ($q) {
                 $q->where('nfiu_reportable', true)
-                  ->orWhere('is_regulatory_reportable', true);
+                    ->orWhere('is_regulatory_reportable', true);
             })
-            ->when($from, fn($q) => $q->where('date_of_loss', '>=', $from))
-            ->when($to, fn($q) => $q->where('date_of_loss', '<=', $to))
+            ->when($from, fn ($q) => $q->where('date_of_loss', '>=', $from))
+            ->when($to, fn ($q) => $q->where('date_of_loss', '<=', $to))
             ->orderBy('date_of_loss')
             ->get();
 
@@ -574,13 +578,13 @@ class ExportController extends Controller
             'Customers Affected', 'Law Enforcement Notified',
         ];
 
-        $rows = $events->map(fn($e) => [
+        $rows = $events->map(fn ($e) => [
             $e->event_reference,
-            $e->title ?? $e->event_title ?? '',
+            $e->title ?? '',
             $e->date_of_loss,
             $e->date_discovered ?? '',
             $e->cbn_risk_category ?? '',
-            $e->gross_loss_amount ?? ($e->gross_loss_amount_kobo ? $e->gross_loss_amount_kobo / 100 : 0),
+            (int) $e->gross_loss_amount_kobo / 100,
             $e->nfiu_report_type ?? '',
             $e->nfiu_str_reference ?? '',
             $e->nfiu_report_filed ? 'Yes' : 'No',
@@ -598,6 +602,7 @@ class ExportController extends Controller
             period: "{$from} to {$to}",
             parameters: compact('from', 'to'),
         );
+
         return $this->streamCsv($file, $headers, $rows);
     }
 
@@ -606,7 +611,7 @@ class ExportController extends Controller
      */
     public function lossEventsTrends(Request $request): StreamedResponse
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
         $range = $request->input('range', '12m');
 
         $months = (int) filter_var($range, FILTER_SANITIZE_NUMBER_INT);
@@ -618,14 +623,14 @@ class ExportController extends Controller
             ->get();
 
         // Group by month
-        $monthly = $events->groupBy(fn($e) => \Carbon\Carbon::parse($e->date_of_loss)->format('Y-m'));
+        $monthly = $events->groupBy(fn ($e) => \Carbon\Carbon::parse($e->date_of_loss)->format('Y-m'));
 
         $headers = ['Month', 'Event Count', 'Total Gross Loss (NGN)', 'Total Net Loss (NGN)', 'Avg Loss (NGN)'];
         $rows = collect();
 
         foreach ($monthly as $month => $monthEvents) {
-            $gross = $monthEvents->sum(fn($e) => $e->gross_loss_amount ?? ($e->gross_loss_amount_kobo ? $e->gross_loss_amount_kobo / 100 : 0));
-            $net = $monthEvents->sum(fn($e) => $e->net_loss_amount ?? (($e->gross_loss_amount_kobo ?? 0) - ($e->insurance_recovery_kobo ?? 0) - ($e->other_recovery_kobo ?? 0)) / 100);
+            $gross = $monthEvents->sum(fn ($e) => (int) $e->gross_loss_amount_kobo / 100);
+            $net = $monthEvents->sum(fn ($e) => $e->net_loss_amount_kobo / 100);
             $rows->push([
                 $month,
                 $monthEvents->count(),
@@ -637,13 +642,14 @@ class ExportController extends Controller
 
         $file = "loss_events_trend_{$range}.csv";
         $this->logGeneration(
-            name: "Loss Event Trends — last " . ($months ?: 12) . ' months',
+            name: 'Loss Event Trends — last '.($months ?: 12).' months',
             reportType: 'loss_event_trends',
             fileName: $file,
             downloadRoute: 'risk.export.loss-events.trends',
             period: "Last {$months} months",
             parameters: compact('range'),
         );
+
         return $this->streamCsv($file, $headers, $rows);
     }
 
@@ -653,13 +659,14 @@ class ExportController extends Controller
     public function lossEventsFullExport(Request $request): StreamedResponse
     {
         $this->logGeneration(
-            name: "Full Loss Event Register — " . now()->format('d M Y'),
+            name: 'Full Loss Event Register — '.now()->format('d M Y'),
             reportType: 'loss_events_full',
             fileName: 'loss_events_register.csv',
             downloadRoute: 'risk.export.loss-events.full',
             period: 'All time',
             parameters: [],
         );
+
         return $this->lossEvents($request);
     }
 
@@ -677,7 +684,7 @@ class ExportController extends Controller
         string $scope = 'loss_events'
     ): void {
         GeneratedReport::create([
-            'organization_id' => auth()->user()->organization_id ?? 1,
+            'organization_id' => TenantContext::organizationId(),
             'generated_by' => auth()->id(),
             'name' => $name,
             'report_type' => $reportType,

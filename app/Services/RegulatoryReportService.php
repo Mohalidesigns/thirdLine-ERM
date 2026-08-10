@@ -2,14 +2,13 @@
 
 namespace App\Services;
 
-use App\Models\LossEvent;
 use App\Models\Control;
 use App\Models\KeyRiskIndicator;
 use App\Models\KriMeasurement;
-use App\Models\RiskAppetite;
+use App\Models\LossEvent;
 use App\Models\Risk;
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class RegulatoryReportService
 {
@@ -28,10 +27,17 @@ class RegulatoryReportService
 
         $months = $quarterMonths[strtoupper($quarter)] ?? [1, 2, 3];
 
-        // Get loss events for the quarter
+        // A plain date range rather than MONTH(date_of_loss). MONTH() is a
+        // MySQL builtin that SQLite does not have, so this query threw
+        // "no such function: MONTH" anywhere the app ran on SQLite — including
+        // the whole test suite, which is why the on-screen regulatory report
+        // had no coverage. A BETWEEN over the quarter's own dates is portable
+        // and lets the index on date_of_loss be used.
+        $quarterStart = \Carbon\CarbonImmutable::create($year, $months[0], 1)->startOfDay();
+        $quarterEnd = $quarterStart->addMonths(3)->subDay()->endOfDay();
+
         $lossEvents = LossEvent::where('organization_id', $orgId)
-            ->whereYear('date_of_loss', $year)
-            ->whereIn(DB::raw('MONTH(date_of_loss)'), $months)
+            ->whereBetween('date_of_loss', [$quarterStart->toDateString(), $quarterEnd->toDateString()])
             ->get();
 
         // Group by Basel L1 category
@@ -107,7 +113,7 @@ class RegulatoryReportService
             });
 
         // Severity distribution
-        $severityDist = $lossEvents->groupBy('event_severity')->map(fn($g) => $g->count());
+        $severityDist = $lossEvents->groupBy('event_severity')->map(fn ($g) => $g->count());
 
         $categoryData = [];
         foreach ($byCategory as $cat => $events) {
@@ -268,7 +274,7 @@ class RegulatoryReportService
      */
     public function generateRiskAppetiteComplianceReport(int $orgId): array
     {
-        $appetiteService = new RiskAppetiteService();
+        $appetiteService = new RiskAppetiteService;
         $appetiteData = $appetiteService->getDashboardData($orgId);
 
         $breaches = $appetiteService->getBreaches($orgId);
@@ -307,7 +313,7 @@ class RegulatoryReportService
 
         $latestSimulation = $simulationRuns->first();
 
-        if (!$latestSimulation) {
+        if (! $latestSimulation) {
             return [
                 'report_type' => 'ICAAP_SUMMARY',
                 'organization_id' => $orgId,

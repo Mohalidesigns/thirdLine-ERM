@@ -16,7 +16,18 @@ class CampaignResponse extends Model
         'questionnaire_data' => 'array',
     ];
 
-    public function assignment() { return $this->belongsTo(CampaignAssignment::class, 'assignment_id'); }
-    public function risk()       { return $this->belongsTo(Risk::class); }
-    public function control()    { return $this->belongsTo(Control::class); }
+    public function assignment()
+    {
+        return $this->belongsTo(CampaignAssignment::class, 'assignment_id');
+    }
+
+    public function risk()
+    {
+        return $this->belongsTo(Risk::class);
+    }
+
+    public function control()
+    {
+        return $this->belongsTo(Control::class);
+    }
 }

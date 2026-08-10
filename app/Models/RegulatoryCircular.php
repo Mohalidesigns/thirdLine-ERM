@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class RegulatoryCircular extends Model
 {
-    use SoftDeletes;
+    use BelongsToOrganization, SoftDeletes;
 
     protected $fillable = [
         'organization_id', 'regulator', 'circular_ref', 'title', 'date_issued',
@@ -17,13 +18,20 @@ class RegulatoryCircular extends Model
     ];
 
     protected $casts = [
-        'date_issued'          => 'date',
-        'effective_date'       => 'date',
-        'affected_risk_ids'    => 'array',
+        'date_issued' => 'date',
+        'effective_date' => 'date',
+        'affected_risk_ids' => 'array',
         'affected_control_ids' => 'array',
-        'compliance_pct'       => 'decimal:2',
+        'compliance_pct' => 'decimal:2',
     ];
 
-    public function organization() { return $this->belongsTo(Organization::class); }
-    public function assignee()     { return $this->belongsTo(User::class, 'assigned_to'); }
+    public function organization()
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function assignee()
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
 }

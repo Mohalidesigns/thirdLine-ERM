@@ -3,24 +3,25 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
+use App\Models\BusinessUnit;
+use App\Models\Control;
 use App\Models\Risk;
 use App\Models\RiskCategory;
-use App\Models\RiskAssessment;
-use App\Models\Control;
 use App\Models\RiskControlMapping;
-use App\Models\LossEvent;
-use App\Models\KeyRiskIndicator;
-use App\Models\BusinessUnit;
+use App\Services\RiskScoringService;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 
 class AnalysisController extends Controller
 {
+    public function __construct(private RiskScoringService $scoring) {}
+
     /**
      * Risk heatmap view.
      */
     public function heatmap(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $query = Risk::where('organization_id', $orgId)
             ->where('status', 'active')
@@ -38,40 +39,77 @@ class AnalysisController extends Controller
 
         $risks = $query->get();
 
-        // Build 5x5 heatmap matrix
+        // WP-05 TASK 3 — the grid is the shape the organisation's scoring
+        // profile says it is, not a hardcoded 5×5, and the band boundaries come
+        // from the same profile that RiskScoringService rates against. This
+        // block previously carried its own copy of `>= 20 is Critical`, which
+        // is how the summary counts and the rating column came to be able to
+        // disagree with each other.
+        $profile = $this->scoring->profileFor(organizationId: $orgId);
+        $rows = $profile->matrix_rows;
+        $cols = $profile->matrix_cols;
+
         $heatmapData = [];
-        for ($likelihood = 1; $likelihood <= 5; $likelihood++) {
-            for ($impact = 1; $impact <= 5; $impact++) {
+        for ($likelihood = 1; $likelihood <= $rows; $likelihood++) {
+            for ($impact = 1; $impact <= $cols; $impact++) {
                 $heatmapData[$likelihood][$impact] = [];
             }
         }
 
         foreach ($risks as $risk) {
             if ($viewType === 'residual' && $risk->residual_likelihood && $risk->residual_impact) {
-                $l = $risk->residual_likelihood;
-                $i = $risk->residual_impact;
+                $l = (int) $risk->residual_likelihood;
+                $i = (int) $risk->residual_impact;
             } else {
-                $l = $risk->inherent_likelihood;
-                $i = $risk->inherent_impact;
+                $l = (int) $risk->inherent_likelihood;
+                $i = (int) $risk->inherent_impact;
             }
-            if ($l >= 1 && $l <= 5 && $i >= 1 && $i <= 5) {
-                $heatmapData[$l][$i][] = $risk;
+
+            if ($l < 1 || $i < 1) {
+                continue;
             }
+
+            // Clamped rather than dropped: after a move to a smaller matrix a
+            // risk still carrying a 5 belongs in the top-right cell, not
+            // missing from a heat map that claims to show every active risk.
+            $heatmapData[min($l, $rows)][min($i, $cols)][] = $risk;
         }
 
         // Score helper honours the active view type so summary counts stay
         // in sync with what the grid displays.
-        $scoreOf = function ($r) use ($viewType) {
+        $scoreOf = function ($r) use ($viewType, $rows, $cols) {
             if ($viewType === 'residual' && $r->residual_likelihood && $r->residual_impact) {
-                return $r->residual_score ?? ($r->residual_likelihood * $r->residual_impact);
+                return $r->residual_score
+                    ?? (min((int) $r->residual_likelihood, $rows) * min((int) $r->residual_impact, $cols));
             }
-            return $r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0));
+
+            return $r->inherent_score
+                ?? (min((int) ($r->inherent_likelihood ?? 0), $rows) * min((int) ($r->inherent_impact ?? 0), $cols));
         };
 
-        $criticalCount = $risks->filter(fn ($r) => $scoreOf($r) >= 20)->count();
-        $highCount     = $risks->filter(fn ($r) => ($s = $scoreOf($r)) >= 12 && $s < 20)->count();
-        $mediumCount   = $risks->filter(fn ($r) => ($s = $scoreOf($r)) >= 5 && $s < 12)->count();
-        $lowCount      = $risks->filter(fn ($r) => $scoreOf($r) < 5 && $scoreOf($r) > 0)->count();
+        // One count per configured band, keyed by band code, so a profile with
+        // three or six bands renders three or six summary tiles.
+        $bandCounts = [];
+
+        foreach ($profile->rating_bands ?? [] as $band) {
+            $bandCounts[$band['code']] = [
+                'label' => $band['label'] ?? $band['code'],
+                'color' => $band['color'] ?? null,
+                'count' => $risks->filter(function ($r) use ($scoreOf, $band) {
+                    $score = $scoreOf($r);
+
+                    return $score > 0 && $score >= ($band['min'] ?? 1) && $score <= ($band['max'] ?? PHP_INT_MAX);
+                })->count(),
+            ];
+        }
+
+        // The four named counters the existing view and its charts read by
+        // name. A profile with different bands simply reports zero for the
+        // ones it does not define; $bandCounts is the general form.
+        $criticalCount = $bandCounts['critical']['count'] ?? 0;
+        $highCount = $bandCounts['high']['count'] ?? 0;
+        $mediumCount = $bandCounts['medium']['count'] ?? 0;
+        $lowCount = $bandCounts['low']['count'] ?? 0;
 
         // Movement data for chart (quarterly trend)
         $movementData = $this->buildRiskMovementData($orgId);
@@ -104,7 +142,8 @@ class AnalysisController extends Controller
 
         return view('risk.analysis.heatmap', compact(
             'risks', 'risksForJs', 'heatmapData', 'viewType', 'businessUnits', 'categories',
-            'criticalCount', 'highCount', 'mediumCount', 'lowCount', 'movementData'
+            'criticalCount', 'highCount', 'mediumCount', 'lowCount', 'movementData',
+            'profile', 'bandCounts'
         ));
     }
 
@@ -115,7 +154,7 @@ class AnalysisController extends Controller
      */
     public function bowtie(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $riskId = $request->get('risk_id');
         $selectedRisk = null;
@@ -140,16 +179,16 @@ class AnalysisController extends Controller
 
                 // Categorize controls
                 $effectiveCount = 0;
-                $partialCount   = 0;
+                $partialCount = 0;
                 $ineffectiveCount = 0;
 
                 foreach ($selectedRisk->controlMappings as $control) {
                     $eff = $this->classifyControlEffectiveness($control);
                     $ctrlObj = (object) [
-                        'name'          => $control->name ?? $control->control_id ?? 'Control',
-                        'type'          => $control->control_type ?? 'detective',
+                        'name' => $control->name ?? $control->control_id ?? 'Control',
+                        'type' => $control->control_type ?? 'detective',
                         'effectiveness' => $eff,
-                        'gaps'          => $eff === 'ineffective' ? 'Requires improvement' : ($eff === 'partially' ? 'Minor gaps identified' : 'None'),
+                        'gaps' => $eff === 'ineffective' ? 'Requires improvement' : ($eff === 'partially' ? 'Minor gaps identified' : 'None'),
                     ];
 
                     if (in_array($control->control_type ?? '', ['preventive', 'directive'])) {
@@ -161,7 +200,7 @@ class AnalysisController extends Controller
                     match ($eff) {
                         'effective' => $effectiveCount++,
                         'partially' => $partialCount++,
-                        default     => $ineffectiveCount++,
+                        default => $ineffectiveCount++,
                     };
                 }
 
@@ -188,7 +227,7 @@ class AnalysisController extends Controller
      */
     public function trends(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         // Accept explicit from/to dates from the date picker. Fall back to the
         // last 12 months if nothing (or invalid input) is provided.
@@ -231,22 +270,22 @@ class AnalysisController extends Controller
             ->where('status', 'active')
             ->where('created_at', '<', $midpoint)
             ->count();
-        $activeRisksChange    = $totalActiveRisks - $activeRisksOld;
+        $activeRisksChange = $totalActiveRisks - $activeRisksOld;
         $activeRisksDirection = $activeRisksChange >= 0 ? 'up' : 'down';
-        $activeRisksChange    = ($activeRisksChange >= 0 ? '+' : '') . $activeRisksChange;
+        $activeRisksChange = ($activeRisksChange >= 0 ? '+' : '').$activeRisksChange;
 
         $avgScoreOld = Risk::where('organization_id', $orgId)
             ->where('status', 'active')
             ->where('created_at', '<', $midpoint)
             ->avg('inherent_score') ?? 0;
-        $scoreChange      = round($avgRiskScore - $avgScoreOld, 1);
-        $avgScoreChange   = ($scoreChange >= 0 ? '+' : '') . $scoreChange;
+        $scoreChange = round($avgRiskScore - $avgScoreOld, 1);
+        $avgScoreChange = ($scoreChange >= 0 ? '+' : '').$scoreChange;
         $avgScoreDirection = $scoreChange >= 0 ? 'up' : 'down';
 
         // Build trend charts over the selected window.
-        $ratingTrendData    = $this->buildRatingTrendData($orgId, $startDate, $endDate);
-        $scoreTrendData     = $this->buildScoreTrendData($orgId, $startDate, $endDate);
-        $categoryTrendData  = $this->buildCategoryTrendData($orgId, $startDate, $endDate);
+        $ratingTrendData = $this->buildRatingTrendData($orgId, $startDate, $endDate);
+        $scoreTrendData = $this->buildScoreTrendData($orgId, $startDate, $endDate);
+        $categoryTrendData = $this->buildCategoryTrendData($orgId, $startDate, $endDate);
         $treatmentTrendData = $this->buildTreatmentTrendData($orgId, $startDate, $endDate);
 
         // Risk movers
@@ -256,7 +295,7 @@ class AnalysisController extends Controller
         // Echo the resolved window back to the view so the date picker stays in
         // sync with what was actually applied (handles defaults + swaps).
         $fromValue = $startDate->format('Y-m-d');
-        $toValue   = $endDate->format('Y-m-d');
+        $toValue = $endDate->format('Y-m-d');
 
         return view('risk.analysis.trends', compact(
             'totalActiveRisks', 'activeRisksChange', 'activeRisksDirection',
@@ -273,7 +312,7 @@ class AnalysisController extends Controller
      */
     public function correlation(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $selectedCategoryId = $request->integer('category_id') ?: null;
 
@@ -299,7 +338,7 @@ class AnalysisController extends Controller
 
         $riskControls = $controlMappings->groupBy('risk_id');
         $riskIds = $riskControls->keys()->toArray();
-        $pairs   = [];
+        $pairs = [];
 
         for ($i = 0; $i < count($riskIds); $i++) {
             for ($j = $i + 1; $j < count($riskIds); $j++) {
@@ -313,8 +352,8 @@ class AnalysisController extends Controller
                     $risk2 = $riskControls[$riskIds[$j]]->first()->risk;
 
                     $pairs[] = [
-                        'risk_a'      => $risk1->risk_code ?? 'R-?',
-                        'risk_b'      => $risk2->risk_code ?? 'R-?',
+                        'risk_a' => $risk1->risk_code ?? 'R-?',
+                        'risk_b' => $risk2->risk_code ?? 'R-?',
                         'coefficient' => round($strength, 3),
                         'significance' => $strength >= 0.7 ? 'high' : ($strength >= 0.4 ? 'medium' : 'low'),
                     ];
@@ -323,11 +362,11 @@ class AnalysisController extends Controller
         }
 
         // Sort by coefficient descending
-        usort($pairs, fn($a, $b) => $b['coefficient'] <=> $a['coefficient']);
+        usort($pairs, fn ($a, $b) => $b['coefficient'] <=> $a['coefficient']);
 
         // Split into positive and negative correlations (all are positive from shared controls)
         $positiveCorrelations = collect(array_slice($pairs, 0, 10))
-            ->map(fn($p) => (object) $p);
+            ->map(fn ($p) => (object) $p);
 
         // Generate some synthetic negative correlations from inverse score relationships
         $negativeCorrelations = $this->buildNegativeCorrelations($risks);
@@ -342,7 +381,7 @@ class AnalysisController extends Controller
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Private helpers                                                     */
+    /*  Private helpers */
     /* ------------------------------------------------------------------ */
 
     /**
@@ -353,10 +392,16 @@ class AnalysisController extends Controller
         $effectiveness = $control->effectiveness_rating ?? $control->operating_effectiveness ?? null;
         if ($effectiveness) {
             $eff = strtolower($effectiveness);
-            if (in_array($eff, ['effective', 'strong', 'high'])) return 'effective';
-            if (in_array($eff, ['partially', 'moderate', 'medium', 'partially_effective'])) return 'partially';
+            if (in_array($eff, ['effective', 'strong', 'high'])) {
+                return 'effective';
+            }
+            if (in_array($eff, ['partially', 'moderate', 'medium', 'partially_effective'])) {
+                return 'partially';
+            }
+
             return 'ineffective';
         }
+
         // Default: random-ish based on ID
         return match (($control->id ?? 0) % 3) {
             0 => 'effective',
@@ -409,8 +454,8 @@ class AnalysisController extends Controller
             foreach ($lines as $line) {
                 if (strlen($line) > 3) {
                     $consequences[] = (object) [
-                        'description'      => $line,
-                        'financial_impact'  => null,
+                        'description' => $line,
+                        'financial_impact' => null,
                     ];
                 }
             }
@@ -434,16 +479,16 @@ class AnalysisController extends Controller
      */
     private function buildRiskMovementData(int $orgId): array
     {
-        $labels   = [];
+        $labels = [];
         $critical = [];
-        $high     = [];
-        $medium   = [];
-        $low      = [];
+        $high = [];
+        $medium = [];
+        $low = [];
 
         for ($q = 3; $q >= 0; $q--) {
             $start = now()->subQuarters($q)->startOfQuarter();
-            $end   = now()->subQuarters($q)->endOfQuarter();
-            $label = 'Q' . $start->quarter . ' ' . $start->format('Y');
+            $end = now()->subQuarters($q)->endOfQuarter();
+            $label = 'Q'.$start->quarter.' '.$start->format('Y');
             $labels[] = $label;
 
             $risksInQuarter = Risk::where('organization_id', $orgId)
@@ -451,10 +496,10 @@ class AnalysisController extends Controller
                 ->where('created_at', '<=', $end)
                 ->get();
 
-            $critical[] = $risksInQuarter->filter(fn($r) => ($r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) >= 20)->count();
-            $high[]     = $risksInQuarter->filter(fn($r) => ($s = $r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) >= 12 && $s < 20)->count();
-            $medium[]   = $risksInQuarter->filter(fn($r) => ($s = $r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) >= 5 && $s < 12)->count();
-            $low[]      = $risksInQuarter->filter(fn($r) => ($r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) < 5)->count();
+            $critical[] = $risksInQuarter->filter(fn ($r) => ($r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) >= 20)->count();
+            $high[] = $risksInQuarter->filter(fn ($r) => ($s = $r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) >= 12 && $s < 20)->count();
+            $medium[] = $risksInQuarter->filter(fn ($r) => ($s = $r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) >= 5 && $s < 12)->count();
+            $low[] = $risksInQuarter->filter(fn ($r) => ($r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) < 5)->count();
         }
 
         return compact('labels', 'critical', 'high', 'medium', 'low');
@@ -482,10 +527,10 @@ class AnalysisController extends Controller
                 ->where('created_at', '<=', $current->copy()->endOfMonth())
                 ->get();
 
-            $critical[] = $risksAtMonth->filter(fn($r) => strtolower($r->inherent_rating ?? '') === 'critical')->count();
-            $high[]     = $risksAtMonth->filter(fn($r) => strtolower($r->inherent_rating ?? '') === 'high')->count();
-            $medium[]   = $risksAtMonth->filter(fn($r) => strtolower($r->inherent_rating ?? '') === 'medium')->count();
-            $low[]      = $risksAtMonth->filter(fn($r) => strtolower($r->inherent_rating ?? '') === 'low')->count();
+            $critical[] = $risksAtMonth->filter(fn ($r) => strtolower($r->inherent_rating ?? '') === 'critical')->count();
+            $high[] = $risksAtMonth->filter(fn ($r) => strtolower($r->inherent_rating ?? '') === 'high')->count();
+            $medium[] = $risksAtMonth->filter(fn ($r) => strtolower($r->inherent_rating ?? '') === 'medium')->count();
+            $low[] = $risksAtMonth->filter(fn ($r) => strtolower($r->inherent_rating ?? '') === 'low')->count();
 
             $current->addMonth();
         }
@@ -559,9 +604,9 @@ class AnalysisController extends Controller
      */
     private function buildTreatmentTrendData(int $orgId, $startDate, $endDate = null): array
     {
-        $labels    = [];
+        $labels = [];
         $completed = [];
-        $overdue   = [];
+        $overdue = [];
 
         $current = $startDate->copy()->startOfMonth();
         $end = ($endDate ?? now())->copy()->endOfMonth();
@@ -613,22 +658,23 @@ class AnalysisController extends Controller
 
             if ($direction === 'up' && $diff > 0) {
                 $movers[] = (object) [
-                    'risk_code'       => $risk->risk_code,
+                    'risk_code' => $risk->risk_code,
                     'previous_rating' => $risk->residual_rating ?? 'low',
-                    'current_rating'  => $risk->inherent_rating ?? 'medium',
-                    'score_change'    => $diff,
+                    'current_rating' => $risk->inherent_rating ?? 'medium',
+                    'score_change' => $diff,
                 ];
             } elseif ($direction === 'down' && $diff < 0) {
                 $movers[] = (object) [
-                    'risk_code'       => $risk->risk_code,
+                    'risk_code' => $risk->risk_code,
                     'previous_rating' => $risk->inherent_rating ?? 'high',
-                    'current_rating'  => $risk->residual_rating ?? 'medium',
-                    'score_change'    => $diff,
+                    'current_rating' => $risk->residual_rating ?? 'medium',
+                    'score_change' => $diff,
                 ];
             }
         }
 
-        usort($movers, fn($a, $b) => abs($b->score_change) <=> abs($a->score_change));
+        usort($movers, fn ($a, $b) => abs($b->score_change) <=> abs($a->score_change));
+
         return array_slice($movers, 0, 5);
     }
 
@@ -654,9 +700,9 @@ class AnalysisController extends Controller
                         $coeff = -1 * round(abs($score1 - $score2) / 25, 3);
                         if ($coeff < -0.15) {
                             $negCorrs[] = (object) [
-                                'risk_a'       => $r1->risk_code ?? 'R-?',
-                                'risk_b'       => $r2->risk_code ?? 'R-?',
-                                'coefficient'  => max(-0.9, $coeff),
+                                'risk_a' => $r1->risk_code ?? 'R-?',
+                                'risk_b' => $r2->risk_code ?? 'R-?',
+                                'coefficient' => max(-0.9, $coeff),
                                 'significance' => abs($coeff) >= 0.5 ? 'high' : 'medium',
                             ];
                         }
@@ -665,7 +711,8 @@ class AnalysisController extends Controller
             }
         }
 
-        usort($negCorrs, fn($a, $b) => $a->coefficient <=> $b->coefficient);
+        usort($negCorrs, fn ($a, $b) => $a->coefficient <=> $b->coefficient);
+
         return collect(array_slice($negCorrs, 0, 5));
     }
 
@@ -675,9 +722,9 @@ class AnalysisController extends Controller
     private function buildCorrelationMatrix($risks, $riskControls): array
     {
         $topRisks = $risks->take(8);
-        $labels   = $topRisks->pluck('risk_code')->toArray();
-        $size     = count($labels);
-        $matrix   = array_fill(0, $size, array_fill(0, $size, 0));
+        $labels = $topRisks->pluck('risk_code')->toArray();
+        $size = count($labels);
+        $matrix = array_fill(0, $size, array_fill(0, $size, 0));
 
         // Fill diagonal with 1.0
         for ($i = 0; $i < $size; $i++) {
@@ -694,8 +741,8 @@ class AnalysisController extends Controller
                 $controls2 = isset($riskControls[$rid2]) ? $riskControls[$rid2]->pluck('control_id')->toArray() : [];
 
                 $shared = count(array_intersect($controls1, $controls2));
-                $total  = max(count($controls1), count($controls2), 1);
-                $corr   = round($shared / $total, 3);
+                $total = max(count($controls1), count($controls2), 1);
+                $corr = round($shared / $total, 3);
 
                 // Also factor in score similarity
                 $s1 = $topRisks->values()[$i]->inherent_score ?? 0;

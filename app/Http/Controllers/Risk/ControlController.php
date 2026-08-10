@@ -2,23 +2,29 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
+use App\Models\BusinessUnit;
 use App\Models\Control;
 use App\Models\Risk;
 use App\Models\RiskControlMapping;
-use App\Models\BusinessUnit;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class ControlController extends Controller
 {
+    // WP-05 TASK 2 — receives the fields a tenant added through the
+    // builder. Without it, a configured field would render on the form,
+    // accept what was typed, and discard it on submit.
+    use PersistsConfiguredAttributes;
+
     /**
      * Display the control library listing.
      */
     public function index(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $query = Control::withCount('risks')->where('organization_id', $orgId);
 
@@ -38,8 +44,8 @@ class ControlController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('control_code', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('control_code', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -53,7 +59,7 @@ class ControlController extends Controller
      */
     public function create()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
         $users = User::where('organization_id', $orgId)->orderBy('name')->get();
@@ -67,7 +73,7 @@ class ControlController extends Controller
      */
     public function store(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $validated = $request->validate([
             'name' => 'required|string|max:200',
@@ -112,6 +118,9 @@ class ControlController extends Controller
             ]);
         }
 
+        // Fields the tenant added through the builder, if any.
+        $this->saveConfiguredAttributes($request, $control);
+
         // Audit trail
         \App\Services\AuditTrailService::record($control, 'create');
 
@@ -124,7 +133,7 @@ class ControlController extends Controller
      */
     public function show(Control $control)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($control->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this control.');
@@ -140,7 +149,7 @@ class ControlController extends Controller
      */
     public function edit(Control $control)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($control->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this control.');
@@ -157,7 +166,7 @@ class ControlController extends Controller
      */
     public function update(Request $request, Control $control)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($control->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this control.');
@@ -182,7 +191,7 @@ class ControlController extends Controller
         ]));
 
         // Recalculate residual risk scores for all linked risks
-        $effectivenessService = new \App\Services\ControlEffectivenessService();
+        $effectivenessService = new \App\Services\ControlEffectivenessService;
         foreach ($control->risks as $risk) {
             $effectivenessService->recalculateForRisk($risk);
         }
@@ -193,6 +202,8 @@ class ControlController extends Controller
         $changedFields = array_keys(array_diff_assoc($control->getAttributes(), $original));
         \App\Events\ControlUpdated::dispatch($control, $changedFields);
 
+        $this->saveConfiguredAttributes($request, $control);
+
         return redirect()->route('risk.controls.show', $control)
             ->with('success', "Control {$control->control_code} has been updated.");
     }
@@ -202,7 +213,7 @@ class ControlController extends Controller
      */
     public function destroy(Control $control)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($control->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this control.');
@@ -230,7 +241,7 @@ class ControlController extends Controller
      */
     public function linkToRisk(Request $request, Control $control)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($control->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this control.');
@@ -268,7 +279,7 @@ class ControlController extends Controller
         ]);
 
         // Recalculate residual risk score
-        $effectivenessService = new \App\Services\ControlEffectivenessService();
+        $effectivenessService = new \App\Services\ControlEffectivenessService;
         $effectivenessService->recalculateForRisk($risk);
 
         return back()->with('success', "Control {$control->control_code} linked to risk {$risk->risk_code}.");
@@ -279,7 +290,7 @@ class ControlController extends Controller
      */
     public function unlinkFromRisk(Control $control, Risk $risk)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($control->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this control.');
@@ -292,7 +303,7 @@ class ControlController extends Controller
         $mapping->delete();
 
         // Recalculate residual risk score
-        $effectivenessService = new \App\Services\ControlEffectivenessService();
+        $effectivenessService = new \App\Services\ControlEffectivenessService;
         $effectivenessService->recalculateForRisk($risk);
 
         return back()->with('success', "Control {$control->control_code} unlinked from risk {$risk->risk_code}.");

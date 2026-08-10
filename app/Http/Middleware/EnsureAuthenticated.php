@@ -17,7 +17,7 @@ class EnsureAuthenticated
     public function handle(Request $request, Closure $next): Response
     {
         // Check if user is authenticated
-        if (!Auth::check()) {
+        if (! Auth::check()) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Unauthenticated.'], 401);
             }
@@ -31,10 +31,11 @@ class EnsureAuthenticated
         $user = Auth::user();
 
         // Check if account is active
-        if (!$user->is_active) {
+        if (! $user->is_active) {
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
+
             return redirect('/login')->with('error', 'Your account has been deactivated.');
         }
 
@@ -49,6 +50,7 @@ class EnsureAuthenticated
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
+
             return redirect('/login')->with('error', 'Your session has expired due to inactivity.');
         }
 

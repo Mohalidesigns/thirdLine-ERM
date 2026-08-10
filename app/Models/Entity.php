@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasObjectIdentity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,7 +11,7 @@ use Illuminate\Support\Str;
 
 class Entity extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
 
     protected $fillable = [
         'organization_id',
@@ -22,6 +24,7 @@ class Entity extends Model
         'delegate_owner_id',
         'status',
         'level',
+        'hierarchy_path',
         'regulatory_frameworks',
         'risk_appetite_level',
         'category_appetites',
@@ -30,10 +33,10 @@ class Entity extends Model
     ];
 
     protected $casts = [
-        'level'                 => 'integer',
+        'level' => 'integer',
         'regulatory_frameworks' => 'array',
-        'category_appetites'    => 'array',
-        'metadata'              => 'array',
+        'category_appetites' => 'array',
+        'metadata' => 'array',
     ];
 
     protected static function boot(): void
@@ -45,10 +48,63 @@ class Entity extends Model
                 $model->uuid = (string) Str::uuid();
             }
         });
+
+        // Materialise the path so subtree authorization is an indexed prefix
+        // match rather than a recursive walk. Written after insert because a
+        // root node's path contains its own id.
+        static::created(fn (self $model) => $model->refreshHierarchyPath());
+
+        static::updated(function (self $model) {
+            if ($model->wasChanged('parent_id')) {
+                $model->refreshHierarchyPath();
+            }
+        });
+    }
+
+    /**
+     * The object graph type for THIS row.
+     *
+     * An entity is not one kind of thing: entity_type_id decides whether it is
+     * a Group, a Branch or a Process, so the type cannot be a constant on the
+     * class the way it is for Risk. Falls back to BusinessUnit when the legacy
+     * entity type has no counterpart in the system registry — the unification
+     * migration records every such row in object_merge_candidates for retyping
+     * rather than letting it disappear.
+     */
+    public function resolveObjectTypeCode(): string
+    {
+        $legacyCode = $this->entityType?->code;
+
+        if ($legacyCode === null) {
+            return 'BusinessUnit';
+        }
+
+        return \App\Support\Graph\ObjectTypeRegistry::legacyEntityTypeMap()[$legacyCode] ?? 'BusinessUnit';
+    }
+
+    /**
+     * Recompute this node's path from its parent, then cascade to descendants.
+     */
+    public function refreshHierarchyPath(): void
+    {
+        $parentPath = $this->parent_id
+            ? (self::query()->whereKey($this->parent_id)->value('hierarchy_path') ?: '/'.$this->parent_id.'/')
+            : '/';
+
+        $path = $parentPath.$this->getKey().'/';
+
+        if ($this->hierarchy_path !== $path) {
+            $this->hierarchy_path = $path;
+            $this->saveQuietly();
+        }
+
+        foreach (self::query()->where('parent_id', $this->getKey())->get() as $child) {
+            $child->refreshHierarchyPath();
+        }
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()
@@ -124,12 +180,13 @@ class Entity extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Accessors                                                          */
+    /*  Accessors */
     /* ------------------------------------------------------------------ */
 
     public function getLevelLabelAttribute(): string
     {
         $typeName = $this->entityType?->name ?? 'Entity';
+
         return "L{$this->level} {$typeName}";
     }
 
@@ -154,7 +211,7 @@ class Entity extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Scopes                                                             */
+    /*  Scopes */
     /* ------------------------------------------------------------------ */
 
     public function scopeActive($query)

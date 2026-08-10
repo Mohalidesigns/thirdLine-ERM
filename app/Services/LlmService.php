@@ -22,10 +22,15 @@ use Throwable;
 class LlmService
 {
     protected string $endpoint;
+
     protected string $model;
+
     protected int $timeout;
+
     protected float $temperature;
+
     protected bool $enabled;
+
     protected ?string $lastError = null;
 
     public function __construct()
@@ -42,16 +47,19 @@ class LlmService
     {
         if (! $this->enabled) {
             $this->lastError = 'LLM is disabled in configuration.';
+
             return false;
         }
         try {
-            $res = Http::timeout(3)->get($this->endpoint . '/api/tags');
+            $res = Http::timeout(3)->get($this->endpoint.'/api/tags');
             if (! $res->successful()) {
-                $this->lastError = 'LLM endpoint returned HTTP ' . $res->status();
+                $this->lastError = 'LLM endpoint returned HTTP '.$res->status();
             }
+
             return $res->successful();
         } catch (Throwable $e) {
-            $this->lastError = 'LLM endpoint unreachable: ' . $e->getMessage();
+            $this->lastError = 'LLM endpoint unreachable: '.$e->getMessage();
+
             return false;
         }
     }
@@ -68,12 +76,13 @@ class LlmService
     {
         if (! $this->enabled) {
             $this->lastError = 'LLM disabled.';
+
             return '';
         }
 
         try {
             $res = Http::timeout($opts['timeout'] ?? $this->timeout)
-                ->post($this->endpoint . '/api/generate', [
+                ->post($this->endpoint.'/api/generate', [
                     'model' => $opts['model'] ?? $this->model,
                     'prompt' => $prompt,
                     'system' => $system,
@@ -86,8 +95,9 @@ class LlmService
                 ]);
 
             if (! $res->successful()) {
-                $this->lastError = 'LLM HTTP ' . $res->status();
+                $this->lastError = 'LLM HTTP '.$res->status();
                 Log::warning('LLM request failed', ['status' => $res->status(), 'body' => $res->body()]);
+
                 return '';
             }
 
@@ -95,6 +105,7 @@ class LlmService
         } catch (Throwable $e) {
             $this->lastError = $e->getMessage();
             Log::warning('LLM request exception', ['err' => $e->getMessage()]);
+
             return '';
         }
     }
@@ -111,17 +122,18 @@ class LlmService
     {
         if (! $this->enabled) {
             $this->lastError = 'LLM disabled.';
+
             return [];
         }
 
         $cacheKey = $opts['cache_key'] ?? null;
-        if ($cacheKey && ($cached = Cache::get('llm:' . $cacheKey)) !== null) {
+        if ($cacheKey && ($cached = Cache::get('llm:'.$cacheKey)) !== null) {
             return $cached;
         }
 
         try {
             $res = Http::timeout($opts['timeout'] ?? $this->timeout)
-                ->post($this->endpoint . '/api/generate', [
+                ->post($this->endpoint.'/api/generate', [
                     'model' => $opts['model'] ?? $this->model,
                     'prompt' => $prompt,
                     'system' => $system,
@@ -134,8 +146,9 @@ class LlmService
                 ]);
 
             if (! $res->successful()) {
-                $this->lastError = 'LLM HTTP ' . $res->status();
-                Log::warning('LlmService completeJson failed: ' . $this->lastError);
+                $this->lastError = 'LLM HTTP '.$res->status();
+                Log::warning('LlmService completeJson failed: '.$this->lastError);
+
                 return [];
             }
 
@@ -143,13 +156,14 @@ class LlmService
             $parsed = $this->parseJson($raw);
 
             if ($cacheKey && ! empty($parsed)) {
-                Cache::put('llm:' . $cacheKey, $parsed, $opts['cache_ttl'] ?? 86400);
+                Cache::put('llm:'.$cacheKey, $parsed, $opts['cache_ttl'] ?? 86400);
             }
 
             return $parsed;
         } catch (Throwable $e) {
             $this->lastError = $e->getMessage();
-            Log::warning('LlmService completeJson exception: ' . $this->lastError);
+            Log::warning('LlmService completeJson exception: '.$this->lastError);
+
             return [];
         }
     }
@@ -172,6 +186,7 @@ class LlmService
             }
         }
         $this->lastError = 'LLM returned non-JSON payload.';
+
         return [];
     }
 }

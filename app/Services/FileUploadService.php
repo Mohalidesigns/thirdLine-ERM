@@ -26,17 +26,17 @@ class FileUploadService
     {
         $extension = strtolower($file->getClientOriginalExtension());
 
-        if (!array_key_exists($extension, $this->allowedTypes)) {
+        if (! array_key_exists($extension, $this->allowedTypes)) {
             throw new \InvalidArgumentException(
-                "File type .{$extension} is not allowed. Allowed types: " . implode(', ', array_keys($this->allowedTypes))
+                "File type .{$extension} is not allowed. Allowed types: ".implode(', ', array_keys($this->allowedTypes))
             );
         }
 
         if ($file->getSize() > $this->maxSizeBytes) {
-            throw new \InvalidArgumentException("File size exceeds maximum of 10MB.");
+            throw new \InvalidArgumentException('File size exceeds maximum of 10MB.');
         }
 
-        $fileName = Str::uuid() . '.' . $extension;
+        $fileName = Str::uuid().'.'.$extension;
         $path = "attachments/{$entityType}/{$entityId}";
         $storagePath = $file->storeAs($path, $fileName, 'local');
 
@@ -55,8 +55,8 @@ class FileUploadService
      */
     public function download(string $storagePath): string
     {
-        if (!Storage::disk('local')->exists($storagePath)) {
-            throw new \RuntimeException("File not found.");
+        if (! Storage::disk('local')->exists($storagePath)) {
+            throw new \RuntimeException('File not found.');
         }
 
         return Storage::disk('local')->path($storagePath);
@@ -75,8 +75,8 @@ class FileUploadService
      */
     public function getFileInfo(string $storagePath): array
     {
-        if (!Storage::disk('local')->exists($storagePath)) {
-            throw new \RuntimeException("File not found.");
+        if (! Storage::disk('local')->exists($storagePath)) {
+            throw new \RuntimeException('File not found.');
         }
 
         return [
@@ -100,6 +100,6 @@ class FileUploadService
      */
     public function getMaxSizeMb(): int
     {
-        return (int)($this->maxSizeBytes / 1024 / 1024);
+        return (int) ($this->maxSizeBytes / 1024 / 1024);
     }
 }

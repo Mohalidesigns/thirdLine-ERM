@@ -3,32 +3,51 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\GenerateReportJob;
+use App\Models\ApprovalRequest;
+use App\Models\BusinessUnit;
+use App\Models\Control;
 use App\Models\GeneratedReport;
+use App\Models\IcaapAssessment;
+use App\Models\Issue;
+use App\Models\KeyRiskIndicator;
+use App\Models\LossEvent;
+use App\Models\Organization;
+use App\Models\RegulatoryCircular;
+use App\Models\RegulatoryDeadline;
 use App\Models\Risk;
 use App\Models\RiskCategory;
-use App\Models\LossEvent;
-use App\Models\Issue;
 use App\Models\TreatmentPlan;
-use App\Models\KeyRiskIndicator;
-use App\Models\Control;
-use App\Models\BusinessUnit;
-use App\Models\IcaapAssessment;
-use App\Models\ApprovalRequest;
-use App\Models\RegulatoryDeadline;
-use App\Models\RegulatoryCircular;
+use App\Services\BoardPackAssembler;
+use App\Services\DocumentRenderer;
 use App\Services\RegulatoryReportService;
+use App\Services\ReportDataService;
 use App\Services\RiskAppetiteService;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ReportController extends Controller
 {
     /**
      * Executive summary report.
+     *
+     * Renders on screen by default and produces a document when `download` is
+     * present. The document format defaults to a branded, paginated PDF, with
+     * xlsx and csv as alternates — before this, the only file output anywhere
+     * in the reporting module was CSV, and these three reports had no document
+     * output at all.
      */
     public function executive(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        if ($request->has('download')) {
+            return $this->documentResponse($request, 'executive');
+        }
+
+        $orgId = TenantContext::organizationId();
         $period = $request->get('period', 'quarter'); // quarter, month, year
 
         $dateRange = $this->getDateRange($period);
@@ -39,7 +58,7 @@ class ReportController extends Controller
             ->whereIn('inherent_rating', ['Critical', 'High'])->count();
         $financialExposure = LossEvent::where('organization_id', $orgId)
             ->whereBetween('date_of_loss', [$dateRange['start'], $dateRange['end']])
-            ->sum('net_loss_amount');
+            ->sum(LossEvent::netLossNairaSql());
         $treatmentCompletion = $this->getTreatmentCompletionRate($orgId);
         $kriBreaches = KeyRiskIndicator::where('organization_id', $orgId)
             ->where('current_status', 'red')->count();
@@ -67,7 +86,7 @@ class ReportController extends Controller
             ->with('category')
             ->get();
         $categoryChartData = [
-            'labels' => $categoryRisks->map(fn($r) => $r->category->name ?? 'Unknown')->values()->toArray(),
+            'labels' => $categoryRisks->map(fn ($r) => $r->category->name ?? 'Unknown')->values()->toArray(),
             'values' => $categoryRisks->pluck('count')->toArray(),
         ];
 
@@ -103,11 +122,11 @@ class ReportController extends Controller
 
         // Chart data: Financial Exposure by Category
         $exposureByCat = LossEvent::where('organization_id', $orgId)
-            ->selectRaw('cbn_risk_category, SUM(net_loss_amount) as total')
+            ->selectRaw('cbn_risk_category, SUM(COALESCE(gross_loss_amount_kobo, 0) - COALESCE(insurance_recovery_kobo, 0) - COALESCE(other_recovery_kobo, 0)) / 100 as total')
             ->groupBy('cbn_risk_category')
             ->get();
         $exposureChartData = [
-            'labels' => $exposureByCat->pluck('cbn_risk_category')->map(fn($v) => $v ?? 'Unclassified')->toArray(),
+            'labels' => $exposureByCat->pluck('cbn_risk_category')->map(fn ($v) => $v ?? 'Unclassified')->toArray(),
             'values' => $exposureByCat->pluck('total')->toArray(),
         ];
 
@@ -128,13 +147,20 @@ class ReportController extends Controller
 
     /**
      * Board-level risk report.
+     *
+     * With `download` present this returns the assembled board pack — the full
+     * ordered section set configured for the organisation — as a single PDF.
      */
     public function board(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        if ($request->has('download')) {
+            return $this->boardPackResponse($request);
+        }
+
+        $orgId = TenantContext::organizationId();
 
         // Risk appetite breach data
-        $appetiteService = new RiskAppetiteService();
+        $appetiteService = new RiskAppetiteService;
         $appetiteBreaches = $appetiteService->getBreaches($orgId);
 
         // Critical risks for board attention
@@ -158,7 +184,7 @@ class ReportController extends Controller
 
         // Average risk score for profile
         $avgScore = Risk::where('organization_id', $orgId)->where('status', 'active')->avg('inherent_score');
-        $riskProfileScore = $avgScore ? round($avgScore / 5, 1) . '/5' : '0/5';
+        $riskProfileScore = $avgScore ? round($avgScore / 5, 1).'/5' : '0/5';
 
         // Chart data: Risk Profile by Category (radar)
         $risksByCategory = Risk::where('organization_id', $orgId)
@@ -168,16 +194,16 @@ class ReportController extends Controller
             ->with('category')
             ->get();
         $profileChartData = [
-            'labels' => $risksByCategory->map(fn($r) => $r->category->name ?? 'Unknown')->values()->toArray(),
-            'inherent' => $risksByCategory->pluck('avg_inherent')->map(fn($v) => round($v / 5, 1))->toArray(),
-            'residual' => $risksByCategory->pluck('avg_residual')->map(fn($v) => round(($v ?? 0) / 5, 1))->toArray(),
+            'labels' => $risksByCategory->map(fn ($r) => $r->category->name ?? 'Unknown')->values()->toArray(),
+            'inherent' => $risksByCategory->pluck('avg_inherent')->map(fn ($v) => round($v / 5, 1))->toArray(),
+            'residual' => $risksByCategory->pluck('avg_residual')->map(fn ($v) => round(($v ?? 0) / 5, 1))->toArray(),
         ];
 
         // Chart data: Risk Appetite vs Current Position
         $appetiteChartData = [
-            'labels' => $risksByCategory->map(fn($r) => $r->category->name ?? 'Unknown')->values()->toArray(),
-            'appetite' => $risksByCategory->map(fn() => 3)->toArray(), // Default appetite level
-            'current' => $risksByCategory->pluck('avg_inherent')->map(fn($v) => round($v / 5, 1))->toArray(),
+            'labels' => $risksByCategory->map(fn ($r) => $r->category->name ?? 'Unknown')->values()->toArray(),
+            'appetite' => $risksByCategory->map(fn () => 3)->toArray(), // Default appetite level
+            'current' => $risksByCategory->pluck('avg_inherent')->map(fn ($v) => round($v / 5, 1))->toArray(),
         ];
 
         // Real capital adequacy ratio from the latest ICAAP assessment
@@ -195,16 +221,16 @@ class ReportController extends Controller
             ->whereIn('issue_status', ['OPEN', 'IN_PROGRESS', 'OVERDUE'])->count();
         $ytdLosses = (float) LossEvent::where('organization_id', $orgId)
             ->whereYear('date_of_loss', now()->year)
-            ->sum('net_loss_amount');
+            ->sum(LossEvent::netLossNairaSql());
 
         $ytdLossDisplay = $ytdLosses >= 1000000000
-            ? '₦' . number_format($ytdLosses / 1000000000, 2) . 'bn'
-            : '₦' . number_format($ytdLosses / 1000000, 1) . 'm';
+            ? '₦'.number_format($ytdLosses / 1000000000, 2).'bn'
+            : '₦'.number_format($ytdLosses / 1000000, 1).'m';
 
         $executiveSummary = sprintf(
             'The organisation currently carries %d active risks, of which %d are rated Critical and %d High. '
-            . 'Appetite utilization stands at %d%% and overall control effectiveness at %s%%. '
-            . 'Year-to-date operational losses total %s across recorded loss events, and %d issues remain open or in progress. ',
+            .'Appetite utilization stands at %d%% and overall control effectiveness at %s%%. '
+            .'Year-to-date operational losses total %s across recorded loss events, and %d issues remain open or in progress. ',
             $totalActiveRisks, $criticalRisks, $highRisks,
             $appetiteUtilization, $controlEffectiveness, $ytdLossDisplay, $openIssues
         );
@@ -232,8 +258,8 @@ class ReportController extends Controller
             ->limit(3)
             ->get()
             ->map(fn ($p) => (object) [
-                'title' => 'Overdue treatment plan: ' . ($p->title ?? $p->treatment_code),
-                'description' => 'Progress at ' . $p->progress . '% with the target date passed. Owner: ' . ($p->owner->name ?? 'Unassigned') . '.',
+                'title' => 'Overdue treatment plan: '.($p->title ?? $p->treatment_code),
+                'description' => 'Progress at '.$p->progress.'% with the target date passed. Owner: '.($p->owner->name ?? 'Unassigned').'.',
                 'priority' => ucfirst($p->priority ?? 'high'),
                 'due_date' => $p->target_date?->format('d M Y'),
             ]);
@@ -244,9 +270,9 @@ class ReportController extends Controller
             ->limit(3)
             ->get()
             ->map(fn ($a) => (object) [
-                'title' => 'Pending approval: ' . ucwords(str_replace('_', ' ', $a->action)),
-                'description' => ucwords(str_replace('_', ' ', $a->entity_type)) . ' #' . $a->entity_id
-                    . ' has been awaiting a decision since ' . ($a->requested_at?->format('d M Y') ?? '-') . '.',
+                'title' => 'Pending approval: '.ucwords(str_replace('_', ' ', $a->action)),
+                'description' => ucwords(str_replace('_', ' ', $a->entity_type)).' #'.$a->entity_id
+                    .' has been awaiting a decision since '.($a->requested_at?->format('d M Y') ?? '-').'.',
                 'priority' => 'High',
                 'due_date' => $a->requested_at?->format('d M Y'),
             ]);
@@ -266,12 +292,16 @@ class ReportController extends Controller
      */
     public function regulatory(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        if ($request->has('download')) {
+            return $this->documentResponse($request, 'regulatory');
+        }
+
+        $orgId = TenantContext::organizationId();
         $year = $request->get('year', now()->year);
         $quarter = $request->get('quarter', ceil(now()->month / 3));
 
         // Generate comprehensive regulatory reports
-        $regulatoryReportService = new RegulatoryReportService();
+        $regulatoryReportService = new RegulatoryReportService;
 
         // CBN ORMS Return
         $cbnOrms = $regulatoryReportService->generateCbnOrmsReturn($orgId, "Q{$quarter}", $year);
@@ -375,7 +405,7 @@ class ReportController extends Controller
      */
     public function custom(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
@@ -389,7 +419,7 @@ class ReportController extends Controller
             ->get()
             ->map(fn ($r) => (object) [
                 'name' => $r->name,
-                'description' => ($r->period ? $r->period . ' · ' : '') . $r->file_name,
+                'description' => ($r->period ? $r->period.' · ' : '').$r->file_name,
                 'download_url' => $r->download_url,
                 'created_at' => $r->created_at,
             ]);
@@ -427,104 +457,338 @@ class ReportController extends Controller
     }
 
     /**
-     * Generate custom report (POST) — streams a CSV download and records
-     * the run in the `generated_reports` table so it appears in Recent.
+     * Generate a custom report and return the document.
+     *
+     * This method used to validate `format in:pdf,excel,html,pptx` and then
+     * write a CSV for every one of them — the product offered four formats and
+     * shipped one, silently. The accepted set is now exactly what
+     * DocumentRenderer produces, and each one returns a genuinely different
+     * document: a paginated branded PDF, a styled workbook, or a CSV.
      */
-    public function generateCustom(Request $request): StreamedResponse
+    public function generateCustom(Request $request, DocumentRenderer $renderer, ReportDataService $reportData): Response
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $validated = $request->validate([
             'report_name' => 'required|string|max:200',
             'report_type' => 'nullable|string|max:40',
-            'date_from'   => 'nullable|date',
-            'date_to'     => 'nullable|date',
-            'format'      => 'nullable|in:pdf,excel,html,pptx',
-            'categories'  => 'nullable|array',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date',
+            // 'excel' is accepted as an alias for xlsx because the existing
+            // form posts it; html and pptx are gone rather than silently
+            // downgraded.
+            'format' => 'nullable|in:pdf,xlsx,excel,csv',
+            'categories' => 'nullable|array',
             'categories.*' => 'integer',
-            'ratings'     => 'nullable|array',
-            'ratings.*'   => 'string',
+            'ratings' => 'nullable|array',
+            'ratings.*' => 'string',
             'business_units' => 'nullable|array',
             'business_units.*' => 'integer',
-            'sections'    => 'nullable|array',
+            'sections' => 'nullable|array',
         ]);
 
-        $query = Risk::where('organization_id', $orgId)
-            ->with(['category', 'businessUnit', 'riskOwner']);
+        $format = $renderer->normalise($validated['format'] ?? 'pdf');
+        $organization = Organization::findOrFail($orgId);
+        $asAt = now()->toImmutable();
 
-        if (! empty($validated['categories'])) {
-            $query->whereIn('category_id', $validated['categories']);
-        }
-        if (! empty($validated['ratings'])) {
-            $query->whereIn(\DB::raw('LOWER(inherent_rating)'), array_map('strtolower', $validated['ratings']));
-        }
-        if (! empty($validated['business_units'])) {
-            $query->whereIn('business_unit_id', $validated['business_units']);
-        }
-        if (! empty($validated['date_from'])) {
-            $query->where('created_at', '>=', $validated['date_from']);
-        }
-        if (! empty($validated['date_to'])) {
-            $query->where('created_at', '<=', $validated['date_to'] . ' 23:59:59');
-        }
-
-        $risks = $query->orderBy('risk_code')->get();
-
-        $headers = [
-            'Risk Code', 'Title', 'Category', 'Business Unit', 'Owner',
-            'Inherent Score', 'Inherent Rating', 'Residual Score', 'Residual Rating',
-            'Control Effectiveness (%)', 'Treatment Strategy', 'Status', 'Identified', 'Last Assessment',
+        $parameters = [
+            'report_name' => $validated['report_name'],
+            'categories' => $validated['categories'] ?? [],
+            'business_units' => $validated['business_units'] ?? [],
+            'ratings' => $validated['ratings'] ?? [],
+            'date_from' => $validated['date_from'] ?? null,
+            'date_to' => $validated['date_to'] ?? null,
         ];
-        $rows = $risks->map(fn ($r) => [
-            $r->risk_code,
-            $r->title,
-            $r->category?->name ?? '',
-            $r->businessUnit?->name ?? '',
-            $r->riskOwner?->name ?? '',
-            $r->inherent_score ?? '',
-            $r->inherent_rating ?? '',
-            $r->residual_score ?? '',
-            $r->residual_rating ?? '',
-            $r->control_effectiveness_pct ?? '',
-            $r->treatment_strategy ?? '',
-            $r->status ?? '',
-            $r->date_identified?->format('Y-m-d') ?? '',
-            $r->last_assessment_date?->format('Y-m-d') ?? '',
-        ]);
 
-        $format = $validated['format'] ?? 'excel';
-        $ext = $format === 'excel' ? 'csv' : ($format === 'html' ? 'csv' : 'csv'); // all collapse to CSV for now
-        $safeName = \Illuminate\Support\Str::slug($validated['report_name']);
-        $fileName = $safeName . '_' . now()->format('Ymd_His') . '.' . $ext;
+        $payload = $reportData->payload('risk_register', $organization, $asAt, $parameters);
+        $payload['organization'] = $organization;
+        $payload['generatedBy'] = auth()->user()?->name;
+        $payload['generatedAt'] = $asAt;
+        $payload['periodAsAt'] = $asAt;
 
-        $period = ! empty($validated['date_from']) || ! empty($validated['date_to'])
-            ? trim(($validated['date_from'] ?? '') . ' to ' . ($validated['date_to'] ?? ''))
-            : 'All time';
+        $rendered = $renderer->render($payload['view'], $payload, $format);
+
+        $fileName = Str::slug($validated['report_name']).'_'.now()->format('Ymd_His').'.'.$rendered['extension'];
+
+        // The bytes are filed so the Recent list serves this exact document
+        // later rather than re-running the query against moved data.
+        $disk = config('filesystems.default', 'local');
+        $path = sprintf('reports/%d/%s', $orgId, $fileName);
+        Storage::disk($disk)->put($path, $rendered['content']);
 
         GeneratedReport::create([
             'organization_id' => $orgId,
             'generated_by' => auth()->id(),
             'name' => $validated['report_name'],
-            'report_type' => $validated['report_type'] ?? 'custom',
+            'report_type' => $validated['report_type'] ?? 'risk_register',
             'scope' => 'custom_report',
-            'period' => $period,
+            'period' => $payload['periodLabel'],
+            'period_as_at' => $asAt->toDateString(),
+            'status' => 'completed',
+            'progress_pct' => 100,
             'file_name' => $fileName,
-            'download_route' => 'risk.reports.custom.generate',
-            'parameters' => $request->only([
-                'report_name', 'report_type', 'date_from', 'date_to', 'format',
-                'categories', 'ratings', 'business_units', 'sections',
-            ]),
+            'format' => $rendered['extension'],
+            'disk' => $disk,
+            'file_path' => $path,
+            'mime_type' => $rendered['mime'],
+            'size_bytes' => strlen($rendered['content']),
+            'completed_at' => now(),
+            'parameters' => $parameters + ['format' => $format],
         ]);
 
-        return response()->streamDownload(function () use ($headers, $rows) {
-            $handle = fopen('php://output', 'w');
-            fwrite($handle, "\xEF\xBB\xBF"); // UTF-8 BOM for Excel
-            fputcsv($handle, $headers);
-            foreach ($rows as $row) {
-                fputcsv($handle, $row);
-            }
-            fclose($handle);
-        }, $fileName, ['Content-Type' => 'text/csv; charset=UTF-8']);
+        return response($rendered['content'], 200, [
+            'Content-Type' => $rendered['mime'],
+            'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
+        ]);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Document generation */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Render one of the standard reports as a document and stream it back.
+     *
+     * Small enough to run inline — these are single-report renders rather than
+     * a full board pack. Anything heavier goes through queue() and the job.
+     */
+    private function documentResponse(Request $request, string $reportType): Response
+    {
+        /** @var DocumentRenderer $renderer */
+        $renderer = app(DocumentRenderer::class);
+        /** @var ReportDataService $reportData */
+        $reportData = app(ReportDataService::class);
+
+        // PDF is the default: the reason this method exists is that these
+        // reports previously had no document output at all, and the only file
+        // the module could produce was a CSV.
+        $format = $renderer->normalise($request->get('format', 'pdf'));
+
+        $organization = Organization::findOrFail(TenantContext::organizationId());
+        $asAt = $request->filled('as_at')
+            ? Carbon::parse($request->get('as_at'))->toImmutable()
+            : now()->toImmutable();
+
+        $payload = $reportData->payload($reportType, $organization, $asAt);
+        $payload['organization'] = $organization;
+        $payload['generatedBy'] = auth()->user()?->name;
+        $payload['generatedAt'] = now()->toImmutable();
+        $payload['periodAsAt'] = $asAt;
+
+        $rendered = $renderer->render($payload['view'], $payload, $format);
+
+        $fileName = sprintf(
+            '%s-%s.%s',
+            Str::slug($payload['title']),
+            $asAt->format('Ymd'),
+            $rendered['extension']
+        );
+
+        return $this->fileResponse($rendered, $fileName);
+    }
+
+    /**
+     * The board report as a full assembled pack.
+     */
+    private function boardPackResponse(Request $request): Response
+    {
+        /** @var BoardPackAssembler $assembler */
+        $assembler = app(BoardPackAssembler::class);
+
+        $organization = Organization::findOrFail(TenantContext::organizationId());
+        $asAt = $request->filled('as_at')
+            ? Carbon::parse($request->get('as_at'))->toImmutable()
+            : now()->toImmutable();
+
+        $built = $assembler->build($organization, $asAt, auth()->user(), $assembler->nextVersion($organization->id));
+
+        return $this->fileResponse($built, sprintf(
+            'board-risk-report-%s.pdf',
+            $asAt->format('Ymd')
+        ));
+    }
+
+    /**
+     * @param  array{content: string, mime: string, extension: string}  $rendered
+     */
+    private function fileResponse(array $rendered, string $fileName): Response
+    {
+        return response($rendered['content'], 200, [
+            'Content-Type' => $rendered['mime'],
+            'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
+        ]);
+    }
+
+    /**
+     * Queue a report for rendering and return the caller to the status page.
+     *
+     * Report generation moved off the request cycle because a board pack walks
+     * the entire register — every risk, control, indicator, loss event, issue,
+     * treatment plan and filing deadline — and then paginates that into a PDF.
+     * On a real register that exceeds a web request's execution limit, and the
+     * user gets a blank page rather than a document.
+     */
+    public function queue(Request $request, BoardPackAssembler $assembler)
+    {
+        $orgId = TenantContext::organizationId();
+
+        $validated = $request->validate([
+            'report_type' => 'required|in:'.implode(',', GenerateReportJob::TYPES),
+            'name' => 'nullable|string|max:200',
+            // Only formats the renderer actually produces. The old validation
+            // accepted pdf, excel, html and pptx and wrote a CSV for all four.
+            'format' => 'nullable|in:'.implode(',', DocumentRenderer::SUPPORTED).',excel',
+            'as_at' => 'nullable|date',
+        ]);
+
+        $type = $validated['report_type'];
+        $asAt = isset($validated['as_at']) ? Carbon::parse($validated['as_at']) : now();
+
+        // Board packs are versioned per organization so a superseded pack stays
+        // retrievable next to the one that replaced it.
+        $version = $type === 'board_pack' ? $assembler->nextVersion($orgId) : 1;
+
+        $report = GeneratedReport::create([
+            'organization_id' => $orgId,
+            'generated_by' => auth()->id(),
+            'name' => $validated['name'] ?? $this->defaultReportName($type, $asAt),
+            'report_type' => $type,
+            'scope' => $type,
+            'period' => $asAt->format('F Y'),
+            'period_as_at' => $asAt->toDateString(),
+            'status' => 'queued',
+            'progress_pct' => 0,
+            'version' => $version,
+            'parameters' => [
+                'format' => $type === 'board_pack' ? 'pdf' : ($validated['format'] ?? 'pdf'),
+                'as_at' => $asAt->toDateString(),
+            ],
+        ]);
+
+        GenerateReportJob::dispatch($report->id);
+
+        return redirect()
+            ->route('risk.reports.status', $report)
+            ->with('success', 'Report queued. This page refreshes until it is ready.');
+    }
+
+    /**
+     * Progress page for a queued report.
+     */
+    public function status(GeneratedReport $report)
+    {
+        $this->assertSameTenant($report);
+
+        return view('risk.reports.status', compact('report'));
+    }
+
+    /**
+     * JSON progress, polled by the status page.
+     */
+    public function statusJson(GeneratedReport $report)
+    {
+        $this->assertSameTenant($report);
+
+        return response()->json([
+            'status' => $report->status,
+            'progress_pct' => $report->progress_pct,
+            'error_message' => $report->error_message,
+            'download_url' => $report->hasStoredFile() ? route('risk.reports.download', $report) : null,
+        ]);
+    }
+
+    /**
+     * Serve the stored artifact.
+     *
+     * The bytes written when the report was generated — not a re-run. A pack
+     * the board has seen has to keep being the pack the board has seen.
+     */
+    public function download(GeneratedReport $report)
+    {
+        $this->assertSameTenant($report);
+
+        abort_unless($report->hasStoredFile(), 404, 'This report has no stored document.');
+
+        $disk = Storage::disk($report->disk ?? config('filesystems.default'));
+
+        abort_unless($disk->exists($report->file_path), 404, 'The stored document is no longer available.');
+
+        return $disk->download(
+            $report->file_path,
+            $report->file_name,
+            ['Content-Type' => $report->mime_type ?? 'application/octet-stream']
+        );
+    }
+
+    /**
+     * List of generated reports, newest first.
+     */
+    public function library(Request $request)
+    {
+        $orgId = TenantContext::organizationId();
+
+        $reports = GeneratedReport::where('organization_id', $orgId)
+            ->with('generatedBy')
+            ->orderByDesc('created_at')
+            ->paginate(25);
+
+        return view('risk.reports.library', [
+            'reports' => $reports,
+            'types' => GenerateReportJob::TYPES,
+        ]);
+    }
+
+    /**
+     * Board pack section configuration — which sections a pack contains and in
+     * what order. This is what makes the pack configurable per organization
+     * rather than a fixed template.
+     */
+    public function boardPackSections(BoardPackAssembler $assembler)
+    {
+        $organization = Organization::findOrFail(TenantContext::organizationId());
+
+        return view('risk.reports.board-pack-sections', [
+            'available' => BoardPackAssembler::SECTIONS,
+            'selected' => $assembler->sectionsFor($organization),
+        ]);
+    }
+
+    public function updateBoardPackSections(Request $request, BoardPackAssembler $assembler)
+    {
+        $validated = $request->validate([
+            'sections' => 'required|array|min:1',
+            'sections.*' => 'string|in:'.implode(',', array_keys(BoardPackAssembler::SECTIONS)),
+        ]);
+
+        $organization = Organization::findOrFail(TenantContext::organizationId());
+
+        $assembler->configureSections($organization, $validated['sections']);
+
+        return redirect()->route('risk.reports.board-pack.sections')
+            ->with('success', 'Board pack sections updated. The next pack generated will use this order.');
+    }
+
+    private function defaultReportName(string $type, Carbon $asAt): string
+    {
+        return match ($type) {
+            'board_pack' => 'Board Risk Report — '.$asAt->format('F Y'),
+            'executive' => 'Executive Risk Report — '.$asAt->format('F Y'),
+            'regulatory' => 'Regulatory Compliance Report — '.$asAt->format('F Y'),
+            'risk_register' => 'Risk Register Extract — '.$asAt->format('d M Y'),
+            default => ucfirst($type),
+        };
+    }
+
+    /**
+     * Route-model binding already resolves through the tenant scope; this keeps
+     * the guarantee if that scope is ever bypassed upstream.
+     */
+    private function assertSameTenant(GeneratedReport $report): void
+    {
+        abort_unless(
+            (int) $report->organization_id === TenantContext::organizationId(),
+            403
+        );
     }
 
     /**

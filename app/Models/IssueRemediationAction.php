@@ -25,13 +25,13 @@ class IssueRemediationAction extends Model
     ];
 
     protected $casts = [
-        'evidence_refs'    => 'array',
-        'target_date'      => 'date',
+        'evidence_refs' => 'array',
+        'target_date' => 'date',
         'actual_close_date' => 'date',
     ];
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function issue()

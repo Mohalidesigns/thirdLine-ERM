@@ -24,12 +24,12 @@ class SimulationResult extends Model
     ];
 
     protected $casts = [
-        'risk_contributions'      => 'array',
+        'risk_contributions' => 'array',
         'percentile_distribution' => 'array',
     ];
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function simulationRun()

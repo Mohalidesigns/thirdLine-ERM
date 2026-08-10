@@ -12,6 +12,13 @@ class QuestionnaireSection extends Model
 
     protected $casts = ['weight' => 'decimal:2'];
 
-    public function questionnaire() { return $this->belongsTo(Questionnaire::class); }
-    public function questions()     { return $this->hasMany(Question::class, 'section_id')->orderBy('sort_order'); }
+    public function questionnaire()
+    {
+        return $this->belongsTo(Questionnaire::class);
+    }
+
+    public function questions()
+    {
+        return $this->hasMany(Question::class, 'section_id')->orderBy('sort_order');
+    }
 }

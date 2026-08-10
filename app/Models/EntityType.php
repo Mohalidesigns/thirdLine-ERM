@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,7 +10,7 @@ use Illuminate\Support\Str;
 
 class EntityType extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, SoftDeletes;
 
     protected $fillable = [
         'organization_id',
@@ -24,7 +25,7 @@ class EntityType extends Model
     ];
 
     protected $casts = [
-        'level'     => 'integer',
+        'level' => 'integer',
         'is_active' => 'boolean',
         'sort_order' => 'integer',
     ];
@@ -41,7 +42,7 @@ class EntityType extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()
@@ -55,7 +56,7 @@ class EntityType extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Accessors                                                          */
+    /*  Accessors */
     /* ------------------------------------------------------------------ */
 
     public function getLevelLabelAttribute(): string

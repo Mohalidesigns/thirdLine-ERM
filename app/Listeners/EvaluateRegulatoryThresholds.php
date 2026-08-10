@@ -2,8 +2,8 @@
 
 namespace App\Listeners;
 
-use App\Events\LossEventCreated;
 use App\Events\LossEventAmountChanged;
+use App\Events\LossEventCreated;
 use App\Services\RegulatoryThresholdService;
 use Illuminate\Support\Facades\DB;
 
@@ -21,7 +21,16 @@ class EvaluateRegulatoryThresholds
         // Evaluate against regulatory thresholds
         $thresholdViolations = $this->regulatoryService->evaluateThresholds($lossEvent);
 
-        // Create domain events for any violations
+        // Create domain events for any violations.
+        //
+        // The payload keys below are the ones RegulatoryThresholdService
+        // actually emits. This listener previously read 'threshold', 'amount'
+        // and 'body', none of which the service has ever produced, so it threw
+        // an ErrorException for every alert it was handed — which meant a loss
+        // event over the NDIC threshold (NGN 500,000) could not be saved at
+        // all. It went unnoticed because most of the alerts never fired: the
+        // fraud ones were suppressed by the basel_l1_category case mismatch
+        // fixed in WP-01 TASK 1.
         foreach ($thresholdViolations as $violation) {
             DB::table('domain_events')->insert([
                 'organization_id' => $organizationId,
@@ -32,9 +41,13 @@ class EvaluateRegulatoryThresholds
                     'loss_event_id' => $lossEvent->id,
                     'loss_event_reference' => $lossEvent->event_reference,
                     'violation_type' => $violation['type'],
-                    'violation_threshold' => $violation['threshold'],
-                    'current_amount' => $violation['amount'],
-                    'regulatory_body' => $violation['body'],
+                    'message' => $violation['message'],
+                    // Not every alert carries a statutory clock — NDIC and EFCC
+                    // notification have no deadline in this engine.
+                    'deadline' => $violation['deadline'] ?? null,
+                    'regulatory_reference' => $violation['regulatory_ref'],
+                    'gross_loss_amount_kobo' => (int) $lossEvent->gross_loss_amount_kobo,
+                    'net_loss_amount_kobo' => (int) $lossEvent->net_loss_amount_kobo,
                 ]),
                 'status' => 'pending',
                 'created_at' => now(),

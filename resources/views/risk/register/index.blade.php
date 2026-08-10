@@ -11,6 +11,23 @@
 @endsection
 
 @section('content')
+    {{-- Historic view. Scores below are the ones approved as at the close of
+         the selected period, read from the measure engine — not today's. --}}
+    @isset($asOfPeriod)
+        <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3">
+            <span class="material-symbols-outlined text-blue-600">history</span>
+            <div class="text-sm text-blue-800">
+                <p class="font-semibold">Showing the register as at {{ $asOfPeriod->name }}
+                    ({{ $asOfPeriod->end_date?->format('d M Y') }}).</p>
+                <p class="text-xs text-blue-700 mt-0.5">
+                    Scores are the last approved on or before that date. Risks identified afterwards are excluded.
+                    <a href="{{ route('risk.periods.select', ['direction' => 'current', 'redirect' => '/risk/register']) }}"
+                       class="underline font-medium">Return to the current period</a>.
+                </p>
+            </div>
+        </div>
+    @endisset
+
     {{-- Success Flash --}}
     @if (session('success'))
         <div class="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3">

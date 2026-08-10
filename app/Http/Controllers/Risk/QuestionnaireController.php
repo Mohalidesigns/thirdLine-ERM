@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
-use App\Models\Questionnaire;
-use App\Models\QuestionnaireSection;
 use App\Models\Question;
 use App\Models\QuestionLibrary;
+use App\Models\Questionnaire;
+use App\Models\QuestionnaireSection;
 use Illuminate\Http\Request;
 
 class QuestionnaireController extends Controller
@@ -31,18 +31,18 @@ class QuestionnaireController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'title'              => 'required|string|max:255',
+            'title' => 'required|string|max:255',
             'questionnaire_type' => 'required',
-            'scoring_method'     => 'required|in:average,weighted,highest,sum',
+            'scoring_method' => 'required|in:average,weighted,highest,sum',
         ]);
 
         $questionnaire = Questionnaire::create([
-            'organization_id'    => auth()->user()->organization_id,
-            'title'              => $request->title,
-            'description'        => $request->description,
+            'organization_id' => auth()->user()->organization_id,
+            'title' => $request->title,
+            'description' => $request->description,
             'questionnaire_type' => $request->questionnaire_type,
-            'scoring_method'     => $request->scoring_method,
-            'created_by'         => auth()->id(),
+            'scoring_method' => $request->scoring_method,
+            'created_by' => auth()->id(),
         ]);
 
         return redirect()->route('risk.questionnaires.edit', $questionnaire)->with('success', 'Questionnaire created. Add sections and questions.');
@@ -51,6 +51,7 @@ class QuestionnaireController extends Controller
     public function show(Questionnaire $questionnaire)
     {
         $questionnaire->load('sections.questions');
+
         return view('risk.questionnaires.show', compact('questionnaire'));
     }
 
@@ -68,7 +69,7 @@ class QuestionnaireController extends Controller
     public function addSection(Request $request, Questionnaire $questionnaire)
     {
         $request->validate([
-            'title'  => 'required|string|max:255',
+            'title' => 'required|string|max:255',
             'weight' => 'nullable|numeric|min:0|max:100',
         ]);
 
@@ -76,10 +77,10 @@ class QuestionnaireController extends Controller
 
         QuestionnaireSection::create([
             'questionnaire_id' => $questionnaire->id,
-            'title'            => $request->title,
-            'description'      => $request->description,
-            'sort_order'       => $maxOrder + 1,
-            'weight'           => $request->weight ?? 1.00,
+            'title' => $request->title,
+            'description' => $request->description,
+            'sort_order' => $maxOrder + 1,
+            'weight' => $request->weight ?? 1.00,
         ]);
 
         return back()->with('success', 'Section added.');
@@ -100,15 +101,15 @@ class QuestionnaireController extends Controller
         }
 
         Question::create([
-            'section_id'    => $section->id,
+            'section_id' => $section->id,
             'question_type' => $request->question_type,
             'question_text' => $request->question_text,
-            'options'       => $options,
+            'options' => $options,
             'scoring_rules' => $request->scoring_rules,
-            'is_required'   => $request->boolean('is_required', true),
-            'sort_order'    => $maxOrder + 1,
-            'help_text'     => $request->help_text,
-            'weight'        => $request->weight ?? 1.00,
+            'is_required' => $request->boolean('is_required', true),
+            'sort_order' => $maxOrder + 1,
+            'help_text' => $request->help_text,
+            'weight' => $request->weight ?? 1.00,
         ]);
 
         return back()->with('success', 'Question added.');
@@ -117,6 +118,7 @@ class QuestionnaireController extends Controller
     public function removeQuestion(Question $question)
     {
         $question->delete();
+
         return back()->with('success', 'Question removed.');
     }
 
@@ -127,6 +129,7 @@ class QuestionnaireController extends Controller
         }
 
         $questionnaire->update(['status' => 'published']);
+
         return back()->with('success', 'Questionnaire published.');
     }
 
@@ -143,18 +146,18 @@ class QuestionnaireController extends Controller
     public function storeLibraryQuestion(Request $request)
     {
         $request->validate([
-            'category'      => 'required|string|max:100',
+            'category' => 'required|string|max:100',
             'question_text' => 'required|string',
             'question_type' => 'required',
         ]);
 
         QuestionLibrary::create([
             'organization_id' => auth()->user()->organization_id,
-            'category'        => $request->category,
-            'question_text'   => $request->question_text,
-            'question_type'   => $request->question_type,
+            'category' => $request->category,
+            'question_text' => $request->question_text,
+            'question_type' => $request->question_type,
             'default_options' => $request->default_options,
-            'tags'            => $request->tags,
+            'tags' => $request->tags,
         ]);
 
         return back()->with('success', 'Question added to library.');
@@ -162,7 +165,7 @@ class QuestionnaireController extends Controller
 
     private function defaultOptionsForType(string $type): array
     {
-        return match($type) {
+        return match ($type) {
             'likert' => [
                 ['label' => 'Strongly Disagree', 'value' => 1],
                 ['label' => 'Disagree', 'value' => 2],

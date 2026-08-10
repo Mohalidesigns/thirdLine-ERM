@@ -2,16 +2,21 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasObjectIdentity;
+use App\Models\Concerns\ScopedToGraph;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class LossEvent extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, ScopedToGraph, SoftDeletes;
 
     protected $fillable = [
         // --- Original migration columns (actual DB columns) ---
@@ -73,23 +78,15 @@ class LossEvent extends Model
         'assigned_to_id',
         'current_approval_stage',
         'created_by',
-        // --- Alignment migration columns (used by controllers) ---
-        'event_title',
-        'event_description',
-        'status',
-        'gross_loss_amount',
-        'recovery_amount',
-        'insurance_recovery',
-        'net_loss_amount',
-        'event_type',
-        'severity',
-        'basel_event_type',
-        'cbn_loss_category',
+        // --- Alignment migration columns with no canonical counterpart ---
+        // The rest of the 200038 set (event_title, status, gross_loss_amount,
+        // severity, basel_event_type, …) is deliberately absent: those columns
+        // are deprecated duplicates and are no longer written. See
+        // docs/schema/canonical-columns.md.
         'currency',
         'is_regulatory_reportable',
         'regulatory_body',
         'reporting_deadline',
-        'root_cause_summary',
         'corrective_action_summary',
         'reported_by',
         'approved_by',
@@ -101,30 +98,26 @@ class LossEvent extends Model
 
     protected $casts = [
         // Original columns
-        'date_of_loss'             => 'date',
-        'date_discovered'          => 'date',
-        'date_reported'            => 'date',
-        'insurance_covered'        => 'boolean',
-        'cbn_reportable'           => 'boolean',
-        'cbn_reporting_deadline'   => 'date',
-        'cbn_notification_sent'    => 'boolean',
-        'cbn_notification_date'    => 'date',
-        'nfiu_reportable'          => 'boolean',
-        'nfiu_report_filed'        => 'boolean',
-        'bofia_reportable'         => 'boolean',
-        'ndic_reportable'          => 'boolean',
+        'date_of_loss' => 'date',
+        'date_discovered' => 'date',
+        'date_reported' => 'date',
+        'insurance_covered' => 'boolean',
+        'cbn_reportable' => 'boolean',
+        'cbn_reporting_deadline' => 'date',
+        'cbn_notification_sent' => 'boolean',
+        'cbn_notification_date' => 'date',
+        'nfiu_reportable' => 'boolean',
+        'nfiu_report_filed' => 'boolean',
+        'bofia_reportable' => 'boolean',
+        'ndic_reportable' => 'boolean',
         'law_enforcement_notified' => 'boolean',
-        'efcc_reported'            => 'boolean',
-        'is_near_miss'             => 'boolean',
+        'efcc_reported' => 'boolean',
+        'is_near_miss' => 'boolean',
         // Alignment columns
-        'reporting_deadline'       => 'date',
+        'reporting_deadline' => 'date',
         'is_regulatory_reportable' => 'boolean',
-        'approved_at'              => 'datetime',
-        'status_changed_at'        => 'datetime',
-        'gross_loss_amount'        => 'decimal:2',
-        'recovery_amount'          => 'decimal:2',
-        'insurance_recovery'       => 'decimal:2',
-        'net_loss_amount'          => 'decimal:2',
+        'approved_at' => 'datetime',
+        'status_changed_at' => 'datetime',
     ];
 
     protected static function boot(): void
@@ -139,7 +132,42 @@ class LossEvent extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Aggregate expressions */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Net loss in kobo, as SQL.
+     *
+     * Aggregates run in the database, so they cannot go through the
+     * netLossAmountKobo accessor. Before WP-01 they summed the naira
+     * `net_loss_amount` column, which only the loss-event CRUD screen ever
+     * wrote — every other creation path left it NULL and the totals silently
+     * under-reported. Deriving it from the kobo columns is the same
+     * definition the accessor uses, and it holds for every row.
+     */
+    public static function netLossKoboSql(): Expression
+    {
+        return DB::raw('(COALESCE(gross_loss_amount_kobo, 0) - COALESCE(insurance_recovery_kobo, 0) - COALESCE(other_recovery_kobo, 0))');
+    }
+
+    /**
+     * Net loss in naira, as SQL, for screens that report in major units.
+     */
+    public static function netLossNairaSql(): Expression
+    {
+        return DB::raw('(COALESCE(gross_loss_amount_kobo, 0) - COALESCE(insurance_recovery_kobo, 0) - COALESCE(other_recovery_kobo, 0)) / 100');
+    }
+
+    /**
+     * Gross loss in naira, as SQL.
+     */
+    public static function grossLossNairaSql(): Expression
+    {
+        return DB::raw('COALESCE(gross_loss_amount_kobo, 0) / 100');
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()
@@ -228,7 +256,7 @@ class LossEvent extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Accessors                                                          */
+    /*  Accessors */
     /* ------------------------------------------------------------------ */
 
     // Bridge legacy column names used by some views.
@@ -239,6 +267,15 @@ class LossEvent extends Model
         );
     }
 
+    /**
+     * Net loss = gross − insurance recovery − other recovery.
+     *
+     * Deliberately excludes pending_recovery_kobo (not yet received),
+     * actual_recovery_kobo (the roll-up of the two subtracted here, so
+     * subtracting it too would double-count) and provision_amount_kobo (an
+     * accounting entry, not a recovery). Pinned by
+     * tests/Feature/Characterisation/LossEventNetLossTest.php.
+     */
     protected function netLossAmountKobo(): Attribute
     {
         return Attribute::make(
@@ -248,6 +285,138 @@ class LossEvent extends Model
                 - (int) $this->other_recovery_kobo
             ),
         );
+    }
+
+    /**
+     * @deprecated Duplicates the near_misses table, which is a first-class
+     * entity with its own reference codes, workflow and link back to
+     * loss_events. Removal is tracked in docs/schema/deprecations.md; read
+     * LossEvent::convertedNearMisses() or the NearMiss model instead.
+     */
+    protected function isNearMiss(): Attribute
+    {
+        return Attribute::make(
+            get: function ($value) {
+                self::warnDeprecatedNearMissRead();
+
+                return (bool) $value;
+            },
+        );
+    }
+
+    /**
+     * Warn once per request rather than once per read.
+     *
+     * The accessor sits on a real column, so it fires on toArray() and
+     * toJson() too — a listing that serialises 500 loss events would
+     * otherwise write 500 identical lines and bury the signal it exists to
+     * give. One line naming the first caller is the useful form.
+     */
+    private static bool $nearMissDeprecationWarned = false;
+
+    private static function warnDeprecatedNearMissRead(): void
+    {
+        if (self::$nearMissDeprecationWarned) {
+            return;
+        }
+
+        self::$nearMissDeprecationWarned = true;
+
+        $frame = collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 8))
+            ->first(fn (array $f) => ($f['class'] ?? null) !== self::class);
+
+        logger()->warning('Deprecated column read: loss_events.is_near_miss', [
+            'replacement' => 'the near_misses table',
+            'caller' => trim(($frame['file'] ?? 'unknown').':'.($frame['line'] ?? '?')),
+        ]);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Deprecated-column bridges (WP-01 TASK 1) */
+    /* */
+    /*  Each of these is named after a column that migration 200038 added */
+    /*  as a duplicate. Nothing writes those columns any more; the */
+    /*  accessors read the canonical column instead, so the Blade views */
+    /*  that still use the old names keep working unchanged. */
+    /* */
+    /*  These are READ-ONLY and temporary. Migration B drops the columns */
+    /*  and these accessors go with them — see */
+    /*  docs/schema/canonical-columns.md. */
+    /* ------------------------------------------------------------------ */
+
+    protected function eventTitle(): Attribute
+    {
+        return Attribute::make(get: fn () => $this->title);
+    }
+
+    protected function eventDescription(): Attribute
+    {
+        return Attribute::make(get: fn () => $this->description);
+    }
+
+    /** Canonical current_status is upper case; the old contract was lower. */
+    protected function status(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->current_status === null ? null : strtolower($this->current_status),
+        );
+    }
+
+    /** Canonical event_severity is upper case; the old contract was lower. */
+    protected function severity(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->event_severity === null ? null : strtolower($this->event_severity),
+        );
+    }
+
+    /**
+     * Canonical basel_l1_category is upper case — that is what
+     * RegulatoryThresholdService matches on. The forms and views use the lower
+     * case enum, so lower-case it here.
+     */
+    protected function baselEventType(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->basel_l1_category === null ? null : strtolower($this->basel_l1_category),
+        );
+    }
+
+    protected function cbnLossCategory(): Attribute
+    {
+        return Attribute::make(get: fn () => $this->cbn_risk_category);
+    }
+
+    protected function eventType(): Attribute
+    {
+        return Attribute::make(get: fn () => $this->loss_category);
+    }
+
+    protected function rootCauseSummary(): Attribute
+    {
+        return Attribute::make(get: fn () => $this->initial_root_cause);
+    }
+
+    // Money bridges: canonical is kobo, the old columns were naira.
+
+    protected function grossLossAmount(): Attribute
+    {
+        return Attribute::make(get: fn () => (int) $this->gross_loss_amount_kobo / 100);
+    }
+
+    protected function insuranceRecovery(): Attribute
+    {
+        return Attribute::make(get: fn () => (int) $this->insurance_recovery_kobo / 100);
+    }
+
+    protected function recoveryAmount(): Attribute
+    {
+        return Attribute::make(get: fn () => (int) $this->other_recovery_kobo / 100);
+    }
+
+    protected function netLossAmount(): Attribute
+    {
+        return Attribute::make(get: fn () => $this->net_loss_amount_kobo / 100);
     }
 
     protected function daysOpen(): Attribute

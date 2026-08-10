@@ -21,12 +21,14 @@ use Illuminate\Http\Request;
 class WarmAiCache extends Command
 {
     protected $signature = 'ai:warm-cache {--org=1}';
+
     protected $description = 'Pre-generate AI responses for top residual risks so the live demo is instant.';
 
     public function handle(LlmService $llm): int
     {
         if (! $llm->available()) {
-            $this->error('LLM unavailable: ' . ($llm->lastError() ?? 'unknown'));
+            $this->error('LLM unavailable: '.($llm->lastError() ?? 'unknown'));
+
             return self::FAILURE;
         }
 
@@ -54,30 +56,32 @@ class WarmAiCache extends Command
             $t = microtime(true);
             $req = new Request(['risk_id' => $risk->id]);
             $ctrl->controlRecommendations($req);
-            $this->line('      ' . $this->elapsed($t));
+            $this->line('      '.$this->elapsed($t));
 
             $this->line('    KRI Suggester …');
             $t = microtime(true);
             $req = new Request(['risk_id' => $risk->id]);
             $ctrl->kriSuggestions($req);
-            $this->line('      ' . $this->elapsed($t));
+            $this->line('      '.$this->elapsed($t));
         }
 
         $this->newLine();
         $this->info('Executive Narrative …');
         auth()->loginUsingId(\App\Models\User::where('organization_id', $orgId)->first()->id);
         $t = microtime(true);
-        $ctrl->executiveNarrative(new Request());
-        $this->line('  ' . $this->elapsed($t));
+        $ctrl->executiveNarrative(new Request);
+        $this->line('  '.$this->elapsed($t));
 
         $this->newLine();
         $this->info('AI cache warmed. Demo clicks on these risks will now be instant.');
+
         return self::SUCCESS;
     }
 
     private function elapsed(float $t): string
     {
         $ms = (int) round((microtime(true) - $t) * 1000);
+
         return "done in {$ms} ms";
     }
 }

@@ -46,13 +46,18 @@ class LossEventAttachment extends Model
     public function getSizeFormattedAttribute(): string
     {
         $bytes = (int) $this->file_size_bytes;
-        if ($bytes >= 1048576) return number_format($bytes / 1048576, 1) . ' MB';
-        if ($bytes >= 1024) return number_format($bytes / 1024, 1) . ' KB';
-        return $bytes . ' B';
+        if ($bytes >= 1048576) {
+            return number_format($bytes / 1048576, 1).' MB';
+        }
+        if ($bytes >= 1024) {
+            return number_format($bytes / 1024, 1).' KB';
+        }
+
+        return $bytes.' B';
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function lossEvent()

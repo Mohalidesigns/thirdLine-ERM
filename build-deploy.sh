@@ -4,12 +4,11 @@
 #
 # Creates riskmtg.zip containing:
 #   core/           -> Laravel app (app, config, routes, vendor, etc.)
-#   index.php       -> Entry point (will be overwritten by installer)
+#   index.php       -> Entry point
 #   .htaccess       -> Apache rewrite rules
 #   build/          -> Compiled Vite assets
 #   favicon.ico     -> Favicon
 #   robots.txt      -> Robots file
-#   install.php     -> Web installer
 #
 # Usage: bash build-deploy.sh
 # ─────────────────────────────────────────────────────────────────
@@ -29,13 +28,13 @@ echo ""
 rm -rf "$BUILD_DIR" "$OUTPUT"
 mkdir -p "$BUILD_DIR/core"
 
-echo "[1/6] Ensuring dependencies are installed ..."
+echo "[1/5] Ensuring dependencies are installed ..."
 composer install --no-dev --optimize-autoloader --no-interaction 2>&1 | tail -3
 
-echo "[2/6] Building frontend assets ..."
+echo "[2/5] Building frontend assets ..."
 npm run build 2>&1 | tail -3
 
-echo "[3/6] Copying Laravel core files ..."
+echo "[3/5] Copying Laravel core files ..."
 # Core Laravel directories
 for dir in app bootstrap config database resources routes storage vendor; do
     cp -r "$dir" "$BUILD_DIR/core/"
@@ -67,7 +66,7 @@ for d in "$BUILD_DIR/core/storage/app/public" \
     touch "$d/.gitkeep"
 done
 
-echo "[4/6] Copying public assets ..."
+echo "[4/5] Copying public assets ..."
 # Public directory contents go to root of deploy
 cp public/.htaccess "$BUILD_DIR/"
 cp public/index.php "$BUILD_DIR/"
@@ -79,10 +78,12 @@ if [ -d public/build ]; then
     cp -r public/build "$BUILD_DIR/"
 fi
 
-echo "[5/6] Including installer ..."
-cp install.php "$BUILD_DIR/"
+# NOTE: the web installer (install.php) was removed in WP-00 TASK 5. It wrote
+# .env, called exec(), ran `migrate --force` and `db:seed --force`, and
+# provisioned a known admin credential — with no authentication, from the
+# public web root. Provision new deployments from the shell instead.
 
-echo "[6/6] Creating riskmtg.zip ..."
+echo "[5/5] Creating riskmtg.zip ..."
 cd "$BUILD_DIR"
 zip -r "$OUTPUT" . -x "*.DS_Store" "*__MACOSX*" "*.git*" 2>&1 | tail -1
 
@@ -96,9 +97,10 @@ echo "=== Done! ==="
 echo "Output: riskmtg.zip ($SIZE)"
 echo ""
 echo "Deployment steps:"
-echo "  1. Upload riskmtg.zip to public_html/riskmtg/"
-echo "  2. Upload install.php to public_html/riskmtg/"
-echo "  3. Visit https://yourdomain.com/riskmtg/install.php"
-echo "  4. Click 'Install Now' and wait for completion"
-echo "  5. Click 'Clean Up Install Files' to remove installer"
-echo "  6. Login with admin@risk.test / password"
+echo "  1. Upload riskmtg.zip to public_html/riskmtg/ and unzip it"
+echo "  2. Copy .env.example to core/.env and fill in real values"
+echo "  3. php core/artisan key:generate"
+echo "  4. php core/artisan migrate --force"
+echo "  5. php core/artisan db:seed --class=RolesAndPermissionsSeeder --force"
+echo "  6. Create the first administrator explicitly — no default credential ships"
+echo "  7. php core/artisan app:preflight   # refuses to pass on an unsafe config"

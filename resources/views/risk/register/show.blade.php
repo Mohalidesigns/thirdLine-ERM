@@ -92,7 +92,7 @@
         {{-- Tab Navigation --}}
         <div class="bg-white rounded-t-xl border-b border-gray-200">
             <div class="flex gap-8 px-6">
-                @foreach (['overview' => 'Overview', 'controls' => 'Controls', 'assessment' => 'Assessment', 'treatment' => 'Treatment', 'kris' => 'KRIs', 'history' => 'History'] as $tab => $label)
+                @foreach (['overview' => 'Overview', 'controls' => 'Controls', 'assessment' => 'Assessment', 'treatment' => 'Treatment', 'kris' => 'KRIs', 'attributes' => 'Attributes', 'history' => 'History'] as $tab => $label)
                     <button @click="activeTab = '{{ $tab }}'"
                             :class="activeTab === '{{ $tab }}' ? 'border-[#1A365D] text-[#1A365D] font-semibold' : 'border-transparent text-gray-600 hover:text-[#1A365D]'"
                             class="border-b-2 py-4 text-sm transition-colors">
@@ -498,6 +498,16 @@
                         </a>
                     </div>
                 @endif
+            </div>
+
+            {{-- Attributes Tab --}}
+            {{-- Fields an administrator has configured on the Risk object type,
+                 rendered and validated from object_attributes. Nothing here is
+                 a column: adding a field is a row in that table, not a
+                 migration. See App\Livewire\DynamicForm. --}}
+            <div x-show="activeTab === 'attributes'" style="display: none;">
+                <h3 class="text-sm font-semibold text-gray-700 mb-4">Configured attributes</h3>
+                <x-dynamic-attributes object-type="Risk" :model="$risk" />
             </div>
 
             {{-- History Tab --}}

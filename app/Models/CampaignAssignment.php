@@ -13,15 +13,34 @@ class CampaignAssignment extends Model
     ];
 
     protected $casts = [
-        'due_date'     => 'date',
-        'started_at'   => 'datetime',
+        'due_date' => 'date',
+        'started_at' => 'datetime',
         'submitted_at' => 'datetime',
-        'reviewed_at'  => 'datetime',
+        'reviewed_at' => 'datetime',
     ];
 
-    public function campaign()     { return $this->belongsTo(AssessmentCampaign::class, 'campaign_id'); }
-    public function businessUnit() { return $this->belongsTo(BusinessUnit::class); }
-    public function respondent()   { return $this->belongsTo(User::class, 'respondent_id'); }
-    public function reviewer()     { return $this->belongsTo(User::class, 'reviewer_id'); }
-    public function responses()    { return $this->hasMany(CampaignResponse::class, 'assignment_id'); }
+    public function campaign()
+    {
+        return $this->belongsTo(AssessmentCampaign::class, 'campaign_id');
+    }
+
+    public function businessUnit()
+    {
+        return $this->belongsTo(BusinessUnit::class);
+    }
+
+    public function respondent()
+    {
+        return $this->belongsTo(User::class, 'respondent_id');
+    }
+
+    public function reviewer()
+    {
+        return $this->belongsTo(User::class, 'reviewer_id');
+    }
+
+    public function responses()
+    {
+        return $this->hasMany(CampaignResponse::class, 'assignment_id');
+    }
 }

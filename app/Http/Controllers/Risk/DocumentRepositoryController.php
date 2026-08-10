@@ -6,9 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\ControlTestEvidence;
 use App\Models\IssueAttachment;
 use App\Models\LossEventAttachment;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 /**
  * Unified read-only repository for every file uploaded anywhere in the
@@ -27,10 +26,10 @@ class DocumentRepositoryController extends Controller
         return [
             'loss_event' => [
                 'label' => 'Loss Event Attachment',
-                'icon'  => 'report_problem',
+                'icon' => 'report_problem',
                 'model' => LossEventAttachment::class,
                 'parent_relation' => 'lossEvent',
-                'parent_label' => fn ($row) => $row->lossEvent?->event_reference ?? ('#' . $row->loss_event_id),
+                'parent_label' => fn ($row) => $row->lossEvent?->event_reference ?? ('#'.$row->loss_event_id),
                 'parent_link' => fn ($row) => $row->lossEvent ? route('risk.loss-events.show', $row->lossEvent) : null,
                 'download_link' => fn ($row) => $row->lossEvent
                     ? route('risk.loss-events.download-attachment', ['lossEvent' => $row->lossEvent, 'attachment' => $row->id])
@@ -40,10 +39,10 @@ class DocumentRepositoryController extends Controller
             ],
             'control_test' => [
                 'label' => 'Control Test Evidence',
-                'icon'  => 'verified',
+                'icon' => 'verified',
                 'model' => ControlTestEvidence::class,
                 'parent_relation' => 'controlTest',
-                'parent_label' => fn ($row) => $row->controlTest?->test_code ?? ('#' . $row->control_test_id),
+                'parent_label' => fn ($row) => $row->controlTest?->test_code ?? ('#'.$row->control_test_id),
                 'parent_link' => fn ($row) => $row->controlTest ? route('risk.control-tests.show', $row->controlTest) : null,
                 'download_link' => fn ($row) => $row->controlTest
                     ? route('risk.control-tests.download-evidence', ['controlTest' => $row->controlTest, 'evidence' => $row->id])
@@ -53,10 +52,10 @@ class DocumentRepositoryController extends Controller
             ],
             'issue' => [
                 'label' => 'Issue Attachment',
-                'icon'  => 'bug_report',
+                'icon' => 'bug_report',
                 'model' => IssueAttachment::class,
                 'parent_relation' => 'issue',
-                'parent_label' => fn ($row) => $row->issue?->issue_code ?? ('#' . $row->issue_id),
+                'parent_label' => fn ($row) => $row->issue?->issue_reference ?? ('#'.$row->issue_id),
                 'parent_link' => fn ($row) => $row->issue ? route('risk.issues.show', $row->issue) : null,
                 'download_link' => fn ($row) => $row->issue
                     ? route('risk.issues.download-attachment', ['issue' => $row->issue, 'attachment' => $row->id])
@@ -69,7 +68,7 @@ class DocumentRepositoryController extends Controller
 
     public function index(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
         $filters = [
             'source' => $request->string('source')->toString() ?: null,
             'document_type' => $request->string('document_type')->toString() ?: null,
@@ -93,8 +92,8 @@ class DocumentRepositoryController extends Controller
 
         // Summary KPIs
         $summary = [
-            'total'      => $rows->count(),
-            'by_source'  => $rows->groupBy('source')->map->count(),
+            'total' => $rows->count(),
+            'by_source' => $rows->groupBy('source')->map->count(),
             'regulatory' => $rows->where('is_regulatory', true)->count(),
             'total_size' => $rows->sum('size_bytes'),
             'by_doc_type' => $rows->where('document_type', '!=', null)
@@ -108,6 +107,7 @@ class DocumentRepositoryController extends Controller
         $rowsBySource = $rows->groupBy('source');
         $folders = collect($this->sources())->map(function ($cfg, $key) use ($rowsBySource) {
             $files = $rowsBySource->get($key, collect());
+
             return (object) [
                 'key' => $key,
                 'label' => $cfg['label'],
@@ -148,13 +148,13 @@ class DocumentRepositoryController extends Controller
             $query->where('uploaded_by', $filters['uploader']);
         }
         if ($filters['q']) {
-            $query->where('file_name', 'like', '%' . $filters['q'] . '%');
+            $query->where('file_name', 'like', '%'.$filters['q'].'%');
         }
         if ($filters['from']) {
             $query->where('created_at', '>=', $filters['from']);
         }
         if ($filters['to']) {
-            $query->where('created_at', '<=', $filters['to'] . ' 23:59:59');
+            $query->where('created_at', '<=', $filters['to'].' 23:59:59');
         }
         if ($filters['document_type'] && $cfg['has_document_type']) {
             $query->where('document_type', $filters['document_type']);
@@ -170,22 +170,22 @@ class DocumentRepositoryController extends Controller
 
         return $query->with('uploadedBy')->orderByDesc('created_at')->get()->map(function ($row) use ($key, $cfg) {
             return (object) [
-                'source'         => $key,
-                'source_label'   => $cfg['label'],
-                'source_icon'    => $cfg['icon'],
-                'id'             => $row->id,
-                'file_name'      => $row->file_name,
-                'file_type'      => $row->file_type,
-                'size_bytes'     => (int) ($row->file_size_bytes ?? $row->file_size ?? 0),
-                'document_type'  => $cfg['has_document_type'] ? ($row->document_type ?? null) : null,
-                'is_regulatory'  => $cfg['has_regulatory'] ? (bool) ($row->is_regulatory ?? false) : false,
-                'description'    => $row->description ?? null,
-                'uploaded_by'    => $row->uploadedBy?->name ?? '—',
+                'source' => $key,
+                'source_label' => $cfg['label'],
+                'source_icon' => $cfg['icon'],
+                'id' => $row->id,
+                'file_name' => $row->file_name,
+                'file_type' => $row->file_type,
+                'size_bytes' => (int) ($row->file_size_bytes ?? $row->file_size ?? 0),
+                'document_type' => $cfg['has_document_type'] ? ($row->document_type ?? null) : null,
+                'is_regulatory' => $cfg['has_regulatory'] ? (bool) ($row->is_regulatory ?? false) : false,
+                'description' => $row->description ?? null,
+                'uploaded_by' => $row->uploadedBy?->name ?? '—',
                 'uploaded_by_id' => $row->uploaded_by,
-                'uploaded_at'    => $row->created_at,
-                'parent_label'   => ($cfg['parent_label'])($row),
-                'parent_link'    => ($cfg['parent_link'])($row),
-                'download_link'  => ($cfg['download_link'])($row),
+                'uploaded_at' => $row->created_at,
+                'parent_label' => ($cfg['parent_label'])($row),
+                'parent_link' => ($cfg['parent_link'])($row),
+                'download_link' => ($cfg['download_link'])($row),
             ];
         });
     }

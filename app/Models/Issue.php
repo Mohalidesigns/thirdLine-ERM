@@ -2,16 +2,19 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasObjectIdentity;
+use App\Models\Concerns\ScopedToGraph;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class Issue extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, ScopedToGraph, SoftDeletes;
 
     protected $fillable = [
         'organization_id',
@@ -51,16 +54,13 @@ class Issue extends Model
         'risk_register_id',
         'loss_event_id',
         'created_by',
-        'issue_title',
-        'issue_description',
-        'issue_owner_id',
-        'target_resolution_date',
-        'actual_resolution_date',
+        // The 200038 duplicates (issue_title, issue_description,
+        // issue_owner_id, target_resolution_date, actual_resolution_date,
+        // source_reference, escalation_level) are deliberately absent — they
+        // are no longer written. See docs/schema/canonical-columns.md.
         'root_cause',
         'impact_description',
         'recommended_action',
-        'source_reference',
-        'escalation_level',
         'progress_percentage',
         'closure_justification',
         'evidence_of_resolution',
@@ -77,23 +77,25 @@ class Issue extends Model
     ];
 
     protected $casts = [
-        'examination_date'        => 'date',
-        'cbn_response_deadline'   => 'date',
+        'examination_date' => 'date',
+        'cbn_response_deadline' => 'date',
         'management_response_due' => 'date',
-        'remediation_due_date'    => 'date',
-        'actual_close_date'       => 'date',
-        'target_resolution_date'  => 'date',
-        'actual_resolution_date'  => 'date',
-        'closure_requested_at'    => 'datetime',
-        'closure_rejected_at'     => 'datetime',
-        'closed_at'               => 'datetime',
-        'status_changed_at'       => 'datetime',
-        'regulatory_reportable'   => 'boolean',
-        'cbn_reportable'          => 'boolean',
+        'remediation_due_date' => 'date',
+        'actual_close_date' => 'date',
+        // current_escalation_level is declared string(50) but has only ever
+        // held an integer level. Casting here so comparisons behave; the
+        // column retype is Migration B work (docs/schema/deprecations.md).
+        'current_escalation_level' => 'integer',
+        'closure_requested_at' => 'datetime',
+        'closure_rejected_at' => 'datetime',
+        'closed_at' => 'datetime',
+        'status_changed_at' => 'datetime',
+        'regulatory_reportable' => 'boolean',
+        'cbn_reportable' => 'boolean',
         'cbn_examination_finding' => 'boolean',
-        'cbn_response_submitted'  => 'boolean',
-        'bofia_reportable'        => 'boolean',
-        'ndpa_reportable'         => 'boolean',
+        'cbn_response_submitted' => 'boolean',
+        'bofia_reportable' => 'boolean',
+        'ndpa_reportable' => 'boolean',
     ];
 
     protected static function boot(): void
@@ -108,7 +110,7 @@ class Issue extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()
@@ -187,7 +189,7 @@ class Issue extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Accessors                                                          */
+    /*  Accessors */
     /* ------------------------------------------------------------------ */
 
     protected function daysOpen(): Attribute
@@ -216,5 +218,45 @@ class Issue extends Model
                 return Carbon::now()->greaterThan(Carbon::parse($this->due_date));
             },
         );
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Deprecated-column bridges (WP-01 TASK 1) — read-only, removed with */
+    /*  the columns in Migration B. */
+    /* ------------------------------------------------------------------ */
+
+    protected function issueTitle(): Attribute
+    {
+        return Attribute::make(get: fn () => $this->title);
+    }
+
+    protected function issueDescription(): Attribute
+    {
+        return Attribute::make(get: fn () => $this->description);
+    }
+
+    protected function issueOwnerId(): Attribute
+    {
+        return Attribute::make(get: fn () => $this->responsible_owner_id);
+    }
+
+    protected function targetResolutionDate(): Attribute
+    {
+        return Attribute::make(get: fn () => $this->remediation_due_date);
+    }
+
+    protected function actualResolutionDate(): Attribute
+    {
+        return Attribute::make(get: fn () => $this->actual_close_date);
+    }
+
+    protected function sourceReference(): Attribute
+    {
+        return Attribute::make(get: fn () => $this->examination_ref);
+    }
+
+    protected function escalationLevel(): Attribute
+    {
+        return Attribute::make(get: fn () => (int) $this->current_escalation_level);
     }
 }

@@ -32,7 +32,7 @@ class SendNotification implements ShouldQueue
             'LossEventCreated' => [
                 'type' => 'loss_event_created',
                 'subject' => "New Loss Event: {$event->lossEvent->event_reference}",
-                'body' => "A new loss event '{$event->lossEvent->title}' has been recorded with gross loss of " . number_format((int) ($event->lossEvent->gross_loss_amount_kobo ?? $event->lossEvent->gross_loss_amount ?? 0) / 100, 2) . " NGN.",
+                'body' => "A new loss event '{$event->lossEvent->title}' has been recorded with gross loss of ".number_format((int) ($event->lossEvent->gross_loss_amount_kobo ?? $event->lossEvent->gross_loss_amount ?? 0) / 100, 2).' NGN.',
                 'category' => 'loss_event',
                 'priority' => 'high',
                 'action_url' => "/risk/loss-events/{$event->lossEvent->id}",
@@ -69,13 +69,36 @@ class SendNotification implements ShouldQueue
                 'priority' => 'high',
                 'action_url' => "/risk/loss-events/{$event->lossEvent->id}",
             ],
+            'RcsaWorksheetSubmitted' => [
+                'type' => 'rcsa_worksheet_submitted',
+                'subject' => "RCSA Worksheet Submitted: {$event->campaign->campaign_code}",
+                'body' => "{$event->responseCount} risk assessment line(s) submitted for review against campaign '{$event->campaign->title}'.",
+                'category' => 'assessment',
+                'priority' => 'medium',
+                'action_url' => "/risk/campaigns/{$event->campaign->id}",
+            ],
             default => null,
         };
 
-        if ($notificationData && $orgId) {
+        // notifications_log.user_id is NOT NULL, so a row can only be written
+        // when there is a real actor. This listener is queued, and on a worker
+        // there is no authenticated user — previously that path attributed the
+        // notification to user id 1. Skip and log instead of misattributing.
+        // (The wider design issue — that user_id is set to the actor rather
+        // than the intended recipient — is out of scope for WP-00.)
+        $actorId = auth()->id();
+
+        if ($notificationData && $orgId && $actorId === null) {
+            logger()->warning('Notification not logged: no authenticated actor', [
+                'event' => $eventType,
+                'organization_id' => $orgId,
+            ]);
+        }
+
+        if ($notificationData && $orgId && $actorId !== null) {
             DB::table('notifications_log')->insert([
                 'organization_id' => $orgId,
-                'user_id' => auth()->id() ?? 1,
+                'user_id' => $actorId,
                 'channel' => 'database',
                 'type' => $notificationData['type'],
                 'subject' => $notificationData['subject'],
@@ -103,6 +126,7 @@ class SendNotification implements ShouldQueue
             isset($event->risk) => $event->risk->organization_id,
             isset($event->assessment) => $event->assessment->organization_id,
             isset($event->nearMiss) => $event->nearMiss->organization_id,
+            isset($event->campaign) => $event->campaign->organization_id,
             default => null,
         };
     }

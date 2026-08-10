@@ -52,6 +52,7 @@ class NotificationController extends Controller
     public function readAll()
     {
         NotificationService::markAllAsRead(auth()->id());
+
         return back()->with('success', 'All notifications marked as read.');
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasObjectIdentity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,7 +11,7 @@ use Illuminate\Support\Str;
 
 class QuantificationScenario extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
 
     protected $fillable = [
         'organization_id',
@@ -48,11 +50,11 @@ class QuantificationScenario extends Model
     ];
 
     protected $casts = [
-        'frequency_lambda'       => 'decimal:4',
-        'severity_mu'            => 'decimal:6',
-        'severity_sigma'         => 'decimal:6',
-        'calibration_date'       => 'date',
-        'approval_date'          => 'date',
+        'frequency_lambda' => 'decimal:4',
+        'severity_mu' => 'decimal:6',
+        'severity_sigma' => 'decimal:6',
+        'calibration_date' => 'date',
+        'approval_date' => 'date',
     ];
 
     protected static function boot(): void
@@ -67,7 +69,7 @@ class QuantificationScenario extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()
@@ -96,7 +98,7 @@ class QuantificationScenario extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  View-compatible accessors (blade views expect these properties)     */
+    /*  View-compatible accessors (blade views expect these properties) */
     /* ------------------------------------------------------------------ */
 
     public function getRiskCategoryAttribute()
@@ -123,8 +125,10 @@ class QuantificationScenario extends Model
             // Standard deviation of lognormal: sqrt((exp(sigma^2)-1) * exp(2*mu + sigma^2))
             $mu = (float) $this->severity_mu;
             $sigma = (float) $this->severity_sigma;
+
             return round(sqrt((exp($sigma ** 2) - 1) * exp(2 * $mu + $sigma ** 2)) / 100, 2);
         }
+
         return 0;
     }
 
@@ -153,6 +157,7 @@ class QuantificationScenario extends Model
         if ($this->expected_annual_loss_kobo) {
             return round($this->expected_annual_loss_kobo / 100, 2);
         }
+
         return round(($this->frequency_per_year ?? 0) * ($this->mean ?? 0), 2);
     }
 }

@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
-use App\Models\Risk;
-use App\Models\RiskCategory;
 use App\Models\BusinessUnit;
-use App\Models\User;
-use App\Models\RiskAuditTrail;
 use App\Models\Control;
+use App\Models\Risk;
+use App\Models\RiskAuditTrail;
+use App\Models\RiskCategory;
 use App\Models\RiskControlMapping;
+use App\Models\User;
+use App\Services\RiskScoringService;
+use App\Support\Periods\PeriodContext;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +23,17 @@ class RiskRegisterController extends Controller
      */
     public function index(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
+
+        // WP-04: the register is an "as at" view. When the top bar is on a
+        // period that has already ended, the scores come from the measure
+        // engine as they stood at that period's close rather than from the
+        // denormalised current columns.
+        $selectedPeriod = PeriodContext::current();
+
+        if ($selectedPeriod !== null && $selectedPeriod->end_date?->isPast()) {
+            return $this->historicIndex($request, $selectedPeriod);
+        }
 
         $query = Risk::where('organization_id', $orgId)
             ->with(['category', 'riskOwner', 'businessUnit']);
@@ -46,8 +59,8 @@ class RiskRegisterController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('risk_code', 'like', "%{$search}%")
-                  ->orWhere('title', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('title', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -68,11 +81,81 @@ class RiskRegisterController extends Controller
     }
 
     /**
+     * The register as it stood at the close of a period that has ended.
+     *
+     * Built from the measure engine rather than from `risks`, so the scores,
+     * ratings and exposures are the ones that were approved at the time — and
+     * a risk identified after the period is absent rather than showing with a
+     * score it did not then have.
+     *
+     * Sorting and paging happen in memory here, which is the trade for reading
+     * a historic view: the sort key is a value that exists only after the
+     * overlay. The register is bounded by the organisation's risk count, and
+     * the underlying read is the single indexed query in
+     * RiskRepository::valuesAsOf.
+     */
+    private function historicIndex(Request $request, \App\Models\Period $period)
+    {
+        $orgId = TenantContext::organizationId();
+
+        $filters = array_filter([
+            'category_id' => $request->input('category'),
+            'status' => $request->input('status'),
+            'business_unit_id' => $request->input('business_unit'),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $risks = app(\App\Repositories\RiskRepository::class)->asOf($period, $filters, $orgId);
+
+        if ($request->filled('rating')) {
+            $rating = $request->input('rating');
+            $risks = $risks->filter(fn (Risk $risk) => $risk->inherent_rating === $rating)->values();
+        }
+
+        if ($request->filled('search')) {
+            $search = mb_strtolower($request->input('search'));
+            $risks = $risks->filter(fn (Risk $risk) => str_contains(mb_strtolower((string) $risk->risk_code), $search)
+                || str_contains(mb_strtolower((string) $risk->title), $search)
+                || str_contains(mb_strtolower((string) $risk->description), $search)
+            )->values();
+        }
+
+        $sortBy = $request->get('sort', 'inherent_score');
+        $allowedSorts = ['risk_code', 'title', 'inherent_score', 'residual_score', 'status', 'created_at'];
+
+        if (in_array($sortBy, $allowedSorts, true)) {
+            $risks = $request->get('direction', 'desc') === 'asc'
+                ? $risks->sortBy($sortBy)->values()
+                : $risks->sortByDesc($sortBy)->values();
+        }
+
+        $perPage = 25;
+        $page = max(1, (int) $request->input('page', 1));
+
+        $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
+            $risks->forPage($page, $perPage)->values(),
+            $risks->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
+        $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
+
+        return view('risk.register.index', [
+            'risks' => $paginated,
+            'categories' => $categories,
+            'businessUnits' => $businessUnits,
+            'asOfPeriod' => $period,
+        ]);
+    }
+
+    /**
      * Show the form for creating a new risk.
      */
     public function create()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
@@ -87,7 +170,7 @@ class RiskRegisterController extends Controller
      */
     public function store(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
@@ -115,17 +198,19 @@ class RiskRegisterController extends Controller
             'status' => 'nullable|in:active,dormant,closed,retired',
         ]);
 
-        return DB::transaction(function () use ($validated, $orgId, $request) {
+        return DB::transaction(function () use ($validated, $orgId) {
             // Auto-generate risk code using ReferenceCodeService
             $riskCode = \App\Services\ReferenceCodeService::generate('risks', 'risk_code', 'RK');
 
             // Use RiskScoringService for scoring calculation
-            $scoringService = new \App\Services\RiskScoringService();
+            $scoringService = new \App\Services\RiskScoringService;
             $maxImpact = $scoringService->calculateMaxImpact(
                 $validated['impact_financial'],
                 $validated['impact_operational'],
                 $validated['impact_reputational'],
-                $validated['impact_regulatory']
+                $validated['impact_regulatory'],
+                $validated['impact_strategic'] ?? null,
+                $orgId
             );
             $inherentScore = $scoringService->calculateScore($validated['inherent_likelihood'], $maxImpact);
             $inherentRating = $scoringService->calculateRating($inherentScore);
@@ -164,7 +249,7 @@ class RiskRegisterController extends Controller
 
             // Create audit trail entry
             RiskAuditTrail::create([
-                'entity_type' => 'risk',
+                'entity_type' => $risk->getMorphClass(),
                 'entity_id' => $risk->id,
                 'organization_id' => $orgId,
                 'action_type' => 'created',
@@ -185,7 +270,7 @@ class RiskRegisterController extends Controller
     public function show(Risk $register)
     {
         $risk = $register;
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         // Ensure the risk belongs to the user's organization
         if ($risk->organization_id !== $orgId) {
@@ -227,7 +312,7 @@ class RiskRegisterController extends Controller
      */
     public function mapControl(Request $request, Risk $risk)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($risk->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this risk.');
@@ -272,7 +357,7 @@ class RiskRegisterController extends Controller
     public function edit(Risk $register)
     {
         $risk = $register;
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($risk->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this risk.');
@@ -292,7 +377,7 @@ class RiskRegisterController extends Controller
     public function update(Request $request, Risk $register)
     {
         $risk = $register;
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($risk->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this risk.');
@@ -369,7 +454,7 @@ class RiskRegisterController extends Controller
 
             // Create audit trail
             RiskAuditTrail::create([
-                'entity_type' => 'risk',
+                'entity_type' => $risk->getMorphClass(),
                 'entity_id' => $risk->id,
                 'organization_id' => $orgId,
                 'action_type' => 'updated',
@@ -391,7 +476,7 @@ class RiskRegisterController extends Controller
     public function destroy(Risk $register)
     {
         $risk = $register;
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($risk->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this risk.');
@@ -399,7 +484,7 @@ class RiskRegisterController extends Controller
 
         return DB::transaction(function () use ($risk, $orgId) {
             RiskAuditTrail::create([
-                'entity_type' => 'risk',
+                'entity_type' => $risk->getMorphClass(),
                 'entity_id' => $risk->id,
                 'organization_id' => $orgId,
                 'action_type' => 'deleted',
@@ -419,16 +504,15 @@ class RiskRegisterController extends Controller
     /**
      * Calculate risk rating based on score (likelihood x impact).
      */
+    /**
+     * Delegates to RiskScoringService — there is one set of rating bands.
+     *
+     * This used to be a private copy using >= 6 for Medium while the service
+     * used >= 5, so a risk scoring exactly 5 was Medium or Low depending on
+     * which screen you were looking at. The service's bands win.
+     */
     private function calculateRating(int $score): string
     {
-        if ($score >= 20) {
-            return 'Critical';
-        } elseif ($score >= 12) {
-            return 'High';
-        } elseif ($score >= 6) {
-            return 'Medium';
-        } else {
-            return 'Low';
-        }
+        return app(RiskScoringService::class)->calculateRating($score);
     }
 }

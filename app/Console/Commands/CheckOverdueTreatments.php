@@ -17,16 +17,17 @@ class CheckOverdueTreatments extends Command
 
         // Find all treatments past target completion date that aren't completed
         $overdueTreatments = TreatmentPlan::where('status', '!=', 'completed')
-            ->where('target_completion_date', '<', now())
+            ->where('target_date', '<', now())
             ->get();
 
         if ($overdueTreatments->isEmpty()) {
             $this->info('No overdue treatments found.');
+
             return self::SUCCESS;
         }
 
         foreach ($overdueTreatments as $treatment) {
-            $daysOverdue = now()->diffInDays($treatment->target_completion_date);
+            $daysOverdue = now()->diffInDays($treatment->target_date);
 
             // Update status to overdue if not already
             if ($treatment->status !== 'overdue') {

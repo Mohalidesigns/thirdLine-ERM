@@ -19,7 +19,14 @@
             <p class="text-sm text-gray-500 mt-1">ORMS compliance status, regulatory returns, and CBN directive tracking</p>
         </div>
         <div class="flex gap-2">
-            <button onclick="window.print()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"><span class="material-symbols-outlined text-lg">download</span> Export</button>
+            <a href="{{ route('risk.reports.regulatory', ['download' => 1, 'format' => 'pdf']) }}"
+               class="px-4 py-2 bg-[#1A365D] text-white rounded-lg text-sm hover:bg-[#2D4A7A] flex items-center gap-2">
+                <span class="material-symbols-outlined text-lg">picture_as_pdf</span> Download PDF
+            </a>
+            <a href="{{ route('risk.reports.regulatory', ['download' => 1, 'format' => 'xlsx']) }}"
+               class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                <span class="material-symbols-outlined text-lg">table_view</span> Excel
+            </a>
         </div>
     </div>
 

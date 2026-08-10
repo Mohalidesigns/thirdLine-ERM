@@ -35,7 +35,7 @@ class EnterpriseGapSeeder extends Seeder
     }
 
     /* ------------------------------------------------------------------ */
-    /*  1. Issue attachments                                               */
+    /*  1. Issue attachments */
     /* ------------------------------------------------------------------ */
 
     protected function seedIssueAttachments($now): void
@@ -87,7 +87,7 @@ class EnterpriseGapSeeder extends Seeder
     }
 
     /* ------------------------------------------------------------------ */
-    /*  2. Control test evidence                                           */
+    /*  2. Control test evidence */
     /* ------------------------------------------------------------------ */
 
     protected function seedControlTestEvidence($now): void
@@ -135,108 +135,102 @@ class EnterpriseGapSeeder extends Seeder
     }
 
     /* ------------------------------------------------------------------ */
-    /*  3. Workflow instances + actions                                    */
+    /*  3. Workflow instances + actions */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * WP-06 — demo data for the workflow engine.
+     *
+     * Rewritten from the pre-WP-06 version, which inserted workflow_instances
+     * directly with an FQCN entity_type, no organization_id, no current_nodes
+     * and a risk_assessment definition pointed at a Risk. None of those rows
+     * could be advanced by the engine, so the demo showed a workflow screen
+     * with nothing that worked.
+     *
+     * These are started THROUGH the engine, so every one of them is a real
+     * running process: the tasks are assignable, the SLAs are live, and the
+     * escalation sweeper acts on them.
+     */
     protected function seedWorkflows($now): void
     {
-        if (DB::table('workflow_instances')->count() > 2) {
-            $this->command?->info('workflow_instances already seeded — skipping.');
+        if (DB::table('workflow_tasks')->count() > 0) {
+            $this->command?->info('workflow tasks already seeded — skipping.');
 
             return;
         }
 
-        // Definitions by entity_type for org 1.
-        $defs = DB::table('workflow_definitions')
-            ->where('organization_id', 1)
-            ->pluck('id', 'entity_type');
+        $organizationId = (int) (DB::table('organizations')->orderBy('id')->value('id') ?? 0);
 
-        $riskIds = DB::table('risks')->orderBy('id')->pluck('id')->all();
-        $lossIds = DB::table('loss_events')->orderBy('id')->pluck('id')->all();
-        $planIds = DB::table('treatment_plans')->orderBy('id')->pluck('id')->all();
-        $issueIds = DB::table('issues')->orderBy('id')->pluck('id')->all();
-
-        // [entity_type key, model class, entity id, stage, status, started days ago, completed days ago|null, initiated_by, actions[]]
-        $instances = [];
-
-        if (isset($defs['risk_assessment']) && count($riskIds) >= 5) {
-            $instances[] = [$defs['risk_assessment'], 'App\Models\Risk', $riskIds[4], 1, 'active', 12, null, 2, [
-                [0, 'Draft', 2, 'comment', 'Assessment submitted for risk manager review.', 12],
-            ]];
-            $instances[] = [$defs['risk_assessment'], 'App\Models\Risk', $riskIds[7] ?? $riskIds[0], 2, 'escalated', 30, null, 4, [
-                [0, 'Draft', 4, 'comment', 'Initial assessment drafted following RCSA workshop.', 30],
-                [1, 'Risk Manager Review', 2, 'escalate', 'Residual rating disputed by business unit — escalating to CRO for adjudication.', 18],
-            ]];
+        if ($organizationId === 0) {
+            return;
         }
 
-        if (isset($defs['loss_event']) && count($lossIds) >= 4) {
-            $instances[] = [$defs['loss_event'], 'App\Models\LossEvent', $lossIds[2], 2, 'completed', 55, 40, 6, [
-                [0, 'Reported', 6, 'comment', 'Loss event captured with provisional amount pending recovery.', 55],
-                [1, 'Validation', 2, 'approve', 'Amounts validated against GL entries. Basel category confirmed.', 47],
-                [2, 'Final Approval', 3, 'approve', 'Approved for inclusion in the quarterly ORMS return.', 40],
-            ]];
-            $instances[] = [$defs['loss_event'], 'App\Models\LossEvent', $lossIds[3], 1, 'rejected', 25, 15, 6, [
-                [0, 'Reported', 6, 'comment', 'Submitted with estimated gross loss.', 25],
-                [1, 'Validation', 2, 'reject', 'Rejected — loss amount not reconciled to GL; duplicate of an earlier event suspected.', 15],
-            ]];
-            $instances[] = [$defs['loss_event'], 'App\Models\LossEvent', $lossIds[9] ?? $lossIds[0], 0, 'active', 4, null, 6, [
-                [0, 'Reported', 6, 'comment', 'New event logged; awaiting validation by risk management.', 4],
-            ]];
-        }
+        \App\Support\Tenancy\TenantContext::actingAs($organizationId, function () use ($organizationId, $now) {
+            $engine = app(\App\Services\Workflow\WorkflowEngine::class);
+            $initiator = \App\Models\User::where('organization_id', $organizationId)->orderBy('id')->first();
 
-        if (isset($defs['treatment_plan']) && count($planIds) >= 3) {
-            $instances[] = [$defs['treatment_plan'], 'App\Models\TreatmentPlan', $planIds[1], 2, 'completed', 70, 52, 4, [
-                [0, 'Proposal', 4, 'comment', 'Treatment plan proposed with budget estimate of N45m.', 70],
-                [1, 'Manager Review', 2, 'approve', 'Cost-benefit acceptable. Recommended for CRO approval.', 60],
-                [2, 'CRO Approval', 3, 'approve', 'Approved. Implementation to complete before year-end.', 52],
-            ]];
-            $instances[] = [$defs['treatment_plan'], 'App\Models\TreatmentPlan', $planIds[2], 0, 'cancelled', 45, 38, 4, [
-                [0, 'Proposal', 4, 'comment', 'Withdrawn — superseded by the enterprise IAM programme covering the same control gap.', 38],
-            ]];
-        }
+            $started = 0;
 
-        if (isset($defs['issue']) && count($issueIds) >= 2) {
-            $instances[] = [$defs['issue'], 'App\Models\Issue', $issueIds[1], 1, 'active', 20, null, 5, [
-                [0, 'Remediation', 5, 'comment', 'Remediation evidence uploaded; requesting closure review.', 20],
-                [1, 'Closure Review', 2, 'return', 'Returned — evidence covers only 2 of 3 agreed actions. Please attach patch deployment log.', 8],
-            ]];
-        }
+            $subjects = [
+                ['loss_event_approval', \App\Models\LossEvent::class, 3],
+                ['treatment_plan_approval', \App\Models\TreatmentPlan::class, 2],
+                ['issue_closure_approval', \App\Models\Issue::class, 2],
+                ['risk_assessment_approval', \App\Models\RiskAssessment::class, 3],
+            ];
 
-        foreach ($instances as [$defId, $entityType, $entityId, $stage, $status, $startedDaysAgo, $completedDaysAgo, $initiatedBy, $actions]) {
-            $instanceId = DB::table('workflow_instances')->insertGetId([
-                'definition_id' => $defId,
-                'entity_type' => $entityType,
-                'entity_id' => $entityId,
-                'current_stage' => $stage,
-                'status' => $status,
-                'started_at' => $now->copy()->subDays($startedDaysAgo),
-                'completed_at' => $completedDaysAgo !== null ? $now->copy()->subDays($completedDaysAgo) : null,
-                'initiated_by' => $initiatedBy,
-                'created_at' => $now->copy()->subDays($startedDaysAgo),
-                'updated_at' => $now,
-            ]);
+            foreach ($subjects as [$code, $class, $count]) {
+                $records = $class::where('organization_id', $organizationId)
+                    ->orderByDesc('id')
+                    ->limit($count)
+                    ->get();
 
-            foreach ($actions as [$actStage, $stageName, $actorId, $action, $comments, $actedDaysAgo]) {
-                DB::table('workflow_actions')->insert([
-                    'instance_id' => $instanceId,
-                    'stage' => $actStage,
-                    'stage_name' => $stageName,
-                    'actor_id' => $actorId,
-                    'action' => $action,
-                    'comments' => $comments,
-                    'delegated_to' => null,
-                    'acted_at' => $now->copy()->subDays($actedDaysAgo),
-                    'created_at' => $now->copy()->subDays($actedDaysAgo),
-                    'updated_at' => $now,
-                ]);
+                foreach ($records as $index => $record) {
+                    if ($engine->openInstanceFor($record) !== null) {
+                        continue;
+                    }
+
+                    $instance = $engine->startFor($code, $record, [], $initiator);
+
+                    if ($instance === null) {
+                        continue;
+                    }
+
+                    $started++;
+
+                    // Backdate the first one of each kind so the queue shows a
+                    // breach, and the SLA sweeper has something to act on the
+                    // first time it runs in a demo environment.
+                    if ($index === 0) {
+                        $instance->tasks()->update([
+                            'created_at' => $now->copy()->subDays(6),
+                            'due_at' => $now->copy()->subDays(2),
+                        ]);
+                        $instance->forceFill([
+                            'started_at' => $now->copy()->subDays(6),
+                            'sla_due_at' => $now->copy()->subDays(2),
+                        ])->save();
+                    }
+
+                    // Take the second one all the way through, so the history
+                    // and the completed counters are not empty either.
+                    if ($index === 1) {
+                        $task = $instance->openTasks()->first();
+
+                        if ($task !== null) {
+                            $engine->advance($task, 'approve', [
+                                'comments' => 'Reviewed against the evidence attached. Approved.',
+                            ], $initiator);
+                        }
+                    }
+                }
             }
-        }
 
-        $this->command?->info('Seeded '.count($instances).' workflow_instances with actions.');
+            $this->command?->info('Started '.$started.' workflow instances through the engine.');
+        });
     }
 
     /* ------------------------------------------------------------------ */
-    /*  4. Regulatory filings                                              */
+    /*  4. Regulatory filings */
     /* ------------------------------------------------------------------ */
 
     protected function seedRegulatoryFilings($now): void
@@ -283,7 +277,7 @@ class EnterpriseGapSeeder extends Seeder
     }
 
     /* ------------------------------------------------------------------ */
-    /*  5. Issue escalation rules                                          */
+    /*  5. Issue escalation rules */
     /* ------------------------------------------------------------------ */
 
     protected function seedEscalationRules($now): void
@@ -326,7 +320,7 @@ class EnterpriseGapSeeder extends Seeder
     }
 
     /* ------------------------------------------------------------------ */
-    /*  6. Issue escalation log                                            */
+    /*  6. Issue escalation log */
     /* ------------------------------------------------------------------ */
 
     protected function seedEscalationLog($now): void
@@ -372,7 +366,7 @@ class EnterpriseGapSeeder extends Seeder
     }
 
     /* ------------------------------------------------------------------ */
-    /*  7. Open / investigating near misses                                */
+    /*  7. Open / investigating near misses */
     /* ------------------------------------------------------------------ */
 
     protected function seedNearMisses($now): void

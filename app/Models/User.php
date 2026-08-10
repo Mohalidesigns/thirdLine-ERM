@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -12,7 +13,7 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, HasRoles, Notifiable, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasRoles, Notifiable, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -22,6 +23,7 @@ class User extends Authenticatable
     protected $fillable = [
         'organization_id',
         'business_unit_id',
+        'scope_entity_id',
         'name',
         'email',
         'password',
@@ -59,14 +61,14 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password'          => 'hashed',
-            'is_active'         => 'boolean',
-            'mfa_enabled'       => 'boolean',
+            'password' => 'hashed',
+            'is_active' => 'boolean',
+            'mfa_enabled' => 'boolean',
             'must_change_password' => 'boolean',
-            'last_login_at'     => 'datetime',
+            'last_login_at' => 'datetime',
             'password_changed_at' => 'datetime',
-            'locked_until'      => 'datetime',
-            'last_activity_at'  => 'datetime',
+            'locked_until' => 'datetime',
+            'last_activity_at' => 'datetime',
         ];
     }
 
@@ -82,7 +84,7 @@ class User extends Authenticatable
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()
@@ -93,6 +95,15 @@ class User extends Authenticatable
     public function businessUnit()
     {
         return $this->belongsTo(BusinessUnit::class);
+    }
+
+    /**
+     * The graph node this user is confined to, or null for organization-wide
+     * visibility. See App\Support\Authorization\GraphScope.
+     */
+    public function scopeEntity()
+    {
+        return $this->belongsTo(Entity::class, 'scope_entity_id');
     }
 
     public function ownedRisks()

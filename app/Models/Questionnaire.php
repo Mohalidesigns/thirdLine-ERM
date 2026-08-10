@@ -2,21 +2,33 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Questionnaire extends Model
 {
-    use SoftDeletes;
+    use BelongsToOrganization, SoftDeletes;
 
     protected $fillable = [
         'organization_id', 'title', 'description', 'version', 'status',
         'scoring_method', 'questionnaire_type', 'created_by',
     ];
 
-    public function organization() { return $this->belongsTo(Organization::class); }
-    public function creator()      { return $this->belongsTo(User::class, 'created_by'); }
-    public function sections()     { return $this->hasMany(QuestionnaireSection::class)->orderBy('sort_order'); }
+    public function organization()
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function sections()
+    {
+        return $this->hasMany(QuestionnaireSection::class)->orderBy('sort_order');
+    }
 
     public function questions()
     {

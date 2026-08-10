@@ -7,22 +7,22 @@ use App\Models\Entity;
 use App\Models\EntityType;
 use App\Models\Risk;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class ScopingController extends Controller
 {
     /* ------------------------------------------------------------------ */
-    /*  Dashboard                                                          */
+    /*  Dashboard */
     /* ------------------------------------------------------------------ */
 
     public function dashboard()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         // KPI data
-        $totalEntities    = Entity::where('organization_id', $orgId)->count();
-        $activeOwners     = Entity::where('organization_id', $orgId)->whereNotNull('owner_id')->distinct('owner_id')->count('owner_id');
+        $totalEntities = Entity::where('organization_id', $orgId)->count();
+        $activeOwners = Entity::where('organization_id', $orgId)->whereNotNull('owner_id')->distinct('owner_id')->count('owner_id');
         $exceedingAppetite = 0; // computed below
         $pendingAssessments = Risk::where('organization_id', $orgId)
             ->whereNotNull('entity_id')
@@ -53,11 +53,11 @@ class ScopingController extends Controller
                     SUM(CASE WHEN inherent_rating = 'Low' THEN 1 ELSE 0 END) as low_count
                 ")->first();
 
-            $entity->risk_total    = $risksByRating->total ?? 0;
+            $entity->risk_total = $risksByRating->total ?? 0;
             $entity->critical_count = $risksByRating->critical_count ?? 0;
-            $entity->high_count     = $risksByRating->high_count ?? 0;
-            $entity->medium_count   = $risksByRating->medium_count ?? 0;
-            $entity->low_count      = $risksByRating->low_count ?? 0;
+            $entity->high_count = $risksByRating->high_count ?? 0;
+            $entity->medium_count = $risksByRating->medium_count ?? 0;
+            $entity->low_count = $risksByRating->low_count ?? 0;
 
             // Simple risk score: weighted average (Critical=5, High=4, Medium=3, Low=2)
             $total = $entity->risk_total;
@@ -81,7 +81,7 @@ class ScopingController extends Controller
 
         $typeDistribution = [
             'labels' => $entityTypes->pluck('name')->toArray(),
-            'data'   => $entityTypes->pluck('entities_count')->toArray(),
+            'data' => $entityTypes->pluck('entities_count')->toArray(),
         ];
 
         // Recent entity activity (latest 5 entities by updated_at)
@@ -104,12 +104,12 @@ class ScopingController extends Controller
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Index (Entity Register)                                            */
+    /*  Index (Entity Register) */
     /* ------------------------------------------------------------------ */
 
     public function index(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $query = Entity::where('organization_id', $orgId)
             ->with(['entityType', 'parent', 'owner']);
@@ -119,8 +119,8 @@ class ScopingController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('entity_code', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('entity_code', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -175,12 +175,12 @@ class ScopingController extends Controller
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Create                                                             */
+    /*  Create */
     /* ------------------------------------------------------------------ */
 
     public function create()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $entityTypes = EntityType::where('organization_id', $orgId)
             ->where('is_active', true)
@@ -198,25 +198,25 @@ class ScopingController extends Controller
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Store                                                              */
+    /*  Store */
     /* ------------------------------------------------------------------ */
 
     public function store(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $validated = $request->validate([
-            'entity_type_id'        => 'required|exists:entity_types,id',
-            'name'                  => 'required|string|max:255',
-            'parent_id'             => 'nullable|exists:entities,id',
-            'description'           => 'nullable|string|max:5000',
-            'owner_id'              => 'nullable|exists:users,id',
-            'delegate_owner_id'     => 'nullable|exists:users,id',
-            'status'                => 'required|in:active,inactive',
+            'entity_type_id' => 'required|exists:entity_types,id',
+            'name' => 'required|string|max:255',
+            'parent_id' => 'nullable|exists:entities,id',
+            'description' => 'nullable|string|max:5000',
+            'owner_id' => 'nullable|exists:users,id',
+            'delegate_owner_id' => 'nullable|exists:users,id',
+            'status' => 'required|in:active,inactive',
             'regulatory_frameworks' => 'nullable|array',
             'regulatory_frameworks.*' => 'string|max:50',
-            'risk_appetite_level'   => 'nullable|in:averse,minimal,cautious,open,hungry',
-            'category_appetites'    => 'nullable|array',
+            'risk_appetite_level' => 'nullable|in:averse,minimal,cautious,open,hungry',
+            'category_appetites' => 'nullable|array',
         ]);
 
         // Auto-generate entity code
@@ -231,9 +231,9 @@ class ScopingController extends Controller
 
         $entity = Entity::create(array_merge($validated, [
             'organization_id' => $orgId,
-            'entity_code'     => $entityCode,
-            'level'           => $entityType->level,
-            'created_by'      => auth()->id(),
+            'entity_code' => $entityCode,
+            'level' => $entityType->level,
+            'created_by' => auth()->id(),
         ]));
 
         // Audit trail
@@ -247,13 +247,13 @@ class ScopingController extends Controller
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Show (Entity Detail)                                               */
+    /*  Show (Entity Detail) */
     /* ------------------------------------------------------------------ */
 
     public function show(Entity $scoping)
     {
         $entity = $scoping;
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($entity->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this entity.');
@@ -306,9 +306,9 @@ class ScopingController extends Controller
                     SUM(CASE WHEN inherent_rating = 'High' THEN 1 ELSE 0 END) as high
                 ")->first();
 
-            $sub->risk_total    = $stats->total ?? 0;
+            $sub->risk_total = $stats->total ?? 0;
             $sub->critical_count = $stats->critical ?? 0;
-            $sub->high_count     = $stats->high ?? 0;
+            $sub->high_count = $stats->high ?? 0;
 
             $total = $sub->risk_total;
             if ($total > 0) {
@@ -333,7 +333,7 @@ class ScopingController extends Controller
 
         $categoryDistribution = [
             'labels' => $riskByCategory->pluck('category_name')->toArray(),
-            'data'   => $riskByCategory->pluck('count')->toArray(),
+            'data' => $riskByCategory->pluck('count')->toArray(),
         ];
 
         return view('risk.scoping.show', compact(
@@ -349,13 +349,13 @@ class ScopingController extends Controller
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Edit                                                               */
+    /*  Edit */
     /* ------------------------------------------------------------------ */
 
     public function edit(Entity $scoping)
     {
         $entity = $scoping;
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($entity->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this entity.');
@@ -380,30 +380,30 @@ class ScopingController extends Controller
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Update                                                             */
+    /*  Update */
     /* ------------------------------------------------------------------ */
 
     public function update(Request $request, Entity $scoping)
     {
         $entity = $scoping;
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($entity->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this entity.');
         }
 
         $validated = $request->validate([
-            'entity_type_id'        => 'required|exists:entity_types,id',
-            'name'                  => 'required|string|max:255',
-            'parent_id'             => 'nullable|exists:entities,id',
-            'description'           => 'nullable|string|max:5000',
-            'owner_id'              => 'nullable|exists:users,id',
-            'delegate_owner_id'     => 'nullable|exists:users,id',
-            'status'                => 'required|in:active,inactive,archived',
+            'entity_type_id' => 'required|exists:entity_types,id',
+            'name' => 'required|string|max:255',
+            'parent_id' => 'nullable|exists:entities,id',
+            'description' => 'nullable|string|max:5000',
+            'owner_id' => 'nullable|exists:users,id',
+            'delegate_owner_id' => 'nullable|exists:users,id',
+            'status' => 'required|in:active,inactive,archived',
             'regulatory_frameworks' => 'nullable|array',
             'regulatory_frameworks.*' => 'string|max:50',
-            'risk_appetite_level'   => 'nullable|in:averse,minimal,cautious,open,hungry',
-            'category_appetites'    => 'nullable|array',
+            'risk_appetite_level' => 'nullable|in:averse,minimal,cautious,open,hungry',
+            'category_appetites' => 'nullable|array',
         ]);
 
         // Get level from entity type
@@ -429,13 +429,13 @@ class ScopingController extends Controller
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Destroy                                                            */
+    /*  Destroy */
     /* ------------------------------------------------------------------ */
 
     public function destroy(Entity $scoping)
     {
         $entity = $scoping;
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($entity->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this entity.');

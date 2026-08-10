@@ -47,6 +47,17 @@
                 <span class="material-symbols-outlined inline text-[18px] mr-2">notifications</span>
                 Notifications
             </button>
+
+            {{-- A link, not a tab: single sign-on lives behind its own
+                 permission, so it is not always reachable by whoever can see
+                 the rest of this page. --}}
+            @can('admin.sso')
+                <a href="{{ route('admin.settings.sso') }}"
+                   class="px-6 py-3 font-medium transition tab-inactive flex items-center">
+                    <span class="material-symbols-outlined inline text-[18px] mr-2">key</span>
+                    Single Sign-On
+                </a>
+            @endcan
         </div>
     </div>
 
@@ -399,6 +410,6 @@
 </div>
 @endsection
 
-@push('scripts')
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-@endpush
+{{-- Alpine is bundled in resources/js/app.js and loaded by the layout; this
+     page used to pull a second copy from a CDN, which both broke data
+     residency and registered Alpine twice. --}}

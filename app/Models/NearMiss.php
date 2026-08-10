@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasObjectIdentity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,7 +11,7 @@ use Illuminate\Support\Str;
 
 class NearMiss extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
 
     protected $table = 'near_misses';
 
@@ -36,8 +38,8 @@ class NearMiss extends Model
     ];
 
     protected $casts = [
-        'date_occurred'          => 'date',
-        'date_reported'          => 'date',
+        'date_occurred' => 'date',
+        'date_reported' => 'date',
         'investigation_deadline' => 'date',
         'control_gap_identified' => 'boolean',
     ];
@@ -62,7 +64,7 @@ class NearMiss extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()

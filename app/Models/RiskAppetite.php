@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasObjectIdentity;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Str;
 
 class RiskAppetite extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
 
     protected $table = 'risk_appetite';
 
@@ -18,9 +20,11 @@ class RiskAppetite extends Model
         'organization_id',
         'risk_category_id',
         'appetite_level',
+        'appetite_type',
         'appetite_statement',
         'tolerance_metric',
         'max_tolerance',
+        'capacity',
         'target_min',
         'target_max',
         'current_position',
@@ -32,13 +36,14 @@ class RiskAppetite extends Model
     ];
 
     protected $casts = [
-        'max_tolerance'    => 'decimal:4',
-        'target_min'       => 'decimal:4',
-        'target_max'       => 'decimal:4',
+        'max_tolerance' => 'decimal:4',
+        'capacity' => 'decimal:4',
+        'target_min' => 'decimal:4',
+        'target_max' => 'decimal:4',
         'current_position' => 'decimal:4',
-        'effective_date'   => 'date',
-        'expiry_date'      => 'date',
-        'approved_date'    => 'date',
+        'effective_date' => 'date',
+        'expiry_date' => 'date',
+        'approved_date' => 'date',
     ];
 
     protected static function boot(): void
@@ -53,7 +58,7 @@ class RiskAppetite extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()
@@ -77,7 +82,7 @@ class RiskAppetite extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Accessors                                                          */
+    /*  Accessors */
     /* ------------------------------------------------------------------ */
 
     protected function breachStatus(): Attribute

@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
+use App\Support\MorphTypes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 class DomainEvent extends Model
 {
-    use HasFactory;
+    use BelongsToOrganization, HasFactory;
 
     protected $fillable = [
         'organization_id',
@@ -22,12 +25,12 @@ class DomainEvent extends Model
     ];
 
     protected $casts = [
-        'payload'      => 'array',
+        'payload' => 'array',
         'processed_at' => 'datetime',
     ];
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()
@@ -41,21 +44,13 @@ class DomainEvent extends Model
      */
     public function aggregate()
     {
-        $morphMap = [
-            'Risk' => \App\Models\Risk::class,
-            'Control' => \App\Models\Control::class,
-            'RiskAssessment' => \App\Models\RiskAssessment::class,
-            'LossEvent' => \App\Models\LossEvent::class,
-            'Issue' => \App\Models\Issue::class,
-            'TreatmentPlan' => \App\Models\TreatmentPlan::class,
-            'KeyRiskIndicator' => \App\Models\KeyRiskIndicator::class,
-            'RiskAppetite' => \App\Models\RiskAppetite::class,
-        ];
-
-        $class = $morphMap[$this->aggregate_type] ?? null;
+        $class = Relation::getMorphedModel(
+            MorphTypes::normalise($this->aggregate_type) ?? ''
+        );
         if ($class) {
             return $this->belongsTo($class, 'aggregate_id');
         }
+
         return $this->belongsTo(Risk::class, 'aggregate_id'); // fallback
     }
 }

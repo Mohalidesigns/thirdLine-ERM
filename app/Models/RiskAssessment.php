@@ -2,14 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
+use App\Services\RiskScoringService;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Str;
 
 class RiskAssessment extends Model
 {
-    use HasFactory;
+    use BelongsToOrganization, HasFactory;
 
     protected $fillable = [
         'organization_id',
@@ -40,8 +42,8 @@ class RiskAssessment extends Model
 
     protected $casts = [
         'control_effectiveness_data' => 'array',
-        'evidence_refs'              => 'array',
-        'assessment_date'            => 'date',
+        'evidence_refs' => 'array',
+        'assessment_date' => 'date',
     ];
 
     protected static function boot(): void
@@ -56,7 +58,7 @@ class RiskAssessment extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()
@@ -90,19 +92,22 @@ class RiskAssessment extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Accessors                                                          */
+    /*  Accessors */
     /* ------------------------------------------------------------------ */
 
     protected function impactScore(): Attribute
     {
         return Attribute::make(
-            get: fn ($value) => $value ?? max(
-                (int) $this->impact_financial,
-                (int) $this->impact_operational,
-                (int) $this->impact_reputational,
-                (int) $this->impact_regulatory,
-                (int) $this->impact_strategic,
-            ),
+            // Delegates to the service rather than re-implementing the
+            // aggregation, so an organization that configures `weighted` or
+            // `worst_two` gets the same answer from the model and the service.
+            get: fn ($value) => $value ?? app(RiskScoringService::class)->calculateImpact([
+                'financial' => $this->impact_financial,
+                'operational' => $this->impact_operational,
+                'reputational' => $this->impact_reputational,
+                'regulatory' => $this->impact_regulatory,
+                'strategic' => $this->impact_strategic,
+            ], $this->organization_id),
         );
     }
 

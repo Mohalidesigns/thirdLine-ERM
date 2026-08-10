@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
-use App\Models\RegulatoryDeadline;
 use App\Models\RegulatoryCircular;
+use App\Models\RegulatoryDeadline;
 use App\Models\RegulatoryFiling;
 use Illuminate\Http\Request;
 
@@ -26,10 +26,10 @@ class RegulatoryComplianceController extends Controller
             ->whereNotIn('status', ['submitted', 'not_applicable'])
             ->count();
 
-        $totalCirculars     = RegulatoryCircular::where('organization_id', $orgId)->count();
-        $pendingCompliance  = RegulatoryCircular::where('organization_id', $orgId)->whereIn('compliance_status', ['not_assessed', 'partially_compliant', 'non_compliant'])->count();
+        $totalCirculars = RegulatoryCircular::where('organization_id', $orgId)->count();
+        $pendingCompliance = RegulatoryCircular::where('organization_id', $orgId)->whereIn('compliance_status', ['not_assessed', 'partially_compliant', 'non_compliant'])->count();
         $compliantCirculars = RegulatoryCircular::where('organization_id', $orgId)->where('compliance_status', 'compliant')->count();
-        $complianceRate     = $totalCirculars > 0 ? round($compliantCirculars / $totalCirculars * 100, 1) : 0;
+        $complianceRate = $totalCirculars > 0 ? round($compliantCirculars / $totalCirculars * 100, 1) : 0;
 
         $recentCirculars = RegulatoryCircular::where('organization_id', $orgId)
             ->with('assignee')
@@ -52,7 +52,7 @@ class RegulatoryComplianceController extends Controller
     {
         $orgId = auth()->user()->organization_id;
         $month = $request->get('month', now()->month);
-        $year  = $request->get('year', now()->year);
+        $year = $request->get('year', now()->year);
 
         $deadlines = RegulatoryDeadline::where('organization_id', $orgId)
             ->whereMonth('deadline_date', $month)
@@ -69,8 +69,12 @@ class RegulatoryComplianceController extends Controller
         $orgId = auth()->user()->organization_id;
         $query = RegulatoryDeadline::where('organization_id', $orgId)->with('responsible');
 
-        if ($request->filled('regulator')) $query->where('regulator', $request->regulator);
-        if ($request->filled('status'))    $query->where('status', $request->status);
+        if ($request->filled('regulator')) {
+            $query->where('regulator', $request->regulator);
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
 
         $deadlines = $query->orderBy('deadline_date')->paginate(20);
 
@@ -80,29 +84,30 @@ class RegulatoryComplianceController extends Controller
     public function createDeadline()
     {
         $users = \App\Models\User::where('organization_id', auth()->user()->organization_id)->where('is_active', true)->orderBy('name')->get();
+
         return view('risk.regulatory.create-deadline', compact('users'));
     }
 
     public function storeDeadline(Request $request)
     {
         $request->validate([
-            'regulator'     => 'required|string|max:50',
-            'report_type'   => 'required|string|max:255',
-            'title'         => 'required|string|max:255',
+            'regulator' => 'required|string|max:50',
+            'report_type' => 'required|string|max:255',
+            'title' => 'required|string|max:255',
             'deadline_date' => 'required|date',
-            'frequency'     => 'required',
+            'frequency' => 'required',
         ]);
 
         RegulatoryDeadline::create([
             'organization_id' => auth()->user()->organization_id,
-            'regulator'       => $request->regulator,
-            'report_type'     => $request->report_type,
-            'title'           => $request->title,
-            'description'     => $request->description,
-            'deadline_date'   => $request->deadline_date,
-            'frequency'       => $request->frequency,
-            'responsible_id'  => $request->responsible_id,
-            'status'          => 'upcoming',
+            'regulator' => $request->regulator,
+            'report_type' => $request->report_type,
+            'title' => $request->title,
+            'description' => $request->description,
+            'deadline_date' => $request->deadline_date,
+            'frequency' => $request->frequency,
+            'responsible_id' => $request->responsible_id,
+            'status' => 'upcoming',
         ]);
 
         return redirect()->route('risk.regulatory.deadlines')->with('success', 'Regulatory deadline created.');
@@ -113,8 +118,12 @@ class RegulatoryComplianceController extends Controller
         $orgId = auth()->user()->organization_id;
         $query = RegulatoryCircular::where('organization_id', $orgId)->with('assignee');
 
-        if ($request->filled('regulator')) $query->where('regulator', $request->regulator);
-        if ($request->filled('status'))    $query->where('compliance_status', $request->status);
+        if ($request->filled('regulator')) {
+            $query->where('regulator', $request->regulator);
+        }
+        if ($request->filled('status')) {
+            $query->where('compliance_status', $request->status);
+        }
 
         $circulars = $query->latest('date_issued')->paginate(20);
 
@@ -133,25 +142,25 @@ class RegulatoryComplianceController extends Controller
     public function storeCircular(Request $request)
     {
         $request->validate([
-            'regulator'    => 'required|string|max:50',
+            'regulator' => 'required|string|max:50',
             'circular_ref' => 'required|string|max:100',
-            'title'        => 'required|string|max:255',
-            'date_issued'  => 'required|date',
+            'title' => 'required|string|max:255',
+            'date_issued' => 'required|date',
         ]);
 
         RegulatoryCircular::create([
-            'organization_id'    => auth()->user()->organization_id,
-            'regulator'          => $request->regulator,
-            'circular_ref'       => $request->circular_ref,
-            'title'              => $request->title,
-            'date_issued'        => $request->date_issued,
-            'effective_date'     => $request->effective_date,
-            'summary'            => $request->summary,
-            'impact_level'       => $request->impact_level ?? 'medium',
-            'compliance_status'  => 'not_assessed',
-            'action_required'    => $request->action_required,
-            'assigned_to'        => $request->assigned_to,
-            'affected_risk_ids'  => $request->affected_risk_ids,
+            'organization_id' => auth()->user()->organization_id,
+            'regulator' => $request->regulator,
+            'circular_ref' => $request->circular_ref,
+            'title' => $request->title,
+            'date_issued' => $request->date_issued,
+            'effective_date' => $request->effective_date,
+            'summary' => $request->summary,
+            'impact_level' => $request->impact_level ?? 'medium',
+            'compliance_status' => 'not_assessed',
+            'action_required' => $request->action_required,
+            'assigned_to' => $request->assigned_to,
+            'affected_risk_ids' => $request->affected_risk_ids,
         ]);
 
         return redirect()->route('risk.regulatory.circulars')->with('success', 'Regulatory circular recorded.');
@@ -160,6 +169,7 @@ class RegulatoryComplianceController extends Controller
     public function showCircular(RegulatoryCircular $circular)
     {
         $circular->load('assignee');
+
         return view('risk.regulatory.show-circular', compact('circular'));
     }
 
@@ -167,7 +177,7 @@ class RegulatoryComplianceController extends Controller
     {
         $request->validate([
             'compliance_status' => 'required|in:not_assessed,compliant,partially_compliant,non_compliant,not_applicable',
-            'compliance_pct'    => 'nullable|numeric|min:0|max:100',
+            'compliance_pct' => 'nullable|numeric|min:0|max:100',
         ]);
 
         $circular->update($request->only(['compliance_status', 'compliance_pct', 'action_required']));
@@ -178,17 +188,17 @@ class RegulatoryComplianceController extends Controller
     public function submitFiling(Request $request, RegulatoryDeadline $deadline)
     {
         $request->validate([
-            'filing_date'  => 'required|date',
+            'filing_date' => 'required|date',
             'document_ref' => 'nullable|string',
         ]);
 
         RegulatoryFiling::create([
-            'deadline_id'  => $deadline->id,
-            'filing_date'  => $request->filing_date,
-            'filed_by'     => auth()->id(),
-            'status'       => 'submitted',
+            'deadline_id' => $deadline->id,
+            'filing_date' => $request->filing_date,
+            'filed_by' => auth()->id(),
+            'status' => 'submitted',
             'document_ref' => $request->document_ref,
-            'notes'        => $request->notes,
+            'notes' => $request->notes,
         ]);
 
         $deadline->update(['status' => 'submitted']);
@@ -211,7 +221,7 @@ class RegulatoryComplianceController extends Controller
     public function storeTaxonomy(Request $request)
     {
         $request->validate([
-            'name'      => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'framework' => 'nullable|string|max:50',
         ]);
 
@@ -223,11 +233,11 @@ class RegulatoryComplianceController extends Controller
 
         \App\Models\RiskTaxonomy::create([
             'organization_id' => auth()->user()->organization_id,
-            'name'            => $request->name,
-            'description'     => $request->description,
-            'framework'       => $request->framework,
-            'parent_id'       => $request->parent_id,
-            'depth'           => $parentDepth,
+            'name' => $request->name,
+            'description' => $request->description,
+            'framework' => $request->framework,
+            'parent_id' => $request->parent_id,
+            'depth' => $parentDepth,
         ]);
 
         return back()->with('success', 'Taxonomy node added.');

@@ -71,146 +71,30 @@
     <form method="POST" action="{{ route('risk.treatments.store') }}" id="treatmentForm">
         @csrf
 
-        {{-- Section 1: Plan Details --}}
+        {{--
+            WP-05 TASK 2 — sections 1 to 3 (plan details, the four-strategy
+            response, expected outcome) come from object_attributes on the
+            TreatmentPlan type.
+
+            Expected residual likelihood and impact are offered on the
+            organisation's own scoring scale, not a hardcoded 1–5, so a tenant
+            on a 4×4 matrix cannot record a 5 the matrix has no room for.
+
+            Milestones stay hand-written below: they are a repeating group
+            posted as milestones[n][...], which is a different shape from a
+            field and belongs to this form.
+        --}}
         <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
             <div class="flex items-center gap-2 mb-6">
                 <div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">1</div>
                 <h2 class="text-lg font-semibold text-[#1A365D]">Plan Details</h2>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                    <label for="risk_id" class="block text-sm font-medium text-gray-700 mb-2">Linked Risk <span class="text-red-500">*</span></label>
-                    <select id="risk_id" name="risk_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] @error('risk_id') border-red-500 @enderror" required>
-                        <option value="">Select Risk</option>
-                        @foreach (($risks ?? []) as $risk)
-                            <option value="{{ $risk->id }}" {{ old('risk_id', request('risk_id')) == $risk->id ? 'selected' : '' }}>
-                                {{ $risk->risk_code }} - {{ $risk->title }}
-                            </option>
-                        @endforeach
-                    </select>
-                    @error('risk_id')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-
-                <div>
-                    <label for="treatment_type" class="block text-sm font-medium text-gray-700 mb-2">Treatment Strategy <span class="text-red-500">*</span></label>
-                    <select id="treatment_type" name="treatment_type" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] @error('treatment_type') border-red-500 @enderror" required>
-                        <option value="">Select Strategy</option>
-                        <option value="mitigate" {{ old('treatment_type') === 'mitigate' ? 'selected' : '' }}>Mitigate - Reduce likelihood or impact</option>
-                        <option value="transfer" {{ old('treatment_type') === 'transfer' ? 'selected' : '' }}>Transfer - Insurance or outsourcing</option>
-                        <option value="accept" {{ old('treatment_type') === 'accept' ? 'selected' : '' }}>Accept - Within risk appetite</option>
-                        <option value="avoid" {{ old('treatment_type') === 'avoid' ? 'selected' : '' }}>Avoid - Exit the activity</option>
-                    </select>
-                    @error('treatment_type')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-
-                <div class="lg:col-span-2">
-                    <label for="treatment_title" class="block text-sm font-medium text-gray-700 mb-2">Plan Title <span class="text-red-500">*</span></label>
-                    <input type="text" id="treatment_title" name="treatment_title" value="{{ old('treatment_title') }}" placeholder="e.g. Implement Enhanced Credit Monitoring Controls"
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] @error('treatment_title') border-red-500 @enderror" required>
-                    @error('treatment_title')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-
-                <div class="lg:col-span-2">
-                    <label for="treatment_description" class="block text-sm font-medium text-gray-700 mb-2">Description <span class="text-red-500">*</span></label>
-                    <textarea id="treatment_description" name="treatment_description" rows="4" placeholder="Detailed description of the treatment plan including objectives, scope, and expected outcomes..."
-                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] @error('treatment_description') border-red-500 @enderror" required>{{ old('treatment_description') }}</textarea>
-                    @error('treatment_description')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-            </div>
+            <x-dynamic-form type="TreatmentPlan"
+                            :sections="['Details', 'Plan', 'Expected Outcome']"
+                            :defaults="['risk_id' => request('risk_id')]" />
         </div>
 
-        {{-- Section 2: Ownership & Timeline --}}
-        <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <div class="flex items-center gap-2 mb-6">
-                <div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">2</div>
-                <h2 class="text-lg font-semibold text-[#1A365D]">Ownership & Timeline</h2>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                    <label for="treatment_owner_id" class="block text-sm font-medium text-gray-700 mb-2">Plan Owner <span class="text-red-500">*</span></label>
-                    <select id="treatment_owner_id" name="treatment_owner_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] @error('treatment_owner_id') border-red-500 @enderror" required>
-                        <option value="">Select Owner</option>
-                        @foreach (($users ?? []) as $user)
-                            <option value="{{ $user->id }}" {{ old('treatment_owner_id') == $user->id ? 'selected' : '' }}>{{ $user->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('treatment_owner_id')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-
-                <div>
-                    <label for="priority" class="block text-sm font-medium text-gray-700 mb-2">Priority <span class="text-red-500">*</span></label>
-                    <select id="priority" name="priority" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] @error('priority') border-red-500 @enderror" required>
-                        <option value="">Select Priority</option>
-                        @foreach (['critical' => 'Critical', 'high' => 'High', 'medium' => 'Medium', 'low' => 'Low'] as $val => $label)
-                            <option value="{{ $val }}" {{ old('priority') === $val ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                    @error('priority')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-
-                <div>
-                    <label for="start_date" class="block text-sm font-medium text-gray-700 mb-2">Start Date <span class="text-red-500">*</span></label>
-                    <input type="date" id="start_date" name="start_date" value="{{ old('start_date', now()->format('Y-m-d')) }}"
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] @error('start_date') border-red-500 @enderror" required>
-                    @error('start_date')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-
-                <div>
-                    <label for="target_completion_date" class="block text-sm font-medium text-gray-700 mb-2">Target Completion Date <span class="text-red-500">*</span></label>
-                    <input type="date" id="target_completion_date" name="target_completion_date" value="{{ old('target_completion_date') }}"
-                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D] @error('target_completion_date') border-red-500 @enderror" required>
-                    @error('target_completion_date')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-            </div>
-        </div>
-
-        {{-- Section 3: Budget & Dependencies --}}
-        <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <div class="flex items-center gap-2 mb-6">
-                <div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">3</div>
-                <h2 class="text-lg font-semibold text-[#1A365D]">Budget & Dependencies</h2>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                    <label for="cost_estimate" class="block text-sm font-medium text-gray-700 mb-2">Cost Estimate</label>
-                    <div class="relative">
-                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">&#8358;</span>
-                        <input type="number" id="estimated_cost" name="estimated_cost" value="{{ old('estimated_cost') }}" placeholder="e.g. 5000000"
-                               class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
-                    </div>
-                    <p class="text-xs text-gray-500 mt-1">Estimated budget in Naira</p>
-                    @error('estimated_cost')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-
-                <div>
-                    <label for="expected_residual_rating" class="block text-sm font-medium text-gray-700 mb-2">Expected Residual Rating After Treatment</label>
-                    <select id="expected_residual_rating" name="expected_residual_rating" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
-                        <option value="">Select Expected Rating</option>
-                        @foreach (['low' => 'Low', 'medium' => 'Medium', 'high' => 'High', 'critical' => 'Critical'] as $val => $label)
-                            <option value="{{ $val }}" {{ old('expected_residual_rating') === $val ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                    @error('expected_residual_rating')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-
-                <div class="lg:col-span-2">
-                    <label for="dependencies" class="block text-sm font-medium text-gray-700 mb-2">Dependencies</label>
-                    <textarea id="dependencies" name="dependencies" rows="3" placeholder="List any dependencies, prerequisites, or related projects..."
-                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">{{ old('dependencies') }}</textarea>
-                    @error('dependencies')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-
-                <div class="lg:col-span-2">
-                    <label for="success_criteria" class="block text-sm font-medium text-gray-700 mb-2">Success Criteria</label>
-                    <textarea id="success_criteria" name="success_criteria" rows="3" placeholder="Define measurable criteria for plan success..."
-                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">{{ old('success_criteria') }}</textarea>
-                    @error('success_criteria')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
-                </div>
-            </div>
-        </div>
 
         {{-- Section 4: Milestones --}}
         <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
@@ -276,9 +160,9 @@ function treatmentDescriptionBuilder() {
             this.error = null;
             this.lastResult = null;
 
-            const titleEl = document.getElementById('treatment_title');
-            const typeSel = document.getElementById('treatment_type');
-            const riskSel = document.getElementById('risk_id');
+            const titleEl = document.getElementById('field-treatment_title');
+            const typeSel = document.getElementById('field-treatment_type');
+            const riskSel = document.getElementById('field-risk_id');
 
             const started = performance.now();
             try {
@@ -305,9 +189,17 @@ function treatmentDescriptionBuilder() {
                 }
 
                 const d = json.data;
-                const descEl = document.getElementById('treatment_description');
-                if (titleEl && !titleEl.value && d.title) titleEl.value = d.title;
-                if (descEl) descEl.value = d.description;
+                const descEl = document.getElementById('field-treatment_description');
+                // Alpine owns these inputs through x-model, so a raw value
+                // assignment has to be announced or the binding overwrites it.
+                const set = (el, value) => {
+                    if (!el || value == null) return;
+                    el.value = value;
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                };
+
+                if (titleEl && !titleEl.value) set(titleEl, d.title);
+                set(descEl, d.description);
                 this.lastResult = { elapsed_ms: elapsed };
             } catch (e) {
                 this.error = 'Network error: ' + e.message;

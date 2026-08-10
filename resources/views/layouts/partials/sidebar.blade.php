@@ -130,7 +130,19 @@
                 ['label' => 'Dashboard', 'url' => '/risk/kri/dashboard'],
                 ['label' => 'KRI Library', 'url' => '/risk/kri'],
                 ['label' => 'Thresholds', 'url' => '/risk/kri/thresholds'],
-                ['label' => 'Breaches', 'url' => '/risk/kri/breaches'],
+                ['label' => 'Breach Register', 'url' => '/risk/kri/breaches'],
+            ],
+        ],
+
+        // ── WP-04: the measure engine's own governance screens ─────
+        [
+            'id' => 'reporting_periods',
+            'label' => 'Reporting Periods',
+            'icon' => 'calendar_month',
+            'prefix' => 'risk/periods',
+            'items' => [
+                ['label' => 'Calendar & Close', 'url' => '/risk/periods'],
+                ['label' => 'Threshold Re-baselining', 'url' => '/risk/thresholds/rebaseline'],
             ],
         ],
         [
@@ -185,8 +197,12 @@
             'icon' => 'device_hub',
             'prefix' => 'risk/workflows',
             'items' => [
+                // WP-06. First, because it is the one entry here most people
+                // use daily: everything a person owes, from every module.
+                ['label' => 'My Tasks', 'url' => '/risk/my-tasks'],
                 ['label' => 'Dashboard', 'url' => '/risk/workflows/dashboard'],
                 ['label' => 'Definitions', 'url' => '/risk/workflows/definitions'],
+                ['label' => 'Designer', 'url' => '/risk/workflows/definitions/create'],
             ],
         ],
 
@@ -269,21 +285,36 @@
                 ['label' => 'Board', 'url' => '/risk/reports/board'],
                 ['label' => 'Regulatory', 'url' => '/risk/reports/regulatory'],
                 ['label' => 'Custom', 'url' => '/risk/reports/custom'],
+                ['label' => 'Library', 'url' => '/risk/reports/library'],
             ],
         ],
         [
-            'id' => 'ai_intelligence',
-            'label' => 'AI Risk Intelligence',
-            'icon' => 'psychology',
-            'prefix' => 'risk/ai',
+            'id' => 'emerging',
+            'label' => 'Emerging Risk',
+            'icon' => 'radar',
+            'prefix' => 'risk/emerging-risks',
             'items' => [
-                ['label' => 'Predictive', 'url' => '/risk/ai/predictive'],
-                ['label' => 'Risk Radar', 'url' => '/risk/ai/radar'],
-                ['label' => 'Regulatory Pulse', 'url' => '/risk/ai/regulatory-pulse'],
-                ['label' => 'Benchmarking', 'url' => '/risk/ai/benchmarking'],
+                ['label' => 'Register', 'url' => '/risk/emerging-risks'],
             ],
         ],
     ];
+
+    // The AI Intelligence section is gated by config('features.ai_intelligence').
+    // The routes 404 when the flag is off, so linking to them unconditionally
+    // would put dead entries in the nav.
+    if (filter_var(config('features.ai_intelligence', false), FILTER_VALIDATE_BOOLEAN)) {
+        $sections[] = [
+            'id' => 'ai_intelligence',
+            'label' => 'Risk Intelligence',
+            'icon' => 'psychology',
+            'prefix' => 'risk/ai',
+            'items' => [
+                ['label' => 'Forecast', 'url' => '/risk/ai/predictive'],
+                ['label' => 'Emerging Risk Radar', 'url' => '/risk/ai/radar'],
+                ['label' => 'Regulatory Pulse', 'url' => '/risk/ai/regulatory-pulse'],
+            ],
+        ];
+    }
 @endphp
 
 <aside id="sidebar" class="fixed left-0 top-0 h-screen w-[260px] bg-[#1A365D] text-white overflow-y-auto z-50 flex flex-col" style="scrollbar-width:thin;scrollbar-color:#2D4A7A #1A365D">

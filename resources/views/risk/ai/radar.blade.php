@@ -1,122 +1,228 @@
 @extends('layouts.app')
 
-@section('title', 'Risk Radar - GRC Risk Management')
-@section('page-section', 'AI Intelligence')
-@section('page-title', 'Risk Radar')
+@section('title', 'Emerging Risk Radar - GRC Risk Management')
+@section('page-section', 'Risk Intelligence')
+@section('page-title', 'Emerging Risk Radar')
 
 @section('breadcrumbs')
     <a href="{{ url('/risk/dashboard') }}" class="hover:text-[#1A365D]">Home</a>
     <span class="text-gray-400">/</span>
-    <span class="text-gray-500">AI Intelligence</span>
+    <span class="text-gray-500">Risk Intelligence</span>
     <span class="text-gray-400">/</span>
-    <span class="text-gray-700 font-medium">Risk Radar</span>
+    <span class="text-gray-700 font-medium">Emerging Risk Radar</span>
 @endsection
 
 @section('content')
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-start justify-between mb-6">
         <div>
-            <h1 class="text-xl font-bold text-[#1A365D]">Risk Radar</h1>
-            <p class="text-sm text-gray-500 mt-1">Emerging risks, velocity indicators, and external risk signals</p>
+            <h1 class="text-xl font-bold text-[#1A365D]">Emerging Risk Radar</h1>
+            <p class="text-sm text-gray-500 mt-1">
+                Your organisation's emerging risk register, plotted by proximity and velocity.
+            </p>
         </div>
-        <button class="px-4 py-2 bg-[#1A365D] text-white rounded-lg text-xs font-semibold hover:bg-[#2D4A7A] flex items-center gap-2"><span class="material-symbols-outlined text-sm">refresh</span> Scan Now</button>
+        <a href="{{ route('risk.emerging.create') }}"
+           class="px-4 py-2 bg-[#1A365D] text-white rounded-lg text-xs font-semibold hover:bg-[#2D4A7A] flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm">add</span> Add emerging risk
+        </a>
     </div>
 
-    {{-- KPI --}}
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+        <div class="flex items-start gap-3">
+            <span class="material-symbols-outlined text-blue-600 text-lg">info</span>
+            <p class="text-xs text-blue-900 leading-relaxed">
+                Every entry here was recorded by a named person in
+                <a href="{{ route('risk.emerging.index') }}" class="underline font-medium">the emerging risk register</a>.
+                Velocity and proximity are analyst judgements on a 1–5 scale, attributable to their author — they are
+                not model outputs and carry no confidence score.
+            </p>
+        </div>
+    </div>
+
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <x-kpi-card title="Emerging Risks Identified" :value="($emergingRisks ?? 0)" icon="explore" color="warning" subtitle="Under radar" />
-        <x-kpi-card title="Fast-Moving Risks" :value="($fastMovingRisks ?? 0)" icon="speed" color="danger" subtitle="High velocity" />
-        <x-kpi-card title="External Risk Signals" :value="($externalSignals ?? 0)" icon="language" color="info" subtitle="Last 30 days" />
-        <x-kpi-card title="New This Month" :value="($newThisMonth ?? 0)" icon="new_releases" color="primary" />
+        <x-kpi-card title="On radar" :value="$totalOnRadar" icon="radar" color="primary" subtitle="Monitoring, assessing or escalated" />
+        <x-kpi-card title="Fast moving" :value="$fastMoving" icon="speed" color="danger" subtitle="Velocity 4–5" />
+        <x-kpi-card title="Imminent" :value="$imminent" icon="schedule" color="warning" subtitle="Proximity 4–5" />
+        <x-kpi-card title="High or critical impact" :value="$highImpact" icon="priority_high" color="danger" />
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {{-- Radar Chart --}}
-        <div class="bg-white rounded-xl border border-gray-200 p-5">
-            <h3 class="text-sm font-semibold text-[#1A365D] mb-4">Risk Radar Visualization</h3>
-            <canvas id="radarChart" height="350"></canvas>
+    @if ($totalOnRadar === 0)
+        <div class="bg-white rounded-xl border border-gray-200 p-10 text-center">
+            <span class="material-symbols-outlined text-4xl text-gray-300 mb-3 block">radar</span>
+            <p class="text-sm font-semibold text-gray-700">The emerging risk register is empty</p>
+            <p class="text-xs text-gray-500 mt-2 max-w-md mx-auto">
+                This radar plots what your team records. Nothing is generated automatically — add the first entry to
+                start building the horizon view.
+            </p>
+            <a href="{{ route('risk.emerging.create') }}"
+               class="inline-flex items-center gap-2 mt-5 px-4 py-2 bg-[#1A365D] text-white rounded-lg text-xs font-semibold hover:bg-[#2D4A7A]">
+                <span class="material-symbols-outlined text-sm">add</span> Add emerging risk
+            </a>
         </div>
+    @else
+        @if ($neverReviewed > 0 || $staleReviews > 0)
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+                <span class="material-symbols-outlined text-amber-600 text-lg">warning</span>
+                <p class="text-xs text-amber-900">
+                    @if ($neverReviewed > 0)
+                        {{ $neverReviewed }} entr{{ $neverReviewed === 1 ? 'y has' : 'ies have' }} never been reviewed.
+                    @endif
+                    @if ($staleReviews > 0)
+                        {{ $staleReviews }} entr{{ $staleReviews === 1 ? 'y was' : 'ies were' }} last reviewed more than 90 days ago.
+                    @endif
+                    A horizon view is only as current as its last review date.
+                </p>
+            </div>
+        @endif
 
-        {{-- Velocity Indicators --}}
-        <div class="bg-white rounded-xl border border-gray-200 p-5">
-            <h3 class="text-sm font-semibold text-[#1A365D] mb-4">Risk Velocity Indicators</h3>
-            <div class="space-y-3">
-                @forelse (($velocityIndicators ?? []) as $indicator)
-                    <div class="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                        <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center {{ ($indicator->velocity ?? '') === 'immediate' ? 'bg-red-100 text-red-600' : (($indicator->velocity ?? '') === 'fast' ? 'bg-orange-100 text-orange-600' : 'bg-yellow-100 text-yellow-600') }}">
-                            <span class="material-symbols-outlined text-lg">{{ ($indicator->velocity ?? '') === 'immediate' ? 'bolt' : 'speed' }}</span>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white rounded-xl border border-gray-200 p-5">
+                <h3 class="text-sm font-semibold text-[#1A365D] mb-1">Proximity against velocity</h3>
+                <p class="text-[11px] text-gray-500 mb-4">Upper right is fast moving and close at hand.</p>
+                <canvas id="radarScatter" height="320"></canvas>
+            </div>
+
+            <div class="bg-white rounded-xl border border-gray-200 p-5">
+                <h3 class="text-sm font-semibold text-[#1A365D] mb-4">By time horizon</h3>
+                <div class="space-y-3 mb-6">
+                    @foreach ($byHorizon as $horizon => $count)
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-700 font-medium">{{ $horizon }}</span>
+                                <span class="text-gray-500">{{ $count }}</span>
+                            </div>
+                            <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="h-2 rounded-full bg-[#1A365D]"
+                                     style="width: {{ $totalOnRadar > 0 ? round($count / $totalOnRadar * 100) : 0 }}%"></div>
+                            </div>
                         </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-xs font-semibold text-gray-800">{{ $indicator->title ?? '' }}</p>
-                            <p class="text-[10px] text-gray-500">{{ $indicator->category ?? '' }} &middot; Velocity: {{ ucfirst($indicator->velocity ?? '-') }}</p>
-                        </div>
-                        <div class="text-right">
-                            <span class="badge {{ ($indicator->velocity ?? '') === 'immediate' ? 'bg-red-100 text-red-700' : (($indicator->velocity ?? '') === 'fast' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700') }}">
-                                {{ ucfirst($indicator->velocity ?? '-') }}
-                            </span>
-                        </div>
-                    </div>
-                @empty
-                    <div class="text-center py-6 text-gray-400 text-sm">No velocity indicators to display</div>
-                @endforelse
+                    @endforeach
+                </div>
+
+                <h3 class="text-sm font-semibold text-[#1A365D] mb-4 pt-4 border-t border-gray-100">By category</h3>
+                <canvas id="categoryChart" height="160"></canvas>
             </div>
         </div>
-    </div>
 
-    {{-- Emerging Risks Cards --}}
-    <div class="mb-6">
-        <h3 class="text-sm font-semibold text-[#1A365D] mb-4">Emerging Risk Signals (AI-Detected)</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            @forelse (($emergingRiskSignals ?? []) as $signal)
-                <div class="bg-white rounded-xl border {{ ($signal->impact_potential ?? '') === 'Critical' ? 'border-red-300 bg-red-50' : (($signal->impact_potential ?? '') === 'High' ? 'border-orange-300 bg-orange-50' : 'border-yellow-300 bg-yellow-50') }} p-4">
-                    <div class="flex items-start justify-between mb-2">
-                        <div class="flex-1">
-                            <h4 class="text-xs font-bold text-gray-800">{{ $signal->title ?? '-' }}</h4>
-                            <p class="text-[10px] text-gray-600 mt-1">{{ $signal->category ?? '-' }}</p>
-                        </div>
-                        <span class="badge {{ ($signal->impact_potential ?? '') === 'Critical' ? 'bg-red-200 text-red-700' : (($signal->impact_potential ?? '') === 'High' ? 'bg-orange-200 text-orange-700' : 'bg-yellow-200 text-yellow-700') }} text-[10px] whitespace-nowrap">
-                            {{ ucfirst($signal->impact_potential ?? '-') }}
-                        </span>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-gray-200">
-                        <div class="text-center">
-                            <p class="text-[10px] text-gray-600">Velocity</p>
-                            <span class="badge {{ ($signal->velocity ?? '') === 'immediate' ? 'bg-red-100 text-red-700' : (($signal->velocity ?? '') === 'fast' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700') }} text-[10px] mt-1">
-                                {{ ucfirst($signal->velocity ?? '-') }}
+        <div class="mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-[#1A365D]">Register entries</h3>
+                <a href="{{ route('risk.emerging.index') }}" class="text-xs text-[#1A365D] hover:underline">Manage register</a>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                @foreach ($register as $entry)
+                    <div class="bg-white rounded-xl border p-4
+                        {{ $entry->potential_impact === 'Critical' ? 'border-red-300' : ($entry->potential_impact === 'High' ? 'border-orange-300' : 'border-gray-200') }}">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex-1 min-w-0">
+                                <p class="text-[10px] font-semibold text-gray-500">{{ $entry->reference }}</p>
+                                <a href="{{ route('risk.emerging.edit', $entry) }}"
+                                   class="text-xs font-bold text-[#1A365D] hover:underline block mt-0.5">{{ $entry->title }}</a>
+                                <p class="text-[10px] text-gray-600 mt-1">
+                                    {{ $entry->category?->name ?? 'Uncategorised' }} · {{ $entry->horizon }}
+                                </p>
+                            </div>
+                            <span class="badge text-[10px] whitespace-nowrap ml-2
+                                {{ $entry->potential_impact === 'Critical' ? 'bg-red-100 text-red-700' : ($entry->potential_impact === 'High' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700') }}">
+                                {{ $entry->potential_impact }}
                             </span>
                         </div>
-                        <div class="text-center">
-                            <p class="text-[10px] text-gray-600">Confidence</p>
-                            <div class="w-full bg-gray-200 rounded-full h-1 mt-2"><div class="h-1 rounded-full bg-[#1A365D]" style="width: {{ $signal->confidence ?? 0 }}%"></div></div>
-                            <p class="text-[10px] font-semibold text-gray-700 mt-1">{{ $signal->confidence ?? 0 }}%</p>
+
+                        @if ($entry->description)
+                            <p class="text-[11px] text-gray-600 mt-2">{{ Str::limit($entry->description, 140) }}</p>
+                        @endif
+
+                        <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-gray-100 text-center">
+                            <div>
+                                <p class="text-[10px] text-gray-500">Velocity</p>
+                                <p class="text-xs font-semibold text-gray-800 mt-1">
+                                    {{ $entry->velocity_score }}/5 <span class="font-normal text-gray-500">{{ $entry->velocity_label }}</span>
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] text-gray-500">Proximity</p>
+                                <p class="text-xs font-semibold text-gray-800 mt-1">
+                                    {{ $entry->proximity_score }}/5 <span class="font-normal text-gray-500">{{ $entry->proximity_label }}</span>
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] text-gray-500">Reviewed</p>
+                                <p class="text-xs font-semibold text-gray-800 mt-1">
+                                    {{ $entry->last_reviewed_at?->format('d M y') ?? '—' }}
+                                </p>
+                            </div>
                         </div>
-                        <div class="text-center">
-                            <p class="text-[10px] text-gray-600">Source</p>
-                            <p class="text-[10px] font-semibold text-gray-700 mt-2 truncate">{{ Str::limit($signal->source ?? '-', 12) }}</p>
+
+                        <div class="mt-3 pt-3 border-t border-gray-100 text-[10px] text-gray-500 flex justify-between">
+                            <span>{{ $entry->source ? 'Source: '.Str::limit($entry->source, 30) : 'Source not recorded' }}</span>
+                            <span>{{ $entry->owner?->name ?? 'Unowned' }}</span>
                         </div>
                     </div>
-                </div>
-            @empty
-                <div class="col-span-2 bg-white rounded-xl border border-gray-200 p-8 text-center">
-                    <span class="material-symbols-outlined text-4xl text-gray-300 mb-2 block">radar</span>
-                    <p class="text-sm text-gray-500">No emerging risk signals detected on current radar scan</p>
-                </div>
-            @endforelse
+                @endforeach
+            </div>
         </div>
-    </div>
+    @endif
 @endsection
 
-@php
-    $chartRadarData = $radarChartData ?? ['labels' => ['Credit','Market','Operational','Liquidity','Strategic','Compliance','Technology','Reputational'], 'current' => [0,0,0,0,0,0,0,0], 'previous' => [0,0,0,0,0,0,0,0]];
-@endphp
-
 @push('scripts')
+@if ($totalOnRadar > 0)
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const rData = @json($chartRadarData);
-    new Chart(document.getElementById('radarChart'), {
-        type: 'radar', data: { labels: rData.labels, datasets: [{ label: 'Current', data: rData.current, borderColor: '#C53030', backgroundColor: 'rgba(197,48,48,0.1)', pointBackgroundColor: '#C53030' }, { label: 'Previous Period', data: rData.previous, borderColor: '#1A365D', backgroundColor: 'rgba(26,54,93,0.1)', pointBackgroundColor: '#1A365D' }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { r: { beginAtZero: true, max: 5, ticks: { font: { size: 9 }, stepSize: 1 }, pointLabels: { font: { size: 10 } } } }, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, usePointStyle: true } } } }
+document.addEventListener('DOMContentLoaded', function () {
+    const points = @json($points);
+    const impactColour = {
+        Critical: '#C53030',
+        High: '#DD6B20',
+        Medium: '#D69E2E',
+        Low: '#2D7D46',
+    };
+
+    new Chart(document.getElementById('radarScatter'), {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Emerging risks',
+                data: points,
+                pointRadius: 7,
+                pointHoverRadius: 9,
+                backgroundColor: points.map(p => impactColour[p.impact] || '#1A365D'),
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => ctx.raw.label,
+                    },
+                },
+            },
+            scales: {
+                x: { min: 0, max: 6, title: { display: true, text: 'Proximity (1 distant → 5 imminent)', font: { size: 10 } }, ticks: { stepSize: 1, font: { size: 10 } }, grid: { color: '#F0F0F0' } },
+                y: { min: 0, max: 6, title: { display: true, text: 'Velocity (1 slow → 5 fast)', font: { size: 10 } }, ticks: { stepSize: 1, font: { size: 10 } }, grid: { color: '#F0F0F0' } },
+            },
+        },
+    });
+
+    const categoryData = @json($categoryChart);
+    new Chart(document.getElementById('categoryChart'), {
+        type: 'bar',
+        data: {
+            labels: categoryData.labels,
+            datasets: [{ label: 'Entries', data: categoryData.values, backgroundColor: '#1A365D' }],
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } }, grid: { color: '#F0F0F0' } },
+                y: { ticks: { font: { size: 10 } }, grid: { display: false } },
+            },
+        },
     });
 });
 </script>
+@endif
 @endpush

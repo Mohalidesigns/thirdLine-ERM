@@ -14,6 +14,9 @@
 
     {{-- Right: Actions & User --}}
     <div class="flex items-center gap-3">
+        {{-- Reporting period. Everything on the page below is "as at" this. --}}
+        @include('layouts.partials.period-selector')
+
         {{-- Notifications --}}
         <div class="relative" x-data="{ open: false }" @click.outside="open = false">
             <button @click="open = !open" class="p-1.5 rounded-lg hover:bg-gray-100 relative">

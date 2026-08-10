@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
+use App\Models\IcaapAssessment;
 use App\Models\QuantificationScenario;
 use App\Models\QuantificationSetting;
-use App\Models\SimulationRun;
-use App\Models\SimulationResult;
-use App\Models\IcaapAssessment;
 use App\Models\Risk;
 use App\Models\RiskCategory;
+use App\Models\SimulationRun;
 use App\Services\MonteCarloService;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 
 class QuantificationController extends Controller
@@ -20,7 +20,7 @@ class QuantificationController extends Controller
      */
     public function dashboard()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $activeScenarios = QuantificationScenario::where('organization_id', $orgId)
             ->where('status', 'active')->count();
@@ -33,7 +33,7 @@ class QuantificationController extends Controller
             ->orderByDesc('completed_at')
             ->first();
 
-        $var95            = $latestSim ? $latestSim->var_95 : 0;
+        $var95 = $latestSim ? $latestSim->var_95 : 0;
         $expectedShortfall = $latestSim ? $latestSim->expected_shortfall : 0;
 
         // Latest ICAAP
@@ -41,8 +41,8 @@ class QuantificationController extends Controller
             ->orderByDesc('created_at')->first();
 
         $capitalAdequacyRatio = $latestIcaap ? (float) $latestIcaap->car_actual : 0;
-        $tier1   = $latestIcaap ? round(($latestIcaap->tier1_capital_kobo ?? 0) / 100, 2) : 0;
-        $tier2   = $latestIcaap ? round(($latestIcaap->tier2_capital_kobo ?? 0) / 100, 2) : 0;
+        $tier1 = $latestIcaap ? round(($latestIcaap->tier1_capital_kobo ?? 0) / 100, 2) : 0;
+        $tier2 = $latestIcaap ? round(($latestIcaap->tier2_capital_kobo ?? 0) / 100, 2) : 0;
         $totalCapital = $latestIcaap ? round(($latestIcaap->total_qualifying_capital_kobo ?? 0) / 100, 2) : 0;
 
         $pillar1Capital = $latestIcaap
@@ -99,7 +99,7 @@ class QuantificationController extends Controller
      */
     public function scenarios(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $query = QuantificationScenario::where('organization_id', $orgId);
 
@@ -115,7 +115,7 @@ class QuantificationController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('scenario_reference', 'like', "%{$search}%")
-                  ->orWhere('name', 'like', "%{$search}%");
+                    ->orWhere('name', 'like', "%{$search}%");
             });
         }
 
@@ -131,7 +131,7 @@ class QuantificationController extends Controller
      */
     public function createScenario()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $risks = Risk::where('organization_id', $orgId)->where('status', 'active')->orderBy('risk_code')->get();
         $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
@@ -145,19 +145,19 @@ class QuantificationController extends Controller
      */
     public function storeScenario(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $request->validate([
-            'name'               => 'required|string|max:255',
-            'description'        => 'required|string|max:5000',
-            'risk_category'      => 'required|string|max:100',
-            'linked_risk_id'     => 'nullable|exists:risks,id',
-            'distribution_type'  => 'required|in:lognormal,normal,poisson,pareto,weibull,beta',
+            'name' => 'required|string|max:255',
+            'description' => 'required|string|max:5000',
+            'risk_category' => 'required|string|max:100',
+            'linked_risk_id' => 'nullable|exists:risks,id',
+            'distribution_type' => 'required|in:lognormal,normal,poisson,pareto,weibull,beta',
             'frequency_per_year' => 'required|numeric|min:0',
-            'mean'               => 'required|numeric|min:0',
-            'std_dev'            => 'nullable|numeric|min:0',
-            'min_loss'           => 'nullable|numeric|min:0',
-            'max_loss'           => 'nullable|numeric|min:0',
+            'mean' => 'required|numeric|min:0',
+            'std_dev' => 'nullable|numeric|min:0',
+            'min_loss' => 'nullable|numeric|min:0',
+            'max_loss' => 'nullable|numeric|min:0',
         ]);
 
         // Auto-generate scenario reference: SCN-YYYY-NNN
@@ -171,36 +171,36 @@ class QuantificationController extends Controller
         $scenarioReference = sprintf('SCN-%d-%03d', $year, $nextNumber);
 
         // Convert form values (Naira) → DB values (kobo + lognormal params)
-        $meanNaira   = (float) $request->mean;
+        $meanNaira = (float) $request->mean;
         $stdDevNaira = (float) ($request->std_dev ?? 0);
-        $meanKobo    = round($meanNaira * 100);
-        $minKobo     = $request->min_loss ? round((float) $request->min_loss * 100) : null;
-        $maxKobo     = $request->max_loss ? round((float) $request->max_loss * 100) : null;
-        $freqYear    = (float) $request->frequency_per_year;
+        $meanKobo = round($meanNaira * 100);
+        $minKobo = $request->min_loss ? round((float) $request->min_loss * 100) : null;
+        $maxKobo = $request->max_loss ? round((float) $request->max_loss * 100) : null;
+        $freqYear = (float) $request->frequency_per_year;
 
         // Compute lognormal mu and sigma from mean and std_dev
-        $mu    = $meanKobo > 0 ? log($meanKobo) : 0;
+        $mu = $meanKobo > 0 ? log($meanKobo) : 0;
         $sigma = ($stdDevNaira > 0 && $meanNaira > 0) ? sqrt(log(1 + ($stdDevNaira / $meanNaira) ** 2)) : 1.0;
 
         $scenario = QuantificationScenario::create([
-            'organization_id'            => $orgId,
-            'scenario_reference'         => $scenarioReference,
-            'name'                       => $request->name,
-            'description'                => $request->description,
-            'cbn_risk_category'          => $request->risk_category,
-            'risk_register_id'           => $request->linked_risk_id,
-            'severity_distribution'      => $request->distribution_type,
-            'frequency_distribution'     => 'poisson',
-            'frequency_lambda'           => $freqYear,
-            'expected_annual_frequency'  => $freqYear,
-            'severity_mu'               => round($mu, 6),
-            'severity_sigma'            => round($sigma, 6),
+            'organization_id' => $orgId,
+            'scenario_reference' => $scenarioReference,
+            'name' => $request->name,
+            'description' => $request->description,
+            'cbn_risk_category' => $request->risk_category,
+            'risk_register_id' => $request->linked_risk_id,
+            'severity_distribution' => $request->distribution_type,
+            'frequency_distribution' => 'poisson',
+            'frequency_lambda' => $freqYear,
+            'expected_annual_frequency' => $freqYear,
+            'severity_mu' => round($mu, 6),
+            'severity_sigma' => round($sigma, 6),
             'expected_loss_per_event_kobo' => $meanKobo,
-            'expected_annual_loss_kobo'  => round($meanKobo * $freqYear),
-            'severity_min_kobo'          => $minKobo,
-            'severity_max_kobo'          => $maxKobo,
-            'status'                     => 'active',
-            'created_by'                 => auth()->id(),
+            'expected_annual_loss_kobo' => round($meanKobo * $freqYear),
+            'severity_min_kobo' => $minKobo,
+            'severity_max_kobo' => $maxKobo,
+            'status' => 'active',
+            'created_by' => auth()->id(),
         ]);
 
         return redirect()->route('risk.quantification.show-scenario', $scenario)
@@ -212,7 +212,7 @@ class QuantificationController extends Controller
      */
     public function showScenario(QuantificationScenario $scenario)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($scenario->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this scenario.');
@@ -238,51 +238,51 @@ class QuantificationController extends Controller
      */
     public function updateScenario(Request $request, QuantificationScenario $scenario)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($scenario->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this scenario.');
         }
 
         $request->validate([
-            'name'               => 'required|string|max:255',
-            'description'        => 'required|string|max:5000',
-            'risk_category'      => 'required|string|max:100',
-            'linked_risk_id'     => 'nullable|exists:risks,id',
-            'distribution_type'  => 'required|in:lognormal,normal,poisson,pareto,weibull,beta',
+            'name' => 'required|string|max:255',
+            'description' => 'required|string|max:5000',
+            'risk_category' => 'required|string|max:100',
+            'linked_risk_id' => 'nullable|exists:risks,id',
+            'distribution_type' => 'required|in:lognormal,normal,poisson,pareto,weibull,beta',
             'frequency_per_year' => 'required|numeric|min:0',
-            'mean'               => 'required|numeric|min:0',
-            'std_dev'            => 'nullable|numeric|min:0',
-            'min_loss'           => 'nullable|numeric|min:0',
-            'max_loss'           => 'nullable|numeric|min:0',
-            'status'             => 'nullable|in:draft,active,archived',
+            'mean' => 'required|numeric|min:0',
+            'std_dev' => 'nullable|numeric|min:0',
+            'min_loss' => 'nullable|numeric|min:0',
+            'max_loss' => 'nullable|numeric|min:0',
+            'status' => 'nullable|in:draft,active,archived',
         ]);
 
-        $meanNaira   = (float) $request->mean;
+        $meanNaira = (float) $request->mean;
         $stdDevNaira = (float) ($request->std_dev ?? 0);
-        $meanKobo    = round($meanNaira * 100);
-        $minKobo     = $request->min_loss ? round((float) $request->min_loss * 100) : null;
-        $maxKobo     = $request->max_loss ? round((float) $request->max_loss * 100) : null;
-        $freqYear    = (float) $request->frequency_per_year;
+        $meanKobo = round($meanNaira * 100);
+        $minKobo = $request->min_loss ? round((float) $request->min_loss * 100) : null;
+        $maxKobo = $request->max_loss ? round((float) $request->max_loss * 100) : null;
+        $freqYear = (float) $request->frequency_per_year;
 
-        $mu    = $meanKobo > 0 ? log($meanKobo) : 0;
+        $mu = $meanKobo > 0 ? log($meanKobo) : 0;
         $sigma = ($stdDevNaira > 0 && $meanNaira > 0) ? sqrt(log(1 + ($stdDevNaira / $meanNaira) ** 2)) : 1.0;
 
         $scenario->update([
-            'name'                       => $request->name,
-            'description'                => $request->description,
-            'cbn_risk_category'          => $request->risk_category,
-            'risk_register_id'           => $request->linked_risk_id,
-            'severity_distribution'      => $request->distribution_type,
-            'frequency_lambda'           => $freqYear,
-            'expected_annual_frequency'  => $freqYear,
-            'severity_mu'               => round($mu, 6),
-            'severity_sigma'            => round($sigma, 6),
+            'name' => $request->name,
+            'description' => $request->description,
+            'cbn_risk_category' => $request->risk_category,
+            'risk_register_id' => $request->linked_risk_id,
+            'severity_distribution' => $request->distribution_type,
+            'frequency_lambda' => $freqYear,
+            'expected_annual_frequency' => $freqYear,
+            'severity_mu' => round($mu, 6),
+            'severity_sigma' => round($sigma, 6),
             'expected_loss_per_event_kobo' => $meanKobo,
-            'expected_annual_loss_kobo'  => round($meanKobo * $freqYear),
-            'severity_min_kobo'          => $minKobo,
-            'severity_max_kobo'          => $maxKobo,
-            'status'                     => $request->status ?? $scenario->status,
+            'expected_annual_loss_kobo' => round($meanKobo * $freqYear),
+            'severity_min_kobo' => $minKobo,
+            'severity_max_kobo' => $maxKobo,
+            'status' => $request->status ?? $scenario->status,
         ]);
 
         return redirect()->route('risk.quantification.show-scenario', $scenario)
@@ -294,7 +294,7 @@ class QuantificationController extends Controller
      */
     public function simulate()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $scenarios = QuantificationScenario::where('organization_id', $orgId)
             ->where('status', 'active')
@@ -309,15 +309,15 @@ class QuantificationController extends Controller
      */
     public function runSimulation(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $validated = $request->validate([
-            'name'               => 'required|string|max:255',
-            'scenario_ids'       => 'required|array|min:1',
-            'scenario_ids.*'     => 'exists:quantification_scenarios,id',
-            'iterations'         => 'required|integer|min:1000|max:1000000',
-            'time_horizon'       => 'nullable|integer|min:1|max:10',
-            'confidence_levels'  => 'nullable|array',
+            'name' => 'required|string|max:255',
+            'scenario_ids' => 'required|array|min:1',
+            'scenario_ids.*' => 'exists:quantification_scenarios,id',
+            'iterations' => 'required|integer|min:1000|max:1000000',
+            'time_horizon' => 'nullable|integer|min:1|max:10',
+            'confidence_levels' => 'nullable|array',
             'confidence_levels.*' => 'numeric',
         ]);
 
@@ -341,20 +341,20 @@ class QuantificationController extends Controller
         $simReference = sprintf('SIM-%d-%03d', $year, $nextNumber);
 
         $simulation = SimulationRun::create([
-            'organization_id'    => $orgId,
+            'organization_id' => $orgId,
             'simulation_reference' => $simReference,
-            'scenario_ids'       => $validated['scenario_ids'],
-            'iterations'         => $validated['iterations'],
-            'horizon_years'      => $validated['time_horizon'] ?? 1,
-            'confidence_levels'  => $validated['confidence_levels'] ?? [95, 99, 99.5],
+            'scenario_ids' => $validated['scenario_ids'],
+            'iterations' => $validated['iterations'],
+            'horizon_years' => $validated['time_horizon'] ?? 1,
+            'confidence_levels' => $validated['confidence_levels'] ?? [95, 99, 99.5],
             'correlation_method' => 'independent',
-            'status'             => 'queued',
-            'initiated_by'       => auth()->id(),
+            'status' => 'queued',
+            'initiated_by' => auth()->id(),
         ]);
 
         // Run Monte Carlo simulation
         try {
-            $monteCarloService = new MonteCarloService();
+            $monteCarloService = new MonteCarloService;
             $simulation = $monteCarloService->runSimulation($simulation, $validated['scenario_ids']);
 
             return redirect()->route('risk.quantification.show-results', $simulation)
@@ -362,7 +362,7 @@ class QuantificationController extends Controller
         } catch (\Exception $e) {
             $simulation->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
 
-            return back()->with('error', "Simulation failed: " . $e->getMessage());
+            return back()->with('error', 'Simulation failed: '.$e->getMessage());
         }
     }
 
@@ -372,7 +372,7 @@ class QuantificationController extends Controller
      */
     public function results(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $query = SimulationRun::where('organization_id', $orgId);
 
@@ -391,7 +391,7 @@ class QuantificationController extends Controller
      */
     public function showResults(SimulationRun $simulation)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($simulation->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this simulation.');
@@ -429,7 +429,7 @@ class QuantificationController extends Controller
             $pMap = ['p5' => 0.05, 'p10' => 0.10, 'p25' => 0.25, 'p50' => 0.50, 'p75' => 0.75, 'p90' => 0.90, 'p95' => 0.95, 'p99' => 0.99, 'p99.5' => 0.995, 'p99.9' => 0.999];
             foreach ($pMap as $key => $prob) {
                 if (isset($agg->percentile_distribution[$key])) {
-                    $cdfData['labels'][] = '₦' . number_format(round($agg->percentile_distribution[$key] / 100, 2));
+                    $cdfData['labels'][] = '₦'.number_format(round($agg->percentile_distribution[$key] / 100, 2));
                     $cdfData['values'][] = $prob;
                 }
             }
@@ -443,31 +443,31 @@ class QuantificationController extends Controller
      */
     public function icaap()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $latestIcaap = IcaapAssessment::where('organization_id', $orgId)
             ->orderByDesc('created_at')
             ->first();
 
         // Capital position
-        $totalCapital         = $latestIcaap ? round(($latestIcaap->total_qualifying_capital_kobo ?? 0) / 100, 2) : 0;
+        $totalCapital = $latestIcaap ? round(($latestIcaap->total_qualifying_capital_kobo ?? 0) / 100, 2) : 0;
         $capitalAdequacyRatio = $latestIcaap ? (float) ($latestIcaap->car_actual ?? 0) : 0;
-        $tier1Capital         = $latestIcaap ? round(($latestIcaap->tier1_capital_kobo ?? 0) / 100, 2) : 0;
-        $tier2Capital         = $latestIcaap ? round(($latestIcaap->tier2_capital_kobo ?? 0) / 100, 2) : 0;
+        $tier1Capital = $latestIcaap ? round(($latestIcaap->tier1_capital_kobo ?? 0) / 100, 2) : 0;
+        $tier2Capital = $latestIcaap ? round(($latestIcaap->tier2_capital_kobo ?? 0) / 100, 2) : 0;
 
         // Pillar 1
-        $pillar1Credit      = $latestIcaap ? round(($latestIcaap->pillar2a_credit_kobo ?? 0) / 100, 2) : 0;
-        $pillar1Market      = $latestIcaap ? round(($latestIcaap->pillar2a_market_kobo ?? 0) / 100, 2) : 0;
+        $pillar1Credit = $latestIcaap ? round(($latestIcaap->pillar2a_credit_kobo ?? 0) / 100, 2) : 0;
+        $pillar1Market = $latestIcaap ? round(($latestIcaap->pillar2a_market_kobo ?? 0) / 100, 2) : 0;
         $pillar1Operational = $latestIcaap ? round(($latestIcaap->pillar2a_operational_kobo ?? 0) / 100, 2) : 0;
-        $totalPillar1       = $pillar1Credit + $pillar1Market + $pillar1Operational;
+        $totalPillar1 = $pillar1Credit + $pillar1Market + $pillar1Operational;
 
         // Pillar 2
         $pillar2Concentration = $latestIcaap ? round(($latestIcaap->pillar2a_other_kobo ?? 0) / 100 * 0.3, 2) : 0;
-        $pillar2InterestRate  = $latestIcaap ? round(($latestIcaap->pillar2a_other_kobo ?? 0) / 100 * 0.25, 2) : 0;
-        $pillar2Liquidity     = $latestIcaap ? round(($latestIcaap->pillar2b_stress_buffer_kobo ?? 0) / 100 * 0.5, 2) : 0;
-        $pillar2Reputational  = $latestIcaap ? round(($latestIcaap->pillar2a_other_kobo ?? 0) / 100 * 0.25, 2) : 0;
-        $pillar2Strategic     = $latestIcaap ? round(($latestIcaap->pillar2a_other_kobo ?? 0) / 100 * 0.2, 2) : 0;
-        $totalPillar2         = $pillar2Concentration + $pillar2InterestRate + $pillar2Liquidity + $pillar2Reputational + $pillar2Strategic;
+        $pillar2InterestRate = $latestIcaap ? round(($latestIcaap->pillar2a_other_kobo ?? 0) / 100 * 0.25, 2) : 0;
+        $pillar2Liquidity = $latestIcaap ? round(($latestIcaap->pillar2b_stress_buffer_kobo ?? 0) / 100 * 0.5, 2) : 0;
+        $pillar2Reputational = $latestIcaap ? round(($latestIcaap->pillar2a_other_kobo ?? 0) / 100 * 0.25, 2) : 0;
+        $pillar2Strategic = $latestIcaap ? round(($latestIcaap->pillar2a_other_kobo ?? 0) / 100 * 0.2, 2) : 0;
+        $totalPillar2 = $pillar2Concentration + $pillar2InterestRate + $pillar2Liquidity + $pillar2Reputational + $pillar2Strategic;
 
         // Stress test results (from stress simulation if available)
         $stressResults = [];
@@ -476,22 +476,22 @@ class QuantificationController extends Controller
             if ($stressSim) {
                 $stressResults = collect([
                     (object) [
-                        'scenario'       => 'Severe Recession',
+                        'scenario' => 'Severe Recession',
                         'capital_impact' => round($stressSim->var_99 * 0.6, 2),
-                        'car_after'      => max($capitalAdequacyRatio - 3.5, 0),
-                        'shortfall'      => max(0, round((10 - ($capitalAdequacyRatio - 3.5)) * $totalCapital / 100, 2)),
+                        'car_after' => max($capitalAdequacyRatio - 3.5, 0),
+                        'shortfall' => max(0, round((10 - ($capitalAdequacyRatio - 3.5)) * $totalCapital / 100, 2)),
                     ],
                     (object) [
-                        'scenario'       => 'Oil Price Shock',
+                        'scenario' => 'Oil Price Shock',
                         'capital_impact' => round($stressSim->var_95 * 0.4, 2),
-                        'car_after'      => max($capitalAdequacyRatio - 2.1, 0),
-                        'shortfall'      => 0,
+                        'car_after' => max($capitalAdequacyRatio - 2.1, 0),
+                        'shortfall' => 0,
                     ],
                     (object) [
-                        'scenario'       => 'Cyber Attack + Market Crash',
+                        'scenario' => 'Cyber Attack + Market Crash',
                         'capital_impact' => round($stressSim->var_995, 2),
-                        'car_after'      => max($capitalAdequacyRatio - 5.2, 0),
-                        'shortfall'      => max(0, round((10 - ($capitalAdequacyRatio - 5.2)) * $totalCapital / 100, 2)),
+                        'car_after' => max($capitalAdequacyRatio - 5.2, 0),
+                        'shortfall' => max(0, round((10 - ($capitalAdequacyRatio - 5.2)) * $totalCapital / 100, 2)),
                     ],
                 ]);
             }
@@ -563,22 +563,22 @@ class QuantificationController extends Controller
      */
     public function settings()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $dbSettings = QuantificationSetting::where('organization_id', $orgId)->first();
 
         $settings = (object) [
-            'default_iterations'      => $dbSettings->default_iterations ?? 10000,
-            'default_confidence'      => 99.5,
-            'default_time_horizon'    => 1,
-            'seed'                    => null,
-            'cbn_min_car'             => $dbSettings ? (float) $dbSettings->cbn_minimum_car : 10.0,
-            'target_car'              => 15.0,
-            'conservation_buffer'     => $dbSettings ? (float) $dbSettings->cbn_conservation_buffer : 2.5,
-            'countercyclical_buffer'  => 0,
-            'alert_green'             => 15,
-            'alert_amber'             => 12,
-            'alert_red'               => 10,
+            'default_iterations' => $dbSettings->default_iterations ?? 10000,
+            'default_confidence' => 99.5,
+            'default_time_horizon' => 1,
+            'seed' => null,
+            'cbn_min_car' => $dbSettings ? (float) $dbSettings->cbn_minimum_car : 10.0,
+            'target_car' => 15.0,
+            'conservation_buffer' => $dbSettings ? (float) $dbSettings->cbn_conservation_buffer : 2.5,
+            'countercyclical_buffer' => 0,
+            'alert_green' => 15,
+            'alert_amber' => 12,
+            'alert_red' => 10,
         ];
 
         return view('risk.quantification.settings', compact('settings'));
@@ -589,23 +589,23 @@ class QuantificationController extends Controller
      */
     public function updateSettings(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $request->validate([
-            'default_iterations'     => 'required|integer|min:1000|max:1000000',
-            'default_confidence'     => 'required|numeric|min:90|max:99.99',
-            'default_time_horizon'   => 'required|integer|min:1|max:10',
-            'cbn_min_car'            => 'required|numeric|min:0',
-            'target_car'             => 'required|numeric|min:0',
-            'conservation_buffer'    => 'required|numeric|min:0',
+            'default_iterations' => 'required|integer|min:1000|max:1000000',
+            'default_confidence' => 'required|numeric|min:90|max:99.99',
+            'default_time_horizon' => 'required|integer|min:1|max:10',
+            'cbn_min_car' => 'required|numeric|min:0',
+            'target_car' => 'required|numeric|min:0',
+            'conservation_buffer' => 'required|numeric|min:0',
         ]);
 
         QuantificationSetting::updateOrCreate(
             ['organization_id' => $orgId],
             [
-                'default_iterations'       => $request->default_iterations,
-                'cbn_minimum_car'          => $request->cbn_min_car,
-                'cbn_conservation_buffer'  => $request->conservation_buffer,
+                'default_iterations' => $request->default_iterations,
+                'cbn_minimum_car' => $request->cbn_min_car,
+                'cbn_conservation_buffer' => $request->conservation_buffer,
             ]
         );
 
@@ -618,7 +618,7 @@ class QuantificationController extends Controller
      */
     public function reports()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $completedSimulations = SimulationRun::where('organization_id', $orgId)
             ->where('status', 'completed')
@@ -634,7 +634,7 @@ class QuantificationController extends Controller
      */
     public function capitalAdequacyReport()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $icaap = IcaapAssessment::where('organization_id', $orgId)
             ->orderByDesc('created_at')->first();
@@ -642,23 +642,23 @@ class QuantificationController extends Controller
         $kobo = fn ($v) => round(((float) ($v ?? 0)) / 100, 2);
 
         $data = (object) [
-            'as_of'                 => $icaap?->created_at,
-            'total_capital'         => $icaap ? $kobo($icaap->total_qualifying_capital_kobo) : 0,
-            'tier1'                 => $icaap ? $kobo($icaap->tier1_capital_kobo) : 0,
-            'tier2'                 => $icaap ? $kobo($icaap->tier2_capital_kobo) : 0,
-            'car_actual'            => $icaap ? (float) ($icaap->car_actual ?? 0) : 0,
-            'car_required'          => $icaap ? (float) ($icaap->car_required ?? 10) : 10,
-            'conservation_buffer'   => $icaap ? (float) ($icaap->conservation_buffer ?? 2.5) : 2.5,
-            'pillar1_credit'        => $icaap ? $kobo($icaap->pillar2a_credit_kobo) : 0,
-            'pillar1_market'        => $icaap ? $kobo($icaap->pillar2a_market_kobo) : 0,
-            'pillar1_operational'   => $icaap ? $kobo($icaap->pillar2a_operational_kobo) : 0,
-            'pillar2_buffer'        => $icaap ? $kobo($icaap->pillar2b_stress_buffer_kobo) : 0,
-            'pillar2_other'         => $icaap ? $kobo($icaap->pillar2a_other_kobo) : 0,
+            'as_of' => $icaap?->created_at,
+            'total_capital' => $icaap ? $kobo($icaap->total_qualifying_capital_kobo) : 0,
+            'tier1' => $icaap ? $kobo($icaap->tier1_capital_kobo) : 0,
+            'tier2' => $icaap ? $kobo($icaap->tier2_capital_kobo) : 0,
+            'car_actual' => $icaap ? (float) ($icaap->car_actual ?? 0) : 0,
+            'car_required' => $icaap ? (float) ($icaap->car_required ?? 10) : 10,
+            'conservation_buffer' => $icaap ? (float) ($icaap->conservation_buffer ?? 2.5) : 2.5,
+            'pillar1_credit' => $icaap ? $kobo($icaap->pillar2a_credit_kobo) : 0,
+            'pillar1_market' => $icaap ? $kobo($icaap->pillar2a_market_kobo) : 0,
+            'pillar1_operational' => $icaap ? $kobo($icaap->pillar2a_operational_kobo) : 0,
+            'pillar2_buffer' => $icaap ? $kobo($icaap->pillar2b_stress_buffer_kobo) : 0,
+            'pillar2_other' => $icaap ? $kobo($icaap->pillar2a_other_kobo) : 0,
         ];
         $data->total_pillar1 = $data->pillar1_credit + $data->pillar1_market + $data->pillar1_operational;
         $data->total_pillar2 = $data->pillar2_buffer + $data->pillar2_other;
-        $data->headroom      = max(0, $data->total_capital - $data->total_pillar1 - $data->total_pillar2);
-        $data->car_surplus   = round($data->car_actual - $data->car_required, 2);
+        $data->headroom = max(0, $data->total_capital - $data->total_pillar1 - $data->total_pillar2);
+        $data->car_surplus = round($data->car_actual - $data->car_required, 2);
 
         return view('risk.quantification.reports.capital-adequacy', [
             'd' => $data, 'hasData' => (bool) $icaap,
@@ -671,7 +671,7 @@ class QuantificationController extends Controller
      */
     public function stressTestingReport()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $icaap = IcaapAssessment::where('organization_id', $orgId)
             ->orderByDesc('created_at')->first();
@@ -699,22 +699,23 @@ class QuantificationController extends Controller
             $impact = round($baseImpact * $s['factor'], 2);
             $carAfter = max($car - $s['car_drop'], 0);
             $shortfall = max(0, round((10 - $carAfter) * $totalCapital / 100, 2));
+
             return (object) [
-                'scenario'       => $s['name'],
+                'scenario' => $s['name'],
                 'capital_impact' => $impact,
-                'car_before'     => $car,
-                'car_after'      => round($carAfter, 2),
-                'shortfall'      => $shortfall,
-                'verdict'        => $carAfter >= 10 ? 'Pass' : ($carAfter >= 8 ? 'Marginal' : 'Fail'),
+                'car_before' => $car,
+                'car_after' => round($carAfter, 2),
+                'shortfall' => $shortfall,
+                'verdict' => $carAfter >= 10 ? 'Pass' : ($carAfter >= 8 ? 'Marginal' : 'Fail'),
             ];
         });
 
         return view('risk.quantification.reports.stress-testing', [
-            'scenarios'    => $scenarios,
+            'scenarios' => $scenarios,
             'totalCapital' => $totalCapital,
-            'car'          => $car,
-            'stressSim'    => $stressSim,
-            'hasData'      => (bool) ($icaap || $stressSim),
+            'car' => $car,
+            'stressSim' => $stressSim,
+            'hasData' => (bool) ($icaap || $stressSim),
         ]);
     }
 
@@ -725,7 +726,7 @@ class QuantificationController extends Controller
      */
     public function riskContributionReport()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $latestSim = SimulationRun::where('organization_id', $orgId)
             ->where('status', 'completed')
@@ -737,8 +738,8 @@ class QuantificationController extends Controller
             $contribs = $latestSim->scenario_contributions;
             if ($contribs && $contribs->count()) {
                 $byType = $contribs->map(fn ($c) => (object) [
-                    'label'     => $c->scenario_name,
-                    'capital'   => (float) ($c->expected_loss ?? 0),
+                    'label' => $c->scenario_name,
+                    'capital' => (float) ($c->expected_loss ?? 0),
                     'share_pct' => (float) ($c->contribution_pct ?? 0),
                 ])->sortByDesc('capital')->values();
             }
@@ -753,12 +754,13 @@ class QuantificationController extends Controller
                 ->get()
                 ->groupBy(fn ($r) => optional($r->category)->name ?? 'Uncategorised')
                 ->map(fn ($group, $label) => (object) [
-                    'label'   => $label,
+                    'label' => $label,
                     'capital' => round($group->sum('residual_score'), 2),
                 ])->values();
             $total = max(1, $byType->sum('capital'));
             $byType = $byType->map(function ($row) use ($total) {
                 $row->share_pct = round(($row->capital / $total) * 100, 2);
+
                 return $row;
             })->sortByDesc('capital')->values();
         }
@@ -770,21 +772,22 @@ class QuantificationController extends Controller
             ->get()
             ->groupBy(fn ($r) => optional($r->businessUnit)->name ?? 'Unassigned')
             ->map(fn ($group, $label) => (object) [
-                'label'   => $label,
-                'risks'   => $group->count(),
+                'label' => $label,
+                'risks' => $group->count(),
                 'capital' => round($group->sum('residual_score'), 2),
             ])->values();
         $totalUnit = max(1, $byUnit->sum('capital'));
         $byUnit = $byUnit->map(function ($row) use ($totalUnit) {
             $row->share_pct = round(($row->capital / $totalUnit) * 100, 2);
+
             return $row;
         })->sortByDesc('capital')->values();
 
         return view('risk.quantification.reports.risk-contribution', [
-            'byType'    => $byType,
-            'byUnit'    => $byUnit,
+            'byType' => $byType,
+            'byUnit' => $byUnit,
             'latestSim' => $latestSim,
-            'hasData'   => $byType->isNotEmpty() || $byUnit->isNotEmpty(),
+            'hasData' => $byType->isNotEmpty() || $byUnit->isNotEmpty(),
         ]);
     }
 
@@ -795,42 +798,42 @@ class QuantificationController extends Controller
      */
     public function regulatoryPack()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
         $year = now()->year;
 
         $icaap = IcaapAssessment::where('organization_id', $orgId)
             ->orderByDesc('created_at')->first();
 
         $summary = (object) [
-            'car_actual'         => $icaap ? (float) ($icaap->car_actual ?? 0) : 0,
-            'car_required'       => $icaap ? (float) ($icaap->car_required ?? 10) : 10,
-            'total_capital'      => $icaap ? round(((float) ($icaap->total_qualifying_capital_kobo ?? 0)) / 100, 2) : 0,
-            'active_risks'       => Risk::where('organization_id', $orgId)->where('status', 'active')->count(),
-            'critical_risks'     => Risk::where('organization_id', $orgId)->where('residual_rating', 'Critical')->count(),
-            'high_risks'         => Risk::where('organization_id', $orgId)->where('residual_rating', 'High')->count(),
-            'red_kris'           => \App\Models\KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'red')->count(),
-            'amber_kris'         => \App\Models\KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'amber')->count(),
-            'loss_events_ytd'    => \App\Models\LossEvent::where('organization_id', $orgId)->whereYear('date_of_loss', $year)->count(),
-            'net_loss_ytd'       => (float) \App\Models\LossEvent::where('organization_id', $orgId)->whereYear('date_of_loss', $year)->sum('net_loss_amount'),
-            'open_issues'        => \App\Models\Issue::where('organization_id', $orgId)->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->count(),
-            'overdue_issues'     => \App\Models\Issue::where('organization_id', $orgId)->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->where('remediation_due_date', '<', now())->count(),
-            'regulatory_issues'  => \App\Models\Issue::where('organization_id', $orgId)->where('regulatory_reportable', true)->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->count(),
+            'car_actual' => $icaap ? (float) ($icaap->car_actual ?? 0) : 0,
+            'car_required' => $icaap ? (float) ($icaap->car_required ?? 10) : 10,
+            'total_capital' => $icaap ? round(((float) ($icaap->total_qualifying_capital_kobo ?? 0)) / 100, 2) : 0,
+            'active_risks' => Risk::where('organization_id', $orgId)->where('status', 'active')->count(),
+            'critical_risks' => Risk::where('organization_id', $orgId)->where('residual_rating', 'Critical')->count(),
+            'high_risks' => Risk::where('organization_id', $orgId)->where('residual_rating', 'High')->count(),
+            'red_kris' => \App\Models\KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'red')->count(),
+            'amber_kris' => \App\Models\KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'amber')->count(),
+            'loss_events_ytd' => \App\Models\LossEvent::where('organization_id', $orgId)->whereYear('date_of_loss', $year)->count(),
+            'net_loss_ytd' => (float) \App\Models\LossEvent::where('organization_id', $orgId)->whereYear('date_of_loss', $year)->sum(\App\Models\LossEvent::netLossNairaSql()),
+            'open_issues' => \App\Models\Issue::where('organization_id', $orgId)->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->count(),
+            'overdue_issues' => \App\Models\Issue::where('organization_id', $orgId)->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->where('remediation_due_date', '<', now())->count(),
+            'regulatory_issues' => \App\Models\Issue::where('organization_id', $orgId)->where('regulatory_reportable', true)->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->count(),
         ];
 
         // Checklist of filing items with a simple pass/warning/fail indicator.
         $checklist = [
             ['item' => 'CAR above CBN minimum (10%)', 'status' => $summary->car_actual >= $summary->car_required ? 'pass' : 'fail',
-             'detail' => $summary->car_actual . '% actual vs ' . $summary->car_required . '% required'],
+                'detail' => $summary->car_actual.'% actual vs '.$summary->car_required.'% required'],
             ['item' => 'ICAAP submitted this cycle', 'status' => $icaap ? 'pass' : 'fail',
-             'detail' => $icaap ? 'Last assessment: ' . $icaap->created_at->format('d M Y') : 'No ICAAP on record'],
+                'detail' => $icaap ? 'Last assessment: '.$icaap->created_at->format('d M Y') : 'No ICAAP on record'],
             ['item' => 'No critical residual risks', 'status' => $summary->critical_risks === 0 ? 'pass' : 'warning',
-             'detail' => $summary->critical_risks . ' critical residual risks open'],
+                'detail' => $summary->critical_risks.' critical residual risks open'],
             ['item' => 'KRI breaches under threshold', 'status' => $summary->red_kris === 0 ? 'pass' : 'warning',
-             'detail' => $summary->red_kris . ' red / ' . $summary->amber_kris . ' amber'],
+                'detail' => $summary->red_kris.' red / '.$summary->amber_kris.' amber'],
             ['item' => 'Regulatory issues closed',  'status' => $summary->regulatory_issues === 0 ? 'pass' : 'fail',
-             'detail' => $summary->regulatory_issues . ' regulatory issues still open'],
+                'detail' => $summary->regulatory_issues.' regulatory issues still open'],
             ['item' => 'No overdue issues',         'status' => $summary->overdue_issues === 0 ? 'pass' : 'warning',
-             'detail' => $summary->overdue_issues . ' overdue issues'],
+                'detail' => $summary->overdue_issues.' overdue issues'],
         ];
 
         return view('risk.quantification.reports.regulatory-pack', [
@@ -845,7 +848,7 @@ class QuantificationController extends Controller
      */
     public function editScenario(QuantificationScenario $scenario)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
         if ($scenario->organization_id !== $orgId) {
             abort(403);
         }
@@ -861,7 +864,7 @@ class QuantificationController extends Controller
      */
     public function importLibrary(Request $request, string $libraryId)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $template = $this->libraryScenarios()->firstWhere('id', $libraryId);
 
@@ -890,30 +893,30 @@ class QuantificationController extends Controller
         $nextNumber = $lastScenario ? ((int) substr($lastScenario->scenario_reference, -3)) + 1 : 1;
         $scenarioReference = sprintf('SCN-%d-%03d', $year, $nextNumber);
 
-        $meanNaira   = (float) $template->mean;
+        $meanNaira = (float) $template->mean;
         $stdDevNaira = (float) $template->std_dev;
-        $meanKobo    = round($meanNaira * 100);
-        $freqYear    = (float) $template->frequency_per_year;
+        $meanKobo = round($meanNaira * 100);
+        $freqYear = (float) $template->frequency_per_year;
 
-        $mu    = $meanKobo > 0 ? log($meanKobo) : 0;
+        $mu = $meanKobo > 0 ? log($meanKobo) : 0;
         $sigma = ($stdDevNaira > 0 && $meanNaira > 0) ? sqrt(log(1 + ($stdDevNaira / $meanNaira) ** 2)) : 1.0;
 
         $scenario = QuantificationScenario::create([
-            'organization_id'              => $orgId,
-            'scenario_reference'           => $scenarioReference,
-            'name'                         => $template->name,
-            'description'                  => $template->description . " (Imported from library — source: {$template->source})",
-            'cbn_risk_category'            => $template->risk_category,
-            'severity_distribution'        => $template->distribution_type,
-            'frequency_distribution'       => 'poisson',
-            'frequency_lambda'             => $freqYear,
-            'expected_annual_frequency'    => $freqYear,
-            'severity_mu'                  => round($mu, 6),
-            'severity_sigma'               => round($sigma, 6),
+            'organization_id' => $orgId,
+            'scenario_reference' => $scenarioReference,
+            'name' => $template->name,
+            'description' => $template->description." (Imported from library — source: {$template->source})",
+            'cbn_risk_category' => $template->risk_category,
+            'severity_distribution' => $template->distribution_type,
+            'frequency_distribution' => 'poisson',
+            'frequency_lambda' => $freqYear,
+            'expected_annual_frequency' => $freqYear,
+            'severity_mu' => round($mu, 6),
+            'severity_sigma' => round($sigma, 6),
             'expected_loss_per_event_kobo' => $meanKobo,
-            'expected_annual_loss_kobo'    => round($meanKobo * $freqYear),
-            'status'                       => 'active',
-            'created_by'                   => auth()->id(),
+            'expected_annual_loss_kobo' => round($meanKobo * $freqYear),
+            'status' => 'active',
+            'created_by' => auth()->id(),
         ]);
 
         return redirect()->route('risk.quantification.show-scenario', $scenario)
@@ -921,7 +924,7 @@ class QuantificationController extends Controller
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Private helpers                                                     */
+    /*  Private helpers */
     /* ------------------------------------------------------------------ */
 
     /**
@@ -929,13 +932,13 @@ class QuantificationController extends Controller
      */
     private function buildDistributionVisualization(QuantificationScenario $scenario): array
     {
-        $mu    = (float) ($scenario->severity_mu ?? log(max($scenario->expected_loss_per_event_kobo ?? 100000000, 1)));
+        $mu = (float) ($scenario->severity_mu ?? log(max($scenario->expected_loss_per_event_kobo ?? 100000000, 1)));
         $sigma = (float) ($scenario->severity_sigma ?? 1.5);
 
         // Generate ~20 buckets for the PDF of a lognormal
         $meanVal = exp($mu + ($sigma ** 2) / 2);
-        $maxX    = $meanVal * 3;
-        $step    = $maxX / 20;
+        $maxX = $meanVal * 3;
+        $step = $maxX / 20;
 
         $labels = [];
         $values = [];
@@ -943,7 +946,7 @@ class QuantificationController extends Controller
         for ($x = $step; $x <= $maxX; $x += $step) {
             if ($x > 0) {
                 $pdf = (1 / ($x * $sigma * sqrt(2 * M_PI))) * exp(-(log($x) - $mu) ** 2 / (2 * $sigma ** 2));
-                $labels[] = '₦' . number_format(round($x / 100, 0));
+                $labels[] = '₦'.number_format(round($x / 100, 0));
                 $values[] = round($pdf * $step, 6);
             }
         }

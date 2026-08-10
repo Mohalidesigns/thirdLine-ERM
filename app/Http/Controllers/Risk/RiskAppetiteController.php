@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Risk;
 use App\Http\Controllers\Controller;
 use App\Models\RiskAppetite;
 use App\Models\RiskCategory;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class RiskAppetiteController extends Controller
 {
@@ -15,7 +15,7 @@ class RiskAppetiteController extends Controller
      */
     public function index()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $appetites = RiskAppetite::where('organization_id', $orgId)
             ->with('category')
@@ -79,9 +79,9 @@ class RiskAppetiteController extends Controller
 
         $appetiteChartData = [
             'labels' => $appetiteMetrics->pluck('risk_category')->toArray(),
-            'appetite' => $appetites->pluck('target_max')->map(fn($v) => (float) $v)->toArray(),
-            'current' => $appetiteMetrics->pluck('current_value')->map(fn($v) => (float) str_replace(',', '', $v))->toArray(),
-            'limit' => $appetites->pluck('max_tolerance')->map(fn($v) => (float) $v)->toArray(),
+            'appetite' => $appetites->pluck('target_max')->map(fn ($v) => (float) $v)->toArray(),
+            'current' => $appetiteMetrics->pluck('current_value')->map(fn ($v) => (float) str_replace(',', '', $v))->toArray(),
+            'limit' => $appetites->pluck('max_tolerance')->map(fn ($v) => (float) $v)->toArray(),
         ];
 
         return view('risk.appetite.index', compact(
@@ -96,7 +96,7 @@ class RiskAppetiteController extends Controller
      */
     public function store(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $validated = $request->validate([
             'risk_category_id' => 'required|exists:risk_categories,id',
@@ -107,6 +107,13 @@ class RiskAppetiteController extends Controller
             'target_min' => 'required|numeric|min:0',
             'target_max' => 'required|numeric|gte:target_min',
             'max_tolerance' => 'required|numeric|gte:target_max',
+            // Capacity — the maximum exposure the organisation could absorb,
+            // as distinct from the tolerance it is willing to run. Optional:
+            // an unrecorded capacity means no capacity boundary is reported,
+            // which is honest. The form field is WP-10 work; the rule is here
+            // so imports and the API can set it now.
+            'capacity' => 'nullable|numeric|gte:max_tolerance',
+            'appetite_type' => 'nullable|in:quantitative,qualitative,hybrid',
             'current_position' => 'nullable|numeric|min:0',
             'effective_date' => 'required|date',
             'expiry_date' => 'nullable|date|after:effective_date',
@@ -138,7 +145,7 @@ class RiskAppetiteController extends Controller
      */
     public function update(Request $request, RiskAppetite $appetite)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         if ($appetite->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this risk appetite statement.');
@@ -152,6 +159,13 @@ class RiskAppetiteController extends Controller
             'target_min' => 'required|numeric|min:0',
             'target_max' => 'required|numeric|gte:target_min',
             'max_tolerance' => 'required|numeric|gte:target_max',
+            // Capacity — the maximum exposure the organisation could absorb,
+            // as distinct from the tolerance it is willing to run. Optional:
+            // an unrecorded capacity means no capacity boundary is reported,
+            // which is honest. The form field is WP-10 work; the rule is here
+            // so imports and the API can set it now.
+            'capacity' => 'nullable|numeric|gte:max_tolerance',
+            'appetite_type' => 'nullable|in:quantitative,qualitative,hybrid',
             'current_position' => 'nullable|numeric|min:0',
             'effective_date' => 'required|date',
             'expiry_date' => 'nullable|date|after:effective_date',

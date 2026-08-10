@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
 use App\Services\LlmService;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,9 +21,7 @@ use Illuminate\Http\Request;
  */
 class AiToolsController extends Controller
 {
-    public function __construct(protected LlmService $llm)
-    {
-    }
+    public function __construct(protected LlmService $llm) {}
 
     /**
      * Risk Statement Builder — transforms a terse user scenario into a
@@ -52,7 +51,7 @@ class AiToolsController extends Controller
             ]);
         }
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are a senior risk analyst at a Nigerian commercial bank. You write precise,
 board-ready risk statements using the Cause → Event → Consequence model.
 Use professional English. Reference Nigerian regulators (CBN, NDPC, NFIU, SEC,
@@ -135,7 +134,7 @@ PROMPT;
 
         if (! empty($validated['risk_id'])) {
             $risk = \App\Models\Risk::with('category')
-                ->where('organization_id', auth()->user()->organization_id ?? 1)
+                ->where('organization_id', TenantContext::organizationId())
                 ->find($validated['risk_id']);
             if ($risk) {
                 $title = $title ?? $risk->title;
@@ -144,7 +143,7 @@ PROMPT;
             }
         }
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are a senior operational risk and controls advisor at a Nigerian commercial
 bank. When proposing controls, map each one to exactly one clause from:
   - CBN Risk-Based Cybersecurity Framework (RBCF)
@@ -175,7 +174,7 @@ produce a JSON object with these fields:
 Return as JSON: { "controls": [ ... ] }.
 PROMPT;
 
-        $cacheKey = 'controls:' . md5(($validated['risk_id'] ?? '') . '|' . $title . '|' . $description);
+        $cacheKey = 'controls:'.md5(($validated['risk_id'] ?? '').'|'.$title.'|'.$description);
         $data = $this->llm->json($prompt, $system, [
             'max_tokens' => 1200, 'timeout' => 90, 'cache_key' => $cacheKey,
         ]);
@@ -243,7 +242,7 @@ PROMPT;
 
         if (! empty($validated['risk_id'])) {
             $risk = \App\Models\Risk::with('category')
-                ->where('organization_id', auth()->user()->organization_id ?? 1)
+                ->where('organization_id', TenantContext::organizationId())
                 ->find($validated['risk_id']);
             if ($risk) {
                 $title = $title ?? $risk->title;
@@ -252,7 +251,7 @@ PROMPT;
             }
         }
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are a risk measurement specialist at a Nigerian commercial bank. You design
 Key Risk Indicators that are measurable from existing bank systems (core banking,
 treasury, loan origination, channels, HR, call centre). Always include realistic
@@ -279,7 +278,7 @@ Propose 3 leading and 2 lagging KRIs for this risk. For each KRI produce:
 Return as JSON: { "kris": [ ... ] } with exactly 5 entries.
 PROMPT;
 
-        $cacheKey = 'kris:' . md5(($validated['risk_id'] ?? '') . '|' . $title . '|' . $description);
+        $cacheKey = 'kris:'.md5(($validated['risk_id'] ?? '').'|'.$title.'|'.$description);
         $data = $this->llm->json($prompt, $system, [
             'max_tokens' => 1200, 'timeout' => 90, 'cache_key' => $cacheKey,
         ]);
@@ -295,7 +294,9 @@ PROMPT;
 
         $kris = [];
         foreach ($data['kris'] as $k) {
-            if (! is_array($k) || empty($k['name'])) continue;
+            if (! is_array($k) || empty($k['name'])) {
+                continue;
+            }
             $kris[] = [
                 'name' => (string) $k['name'],
                 'type' => strtolower((string) ($k['type'] ?? 'leading')),
@@ -330,7 +331,7 @@ PROMPT;
             return response()->json(['ok' => false, 'fallback' => true, 'error' => $this->llm->lastError()]);
         }
 
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
         $year = now()->year;
 
         $totalActive = \App\Models\Risk::where('organization_id', $orgId)->where('status', 'active')->count();
@@ -339,7 +340,7 @@ PROMPT;
         $redKris = \App\Models\KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'red')->count();
         $amberKris = \App\Models\KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'amber')->count();
         $netLoss = (float) \App\Models\LossEvent::where('organization_id', $orgId)
-            ->whereYear('date_of_loss', $year)->sum('net_loss_amount');
+            ->whereYear('date_of_loss', $year)->sum(\App\Models\LossEvent::netLossNairaSql());
         $lossCount = \App\Models\LossEvent::where('organization_id', $orgId)
             ->whereYear('date_of_loss', $year)->count();
         $openIssues = \App\Models\Issue::where('organization_id', $orgId)
@@ -350,10 +351,10 @@ PROMPT;
             ->orderByDesc('residual_score')
             ->limit(5)
             ->get(['risk_code', 'title', 'residual_rating'])
-            ->map(fn($r) => "- {$r->risk_code} [{$r->residual_rating}]: {$r->title}")
+            ->map(fn ($r) => "- {$r->risk_code} [{$r->residual_rating}]: {$r->title}")
             ->implode("\n");
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are the Chief Risk Officer's briefing writer at a Nigerian commercial bank.
 You are writing a one-page narrative for the Board Risk Committee. Be factual —
 every number you cite must come from the data block below. Use measured
@@ -390,7 +391,7 @@ PROMPT;
         // Cache key keyed on *current data fingerprint* so stale caches invalidate
         // automatically when the underlying risk posture changes.
         $fingerprint = md5("$totalActive|$critical|$high|$redKris|$lossCount|$netLoss|$openIssues");
-        $cacheKey = 'narrative:' . $orgId . ':' . $fingerprint;
+        $cacheKey = 'narrative:'.$orgId.':'.$fingerprint;
         $data = $this->llm->json($prompt, $system, [
             'max_tokens' => 900, 'timeout' => 90,
             'cache_key' => $cacheKey, 'cache_ttl' => 3600,
@@ -455,7 +456,7 @@ PROMPT;
         $nature = $validated['control_nature'] ?? 'Not specified';
         $freq = $validated['frequency'] ?? 'Not specified';
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are a senior internal-controls advisor at a Nigerian commercial bank. You
 write precise, audit-ready control descriptions. Describe how the control
 operates, who performs it, when it runs, what evidence it produces, and what
@@ -529,7 +530,7 @@ PROMPT;
         $riskDescription = 'Not specified';
 
         if (! empty($validated['risk_id'])) {
-            $risk = \App\Models\Risk::where('organization_id', auth()->user()->organization_id ?? 1)
+            $risk = \App\Models\Risk::where('organization_id', TenantContext::organizationId())
                 ->find($validated['risk_id']);
             if ($risk) {
                 $riskTitle = $risk->title;
@@ -537,7 +538,7 @@ PROMPT;
             }
         }
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are a risk treatment programme manager at a Nigerian commercial bank. You
 draft pragmatic treatment plans for the Board Risk Committee. Each plan must
 state objectives, scope, key activities and the expected outcome. Respect the
@@ -609,7 +610,7 @@ PROMPT;
         $category = $validated['category'] ?? 'Not specified';
         $unit = $validated['measurement_unit'] ?? 'Not specified';
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are a risk measurement specialist at a Nigerian commercial bank. You
 describe Key Risk Indicators in plain English — what is measured, where the
 data comes from inside the bank, why the indicator is predictive of underlying
@@ -661,6 +662,7 @@ PROMPT;
     public function health(): JsonResponse
     {
         $ok = $this->llm->available();
+
         return response()->json([
             'ok' => $ok,
             'error' => $ok ? null : $this->llm->lastError(),

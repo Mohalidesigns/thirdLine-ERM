@@ -60,7 +60,7 @@ class BusinessProcessSeeder extends Seeder
             ['BP-KY',  'BU-RT',  'Customer Onboarding & KYC',       'Know Your Customer verification, account opening, and ongoing due diligence.', 'high'],
             ['BP-CRD', 'BU-RT',  'Card Issuance & Management',      'Debit/credit card issuance, activation, PIN management, and lifecycle operations.', 'high'],
             ['BP-MLN', 'BU-IB',  'Corporate Loan Monitoring',       'Ongoing credit review, covenant monitoring, and portfolio quality management for corporate exposures.', 'high'],
-            ['BP-DBT', 'BU-LMDR','Debt Recovery & Collections',     'Delinquency management, restructuring, recoveries, and write-off administration.', 'high'],
+            ['BP-DBT', 'BU-LMDR', 'Debt Recovery & Collections',     'Delinquency management, restructuring, recoveries, and write-off administration.', 'high'],
             ['BP-WM',  'BU-PB',  'Wealth Management & Advisory',    'Portfolio advisory, investment placement, and high-net-worth relationship management.', 'medium'],
             ['BP-CSR', 'BU-CX',  'Customer Service & Complaints',   'Contact centre, branch enquiries, complaints capture, and resolution SLA monitoring.', 'medium'],
 
@@ -100,9 +100,9 @@ class BusinessProcessSeeder extends Seeder
             ['BP-SEC-SOC', 'BU-IT', 'Security Operations Centre (SOC)',    '24x7 monitoring, threat detection, triage, and containment.', 'critical'],
             ['BP-SEC-IR',  'BU-IT', 'Cyber Incident Response',             'Playbook execution, forensics, regulator notification, and post-incident review.', 'critical'],
             ['BP-SEC-PEN', 'BU-IT', 'Penetration Testing & Red Team',      'Scheduled and ad-hoc offensive security testing and remediation tracking.', 'high'],
-            ['BP-SEC-DLP', 'BU-IT', 'Data Loss Prevention & Classification','DLP policy administration, data classification, and egress monitoring.', 'high'],
+            ['BP-SEC-DLP', 'BU-IT', 'Data Loss Prevention & Classification', 'DLP policy administration, data classification, and egress monitoring.', 'high'],
             ['BP-SEC-CRY', 'BU-IT', 'Cryptography & Key Management',       'HSM operations, certificate lifecycle, and key rotation policies.', 'high'],
-            ['BP-SEC-AWR', 'BU-IT', 'Security Awareness & Phishing Drills','Staff training, phishing simulations, and culture metrics.', 'medium'],
+            ['BP-SEC-AWR', 'BU-IT', 'Security Awareness & Phishing Drills', 'Staff training, phishing simulations, and culture metrics.', 'medium'],
             ['BP-SEC-TPR', 'BU-IT', 'Third-Party Cyber Risk Assessment',   'Vendor security due diligence, SOC 2 review, and ongoing monitoring.', 'high'],
             ['BP-SEC-FRD', 'BU-DB', 'Fraud Monitoring & Prevention',       'Real-time fraud scoring on channels, rule tuning, and disputed-transaction workflow.', 'critical'],
 

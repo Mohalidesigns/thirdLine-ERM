@@ -12,6 +12,27 @@
 
 @section('content')
 
+    {{-- WP-04 historic view. The risk counts, the heatmap and the rating
+         distribution are as at the selected period's close. The rest of this
+         page is current state — saying so is better than quietly mixing the
+         two, and the remaining panels become period-aware as the facts behind
+         them are period-stamped. --}}
+    @if (!empty($asOfPeriod))
+        <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3">
+            <span class="material-symbols-outlined text-blue-600">history</span>
+            <div class="text-sm text-blue-800">
+                <p class="font-semibold">Risk scores shown as at {{ $asOfPeriod->name }}
+                    ({{ $asOfPeriod->end_date?->format('d M Y') }}).</p>
+                <p class="text-xs text-blue-700 mt-0.5">
+                    Active risk count, heatmap and rating mix are historic. Issues, treatments, loss trends
+                    and KRI panels below remain current state.
+                    <a href="{{ route('risk.periods.select', ['direction' => 'current', 'redirect' => '/risk/dashboard']) }}"
+                       class="underline font-medium">Return to the current period</a>.
+                </p>
+            </div>
+        </div>
+    @endif
+
     {{-- Flash Messages --}}
     @if (session('success'))
         <div class="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3">

@@ -3,11 +3,57 @@
 namespace App\Services;
 
 use App\Models\QuantificationScenario;
-use App\Models\SimulationRun;
 use App\Models\SimulationResult;
+use App\Models\SimulationRun;
+use InvalidArgumentException;
+use Random\Engine\Mt19937;
+use Random\Randomizer;
 
 class MonteCarloService
 {
+    /**
+     * Upper bound of the uniform integer draw. Matches mt_getrandmax() so the
+     * variate granularity is identical to the pre-seeding implementation.
+     */
+    private const RANDOM_MAX = 2147483647;
+
+    private readonly Randomizer $randomizer;
+
+    /**
+     * The seed actually in force, so the run can record it.
+     */
+    private readonly int $seed;
+
+    /**
+     * Simulation engines are the one place an RNG is legitimate (see the
+     * engineering rules), but the generator has to be *seedable*: a capital
+     * number a regulator can ask about is worthless if nobody can reproduce
+     * the run that produced it, and a VaR figure cannot be unit tested against
+     * a global mt_rand() sequence that every other call in the process
+     * perturbs. An explicit seed gives both.
+     *
+     * Passing null draws a fresh seed — production behaviour is unchanged
+     * apart from the seed now being recorded on the run.
+     */
+    public function __construct(?int $seed = null)
+    {
+        $this->seed = $seed ?? random_int(0, self::RANDOM_MAX);
+        $this->randomizer = new Randomizer(new Mt19937($this->seed));
+    }
+
+    public function seed(): int
+    {
+        return $this->seed;
+    }
+
+    /**
+     * Uniform variate on [0, 1].
+     */
+    private function uniform(): float
+    {
+        return $this->randomizer->getInt(0, self::RANDOM_MAX) / self::RANDOM_MAX;
+    }
+
     /**
      * Generate Poisson random variate for frequency
      */
@@ -19,7 +65,7 @@ class MonteCarloService
 
         do {
             $k++;
-            $p *= mt_rand() / mt_getrandmax();
+            $p *= $this->uniform();
         } while ($p > $L);
 
         return $k - 1;
@@ -31,8 +77,8 @@ class MonteCarloService
     private function lognormalRandom(float $mu, float $sigma): float
     {
         // Box-Muller transform
-        $u1 = mt_rand() / mt_getrandmax();
-        $u2 = mt_rand() / mt_getrandmax();
+        $u1 = $this->uniform();
+        $u2 = $this->uniform();
         $z = sqrt(-2 * log(max($u1, 0.0001))) * cos(2 * M_PI * $u2);
 
         return exp($mu + $sigma * $z);
@@ -43,10 +89,43 @@ class MonteCarloService
      */
     public function runSimulation(SimulationRun $run, array $scenarioIds): SimulationRun
     {
-        $run->update(['status' => 'running', 'started_at' => now()]);
+        // The seed is part of the result, not a private detail: it is what
+        // makes the figure re-derivable months later during an ICAAP review.
+        $run->update(['status' => 'running', 'started_at' => now(), 'random_seed' => $this->seed]);
 
         $iterations = $run->iterations ?? 10000;
-        $scenarios = QuantificationScenario::whereIn('id', $scenarioIds)->get();
+
+        // Scenarios are pinned to the run's own organization rather than left
+        // to the ambient tenant. Previously this was an unfiltered whereIn, so
+        // posting another tenant's scenario ids simulated — and returned — their
+        // loss distribution. Anchoring on $run->organization_id also keeps the
+        // guarantee when this service is invoked from a queue worker, where no
+        // tenant is bound and the global scope is inert.
+        $scenarios = QuantificationScenario::query()
+            ->where('organization_id', $run->organization_id)
+            ->whereIn('id', $scenarioIds)
+            // Deterministic order: the scenarios are drawn from one RNG stream,
+            // so an unordered result set would make the same seed produce a
+            // different answer depending on how the database returned rows.
+            ->orderBy('id')
+            ->get();
+
+        // Fail loudly rather than quietly simulating a subset: a capital number
+        // computed from fewer scenarios than the user selected is wrong in a way
+        // nobody downstream can detect.
+        if ($scenarios->count() !== count(array_unique($scenarioIds))) {
+            $missing = array_values(array_diff(
+                array_unique($scenarioIds),
+                $scenarios->pluck('id')->all()
+            ));
+
+            $run->update(['status' => 'failed', 'completed_at' => now()]);
+
+            throw new InvalidArgumentException(
+                'Simulation scenarios do not belong to organization '
+                .$run->organization_id.': ['.implode(', ', $missing).']'
+            );
+        }
 
         $totalLosses = array_fill(0, $iterations, 0);
         $scenarioResults = [];
@@ -80,10 +159,10 @@ class MonteCarloService
             sort($scenarioLosses);
 
             $expectedLoss = array_sum($scenarioLosses) / $iterations;
-            $var90 = $scenarioLosses[(int)($iterations * 0.90)] ?? 0;
-            $var95 = $scenarioLosses[(int)($iterations * 0.95)] ?? 0;
-            $var99 = $scenarioLosses[(int)($iterations * 0.99)] ?? 0;
-            $var999 = $scenarioLosses[min((int)($iterations * 0.999), $iterations - 1)] ?? 0;
+            $var90 = $scenarioLosses[(int) ($iterations * 0.90)] ?? 0;
+            $var95 = $scenarioLosses[(int) ($iterations * 0.95)] ?? 0;
+            $var99 = $scenarioLosses[(int) ($iterations * 0.99)] ?? 0;
+            $var999 = $scenarioLosses[min((int) ($iterations * 0.999), $iterations - 1)] ?? 0;
 
             $mean = $expectedLoss;
             $variance = 0;
@@ -95,7 +174,7 @@ class MonteCarloService
             // Generate percentile distribution
             $percentiles = [];
             foreach ([5, 10, 25, 50, 75, 90, 95, 99, 99.5, 99.9] as $p) {
-                $idx = (int)(($iterations - 1) * $p / 100);
+                $idx = (int) (($iterations - 1) * $p / 100);
                 $idx = min($idx, count($scenarioLosses) - 1);
                 $percentiles["p{$p}"] = round($scenarioLosses[$idx] ?? 0);
             }
@@ -127,7 +206,7 @@ class MonteCarloService
 
         $totalPercentiles = [];
         foreach ([5, 10, 25, 50, 75, 90, 95, 99, 99.5, 99.9] as $p) {
-            $idx = (int)(($iterations - 1) * $p / 100);
+            $idx = (int) (($iterations - 1) * $p / 100);
             $idx = min($idx, count($totalLosses) - 1);
             $totalPercentiles["p{$p}"] = round($totalLosses[$idx] ?? 0);
         }
@@ -148,10 +227,10 @@ class MonteCarloService
             'scenario_id' => null,
             'result_type' => 'aggregate',
             'expected_annual_loss_kobo' => round($totalExpected),
-            'var_90_kobo' => round($totalLosses[(int)($iterations * 0.90)] ?? 0),
-            'var_95_kobo' => round($totalLosses[(int)($iterations * 0.95)] ?? 0),
-            'var_99_kobo' => round($totalLosses[(int)($iterations * 0.99)] ?? 0),
-            'var_99_9_kobo' => round($totalLosses[min((int)($iterations * 0.999), $iterations - 1)] ?? 0),
+            'var_90_kobo' => round($totalLosses[(int) ($iterations * 0.90)] ?? 0),
+            'var_95_kobo' => round($totalLosses[(int) ($iterations * 0.95)] ?? 0),
+            'var_99_kobo' => round($totalLosses[(int) ($iterations * 0.99)] ?? 0),
+            'var_99_9_kobo' => round($totalLosses[min((int) ($iterations * 0.999), $iterations - 1)] ?? 0),
             'std_deviation_kobo' => round(sqrt($totalVariance / $iterations)),
             'percentile_distribution' => $totalPercentiles,
             'risk_contributions' => $contributions,

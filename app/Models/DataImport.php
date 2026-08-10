@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Model;
 
 class DataImport extends Model
 {
+    use BelongsToOrganization;
+
     protected $fillable = [
         'organization_id', 'import_type', 'file_name', 'file_path',
         'total_rows', 'success_count', 'error_count', 'skipped_count',
@@ -14,10 +17,17 @@ class DataImport extends Model
 
     protected $casts = [
         'column_mapping' => 'array',
-        'errors'         => 'array',
-        'completed_at'   => 'datetime',
+        'errors' => 'array',
+        'completed_at' => 'datetime',
     ];
 
-    public function organization() { return $this->belongsTo(Organization::class); }
-    public function importer()     { return $this->belongsTo(User::class, 'imported_by'); }
+    public function organization()
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function importer()
+    {
+        return $this->belongsTo(User::class, 'imported_by');
+    }
 }

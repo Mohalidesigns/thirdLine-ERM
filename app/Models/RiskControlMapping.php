@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
 class RiskControlMapping extends Pivot
 {
-    use HasFactory;
+    use BelongsToOrganization, HasFactory;
 
     protected $table = 'risk_control_mapping';
 
@@ -24,12 +25,12 @@ class RiskControlMapping extends Pivot
     ];
 
     protected $casts = [
-        'is_key_control'  => 'boolean',
-        'control_weight'  => 'decimal:2',
+        'is_key_control' => 'boolean',
+        'control_weight' => 'decimal:2',
     ];
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function risk()

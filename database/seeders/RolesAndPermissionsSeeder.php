@@ -258,6 +258,28 @@ class RolesAndPermissionsSeeder extends Seeder
             // them. Universal for the same reason as api.tokens: a job you
             // started is yours to stop.
             'job.view',
+
+            /* -------------------------------------------------------------- */
+            /*  Added by WP-08: the widget engine and its two surfaces. */
+            /* -------------------------------------------------------------- */
+
+            // Business HQ (/hq/{node}) and My Responsibilities (/my).
+            // Universal, like task.*: a first-line user who cannot see their
+            // own node's page or their own queue will not participate, and
+            // what either page actually shows is decided by tenancy,
+            // GraphScope and per-object permissions — not by this grant.
+            'hq.view',
+            'my.view',
+
+            // Global search. Results are permission-filtered per object; the
+            // grant only opens the box.
+            'search.view',
+
+            // Building and publishing dashboards. Held apart from
+            // admin.settings: what a role sees when it logs in is a
+            // risk-governance decision, and the person composing the board's
+            // view is rarely the person who adds users.
+            'dashboard.manage',
         ];
 
         foreach ($permissions as $permission) {
@@ -285,6 +307,11 @@ class RolesAndPermissionsSeeder extends Seeder
             // it — so both are safe to grant universally.
             'job.view',
             'api.tokens',
+            // WP-08. Your node's page, your own queue, and the search box.
+            // What they show is decided elsewhere; see the permission list.
+            'hq.view',
+            'my.view',
+            'search.view',
         ];
 
         // 1. super-admin – gets ALL permissions
@@ -318,6 +345,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'measure.view', 'measure.manage', 'measure.record',
             'fx_rate.view', 'fx_rate.manage',
             'approval.view', 'approval.act',
+            // WP-08: composing and publishing dashboards is the risk
+            // function's job, alongside the CRO.
+            'dashboard.manage',
         ]));
 
         // 3. risk-owner – limited risk editing + assessment/treatment creation
@@ -387,6 +417,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'measure.view', 'measure.manage', 'measure.record',
             'fx_rate.view', 'fx_rate.manage',
             'approval.view', 'approval.act',
+            // WP-08
+            'dashboard.manage',
         ]));
 
         // 6. compliance-officer – read-focused + loss events and issues

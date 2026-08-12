@@ -89,5 +89,13 @@ class DatabaseSeeder extends Seeder
         /* ------------------------------------------------------------------ */
 
         $this->call(EnterpriseGapSeeder::class);
+
+        /* ------------------------------------------------------------------ */
+        /*  11. WP-08: system widget library + Corporater dashboards */
+        /*      (idempotent). Last, because layouts reference the demo org's */
+        /*      units, categories and measures. */
+        /* ------------------------------------------------------------------ */
+
+        $this->call(WidgetDashboardSeeder::class);
     }
 }

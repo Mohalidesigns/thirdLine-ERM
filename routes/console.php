@@ -18,6 +18,11 @@ Schedule::command('regulatory:check-deadlines')->twiceDaily(8, 16);
 // KRI check so a monetary limit is evaluated against that morning's rate.
 Schedule::command('fx:fetch-cbn-rates')->weekdays()->dailyAt('06:30');
 
+// WP-08. After the overnight checks above have updated statuses, so the
+// digest reports the morning's truth. Weekdays: a Saturday digest of
+// weekday-due work is noise that trains people to ignore Monday's.
+Schedule::command('my:digest')->weekdays()->dailyAt('07:30');
+
 // WP-06. Hourly, not nightly: an SLA measured in hours cannot be enforced by a
 // job that runs once a day, and a loss event's level-1 decision sits inside the
 // CBN seven-day reporting window.

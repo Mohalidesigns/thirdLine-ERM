@@ -51,6 +51,14 @@ class RiskRegisterController extends Controller
             $query->where('inherent_rating', $request->rating);
         }
 
+        // WP-08: the heat map's cell drill-through — one likelihood ×
+        // consequence pair straight off a widget cell.
+        foreach (['residual_likelihood', 'residual_impact', 'inherent_likelihood', 'inherent_impact'] as $cell) {
+            if ($request->filled($cell)) {
+                $query->where($cell, (int) $request->input($cell));
+            }
+        }
+
         if ($request->filled('business_unit')) {
             $query->where('business_unit_id', $request->business_unit);
         }
@@ -109,6 +117,14 @@ class RiskRegisterController extends Controller
         if ($request->filled('rating')) {
             $rating = $request->input('rating');
             $risks = $risks->filter(fn (Risk $risk) => $risk->inherent_rating === $rating)->values();
+        }
+
+        // WP-08: heat-map cell drill-through, against the as-at overlay values.
+        foreach (['residual_likelihood', 'residual_impact', 'inherent_likelihood', 'inherent_impact'] as $cell) {
+            if ($request->filled($cell)) {
+                $value = (int) $request->input($cell);
+                $risks = $risks->filter(fn (Risk $risk) => (int) $risk->{$cell} === $value)->values();
+            }
         }
 
         if ($request->filled('search')) {

@@ -343,6 +343,32 @@
             <span>Command Centre</span>
         </a>
 
+        {{-- WP-08: the two navigation surfaces --}}
+        @can('my.view')
+        <a href="{{ route('my.index') }}"
+           class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-0.5
+                  {{ $isActive('my') ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8' }}">
+            <span class="material-symbols-outlined text-[18px]">checklist</span>
+            <span>My Responsibilities</span>
+        </a>
+        @endcan
+        @can('hq.view')
+        <a href="{{ route('hq.index') }}"
+           class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-0.5
+                  {{ $isSection('hq') ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8' }}">
+            <span class="material-symbols-outlined text-[18px]">hub</span>
+            <span>Business HQ</span>
+        </a>
+        @endcan
+        @can('dashboard.manage')
+        <a href="{{ route('risk.dashboards.index') }}"
+           class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-2
+                  {{ $isSection('risk/dashboards') ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8' }}">
+            <span class="material-symbols-outlined text-[18px]">dashboard_customize</span>
+            <span>Dashboards</span>
+        </a>
+        @endcan
+
         <div class="h-px bg-white/10 mx-1 mb-2"></div>
 
         {{-- Permission-based visibility for main menu items --}}

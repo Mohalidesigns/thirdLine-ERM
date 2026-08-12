@@ -19,14 +19,18 @@ use App\Http\Controllers\Risk\ApprovalController;
 use App\Http\Controllers\Risk\CampaignController;
 use App\Http\Controllers\Risk\ControlController;
 use App\Http\Controllers\Risk\ControlTestController;
+use App\Http\Controllers\Risk\DashboardBuilderController;
 use App\Http\Controllers\Risk\DashboardController;
 use App\Http\Controllers\Risk\DataImportController;
 use App\Http\Controllers\Risk\DocumentRepositoryController;
 use App\Http\Controllers\Risk\EmergingRiskController;
 use App\Http\Controllers\Risk\ExportController;
+use App\Http\Controllers\Risk\GlobalSearchController;
+use App\Http\Controllers\Risk\HqController;
 use App\Http\Controllers\Risk\IssueController;
 use App\Http\Controllers\Risk\KriController;
 use App\Http\Controllers\Risk\LossEventController;
+use App\Http\Controllers\Risk\MyResponsibilitiesController;
 use App\Http\Controllers\Risk\MyTaskController;
 use App\Http\Controllers\Risk\PeriodController;
 use App\Http\Controllers\Risk\QuantificationController;
@@ -60,7 +64,18 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', fn () => redirect('/risk/dashboard'));
+// WP-08: the landing page is role-shaped. Risk professionals land on the
+// command centre; everyone else lands on their own queue — the first-line
+// adoption surface. Guests fall through to the login redirect as before.
+Route::get('/', function () {
+    $user = auth()->user();
+
+    if ($user === null || $user->can('risk.view')) {
+        return redirect('/risk/dashboard');
+    }
+
+    return redirect()->route('my.index');
+});
 
 /* ---------------------------------------------------------------------- */
 /*  Authentication (public) */
@@ -109,6 +124,41 @@ Route::middleware(['auth'])->group(function () {
         Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
         Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
         Route::get('notifications/{id}/read', [NotificationController::class, 'read'])->name('notifications.read');
+    });
+});
+
+/* ---------------------------------------------------------------------- */
+/*  WP-08 — Business HQ, My Responsibilities, global search */
+/* ---------------------------------------------------------------------- */
+
+Route::middleware(['auth'])->group(function () {
+    // Per-node landing pages. {object} resolves through the tenant global
+    // scope, so a foreign id 404s rather than leaking.
+    Route::get('hq', [HqController::class, 'index'])
+        ->middleware('permission:hq.view')->name('hq.index');
+    Route::get('hq/{object}', [HqController::class, 'show'])
+        ->middleware('permission:hq.view')->name('hq.show');
+
+    // The personal work queue — the adoption surface. Supersedes
+    // risk/my-tasks as the landing page; that route stays for deep links.
+    Route::get('my', [MyResponsibilitiesController::class, 'index'])
+        ->middleware('permission:my.view')->name('my.index');
+
+    // Global search: type-ahead JSON and the full results page.
+    Route::get('search', [GlobalSearchController::class, 'index'])
+        ->middleware('permission:search.view')->name('search.index');
+    Route::get('search/suggest', [GlobalSearchController::class, 'suggest'])
+        ->middleware('permission:search.view')->name('search.suggest');
+
+    // Dashboard builder: compose, publish, delete. dashboard.manage is the
+    // risk function's grant, not general admin.
+    Route::middleware('permission:dashboard.manage')->group(function () {
+        Route::get('risk/dashboards', [DashboardBuilderController::class, 'index'])
+            ->name('risk.dashboards.index');
+        Route::get('risk/dashboards/create', [DashboardBuilderController::class, 'create'])
+            ->name('risk.dashboards.create');
+        Route::get('risk/dashboards/{dashboard}/edit', [DashboardBuilderController::class, 'edit'])
+            ->name('risk.dashboards.edit');
     });
 });
 

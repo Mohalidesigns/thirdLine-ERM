@@ -14,6 +14,57 @@
 
     {{-- Right: Actions & User --}}
     <div class="flex items-center gap-3">
+        {{-- WP-08: global search — type-ahead over the object graph,
+             permission-filtered server-side. --}}
+        @can('search.view')
+            <div class="relative" x-data="globalSearch()" @click.outside="open = false" @keydown.escape.window="open = false">
+                <span class="material-symbols-outlined pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[18px] text-gray-400">search</span>
+                <input type="search" x-model="term" @input.debounce.300ms="suggest" @focus="term.length >= 2 && (open = true)"
+                       @keydown.enter.prevent="submit"
+                       placeholder="Search risks, controls, units…"
+                       class="w-56 rounded-lg border-gray-200 bg-gray-50 py-1.5 pl-8 pr-2 text-xs focus:border-[--color-primary] focus:bg-white focus:ring-[--color-primary] lg:w-72" />
+                <div x-show="open && results.length > 0" x-cloak x-transition.opacity
+                     class="absolute right-0 top-full z-50 mt-1 w-96 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+                    <ul class="max-h-96 divide-y divide-gray-50 overflow-auto">
+                        <template x-for="result in results" :key="result.id">
+                            <li>
+                                <a :href="result.url" class="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50">
+                                    <span class="material-symbols-outlined shrink-0 text-[18px] text-gray-400" x-text="result.icon || 'topic'"></span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block truncate text-xs font-medium text-gray-800" x-text="result.name"></span>
+                                        <span class="block truncate text-[10px] text-gray-400">
+                                            <span x-text="result.type"></span><span x-show="result.code"> · </span><span x-text="result.code"></span>
+                                        </span>
+                                    </span>
+                                </a>
+                            </li>
+                        </template>
+                    </ul>
+                    <a :href="'{{ route('search.index') }}?q=' + encodeURIComponent(term)"
+                       class="block border-t border-gray-100 px-3 py-2 text-center text-[11px] font-medium text-[--color-primary] hover:bg-gray-50">
+                        All results →
+                    </a>
+                </div>
+                <script>
+                    function globalSearch() {
+                        return {
+                            term: '', results: [], open: false,
+                            async suggest() {
+                                if (this.term.trim().length < 2) { this.results = []; this.open = false; return; }
+                                try {
+                                    const response = await fetch('{{ route('search.suggest') }}?q=' + encodeURIComponent(this.term), { headers: { Accept: 'application/json' } });
+                                    const body = await response.json();
+                                    this.results = body.results ?? [];
+                                    this.open = true;
+                                } catch { this.results = []; }
+                            },
+                            submit() { window.location = '{{ route('search.index') }}?q=' + encodeURIComponent(this.term); },
+                        };
+                    }
+                </script>
+            </div>
+        @endcan
+
         {{-- Reporting period. Everything on the page below is "as at" this. --}}
         @include('layouts.partials.period-selector')
 

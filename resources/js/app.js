@@ -2,6 +2,8 @@ import './bootstrap';
 
 import { Livewire, Alpine } from '../../vendor/livewire/livewire/dist/livewire.esm';
 import Chart from 'chart.js/auto';
+import { initWidgets } from './widgets';
+import { initDashboardBuilder } from './widgets/builder';
 
 /*
 | Alpine and Chart.js used to arrive from cdn.jsdelivr.net on every page load,
@@ -23,6 +25,22 @@ window.Alpine = Alpine;
 window.Chart = Chart;
 
 Livewire.start();
+
+/*
+| WP-08 widget engine hydration: finds [data-widget] panels, renders their
+| chart payloads, and keeps them alive across Livewire morphs and colour
+| scheme changes. See resources/js/widgets/index.js.
+*/
+const bootWidgets = () => {
+    initWidgets();
+    initDashboardBuilder();
+};
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootWidgets);
+} else {
+    bootWidgets();
+}
 
 /*
 | Chart.js sizing fix: wrap any canvas that declares a height attribute in a

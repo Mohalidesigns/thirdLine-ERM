@@ -1267,7 +1267,10 @@ class WorkflowEngine
                 'entity_type' => $task->instance?->entity_type,
                 'entity_id' => $task->instance?->entity_id,
             ],
-            route('risk.my-tasks.index'),
+            // Relative: this notification is stored and read back on whatever
+            // host the user is on, which is rarely the one the queue worker
+            // that raised it was configured with.
+            route('risk.my-tasks.index', [], false),
             $task->isOverdue() ? 'high' : 'medium',
         );
     }

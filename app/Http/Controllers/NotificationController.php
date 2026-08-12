@@ -41,8 +41,14 @@ class NotificationController extends Controller
             NotificationService::markAsRead($id);
         }
 
-        return $n->action_url
-            ? redirect()->to($n->action_url)
+        // Normalised again on the way out, not only on the way in: rows written
+        // before the path-only rule still carry a host, and this value is
+        // handed straight to redirect(). Stripping it here means a notification
+        // can only ever send someone to a page on this application.
+        $target = NotificationService::normaliseActionUrl($n->action_url);
+
+        return $target
+            ? redirect()->to($target)
             : redirect()->route('notifications.index');
     }
 

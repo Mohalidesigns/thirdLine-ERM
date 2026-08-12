@@ -7,6 +7,7 @@ use App\Models\BusinessUnit;
 use App\Models\Control;
 use App\Models\Risk;
 use App\Models\RiskCategory;
+use App\Models\RiskCause;
 use App\Models\RiskControlMapping;
 use App\Services\RiskScoringService;
 use App\Support\Tenancy\TenantContext;
@@ -181,6 +182,7 @@ class AnalysisController extends Controller
                 $effectiveCount = 0;
                 $partialCount = 0;
                 $ineffectiveCount = 0;
+                $unratedCount = 0;
 
                 foreach ($selectedRisk->controlMappings as $control) {
                     $eff = $this->classifyControlEffectiveness($control);
@@ -188,7 +190,12 @@ class AnalysisController extends Controller
                         'name' => $control->name ?? $control->control_id ?? 'Control',
                         'type' => $control->control_type ?? 'detective',
                         'effectiveness' => $eff,
-                        'gaps' => $eff === 'ineffective' ? 'Requires improvement' : ($eff === 'partially' ? 'Minor gaps identified' : 'None'),
+                        'gaps' => match ($eff) {
+                            'ineffective' => 'Requires improvement',
+                            'partially' => 'Minor gaps identified',
+                            'unrated' => 'Not yet rated',
+                            default => 'None',
+                        },
                     ];
 
                     if (in_array($control->control_type ?? '', ['preventive', 'directive'])) {
@@ -200,13 +207,17 @@ class AnalysisController extends Controller
                     match ($eff) {
                         'effective' => $effectiveCount++,
                         'partially' => $partialCount++,
+                        'unrated' => $unratedCount++,
                         default => $ineffectiveCount++,
                     };
                 }
 
+                // Unrated is its own slice. Folding it into "Ineffective" would
+                // report a control library nobody has tested as a control
+                // library that failed.
                 $controlEffData = [
-                    'labels' => ['Effective', 'Partially', 'Ineffective'],
-                    'values' => [$effectiveCount, $partialCount, $ineffectiveCount],
+                    'labels' => ['Effective', 'Partially', 'Ineffective', 'Unrated'],
+                    'values' => [$effectiveCount, $partialCount, $ineffectiveCount, $unratedCount],
                 ];
             }
         }
@@ -402,43 +413,38 @@ class AnalysisController extends Controller
             return 'ineffective';
         }
 
-        // Default: random-ish based on ID
-        return match (($control->id ?? 0) % 3) {
-            0 => 'effective',
-            1 => 'partially',
-            default => 'ineffective',
-        };
+        // An unrated control is unrated. This used to return a rating derived
+        // from the control's id modulo 3, which put a fabricated effectiveness
+        // on the bow-tie and into its doughnut counts — indistinguishable, on
+        // screen, from a real test result.
+        return 'unrated';
     }
 
     /**
-     * Build causes from risk data.
+     * The left-hand side of the bow-tie: the risk's recorded root causes.
+     *
+     * This used to read `$risk->risk_trigger ?? $risk->root_cause` — two columns
+     * that have never existed on `risks`. The expression therefore always
+     * evaluated to an empty string and every bow-tie in the product fell
+     * through to the same three invented causes ("Human error or negligence by
+     * staff", …), presented as though they were the organization's own
+     * analysis. WP-10a gives causes a real home, so the diagram now draws what
+     * the assessors actually recorded, and draws nothing when they recorded
+     * nothing.
      */
     private function buildCauses(Risk $risk): array
     {
-        $causes = [];
-
-        // Try parsing from risk_trigger or description
-        $triggerText = $risk->risk_trigger ?? $risk->root_cause ?? '';
-        if ($triggerText) {
-            $lines = array_filter(array_map('trim', preg_split('/[\n;,]+/', $triggerText)));
-            foreach ($lines as $line) {
-                if (strlen($line) > 3) {
-                    $causes[] = (object) ['description' => $line];
-                }
-            }
-        }
-
-        // If no causes found, generate from risk type
-        if (empty($causes)) {
-            $defaultCauses = [
-                (object) ['description' => 'Inadequate internal controls and procedures'],
-                (object) ['description' => 'Human error or negligence by staff'],
-                (object) ['description' => 'External threat actors or environmental factors'],
-            ];
-            $causes = $defaultCauses;
-        }
-
-        return $causes;
+        return $risk->causes()
+            ->with('category')
+            ->get()
+            ->map(fn (RiskCause $cause) => (object) [
+                'id' => $cause->id,
+                'description' => $cause->description,
+                'category' => $cause->category?->name,
+                'source' => $cause->source_label,
+                'is_primary' => (bool) $cause->is_primary,
+            ])
+            ->all();
     }
 
     /**

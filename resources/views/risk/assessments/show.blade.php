@@ -12,6 +12,13 @@
     <span class="text-gray-700 font-medium">ASS-{{ str_pad($assessment->id ?? 0, 4, '0', STR_PAD_LEFT) }}</span>
 @endsection
 
+@php
+    $profile = app(App\Services\RiskScoringService::class)->profileForRisk($assessment->risk);
+    $maxScore = $profile->maxScore();
+    $rows = $profile->matrix_rows;
+    $cols = $profile->matrix_cols;
+@endphp
+
 @section('content')
     @if (session('success'))
         <div class="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3">
@@ -34,7 +41,14 @@
                     &middot; Assessed: {{ $assessment->assessment_date?->format('d M Y') ?? '-' }}
                 </p>
             </div>
-            <a href="{{ route('risk.assessments.index') }}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">Back</a>
+            <div class="flex gap-2">
+                @if (in_array($assessment->status, ['draft', 'rejected']) && auth()->id() === $assessment->assessor_id)
+                    <a href="{{ route('risk.assessments.edit', $assessment) }}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">edit</span> Edit
+                    </a>
+                @endif
+                <a href="{{ route('risk.assessments.index') }}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">Back</a>
+            </div>
         </div>
     </div>
 
@@ -128,11 +142,17 @@
         </div>
     @endif
 
-    {{-- Score Summary --}}
+    {{--
+        The chain, read left to right: inherent risk, what the controls take off
+        it, and what is left. Before WP-10a the middle column did not exist and
+        the third was typed in by hand.
+    --}}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <x-kpi-card title="Overall Score" :value="($assessment->overall_score ?? 0) . '/25'" icon="analytics" color="primary" />
-        <x-kpi-card title="Likelihood" :value="($assessment->likelihood ?? 0) . '/5'" icon="casino" color="info" />
-        <x-kpi-card title="Max Impact" :value="($assessment->max_impact ?? 0) . '/5'" icon="priority_high" color="warning" />
+        <x-kpi-card title="Inherent Score" :value="($assessment->overall_score ?? 0) . '/' . $maxScore" icon="analytics" color="primary" />
+        <x-kpi-card title="Control Effectiveness"
+                    :value="$assessment->control_effectiveness_pct === null ? 'Not rated' : rtrim(rtrim(number_format((float) $assessment->control_effectiveness_pct, 1), '0'), '.') . '%'"
+                    icon="shield" color="info" />
+        <x-kpi-card title="Residual Score" :value="($assessment->residual_score ?? '—') . '/' . $maxScore" icon="shield_moon" color="warning" />
         <x-kpi-card title="vs Previous" :value="($assessment->score_change ?? 0) > 0 ? '+' . $assessment->score_change : ($assessment->score_change ?? '0')" icon="{{ ($assessment->score_change ?? 0) > 0 ? 'trending_up' : (($assessment->score_change ?? 0) < 0 ? 'trending_down' : 'trending_flat') }}" :color="($assessment->score_change ?? 0) > 0 ? 'danger' : (($assessment->score_change ?? 0) < 0 ? 'success' : 'primary')" />
     </div>
 
@@ -150,13 +170,18 @@
                 <div class="flex justify-between"><dt class="text-xs text-gray-500">Assessment Type</dt><dd class="text-xs font-medium">{{ ucfirst(str_replace('_', ' ', $assessment->assessment_type ?? '-')) }}</dd></div>
                 <div class="flex justify-between"><dt class="text-xs text-gray-500">Assessor</dt><dd class="text-xs font-medium">{{ $assessment->assessor->name ?? '-' }}</dd></div>
                 <div class="flex justify-between"><dt class="text-xs text-gray-500">Assessment Date</dt><dd class="text-xs">{{ $assessment->assessment_date?->format('d M Y') ?? '-' }}</dd></div>
-                <div class="flex justify-between"><dt class="text-xs text-gray-500">Likelihood</dt><dd class="text-xs font-medium">{{ $assessment->likelihood ?? '-' }}/5</dd></div>
-                <div class="flex justify-between"><dt class="text-xs text-gray-500">Financial Impact</dt><dd class="text-xs font-medium">{{ $assessment->impact_financial ?? '-' }}/5</dd></div>
-                <div class="flex justify-between"><dt class="text-xs text-gray-500">Operational Impact</dt><dd class="text-xs font-medium">{{ $assessment->impact_operational ?? '-' }}/5</dd></div>
-                <div class="flex justify-between"><dt class="text-xs text-gray-500">Reputational Impact</dt><dd class="text-xs font-medium">{{ $assessment->impact_reputational ?? '-' }}/5</dd></div>
-                <div class="flex justify-between"><dt class="text-xs text-gray-500">Regulatory Impact</dt><dd class="text-xs font-medium">{{ $assessment->impact_regulatory ?? '-' }}/5</dd></div>
-                <div class="flex justify-between"><dt class="text-xs text-gray-500">Strategic Impact</dt><dd class="text-xs font-medium">{{ $assessment->impact_strategic ?? '-' }}/5</dd></div>
-                <div class="flex justify-between"><dt class="text-xs text-gray-500">People Impact</dt><dd class="text-xs font-medium">{{ $assessment->impact_people ?? '-' }}/5</dd></div>
+                <div class="flex justify-between"><dt class="text-xs text-gray-500">Likelihood</dt><dd class="text-xs font-medium">{{ $assessment->likelihood ?? '-' }}/{{ $rows }}</dd></div>
+                {{--
+                    Driven by the scoring profile's declared dimensions. This
+                    list used to be six hardcoded rows, the last of which —
+                    People Impact — had no column behind it and always read "-".
+                --}}
+                @foreach ($profile->dimensions() as $dimension)
+                    <div class="flex justify-between">
+                        <dt class="text-xs text-gray-500">{{ Str::headline($dimension) }} Impact</dt>
+                        <dd class="text-xs font-medium">{{ $assessment->{'impact_'.$dimension} ?? '-' }}/{{ $cols }}</dd>
+                    </div>
+                @endforeach
             </dl>
         </div>
     </div>
@@ -169,16 +194,190 @@
         </div>
     @endif
 
-    {{-- Rationale & Recommendations --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 class="text-sm font-semibold text-[#1A365D] mb-4">Assessment Rationale</h3>
-            <p class="text-sm text-gray-700 leading-relaxed">{{ $assessment->rationale ?? 'No rationale provided.' }}</p>
+    {{-- ============================================================== --}}
+    {{--  Step 2 — Root causes considered                                --}}
+    {{-- ============================================================== --}}
+    @php $causesConsidered = $assessment->causesConsidered(); @endphp
+    <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-[#1A365D]">Root Causes <span class="font-normal text-gray-400">· step 2</span></h3>
+            @if (empty($assessment->cause_snapshot) && $causesConsidered->isNotEmpty())
+                <span class="text-xs text-gray-400">Showing the risk's current causes — this assessment predates cause capture</span>
+            @endif
         </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 class="text-sm font-semibold text-[#1A365D] mb-4">Recommendations</h3>
-            <p class="text-sm text-gray-700 leading-relaxed">{{ $assessment->recommendations ?? 'No recommendations provided.' }}</p>
+
+        @forelse ($causesConsidered as $cause)
+            <div class="flex items-start gap-3 py-2.5 {{ ! $loop->last ? 'border-b border-gray-100' : '' }}">
+                <span class="material-symbols-outlined text-base text-gray-400 mt-0.5">{{ ($cause['is_primary'] ?? false) ? 'star' : 'arrow_right' }}</span>
+                <div class="min-w-0">
+                    <p class="text-sm text-gray-800">{{ $cause['description'] }}</p>
+                    <p class="text-xs text-gray-500 mt-0.5">
+                        {{ $cause['category'] ?? 'Unclassified' }}
+                        @if (! empty($cause['source']))
+                            &middot; from {{ App\Models\RiskCause::SOURCES[$cause['source']] ?? $cause['source'] }}
+                        @endif
+                        @if ($cause['is_primary'] ?? false) &middot; <span class="text-[#D4AF37] font-medium">primary</span> @endif
+                    </p>
+                </div>
+            </div>
+        @empty
+            <p class="text-sm text-gray-400 py-4">No root causes recorded. Without them the bow-tie has nothing to draw and treatment addresses symptoms.</p>
+        @endforelse
+    </div>
+
+    {{-- ============================================================== --}}
+    {{--  Steps 6-8 — Controls, effectiveness, and the residual derived  --}}
+    {{-- ============================================================== --}}
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
+        <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-[#1A365D]">Existing Controls &amp; Effectiveness <span class="font-normal text-gray-400">· steps 6–7</span></h3>
+            <span class="text-xs text-gray-500">{{ $effectiveness['rated'] }} of {{ $effectiveness['total'] }} rated</span>
         </div>
+
+        @if ($assessment->assessedControls->isEmpty())
+            <p class="px-5 py-6 text-sm text-gray-400">
+                No controls were rated in this assessment, so the residual score below is not derived from control evidence.
+            </p>
+        @else
+            <table class="data-table">
+                <thead><tr><th>Control</th><th>Acts on</th><th>Design</th><th>Operating</th><th class="text-right">Effective</th><th>Weight</th></tr></thead>
+                <tbody>
+                    @foreach ($assessment->assessedControls as $rated)
+                        <tr>
+                            <td class="text-xs">
+                                <span class="font-mono text-gray-500">{{ $rated->control_code }}</span>
+                                <span class="ml-2 text-gray-900">{{ $rated->control_name }}</span>
+                                @if ($rated->is_key_control)
+                                    <span class="material-symbols-outlined text-sm text-[#D4AF37] align-middle" title="Key control">star</span>
+                                @endif
+                                @if ($rated->finding)
+                                    <p class="text-[11px] text-amber-600 mt-0.5">{{ $rated->finding }}</p>
+                                @endif
+                            </td>
+                            <td class="text-xs text-gray-600">{{ in_array($rated->control?->control_type, ['detective', 'corrective']) ? 'Impact' : 'Likelihood' }}</td>
+                            <td class="text-xs">{{ $rated->design_label }}</td>
+                            <td class="text-xs">{{ $rated->operating_label }}</td>
+                            <td class="text-xs text-right font-semibold">{{ $rated->effectiveness_pct === null ? '—' : (int) $rated->effectiveness_pct.'%' }}</td>
+                            <td class="text-xs text-gray-500">{{ rtrim(rtrim((string) $rated->control_weight, '0'), '.') }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+
+        <div class="px-5 py-4 bg-gray-50 border-t border-gray-100">
+            <h4 class="text-xs font-semibold text-[#1A365D] uppercase tracking-wide mb-3">Residual Risk <span class="font-normal text-gray-400 normal-case">· step 8</span></h4>
+            <div class="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
+                <span class="text-gray-700">
+                    Inherent <strong class="text-[#1A365D]">{{ $assessment->overall_score ?? '—' }}</strong>
+                </span>
+                <span class="material-symbols-outlined text-gray-400 text-base">arrow_forward</span>
+                <span class="text-gray-700">
+                    less <strong>{{ $assessment->control_effectiveness_pct === null ? 'no rated controls' : rtrim(rtrim(number_format((float) $assessment->control_effectiveness_pct, 1), '0'), '.').'%' }}</strong> control effectiveness
+                </span>
+                <span class="material-symbols-outlined text-gray-400 text-base">arrow_forward</span>
+                <span class="text-gray-700">
+                    Residual <strong class="text-[#1A365D]">{{ $assessment->residual_score ?? '—' }}</strong>
+                    <span class="text-xs text-gray-500">(L{{ $assessment->residual_likelihood ?? '—' }} × I{{ $assessment->residual_impact ?? '—' }})</span>
+                </span>
+                @if ($assessment->residual_rating)
+                    <x-risk-badge :rating="$assessment->residual_rating" />
+                @endif
+
+                @if ($assessment->residualWasOverridden())
+                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">Assessor override</span>
+                @elseif ($assessment->residual_source === App\Models\RiskAssessment::RESIDUAL_DERIVED)
+                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">Derived from controls</span>
+                @endif
+            </div>
+
+            @if ($assessment->residual_justification)
+                <p class="mt-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <strong class="block text-xs uppercase tracking-wide mb-1">Override justification</strong>
+                    {{ $assessment->residual_justification }}
+                </p>
+            @endif
+        </div>
+    </div>
+
+    {{-- ============================================================== --}}
+    {{--  Steps 9-13 — Treatment, actions, owners, dates, KRIs           --}}
+    {{-- ============================================================== --}}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 class="text-sm font-semibold text-[#1A365D] mb-4">Risk Treatment <span class="font-normal text-gray-400">· step 9</span></h3>
+            @if ($assessment->treatment_strategy)
+                @php $strategy = App\Models\RiskAssessment::TREATMENT_STRATEGIES[$assessment->treatment_strategy] ?? $assessment->treatment_strategy; @endphp
+                @php [$name, $explanation] = array_pad(explode(' — ', $strategy, 2), 2, ''); @endphp
+                <p class="text-base font-semibold text-[#1A365D]">{{ Str::headline($name) }}</p>
+                <p class="text-xs text-gray-500 mt-1">{{ $explanation }}</p>
+            @else
+                <p class="text-sm text-gray-400">No treatment strategy recorded.</p>
+            @endif
+        </div>
+
+        <div class="lg:col-span-2 bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h3 class="text-sm font-semibold text-[#1A365D]">Action Plan <span class="font-normal text-gray-400">· steps 10–12</span></h3>
+            </div>
+            @if ($actionPlans->isEmpty())
+                <p class="px-5 py-6 text-sm text-gray-400">No actions on this risk.</p>
+            @else
+                <table class="data-table">
+                    <thead><tr><th>Action</th><th>Owner</th><th>Due</th><th>Status</th><th>Progress</th></tr></thead>
+                    <tbody>
+                        @foreach ($actionPlans as $plan)
+                            <tr>
+                                <td class="text-xs">
+                                    <a href="{{ route('risk.treatments.show', $plan) }}" class="text-[#1A365D] hover:underline">{{ $plan->action_title }}</a>
+                                    <span class="block font-mono text-[11px] text-gray-400">{{ $plan->treatment_code }}</span>
+                                </td>
+                                <td class="text-xs">{{ $plan->owner?->name ?? 'Unassigned' }}</td>
+                                <td class="text-xs {{ $plan->target_date && $plan->target_date->isPast() && $plan->status !== 'completed' ? 'text-red-600 font-medium' : 'text-gray-600' }}">
+                                    {{ $plan->target_date?->format('d M Y') ?? '—' }}
+                                </td>
+                                <td><x-status-badge :status="$plan->status" /></td>
+                                <td class="text-xs">{{ $plan->progress_pct }}%</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
+        <div class="px-5 py-4 border-b border-gray-100">
+            <h3 class="text-sm font-semibold text-[#1A365D]">Key Risk Indicators <span class="font-normal text-gray-400">· step 13</span></h3>
+        </div>
+        @if ($kris->isEmpty())
+            <p class="px-5 py-6 text-sm text-amber-700 bg-amber-50/50">
+                No KRI monitors this risk — the chain stops at the action plan, so nothing will signal movement before the next assessment.
+            </p>
+        @else
+            <table class="data-table">
+                <thead><tr><th>KRI</th><th>Current</th><th>Status</th><th>Last measured</th></tr></thead>
+                <tbody>
+                    @foreach ($kris as $kri)
+                        <tr>
+                            <td class="text-xs">
+                                <a href="{{ route('risk.kri.show', $kri) }}" class="text-[#1A365D] hover:underline">{{ $kri->name }}</a>
+                                <span class="block font-mono text-[11px] text-gray-400">{{ $kri->kri_code }}</span>
+                            </td>
+                            <td class="text-xs">{{ $kri->current_value ?? '—' }} {{ $kri->unit_of_measure }}</td>
+                            <td><x-status-badge :status="$kri->current_status ?? 'unknown'" /></td>
+                            <td class="text-xs text-gray-500">{{ $kri->last_measurement_at?->format('d M Y') ?? '—' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+    </div>
+
+    {{-- Rationale --}}
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 class="text-sm font-semibold text-[#1A365D] mb-4">Assessment Rationale</h3>
+        <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ $assessment->assessment_notes ?: 'No rationale provided.' }}</p>
     </div>
 
     {{-- Assessment History --}}

@@ -51,10 +51,27 @@
                     @forelse (($causes ?? []) as $cause)
                         <div class="p-3 bg-red-50 border border-red-200 rounded-lg text-xs relative">
                             <p class="font-medium text-red-800">{{ $cause->description ?? '' }}</p>
+                            @if (($cause->category ?? null) || ($cause->is_primary ?? false))
+                                <p class="text-[11px] text-red-500 mt-1">
+                                    {{ $cause->category ?? 'Unclassified' }}
+                                    @if ($cause->is_primary ?? false) &middot; primary @endif
+                                </p>
+                            @endif
                             <div class="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-red-300"></div>
                         </div>
                     @empty
-                        <div class="p-3 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-xs text-gray-400 text-center">No causes defined</div>
+                        {{--
+                            An honest empty state. This panel used to show three
+                            invented causes for every risk in the register,
+                            because the controller read two columns that did not
+                            exist and fell back to hardcoded text.
+                        --}}
+                        <div class="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 text-center">
+                            <p>No root causes recorded for this risk.</p>
+                            @if ($selectedRisk ?? null)
+                                <a href="{{ route('risk.assessments.create', ['risk_id' => $selectedRisk->id]) }}" class="text-[#1A365D] underline mt-1 inline-block">Capture them in an assessment</a>
+                            @endif
+                        </div>
                     @endforelse
                 </div>
 
@@ -121,7 +138,7 @@
                             <tr>
                                 <td class="text-xs font-medium">{{ $ctrl->name ?? '-' }}</td>
                                 <td><span class="badge {{ ($ctrl->type ?? '') === 'preventive' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700' }}">{{ ucfirst($ctrl->type ?? '-') }}</span></td>
-                                <td><span class="badge {{ ($ctrl->effectiveness ?? '') === 'effective' ? 'bg-green-100 text-green-700' : (($ctrl->effectiveness ?? '') === 'partially' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700') }}">{{ ucfirst($ctrl->effectiveness ?? '-') }}</span></td>
+                                <td><span class="badge {{ ($ctrl->effectiveness ?? '') === 'effective' ? 'bg-green-100 text-green-700' : (($ctrl->effectiveness ?? '') === 'partially' ? 'bg-yellow-100 text-yellow-700' : (($ctrl->effectiveness ?? '') === 'unrated' ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-700')) }}">{{ ucfirst($ctrl->effectiveness ?? '-') }}</span></td>
                                 <td class="text-xs">{{ $ctrl->gaps ?? 'None' }}</td>
                             </tr>
                         @endforeach
@@ -138,7 +155,7 @@
 @endsection
 
 @php
-    $chartControlEffData = $controlEffData ?? ['labels' => ['Effective','Partially','Ineffective'], 'values' => [0,0,0]];
+    $chartControlEffData = $controlEffData ?? ['labels' => ['Effective','Partially','Ineffective','Unrated'], 'values' => [0,0,0,0]];
 @endphp
 
 @push('scripts')
@@ -147,7 +164,7 @@ window.onPageReady(function() {
     if (document.getElementById('controlEffChart')) {
         const effData = @json($chartControlEffData);
         new Chart(document.getElementById('controlEffChart'), {
-            type: 'bar', data: { labels: effData.labels, datasets: [{ data: effData.values, backgroundColor: ['#2D7D46','#D4AF37','#C53030'], borderRadius: 4 }] },
+            type: 'bar', data: { labels: effData.labels, datasets: [{ data: effData.values, backgroundColor: ['#2D7D46','#D4AF37','#C53030','#9CA3AF'], borderRadius: 4 }] },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: '#F0F0F0' }, ticks: { stepSize: 1 } } } }
         });
     }

@@ -338,6 +338,8 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         ->middleware('permission:assessment.create')->name('risk.assessments.store');
     Route::get('assessments/{assessment}', [RiskAssessmentController::class, 'show'])
         ->middleware('permission:assessment.view')->name('risk.assessments.show');
+    Route::get('assessments/{assessment}/edit', [RiskAssessmentController::class, 'edit'])
+        ->middleware('permission:assessment.create')->name('risk.assessments.edit');
     Route::put('assessments/{assessment}', [RiskAssessmentController::class, 'update'])
         ->middleware('permission:assessment.create')->name('risk.assessments.update');
     Route::post('assessments/{assessment}/submit', [RiskAssessmentController::class, 'submit'])

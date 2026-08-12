@@ -213,6 +213,26 @@ class Risk extends Model
             ->withTimestamps();
     }
 
+    /**
+     * Step 2 of the assessment chain: the risk's root causes.
+     *
+     * Causes belong to the risk rather than to one assessment, so they
+     * accumulate across cycles and stay answerable in aggregate ("which causes
+     * recur across the register?").
+     */
+    public function causes()
+    {
+        return $this->hasMany(RiskCause::class)
+            ->orderBy('is_primary', 'desc')
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
+    public function primaryCause()
+    {
+        return $this->hasOne(RiskCause::class)->where('is_primary', true);
+    }
+
     public function kris()
     {
         // KRIs are linked to risks via the direct FK `key_risk_indicators.risk_id`

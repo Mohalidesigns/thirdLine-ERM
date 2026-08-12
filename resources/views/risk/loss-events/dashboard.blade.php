@@ -236,7 +236,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     // Basel L1 Category Bar Chart
     const baselData = @json($baselChartDefaults);
     new Chart(document.getElementById('baselCategoryChart'), {

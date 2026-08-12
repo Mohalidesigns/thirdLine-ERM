@@ -533,7 +533,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const chartDefaults = {
         responsive: true,
         maintainAspectRatio: false,

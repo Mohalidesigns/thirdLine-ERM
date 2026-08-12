@@ -105,7 +105,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const ratingTrend = @json($ratingTrendDataChart);
     new Chart(document.getElementById('ratingTrendChart'), {
         type: 'line', data: { labels: ratingTrend.labels, datasets: [

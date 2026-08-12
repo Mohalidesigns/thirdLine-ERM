@@ -207,7 +207,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     // Ageing by Priority (Stacked Bar)
     const ageingPriorityData = @json($ageingByPriorityDataChart);
 

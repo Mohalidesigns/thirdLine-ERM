@@ -163,7 +163,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     let riskIndex = 1;
     document.getElementById('addRisk').addEventListener('click', function() {
         const container = document.getElementById('riskAssessments');

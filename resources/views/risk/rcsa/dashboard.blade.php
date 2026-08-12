@@ -128,7 +128,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const unitData = @json($completionByUnitDataChart);
     new Chart(document.getElementById('completionByUnitChart'), {
         type: 'bar', data: { labels: unitData.labels, datasets: [{ data: unitData.values, backgroundColor: '#1A365D', borderRadius: 4, barThickness: 20 }] },

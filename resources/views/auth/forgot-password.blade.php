@@ -91,5 +91,9 @@
         </div>
     </div>
 
+    {{-- Marks the bundle as manually started (app.js calls Livewire.start()).
+         Without this, livewire.esm auto-starts a SECOND time on DOMContentLoaded
+         and the duplicate Alpine plugin registration throws Alpine's $persist redefinition error. --}}
+    @livewireScriptConfig
 </body>
 </html>

@@ -343,7 +343,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const appData = @json($appetiteChartDefaults);
     new Chart(document.getElementById('appetiteChart'), {
         type: 'bar',

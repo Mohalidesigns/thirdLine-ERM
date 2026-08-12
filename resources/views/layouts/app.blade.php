@@ -11,6 +11,22 @@
          foreign CDNs on every page load, which no on-premise data-residency
          claim survives. The brand theme and every global style that used to sit
          inline below now live in resources/css/app.css. --}}
+    {{-- SPA-navigation-safe replacement for DOMContentLoaded, defined as a
+         classic head script because inline page scripts execute during HTML
+         parsing — before Vite's deferred module bundle runs. On the first
+         full page load it defers to DOMContentLoaded; after a wire:navigate
+         visit (document already 'complete' when body scripts re-run) it
+         executes the callback immediately. --}}
+    <script data-navigate-once>
+        window.onPageReady = function (fn) {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', fn, { once: true });
+            } else {
+                fn();
+            }
+        };
+    </script>
+
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     @include('layouts.partials.branding')

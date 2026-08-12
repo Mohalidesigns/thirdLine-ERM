@@ -113,7 +113,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const histData = @json($histogramData ?? ['labels' => [], 'values' => []]);
     new Chart(document.getElementById('lossHistogram'), {
         type: 'bar',

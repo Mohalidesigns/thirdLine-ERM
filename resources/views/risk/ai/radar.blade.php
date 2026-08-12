@@ -166,7 +166,7 @@
 @push('scripts')
 @if ($totalOnRadar > 0)
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+window.onPageReady(function () {
     const points = @json($points);
     const impactColour = {
         Critical: '#C53030',

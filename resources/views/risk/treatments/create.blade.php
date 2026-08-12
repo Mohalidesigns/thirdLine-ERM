@@ -210,7 +210,7 @@ function treatmentDescriptionBuilder() {
     };
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     let milestoneIndex = 1;
     document.getElementById('addMilestone').addEventListener('click', function() {
         const container = document.getElementById('milestonesContainer');

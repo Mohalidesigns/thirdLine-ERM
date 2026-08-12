@@ -127,7 +127,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const wfData = @json($chartWaterfallData);
     new Chart(document.getElementById('waterfallChart'), {
         type: 'bar',

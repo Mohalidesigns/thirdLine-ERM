@@ -195,7 +195,7 @@
 @push('scripts')
 @if ($summary['circulars_total'] > 0)
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+window.onPageReady(function () {
     const mix = @json($impactMix);
 
     new Chart(document.getElementById('impactChart'), {

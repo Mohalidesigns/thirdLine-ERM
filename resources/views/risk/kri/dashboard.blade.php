@@ -155,7 +155,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const distData = @json($statusDistDataChart);
     new Chart(document.getElementById('statusDistChart'), {
         type: 'doughnut',

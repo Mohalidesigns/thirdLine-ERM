@@ -218,7 +218,7 @@
     $compDataResolved = $comparisonData ?? $compDataDefault;
 @endphp
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const dimData = @json($dimDataResolved);
     new Chart(document.getElementById('dimensionChart'), {
         type: 'radar',

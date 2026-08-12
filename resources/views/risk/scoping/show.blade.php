@@ -324,7 +324,7 @@
 
     @push('scripts')
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        window.onPageReady(function() {
             @if (!empty($categoryDistribution['labels']))
                 const ctx = document.getElementById('riskDistributionChart');
                 if (ctx) {

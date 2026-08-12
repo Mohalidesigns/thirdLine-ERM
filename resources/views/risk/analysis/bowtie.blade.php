@@ -143,7 +143,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     if (document.getElementById('controlEffChart')) {
         const effData = @json($chartControlEffData);
         new Chart(document.getElementById('controlEffChart'), {

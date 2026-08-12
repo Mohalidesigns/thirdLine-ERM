@@ -111,7 +111,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     // Root Cause Categories
     const rcaCatData = {!! json_encode($rcaCategoryData ?? ['labels' => ['People', 'Process', 'Systems', 'External', 'Governance'], 'values' => [0, 0, 0, 0, 0]]) !!};
     new Chart(document.getElementById('rcaCategoryChart'), {

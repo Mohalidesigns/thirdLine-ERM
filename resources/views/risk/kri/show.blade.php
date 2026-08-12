@@ -231,7 +231,7 @@
     $chartData = $historyData ?? ['labels' => [], 'values' => [], 'green' => 0, 'amber' => 0, 'red' => 0];
 @endphp
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const histData = @json($chartData);
     if (!document.getElementById('historyChart')) return;
     new Chart(document.getElementById('historyChart'), {

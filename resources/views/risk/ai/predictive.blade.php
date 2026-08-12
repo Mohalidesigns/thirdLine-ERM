@@ -255,7 +255,7 @@
 @push('scripts')
 @if ($fit['available'] ?? false)
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+window.onPageReady(function () {
     const data = @json($chart);
 
     new Chart(document.getElementById('forecastChart'), {

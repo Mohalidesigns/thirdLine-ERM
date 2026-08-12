@@ -59,7 +59,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const distViz = @json($distributionVisualization ?? ['labels' => [], 'values' => []]);
     new Chart(document.getElementById('distributionChart'), {
         type: 'bar',

@@ -148,7 +148,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const container = document.getElementById('milestonesContainer');
     if (!container) return;
 

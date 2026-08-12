@@ -113,7 +113,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const catData = @json($categoryChartDataChart);
     new Chart(document.getElementById('categoryChart'), { type: 'bar', data: { labels: catData.labels, datasets: [{ data: catData.values, backgroundColor: '#1A365D', borderRadius: 4, barThickness: 20 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: '#F0F0F0' }, ticks: { font: { size: 10 }, stepSize: 1 } }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } } } });
 

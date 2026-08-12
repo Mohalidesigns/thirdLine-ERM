@@ -113,7 +113,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const profData = @json($profileChartData ?? ['labels' => [], 'inherent' => [], 'residual' => []]);
     new Chart(document.getElementById('profileChart'), {
         type: 'radar', data: { labels: profData.labels, datasets: [{ label: 'Inherent', data: profData.inherent, borderColor: '#C53030', backgroundColor: 'rgba(197,48,48,0.1)' }, { label: 'Residual', data: profData.residual, borderColor: '#1A365D', backgroundColor: 'rgba(26,54,93,0.1)' }] },

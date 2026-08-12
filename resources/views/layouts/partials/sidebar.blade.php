@@ -336,7 +336,7 @@
     <nav class="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
 
         {{-- Command Centre --}}
-        <a href="/risk/dashboard"
+        <a href="/risk/dashboard" wire:navigate
            class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-2
                   {{ $isActive('risk/dashboard') ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8' }}">
             <span class="material-symbols-outlined text-[18px]">home</span>
@@ -345,7 +345,7 @@
 
         {{-- WP-08: the two navigation surfaces --}}
         @can('my.view')
-        <a href="{{ route('my.index') }}"
+        <a href="{{ route('my.index') }}" wire:navigate
            class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-0.5
                   {{ $isActive('my') ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8' }}">
             <span class="material-symbols-outlined text-[18px]">checklist</span>
@@ -353,7 +353,7 @@
         </a>
         @endcan
         @can('hq.view')
-        <a href="{{ route('hq.index') }}"
+        <a href="{{ route('hq.index') }}" wire:navigate
            class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-0.5
                   {{ $isSection('hq') ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8' }}">
             <span class="material-symbols-outlined text-[18px]">hub</span>
@@ -361,7 +361,7 @@
         </a>
         @endcan
         @can('dashboard.manage')
-        <a href="{{ route('risk.dashboards.index') }}"
+        <a href="{{ route('risk.dashboards.index') }}" wire:navigate
            class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-2
                   {{ $isSection('risk/dashboards') ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8' }}">
             <span class="material-symbols-outlined text-[18px]">dashboard_customize</span>
@@ -404,7 +404,7 @@
                             $itemPath = trim($item['url'], '/');
                             $itemActive = $isActive($itemPath);
                         @endphp
-                        <a href="{{ $item['url'] }}"
+                        <a href="{{ $item['url'] }}" wire:navigate
                            class="block px-3 py-1.5 rounded-md text-[12px] transition-all
                                   {{ $itemActive ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
                             {{ $item['label'] }}
@@ -434,7 +434,7 @@
                      class="{{ $isSection('admin') ? 'block' : 'hidden' }} mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
                     {{-- User Management --}}
                     @role('super-admin')
-                        <a href="{{ route('admin.users.index') }}"
+                        <a href="{{ route('admin.users.index') }}" wire:navigate
                            class="block px-3 py-1.5 rounded-md text-[12px] transition-all
                                   {{ $isSection('admin/users') ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
                             User Management
@@ -443,7 +443,7 @@
 
                     {{-- Organization Settings --}}
                     @role('super-admin')
-                        <a href="{{ route('admin.settings') }}"
+                        <a href="{{ route('admin.settings') }}" wire:navigate
                            class="block px-3 py-1.5 rounded-md text-[12px] transition-all
                                   {{ $isSection('admin/settings') ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
                             Settings

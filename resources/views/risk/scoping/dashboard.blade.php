@@ -141,7 +141,7 @@
 
     @push('scripts')
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        window.onPageReady(function() {
             const ctx = document.getElementById('entityTypeChart');
             if (ctx) {
                 new Chart(ctx.getContext('2d'), {

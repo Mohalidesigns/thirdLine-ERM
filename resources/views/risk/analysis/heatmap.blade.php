@@ -175,7 +175,7 @@
 const HEATMAP_RISKS = @json($risksForJs ?? []);
 const HEATMAP_VIEW_TYPE = @json($viewType ?? 'inherent');
 
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const movData = @json($chartMovementData);
     new Chart(document.getElementById('movementChart'), {
         type: 'line',

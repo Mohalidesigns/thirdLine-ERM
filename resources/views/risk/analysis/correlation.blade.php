@@ -83,7 +83,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const corrData = @json($correlationMatrix ?? ['labels' => [], 'data' => []]);
     if (corrData.data.length > 0) {
         const ctx = document.getElementById('correlationChart').getContext('2d');

@@ -76,7 +76,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+window.onPageReady(function () {
     const statusUrl = @json(route('risk.reports.status-json', $report));
     let pending = @json($report->isPending());
 

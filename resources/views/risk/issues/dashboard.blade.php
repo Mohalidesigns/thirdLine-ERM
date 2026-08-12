@@ -192,7 +192,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     // Issues by Priority (Doughnut)
     const priorityData = @json($priorityDataChart);
     new Chart(document.getElementById('priorityChart'), {

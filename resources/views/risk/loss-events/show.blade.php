@@ -639,7 +639,7 @@ function switchTab(tabId) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     // RCA form toggle
     const rcaEdit = document.getElementById('rcaEditBtn');
     const rcaCancel = document.getElementById('rcaCancelBtn');

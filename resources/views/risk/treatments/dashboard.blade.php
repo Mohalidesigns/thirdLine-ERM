@@ -242,7 +242,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     // Strategy Doughnut Chart
     const strategyData = @json($strategyChartDataChart);
     new Chart(document.getElementById('strategyChart'), {

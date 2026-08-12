@@ -171,7 +171,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     function ratingFromScore(score) {
         if (score >= 20) return 'Critical';
         if (score >= 12) return 'High';

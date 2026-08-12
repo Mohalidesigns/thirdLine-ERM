@@ -27,27 +27,43 @@ window.Chart = Chart;
 Livewire.start();
 
 /*
-| WP-08 widget engine hydration: finds [data-widget] panels, renders their
-| chart payloads, and keeps them alive across Livewire morphs and colour
-| scheme changes. See resources/js/widgets/index.js.
+| SPA navigation (wire:navigate) support.
+|
+| After a wire:navigate visit the document is never re-parsed, so
+| DOMContentLoaded fires exactly once per browser session. Inline page
+| scripts therefore register through window.onPageReady instead of
+| DOMContentLoaded. The canonical definition is an inline head script in
+| layouts/app.blade.php (it must exist before body scripts parse); this
+| guarded copy covers pages that load the bundle without that layout,
+| e.g. the auth screens.
 */
-const bootWidgets = () => {
-    initWidgets();
-    initDashboardBuilder();
+window.onPageReady ??= (fn) => {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fn, { once: true });
+    } else {
+        fn();
+    }
 };
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bootWidgets);
-} else {
-    bootWidgets();
-}
+/*
+| WP-08 widget engine hydration: finds [data-widget] panels, renders their
+| chart payloads, and keeps them alive across Livewire morphs, wire:navigate
+| visits and colour scheme changes. Both init functions register document-
+| level listeners (including their own livewire:navigated handlers), so they
+| run EXACTLY ONCE per browser session — never per navigation.
+*/
+window.onPageReady(() => {
+    initWidgets();
+    initDashboardBuilder();
+});
 
 /*
-| Chart.js sizing fix: wrap any canvas that declares a height attribute in a
-| fixed-height relative container, otherwise Chart.js's responsive resize loop
-| grows the canvas indefinitely.
+| Canvas sizing fix, re-applied per pageview: wrap any canvas that declares a
+| height attribute in a fixed-height relative container, otherwise Chart.js's
+| responsive resize loop grows the canvas indefinitely. Idempotent — wrapped
+| canvases are skipped via the parent's data-chart-wrap marker.
 */
-document.addEventListener('DOMContentLoaded', () => {
+const wrapSizedCanvases = () => {
     document.querySelectorAll('canvas').forEach((canvas) => {
         const height = canvas.getAttribute('height');
         if (!height) return;
@@ -64,7 +80,15 @@ document.addEventListener('DOMContentLoaded', () => {
         parent.insertBefore(wrapper, canvas);
         wrapper.appendChild(canvas);
     });
-});
+};
+
+/*
+| Inline page scripts run before livewire:navigated fires, so charts created
+| by window.onPageReady callbacks exist by the time their canvases are
+| wrapped — the same ordering as DOMContentLoaded on a full page load.
+*/
+window.onPageReady(wrapSizedCanvases);
+document.addEventListener('livewire:navigated', wrapSizedCanvases);
 
 /*
 | Global live-search helper.

@@ -376,7 +376,7 @@
                         if (grossLoss.dataset.previous) grossLoss.value = grossLoss.dataset.previous;
                     }
                 }
-                document.addEventListener('DOMContentLoaded', () => {
+                window.onPageReady(() => {
                     const cb = document.getElementById('isNearMiss');
                     if (cb && cb.checked) handleNearMissToggle(cb);
                 });

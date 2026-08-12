@@ -327,7 +327,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     // Progress over time chart
     const progressData = @json($progressHistory ?? ['labels' => [], 'values' => []]);
     if (document.getElementById('progressChart') && progressData.labels.length > 0) {

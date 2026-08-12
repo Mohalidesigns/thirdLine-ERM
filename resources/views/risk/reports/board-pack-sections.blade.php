@@ -86,7 +86,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+window.onPageReady(function () {
     const list = document.getElementById('sectionList');
 
     // The submitted order is the DOM order of the checked inputs, so moving a

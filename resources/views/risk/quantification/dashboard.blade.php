@@ -138,7 +138,7 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+window.onPageReady(function() {
     const typeData = @json($chartTypeData);
     new Chart(document.getElementById('capitalByTypeChart'), {
         type: 'doughnut',

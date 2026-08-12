@@ -31,36 +31,15 @@ class EmergingRiskController extends Controller
     // accept what was typed, and discard it on submit.
     use PersistsConfiguredAttributes;
 
-    public function index(Request $request)
+    /**
+     * WP-09: the register is the shared data grid
+     * (App\Grids\Definitions\EmergingRisksGrid), which owns the query, the
+     * status/horizon/impact filters, sorting and pagination. Only the page
+     * header is left, and it needs no data.
+     */
+    public function index()
     {
-        $orgId = TenantContext::organizationId();
-
-        $query = EmergingRisk::query()
-            ->where('organization_id', $orgId)
-            ->with(['category', 'owner', 'convertedRisk']);
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->filled('horizon')) {
-            $query->where('horizon', $request->horizon);
-        }
-        if ($request->filled('impact')) {
-            $query->where('potential_impact', $request->impact);
-        }
-
-        $entries = $query
-            ->orderByRaw('(velocity_score * proximity_score) DESC')
-            ->orderBy('reference')
-            ->paginate(20)
-            ->withQueryString();
-
-        return view('risk.emerging.index', [
-            'entries' => $entries,
-            'statuses' => EmergingRisk::STATUSES,
-            'horizons' => EmergingRisk::HORIZONS,
-            'impacts' => EmergingRisk::IMPACTS,
-        ]);
+        return view('risk.emerging.index');
     }
 
     public function create()

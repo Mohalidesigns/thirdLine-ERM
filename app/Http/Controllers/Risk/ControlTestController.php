@@ -51,26 +51,16 @@ class ControlTestController extends Controller
         ));
     }
 
+    /**
+     * WP-09: the register itself is the shared data grid — search, filters,
+     * sorting, columns and export all live in
+     * App\Grids\Definitions\ControlTestsGrid. Only the page header is left.
+     */
     public function index(Request $request)
     {
-        $orgId = auth()->user()->organization_id;
+        $total = ControlTest::where('organization_id', TenantContext::organizationId())->count();
 
-        $query = ControlTest::where('organization_id', $orgId)->with(['control', 'tester', 'reviewer']);
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->filled('result')) {
-            $query->where('result', $request->result);
-        }
-        if ($request->filled('control')) {
-            $query->where('control_id', $request->control);
-        }
-
-        $tests = $query->latest('scheduled_date')->paginate(20);
-        $controls = Control::where('organization_id', $orgId)->orderBy('name')->get();
-
-        return view('risk.controls.tests.index', compact('tests', 'controls'));
+        return view('risk.controls.tests.index', compact('total'));
     }
 
     public function create()

@@ -7,20 +7,20 @@ use App\Models\Question;
 use App\Models\QuestionLibrary;
 use App\Models\Questionnaire;
 use App\Models\QuestionnaireSection;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 
 class QuestionnaireController extends Controller
 {
+    /**
+     * WP-09: the register is the shared data grid — see
+     * App\Grids\Definitions\QuestionnairesGrid.
+     */
     public function index()
     {
-        $orgId = auth()->user()->organization_id;
-        $questionnaires = Questionnaire::where('organization_id', $orgId)
-            ->with('creator')
-            ->withCount('sections')
-            ->latest()
-            ->paginate(20);
+        $total = Questionnaire::where('organization_id', TenantContext::organizationId())->count();
 
-        return view('risk.questionnaires.index', compact('questionnaires'));
+        return view('risk.questionnaires.index', compact('total'));
     }
 
     public function create()
@@ -133,14 +133,21 @@ class QuestionnaireController extends Controller
         return back()->with('success', 'Questionnaire published.');
     }
 
+    /**
+     * WP-09: the library table is the shared data grid — see
+     * App\Grids\Definitions\QuestionLibraryGrid, which also owns the
+     * "mine or system-wide" scoping this method used to spell out.
+     */
     public function library()
     {
-        $orgId = auth()->user()->organization_id;
-        $library = QuestionLibrary::where(function ($q) use ($orgId) {
-            $q->where('organization_id', $orgId)->orWhere('is_global', true);
-        })->orderBy('category')->paginate(50);
+        $organizationId = TenantContext::organizationId();
 
-        return view('risk.questionnaires.library', compact('library'));
+        $total = QuestionLibrary::where(fn ($q) => $q
+            ->where('question_library.organization_id', $organizationId)
+            ->orWhereNull('question_library.organization_id'))
+            ->count();
+
+        return view('risk.questionnaires.library', compact('total'));
     }
 
     public function storeLibraryQuestion(Request $request)

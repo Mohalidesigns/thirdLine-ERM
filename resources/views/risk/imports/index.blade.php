@@ -1,29 +1,35 @@
 @extends('layouts.app')
 @section('title', 'Data Imports')
+@section('breadcrumbs')
+    <a href="/risk/dashboard" class="hover:text-primary">Dashboard</a><span class="material-symbols-outlined text-[14px]">chevron_right</span><span class="text-gray-700 font-medium">Data Imports</span>
+@endsection
 @section('content')
 <div class="space-y-6">
+    @if (session('success'))
+        <div class="p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3">
+            <span class="material-symbols-outlined text-green-600">check_circle</span>
+            <span class="text-sm text-green-700">{{ session('success') }}</span>
+        </div>
+    @endif
+
+    @if (session('error'))
+        <div class="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
+            <span class="material-symbols-outlined text-red-600">error</span>
+            <span class="text-sm text-red-700">{{ session('error') }}</span>
+        </div>
+    @endif
+
     <div class="flex items-center justify-between">
-        <h1 class="text-xl font-bold text-gray-900">Data Import History</h1>
-        <a href="{{ route('risk.imports.create') }}" class="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium">New Import</a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900">Data Import History</h1>
+            <p class="text-sm text-gray-500 mt-1">{{ $total }} {{ Str::plural('import', $total) }} recorded</p>
+        </div>
+        @can('import.create')
+            <a href="{{ route('risk.imports.create') }}" wire:navigate class="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium">New Import</a>
+        @endcan
     </div>
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <table class="data-table"><thead><tr><th>File</th><th>Type</th><th>Total</th><th>Success</th><th>Errors</th><th>Status</th><th>Imported By</th><th>Date</th></tr></thead><tbody>
-            @forelse($imports as $imp)
-            <tr>
-                <td class="text-xs font-medium">{{ $imp->file_name }}</td>
-                <td><span class="badge bg-blue-50 text-blue-700">{{ ucfirst($imp->import_type) }}</span></td>
-                <td>{{ $imp->total_rows }}</td>
-                <td class="text-green-600">{{ $imp->success_count }}</td>
-                <td class="text-red-600">{{ $imp->error_count }}</td>
-                <td>@php $ic = ['pending'=>'gray','processing'=>'yellow','completed'=>'green','failed'=>'red']; @endphp<span class="badge bg-{{ $ic[$imp->status] ?? 'gray' }}-100 text-{{ $ic[$imp->status] ?? 'gray' }}-700">{{ ucfirst($imp->status) }}</span></td>
-                <td class="text-xs">{{ $imp->importer?->name }}</td>
-                <td class="text-xs text-gray-500">{{ $imp->created_at->format('M d, Y H:i') }}</td>
-            </tr>
-            @empty
-            <tr><td colspan="8" class="text-center py-8 text-gray-400">No imports yet</td></tr>
-            @endforelse
-        </tbody></table>
-    </div>
-    <div>{{ $imports->links() }}</div>
+
+    {{-- WP-09: shared grid — see App\Grids\Definitions\DataImportsGrid. --}}
+    <x-data-grid grid="imports" />
 </div>
 @endsection

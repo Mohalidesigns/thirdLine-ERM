@@ -113,21 +113,15 @@ class RegulatoryComplianceController extends Controller
         return redirect()->route('risk.regulatory.deadlines')->with('success', 'Regulatory deadline created.');
     }
 
-    public function circulars(Request $request)
+    /**
+     * WP-09: the circular register is the shared data grid
+     * (App\Grids\Definitions\RegulatoryCircularsGrid), which owns the query,
+     * the regulator/compliance filters and the pagination. Nothing on the page
+     * outside the grid needs data.
+     */
+    public function circulars()
     {
-        $orgId = auth()->user()->organization_id;
-        $query = RegulatoryCircular::where('organization_id', $orgId)->with('assignee');
-
-        if ($request->filled('regulator')) {
-            $query->where('regulator', $request->regulator);
-        }
-        if ($request->filled('status')) {
-            $query->where('compliance_status', $request->status);
-        }
-
-        $circulars = $query->latest('date_issued')->paginate(20);
-
-        return view('risk.regulatory.circulars', compact('circulars'));
+        return view('risk.regulatory.circulars');
     }
 
     public function createCircular()

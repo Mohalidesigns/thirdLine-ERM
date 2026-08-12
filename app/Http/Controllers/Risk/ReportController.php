@@ -723,17 +723,14 @@ class ReportController extends Controller
     /**
      * List of generated reports, newest first.
      */
-    public function library(Request $request)
+    /**
+     * WP-09: the library listing is the shared data grid
+     * (App\Grids\Definitions\ReportsLibraryGrid). What remains is the
+     * generate-a-report form above it, which needs the report type list.
+     */
+    public function library()
     {
-        $orgId = TenantContext::organizationId();
-
-        $reports = GeneratedReport::where('organization_id', $orgId)
-            ->with('generatedBy')
-            ->orderByDesc('created_at')
-            ->paginate(25);
-
         return view('risk.reports.library', [
-            'reports' => $reports,
             'types' => GenerateReportJob::TYPES,
         ]);
     }

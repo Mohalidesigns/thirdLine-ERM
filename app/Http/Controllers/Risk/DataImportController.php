@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\ProcessDataImportJob;
 use App\Models\DataImport;
 use App\Services\SpreadsheetReader;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 
 class DataImportController extends Controller
@@ -14,15 +15,15 @@ class DataImportController extends Controller
         private readonly SpreadsheetReader $reader,
     ) {}
 
+    /**
+     * WP-09: the history table is the shared data grid — see
+     * App\Grids\Definitions\DataImportsGrid.
+     */
     public function index()
     {
-        $orgId = auth()->user()->organization_id;
-        $imports = DataImport::where('organization_id', $orgId)
-            ->with('importer')
-            ->latest()
-            ->paginate(20);
+        $total = DataImport::where('organization_id', TenantContext::organizationId())->count();
 
-        return view('risk.imports.index', compact('imports'));
+        return view('risk.imports.index', compact('total'));
     }
 
     public function create()

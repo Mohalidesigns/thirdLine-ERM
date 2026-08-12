@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\BusinessUnit;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -13,51 +14,22 @@ use Spatie\Permission\Models\Role;
 class UserManagementController extends Controller
 {
     /**
-     * Display a listing of users
+     * Display a listing of users.
+     *
+     * WP-09: search, filters, sorting and pagination moved into the shared data
+     * grid (App\Grids\Definitions\AdminUsersGrid). What remains is the header's
+     * four counters, which the grid does not own.
      */
-    public function index(Request $request)
+    public function index()
     {
-        $query = User::with(['roles', 'businessUnit']);
-
-        // Search by name or email
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('staff_id', 'like', "%{$search}%");
-            });
-        }
-
-        // Filter by role
-        if ($request->filled('role')) {
-            $query->role($request->input('role'));
-        }
-
-        // Filter by status
-        if ($request->filled('status')) {
-            $status = $request->input('status');
-            if ($status === 'active') {
-                $query->where('is_active', true);
-            } elseif ($status === 'inactive') {
-                $query->where('is_active', false);
-            }
-        }
-
-        // Filter by business unit
-        if ($request->filled('business_unit')) {
-            $query->where('business_unit_id', $request->input('business_unit'));
-        }
-
-        $users = $query->orderBy('name')->paginate(15)->withQueryString();
-        $roles = Role::orderBy('name')->get();
-        $businessUnits = BusinessUnit::orderBy('name')->get();
+        $orgId = TenantContext::organizationId();
+        $scoped = fn () => User::where('organization_id', $orgId);
 
         return view('admin.users.index', [
-            'users' => $users,
-            'roles' => $roles,
-            'businessUnits' => $businessUnits,
-            'filters' => $request->only(['search', 'role', 'status', 'business_unit']),
+            'totalUsers' => $scoped()->count(),
+            'activeUsers' => $scoped()->where('is_active', true)->count(),
+            'inactiveUsers' => $scoped()->where('is_active', false)->count(),
+            'mfaEnabled' => $scoped()->where('mfa_enabled', true)->count(),
         ]);
     }
 

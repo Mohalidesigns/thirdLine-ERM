@@ -12,6 +12,7 @@ use App\Models\Questionnaire;
 use App\Models\Risk;
 use App\Services\ReferenceCodeService;
 use App\Services\RiskScoringService;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 
 class CampaignController extends Controller
@@ -37,21 +38,17 @@ class CampaignController extends Controller
         ));
     }
 
+    /**
+     * WP-09: the register is the shared data grid — see
+     * App\Grids\Definitions\CampaignsGrid, which also renders the status and
+     * type filters this method used to read from the query string without the
+     * view ever offering a control for them.
+     */
     public function index(Request $request)
     {
-        $orgId = auth()->user()->organization_id;
-        $query = AssessmentCampaign::where('organization_id', $orgId)->with(['creator', 'questionnaire'])->withCount('assignments');
+        $total = AssessmentCampaign::where('organization_id', TenantContext::organizationId())->count();
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->filled('type')) {
-            $query->where('campaign_type', $request->type);
-        }
-
-        $campaigns = $query->latest()->paginate(20);
-
-        return view('risk.campaigns.index', compact('campaigns'));
+        return view('risk.campaigns.index', compact('total'));
     }
 
     public function create()

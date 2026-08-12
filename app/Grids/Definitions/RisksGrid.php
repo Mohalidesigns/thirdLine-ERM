@@ -9,6 +9,7 @@ use App\Grids\RowAction;
 use App\Models\BusinessUnit;
 use App\Models\Risk;
 use App\Models\RiskCategory;
+use App\Support\Scoring\ScoringProfileTemplates;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -97,7 +98,13 @@ class RisksGrid extends GridDefinition
 
     public function filters(): array
     {
-        $scale = ['1' => '1', '2' => '2', '3' => '3', '4' => '4', '5' => '5'];
+        // The scale reads in the words the heat map uses — a cell drill-through
+        // that lands showing "2" cannot be checked against the cell it came
+        // from. Keys stay the stored 1–5 scores.
+        $likelihood = collect(ScoringProfileTemplates::DEFAULT_LIKELIHOOD_LABELS)
+            ->mapWithKeys(fn ($label, $score) => [(string) $score => "{$score} · {$label}"])->all();
+        $impact = collect(ScoringProfileTemplates::DEFAULT_IMPACT_LABELS)
+            ->mapWithKeys(fn ($label, $score) => [(string) $score => "{$score} · {$label}"])->all();
 
         return [
             Filter::make('category', 'All Categories')
@@ -127,8 +134,8 @@ class RisksGrid extends GridDefinition
                     ->orderBy('name')->pluck('name', 'id')->all()),
 
             // Heat-map cell drill-through (one likelihood × impact pair).
-            Filter::make('residual_likelihood', 'Residual Likelihood')->options($scale),
-            Filter::make('residual_impact', 'Residual Impact')->options($scale),
+            Filter::make('residual_likelihood', 'Residual Likelihood')->options($likelihood),
+            Filter::make('residual_impact', 'Residual Impact')->options($impact),
         ];
     }
 

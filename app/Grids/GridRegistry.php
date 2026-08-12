@@ -23,6 +23,16 @@ class GridRegistry
         'assessments' => Definitions\RiskAssessmentsGrid::class,
         'entities' => Definitions\EntitiesGrid::class,
         'near_misses' => Definitions\NearMissesGrid::class,
+        'control_tests' => Definitions\ControlTestsGrid::class,
+        'campaigns' => Definitions\CampaignsGrid::class,
+        'questionnaires' => Definitions\QuestionnairesGrid::class,
+        'question_library' => Definitions\QuestionLibraryGrid::class,
+        'imports' => Definitions\DataImportsGrid::class,
+        'admin_users' => Definitions\AdminUsersGrid::class,
+        'emerging_risks' => Definitions\EmergingRisksGrid::class,
+        'reports_library' => Definitions\ReportsLibraryGrid::class,
+        'approvals_history' => Definitions\ApprovalsHistoryGrid::class,
+        'circulars' => Definitions\RegulatoryCircularsGrid::class,
     ];
 
     public static function resolve(string $name): GridDefinition

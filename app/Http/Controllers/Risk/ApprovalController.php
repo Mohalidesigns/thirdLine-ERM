@@ -92,18 +92,14 @@ class ApprovalController extends Controller
     /**
      * View approval history
      */
-    public function history(Request $request)
+    /**
+     * WP-09: the history table is the shared data grid
+     * (App\Grids\Definitions\ApprovalsHistoryGrid), which carries the same
+     * approved/rejected/superseded scope getHistoryPaginated applied, plus the
+     * entity-type filter and pagination. The header needs no data.
+     */
+    public function history()
     {
-        $orgId = TenantContext::organizationId();
-
-        $entityType = $request->get('entity_type');
-        $history = $this->approvalService->getHistoryPaginated($orgId, $entityType, 25);
-
-        // Get unique entity types for filter
-        $entityTypes = ApprovalRequest::where('organization_id', $orgId)
-            ->distinct()
-            ->pluck('entity_type');
-
-        return view('risk.approvals.history', compact('history', 'entityTypes', 'entityType'));
+        return view('risk.approvals.history');
     }
 }

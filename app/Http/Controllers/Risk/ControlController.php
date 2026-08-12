@@ -20,38 +20,15 @@ class ControlController extends Controller
     use PersistsConfiguredAttributes;
 
     /**
-     * Display the control library listing.
+     * Display the control library listing. Search, filters, sorting and
+     * pagination all moved into the shared data grid (WP-09) — see
+     * App\Grids\Definitions\ControlsGrid.
      */
     public function index(Request $request)
     {
-        $orgId = TenantContext::organizationId();
+        $total = Control::where('organization_id', TenantContext::organizationId())->count();
 
-        $query = Control::withCount('risks')->where('organization_id', $orgId);
-
-        if ($request->filled('control_type')) {
-            $query->where('control_type', $request->control_type);
-        }
-
-        if ($request->filled('control_nature')) {
-            $query->where('control_nature', $request->control_nature);
-        }
-
-        if ($request->filled('effectiveness')) {
-            $query->where('effectiveness_rating', $request->effectiveness);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('control_code', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%");
-            });
-        }
-
-        $controls = $query->orderBy('control_code')->paginate(25)->withQueryString();
-
-        return view('risk.controls.index', compact('controls'));
+        return view('risk.controls.index', compact('total'));
     }
 
     /**

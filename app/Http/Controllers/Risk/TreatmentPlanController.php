@@ -142,41 +142,14 @@ class TreatmentPlanController extends Controller
      */
     public function index(Request $request)
     {
-        $orgId = TenantContext::organizationId();
+        // WP-09: filtering, search, sorting, pagination, bulk delete and
+        // export moved into the shared data grid
+        // (App\Grids\Definitions\TreatmentPlansGrid); the strategy and
+        // priority selects — which this method never read — are now real
+        // filters there. The header only needs the total.
+        $total = TreatmentPlan::where('organization_id', TenantContext::organizationId())->count();
 
-        $query = TreatmentPlan::where('organization_id', $orgId)
-            ->with(['risk', 'owner']);
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('risk_id')) {
-            $query->where('risk_id', $request->risk_id);
-        }
-
-        if ($request->filled('treatment_type')) {
-            $query->where('strategy', $request->treatment_type);
-        }
-
-        if ($request->filled('owner_id')) {
-            $query->where('owner_id', $request->owner_id);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('action_title', 'like', "%{$search}%")
-                    ->orWhere('treatment_code', 'like', "%{$search}%");
-            });
-        }
-
-        $plans = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
-
-        $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
-        $users = User::where('organization_id', $orgId)->orderBy('name')->get();
-
-        return view('risk.treatments.index', compact('plans', 'risks', 'users'));
+        return view('risk.treatments.index', compact('total'));
     }
 
     /**

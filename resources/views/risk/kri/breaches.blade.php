@@ -24,12 +24,7 @@
     <div class="flex items-center justify-between mb-6">
         <div>
             <h1 class="text-2xl font-bold text-[#1A365D]">Active KRI Breaches</h1>
-            <p class="text-sm text-gray-500 mt-1">{{ count($breaches ?? []) }} active breaches requiring attention</p>
-        </div>
-        <div class="flex gap-2">
-            <button onclick="window.print()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                <span class="material-symbols-outlined text-lg">download</span> Export
-            </button>
+            <p class="text-sm text-gray-500 mt-1">{{ $activeBreaches }} active breaches requiring attention</p>
         </div>
     </div>
 
@@ -48,125 +43,9 @@
                     :subtitle="isset($mttrHours) ? 'Across resolved breaches' : 'No breach resolved yet'" />
     </div>
 
-    {{-- Filter --}}
-    <form method="GET" action="{{ route('risk.kri.breaches') }}" id="filterForm">
-        <div class="bg-white rounded-xl border border-gray-200 p-4 mb-4">
-            <div class="flex flex-wrap gap-3 items-center">
-                <div class="flex-1 min-w-[200px]">
-                    <div class="relative">
-                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">search</span>
-                        <input type="text" name="search" value="{{ request('search') }}" placeholder="Search breaches..."
-                               class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]"
-                               data-live-search>
-                    </div>
-                </div>
-                <select name="level" class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700" onchange="document.getElementById('filterForm').submit()">
-                    <option value="">All Levels</option>
-                    <option value="red" {{ request('level') === 'red' ? 'selected' : '' }}>Red Only</option>
-                    <option value="amber" {{ request('level') === 'amber' ? 'selected' : '' }}>Amber Only</option>
-                </select>
-                <select name="category" class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700" onchange="document.getElementById('filterForm').submit()">
-                    <option value="">All Categories</option>
-                    @foreach (($categories ?? []) as $cat)
-                        <option value="{{ $cat }}" {{ request('category') === $cat ? 'selected' : '' }}>{{ $cat }}</option>
-                    @endforeach
-                </select>
-                {{-- The register defaults to the work list, not the archive. --}}
-                <select name="status" class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700" onchange="document.getElementById('filterForm').submit()">
-                    <option value="active" {{ ($status ?? 'active') === 'active' ? 'selected' : '' }}>Open &amp; acknowledged</option>
-                    <option value="closed" {{ ($status ?? '') === 'closed' ? 'selected' : '' }}>Closed</option>
-                    <option value="all" {{ ($status ?? '') === 'all' ? 'selected' : '' }}>All</option>
-                </select>
-                @if (request()->hasAny(['search', 'level', 'category', 'status']))
-                    <a href="{{ route('risk.kri.breaches') }}" class="text-xs text-[#1A365D] font-medium hover:underline">Clear</a>
-                @endif
-            </div>
-        </div>
-    </form>
-
-    {{-- Breaches Table --}}
-    <x-data-table>
-        <x-slot name="head">
-            <th>KRI</th>
-            <th>Category</th>
-            <th>Current Value</th>
-            <th>Threshold</th>
-            <th>Breach Level</th>
-            <th>Days in Breach</th>
-            <th>Owner</th>
-            <th>Breach Date</th>
-            <th>Status</th>
-            <th>Actions</th>
-        </x-slot>
-
-        @forelse (($breaches ?? []) as $breach)
-            <tr class="hover:bg-blue-50/50 {{ ($breach->level ?? '') === 'red' ? 'border-l-4 border-l-red-500' : 'border-l-4 border-l-yellow-500' }}">
-                <td class="font-medium text-[#1A365D]">
-                    <a href="{{ route('risk.kri.show', $breach->kri_id ?? $breach->id) }}" class="hover:underline">{{ $breach->kri_name ?? $breach->name }}</a>
-                </td>
-                <td class="text-xs">{{ $breach->category ?? '-' }}</td>
-                <td class="font-bold {{ ($breach->level ?? '') === 'red' ? 'text-red-600' : 'text-yellow-600' }}">{{ $breach->current_value ?? '-' }}</td>
-                <td class="text-xs text-gray-500">{{ $breach->threshold_value ?? '-' }}</td>
-                <td>
-                    <span class="badge {{ ($breach->level ?? '') === 'red' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700' }}">
-                        {{ ucfirst($breach->level ?? 'breach') }}
-                    </span>
-                </td>
-                <td class="text-xs font-semibold {{ ($breach->days_in_breach ?? 0) > 14 ? 'text-red-600' : 'text-gray-700' }}">{{ $breach->days_in_breach ?? 0 }} days</td>
-                <td class="text-xs">{{ $breach->owner ?? '-' }}</td>
-                <td class="text-xs text-gray-500">{{ isset($breach->breach_date) ? $breach->breach_date->format('d M Y') : '-' }}</td>
-                <td class="text-xs">
-                    @php
-                        $statusClasses = [
-                            'open' => 'bg-red-100 text-red-700',
-                            'acknowledged' => 'bg-blue-100 text-blue-700',
-                            'resolved' => 'bg-green-100 text-green-700',
-                            'false_positive' => 'bg-gray-100 text-gray-600',
-                        ];
-                    @endphp
-                    <span class="badge {{ $statusClasses[$breach->status] ?? 'bg-gray-100 text-gray-600' }}">
-                        {{ ucfirst(str_replace('_', ' ', $breach->status)) }}
-                    </span>
-                    @if ($breach->acknowledgedBy)
-                        <div class="text-[10px] text-gray-400 mt-0.5">by {{ $breach->acknowledgedBy->name }}</div>
-                    @endif
-                </td>
-                <td>
-                    <div class="flex items-center gap-1">
-                        @if ($breach->kri_id)
-                            <a href="{{ route('risk.kri.show', $breach->kri_id) }}" class="p-1 hover:bg-gray-100 rounded" title="Open KRI">
-                                <span class="material-symbols-outlined text-gray-400 text-lg">visibility</span>
-                            </a>
-                        @endif
-                        @can('kri.acknowledge_breach')
-                            @if ($breach->status === 'open')
-                                <form method="POST" action="{{ route('risk.kri.breaches.acknowledge', $breach) }}">
-                                    @csrf
-                                    <button type="submit" class="p-1 hover:bg-blue-50 rounded" title="Acknowledge">
-                                        <span class="material-symbols-outlined text-blue-500 text-lg">how_to_reg</span>
-                                    </button>
-                                </form>
-                            @endif
-                            @if (in_array($breach->status, ['open', 'acknowledged'], true))
-                                <form method="POST" action="{{ route('risk.kri.breaches.resolve', $breach) }}">
-                                    @csrf
-                                    <input type="hidden" name="outcome" value="resolved">
-                                    <button type="submit" class="p-1 hover:bg-green-50 rounded" title="Close as resolved">
-                                        <span class="material-symbols-outlined text-green-600 text-lg">task_alt</span>
-                                    </button>
-                                </form>
-                            @endif
-                        @endcan
-                    </div>
-                </td>
-            </tr>
-        @empty
-            <tr>
-                <td colspan="10" class="text-center py-12">
-                    <span class="material-symbols-outlined text-4xl text-green-300 mb-2 block">verified</span>
-                    <p class="text-sm text-gray-500">No active breaches. All KRIs are within tolerance.</p>
-                </td>
-            </tr>
-        @endforelse
-    </x-data-table>
+    {{-- WP-09: search, filters, sorting, column chooser, saved views,
+         bulk acknowledge/resolve and export all live inside the shared grid —
+         see App\Grids\Definitions\KriBreachesGrid. The register defaults to
+         the work list (open + acknowledged), not the archive. --}}
+    <x-data-grid grid="kri_breaches" :initial-filters="['status' => 'active']" />
 @endsection

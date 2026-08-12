@@ -71,12 +71,21 @@ class DataGrid extends Component
 
     /* ------------------------------------------------------------ setup */
 
-    public function mount(string $grid): void
+    /**
+     * @param array<string, string> $initialFilters pre-applied filter values
+     *        (e.g. a register that opens on "active" rows); the user can
+     *        still clear them. URL state wins over the initial value.
+     */
+    public function mount(string $grid, array $initialFilters = []): void
     {
         $this->grid = $grid;
         $definition = $this->definition();
 
         abort_unless(auth()->user()?->can($definition->permission()), 403);
+
+        if ($this->filters === [] && $initialFilters !== []) {
+            $this->filters = $initialFilters;
+        }
 
         [$sort, $dir] = $definition->defaultSort();
         $this->sort = $this->sort ?: $sort;

@@ -35,57 +35,25 @@ class RiskRegisterController extends Controller
             return $this->historicIndex($request, $selectedPeriod);
         }
 
-        $query = Risk::where('organization_id', $orgId)
-            ->with(['category', 'riskOwner', 'businessUnit']);
+        // WP-09: filtering, search, sorting and pagination moved into the
+        // shared data grid (App\Grids\Definitions\RisksGrid). The controller
+        // only computes what the page header still needs: the total and the
+        // quick-filter pill counts. The pills filter on residual_rating —
+        // the same column the grid's rating filter targets — so a pill's
+        // count always matches the rows it reveals.
+        $ratingCounts = Risk::where('organization_id', $orgId)
+            ->whereIn('residual_rating', ['Critical', 'High', 'Medium', 'Low'])
+            ->selectRaw('residual_rating, COUNT(*) as aggregate')
+            ->groupBy('residual_rating')
+            ->pluck('aggregate', 'residual_rating');
 
-        // Apply filters
-        if ($request->filled('category')) {
-            $query->where('category_id', $request->category);
-        }
+        $ratingCounts = collect(['Critical', 'High', 'Medium', 'Low'])
+            ->mapWithKeys(fn ($rating) => [$rating => (int) ($ratingCounts[$rating] ?? 0)])
+            ->all();
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
+        $total = Risk::where('organization_id', $orgId)->count();
 
-        if ($request->filled('rating')) {
-            $query->where('inherent_rating', $request->rating);
-        }
-
-        // WP-08: the heat map's cell drill-through — one likelihood ×
-        // consequence pair straight off a widget cell.
-        foreach (['residual_likelihood', 'residual_impact', 'inherent_likelihood', 'inherent_impact'] as $cell) {
-            if ($request->filled($cell)) {
-                $query->where($cell, (int) $request->input($cell));
-            }
-        }
-
-        if ($request->filled('business_unit')) {
-            $query->where('business_unit_id', $request->business_unit);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('risk_code', 'like', "%{$search}%")
-                    ->orWhere('title', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%");
-            });
-        }
-
-        $sortBy = $request->get('sort', 'inherent_score');
-        $sortDir = $request->get('direction', 'desc');
-        $allowedSorts = ['risk_code', 'title', 'inherent_score', 'residual_score', 'status', 'created_at'];
-        if (in_array($sortBy, $allowedSorts)) {
-            $query->orderBy($sortBy, $sortDir === 'asc' ? 'asc' : 'desc');
-        }
-
-        $risks = $query->paginate(25)->withQueryString();
-
-        // Filter options
-        $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
-        $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
-
-        return view('risk.register.index', compact('risks', 'categories', 'businessUnits'));
+        return view('risk.register.index', compact('total', 'ratingCounts'));
     }
 
     /**

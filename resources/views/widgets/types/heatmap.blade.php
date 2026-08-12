@@ -26,7 +26,12 @@
                         $url = null;
                         if (is_array($drill) && isset($drill['route'])) {
                             try {
-                                $url = route($drill['route'], array_merge($drill['params'] ?? [], $cell['filters'] ?? []));
+                                // WP-09: the register is a Livewire data grid;
+                                // its filter state lives under filters[...].
+                                $url = route($drill['route'], array_merge(
+                                    $drill['params'] ?? [],
+                                    ($cell['filters'] ?? []) !== [] ? ['filters' => $cell['filters']] : []
+                                ));
                             } catch (\Throwable $e) { $url = null; }
                         }
                     @endphp

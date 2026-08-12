@@ -107,55 +107,20 @@ class ScopingController extends Controller
     /*  Index (Entity Register) */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Entity register. Search, filters, sorting and pagination all moved
+     * into the shared data grid (WP-09) — see
+     * App\Grids\Definitions\EntitiesGrid. The controller now only feeds
+     * the header count and the quick-filter pill row.
+     */
     public function index(Request $request)
     {
         $orgId = TenantContext::organizationId();
 
-        $query = Entity::where('organization_id', $orgId)
-            ->with(['entityType', 'parent', 'owner']);
-
-        // Filters
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('entity_code', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%");
-            });
-        }
-
-        if ($request->filled('entity_type_id')) {
-            $query->where('entity_type_id', $request->entity_type_id);
-        }
-
-        if ($request->filled('parent_id')) {
-            $query->where('parent_id', $request->parent_id);
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        // Sorting
-        $allowedSorts = ['entity_code', 'name', 'level', 'status', 'created_at'];
-        $sortBy = in_array($request->sort, $allowedSorts) ? $request->sort : 'entity_code';
-        $sortDir = $request->direction === 'desc' ? 'desc' : 'asc';
-        $query->orderBy($sortBy, $sortDir);
-
-        // Eager load counts
-        $query->withCount(['risks', 'issues', 'keyRiskIndicators']);
-
-        $entities = $query->paginate(25)->withQueryString();
-
-        // Data for filter dropdowns
         $entityTypes = EntityType::where('organization_id', $orgId)
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get();
-
-        $parentEntities = Entity::where('organization_id', $orgId)
-            ->orderBy('name')
-            ->get(['id', 'name', 'entity_code']);
 
         // Type counts for quick-filter pills
         $typeCounts = Entity::where('organization_id', $orgId)
@@ -166,9 +131,7 @@ class ScopingController extends Controller
         $totalCount = Entity::where('organization_id', $orgId)->count();
 
         return view('risk.scoping.index', compact(
-            'entities',
             'entityTypes',
-            'parentEntities',
             'typeCounts',
             'totalCount',
         ));

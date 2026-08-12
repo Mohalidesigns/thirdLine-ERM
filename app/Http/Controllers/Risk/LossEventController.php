@@ -121,81 +121,17 @@ class LossEventController extends Controller
     }
 
     /**
-     * Display loss events listing with filters.
+     * Display the loss event register.
+     *
+     * WP-09: search, filters, sorting and export live inside the shared data
+     * grid (App\Grids\Definitions\LossEventsGrid); the controller computes
+     * only what the page header still needs.
      */
     public function index(Request $request)
     {
-        $orgId = TenantContext::organizationId();
+        $total = LossEvent::where('organization_id', TenantContext::organizationId())->count();
 
-        $query = LossEvent::where('organization_id', $orgId);
-
-        // The filter values arrive from the views in the lower-case form the
-        // deprecated columns used; the canonical columns are upper case.
-        if ($request->filled('status')) {
-            $query->where('current_status', strtoupper($request->status));
-        }
-
-        if ($request->filled('basel_event_type')) {
-            $query->where('basel_l1_category', strtoupper($request->basel_event_type));
-        }
-
-        if ($request->filled('cbn_category')) {
-            $query->where('cbn_risk_category', $request->cbn_category);
-        }
-
-        if ($request->filled('severity')) {
-            $query->where('event_severity', strtoupper($request->severity));
-        }
-
-        if ($request->filled('date_from')) {
-            $query->where('date_of_loss', '>=', $request->date_from);
-        }
-
-        if ($request->filled('date_to')) {
-            $query->where('date_of_loss', '<=', $request->date_to);
-        }
-
-        if ($request->filled('regulatory_reportable')) {
-            $query->where('is_regulatory_reportable', $request->boolean('regulatory_reportable'));
-        }
-
-        if ($request->filled('business_unit_id')) {
-            $query->where('business_unit_id', $request->business_unit_id);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('event_reference', 'like', "%{$search}%")
-                    ->orWhere('title', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%");
-            });
-        }
-
-        $lossEvents = $query->orderByDesc('date_of_loss')->paginate(25)->withQueryString();
-
-        $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
-
-        // Option ids stay in the lower-case form the filter above re-upper-cases,
-        // so existing bookmarked filter URLs keep resolving.
-        $baselL1Categories = LossEvent::where('organization_id', $orgId)
-            ->whereNotNull('basel_l1_category')
-            ->distinct()
-            ->orderBy('basel_l1_category')
-            ->pluck('basel_l1_category')
-            ->map(fn ($v) => (object) [
-                'id' => strtolower($v),
-                'name' => \Illuminate\Support\Str::of($v)->lower()->replace('_', ' ')->title(),
-            ]);
-
-        $cbnCategories = LossEvent::where('organization_id', $orgId)
-            ->whereNotNull('cbn_risk_category')
-            ->distinct()
-            ->orderBy('cbn_risk_category')
-            ->pluck('cbn_risk_category')
-            ->map(fn ($v) => (object) ['id' => $v, 'name' => $v]);
-
-        return view('risk.loss-events.index', compact('lossEvents', 'businessUnits', 'baselL1Categories', 'cbnCategories'));
+        return view('risk.loss-events.index', compact('total'));
     }
 
     /**
@@ -765,29 +701,14 @@ class LossEventController extends Controller
     }
 
     /**
-     * List near misses.
+     * List near misses. Search, filters, sorting and pagination all moved
+     * into the shared data grid (WP-09) — see
+     * App\Grids\Definitions\NearMissesGrid. The controller now only feeds
+     * the KPI summary cards.
      */
     public function nearMisses(Request $request)
     {
         $orgId = TenantContext::organizationId();
-
-        $query = NearMiss::where('organization_id', $orgId);
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('event_reference', 'like', "%{$search}%")
-                    ->orWhere('title', 'like', "%{$search}%");
-            });
-        }
-
-        $nearMissEvents = $query->orderByDesc('date_occurred')->paginate(25)->withQueryString();
-
-        $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
 
         $allNearMisses = NearMiss::where('organization_id', $orgId);
         $totalNearMisses = (clone $allNearMisses)->count();
@@ -796,7 +717,6 @@ class LossEventController extends Controller
         $potentialLossAvoided = ((clone $allNearMisses)->sum('potential_loss_kobo') ?? 0) / 100;
 
         return view('risk.loss-events.near-misses', compact(
-            'nearMissEvents', 'businessUnits',
             'totalNearMisses', 'openNearMisses', 'underReviewNearMisses', 'potentialLossAvoided'
         ));
     }

@@ -16,40 +16,15 @@ use Illuminate\Support\Facades\DB;
 class RiskAssessmentController extends Controller
 {
     /**
-     * List all assessments with filters.
+     * List all assessments. Search, filters, sorting and pagination all
+     * moved into the shared data grid (WP-09) — see
+     * App\Grids\Definitions\RiskAssessmentsGrid.
      */
     public function index(Request $request)
     {
-        $orgId = TenantContext::organizationId();
+        $total = RiskAssessment::where('organization_id', TenantContext::organizationId())->count();
 
-        $query = RiskAssessment::where('organization_id', $orgId)
-            ->with(['risk', 'assessor']);
-
-        if ($request->filled('risk_id')) {
-            $query->where('risk_id', $request->risk_id);
-        }
-
-        if ($request->filled('assessment_type')) {
-            $query->where('assessment_type', $request->assessment_type);
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('date_from')) {
-            $query->where('assessment_date', '>=', $request->date_from);
-        }
-
-        if ($request->filled('date_to')) {
-            $query->where('assessment_date', '<=', $request->date_to);
-        }
-
-        $assessments = $query->orderByDesc('assessment_date')->paginate(25)->withQueryString();
-
-        $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
-
-        return view('risk.assessments.index', compact('assessments', 'risks'));
+        return view('risk.assessments.index', compact('total'));
     }
 
     /**

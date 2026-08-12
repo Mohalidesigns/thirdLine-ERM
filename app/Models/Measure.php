@@ -85,10 +85,18 @@ class Measure extends Model
      * key_risk_indicators stays as the facade for one release (WP-04 TASK 3),
      * matched on kri_code == measures.code.
      */
+    /**
+     * The facade KRI this measure records for, matched on code.
+     *
+     * The tenant constraint is KeyRiskIndicator's own global organization
+     * scope, NOT a whereColumn against `measures`: a relation is resolved by
+     * its own query (`... where kri_code in (?)`), which never has the parent
+     * table in scope, so referencing measures.organization_id here fails as
+     * an unknown column on every load, eager or lazy.
+     */
     public function keyRiskIndicator()
     {
-        return $this->hasOne(KeyRiskIndicator::class, 'kri_code', 'code')
-            ->whereColumn('key_risk_indicators.organization_id', 'measures.organization_id');
+        return $this->hasOne(KeyRiskIndicator::class, 'kri_code', 'code');
     }
 
     /* ------------------------------------------------------------------ */

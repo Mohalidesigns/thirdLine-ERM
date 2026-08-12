@@ -14,6 +14,15 @@ class GridRegistry
     /** @var array<string, class-string<GridDefinition>> */
     protected static array $grids = [
         'controls' => Definitions\ControlsGrid::class,
+        'risks' => Definitions\RisksGrid::class,
+        'treatments' => Definitions\TreatmentPlansGrid::class,
+        'issues' => Definitions\IssuesGrid::class,
+        'loss_events' => Definitions\LossEventsGrid::class,
+        'kris' => Definitions\KrisGrid::class,
+        'kri_breaches' => Definitions\KriBreachesGrid::class,
+        'assessments' => Definitions\RiskAssessmentsGrid::class,
+        'entities' => Definitions\EntitiesGrid::class,
+        'near_misses' => Definitions\NearMissesGrid::class,
     ];
 
     public static function resolve(string $name): GridDefinition

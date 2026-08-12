@@ -5,6 +5,6 @@
     knowing Livewire is underneath. The grid name must be registered in
     App\Grids\GridRegistry.
 --}}
-@props(['grid'])
+@props(['grid', 'initialFilters' => []])
 
-@livewire('data-grid', ['grid' => $grid], key('data-grid-'.$grid))
+@livewire('data-grid', ['grid' => $grid, 'initialFilters' => $initialFilters], key('data-grid-'.$grid))

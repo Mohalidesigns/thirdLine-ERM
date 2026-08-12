@@ -108,45 +108,16 @@ class KriController extends Controller
 
     /**
      * Display the KRI library listing.
+     *
+     * WP-09: search, filters, sorting and export live inside the shared data
+     * grid (App\Grids\Definitions\KrisGrid); the controller computes only
+     * what the page header still needs.
      */
     public function index(Request $request)
     {
         $orgId = TenantContext::organizationId();
 
-        $query = KeyRiskIndicator::where('organization_id', $orgId)
-            ->with(['risk.category', 'owner']);
-
-        if ($request->filled('status')) {
-            $query->where('current_status', $request->status);
-        }
-
-        if ($request->filled('risk_id')) {
-            $query->where('risk_id', $request->risk_id);
-        }
-
-        if ($request->filled('category')) {
-            $query->whereHas('risk.category', fn ($q) => $q->where('name', $request->category));
-        }
-
-        if ($request->filled('frequency')) {
-            $query->where('measurement_frequency', $request->frequency);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('kri_code', 'like', "%{$search}%");
-            });
-        }
-
-        $kris = $query->orderBy('kri_code')->paginate(25)->withQueryString();
-
-        // KRIs have no category column — a KRI's category is that of its linked risk.
-        $kris->getCollection()->each(function ($kri) {
-            $kri->setAttribute('category', $kri->risk?->category?->name);
-            $kri->setAttribute('frequency', $kri->measurement_frequency);
-        });
+        $total = KeyRiskIndicator::where('organization_id', $orgId)->count();
 
         // KRIs whose latest measurement pushed them into red breach territory
         // (current_status is refreshed by recordMeasurement on every entry).
@@ -154,17 +125,7 @@ class KriController extends Controller
             ->where('current_status', 'red')
             ->count();
 
-        // Distinct categories across the org's KRIs (via their linked risks)
-        $categories = KeyRiskIndicator::where('key_risk_indicators.organization_id', $orgId)
-            ->join('risks', 'risks.id', '=', 'key_risk_indicators.risk_id')
-            ->join('risk_categories', 'risk_categories.id', '=', 'risks.category_id')
-            ->distinct()
-            ->orderBy('risk_categories.name')
-            ->pluck('risk_categories.name');
-
-        $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
-
-        return view('risk.kri.index', compact('kris', 'risks', 'activeBreachCount', 'categories'));
+        return view('risk.kri.index', compact('total', 'activeBreachCount'));
     }
 
     /**
@@ -579,75 +540,20 @@ class KriController extends Controller
 
     /**
      * List all KRI breaches.
+     *
+     * The breach REGISTER, not a filtered list of readings. WP-09: the table
+     * itself — search, filters, sorting, bulk acknowledge/resolve, export —
+     * lives inside the shared data grid (App\Grids\Definitions\KriBreachesGrid),
+     * which the view mounts with status=active so the default stays the work
+     * list. The controller computes only the KPI cards.
      */
     public function breaches(Request $request)
     {
         $orgId = TenantContext::organizationId();
 
-        // The breach REGISTER, not a filtered list of readings. Before WP-04
-        // this screen inferred breaches by re-reading kri_measurements every
-        // time it loaded, which meant there was nothing to acknowledge, nothing
-        // to assign a root cause to, and no way to compute how long a breach
-        // had taken to clear.
-        $query = MeasureBreach::query()
-            ->where('measure_breaches.organization_id', $orgId)
-            ->with(['measure.unit', 'measure.keyRiskIndicator.risk.category', 'measure.owner', 'period', 'acknowledgedBy']);
-
-        // Open and acknowledged by default: a register whose default view is
-        // "everything that ever happened" is a log, not a work list.
-        $status = $request->input('status', 'active');
-
-        match ($status) {
-            'all' => null,
-            'closed' => $query->whereIn('measure_breaches.status', ['resolved', 'false_positive']),
-            default => $query->whereIn('measure_breaches.status', ['open', 'acknowledged']),
-        };
-
-        if ($request->filled('level')) {
-            $query->where('band_to', $request->level);
-        }
-
-        if ($request->filled('category')) {
-            $query->whereHas('measure.keyRiskIndicator.risk.category', fn ($q) => $q->where('name', $request->category));
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->whereHas('measure', function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%");
-            });
-        }
-
-        $breaches = $query->orderByDesc('breached_at')->paginate(25)->withQueryString();
-
-        // Display fields the existing table expects, derived from the register.
-        $breaches->getCollection()->transform(function (MeasureBreach $breach) {
-            $measure = $breach->measure;
-            $unit = $measure?->unit?->symbol ?? '';
-            $suffix = $unit !== '' ? ' '.$unit : '';
-
-            $breach->setAttribute('kri_name', $measure?->name);
-            $breach->setAttribute('kri_code', $measure?->code);
-            // The table links back to the KRI screen, which is keyed on the
-            // facade table rather than the measure.
-            $breach->setAttribute('kri_id', $measure?->keyRiskIndicator?->id);
-            $breach->setAttribute('category', $measure?->keyRiskIndicator?->risk?->category?->name);
-            $breach->setAttribute('current_value', number_format((float) $breach->value, $measure?->decimal_places ?? 2).$suffix);
-            $breach->setAttribute('threshold_value', $breach->threshold_value === null
-                ? null
-                : number_format((float) $breach->threshold_value, $measure?->decimal_places ?? 2).$suffix);
-            $breach->setAttribute('level', $breach->band_to);
-            $breach->setAttribute('days_in_breach', (int) abs(
-                ($breach->resolved_at ?? now())->diffInDays($breach->breached_at)
-            ));
-            $breach->setAttribute('owner', $measure?->owner?->name);
-            $breach->setAttribute('breach_date', $breach->breached_at);
-
-            return $breach;
-        });
-
         $open = MeasureBreach::query()->where('organization_id', $orgId)->open();
 
+        $activeBreaches = (clone $open)->count();
         $redBreaches = (clone $open)->where('band_to', 'red')->count();
         $amberBreaches = (clone $open)->where('band_to', 'amber')->count();
 
@@ -663,16 +569,9 @@ class KriController extends Controller
 
         $unacknowledged = (clone $open)->where('measure_breaches.status', 'open')->count();
 
-        $categories = KeyRiskIndicator::where('key_risk_indicators.organization_id', $orgId)
-            ->join('risks', 'risks.id', '=', 'key_risk_indicators.risk_id')
-            ->join('risk_categories', 'risk_categories.id', '=', 'risks.category_id')
-            ->distinct()
-            ->orderBy('risk_categories.name')
-            ->pluck('risk_categories.name');
-
         return view('risk.kri.breaches', compact(
-            'breaches', 'redBreaches', 'amberBreaches', 'avgDaysInBreach',
-            'mttrHours', 'unacknowledged', 'categories', 'status'
+            'activeBreaches', 'redBreaches', 'amberBreaches', 'avgDaysInBreach',
+            'mttrHours', 'unacknowledged'
         ));
     }
 

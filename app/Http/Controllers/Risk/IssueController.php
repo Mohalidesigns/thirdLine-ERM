@@ -108,52 +108,11 @@ class IssueController extends Controller
      */
     public function index(Request $request)
     {
-        $orgId = TenantContext::organizationId();
-
-        $query = Issue::where('organization_id', $orgId)
-            ->with(['issueOwner', 'businessUnit']);
-
-        if ($request->filled('status')) {
-            $query->where('issue_status', $request->status);
-        }
-
-        if ($request->filled('priority')) {
-            $query->where('priority', $request->priority);
-        }
-
-        if ($request->filled('source')) {
-            $query->where('issue_source', $request->source);
-        }
-
-        if ($request->filled('overdue')) {
-            if ($request->boolean('overdue')) {
-                $query->where('issue_status', 'OVERDUE');
-            }
-        }
-
-        if ($request->filled('escalation_level')) {
-            $query->where('current_escalation_level', $request->escalation_level);
-        }
-
-        if ($request->filled('business_unit_id')) {
-            $query->where('business_unit_id', $request->business_unit_id);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('issue_reference', 'like', "%{$search}%")
-                    ->orWhere('title', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%");
-            });
-        }
-
-        $issues = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
-
-        $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
-        $users = User::where('organization_id', $orgId)->orderBy('name')->get();
-
-        return view('risk.issues.index', compact('issues', 'businessUnits', 'users'));
+        // WP-09: filtering, search, sorting, pagination and export moved into
+        // the shared data grid (App\Grids\Definitions\IssuesGrid), which also
+        // resolves the old issueOwner-loaded/owner-rendered N+1 by loading
+        // and reading the same relation.
+        return view('risk.issues.index');
     }
 
     /**

@@ -116,7 +116,7 @@
                 <span class="material-symbols-outlined text-red-400 text-lg">warning</span>
                 Overdue Issues
             </h3>
-            <a href="{{ url('/risk/issues?status=overdue') }}" class="text-xs text-[#1A365D] font-medium hover:underline">View All</a>
+            <a href="{{ route('risk.issues.index', ['filters' => ['overdue' => 'yes']]) }}" class="text-xs text-[#1A365D] font-medium hover:underline">View All</a>
         </div>
         <div class="overflow-x-auto">
             <table class="data-table">

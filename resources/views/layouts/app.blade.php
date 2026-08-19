@@ -16,13 +16,83 @@
          parsing — before Vite's deferred module bundle runs. On the first
          full page load it defers to DOMContentLoaded; after a wire:navigate
          visit (document already 'complete' when body scripts re-run) it
-         executes the callback immediately. --}}
+         executes the callback immediately.
+
+         It sizes every chart canvas FIRST, because that has to happen before
+         Chart.js is constructed — see wrapSizedCanvases below. --}}
     <script data-navigate-once>
+        /*
+         * Chart.js grows a canvas without bound when its parent's height is
+         * decided by the canvas itself, so every sized canvas needs a
+         * fixed-height, position:relative box around it.
+         *
+         * That box has to exist BEFORE the chart is constructed, for two
+         * reasons:
+         *   1. Chart.js binds its ResizeObserver to whatever the parent is at
+         *      construction time. Re-parenting the canvas afterwards leaves
+         *      the chart measuring a box it no longer lives in.
+         *   2. Chart.js rewrites the canvas `height` ATTRIBUTE to
+         *      cssHeight x devicePixelRatio. Reading that attribute after a
+         *      chart exists therefore yields a box twice too tall on a retina
+         *      screen — which is what used to push the doughnut on the
+         *      Command Centre out over the KPI cards above it.
+         *
+         * The authored height is cached in data-chart-height on first sight,
+         * so later runs (Livewire morphs, wire:navigate visits) stay correct
+         * no matter what Chart.js has done to the attribute by then.
+         */
+        window.wrapSizedCanvases = function () {
+            document.querySelectorAll('canvas').forEach(function (canvas) {
+                var parent = canvas.parentElement;
+                if (!parent || parent.dataset.chartWrap) return;
+
+                /* Only ever size a canvas no chart has claimed yet. This runs
+                   again after every Livewire morph and wire:navigate visit, and
+                   by then the widget engine has built its own boxes
+                   (.widget-chart / .widget-sparkline, which flex with their
+                   GridStack panel) — nesting a fixed-height div inside one of
+                   those would freeze the panel at its first size. */
+                if (window.Chart && window.Chart.getChart(canvas)) return;
+                if (parent.classList.contains('widget-chart') ||
+                    parent.classList.contains('widget-sparkline')) return;
+
+                /* The view often supplies the sized box itself; reuse it
+                   rather than nesting a second one inside it. */
+                if (parent.style.height) {
+                    if (!parent.style.position) parent.style.position = 'relative';
+                    parent.dataset.chartWrap = '1';
+                    return;
+                }
+
+                var height = canvas.dataset.chartHeight;
+                if (height === undefined) {
+                    /* style.height wins: if a chart already rendered here the
+                       attribute is in device pixels and lies. */
+                    height = parseFloat(canvas.style.height) || canvas.getAttribute('height') || '';
+                    if (height === '') return;
+                    canvas.dataset.chartHeight = height;
+                }
+
+                var wrapper = document.createElement('div');
+                wrapper.dataset.chartWrap = '1';
+                wrapper.style.position = 'relative';
+                wrapper.style.height = height + 'px';
+                wrapper.style.width = '100%';
+                parent.insertBefore(wrapper, canvas);
+                wrapper.appendChild(canvas);
+            });
+        };
+
         window.onPageReady = function (fn) {
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', fn, { once: true });
-            } else {
+            var run = function () {
+                window.wrapSizedCanvases();
                 fn();
+            };
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', run, { once: true });
+            } else {
+                run();
             }
         };
     </script>

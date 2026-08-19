@@ -346,28 +346,15 @@
         {{-- WP-08: the two navigation surfaces --}}
         @can('my.view')
         <a href="{{ route('my.index') }}" wire:navigate
-           class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-0.5
+           class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-2
                   {{ $isActive('my') ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8' }}">
             <span class="material-symbols-outlined text-[18px]">checklist</span>
             <span>My Responsibilities</span>
         </a>
         @endcan
-        @can('hq.view')
-        <a href="{{ route('hq.index') }}" wire:navigate
-           class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-0.5
-                  {{ $isSection('hq') ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8' }}">
-            <span class="material-symbols-outlined text-[18px]">hub</span>
-            <span>Business HQ</span>
-        </a>
-        @endcan
-        @can('dashboard.manage')
-        <a href="{{ route('risk.dashboards.index') }}" wire:navigate
-           class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-2
-                  {{ $isSection('risk/dashboards') ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8' }}">
-            <span class="material-symbols-outlined text-[18px]">dashboard_customize</span>
-            <span>Dashboards</span>
-        </a>
-        @endcan
+        {{-- Business HQ and Dashboards are retired — see the RETIRED SURFACES
+             note in routes/web.php for what to restore if they come back. The
+             entry above keeps mb-2 so the divider below still clears it. --}}
 
         <div class="h-px bg-white/10 mx-1 mb-2"></div>
 

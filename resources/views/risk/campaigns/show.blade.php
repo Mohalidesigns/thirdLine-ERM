@@ -28,16 +28,37 @@
         </div>
     </div>
 
-    {{-- Progress --}}
+    {{-- Progress.
+
+         Two segments, not one. The headline percentage stays "approved", which
+         is what completion_pct means everywhere else in the product — but work
+         that respondents have handed in and nobody has reviewed yet now has its
+         own band, so a campaign whose unit has finished no longer reads 0% and
+         looks abandoned. --}}
+    @php $progress = $campaign->progressBreakdown(); @endphp
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <div class="flex items-center justify-between mb-2">
             <span class="text-sm font-medium text-gray-700">Campaign Progress</span>
-            <span class="text-sm font-bold text-gray-900">{{ number_format($campaign->completion_pct, 0) }}%</span>
+            <span class="text-sm font-bold text-gray-900">{{ number_format($progress['completed_pct'], 0) }}%</span>
         </div>
-        <div class="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
-            <div class="h-full bg-green-500 rounded-full transition-all" style="width:{{ $campaign->completion_pct }}%"></div>
+        <div class="w-full h-3 bg-gray-100 rounded-full overflow-hidden flex"
+             role="progressbar"
+             aria-valuenow="{{ (int) $progress['completed_pct'] }}" aria-valuemin="0" aria-valuemax="100"
+             aria-label="{{ $progress['completed'] }} approved and {{ $progress['awaiting_review'] }} awaiting review of {{ $progress['total'] }} {{ Str::plural('assignment', $progress['total']) }}">
+            <div class="h-full bg-green-500 transition-all" style="width:{{ $progress['completed_pct'] }}%"></div>
+            <div class="h-full bg-blue-400 transition-all" style="width:{{ $progress['awaiting_review_pct'] }}%"></div>
         </div>
-        <p class="text-xs text-gray-500 mt-2">{{ $campaign->completed_assignments }} of {{ $campaign->total_assignments }} assignments completed</p>
+        <div class="flex flex-wrap items-center gap-x-5 gap-y-1 mt-2 text-xs text-gray-500">
+            <span class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                {{ $progress['completed'] }} approved
+            </span>
+            <span class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                {{ $progress['awaiting_review'] }} awaiting review
+            </span>
+            <span class="text-gray-400">of {{ $progress['total'] }} {{ Str::plural('assignment', $progress['total']) }}</span>
+        </div>
     </div>
 
     {{-- Assignments --}}
@@ -62,10 +83,18 @@
                         <span class="badge bg-{{ $ac[$assign->status] ?? 'gray' }}-100 text-{{ $ac[$assign->status] ?? 'gray' }}-700">{{ ucfirst(str_replace('_', ' ', $assign->status)) }}</span>
                     </td>
                     <td>
+                        {{-- Whatever the status, if there are lines recorded there
+                             is something to read. This link used to be missing
+                             entirely, which is why a submitted worksheet looked
+                             like it had gone nowhere. --}}
+                        @if($assign->responses_count > 0)
+                            <a href="{{ route('risk.campaigns.submission', $assign) }}" class="text-xs text-primary hover:underline">View submission</a>
+                        @endif
+
                         @if(in_array($assign->status, ['pending', 'in_progress', 'rejected']))
-                            <a href="{{ route('risk.campaigns.respond', $assign) }}" class="text-xs text-primary hover:underline">Respond</a>
+                            <a href="{{ route('risk.campaigns.respond', $assign) }}" class="text-xs text-primary hover:underline {{ $assign->responses_count > 0 ? 'ml-2' : '' }}">Respond</a>
                         @elseif($assign->status === 'submitted')
-                            <form method="POST" action="{{ route('risk.campaigns.review-assignment', $assign) }}" class="inline-flex gap-1">
+                            <form method="POST" action="{{ route('risk.campaigns.review-assignment', $assign) }}" class="inline-flex gap-1 ml-2">
                                 @csrf
                                 <input type="hidden" name="action" value="approve">
                                 <button type="submit" class="text-xs text-green-600 hover:underline">Approve</button>
@@ -75,7 +104,7 @@
                                 <input type="hidden" name="action" value="reject">
                                 <button type="submit" class="text-xs text-red-600 hover:underline">Reject</button>
                             </form>
-                        @else
+                        @elseif($assign->responses_count === 0)
                             <span class="text-xs text-gray-400">—</span>
                         @endif
                     </td>

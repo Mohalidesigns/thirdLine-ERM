@@ -26,9 +26,11 @@ class CampaignController extends Controller
         $pendingReview = CampaignAssignment::whereHas('campaign', fn ($q) => $q->where('organization_id', $orgId))->where('status', 'submitted')->count();
         $avgCompletion = AssessmentCampaign::where('organization_id', $orgId)->whereIn('status', ['active', 'in_progress'])->avg('completion_pct') ?? 0;
 
+        // withProgressCounts() feeds the two-segment progress bar without a
+        // query per row — see AssessmentCampaign::progressBreakdown().
         $campaigns = AssessmentCampaign::where('organization_id', $orgId)
             ->with(['creator', 'questionnaire'])
-            ->withCount('assignments')
+            ->withProgressCounts()
             ->latest()
             ->take(10)
             ->get();
@@ -91,6 +93,10 @@ class CampaignController extends Controller
     {
         $campaign->load(['assignments.businessUnit', 'assignments.respondent', 'assignments.reviewer', 'questionnaire', 'creator']);
 
+        // Drives the "View submission" link: an assignment with lines against
+        // it has something to show, whatever its status.
+        $campaign->assignments->loadCount('responses');
+
         return view('risk.campaigns.show', compact('campaign'));
     }
 
@@ -130,8 +136,30 @@ class CampaignController extends Controller
         return back()->with('success', 'Campaign launched successfully.');
     }
 
+    /**
+     * Read-back of what a respondent actually submitted.
+     *
+     * The respond screen is a blank entry form built from the business unit's
+     * register risks, so it shows nothing of a submission whose lines are
+     * free-text — which is every RCSA worksheet line, since those carry
+     * risk_id = null and keep their content in questionnaire_data. Until this
+     * screen existed a submitted worksheet was stored and auditable but had
+     * nowhere in the interface that displayed it back.
+     */
+    public function submission(CampaignAssignment $assignment)
+    {
+        $campaign = $this->tenantCampaignFor($assignment);
+
+        $assignment->load(['businessUnit', 'respondent', 'reviewer', 'responses.risk', 'responses.control']);
+        $assignment->setRelation('campaign', $campaign);
+
+        return view('risk.campaigns.submission', compact('assignment', 'campaign'));
+    }
+
     public function respond(CampaignAssignment $assignment)
     {
+        $this->tenantCampaignFor($assignment);
+
         $assignment->load(['campaign.questionnaire.sections.questions', 'businessUnit', 'responses']);
 
         $orgId = auth()->user()->organization_id;
@@ -147,6 +175,8 @@ class CampaignController extends Controller
 
     public function submitResponse(Request $request, CampaignAssignment $assignment)
     {
+        $this->tenantCampaignFor($assignment);
+
         $request->validate([
             'responses' => 'required|array',
             'responses.*.risk_id' => 'nullable|exists:risks,id',
@@ -191,6 +221,8 @@ class CampaignController extends Controller
 
     public function reviewAssignment(Request $request, CampaignAssignment $assignment)
     {
+        $this->tenantCampaignFor($assignment);
+
         $request->validate([
             'action' => 'required|in:approve,reject',
             'reviewer_notes' => 'nullable|string',
@@ -216,6 +248,24 @@ class CampaignController extends Controller
         ]);
 
         return back()->with('success', 'Campaign closed.');
+    }
+
+    /**
+     * The assignment's campaign, or 404.
+     *
+     * campaign_assignments carries no organization_id of its own, so route
+     * model binding on {assignment} resolves any id in the table regardless of
+     * tenant. AssessmentCampaign does carry the OrganizationScope, so a
+     * foreign campaign reads back as null through the relation — which makes
+     * this both the tenancy check and the lookup.
+     */
+    private function tenantCampaignFor(CampaignAssignment $assignment): AssessmentCampaign
+    {
+        $campaign = $assignment->campaign()->first();
+
+        abort_if($campaign === null, 404);
+
+        return $campaign;
     }
 
     /**

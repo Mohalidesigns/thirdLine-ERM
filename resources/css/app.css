@@ -1,6 +1,12 @@
 @import 'tailwindcss';
 @import './fonts.css';
-@import './widgets.css';
+
+/* widgets.css is not imported: every class it defines (.widget-chart,
+   .widget-treemap, .widget-network, …) is styling for widget panels, and the
+   two surfaces that rendered them are retired — see the RETIRED SURFACES note
+   in routes/web.php. The file is still there; restore the import alongside the
+   engine's JS if the screens come back.
+   @import './widgets.css'; */
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -170,6 +176,26 @@ body {
     display: none;
 }
 
+/* ------------------------------------------------------------------ charts
+
+   Every chart canvas is placed inside a fixed-height box by
+   window.wrapSizedCanvases (layouts/app.blade.php) before Chart.js sees it.
+   Clipping that box is the structural backstop: a canvas can then never paint
+   over the cards around it, and — more importantly — can never feed its own
+   height back into its parent and start the responsive resize loop that used
+   to grow it without bound.                                                  */
+
+[data-chart-wrap] {
+    position: relative;
+    overflow: hidden;
+}
+
+[data-chart-wrap] > canvas {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+}
+
 /* ---------- Print ----------
    Strip chrome (sidebar, topbar, breadcrumbs, footer, flash, action buttons,
    tab nav) so only the report body prints. Add class `no-print` to anything
@@ -248,6 +274,13 @@ body {
     canvas {
         max-width: 100% !important;
         height: auto !important;
+    }
+
+    /* ...which means the fixed-height box around it must let go, or it
+       clips the print rendering of the chart it was sizing on screen. */
+    [data-chart-wrap] {
+        height: auto !important;
+        overflow: visible !important;
     }
 
     a {

@@ -2,8 +2,6 @@ import './bootstrap';
 
 import { Livewire, Alpine } from '../../vendor/livewire/livewire/dist/livewire.esm';
 import Chart from 'chart.js/auto';
-import { initWidgets } from './widgets';
-import { initDashboardBuilder } from './widgets/builder';
 
 /*
 | Alpine and Chart.js used to arrive from cdn.jsdelivr.net on every page load,
@@ -46,49 +44,57 @@ window.onPageReady ??= (fn) => {
 };
 
 /*
-| WP-08 widget engine hydration: finds [data-widget] panels, renders their
-| chart payloads, and keeps them alive across Livewire morphs, wire:navigate
-| visits and colour scheme changes. Both init functions register document-
-| level listeners (including their own livewire:navigated handlers), so they
-| run EXACTLY ONCE per browser session — never per navigation.
+| The WP-08 widget engine used to hydrate here: initWidgets() found
+| [data-widget] panels and initDashboardBuilder() wired up GridStack. Both
+| surfaces that rendered those panels — Business HQ and the dashboard builder —
+| are retired (see the RETIRED SURFACES note in routes/web.php), so the two
+| calls only ever walked an empty DOM, while their imports pulled GridStack and
+| every chart resolver into the bundle for every page in the product.
+|
+| The engine itself is untouched under resources/js/widgets/. To bring it back:
+| reinstall its one runtime dependency, `npm install gridstack`, restore the
+| two imports at the top of this file, and re-add:
+|
+|   window.onPageReady(() => {
+|       initWidgets();
+|       initDashboardBuilder();
+|   });
+|
+| The .widget-chart / .widget-sparkline guards in wrapSizedCanvases
+| (layouts/app.blade.php) were left in place, so nothing else has to change.
 */
-window.onPageReady(() => {
-    initWidgets();
-    initDashboardBuilder();
-});
 
 /*
-| Canvas sizing fix, re-applied per pageview: wrap any canvas that declares a
-| height attribute in a fixed-height relative container, otherwise Chart.js's
-| responsive resize loop grows the canvas indefinitely. Idempotent — wrapped
-| canvases are skipped via the parent's data-chart-wrap marker.
+| Canvas sizing, re-applied per pageview.
+|
+| The wrapper itself lives in an inline head script in layouts/app.blade.php
+| (window.wrapSizedCanvases) and is called from window.onPageReady BEFORE each
+| page's chart code runs — a canvas has to be inside its fixed-height box
+| before Chart.js is constructed against it, or the chart binds its
+| ResizeObserver to a box it is about to leave. See that script for the full
+| reasoning. Pages that load this bundle without the layout (the auth screens)
+| have no charts, so a no-op stand-in is enough there.
 */
-const wrapSizedCanvases = () => {
-    document.querySelectorAll('canvas').forEach((canvas) => {
-        const height = canvas.getAttribute('height');
-        if (!height) return;
+window.wrapSizedCanvases ??= () => {};
 
-        const parent = canvas.parentElement;
-        if (!parent || parent.dataset.chartWrap) return;
-
-        const wrapper = document.createElement('div');
-        wrapper.dataset.chartWrap = '1';
-        wrapper.style.position = 'relative';
-        wrapper.style.height = `${height}px`;
-        wrapper.style.width = '100%';
-
-        parent.insertBefore(wrapper, canvas);
-        wrapper.appendChild(canvas);
+/*
+| wire:navigate never reloads the document, so a Chart instance whose canvas
+| was just swapped out stays in Chart.instances forever — holding its data, its
+| canvas and a live ResizeObserver that keeps firing on every window resize.
+| Twenty visits around the dashboards used to leave dozens of them behind.
+| The canvases of the incoming page are already attached by the time
+| livewire:navigated fires, so anything still detached is genuinely dead.
+*/
+const destroyDetachedCharts = () => {
+    Object.values(Chart.instances).forEach((chart) => {
+        if (!chart.canvas?.isConnected) chart.destroy();
     });
 };
 
-/*
-| Inline page scripts run before livewire:navigated fires, so charts created
-| by window.onPageReady callbacks exist by the time their canvases are
-| wrapped — the same ordering as DOMContentLoaded on a full page load.
-*/
-window.onPageReady(wrapSizedCanvases);
-document.addEventListener('livewire:navigated', wrapSizedCanvases);
+document.addEventListener('livewire:navigated', () => {
+    destroyDetachedCharts();
+    window.wrapSizedCanvases();
+});
 
 /*
 | Global live-search helper.

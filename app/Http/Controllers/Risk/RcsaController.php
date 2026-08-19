@@ -173,7 +173,22 @@ class RcsaController extends Controller
             ->orderByDesc('start_date')
             ->get();
 
-        return view('risk.rcsa.worksheet', compact('risks', 'businessUnits', 'categories', 'processes', 'campaigns'));
+        // A worksheet becomes a campaign assignment rather than a register
+        // entry, so without this the respondent has no trace of the work they
+        // filed from this very screen. Their own submissions only.
+        $mySubmissions = CampaignAssignment::whereHas('campaign', fn ($q) => $q->where('organization_id', $orgId))
+            ->where('respondent_id', auth()->id())
+            ->has('responses')
+            ->with(['campaign:id,campaign_code,title', 'businessUnit:id,name'])
+            ->withCount('responses')
+            ->orderByDesc('submitted_at')
+            ->orderByDesc('id')
+            ->limit(5)
+            ->get();
+
+        return view('risk.rcsa.worksheet', compact(
+            'risks', 'businessUnits', 'categories', 'processes', 'campaigns', 'mySubmissions'
+        ));
     }
 
     /**
@@ -422,12 +437,24 @@ class RcsaController extends Controller
             RcsaWorksheetSubmitted::dispatch($assignment, $campaign, $responseCount);
         }
 
-        return redirect()->route('risk.rcsa.worksheet')->with(
-            'success',
-            $isSubmission
-                ? "Worksheet submitted for review: {$responseCount} risk line(s) recorded against campaign {$campaign->campaign_code}."
-                : "Draft saved: {$responseCount} risk line(s) recorded against campaign {$campaign->campaign_code}."
-        );
+        $message = $isSubmission
+            ? "Worksheet submitted for review: {$responseCount} risk line(s) recorded against campaign {$campaign->campaign_code}."
+            : "Draft saved: {$responseCount} risk line(s) recorded against campaign {$campaign->campaign_code}.";
+
+        // Land on the submission itself rather than back on an empty worksheet.
+        // A worksheet becomes a campaign assignment, not a register risk, so a
+        // respondent returned to the blank form had no way of telling where
+        // their work had gone — or whether it had been kept at all.
+        // Every role holding rcsa.submit also holds campaign.view today; the
+        // fallback keeps the flash message meaningful if that ever stops
+        // being true rather than bouncing the respondent into a 403.
+        if (auth()->user()?->can('campaign.view')) {
+            return redirect()
+                ->route('risk.campaigns.submission', $assignment)
+                ->with('success', $message);
+        }
+
+        return redirect()->route('risk.rcsa.worksheet')->with('success', $message);
     }
 
     /**

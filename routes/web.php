@@ -19,14 +19,12 @@ use App\Http\Controllers\Risk\ApprovalController;
 use App\Http\Controllers\Risk\CampaignController;
 use App\Http\Controllers\Risk\ControlController;
 use App\Http\Controllers\Risk\ControlTestController;
-use App\Http\Controllers\Risk\DashboardBuilderController;
 use App\Http\Controllers\Risk\DashboardController;
 use App\Http\Controllers\Risk\DataImportController;
 use App\Http\Controllers\Risk\DocumentRepositoryController;
 use App\Http\Controllers\Risk\EmergingRiskController;
 use App\Http\Controllers\Risk\ExportController;
 use App\Http\Controllers\Risk\GlobalSearchController;
-use App\Http\Controllers\Risk\HqController;
 use App\Http\Controllers\Risk\IssueController;
 use App\Http\Controllers\Risk\KriController;
 use App\Http\Controllers\Risk\LossEventController;
@@ -131,14 +129,41 @@ Route::middleware(['auth'])->group(function () {
 /*  WP-08 — Business HQ, My Responsibilities, global search */
 /* ---------------------------------------------------------------------- */
 
-Route::middleware(['auth'])->group(function () {
-    // Per-node landing pages. {object} resolves through the tenant global
-    // scope, so a foreign id 404s rather than leaking.
-    Route::get('hq', [HqController::class, 'index'])
-        ->middleware('permission:hq.view')->name('hq.index');
-    Route::get('hq/{object}', [HqController::class, 'show'])
-        ->middleware('permission:hq.view')->name('hq.show');
+/*
+ | RETIRED SURFACES — Business HQ (/hq) and the dashboard builder
+ | (/risk/dashboards).
+ |
+ | Both screens are withdrawn from the product: neither earned its place, and
+ | the org-tree page in particular rendered "No dashboard published for
+ | Enterprise" for most nodes. The routes below are the only thing removed —
+ | HqController, DashboardBuilderController, the Livewire components, the
+ | widget engine under app/Services/Widgets, its views, JS and the
+ | widget_definitions / dashboards tables are all left intact and untouched.
+ |
+ | To bring either back, restore its Route::get lines here and the matching
+ | @can block in layouts/partials/sidebar.blade.php. The hq.view and
+ | dashboard.manage permissions are still seeded, so nothing else has to change.
+ |
+ |   Route::get('hq', [HqController::class, 'index'])
+ |       ->middleware('permission:hq.view')->name('hq.index');
+ |   Route::get('hq/{object}', [HqController::class, 'show'])
+ |       ->middleware('permission:hq.view')->name('hq.show');
+ |
+ |   Route::middleware('permission:dashboard.manage')->group(function () {
+ |       Route::get('risk/dashboards', [DashboardBuilderController::class, 'index'])
+ |           ->name('risk.dashboards.index');
+ |       Route::get('risk/dashboards/create', [DashboardBuilderController::class, 'create'])
+ |           ->name('risk.dashboards.create');
+ |       Route::get('risk/dashboards/{dashboard}/edit', [DashboardBuilderController::class, 'edit'])
+ |           ->name('risk.dashboards.edit');
+ |   });
+ |
+ | GlobalSearchController::urlFor() used to send org-structure results to
+ | hq.show; with the surface gone it returns null and those results render
+ | unlinked. That is the one behaviour change outside this file.
+ */
 
+Route::middleware(['auth'])->group(function () {
     // The personal work queue — the adoption surface. Supersedes
     // risk/my-tasks as the landing page; that route stays for deep links.
     Route::get('my', [MyResponsibilitiesController::class, 'index'])
@@ -149,17 +174,6 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:search.view')->name('search.index');
     Route::get('search/suggest', [GlobalSearchController::class, 'suggest'])
         ->middleware('permission:search.view')->name('search.suggest');
-
-    // Dashboard builder: compose, publish, delete. dashboard.manage is the
-    // risk function's grant, not general admin.
-    Route::middleware('permission:dashboard.manage')->group(function () {
-        Route::get('risk/dashboards', [DashboardBuilderController::class, 'index'])
-            ->name('risk.dashboards.index');
-        Route::get('risk/dashboards/create', [DashboardBuilderController::class, 'create'])
-            ->name('risk.dashboards.create');
-        Route::get('risk/dashboards/{dashboard}/edit', [DashboardBuilderController::class, 'edit'])
-            ->name('risk.dashboards.edit');
-    });
 });
 
 /* ---------------------------------------------------------------------- */
@@ -814,6 +828,8 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         ->middleware('permission:campaign.create')->name('risk.campaigns.create');
     Route::post('campaigns', [CampaignController::class, 'store'])
         ->middleware('permission:campaign.create')->name('risk.campaigns.store');
+    Route::get('campaigns/assignments/{assignment}/submission', [CampaignController::class, 'submission'])
+        ->middleware('permission:campaign.view')->name('risk.campaigns.submission');
     Route::get('campaigns/assignments/{assignment}/respond', [CampaignController::class, 'respond'])
         ->middleware('permission:campaign.respond')->name('risk.campaigns.respond');
     Route::post('campaigns/assignments/{assignment}/submit', [CampaignController::class, 'submitResponse'])

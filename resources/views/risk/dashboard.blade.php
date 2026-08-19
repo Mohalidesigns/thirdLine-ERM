@@ -170,7 +170,10 @@
         {{-- Risk Rating Distribution Ring --}}
         <div class="bg-white rounded-xl border border-gray-200 p-5">
             <h3 class="text-sm font-semibold text-[#1A365D] mb-4">Risk Rating Distribution</h3>
-            <div class="flex items-center justify-center" style="position: relative; height: 260px; width: 100%;">
+            {{-- No flex centring here: a canvas that ends up taller than the
+                 box would then overflow it symmetrically, i.e. up over the KPI
+                 cards. Chart.js centres the doughnut inside the canvas anyway. --}}
+            <div style="position: relative; height: 260px; width: 100%;">
                 <canvas id="ratingDistChart" height="260"></canvas>
             </div>
             <div class="grid grid-cols-4 gap-2 mt-4">

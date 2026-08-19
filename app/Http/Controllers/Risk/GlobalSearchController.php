@@ -28,7 +28,23 @@ use Illuminate\Http\Request;
  */
 class GlobalSearchController extends Controller
 {
-    /** source_model_type → [required permission, show route, route param source]. */
+    /**
+     * source_model_type → [required permission, show route].
+     *
+     * A null route means the object has no screen anywhere in the product, and
+     * search() drops those results — the module's standing rule is that a
+     * result links somewhere real.
+     *
+     * These entries changed when Business HQ was retired (see the RETIRED
+     * SURFACES note in routes/web.php). Anything without a typed screen used to
+     * fall back to the node's HQ page:
+     *   - entity and control_test turned out to have real screens of their own
+     *     all along, so they are wired to those and are now better targets than
+     *     the generic node page ever was;
+     *   - business_unit and business_process have no screen at all, so they
+     *     leave the map entirely rather than being queried and then discarded;
+     *   - near_miss keeps a null route: it is reachable only by conversion.
+     */
     private const TYPE_MAP = [
         'risk' => ['risk.view', 'risk.register.show'],
         'control' => ['control.view', 'risk.controls.show'],
@@ -36,12 +52,10 @@ class GlobalSearchController extends Controller
         'loss_event' => ['loss_event.view', 'risk.loss-events.show'],
         'key_risk_indicator' => ['kri.view', 'risk.kri.show'],
         'treatment_plan' => ['treatment.view', 'risk.treatments.show'],
-        'control_test' => ['control_test.view', null],
+        'control_test' => ['control_test.view', 'risk.control-tests.show'],
         'risk_assessment' => ['assessment.view', 'risk.assessments.show'],
         'near_miss' => ['loss_event.view', null],
-        'entity' => ['hq.view', null],
-        'business_unit' => ['hq.view', null],
-        'business_process' => ['hq.view', null],
+        'entity' => ['entity.view', 'risk.scoping.show'],
     ];
 
     public function index(Request $request)
@@ -118,15 +132,11 @@ class GlobalSearchController extends Controller
             ->keys()
             ->all();
 
-        $query->where(function (Builder $q) use ($allowed) {
-            $q->whereIn('source_model_type', $allowed);
-
-            // Graph-native objects (no typed source yet — e.g. Opportunity
-            // rows) are visible to anyone who can see HQ pages.
-            if (auth()->user()?->can('hq.view')) {
-                $q->orWhereNull('source_model_type');
-            }
-        });
+        // Graph-native objects with no typed source used to be included here
+        // for hq.view holders, because Business HQ could render them. With that
+        // surface retired they have no screen, so search() would discard them
+        // anyway — they are no longer queried for.
+        $query->whereIn('source_model_type', $allowed);
     }
 
     /** The same subtree pin GraphQueryService enforces, expressed inline. */
@@ -160,13 +170,21 @@ class GlobalSearchController extends Controller
         });
     }
 
+    /**
+     * Where a result jumps to, or null when nothing in the product shows it —
+     * in which case search() drops the result rather than offering a dead link.
+     *
+     * Node-type objects returned the node's Business HQ page until that surface
+     * was retired. Entities are the one node kind with a screen of their own,
+     * and they reach it through TYPE_MAP below, not through this branch.
+     */
     private function urlFor(GraphObject $object, bool $isNode): ?string
     {
-        if ($isNode) {
-            return route('hq.show', $object->id);
-        }
-
         $entry = self::TYPE_MAP[$object->source_model_type] ?? null;
+
+        if ($isNode && $entry === null) {
+            return null;
+        }
 
         if ($entry !== null && $entry[1] !== null && $object->source_model_id !== null) {
             try {
@@ -176,8 +194,6 @@ class GlobalSearchController extends Controller
             }
         }
 
-        // Governance objects without a dedicated screen land on their node's
-        // HQ page, which at least shows them in context.
-        return $object->node_id === null ? null : route('hq.show', $object->node_id);
+        return null;
     }
 }

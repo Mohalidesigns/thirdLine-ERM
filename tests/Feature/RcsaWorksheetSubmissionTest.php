@@ -92,9 +92,12 @@ class RcsaWorksheetSubmissionTest extends TestCase
     #[Test]
     public function a_submitted_worksheet_persists_campaign_responses(): void
     {
+        // The respondent is returned to the submission itself, not to a fresh
+        // worksheet: a worksheet becomes a campaign assignment rather than a
+        // register risk, so the blank form gave no sign of where it had gone.
         $this->actingAs($this->user)
             ->post(route('risk.rcsa.worksheet.store'), $this->payload())
-            ->assertRedirect(route('risk.rcsa.worksheet'))
+            ->assertRedirect(route('risk.campaigns.submission', CampaignAssignment::firstOrFail()))
             ->assertSessionHas('success');
 
         $this->assertSame(1, CampaignResponse::count(), 'The worksheet line must be persisted.');
@@ -300,6 +303,147 @@ class RcsaWorksheetSubmissionTest extends TestCase
             ->assertSessionHasErrors('business_unit_id');
 
         $this->assertSame(0, CampaignResponse::count());
+    }
+
+    #[Test]
+    public function the_submission_screen_reads_back_the_lines_that_were_filed(): void
+    {
+        $this->actingAs($this->user)->post(route('risk.rcsa.worksheet.store'), $this->payload());
+
+        $assignment = CampaignAssignment::firstOrFail();
+
+        // Everything the respondent typed has to come back out. The respond
+        // screen builds itself from register risks and shows none of it, which
+        // is what made a filed worksheet look discarded.
+        $this->actingAs($this->user)
+            ->get(route('risk.campaigns.submission', $assignment))
+            ->assertOk()
+            ->assertSee('Manual reconciliation errors in branch settlement')
+            ->assertSee('Daily four-eye review of settlement file')
+            ->assertSee('Automate the reconciliation by Q4')
+            ->assertSee('Retail Banking')
+            ->assertSee('Critical')   // inherent rating, from questionnaire_data
+            ->assertSee('High');      // residual rating, from the scored columns
+    }
+
+    #[Test]
+    public function the_worksheet_screen_lists_the_respondents_own_submissions(): void
+    {
+        $this->actingAs($this->user)->post(route('risk.rcsa.worksheet.store'), $this->payload());
+
+        $this->actingAs($this->user)
+            ->get(route('risk.rcsa.worksheet'))
+            ->assertOk()
+            ->assertSee('Your recent worksheets')
+            ->assertSee('Retail Banking');
+    }
+
+    #[Test]
+    public function a_submission_from_another_tenant_is_not_readable(): void
+    {
+        $other = Organization::create([
+            'name' => 'Rival Bank PLC',
+            'short_name' => 'RIVL',
+            'institution_type' => 'commercial_bank',
+            'sector' => 'banking',
+            'is_active' => true,
+        ]);
+
+        // campaign_assignments has no organization_id of its own, so route
+        // model binding on {assignment} will happily resolve a foreign row —
+        // the guard has to come from the campaign it hangs off.
+        $foreignCampaign = AssessmentCampaign::withoutGlobalScopes()->create([
+            'organization_id' => $other->id,
+            'campaign_code' => 'RCSA-2026-9999',
+            'title' => 'Rival RCSA',
+            'campaign_type' => 'rcsa',
+            'status' => 'active',
+            'start_date' => now()->startOfYear(),
+            'end_date' => now()->endOfYear(),
+            'created_by' => $this->user->id,
+        ]);
+
+        $foreignUnit = BusinessUnit::withoutGlobalScopes()->create([
+            'organization_id' => $other->id,
+            'code' => 'FGN',
+            'name' => 'Foreign unit',
+        ]);
+
+        $foreignAssignment = CampaignAssignment::create([
+            'campaign_id' => $foreignCampaign->id,
+            'business_unit_id' => $foreignUnit->id,
+            'respondent_id' => $this->user->id,
+            'due_date' => now()->addMonth(),
+            'status' => 'submitted',
+        ]);
+
+        $this->actingAs($this->user)
+            ->get(route('risk.campaigns.submission', $foreignAssignment))
+            ->assertNotFound();
+
+        $this->actingAs($this->user)
+            ->get(route('risk.campaigns.respond', $foreignAssignment))
+            ->assertNotFound();
+
+        $this->actingAs($this->user)
+            ->post(route('risk.campaigns.review-assignment', $foreignAssignment), ['action' => 'approve'])
+            ->assertNotFound();
+
+        $this->assertSame('submitted', $foreignAssignment->fresh()->status);
+    }
+
+    #[Test]
+    public function submitted_work_shows_as_its_own_progress_segment_without_counting_as_complete(): void
+    {
+        $this->actingAs($this->user)->post(route('risk.rcsa.worksheet.store'), $this->payload());
+
+        $campaign = AssessmentCampaign::firstOrFail();
+        $breakdown = $campaign->fresh()->progressBreakdown();
+
+        // Handed in, nobody has reviewed it: visible on the bar, but not
+        // completion. completion_pct is averaged on the dashboard, sorted on in
+        // the grid and published through the API — it has to stay assurance.
+        $this->assertSame(1, $breakdown['total']);
+        $this->assertSame(0, $breakdown['completed']);
+        $this->assertSame(1, $breakdown['awaiting_review']);
+        $this->assertEqualsWithDelta(0.0, $breakdown['completed_pct'], 0.01);
+        $this->assertEqualsWithDelta(100.0, $breakdown['awaiting_review_pct'], 0.01);
+        $this->assertEqualsWithDelta(0.0, (float) $campaign->fresh()->completion_pct, 0.01);
+
+        $this->actingAs($this->user)
+            ->get(route('risk.campaigns.show', $campaign))
+            ->assertOk()
+            ->assertSee('awaiting review');
+
+        // Approving moves it across to the completed segment.
+        $this->actingAs($this->user)->post(
+            route('risk.campaigns.review-assignment', CampaignAssignment::firstOrFail()),
+            ['action' => 'approve']
+        );
+
+        $breakdown = $campaign->fresh()->progressBreakdown();
+
+        $this->assertSame(1, $breakdown['completed']);
+        $this->assertSame(0, $breakdown['awaiting_review']);
+        $this->assertEqualsWithDelta(100.0, (float) $campaign->fresh()->completion_pct, 0.01);
+    }
+
+    #[Test]
+    public function the_progress_breakdown_agrees_however_the_campaign_was_loaded(): void
+    {
+        $this->actingAs($this->user)->post(route('risk.rcsa.worksheet.store'), $this->payload());
+
+        $id = AssessmentCampaign::firstOrFail()->id;
+
+        // Three resolution paths: an eager-loaded relation, the counts from
+        // withProgressCounts(), and a bare model that has to query.
+        $fromRelation = AssessmentCampaign::with('assignments')->findOrFail($id)->progressBreakdown();
+        $fromCounts = AssessmentCampaign::withProgressCounts()->findOrFail($id)->progressBreakdown();
+        $fromQuery = AssessmentCampaign::findOrFail($id)->progressBreakdown();
+
+        $this->assertSame($fromRelation, $fromCounts);
+        $this->assertSame($fromRelation, $fromQuery);
+        $this->assertSame(1, $fromRelation['awaiting_review']);
     }
 
     private function makeCampaign(): AssessmentCampaign

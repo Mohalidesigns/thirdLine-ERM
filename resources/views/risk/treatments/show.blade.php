@@ -210,7 +210,12 @@
                 @if ($plan->progress_notes)
                     <p class="text-xs text-gray-500 mt-2">{{ $plan->progress_notes }}</p>
                 @endif
-                <canvas id="progressChart" height="120"></canvas>
+                {{-- Only drawn when there is a history to draw. The chart
+                     script skips an empty series, so an unconditional canvas
+                     left 120px of blank card on every plan. --}}
+                @if (!empty($progressHistory['labels']))
+                    <canvas id="progressChart" height="120"></canvas>
+                @endif
             </div>
 
             {{-- Milestones --}}

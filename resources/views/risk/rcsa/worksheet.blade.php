@@ -25,6 +25,50 @@
         <p class="text-sm text-gray-500 mt-1">Assess risks and controls for your business unit processes</p>
     </div>
 
+    {{-- A submitted worksheet is filed as a campaign assignment, not as a risk
+         in the register, so nothing about it shows up on the RCSA screens. This
+         panel is the trail back to work filed from here. --}}
+    @if (!empty($mySubmissions) && $mySubmissions->isNotEmpty())
+        <div class="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-semibold text-[#1A365D]">Your recent worksheets</h2>
+                <span class="text-xs text-gray-400">Filed as campaign assignments</span>
+            </div>
+            <ul class="divide-y divide-gray-100">
+                @foreach ($mySubmissions as $submission)
+                    @php
+                        $colours = [
+                            'pending' => 'gray', 'in_progress' => 'yellow', 'submitted' => 'blue',
+                            'under_review' => 'purple', 'approved' => 'green', 'rejected' => 'red',
+                        ];
+                        $colour = $colours[$submission->status] ?? 'gray';
+                    @endphp
+                    <li class="flex items-center justify-between gap-4 py-2.5">
+                        <div class="min-w-0">
+                            <p class="text-sm font-medium text-gray-800 truncate">
+                                {{ $submission->businessUnit?->name ?? 'Unassigned unit' }}
+                                <span class="text-gray-400 font-normal">·</span>
+                                <span class="text-gray-500 font-normal">{{ $submission->campaign?->campaign_code }}</span>
+                            </p>
+                            <p class="text-xs text-gray-500 mt-0.5">
+                                {{ $submission->responses_count }} {{ Str::plural('risk line', $submission->responses_count) }}
+                                @if ($submission->submitted_at)
+                                    &middot; {{ $submission->submitted_at->format('d M Y, H:i') }}
+                                @endif
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-3 flex-shrink-0">
+                            <span class="badge bg-{{ $colour }}-100 text-{{ $colour }}-700">{{ ucfirst(str_replace('_', ' ', $submission->status)) }}</span>
+                            @can('campaign.view')
+                                <a href="{{ route('risk.campaigns.submission', $submission) }}" class="text-xs text-[#1A365D] font-medium hover:underline">View</a>
+                            @endcan
+                        </div>
+                    </li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <form method="POST" action="{{ route('risk.rcsa.worksheet.store') }}">
         @csrf
 

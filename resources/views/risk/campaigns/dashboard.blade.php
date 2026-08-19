@@ -53,11 +53,19 @@
                     </td>
                     <td>{{ $campaign->assignments_count }}</td>
                     <td>
-                        <div class="flex items-center gap-2">
-                            <div class="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                <div class="h-full bg-green-500 rounded-full" style="width:{{ $campaign->completion_pct }}%"></div>
+                        {{-- Green is approved, blue is handed in and waiting on a
+                             reviewer. The number stays the approved share. --}}
+                        @php $progress = $campaign->progressBreakdown(); @endphp
+                        <div class="flex items-center gap-2"
+                             title="{{ $progress['completed'] }} approved · {{ $progress['awaiting_review'] }} awaiting review · {{ $progress['total'] }} total">
+                            <div class="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden flex">
+                                <div class="h-full bg-green-500" style="width:{{ $progress['completed_pct'] }}%"></div>
+                                <div class="h-full bg-blue-400" style="width:{{ $progress['awaiting_review_pct'] }}%"></div>
                             </div>
-                            <span class="text-xs text-gray-500">{{ number_format($campaign->completion_pct, 0) }}%</span>
+                            <span class="text-xs text-gray-500">{{ number_format($progress['completed_pct'], 0) }}%</span>
+                            @if ($progress['awaiting_review'] > 0)
+                                <span class="text-[11px] text-blue-600">+{{ $progress['awaiting_review'] }} to review</span>
+                            @endif
                         </div>
                     </td>
                     <td class="text-xs text-gray-500">{{ $campaign->created_at->format('M d, Y') }}</td>

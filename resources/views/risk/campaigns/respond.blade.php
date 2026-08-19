@@ -15,6 +15,23 @@
         <p class="text-sm text-gray-500 mt-1">Business Unit: {{ $assignment->businessUnit?->name }} &middot; Due: {{ $assignment->due_date->format('M d, Y') }}</p>
     </div>
 
+    {{-- This form is built from the business unit's register risks, so it shows
+         nothing of a submission whose lines are free text — an RCSA worksheet
+         reads as "no risks found" here even when it recorded plenty. Point at
+         the read-back rather than letting the page imply the work is gone. --}}
+    @if($assignment->responses->isNotEmpty())
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-4">
+            <p class="text-sm text-blue-800">
+                {{ $assignment->responses->count() }} {{ Str::plural('line', $assignment->responses->count()) }}
+                already recorded against this assignment. Submitting below replaces them.
+            </p>
+            @can('campaign.view')
+                <a href="{{ route('risk.campaigns.submission', $assignment) }}"
+                   class="text-sm font-medium text-blue-700 hover:underline whitespace-nowrap">View submission</a>
+            @endcan
+        </div>
+    @endif
+
     <form method="POST" action="{{ route('risk.campaigns.submit-response', $assignment) }}" class="space-y-6">
         @csrf
 

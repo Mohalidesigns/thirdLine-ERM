@@ -45,20 +45,40 @@ class HqSurfacesTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Business HQ */
+    /*  Business HQ — retired */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * The four tests that used to live here drove /hq: permission gating, the
+     * published-dashboard render, cross-tenant 404 and the unpublished-dashboard
+     * case. The surface is withdrawn (see the RETIRED SURFACES note in
+     * routes/web.php), so what is worth asserting now is that it is genuinely
+     * gone — not 403, not a blank page, but no route at all. The engine behind
+     * it is untouched and still covered by WidgetContextBindingTest and
+     * WidgetTypeResolversTest.
+     */
     #[Test]
-    public function hq_requires_authentication_and_permission(): void
+    public function the_retired_hq_surfaces_are_no_longer_routable(): void
     {
-        $this->get('/hq')->assertRedirect();
+        $node = $this->retail->graphObject();
 
-        $this->actor->revokePermissionTo('hq.view');
-        $this->actingAs($this->actor)->get('/hq')->assertForbidden();
+        $this->actingAs($this->actor)->get('/hq')->assertNotFound();
+        $this->actingAs($this->actor)->get('/hq/'.$node->id)->assertNotFound();
+        $this->actingAs($this->actor)->get('/risk/dashboards')->assertNotFound();
+        $this->actingAs($this->actor)->get('/risk/dashboards/create')->assertNotFound();
+
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('hq.index'));
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('hq.show'));
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('risk.dashboards.index'));
     }
 
+    /**
+     * Retiring the surface must not take the rest of the product with it: the
+     * dashboards it used to render are still readable, so restoring the routes
+     * is all it takes to bring the screens back.
+     */
     #[Test]
-    public function hq_renders_the_published_dashboard_with_its_tab_set(): void
+    public function the_widget_engine_and_its_data_survive_the_retirement(): void
     {
         $widget = WidgetDefinition::create([
             'organization_id' => $this->organization->id,
@@ -70,7 +90,7 @@ class HqSurfacesTest extends TestCase
             'query' => ['source' => 'risks'],
         ]);
 
-        Dashboard::create([
+        $dashboard = Dashboard::create([
             'organization_id' => $this->organization->id,
             'code' => 'test-hq',
             'name' => 'Test HQ',
@@ -79,50 +99,12 @@ class HqSurfacesTest extends TestCase
                 ['code' => 'main', 'label' => 'Overview', 'layout' => [
                     ['widget_id' => $widget->id, 'x' => 0, 'y' => 0, 'w' => 4, 'h' => 3],
                 ]],
-                ['code' => 'second', 'label' => 'Register', 'layout' => []],
             ],
             'is_published' => true,
         ]);
 
-        $this->makeRisk(['business_unit_id' => $this->retail->id]);
-
-        $node = $this->retail->graphObject();
-
-        $response = $this->actingAs($this->actor)->get('/hq/'.$node->id);
-
-        $response->assertOk()
-            ->assertSee('Overview')
-            ->assertSee('Register')
-            ->assertSee('Retail Banking')
-            ->assertSee('Business HQ');
-    }
-
-    #[Test]
-    public function hq_does_not_resolve_another_tenants_node(): void
-    {
-        $node = $this->retail->graphObject();
-
-        // A user from a different organization gets a 404, not the page.
-        $this->bootDomainFixtures('Other Bank PLC');
-        $this->actor->givePermissionTo(['hq.view']);
-
-        $this->actingAs($this->actor)->get('/hq/'.$node->id)->assertNotFound();
-    }
-
-    #[Test]
-    public function an_unpublished_dashboard_does_not_render(): void
-    {
-        Dashboard::create([
-            'organization_id' => $this->organization->id,
-            'code' => 'draft-hq',
-            'name' => 'Draft',
-            'tabs' => [['code' => 'main', 'label' => 'Draft tab', 'layout' => []]],
-            'is_published' => false,
-        ]);
-
-        $response = $this->actingAs($this->actor)->get('/hq/'.$this->retail->graphObject()->id);
-
-        $response->assertOk()->assertDontSee('Draft tab');
+        $this->assertTrue($dashboard->fresh()->is_published);
+        $this->assertSame([$widget->id], $dashboard->fresh()->placedWidgetIds());
     }
 
     /* ------------------------------------------------------------------ */
@@ -217,6 +199,65 @@ class HqSurfacesTest extends TestCase
 
         $this->assertNotNull($result);
         $this->assertStringContainsString('/risk/register/'.$risk->id, $result['url']);
+    }
+
+    /**
+     * Retiring Business HQ took away the fallback destination for objects with
+     * no typed screen. Entities keep a real one — the Scoping detail page — so
+     * org-structure results must still be findable and must still link.
+     */
+    #[Test]
+    public function entity_results_link_to_the_scoping_screen_not_the_retired_hq_page(): void
+    {
+        Permission::findOrCreate('entity.view');
+        $this->actor->givePermissionTo('entity.view');
+
+        $entityType = \App\Models\EntityType::firstOrCreate(
+            ['organization_id' => $this->organization->id, 'code' => 'LE'],
+            ['name' => 'Legal Entity', 'level' => 1]
+        );
+
+        $entity = \App\Models\Entity::create([
+            'organization_id' => $this->organization->id,
+            'entity_type_id' => $entityType->id,
+            'entity_code' => 'ENT-SRCH',
+            'name' => 'Searchable Holdings PLC',
+            'status' => 'active',
+            'level' => 0,
+        ]);
+
+        $result = collect(
+            $this->actingAs($this->actor)
+                ->getJson('/search/suggest?q=Searchable')
+                ->json('results')
+        )->first(fn (array $r) => $r['name'] === 'Searchable Holdings PLC');
+
+        $this->assertNotNull($result, 'An entity should be findable in search.');
+        $this->assertStringContainsString('/risk/scoping/'.$entity->id, (string) $result['url']);
+        $this->assertStringNotContainsString('/hq', (string) $result['url']);
+    }
+
+    /**
+     * The standing rule of this module: never offer a result you cannot open.
+     */
+    #[Test]
+    public function no_search_result_is_returned_without_a_destination(): void
+    {
+        $this->makeRisk([
+            'business_unit_id' => $this->retail->id,
+            'title' => 'Concentration limit breach risk',
+        ]);
+
+        foreach (['a', 'e', 'Retail', 'risk'] as $term) {
+            $results = $this->actingAs($this->actor)
+                ->getJson('/search/suggest?q='.$term)
+                ->json('results');
+
+            foreach ($results as $result) {
+                $this->assertNotEmpty($result['url'], "Result '{$result['name']}' has no destination.");
+                $this->assertStringNotContainsString('/hq', $result['url']);
+            }
+        }
     }
 
     #[Test]

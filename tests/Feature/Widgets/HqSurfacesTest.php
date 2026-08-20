@@ -45,31 +45,209 @@ class HqSurfacesTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Business HQ — retired */
+    /*  Business HQ — restored (WP-12) */
     /* ------------------------------------------------------------------ */
 
     /**
-     * The four tests that used to live here drove /hq: permission gating, the
-     * published-dashboard render, cross-tenant 404 and the unpublished-dashboard
-     * case. The surface is withdrawn (see the RETIRED SURFACES note in
-     * routes/web.php), so what is worth asserting now is that it is genuinely
-     * gone — not 403, not a blank page, but no route at all. The engine behind
-     * it is untouched and still covered by WidgetContextBindingTest and
-     * WidgetTypeResolversTest.
+     * A dashboard with organization_id genuinely NULL.
+     *
+     * BelongsToOrganization's creating() hook stamps organization_id from
+     * TenantContext whenever the attribute is null, and bootDomainFixtures()
+     * sets a tenant — so passing 'organization_id' => null is not enough to
+     * make a system row. bypass() is the same escape hatch the seeder uses.
+     */
+    private function makeSystemDashboard(array $attributes): Dashboard
+    {
+        return \App\Support\Tenancy\TenantContext::bypass(
+            fn () => Dashboard::withoutGlobalScopes()->create($attributes),
+            'test fixture: system dashboard',
+        );
+    }
+
+    /**
+     * These four assertions are the inverse of the ones that stood here while
+     * the surface was retired. They are kept as one test on purpose: what was
+     * withdrawn was the ROUTING, and this is the guard that it is back.
      */
     #[Test]
-    public function the_retired_hq_surfaces_are_no_longer_routable(): void
+    public function the_hq_surfaces_are_routable_again(): void
     {
         $node = $this->retail->graphObject();
 
-        $this->actingAs($this->actor)->get('/hq')->assertNotFound();
-        $this->actingAs($this->actor)->get('/hq/'.$node->id)->assertNotFound();
-        $this->actingAs($this->actor)->get('/risk/dashboards')->assertNotFound();
-        $this->actingAs($this->actor)->get('/risk/dashboards/create')->assertNotFound();
+        $this->actingAs($this->actor)->get('/hq/'.$node->id)->assertOk();
 
-        $this->assertFalse(\Illuminate\Support\Facades\Route::has('hq.index'));
-        $this->assertFalse(\Illuminate\Support\Facades\Route::has('hq.show'));
-        $this->assertFalse(\Illuminate\Support\Facades\Route::has('risk.dashboards.index'));
+        $this->assertTrue(\Illuminate\Support\Facades\Route::has('hq.index'));
+        $this->assertTrue(\Illuminate\Support\Facades\Route::has('hq.show'));
+        $this->assertTrue(\Illuminate\Support\Facades\Route::has('risk.dashboards.index'));
+    }
+
+    /** hq.view still gates the surface — restoring it restored the routes only. */
+    #[Test]
+    public function hq_requires_its_permission(): void
+    {
+        $node = $this->retail->graphObject();
+
+        $stranger = \App\Models\User::create([
+            'name' => 'No Permissions',
+            'email' => 'stranger-'.$this->organization->id.'@example.test',
+            'password' => \Illuminate\Support\Facades\Hash::make('password'),
+            'organization_id' => $this->organization->id,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($stranger)->get('/hq/'.$node->id)->assertForbidden();
+    }
+
+    /**
+     * The bug that got the surface retired.
+     *
+     * The org tree rendered "No dashboard published for Enterprise" on most
+     * nodes. The cause was three layers down — dashboards.organization_id was
+     * NOT NULL and the seeder only ran its dashboard half for the demo bank,
+     * so a normal tenant had zero rows and DashboardResolver rightly returned
+     * null every time. This test stands on the fixed behaviour: a node whose
+     * type has no composition of its own falls through to the published
+     * system default, and the empty state is not reached.
+     */
+    #[Test]
+    public function a_node_with_no_dashboard_for_its_type_falls_through_to_the_system_default(): void
+    {
+        $widget = WidgetDefinition::withoutGlobalScopes()->create([
+            'organization_id' => null,
+            'code' => 'wg-sys-fallthrough',
+            'name' => 'Active Risks',
+            'widget_type' => 'kpi_tile',
+            'query' => ['source' => 'risks', 'aggregate' => 'count'],
+            'context_binding' => 'inherit_subtree',
+            'period_binding' => 'selected',
+            'is_system' => true,
+        ]);
+
+        $this->makeSystemDashboard([
+            'organization_id' => null,          // a SYSTEM dashboard
+            'code' => 'sys-default',
+            'name' => 'Enterprise Risk Management',
+            'object_type_id' => null,           // for any type with none of its own
+            'role_ids' => null,
+            'tabs' => [['code' => 'main', 'label' => 'Dashboard', 'layout' => [
+                ['widget_id' => $widget->id, 'x' => 0, 'y' => 0, 'w' => 4, 'h' => 3, 'overrides' => []],
+            ]]],
+            'is_published' => true,
+        ]);
+
+        $node = $this->retail->graphObject();
+
+        $response = $this->actingAs($this->actor)->get('/hq/'.$node->id);
+
+        $response->assertOk();
+        $response->assertDontSee('No dashboard published');
+        $response->assertSee('Enterprise Risk Management');
+    }
+
+    /**
+     * A tenant that composes its own dashboard for a type must not go on
+     * seeing ours. This is the whole reason system dashboards are safe to
+     * publish: they are a default, not a fixture.
+     */
+    #[Test]
+    public function a_tenant_dashboard_shadows_the_system_one_for_the_same_type(): void
+    {
+        $widget = WidgetDefinition::withoutGlobalScopes()->create([
+            'organization_id' => null,
+            'code' => 'wg-sys-shadowed',
+            'name' => 'Active Risks',
+            'widget_type' => 'kpi_tile',
+            'query' => ['source' => 'risks', 'aggregate' => 'count'],
+            'context_binding' => 'inherit_subtree',
+            'period_binding' => 'selected',
+            'is_system' => true,
+        ]);
+
+        $layout = [['code' => 'main', 'label' => 'Dashboard', 'layout' => [
+            ['widget_id' => $widget->id, 'x' => 0, 'y' => 0, 'w' => 4, 'h' => 3, 'overrides' => []],
+        ]]];
+
+        $this->makeSystemDashboard([
+            'organization_id' => null,
+            'code' => 'erm-hq',
+            'name' => 'System Composition',
+            'object_type_id' => null,
+            'role_ids' => null,
+            'tabs' => $layout,
+            'is_published' => true,
+        ]);
+
+        Dashboard::withoutGlobalScopes()->create([
+            'organization_id' => $this->organization->id,
+            'code' => 'erm-hq',
+            'name' => 'Our Own Composition',
+            'object_type_id' => null,
+            'role_ids' => null,
+            'tabs' => $layout,
+            'is_published' => true,
+        ]);
+
+        $node = $this->retail->graphObject();
+
+        $response = $this->actingAs($this->actor)->get('/hq/'.$node->id);
+
+        $response->assertOk();
+        $response->assertSee('Our Own Composition');
+        $response->assertDontSee('System Composition');
+    }
+
+    /**
+     * role_ids = [] means "no role restriction", the same as NULL. Storing the
+     * second and matching only the first made a published dashboard invisible
+     * to every user with nothing on screen to say why.
+     */
+    #[Test]
+    public function an_empty_role_list_means_every_role_not_no_role(): void
+    {
+        $widget = WidgetDefinition::withoutGlobalScopes()->create([
+            'organization_id' => null,
+            'code' => 'wg-sys-emptyroles',
+            'name' => 'Active Risks',
+            'widget_type' => 'kpi_tile',
+            'query' => ['source' => 'risks', 'aggregate' => 'count'],
+            'context_binding' => 'inherit_subtree',
+            'period_binding' => 'selected',
+            'is_system' => true,
+        ]);
+
+        Dashboard::withoutGlobalScopes()->create([
+            'organization_id' => $this->organization->id,
+            'code' => 'empty-roles',
+            'name' => 'Reachable Anyway',
+            'object_type_id' => null,
+            'role_ids' => [],   // not null — the case that used to match nothing
+            'tabs' => [['code' => 'main', 'label' => 'Dashboard', 'layout' => [
+                ['widget_id' => $widget->id, 'x' => 0, 'y' => 0, 'w' => 4, 'h' => 3, 'overrides' => []],
+            ]]],
+            'is_published' => true,
+        ]);
+
+        $node = $this->retail->graphObject();
+
+        $response = $this->actingAs($this->actor)->get('/hq/'.$node->id);
+
+        $response->assertOk();
+        $response->assertSee('Reachable Anyway');
+        $response->assertDontSee('No dashboard published');
+    }
+
+    /** The builder is behind dashboard.manage, and hq.view is not enough. */
+    #[Test]
+    public function the_dashboard_builder_is_gated_on_dashboard_manage(): void
+    {
+        Permission::findOrCreate('dashboard.manage');
+
+        $this->actingAs($this->actor)->get('/risk/dashboards')->assertForbidden();
+
+        $this->actor->givePermissionTo('dashboard.manage');
+        $this->actor->forgetCachedPermissions();
+
+        $this->actingAs($this->actor->fresh())->get('/risk/dashboards')->assertOk();
     }
 
     /**
@@ -202,12 +380,14 @@ class HqSurfacesTest extends TestCase
     }
 
     /**
-     * Retiring Business HQ took away the fallback destination for objects with
-     * no typed screen. Entities keep a real one — the Scoping detail page — so
-     * org-structure results must still be findable and must still link.
+     * Business HQ is back, so every node object has a destination again. An
+     * Entity still goes to Scoping rather than HQ: a bank's legal-entity page
+     * shows the things an entity is — licences, jurisdictions, ownership — and
+     * a generic node dashboard does not. TYPE_MAP wins over the node fallback,
+     * and that ordering is what this pins.
      */
     #[Test]
-    public function entity_results_link_to_the_scoping_screen_not_the_retired_hq_page(): void
+    public function entity_results_link_to_the_scoping_screen_rather_than_hq(): void
     {
         Permission::findOrCreate('entity.view');
         $this->actor->givePermissionTo('entity.view');

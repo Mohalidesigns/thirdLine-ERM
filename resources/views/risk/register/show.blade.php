@@ -249,6 +249,47 @@
                         </div>
                     @endif
                 </div>
+
+                {{-- Additional Information —————————————————————————————————
+                     The fields an administrator has configured on the Risk
+                     object type, read-only, beside the ones this page draws by
+                     hand. `omit` names every code the markup above already
+                     renders so nothing appears twice; the Attributes tab
+                     remains the place they are edited.
+
+                     The component draws its own empty-state message when it
+                     has nothing to show, which here would be a heading over an
+                     apology. Constructing it first lets the section vanish
+                     entirely for a tenant with no configured fields. --}}
+                @php
+                    $extraOmit = [
+                        // Risk Summary.
+                        'risk_code', 'title', 'description', 'risk_owner_id',
+                        'category_id', 'business_unit_id', 'entity_id', 'date_identified',
+                        // Key Metrics and the KPI cards.
+                        'inherent_score', 'inherent_rating', 'inherent_likelihood', 'inherent_impact',
+                        'residual_score', 'residual_rating', 'residual_likelihood', 'residual_impact',
+                        'control_effectiveness_pct', 'treatment_strategy', 'status',
+                        // Impact Dimensions.
+                        'inherent_impact_financial', 'inherent_impact_operational',
+                        'inherent_impact_reputational', 'inherent_impact_regulatory',
+                        // Additional Details.
+                        'risk_source', 'risk_velocity', 'review_frequency',
+                        'financial_exposure_ngn', 'regulatory_mapping',
+                    ];
+                    $extraDetail = new \App\View\Components\DynamicDetail(
+                        record: $risk,
+                        type: 'Risk',
+                        omit: $extraOmit,
+                        hideEmpty: true,
+                    );
+                @endphp
+                @if ($extraDetail->sectioned()->isNotEmpty())
+                    <div class="mt-6 pt-6 border-t border-gray-200">
+                        <h3 class="text-sm font-semibold text-gray-700 mb-4">Additional Information</h3>
+                        <x-dynamic-detail :record="$risk" type="Risk" :omit="$extraOmit" :hide-empty="true" />
+                    </div>
+                @endif
             </div>
 
             {{-- Assessment Tab --}}

@@ -26,6 +26,7 @@ use App\Models\MeasureBreach;
 use App\Models\MeasureThreshold;
 use App\Models\MeasureValue;
 use App\Models\NearMiss;
+use App\Models\ObjectType;
 use App\Models\Organization;
 use App\Models\Period;
 use App\Models\QuantificationScenario;
@@ -114,6 +115,13 @@ class MorphTypes
             'measure_threshold' => MeasureThreshold::class,
             'measure_value' => MeasureValue::class,
             'near_miss' => NearMiss::class,
+            // ObjectType is exposed by ApiResourceRegistry, and
+            // Relation::enforceMorphMap() makes any unmapped model fatal the
+            // moment something calls getMorphClass() on it. WebhookController
+            // ::availableEvents() does exactly that for every registry model,
+            // so /admin/webhooks threw ClassMorphViolationException for every
+            // user until this line existed.
+            'object_type' => ObjectType::class,
             'organization' => Organization::class,
             'period' => Period::class,
             'quantification_scenario' => QuantificationScenario::class,

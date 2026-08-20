@@ -201,6 +201,40 @@ trait HasObjectIdentity
     }
 
     /**
+     * Retract a typed relationship this record asserted.
+     *
+     * The inverse of relate(), and deliberately NOT the inverse of deleting
+     * the record itself: ObjectSyncService::remove() leaves edges standing
+     * when a node is soft deleted, because "what mitigated this risk" is
+     * exactly the question an examiner asks about a retired risk. This is for
+     * the other case — somebody explicitly unlinked two things, so the claim
+     * that they are linked is withdrawn.
+     *
+     * Neither endpoint is created on demand here: there is nothing to retract
+     * from a node that was never written.
+     *
+     * @return int edges removed
+     */
+    public function unrelate(string $relationshipCode, Model|GraphObject $target): int
+    {
+        $sync = app(ObjectSyncService::class);
+
+        $from = $sync->objectFor($this);
+        $to = $target instanceof GraphObject ? $target : $sync->objectFor($target);
+        $type = ObjectRelationshipType::resolve($relationshipCode);
+
+        if ($from === null || $to === null || $type === null) {
+            return 0;
+        }
+
+        return ObjectRelationship::query()
+            ->where('relationship_type_id', $type->id)
+            ->where('from_object_id', $from->id)
+            ->where('to_object_id', $to->id)
+            ->delete();
+    }
+
+    /**
      * The objects on the far end of a named relationship.
      *
      * Direction 'out' follows the edge as declared; 'in' follows it backwards,

@@ -19,12 +19,14 @@ use App\Http\Controllers\Risk\ApprovalController;
 use App\Http\Controllers\Risk\CampaignController;
 use App\Http\Controllers\Risk\ControlController;
 use App\Http\Controllers\Risk\ControlTestController;
+use App\Http\Controllers\Risk\DashboardBuilderController;
 use App\Http\Controllers\Risk\DashboardController;
 use App\Http\Controllers\Risk\DataImportController;
 use App\Http\Controllers\Risk\DocumentRepositoryController;
 use App\Http\Controllers\Risk\EmergingRiskController;
 use App\Http\Controllers\Risk\ExportController;
 use App\Http\Controllers\Risk\GlobalSearchController;
+use App\Http\Controllers\Risk\HqController;
 use App\Http\Controllers\Risk\IssueController;
 use App\Http\Controllers\Risk\KriController;
 use App\Http\Controllers\Risk\LossEventController;
@@ -358,38 +360,36 @@ Route::middleware(['auth'])->group(function () {
 /* ---------------------------------------------------------------------- */
 
 /*
- | RETIRED SURFACES — Business HQ (/hq) and the dashboard builder
- | (/risk/dashboards).
+ | Business HQ (/hq) and the dashboard builder (/risk/dashboards).
  |
- | Both screens are withdrawn from the product: neither earned its place, and
- | the org-tree page in particular rendered "No dashboard published for
- | Enterprise" for most nodes. The routes below are the only thing removed —
- | HqController, DashboardBuilderController, the Livewire components, the
- | widget engine under app/Services/Widgets, its views, JS and the
- | widget_definitions / dashboards tables are all left intact and untouched.
+ | These were retired in 559b74b because the org-tree page rendered
+ | "No dashboard published for Enterprise" on most nodes. That was never a
+ | judgement about the surfaces — it was a seeding bug three layers down:
+ | dashboards.organization_id was NOT NULL and WidgetDashboardSeeder only ran
+ | its dashboard half for the demo bank, so every other tenant had zero rows
+ | in the table and DashboardResolver correctly returned null every time.
  |
- | To bring either back, restore its Route::get lines here and the matching
- | @can block in layouts/partials/sidebar.blade.php. The hq.view and
- | dashboard.manage permissions are still seeded, so nothing else has to change.
- |
- |   Route::get('hq', [HqController::class, 'index'])
- |       ->middleware('permission:hq.view')->name('hq.index');
- |   Route::get('hq/{object}', [HqController::class, 'show'])
- |       ->middleware('permission:hq.view')->name('hq.show');
- |
- |   Route::middleware('permission:dashboard.manage')->group(function () {
- |       Route::get('risk/dashboards', [DashboardBuilderController::class, 'index'])
- |           ->name('risk.dashboards.index');
- |       Route::get('risk/dashboards/create', [DashboardBuilderController::class, 'create'])
- |           ->name('risk.dashboards.create');
- |       Route::get('risk/dashboards/{dashboard}/edit', [DashboardBuilderController::class, 'edit'])
- |           ->name('risk.dashboards.edit');
- |   });
- |
- | GlobalSearchController::urlFor() used to send org-structure results to
- | hq.show; with the surface gone it returns null and those results render
- | unlinked. That is the one behaviour change outside this file.
+ | WP-12 fixes the cause (system dashboards, see the 2026_08_20_140000
+ | migration) and restores the routes. A node with no dashboard composed for
+ | its type now falls through to the published system default, so the empty
+ | state in hq/show.blade.php is reachable only if someone unpublishes
+ | everything on purpose.
  */
+Route::middleware(['auth'])->group(function () {
+    Route::get('hq', [HqController::class, 'index'])
+        ->middleware('permission:hq.view')->name('hq.index');
+    Route::get('hq/{object}', [HqController::class, 'show'])
+        ->middleware('permission:hq.view')->name('hq.show');
+
+    Route::middleware('permission:dashboard.manage')->group(function () {
+        Route::get('risk/dashboards', [DashboardBuilderController::class, 'index'])
+            ->name('risk.dashboards.index');
+        Route::get('risk/dashboards/create', [DashboardBuilderController::class, 'create'])
+            ->name('risk.dashboards.create');
+        Route::get('risk/dashboards/{dashboard}/edit', [DashboardBuilderController::class, 'edit'])
+            ->name('risk.dashboards.edit');
+    });
+});
 
 Route::middleware(['auth'])->group(function () {
     // The personal work queue — the adoption surface. Supersedes

@@ -51,6 +51,26 @@
                 @endcan
             </div>
         @else
+            {{-- Which composition is on screen.
+                 A node can render the system default, a dashboard composed for
+                 its object type, or the tenant's own override of either — and
+                 until WP-12 nothing on the page said which. That is a support
+                 call waiting to happen ("why does Retail show different tabs
+                 to Corporate?"), and it is the one thing an administrator
+                 needs before clicking Edit layout. --}}
+            <div class="mb-2 flex items-center gap-2 text-xs text-gray-500">
+                <span class="material-symbols-outlined text-[15px] text-gray-400">dashboard</span>
+                <span class="font-medium text-gray-700">{{ $dashboard->name }}</span>
+                @if($dashboard->object_type_id === null)
+                    <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">default for every type</span>
+                @else
+                    <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">composed for {{ $dashboard->objectType?->name ?? 'this type' }}</span>
+                @endif
+                @if($dashboard->organization_id === null)
+                    <span class="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700">system</span>
+                @endif
+            </div>
+
             {{-- Tab set from the dashboard definition. --}}
             <div class="mb-3 flex items-center justify-between gap-3">
                 <nav class="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-gray-200 bg-white p-1 shadow-sm" aria-label="Dashboard tabs">

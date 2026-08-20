@@ -59,6 +59,41 @@
                 <p class="text-sm text-gray-700 leading-relaxed">{{ $control->description ?? 'No description provided.' }}</p>
             </div>
 
+            {{-- Additional Information —————————————————————————————————————
+                 Everything an administrator has configured on the Control
+                 object type that the hand-written panels above do not already
+                 render. `omit` names every field this page draws itself, so a
+                 column-backed attribute is shown once, by the markup that knows
+                 how to present it.
+
+                 The component renders its own empty-state chrome when it has
+                 nothing to show, which on a detail page reads as a broken
+                 panel. Instantiating it here lets the whole section disappear
+                 for a tenant that has configured no extra fields. --}}
+            @php
+                $extraOmit = [
+                    // Drawn by the Control Description panel and the header.
+                    'name', 'description', 'control_code',
+                    // Drawn by the Control Information panel.
+                    'control_type', 'control_nature', 'frequency',
+                    'effectiveness_rating', 'status',
+                    'owner_id', 'business_unit_id',
+                    'last_test_date', 'next_test_due', 'created_at',
+                ];
+                $extraDetail = new \App\View\Components\DynamicDetail(
+                    record: $control,
+                    type: 'Control',
+                    omit: $extraOmit,
+                    hideEmpty: true,
+                );
+            @endphp
+            @if ($extraDetail->sectioned()->isNotEmpty())
+                <div class="bg-white rounded-xl border border-gray-200 p-6">
+                    <h3 class="text-sm font-semibold text-[#1A365D] mb-4">Additional Information</h3>
+                    <x-dynamic-detail :record="$control" type="Control" :omit="$extraOmit" :hide-empty="true" />
+                </div>
+            @endif
+
             {{-- Linked Risks --}}
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-100"><h3 class="text-sm font-semibold text-[#1A365D]">Linked Risks</h3></div>

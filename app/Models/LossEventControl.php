@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ProjectsGraphEdge;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class LossEventControl extends Model
 {
-    use HasFactory;
+    use HasFactory, ProjectsGraphEdge;
 
     protected $fillable = [
         'loss_event_id',

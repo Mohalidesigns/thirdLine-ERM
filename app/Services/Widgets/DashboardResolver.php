@@ -20,6 +20,25 @@ use App\Models\User;
  * board" means: a board member landing on the enterprise node gets the board
  * dashboard, not the analyst one, even though both are published for the
  * Enterprise type.
+ *
+ * WP-12 fixed two ways this returned null for a dashboard that plainly
+ * existed. Both produced the same symptom — "No dashboard published for
+ * Enterprise" on the org tree — which is what got the surface retired.
+ *
+ *   a) Tenant vs system. Dashboards may now be seeded with
+ *      organization_id NULL and shared by every tenant. Within each step
+ *      above, a tenant's OWN dashboard must win over the system one, or a
+ *      bank that composes its own board view would still see ours. That is
+ *      the orderByRaw below: `organization_id IS NULL` is 0 for tenant rows
+ *      and 1 for system rows, so ASC puts the tenant's first.
+ *
+ *   b) role_ids = []. Step 2 matched on whereNull('role_ids'), and step 1 on
+ *      whereJsonContains. An empty JSON array satisfies neither, so a
+ *      dashboard saved with `role_ids: []` was invisible to everyone forever.
+ *      DashboardBuilder::persist() normalises [] to null, so the UI never
+ *      produced one — but a config bundle import, the API, or a hand-written
+ *      INSERT could, and the failure gives no clue what is wrong. Step 2 now
+ *      treats [] as "every role", which is what an empty restriction means.
  */
 class DashboardResolver
 {
@@ -93,7 +112,10 @@ class DashboardResolver
                 $typeId === null,
                 fn ($q) => $q->whereNull('object_type_id'),
                 fn ($q) => $q->where('object_type_id', $typeId),
-            );
+            )
+            // A tenant's own composition beats the system default. NULL sorts
+            // as 1 here, so ASC is "mine first, then ours".
+            ->orderByRaw('CASE WHEN organization_id IS NULL THEN 1 ELSE 0 END');
 
         $roleIds = $user->roles->pluck('id')->map(fn ($id) => (int) $id)->all();
 
@@ -105,6 +127,11 @@ class DashboardResolver
             }
         }
 
-        return $base()->whereNull('role_ids')->first();
+        // NULL and [] both mean "not restricted to any role". Storing the
+        // second and matching only the first is how a published dashboard
+        // becomes unreachable with nothing on screen to say why.
+        return $base()
+            ->where(fn ($q) => $q->whereNull('role_ids')->orWhere('role_ids', '[]'))
+            ->first();
     }
 }

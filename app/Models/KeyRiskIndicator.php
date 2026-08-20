@@ -99,6 +99,8 @@ class KeyRiskIndicator extends Model
     public function risks()
     {
         return $this->belongsToMany(Risk::class, 'risk_kri_mapping', 'kri_id', 'risk_id')
+            ->using(RiskKriMapping::class)
+            ->withPivot('correlation_type')
             ->withTimestamps();
     }
 

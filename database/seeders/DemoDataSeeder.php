@@ -14,6 +14,8 @@ use App\Models\QuantificationScenario;
 use App\Models\Risk;
 use App\Models\RiskAssessment;
 use App\Models\RiskCategory;
+use App\Models\RiskControlMapping;
+use App\Models\RiskKriMapping;
 use App\Models\TreatmentPlan;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -206,11 +208,17 @@ class DemoDataSeeder extends Seeder
             [17, 8, 'LCR monitoring ensures liquidity compliance', 1.00, true],
             [15, 4, 'SIEM detects data exfiltration attempts', 0.70, true],
         ];
+        // Written through the model, not DB::table(): the model is what
+        // projects the row into object_relationships (ProjectsGraphEdge), so a
+        // raw insert here would seed a demo whose object graph is missing
+        // every control-to-risk link — the exact failure this seeder is meant
+        // to demonstrate the absence of.
         foreach ($rcMaps as $m) {
-            DB::table('risk_control_mapping')->insert([
+            RiskControlMapping::create([
                 'risk_id' => $risks[$m[0]]->id, 'control_id' => $controls[$m[1]]->id,
+                'organization_id' => $orgId,
                 'mapping_rationale' => $m[2], 'control_weight' => $m[3], 'is_key_control' => $m[4],
-                'created_by' => $admin->id, 'created_at' => now(), 'updated_at' => now(),
+                'created_by' => $admin->id,
             ]);
         }
 
@@ -338,10 +346,12 @@ class DemoDataSeeder extends Seeder
         // ================================================================
 
         $rkMaps = [[0, 0, 'leading'], [1, 0, 'leading'], [17, 1, 'leading'], [18, 1, 'lagging'], [9, 2, 'leading'], [10, 3, 'leading'], [11, 4, 'lagging'], [5, 5, 'leading'], [13, 6, 'leading'], [23, 7, 'lagging'], [20, 8, 'leading'], [19, 9, 'lagging']];
+        // Same reason as the control mappings above — the model carries the
+        // graph projection, DB::table() does not.
         foreach ($rkMaps as $km) {
-            DB::table('risk_kri_mapping')->insert([
+            RiskKriMapping::create([
                 'risk_id' => $risks[$km[0]]->id, 'kri_id' => $kris[$km[1]]->id,
-                'correlation_type' => $km[2], 'created_at' => now(), 'updated_at' => now(),
+                'correlation_type' => $km[2],
             ]);
         }
 

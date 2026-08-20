@@ -8,9 +8,17 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * WP-08 TASK 3 — a composition of widgets: tabs, each a 12-column grid of
- * placements. Always tenant-owned (no $tenantIncludesGlobal): which widgets a
- * bank puts in front of its board is that bank's decision, seeded per tenant
- * the same way workflow definitions are.
+ * placements.
+ *
+ * WP-12: a dashboard may now be a SYSTEM dashboard (organization_id NULL),
+ * visible to every tenant, exactly as WidgetDefinition already worked. The
+ * original comment here read "always tenant-owned ... which widgets a bank
+ * puts in front of its board is that bank's decision" — true, and still true:
+ * a tenant-owned dashboard for the same object type shadows the system one
+ * (see DashboardResolver::pick()). What the old rule actually produced was a
+ * brand-new tenant with zero dashboards, so every org node in the tree
+ * rendered "No dashboard published for Enterprise". A default a bank can
+ * override beats no default at all.
  *
  * `tabs` is the whole layout: [{code, label, layout: [{widget_id, x, y, w, h,
  * overrides}]}]. Publishing bumps `version`, which is how a user's
@@ -19,6 +27,9 @@ use Illuminate\Database\Eloquent\Model;
 class Dashboard extends Model
 {
     use BelongsToOrganization;
+
+    /** System dashboards (organization_id NULL) are visible to every tenant. */
+    protected $tenantIncludesGlobal = true;
 
     protected $fillable = [
         'organization_id',

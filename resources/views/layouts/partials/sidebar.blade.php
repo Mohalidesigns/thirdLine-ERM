@@ -2,10 +2,31 @@
     $currentRoute = request()->path();
 
     /**
-     * Helper: Check if the current route starts with a given prefix.
+     * Helper: Check if the current route sits under a given prefix.
+     *
+     * Matching is on a path-segment boundary, and $except lets a parent entry
+     * stand down for a child that is a menu entry in its own right. A plain
+     * str_starts_with cannot tell those apart: 'admin/settings' is a prefix of
+     * 'admin/settings/sso' and 'admin/builder' of
+     * 'admin/builder/scoring-profiles', so on those pages both the parent and
+     * the child link would highlight at once.
+     *
+     * @param  string  $prefix
+     * @param  array<int, string>  $except  child paths that own the highlight
      */
-    $isSection = function ($prefix) use ($currentRoute) {
-        return str_starts_with($currentRoute, $prefix);
+    $isSection = function ($prefix, array $except = []) use ($currentRoute) {
+        $path = trim($currentRoute, '/');
+
+        foreach ($except as $child) {
+            $child = trim($child, '/');
+            if ($path === $child || str_starts_with($path, $child.'/')) {
+                return false;
+            }
+        }
+
+        $prefix = trim($prefix, '/');
+
+        return $path === $prefix || str_starts_with($path, $prefix.'/');
     };
 
     /**
@@ -356,9 +377,32 @@
             <span>My Responsibilities</span>
         </a>
         @endcan
-        {{-- Business HQ and Dashboards are retired — see the RETIRED SURFACES
-             note in routes/web.php for what to restore if they come back. The
-             entry above keeps mb-2 so the divider below still clears it. --}}
+        {{-- Business HQ and the dashboard builder, restored. The Route::has()
+             guard is belt-and-braces: the permissions are seeded independently
+             of the routes, so a tenant can hold hq.view while the surface is
+             withdrawn, and a bare @can would then blow up route() for every
+             page on the site. --}}
+        @can('hq.view')
+            @if (Route::has('hq.index'))
+                <a href="{{ route('hq.index') }}" wire:navigate
+                   class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-2
+                          {{ $isSection('hq') ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8' }}">
+                    <span class="material-symbols-outlined text-[18px]">corporate_fare</span>
+                    <span>Business HQ</span>
+                </a>
+            @endif
+        @endcan
+
+        @can('dashboard.manage')
+            @if (Route::has('risk.dashboards.index'))
+                <a href="{{ route('risk.dashboards.index') }}" wire:navigate
+                   class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-2
+                          {{ $isSection('risk/dashboards') ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8' }}">
+                    <span class="material-symbols-outlined text-[18px]">dashboard</span>
+                    <span>Dashboards</span>
+                </a>
+            @endif
+        @endcan
 
         <div class="h-px bg-white/10 mx-1 mb-2"></div>
 
@@ -406,7 +450,15 @@
         @endforeach
 
         {{-- Administration Section --}}
-        @role(['super-admin', 'chief-risk-officer'])
+        {{-- Gated on the permissions the routes themselves enforce, not on a
+             role. The section opens for anyone holding at least one of them,
+             and each link is shown only to the permission its route requires,
+             so a menu entry can never lead to a 403. --}}
+        @canany([
+            'admin.users', 'admin.sso',
+            'admin.metadata', 'admin.scoring', 'admin.configuration', 'admin.settings',
+            'webhook.view', 'api.tokens', 'connector.view', 'job.view',
+        ])
             <div class="h-px bg-white/10 mx-1 my-3"></div>
 
             <div class="nav-group">
@@ -423,26 +475,100 @@
 
                 <div id="nav_administration"
                      class="{{ $isSection('admin') ? 'block' : 'hidden' }} mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
-                    {{-- User Management --}}
-                    @role('super-admin')
+                @canany(['admin.users', 'admin.sso'])
+                    <div class="px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/30">Access</div>
+                    {{-- admin.users --}}
+                    @can('admin.users')
                         <a href="{{ route('admin.users.index') }}" wire:navigate
                            class="block px-3 py-1.5 rounded-md text-[12px] transition-all
                                   {{ $isSection('admin/users') ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
                             User Management
                         </a>
-                    @endrole
+                    @endcan
+                    {{-- admin.sso --}}
+                    @can('admin.sso')
+                        <a href="{{ route('admin.settings.sso') }}" wire:navigate
+                           class="block px-3 py-1.5 rounded-md text-[12px] transition-all
+                                  {{ $isSection('admin/settings/sso') ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
+                            SSO
+                        </a>
+                    @endcan
+                @endcanany
 
-                    {{-- Organization Settings --}}
-                    @role('super-admin')
+                @canany(['admin.metadata', 'admin.scoring', 'admin.configuration', 'admin.settings'])
+                    <div class="px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/30">Configuration</div>
+                    {{-- admin.metadata --}}
+                    @can('admin.metadata')
+                        <a href="{{ route('admin.builder') }}" wire:navigate
+                           class="block px-3 py-1.5 rounded-md text-[12px] transition-all
+                                  {{ $isSection('admin/builder', ['admin/builder/scoring-profiles']) ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
+                            Metadata Builder
+                        </a>
+                    @endcan
+                    {{-- admin.scoring --}}
+                    @can('admin.scoring')
+                        <a href="{{ route('admin.builder.scoring-profiles') }}" wire:navigate
+                           class="block px-3 py-1.5 rounded-md text-[12px] transition-all
+                                  {{ $isSection('admin/builder/scoring-profiles') ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
+                            Scoring Profiles
+                        </a>
+                    @endcan
+                    {{-- admin.configuration --}}
+                    @can('admin.configuration')
+                        <a href="{{ route('admin.configuration') }}" wire:navigate
+                           class="block px-3 py-1.5 rounded-md text-[12px] transition-all
+                                  {{ $isSection('admin/configuration') ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
+                            Configuration Bundles
+                        </a>
+                    @endcan
+                    {{-- admin.settings --}}
+                    @can('admin.settings')
                         <a href="{{ route('admin.settings') }}" wire:navigate
                            class="block px-3 py-1.5 rounded-md text-[12px] transition-all
-                                  {{ $isSection('admin/settings') ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
+                                  {{ $isSection('admin/settings', ['admin/settings/sso']) ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
                             Settings
                         </a>
-                    @endrole
+                    @endcan
+                @endcanany
+
+                @canany(['webhook.view', 'api.tokens', 'connector.view', 'job.view'])
+                    <div class="px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/30">Integration</div>
+                    {{-- webhook.view --}}
+                    @can('webhook.view')
+                        <a href="{{ route('admin.webhooks.index') }}" wire:navigate
+                           class="block px-3 py-1.5 rounded-md text-[12px] transition-all
+                                  {{ $isSection('admin/webhooks') ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
+                            Webhooks
+                        </a>
+                    @endcan
+                    {{-- api.tokens --}}
+                    @can('api.tokens')
+                        <a href="{{ route('admin.api-tokens.index') }}" wire:navigate
+                           class="block px-3 py-1.5 rounded-md text-[12px] transition-all
+                                  {{ $isSection('admin/api-tokens') ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
+                            API Tokens
+                        </a>
+                    @endcan
+                    {{-- connector.view --}}
+                    @can('connector.view')
+                        <a href="{{ route('admin.connectors.index') }}" wire:navigate
+                           class="block px-3 py-1.5 rounded-md text-[12px] transition-all
+                                  {{ $isSection('admin/connectors') ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
+                            Connectors
+                        </a>
+                    @endcan
+                    {{-- job.view --}}
+                    @can('job.view')
+                        <a href="{{ route('admin.jobs.index') }}" wire:navigate
+                           class="block px-3 py-1.5 rounded-md text-[12px] transition-all
+                                  {{ $isSection('admin/jobs') ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
+                            Job Runs
+                        </a>
+                    @endcan
+                @endcanany
                 </div>
             </div>
-        @endrole
+        @endcanany
 
     </nav>
 

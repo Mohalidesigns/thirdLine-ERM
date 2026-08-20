@@ -14,6 +14,12 @@ use Illuminate\Support\Str;
  * and starts writing edges instead; the release after removes them. Anything
  * that reads a pivot today keeps working while it is moved over.
  *
+ * WHICH PIVOT IS WHICH EDGE is not decided here. It lives in PivotEdgeMap,
+ * which the runtime projection (ProjectsGraphEdge on the pivot models) reads
+ * too. A backfill and a live hook holding separate copies of "the control is
+ * the FROM side of mitigates" is the same bug as having no live hook at all,
+ * one release later.
+ *
  * regulatory_risk_mapping is the one that needs more than a copy. It stores a
  * regulation NAME and a requirement REFERENCE as free text, not a foreign key,
  * so there is nothing on the far end of the edge to point at. Distinct
@@ -43,10 +49,7 @@ class PivotRelationshipMigrator
             ->map(fn ($id) => (int) $id)
             ->all();
 
-        $this->migrateRiskControlMapping();
-        $this->migrateRiskRelatedRisks();
-        $this->migrateLossEventControls();
-        $this->migrateRiskKriMapping();
+        $this->migratePivotTables();
         $this->migrateNearMissConversions();
         $this->migrateTreatmentPlans();
         $this->migrateRegulatoryRiskMapping();
@@ -61,59 +64,34 @@ class PivotRelationshipMigrator
     /* ------------------------------------------------------------------ */
 
     /**
-     * A control mitigates a risk. Direction matters: the control is the actor,
-     * so it is the FROM side, and 'mitigated_by' reads it the other way.
+     * Every plain (from_id, to_id) pivot, driven off PivotEdgeMap.
+     *
+     * The mapping this reads is the SAME array the runtime projection reads,
+     * which is the point: a backfill and a live hook that disagree about which
+     * end of risk_control_mapping is the source would produce a graph whose
+     * answer depends on when the row happened to be written.
      */
-    private function migrateRiskControlMapping(): void
+    private function migratePivotTables(): void
     {
-        foreach (DB::table('risk_control_mapping')->orderBy('id')->cursor() as $row) {
-            $this->writeEdge('mitigates', 'control', $row->control_id, 'risk', $row->risk_id, [
-                'weight' => (float) ($row->control_weight ?? 1),
-                'attributes' => array_filter([
-                    'is_key_control' => (bool) $row->is_key_control,
-                    'mapping_rationale' => $row->mapping_rationale,
-                ], fn ($value) => $value !== null && $value !== ''),
-                'created_by' => $row->created_by ?? null,
-                'created_at' => $row->created_at ?? null,
-            ], 'risk_control_mapping');
-        }
-    }
+        foreach (PivotEdgeMap::all() as $table => $spec) {
+            foreach (DB::table($table)->orderBy('id')->cursor() as $row) {
+                [$fromId, $toId] = PivotEdgeMap::endpointKeys($spec, $row);
 
-    private function migrateRiskRelatedRisks(): void
-    {
-        foreach (DB::table('risk_related_risks')->orderBy('id')->cursor() as $row) {
-            $this->writeEdge('derives_from', 'risk', $row->risk_id, 'risk', $row->related_risk_id, [
-                'attributes' => array_filter([
-                    'relationship_type' => $row->relationship_type,
-                    'correlation_strength' => $row->correlation_strength,
-                ], fn ($value) => $value !== null && $value !== ''),
-                'created_at' => $row->created_at ?? null,
-            ], 'risk_related_risks');
-        }
-    }
-
-    private function migrateLossEventControls(): void
-    {
-        foreach (DB::table('loss_event_controls')->orderBy('id')->cursor() as $row) {
-            $this->writeEdge('failed_control', 'loss_event', $row->loss_event_id, 'control', $row->control_id, [
-                'attributes' => array_filter([
-                    'failure_type' => $row->failure_type,
-                    'failure_description' => $row->failure_description,
-                ], fn ($value) => $value !== null && $value !== ''),
-                'created_at' => $row->created_at ?? null,
-            ], 'loss_event_controls');
-        }
-    }
-
-    private function migrateRiskKriMapping(): void
-    {
-        foreach (DB::table('risk_kri_mapping')->orderBy('id')->cursor() as $row) {
-            $this->writeEdge('monitored_by', 'risk', $row->risk_id, 'key_risk_indicator', $row->kri_id, [
-                'attributes' => array_filter([
-                    'correlation_type' => $row->correlation_type,
-                ], fn ($value) => $value !== null && $value !== ''),
-                'created_at' => $row->created_at ?? null,
-            ], 'risk_kri_mapping');
+                $this->writeEdge(
+                    $spec['relationship_code'],
+                    $spec['from']['alias'],
+                    $fromId,
+                    $spec['to']['alias'],
+                    $toId,
+                    [
+                        'weight' => PivotEdgeMap::weightFrom($spec, $row),
+                        'attributes' => PivotEdgeMap::attributesFrom($spec, $row),
+                        'created_by' => PivotEdgeMap::createdByFrom($spec, $row),
+                        'created_at' => $row->created_at ?? null,
+                    ],
+                    $table,
+                );
+            }
         }
     }
 

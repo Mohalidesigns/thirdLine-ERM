@@ -174,16 +174,25 @@ class GlobalSearchController extends Controller
      * Where a result jumps to, or null when nothing in the product shows it —
      * in which case search() drops the result rather than offering a dead link.
      *
-     * Node-type objects returned the node's Business HQ page until that surface
-     * was retired. Entities are the one node kind with a screen of their own,
-     * and they reach it through TYPE_MAP below, not through this branch.
+     * Node-type objects go to the node's Business HQ page. While that surface
+     * was retired this returned null and every org-structure hit rendered
+     * unlinked; WP-12 brings it back. Entities keep their own screen through
+     * TYPE_MAP — a bank's legal-entity page is a better destination for an
+     * entity than a generic node dashboard, and that mapping is unchanged.
      */
     private function urlFor(GraphObject $object, bool $isNode): ?string
     {
         $entry = self::TYPE_MAP[$object->source_model_type] ?? null;
 
         if ($isNode && $entry === null) {
-            return null;
+            // Every node object has an HQ page, so this is always a live link.
+            // Wrapped anyway: an object row whose id has since been deleted
+            // should drop out of the results, not 500 the search box.
+            try {
+                return route('hq.show', $object->id);
+            } catch (\Throwable $e) {
+                return null;
+            }
         }
 
         if ($entry !== null && $entry[1] !== null && $object->source_model_id !== null) {

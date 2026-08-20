@@ -215,12 +215,28 @@ class Preflight extends Command
 
     private function checkEveryRouteIsGuarded(): void
     {
+        // Routes that legitimately carry no permission guard. Every entry is
+        // here because something ELSE authorizes it, and that something is
+        // named — an allowlist whose entries have no stated reason becomes the
+        // place failures go to be forgotten.
         $allowlist = [
+            // Pre-authentication by definition.
             '/', 'up', 'login', 'logout', 'forgot-password',
             'reset-password', 'reset-password/{token}',
             'mfa/verify', 'mfa/setup', 'mfa/enable',
             'auth/sso/discover', 'auth/sso/{slug}', 'auth/sso/{slug}/callback',
             'auth/sso/{slug}/acs', 'auth/sso/{slug}/metadata',
+
+            // Livewire's own framework endpoints. Neither takes a permission
+            // because neither maps to a feature: they are the transport under
+            // every screen, and each screen's own route is guarded.
+            //   upload-file  — signature-checked by Livewire, and WP-12 added
+            //                  'auth' on top (config/livewire.php).
+            //   preview-file — signature-checked, read-only, and restricted to
+            //                  temporary_file_upload.preview_mimes. Livewire
+            //                  exposes no middleware hook for this one.
+            'livewire/upload-file',
+            'livewire/preview-file/{filename}',
         ];
 
         $unguarded = [];
@@ -232,21 +248,31 @@ class Preflight extends Command
 
             $middleware = $route->gatherMiddleware();
 
+            // Which routes are in scope for this check.
+            //
+            // This used to look for StartSession in the gathered middleware,
+            // on the assumption that gatherMiddleware() expands the `web`
+            // group. It does not — it returns the group NAME, so the test was
+            // false for every single web route and the check had only ever
+            // examined the API. That is the opposite of the mistake it looks
+            // like: not a check that was too strict, a check that was barely
+            // running. Match the group names as they actually appear, and keep
+            // the StartSession probe for routes that pin the middleware
+            // directly rather than through a group.
             $inGroup = collect($middleware)->contains(
-                fn ($m) => is_string($m) && str_contains($m, 'StartSession')
-            ) || in_array('api', $route->middleware(), true);
+                fn ($m) => is_string($m) && (
+                    $m === 'web'
+                    || $m === 'api'
+                    || str_contains($m, 'StartSession')
+                )
+            );
 
             if (! $inGroup) {
                 continue;
             }
 
             $guarded = collect($middleware)->contains(
-                fn ($m) => is_string($m) && (
-                    str_starts_with($m, 'permission:')
-                    || str_starts_with($m, 'can:')
-                    || $m === 'scim.auth'
-                    || $m === \App\Http\Middleware\AuthenticateScim::class
-                )
+                fn ($m) => is_string($m) && $this->isAuthorizingMiddleware($m)
             );
 
             if (! $guarded) {
@@ -257,6 +283,60 @@ class Preflight extends Command
         $unguarded === []
             ? $this->pass('Route authorization', 'every web/api route carries a permission guard')
             : $this->fail_('Route authorization', count($unguarded).' unguarded route(s): '.implode(', ', array_slice($unguarded, 0, 5)));
+    }
+
+    /**
+     * Does this middleware entry authorize the request?
+     *
+     * This check predated WP-07 and matched on two literal alias prefixes,
+     * `permission:` and `can:`. WP-07 then added the REST API, which
+     * authorizes by token scope through `scope:` and `scope.resource` — so
+     * preflight reported all twelve api/v1 routes as unguarded when every one
+     * of them carries a guard. Three waves of work ran against a safety check
+     * that was permanently red, which is the state in which people stop
+     * reading it.
+     *
+     * The list below is of CLASSES, and the aliases are resolved from the
+     * router's own alias map at runtime. Renaming an alias in bootstrap/app.php
+     * therefore cannot silently blind this check again; adding a genuinely new
+     * kind of authorization middleware still requires adding it here, which is
+     * the one thing that should require a deliberate edit.
+     *
+     * @var list<class-string>
+     */
+    private const AUTHORIZING_MIDDLEWARE = [
+        \App\Http\Middleware\CheckPermission::class,
+        \App\Http\Middleware\EnsureTokenScope::class,
+        \App\Http\Middleware\EnsureResourceScope::class,
+        \App\Http\Middleware\AuthenticateScim::class,
+    ];
+
+    private function isAuthorizingMiddleware(string $entry): bool
+    {
+        // 'permission:risk.view' -> 'permission'; a class-string is unchanged.
+        $name = explode(':', $entry, 2)[0];
+
+        if (in_array($name, self::AUTHORIZING_MIDDLEWARE, true)) {
+            return true;
+        }
+
+        // Laravel's own gate middleware has no first-party class of ours.
+        if ($name === 'can') {
+            return true;
+        }
+
+        $class = $this->middlewareAliases()[$name] ?? null;
+
+        return $class !== null && in_array($class, self::AUTHORIZING_MIDDLEWARE, true);
+    }
+
+    /** @return array<string, class-string> the router's alias => class map */
+    private function middlewareAliases(): array
+    {
+        /** @var \Illuminate\Routing\Router $router */
+        $router = app('router');
+
+        return $router->getMiddleware();
     }
 
     private function checkAuditChainColumns(): void

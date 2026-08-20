@@ -120,6 +120,7 @@ class Control extends Model
     public function risks()
     {
         return $this->belongsToMany(Risk::class, 'risk_control_mapping')
+            ->using(RiskControlMapping::class)
             ->withPivot('control_weight', 'is_key_control', 'mapping_rationale')
             ->withTimestamps();
     }

@@ -208,7 +208,12 @@ class Risk extends Model
 
     public function controls()
     {
+        // using() is load-bearing, not decoration: without it attach()/sync()
+        // write the pivot through the query builder, which fires no model
+        // events, so the row would never be projected into the object graph
+        // (and would never get its organization_id stamped either).
         return $this->belongsToMany(Control::class, 'risk_control_mapping')
+            ->using(RiskControlMapping::class)
             ->withPivot('control_weight', 'is_key_control', 'mapping_rationale')
             ->withTimestamps();
     }
@@ -255,7 +260,10 @@ class Risk extends Model
             'caller' => self::deprecationCaller(),
         ]);
 
-        return $this->belongsToMany(KeyRiskIndicator::class, 'risk_kri_mapping', 'risk_id', 'kri_id');
+        return $this->belongsToMany(KeyRiskIndicator::class, 'risk_kri_mapping', 'risk_id', 'kri_id')
+            ->using(RiskKriMapping::class)
+            ->withPivot('correlation_type')
+            ->withTimestamps();
     }
 
     /**

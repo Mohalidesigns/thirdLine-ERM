@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
 use App\Models\KeyRiskIndicator;
@@ -19,6 +20,13 @@ use Illuminate\Support\Facades\DB;
 
 class KriController extends Controller
 {
+    // WP-00 node scoping. Route-model binding resolves a record through the
+    // tenancy scope only, so every method that receives a bound model asks
+    // EnforcesNodeScope whether the caller's subtree admits it — and gets a 404
+    // rather than a 403 when it does not, so the record's existence is not
+    // itself the answer.
+    use EnforcesNodeScope;
+
     // WP-05 TASK 2 — receives the fields a tenant added through the
     // builder. Without it, a configured field would render on the form,
     // accept what was typed, and discard it on submit.
@@ -117,11 +125,15 @@ class KriController extends Controller
     {
         $orgId = TenantContext::organizationId();
 
-        $total = KeyRiskIndicator::where('organization_id', $orgId)->count();
+        // WP-00: scoped like KrisGrid — see the note in
+        // RiskRegisterController@index on why header counts have to move with
+        // the grid rather than staying organization-wide.
+        $total = KeyRiskIndicator::where('organization_id', $orgId)->visibleTo()->count();
 
         // KRIs whose latest measurement pushed them into red breach territory
         // (current_status is refreshed by recordMeasurement on every entry).
         $activeBreachCount = KeyRiskIndicator::where('organization_id', $orgId)
+            ->visibleTo()
             ->where('current_status', 'red')
             ->count();
 
@@ -246,6 +258,9 @@ class KriController extends Controller
             abort(403, 'Unauthorized access to this KRI.');
         }
 
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($kri);
+
         $kri->load(['risk', 'owner']);
 
         $measurements = KriMeasurement::where('kri_id', $kri->id)
@@ -305,6 +320,9 @@ class KriController extends Controller
             abort(403, 'Unauthorized access to this KRI.');
         }
 
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($kri);
+
         $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
         $users = User::where('organization_id', $orgId)->orderBy('name')->get();
 
@@ -321,6 +339,9 @@ class KriController extends Controller
         if ($kri->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this KRI.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($kri);
 
         $validated = $request->validate([
             'kri_name' => 'required|string|max:255',
@@ -399,6 +420,9 @@ class KriController extends Controller
             abort(403, 'Unauthorized access to this KRI.');
         }
 
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($kri);
+
         $code = $kri->kri_code;
         $kri->delete();
 
@@ -416,6 +440,9 @@ class KriController extends Controller
         if ($kri->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this KRI.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($kri);
 
         $validated = $request->validate([
             'measurement_date' => 'required|date',

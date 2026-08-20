@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\EnsureMfaVerified;
 use App\Models\OrganizationSsoSetting;
 use App\Services\SsoProvisioningService;
 use App\Support\Sso\OidcProvider;
@@ -173,9 +174,46 @@ class SsoController extends Controller
             'login_attempts' => 0,
         ])->saveQuietly();
 
-        // The IdP authenticated the user; it did not perform this platform's
-        // second factor. If their role requires MFA, they still have to pass it.
-        if ($this->mfaRequiredFor($user)) {
+        /*
+         * MFA ENTRY POINT — GATED ON features.mfa_totp, DEFAULT OFF.
+         *
+         * The IdP authenticated the user; it did not perform this platform's
+         * second factor. If their role requires MFA, they still have to pass it
+         * — but only once there is a second factor that can actually be passed.
+         *
+         * This is the third way into the broken flow (the other two are
+         * AuthController::login() and EnsureMfaVerified), and the most easily
+         * missed, because it is reached without ever touching the password form.
+         * The flow it leads into is broken in three specific ways:
+         *
+         *   1. SIGN-IN CANNOT COMPLETE. AuthController::verifyMfa() sets
+         *      session('mfa_verified') and never calls Auth::login(), while
+         *      AuthController::login() logs the user out first — so an
+         *      mfa_enabled user has no path back to an authenticated session.
+         *
+         *   2. THE CODES ARE NOT RFC 6238 TOTP. verifyTotpCode() packs the time
+         *      step into four bytes with pack('N', ...) where the spec requires
+         *      an eight-byte big-endian counter, so no authenticator app can
+         *      produce a code it accepts.
+         *
+         *   3. THE SHARED SECRET WENT TO A THIRD PARTY. The enrolment screen's
+         *      QR code was fetched from api.qrserver.com with the TOTP seed and
+         *      the user's email address in the query string.
+         *
+         * DEFERRED, NOT FORGOTTEN: the rebuild is scheduled for deployment
+         * readiness, none of the MFA code has been deleted, and the full list of
+         * what must be true before FEATURE_MFA_TOTP is switched on lives in
+         * config/features.php.
+         *
+         * PREVIOUS BEHAVIOUR: a federated user whose role appeared in
+         * organizations.settings->mfa_required_roles was redirected to
+         * mfa.setup (or mfa.verify) immediately after a successful assertion —
+         * i.e. straight out of a valid SSO session into an enrolment they could
+         * not complete. With the flag off the session is marked verified and
+         * they proceed, which is the only outcome that does not strand a user
+         * their identity provider has already authenticated.
+         */
+        if (EnsureMfaVerified::featureEnabled() && $this->mfaRequiredFor($user)) {
             $request->session()->forget('mfa_verified');
 
             return redirect()->route($user->mfa_enabled ? 'mfa.verify' : 'mfa.setup');

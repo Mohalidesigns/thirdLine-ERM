@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Controller;
 use App\Models\BusinessUnit;
 use App\Models\Control;
@@ -11,6 +12,7 @@ use App\Models\RiskCategory;
 use App\Models\RiskControlMapping;
 use App\Models\User;
 use App\Services\RiskScoringService;
+use App\Support\Authorization\GraphScope;
 use App\Support\Periods\PeriodContext;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
@@ -18,6 +20,13 @@ use Illuminate\Support\Facades\DB;
 
 class RiskRegisterController extends Controller
 {
+    // WP-00 node scoping. Route-model binding resolves a record through the
+    // tenancy scope only, so every method that receives a bound model asks
+    // EnforcesNodeScope whether the caller's subtree admits it — and gets a 404
+    // rather than a 403 when it does not, so the record's existence is not
+    // itself the answer.
+    use EnforcesNodeScope;
+
     /**
      * Display the risk register listing with filters.
      */
@@ -41,7 +50,13 @@ class RiskRegisterController extends Controller
         // quick-filter pill counts. The pills filter on residual_rating —
         // the same column the grid's rating filter targets — so a pill's
         // count always matches the rows it reveals.
+        // WP-00: ->visibleTo() here as well as in RisksGrid, and for a
+        // reason beyond tidiness — a header that says "14 Critical" above a
+        // grid listing three of them tells a branch user exactly how many
+        // critical risks the rest of the group is carrying. The count and the
+        // rows it labels have to be filtered by the same rule.
         $ratingCounts = Risk::where('organization_id', $orgId)
+            ->visibleTo()
             ->whereIn('residual_rating', ['Critical', 'High', 'Medium', 'Low'])
             ->selectRaw('residual_rating, COUNT(*) as aggregate')
             ->groupBy('residual_rating')
@@ -51,7 +66,7 @@ class RiskRegisterController extends Controller
             ->mapWithKeys(fn ($rating) => [$rating => (int) ($ratingCounts[$rating] ?? 0)])
             ->all();
 
-        $total = Risk::where('organization_id', $orgId)->count();
+        $total = Risk::where('organization_id', $orgId)->visibleTo()->count();
 
         return view('risk.register.index', compact('total', 'ratingCounts'));
     }
@@ -81,6 +96,26 @@ class RiskRegisterController extends Controller
         ], fn ($value) => $value !== null && $value !== '');
 
         $risks = app(\App\Repositories\RiskRepository::class)->asOf($period, $filters, $orgId);
+
+        // WP-00 node scoping, applied here rather than inside RiskRepository.
+        // asOf() is shared with the dashboard widget resolvers (heat map,
+        // trend, stacked area), which are roll-ups that must keep reading the
+        // whole organization — narrowing the repository would quietly re-cut
+        // the CRO's board pack to whoever happened to open it.
+        //
+        // The as-at register is a caller-facing list, so it is scoped at the
+        // caller. The visible set is resolved with the same visibleTo() the
+        // live grid uses, over just the ids asOf() returned, so the historic
+        // and live views of the register never disagree about who may see what.
+        if (GraphScope::isSubtreeLimited(auth()->user()) && $risks->isNotEmpty()) {
+            $visible = Risk::query()
+                ->whereKey($risks->pluck('id')->all())
+                ->visibleTo()
+                ->pluck('id')
+                ->flip();
+
+            $risks = $risks->filter(fn (Risk $risk) => $visible->has($risk->id))->values();
+        }
 
         if ($request->filled('rating')) {
             $rating = $request->input('rating');
@@ -261,6 +296,9 @@ class RiskRegisterController extends Controller
             abort(403, 'Unauthorized access to this risk.');
         }
 
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($risk);
+
         $risk->load([
             'category',
             'riskOwner',
@@ -301,6 +339,9 @@ class RiskRegisterController extends Controller
         if ($risk->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this risk.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($risk);
 
         $validated = $request->validate([
             'control_id' => 'required|exists:controls,id',
@@ -347,6 +388,9 @@ class RiskRegisterController extends Controller
             abort(403, 'Unauthorized access to this risk.');
         }
 
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($risk);
+
         $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
         $users = User::where('organization_id', $orgId)->orderBy('name')->get();
@@ -366,6 +410,9 @@ class RiskRegisterController extends Controller
         if ($risk->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this risk.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($risk);
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
@@ -465,6 +512,9 @@ class RiskRegisterController extends Controller
         if ($risk->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this risk.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($risk);
 
         return DB::transaction(function () use ($risk, $orgId) {
             RiskAuditTrail::create([

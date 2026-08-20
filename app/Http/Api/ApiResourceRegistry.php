@@ -49,6 +49,19 @@ use App\Models\WorkflowTask;
  * A resource with no `create`/`edit` entry is read-only through the API: it is
  * produced by the platform rather than supplied to it. A simulation result is
  * not something a client should be able to assert.
+ *
+ * NODE SCOPING IS NOT DECLARED HERE FOR MOST RESOURCES, ON PURPOSE. A resource
+ * whose model carries ScopedToGraph — risks, controls, kris, issues,
+ * loss-events — is confined to the caller's subtree automatically, because
+ * ResourceController derives it from the model rather than from an entry in
+ * this table. A flag here would mean a resource added next quarter is scoped
+ * only if somebody remembers to set it, and the entry nobody remembers is the
+ * one that serves a branch manager another subsidiary's loss register.
+ *
+ * `scope_through` is the exception, and only for CHILDREN of scoped models: a
+ * treatment plan has no node of its own and inherits its risk's, and no amount
+ * of reflection can tell which of a model's relations is the one that owns it.
+ * Those three entries are the only place node scoping is written down.
  */
 class ApiResourceRegistry
 {
@@ -174,6 +187,9 @@ class ApiResourceRegistry
 
             'treatments' => [
                 'model' => TreatmentPlan::class,
+                // Node scoping rides on the risk: treatment_plans has no
+                // entity_id and risk_id is NOT NULL.
+                'scope_through' => 'risk',
                 'permissions' => ['view' => 'treatment.view', 'create' => 'treatment.create', 'edit' => 'treatment.edit', 'delete' => 'treatment.delete'],
                 'reference' => ['column' => 'treatment_code', 'prefix' => 'TP'],
                 // Canonical columns only (WP-01): action_title, strategy,
@@ -188,6 +204,8 @@ class ApiResourceRegistry
 
             'assessments' => [
                 'model' => RiskAssessment::class,
+                // Node scoping rides on the risk being assessed.
+                'scope_through' => 'risk',
                 'permissions' => ['view' => 'assessment.view', 'create' => 'assessment.create', 'edit' => 'assessment.create'],
                 'fields' => ['risk_id', 'assessment_date', 'assessment_type', 'status', 'assessor_id', 'reviewer_id', 'likelihood_score', 'impact_score', 'overall_score', 'overall_rating', 'residual_score', 'residual_rating', 'approved_by', 'approved_date', 'created_at'],
                 'filters' => ['status', 'assessment_type', 'risk_id', 'assessor_id', 'reviewer_id'],
@@ -209,6 +227,8 @@ class ApiResourceRegistry
 
             'control-tests' => [
                 'model' => ControlTest::class,
+                // Node scoping rides on the control under test.
+                'scope_through' => 'control',
                 'permissions' => ['view' => 'control_test.view', 'create' => 'control_test.create', 'edit' => 'control_test.edit'],
                 'reference' => ['column' => 'test_code', 'prefix' => 'CT'],
                 'fields' => ['test_code', 'title', 'control_id', 'test_type', 'tester_id', 'reviewer_id', 'scheduled_date', 'completed_date', 'status', 'result', 'score', 'created_at'],

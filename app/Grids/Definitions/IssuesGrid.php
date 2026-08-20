@@ -37,9 +37,11 @@ class IssuesGrid extends GridDefinition
 
     public function query(): Builder
     {
+        // WP-00 node scoping — see RisksGrid.
         return Issue::query()
             ->with('owner')
-            ->where('organization_id', TenantContext::organizationId());
+            ->where('organization_id', TenantContext::organizationId())
+            ->visibleTo();
     }
 
     public function columns(): array

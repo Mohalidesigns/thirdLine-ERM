@@ -20,6 +20,28 @@ class MfaEnforcementTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Every assertion below describes behaviour that only exists WITH THE
+     * FEATURE FLAG ON.
+     *
+     * The whole MFA flow now sits behind features.mfa_totp, which defaults to
+     * FALSE because the implementation is broken in three ways — sign-in cannot
+     * complete (verifyMfa() never calls Auth::login()), the TOTP counter is
+     * packed into four bytes instead of eight, and the enrolment QR code
+     * disclosed the shared secret to api.qrserver.com. See config/features.php.
+     *
+     * This class is the reason the gate cannot rot: it keeps asserting that the
+     * enforcement logic is intact and reachable once the flag is flipped, so the
+     * rebuild has a specification to satisfy rather than a blank page.
+     * MfaFeatureGateTest is its counterpart and asserts the flag-off behaviour.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['features.mfa_totp' => true]);
+    }
+
     protected function tearDown(): void
     {
         TenantContext::clear();

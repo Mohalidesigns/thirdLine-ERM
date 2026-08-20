@@ -8,6 +8,7 @@ use App\Grids\Filter;
 use App\Grids\GridDefinition;
 use App\Grids\RowAction;
 use App\Models\TreatmentPlan;
+use App\Support\Authorization\GraphScope;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -35,9 +36,16 @@ class TreatmentPlansGrid extends GridDefinition
 
     public function query(): Builder
     {
-        return TreatmentPlan::query()
-            ->with(['risk', 'owner'])
-            ->where('organization_id', TenantContext::organizationId());
+        // WP-00 node scoping, through the parent. treatment_plans carries no
+        // entity_id, but risk_id is NOT NULL and cascade-deletes with the risk:
+        // the plan exists only as the response to that risk, so it inherits the
+        // risk's visibility rather than having one of its own.
+        return GraphScope::applyThrough(
+            TreatmentPlan::query()
+                ->with(['risk', 'owner'])
+                ->where('organization_id', TenantContext::organizationId()),
+            'risk'
+        );
     }
 
     public function columns(): array
@@ -164,7 +172,7 @@ class TreatmentPlansGrid extends GridDefinition
 
                 return "{$count} ".str('plan')->plural($count).' deleted.';
             })->can('treatment.delete')
-              ->confirm('Delete the selected treatment plans? Their linked risks are unaffected.'),
+                ->confirm('Delete the selected treatment plans? Their linked risks are unaffected.'),
         ];
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
 use App\Models\BusinessUnit;
@@ -14,6 +15,13 @@ use Illuminate\Http\Request;
 
 class ControlController extends Controller
 {
+    // WP-00 node scoping. Route-model binding resolves a record through the
+    // tenancy scope only, so every method that receives a bound model asks
+    // EnforcesNodeScope whether the caller's subtree admits it — and gets a 404
+    // rather than a 403 when it does not, so the record's existence is not
+    // itself the answer.
+    use EnforcesNodeScope;
+
     // WP-05 TASK 2 — receives the fields a tenant added through the
     // builder. Without it, a configured field would render on the form,
     // accept what was typed, and discard it on submit.
@@ -26,7 +34,11 @@ class ControlController extends Controller
      */
     public function index(Request $request)
     {
-        $total = Control::where('organization_id', TenantContext::organizationId())->count();
+        // WP-00: scoped like ControlsGrid, so the header total counts the
+        // rows the grid beneath it will actually show.
+        $total = Control::where('organization_id', TenantContext::organizationId())
+            ->visibleTo()
+            ->count();
 
         return view('risk.controls.index', compact('total'));
     }
@@ -116,6 +128,9 @@ class ControlController extends Controller
             abort(403, 'Unauthorized access to this control.');
         }
 
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($control);
+
         $control->load(['controlOwner', 'businessUnit', 'riskMappings']);
 
         return view('risk.controls.show', compact('control'));
@@ -131,6 +146,9 @@ class ControlController extends Controller
         if ($control->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this control.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($control);
 
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
         $users = User::where('organization_id', $orgId)->orderBy('name')->get();
@@ -148,6 +166,9 @@ class ControlController extends Controller
         if ($control->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this control.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($control);
 
         $validated = $request->validate([
             'name' => 'required|string|max:200',
@@ -196,6 +217,9 @@ class ControlController extends Controller
             abort(403, 'Unauthorized access to this control.');
         }
 
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($control);
+
         // Check if control is linked to any risks
         $linkedRisks = RiskControlMapping::where('control_id', $control->id)->count();
         if ($linkedRisks > 0) {
@@ -223,6 +247,9 @@ class ControlController extends Controller
         if ($control->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this control.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($control);
 
         $validated = $request->validate([
             'risk_id' => 'required|exists:risks,id',
@@ -272,6 +299,9 @@ class ControlController extends Controller
         if ($control->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this control.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($control);
 
         $mapping = RiskControlMapping::where('risk_id', $risk->id)
             ->where('control_id', $control->id)

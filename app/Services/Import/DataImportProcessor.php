@@ -10,6 +10,7 @@ use App\Models\LossEvent;
 use App\Models\Risk;
 use App\Services\ReferenceCodeService;
 use App\Services\SpreadsheetReader;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Throwable;
 
@@ -38,10 +39,27 @@ class DataImportProcessor
      */
     public function process(DataImport $import, ?callable $onProgress = null, ?callable $shouldCancel = null): array
     {
-        $filePath = storage_path('app/public/'.$import->file_path);
+        // WP-11. Import uploads moved from the web-served `public` disk to the
+        // private `local` disk (DataImportController::upload). This line used
+        // to hard-code storage_path('app/public/'), which would have made every
+        // new import fail with "could not be read from storage" the moment the
+        // upload path changed.
+        //
+        // The `public` branch is a deliberate legacy fallback, not a
+        // convenience: between deploying this code and running the
+        // 2026_08_20 relocation migration, and for any import queued before the
+        // deploy, the file is still under app/public. It is a read-only
+        // fallback — nothing writes there any more.
+        $filePath = Storage::disk('local')->path($import->file_path);
 
         if (! is_readable($filePath)) {
-            throw new RuntimeException('The uploaded file could not be read from storage.');
+            $legacyPath = storage_path('app/public/'.$import->file_path);
+
+            if (! is_readable($legacyPath)) {
+                throw new RuntimeException('The uploaded file could not be read from storage.');
+            }
+
+            $filePath = $legacyPath;
         }
 
         $rows = $this->reader->dataRows($filePath);

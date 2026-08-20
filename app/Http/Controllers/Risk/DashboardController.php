@@ -16,6 +16,38 @@ use App\Support\Tenancy\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * The executive risk dashboard.
+ *
+ * WP-00 NODE SCOPING — WHERE THE LINE IS DRAWN HERE, AND WHY IT IS NOT DRAWN
+ * FURTHER. This screen is two different things at once, and they need
+ * different answers:
+ *
+ *   THE LISTS name individual records — the top ten risks by residual score,
+ *   the breached KRIs, and the activity feed of recent loss events and issues,
+ *   each rendered with its reference, its title, its amount and a link
+ *   straight to the record. "Fraud loss — Treasury, ₦2.1bn" IS the incident;
+ *   putting it on a branch manager's home page is the same disclosure as
+ *   letting them open the record. Those four queries are now scoped with the
+ *   same ->visibleTo() the registers use.
+ *
+ *   THE NUMBERS are roll-ups: counts, the heat map, the rating distribution,
+ *   YTD net loss, control effectiveness bands, treatment progress. They are
+ *   DELIBERATELY LEFT ORGANIZATION-WIDE. A roll-up is what this screen is for,
+ *   and node scoping is opt-in precisely so that aggregate reporting is not
+ *   silently re-cut to whoever opened it.
+ *
+ * That leaves the dashboard capable of saying "14 Critical" above a list of
+ * three, which is a real inconsistency and is recorded here rather than
+ * papered over: whether a subtree-limited user should see their own totals or
+ * the group's is a product decision about what this page means, not a bug to
+ * be fixed by whoever touches the file next. Scoping the aggregates is one
+ * ->visibleTo() per query when that decision is taken.
+ *
+ * Nothing here changes for a CRO, a risk manager or a board member: they hold
+ * roles in config('authorization.full_org_roles'), for which visibleTo() is a
+ * no-op. The board pack is unaffected by construction, not by omission.
+ */
 class DashboardController extends Controller
 {
     public function index()
@@ -225,6 +257,7 @@ class DashboardController extends Controller
         ];
 
         $breachedKris = KeyRiskIndicator::where('organization_id', $orgId)
+            ->visibleTo()
             ->where('current_status', 'red')
             ->orderByDesc('current_value')
             ->limit(5)
@@ -268,6 +301,7 @@ class DashboardController extends Controller
         // ──────────────────────────────────────────────────────────
 
         $topRisks = Risk::where('organization_id', $orgId)
+            ->visibleTo()
             ->where('status', 'active')
             ->orderByDesc('residual_score')
             ->limit(10)
@@ -281,6 +315,7 @@ class DashboardController extends Controller
         // ──────────────────────────────────────────────────────────
 
         $recentLossEvents = LossEvent::where('organization_id', $orgId)
+            ->visibleTo()
             ->orderByDesc('date_of_loss')
             ->limit(5)
             ->get()
@@ -297,6 +332,7 @@ class DashboardController extends Controller
             ]);
 
         $recentIssues = Issue::where('organization_id', $orgId)
+            ->visibleTo()
             ->orderByDesc('created_at')
             ->limit(5)
             ->get()

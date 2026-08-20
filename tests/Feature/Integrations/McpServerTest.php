@@ -164,7 +164,12 @@ class McpServerTest extends TestCase
     #[Test]
     public function list_my_tasks_says_so_when_the_token_has_no_user(): void
     {
-        $token = $this->machineToken(['*']);
+        // Named scope rather than ['*']: a machine token acts as no user, so
+        // nothing narrows a wildcard down afterwards, and ApiToken now both
+        // refuses to issue one with '*' and refuses to honour it on a token
+        // that already holds it. The scope this tool needs is task.view; what
+        // the test is about is the token having no acting user behind it.
+        $token = $this->machineToken(['task.view']);
 
         $result = $this->tool('list_my_tasks', [], $token);
 

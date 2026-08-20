@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
 use App\Models\BusinessUnit;
@@ -18,6 +19,13 @@ use Illuminate\Support\Facades\Storage;
 
 class IssueController extends Controller
 {
+    // WP-00 node scoping. Route-model binding resolves a record through the
+    // tenancy scope only, so every method that receives a bound model asks
+    // EnforcesNodeScope whether the caller's subtree admits it — and gets a 404
+    // rather than a 403 when it does not, so the record's existence is not
+    // itself the answer.
+    use EnforcesNodeScope;
+
     // WP-05 TASK 2 — receives the fields a tenant added through the
     // builder. Without it, a configured field would render on the form,
     // accept what was typed, and discard it on submit.
@@ -219,6 +227,9 @@ class IssueController extends Controller
             abort(403, 'Unauthorized access to this issue.');
         }
 
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($issue);
+
         $issue->load([
             'issueOwner',
             'businessUnit',
@@ -249,6 +260,9 @@ class IssueController extends Controller
             abort(403, 'Unauthorized access to this issue.');
         }
 
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($issue);
+
         $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
         $users = User::where('organization_id', $orgId)->orderBy('name')->get();
@@ -266,6 +280,9 @@ class IssueController extends Controller
         if ($issue->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this issue.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($issue);
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
@@ -319,6 +336,9 @@ class IssueController extends Controller
         if ($issue->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this issue.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($issue);
 
         $validated = $request->validate([
             'issue_status' => 'required|in:OPEN,IN_PROGRESS,OVERDUE,PENDING_CLOSURE,CLOSED,CANCELLED,REOPENED',
@@ -374,6 +394,9 @@ class IssueController extends Controller
         if ($issue->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this issue.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($issue);
 
         $validated = $request->validate([
             'description' => 'required|string|max:3000',
@@ -449,6 +472,9 @@ class IssueController extends Controller
             abort(403, 'Unauthorized access to this issue.');
         }
 
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($issue);
+
         $validated = $request->validate([
             'description' => 'required|string|max:3000',
             'update_type' => 'required|in:progress,milestone,escalation,note',
@@ -480,6 +506,9 @@ class IssueController extends Controller
         if ($issue->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this issue.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($issue);
 
         if (! in_array($issue->issue_status, ['IN_PROGRESS', 'OVERDUE'])) {
             return back()->with('error', 'Only in-progress or overdue issues can be submitted for closure.');
@@ -530,6 +559,9 @@ class IssueController extends Controller
             abort(403, 'Unauthorized access to this issue.');
         }
 
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($issue);
+
         if ($issue->issue_status !== 'PENDING_CLOSURE') {
             return back()->with('error', 'Only issues pending closure can be approved.');
         }
@@ -561,6 +593,9 @@ class IssueController extends Controller
         if ($issue->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this issue.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($issue);
 
         if ($issue->issue_status !== 'PENDING_CLOSURE') {
             return back()->with('error', 'Only issues pending closure can be rejected.');
@@ -714,6 +749,9 @@ class IssueController extends Controller
             abort(403, 'Unauthorized access to this issue.');
         }
 
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($issue);
+
         $validated = $request->validate([
             'file' => 'required|file|max:10240|mimes:pdf,doc,docx,xls,xlsx,csv,png,jpg,jpeg,txt,msg,eml,zip',
             'document_type' => 'nullable|string|max:50',
@@ -747,6 +785,9 @@ class IssueController extends Controller
         if ($issue->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this issue.');
         }
+
+        // WP-00 node scoping: 404, not 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisible($issue);
 
         abort_unless(auth()->user()->can('issue.close') || auth()->user()->hasRole('super-admin'), 403,
             'You do not have permission to delete issues.');

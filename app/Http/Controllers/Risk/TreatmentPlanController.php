@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
 use App\Models\Risk;
@@ -9,12 +10,16 @@ use App\Models\RiskAuditTrail;
 use App\Models\TreatmentPlan;
 use App\Models\User;
 use App\Services\Workflow\ModuleApprovals;
+use App\Support\Authorization\GraphScope;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class TreatmentPlanController extends Controller
 {
+    // WP-00 node scoping: a treatment plan inherits its risk's visibility.
+    use EnforcesNodeScope;
+
     // WP-05 TASK 2 — receives the fields a tenant added through the
     // builder. Without it, a configured field would render on the form,
     // accept what was typed, and discard it on submit.
@@ -147,7 +152,12 @@ class TreatmentPlanController extends Controller
         // (App\Grids\Definitions\TreatmentPlansGrid); the strategy and
         // priority selects — which this method never read — are now real
         // filters there. The header only needs the total.
-        $total = TreatmentPlan::where('organization_id', TenantContext::organizationId())->count();
+        // WP-00: scoped through the risk, matching TreatmentPlansGrid, so the
+        // header total counts the rows the grid beneath it will show.
+        $total = GraphScope::applyThrough(
+            TreatmentPlan::where('organization_id', TenantContext::organizationId()),
+            'risk'
+        )->count();
 
         return view('risk.treatments.index', compact('total'));
     }
@@ -301,6 +311,9 @@ class TreatmentPlanController extends Controller
             abort(403, 'Unauthorized access to this treatment plan.');
         }
 
+        // WP-00 node scoping, inherited from the risk — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisibleThrough($treatment, 'risk');
+
         $treatment->load(['risk.category', 'risk.riskOwner', 'owner']);
 
         $progressHistory = [
@@ -331,6 +344,9 @@ class TreatmentPlanController extends Controller
             abort(403, 'Unauthorized access to this treatment plan.');
         }
 
+        // WP-00 node scoping, inherited from the risk — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisibleThrough($treatment, 'risk');
+
         $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
         $users = User::where('organization_id', $orgId)->orderBy('name')->get();
 
@@ -351,6 +367,9 @@ class TreatmentPlanController extends Controller
         if ($treatment->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this treatment plan.');
         }
+
+        // WP-00 node scoping, inherited from the risk — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisibleThrough($treatment, 'risk');
 
         $validated = $request->validate([
             'treatment_title' => 'required|string|max:255',
@@ -416,6 +435,9 @@ class TreatmentPlanController extends Controller
         if ($treatment->organization_id !== $orgId) {
             abort(403, 'Unauthorized access to this treatment plan.');
         }
+
+        // WP-00 node scoping, inherited from the risk — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisibleThrough($treatment, 'risk');
 
         $code = $treatment->treatment_code;
         $riskId = $treatment->risk_id;

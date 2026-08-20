@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Controller;
 use App\Models\KeyRiskIndicator;
 use App\Models\Risk;
 use App\Models\RiskAssessment;
-use App\Models\RiskCause;
 use App\Models\RiskAssessmentControl;
+use App\Models\RiskCause;
 use App\Models\RiskCauseCategory;
 use App\Models\TreatmentPlan;
 use App\Models\User;
@@ -16,6 +17,7 @@ use App\Services\NotificationService;
 use App\Services\ReferenceCodeService;
 use App\Services\RiskScoringService;
 use App\Services\Workflow\ModuleApprovals;
+use App\Support\Authorization\GraphScope;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -44,6 +46,9 @@ use Illuminate\Support\Facades\DB;
  */
 class RiskAssessmentController extends Controller
 {
+    // WP-00 node scoping: an assessment inherits its risk's visibility.
+    use EnforcesNodeScope;
+
     public function __construct(
         private RiskScoringService $scoring,
         private AssessmentChainService $chain,
@@ -56,7 +61,11 @@ class RiskAssessmentController extends Controller
      */
     public function index(Request $request)
     {
-        $total = RiskAssessment::where('organization_id', TenantContext::organizationId())->count();
+        // WP-00: scoped through the risk, matching RiskAssessmentsGrid.
+        $total = GraphScope::applyThrough(
+            RiskAssessment::where('organization_id', TenantContext::organizationId()),
+            'risk'
+        )->count();
 
         return view('risk.assessments.index', compact('total'));
     }
@@ -663,6 +672,13 @@ class RiskAssessmentController extends Controller
             403,
             'Unauthorized access to this assessment.'
         );
+
+        // WP-00 node scoping, inherited from the risk being assessed. Folded
+        // into the existing tenant guard rather than added at each call site:
+        // every method that touches a bound assessment already calls this one,
+        // so a method added later is scoped without anyone remembering to.
+        // 404 rather than 403 — see EnforcesNodeScope.
+        $this->abortUnlessNodeVisibleThrough($assessment, 'risk');
     }
 
     /**
@@ -782,5 +798,4 @@ class RiskAssessmentController extends Controller
 
         return back()->with('success', 'Assessment returned to draft. Edit and submit again for review.');
     }
-
 }

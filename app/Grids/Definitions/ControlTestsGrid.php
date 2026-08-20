@@ -9,6 +9,7 @@ use App\Grids\GridDefinition;
 use App\Grids\RowAction;
 use App\Models\Control;
 use App\Models\ControlTest;
+use App\Support\Authorization\GraphScope;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -39,9 +40,17 @@ class ControlTestsGrid extends GridDefinition
 
     public function query(): Builder
     {
-        return ControlTest::query()
-            ->with(['control', 'tester', 'reviewer'])
-            ->where('organization_id', TenantContext::organizationId());
+        // WP-00 node scoping, through the parent. control_tests carries no
+        // entity_id of its own, but control_id is NOT NULL and a test is an
+        // assertion ABOUT a control — the test result, the tester's name and
+        // the failure narrative all describe the control's unit, so a viewer
+        // who may not see the control must not see its test evidence either.
+        return GraphScope::applyThrough(
+            ControlTest::query()
+                ->with(['control', 'tester', 'reviewer'])
+                ->where('organization_id', TenantContext::organizationId()),
+            'control'
+        );
     }
 
     public function columns(): array

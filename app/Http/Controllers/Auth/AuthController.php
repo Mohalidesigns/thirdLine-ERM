@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\EnsureMfaVerified;
 use App\Models\BusinessUnit;
 use App\Models\OrganizationSsoSetting;
 use App\Models\User;
@@ -11,11 +12,20 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
+    /**
+     * Failed sign-ins tolerated from one place, for one account, before that
+     * pair is shut out for LOCKOUT_MINUTES.
+     */
+    private const LOCKOUT_ATTEMPTS = 5;
+
+    private const LOCKOUT_MINUTES = 30;
+
     /**
      * Password policy rules
      */
@@ -52,6 +62,41 @@ class AuthController extends Controller
     }
 
     /**
+     * The key the lockout counts against: this account, from THIS SOURCE.
+     *
+     * PREVIOUS BEHAVIOUR — AND WHY IT CHANGED. The lockout used to live entirely
+     * in users.login_attempts / users.locked_until, keyed on the account alone.
+     * Five failures from anywhere locked the account for thirty minutes, which
+     * made the login form a TARGETED DENIAL-OF-SERVICE PRIMITIVE: anyone who
+     * knew a staff email — and on this platform email addresses appear in every
+     * assessment, approval and audit record — could keep a named Chief Risk
+     * Officer permanently signed out with five requests every half hour, from a
+     * single script, without ever holding a credential. There was no way for the
+     * victim to sign in and no signal to distinguish it from a forgotten
+     * password.
+     *
+     * Keying on (email, IP) removes that. An attacker can now lock only the
+     * pairing of the victim's account with the attacker's own source address,
+     * which does not affect the victim signing in from the office or from home.
+     *
+     * THE TRADE, STATED PLAINLY: an attacker with many source addresses gets
+     * LOCKOUT_ATTEMPTS guesses per address rather than five in total, so this is
+     * weaker against a distributed, low-and-slow attack than the old counter
+     * was. That is accepted deliberately, because the old counter bought its
+     * strength by handing every attacker a reliable way to disable any named
+     * user. What bounds the distributed case instead is the per-IP ceiling on
+     * the `login` limiter in routes/web.php, the 12-character mixed password
+     * policy above, and detection of failures spread across many accounts.
+     *
+     * The address is hashed into the key so that no cache entry contains a staff
+     * email address in clear.
+     */
+    private function lockoutKey(Request $request, string $email): string
+    {
+        return 'login-lockout:'.sha1(Str::lower(trim($email)).'|'.$request->ip());
+    }
+
+    /**
      * Handle login
      */
     public function login(Request $request)
@@ -63,7 +108,25 @@ class AuthController extends Controller
 
         $user = User::where('email', $credentials['email'])->first();
 
-        // Check if account is locked
+        $lockoutKey = $this->lockoutKey($request, $credentials['email']);
+
+        // Too many recent failures for this account FROM THIS SOURCE. Checked
+        // before the credentials are tested, and deliberately without loading
+        // or touching the user row: the answer must not differ between an
+        // account that exists and one that does not, or the lockout becomes a
+        // user-enumeration oracle.
+        if (RateLimiter::tooManyAttempts($lockoutKey, self::LOCKOUT_ATTEMPTS)) {
+            $minutes = max(1, (int) ceil(RateLimiter::availableIn($lockoutKey) / 60));
+
+            return back()->withErrors([
+                'email' => "Too many failed sign-in attempts from this device. Try again in {$minutes} minute(s), or ask an administrator to reset your password.",
+            ])->withInput($request->only('email'));
+        }
+
+        // An ADMINISTRATIVE lock still applies. Nothing in this method writes
+        // users.locked_until any more, but the column and the admin screens that
+        // read it stay: an account an administrator has locked must not sign in
+        // from anywhere.
         if ($user && $user->locked_until && $user->locked_until->isFuture()) {
             return back()->withErrors([
                 'email' => 'Account is temporarily locked. Try again later.',
@@ -89,24 +152,62 @@ class AuthController extends Controller
                 'last_activity_at' => now(),
             ]);
 
+            // A correct password clears the counter for this pair, so a user who
+            // mistyped four times and then got it right starts fresh.
+            RateLimiter::clear($lockoutKey);
+
             $request->session()->regenerate();
 
-            // Check if MFA is enabled
-            if ($authenticatedUser->mfa_enabled) {
-                // Store user ID in session for MFA verification
-                $request->session()->put('mfa_pending_user_id', $authenticatedUser->id);
-                Auth::logout();
+            /*
+             * MFA ENTRY POINT — GATED ON features.mfa_totp, DEFAULT OFF.
+             *
+             * Both branches below are unreachable while the flag is off, and
+             * that is deliberate. The flow they lead into is broken in three
+             * specific ways:
+             *
+             *   1. SIGN-IN CANNOT COMPLETE. The first branch calls
+             *      Auth::logout() and hands off to mfa.verify; verifyMfa()
+             *      below sets session('mfa_verified') and never calls
+             *      Auth::login(). Nothing in this class returns the user to an
+             *      authenticated session, so every user with mfa_enabled = true
+             *      is permanently locked out of the platform.
+             *
+             *   2. THE CODES ARE NOT RFC 6238 TOTP. verifyTotpCode() packs the
+             *      time step with pack('N', $time) — four bytes where the spec
+             *      requires eight — so no authenticator app can ever produce a
+             *      code it accepts, even if (1) were fixed.
+             *
+             *   3. THE SHARED SECRET WENT TO A THIRD PARTY. generateQrCodeUrl()
+             *      builds an api.qrserver.com URL carrying the TOTP seed and the
+             *      user's email, which the enrolling browser then fetched.
+             *
+             * DEFERRED, NOT FORGOTTEN: the rebuild is scheduled for deployment
+             * readiness and none of this code has been deleted. The conditions
+             * that must hold before FEATURE_MFA_TOTP is switched on are listed
+             * in full in config/features.php.
+             *
+             * WITH THE FLAG OFF the user proceeds as an ordinary authenticated
+             * session — including a user who has already self-enrolled. That is
+             * the point: it is the only behaviour that does not strand them.
+             */
+            if (EnsureMfaVerified::featureEnabled()) {
+                // Check if MFA is enabled
+                if ($authenticatedUser->mfa_enabled) {
+                    // Store user ID in session for MFA verification
+                    $request->session()->put('mfa_pending_user_id', $authenticatedUser->id);
+                    Auth::logout();
 
-                return redirect()->route('mfa.verify');
-            }
+                    return redirect()->route('mfa.verify');
+                }
 
-            // The organization can require MFA for particular roles
-            // (organizations.settings->mfa_required_roles). Someone in one of
-            // those roles who has not enrolled is sent to enrol now rather
-            // than being let through with the requirement unmet.
-            if ($this->mfaRequiredFor($authenticatedUser)) {
-                return redirect()->route('mfa.setup')
-                    ->with('warning', 'Your role requires multi-factor authentication. Set it up to continue.');
+                // The organization can require MFA for particular roles
+                // (organizations.settings->mfa_required_roles). Someone in one of
+                // those roles who has not enrolled is sent to enrol now rather
+                // than being let through with the requirement unmet.
+                if ($this->mfaRequiredFor($authenticatedUser)) {
+                    return redirect()->route('mfa.setup')
+                        ->with('warning', 'Your role requires multi-factor authentication. Set it up to continue.');
+                }
             }
 
             // Check if password must be changed
@@ -119,25 +220,30 @@ class AuthController extends Controller
             return redirect()->intended('/risk/dashboard');
         }
 
-        // Increment failed attempts
+        // Count the failure against (account, source). Recorded for EVERY failed
+        // attempt, including ones naming an address with no account behind it,
+        // so that the endpoint behaves identically either way.
+        $failures = RateLimiter::hit($lockoutKey, self::LOCKOUT_MINUTES * 60);
+
+        // users.login_attempts is still incremented, but it is now a REPORTING
+        // signal rather than the lock itself — it is what the administrator sees
+        // on the user screen, and a number that climbs while the person insists
+        // they have not been trying is the first evidence of an attack on that
+        // account. users.locked_until is deliberately no longer written here;
+        // see lockoutKey() for why.
         if ($user) {
-            $attempts = $user->login_attempts + 1;
-            $locked_until = null;
+            $user->update(['login_attempts' => $user->login_attempts + 1]);
+        }
 
-            if ($attempts >= 5) {
-                $locked_until = now()->addMinutes(30);
-            }
+        if ($failures >= self::LOCKOUT_ATTEMPTS) {
+            // The window opened on the FIRST failure, so the wait is the
+            // remainder of it rather than a fresh thirty minutes. Reporting the
+            // real figure is more useful than repeating the constant.
+            $minutes = max(1, (int) ceil(RateLimiter::availableIn($lockoutKey) / 60));
 
-            $user->update([
-                'login_attempts' => $attempts,
-                'locked_until' => $locked_until,
-            ]);
-
-            if ($locked_until) {
-                return back()->withErrors([
-                    'email' => 'Too many failed login attempts. Account locked for 30 minutes.',
-                ])->withInput($request->only('email'));
-            }
+            return back()->withErrors([
+                'email' => "Too many failed sign-in attempts from this device. Try again in {$minutes} minute(s), or ask an administrator to reset your password.",
+            ])->withInput($request->only('email'));
         }
 
         return back()->withErrors([

@@ -37,17 +37,44 @@ class EnsureTokenScope
 
         foreach ($scopes as $scope) {
             if (! $token->permits($scope)) {
-                return $this->deny(sprintf(
-                    'This token may not %s. %s',
-                    $scope,
-                    $token->can($scope) || $token->can('*')
-                        ? 'Its scopes allow it, but the user it belongs to does not hold that permission.'
-                        : 'Add the '.$scope.' scope to the token.',
-                ), 403);
+                return $this->deny(sprintf('This token may not %s. %s', $scope, $this->reasonFor($token, $scope)), 403);
             }
         }
 
         return $next($request);
+    }
+
+    /**
+     * Why this token was refused, in terms the caller can act on.
+     *
+     * PREVIOUS BEHAVIOUR: the reason was chosen with
+     * `$token->can($scope) || $token->can('*')`. Sanctum's `can()` returns true
+     * for ANY ability when the token holds `*`, so a legacy machine token
+     * carrying `*` — which `permits()` now deliberately refuses to honour,
+     * because a client_credentials token has no user behind it to narrow `*`
+     * down to — was told "its scopes allow it, but the user it belongs to does
+     * not hold that permission". A machine token has no user, so that sentence
+     * pointed its owner at a thing that does not exist.
+     *
+     * The three cases are now separated, and the legacy-wildcard one names the
+     * actual remedy: re-issue the token with explicit scopes.
+     */
+    private function reasonFor(ApiToken $token, string $scope): string
+    {
+        $abilities = (array) ($token->abilities ?? []);
+        $isMachine = $token->token_type === ApiToken::TYPE_CLIENT;
+
+        if ($isMachine && in_array('*', $abilities, true)) {
+            return 'This machine token holds the legacy "*" scope, which is no longer honoured — '
+                .'a token that acts as nobody has no user permission to narrow "*" against. '
+                .'Re-issue it with explicit scopes, including '.$scope.'.';
+        }
+
+        if (in_array('*', $abilities, true) || in_array($scope, $abilities, true)) {
+            return 'Its scopes allow it, but the user it belongs to does not hold that permission.';
+        }
+
+        return 'Add the '.$scope.' scope to the token.';
     }
 
     private function deny(string $message, int $status): JsonResponse

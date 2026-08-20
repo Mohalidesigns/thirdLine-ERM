@@ -8,6 +8,7 @@ use App\Grids\GridDefinition;
 use App\Grids\RowAction;
 use App\Models\Risk;
 use App\Models\RiskAssessment;
+use App\Support\Authorization\GraphScope;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -53,11 +54,19 @@ class RiskAssessmentsGrid extends GridDefinition
             ->orderByDesc('prev.id')
             ->limit(1);
 
-        return RiskAssessment::query()
-            ->with(['risk', 'assessor'])
-            ->where('organization_id', TenantContext::organizationId())
-            ->select('risk_assessments.*')
-            ->addSelect(['previous_overall_score' => $previous]);
+        // WP-00 node scoping, through the parent. An assessment is a dated
+        // scoring OF a risk (risk_id is NOT NULL and cascade-deletes with it),
+        // and it carries the scores themselves — hiding the risk while leaving
+        // its assessment history readable would publish the number and withhold
+        // only the label.
+        return GraphScope::applyThrough(
+            RiskAssessment::query()
+                ->with(['risk', 'assessor'])
+                ->where('organization_id', TenantContext::organizationId())
+                ->select('risk_assessments.*')
+                ->addSelect(['previous_overall_score' => $previous]),
+            'risk'
+        );
     }
 
     public function columns(): array

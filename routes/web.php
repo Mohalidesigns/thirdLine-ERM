@@ -43,7 +43,159 @@ use App\Http\Controllers\Risk\ScopingController;
 use App\Http\Controllers\Risk\ThresholdController;
 use App\Http\Controllers\Risk\TreatmentPlanController;
 use App\Http\Controllers\Risk\WorkflowController;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
+
+/*
+|--------------------------------------------------------------------------
+| Rate limits on the authentication surface
+|--------------------------------------------------------------------------
+|
+| PREVIOUS BEHAVIOUR: nothing in this file was throttled. `POST login`,
+| `POST mfa/verify`, `POST forgot-password` and `POST auth/sso/discover` all
+| accepted unlimited attempts from anyone who could reach the host. On a
+| platform holding a bank's risk register that is the cheapest attack available:
+| an offline-quality password guessing rate against a live login form.
+|
+| CHOOSING THE KEY IS THE WHOLE DESIGN. These deployments sit inside banks,
+| where several hundred staff share one or two NAT egress addresses. A purely
+| per-IP limit on `login` would mean the head office throttling itself every
+| Monday morning, and an operator whose first experience of a security control
+| is a self-inflicted outage turns it off. So each limiter below uses the
+| narrowest key that still bounds the attack:
+|
+|   login            per (email, IP) primarily; a loose per-IP ceiling second
+|   mfa-verify       per (account, IP) — the brute-force target, tightest limit
+|   password-reset   per email primarily, because the abuse is mail-bombing one
+|                    named person; a loose per-IP ceiling second
+|   sso-discover     per IP, because there is no account involved — the abuse is
+|                    enumerating which customer domains are federated
+|
+| The SCIM group is limited too; its limiter lives beside the API's own in
+| routes/api.php, which is where the rest of the machine-to-machine surface is
+| configured.
+|
+| Every ceiling below is stated with the normal-use figure it has to clear, so
+| the next person can tell whether a change is safe.
+*/
+
+/*
+ * LOGIN.
+ *
+ * Two limits, and both apply:
+ *
+ *   5 per minute per (email, IP) — one person, at one keyboard, getting their
+ *   own password wrong. Five tries a minute is more than a human needs and far
+ *   below what guessing needs. Keyed on the PAIR rather than on the email alone
+ *   so that an attacker cannot consume a colleague's budget; keyed on the email
+ *   as well as the IP so that one machine cannot grind a single account.
+ *
+ *   60 per minute per IP — the anti-spray ceiling: one source trying many
+ *   different accounts. Deliberately generous, because in these deployments one
+ *   IP is an entire office. A 200-person branch signing in over a ten-minute
+ *   window is ~20/min, and this leaves 3x headroom on top. It bounds spraying
+ *   at 86,400 attempts/day from a single address, which is not zero — the
+ *   honest statement is that a shared-egress deployment cannot have a tight
+ *   per-IP login limit, and that detection (repeated failures across many
+ *   distinct accounts from one address) is the control that closes the rest.
+ *
+ * Both are counted per REQUEST, not per failure, because ThrottleRequests runs
+ * before the controller. A user who signs in successfully consumes one of the
+ * five, which does not matter at these numbers.
+ */
+RateLimiter::for('login', function (Request $request) {
+    $email = Str::lower(trim((string) $request->input('email')));
+
+    return [
+        Limit::perMinute(5)->by('login:'.sha1($email.'|'.$request->ip())),
+        Limit::perMinute(60)->by('login-ip:'.$request->ip()),
+    ];
+});
+
+/*
+ * MFA VERIFICATION AND ENROLMENT CONFIRMATION.
+ *
+ * A six-digit code checked against a plus/minus-one-step window is one guess in
+ * ~333,333 per attempt. AuthController::verifyMfa() keeps no attempt counter at
+ * all, so before this limiter existed the expected number of requests to walk in
+ * was well inside what a script does over a lunch break.
+ *
+ * 5 attempts per 15 minutes per (account, IP) reduces that to roughly 20 codes
+ * an hour, i.e. centuries of expected guessing, while still letting a user who
+ * fat-fingers a code or whose phone clock has drifted try again shortly. The
+ * account part of the key is the pending user id during sign-in verification and
+ * the authenticated user id during enrolment confirmation, so the same limiter
+ * serves mfa/verify and mfa/enable.
+ *
+ * The 30-per-hour per-IP ceiling catches somebody cycling sessions to reset the
+ * narrower key.
+ *
+ * NOTE: mfa/verify and mfa/enable are behind `feature:mfa_totp` and return 404
+ * today. The limiter is applied anyway so that the route is not left unthrottled
+ * for whoever turns the flag on.
+ */
+RateLimiter::for('mfa-verify', function (Request $request) {
+    $account = $request->session()->get('mfa_pending_user_id')
+        ?? $request->user()?->getAuthIdentifier()
+        ?? 'anonymous';
+
+    return [
+        Limit::perMinutes(15, 5)->by('mfa:'.sha1($account.'|'.$request->ip())),
+        Limit::perMinutes(60, 30)->by('mfa-ip:'.$request->ip()),
+    ];
+});
+
+/*
+ * PASSWORD RESET REQUESTS.
+ *
+ * The abuse here is not guessing, it is mail-bombing: `POST forgot-password`
+ * sends an email to an address the caller names, so an unthrottled endpoint is a
+ * free outbound mailer pointed at a named member of staff, and it also burns the
+ * deployment's SMTP reputation.
+ *
+ *   5 per hour per email — keyed on the EMAIL rather than the pair, because the
+ *   victim is the mailbox and a botnet would otherwise get one send per source.
+ *   Nobody legitimately needs a sixth reset link in an hour; the link is valid
+ *   for an hour and reusable.
+ *
+ *   60 per hour per IP — the office-NAT allowance. High enough that a shared
+ *   egress address cannot exhaust it during a normal morning.
+ *
+ * Keying on the email does mean an attacker can stop one person from requesting
+ * a reset for an hour. That is a real, bounded nuisance and it is the lesser
+ * evil: the alternative key lets the same attacker deliver hundreds of reset
+ * emails to that person instead. It expires on its own, and an administrator can
+ * reset the password directly from the user screen in the meantime.
+ */
+RateLimiter::for('password-reset', function (Request $request) {
+    $email = Str::lower(trim((string) $request->input('email')));
+
+    return [
+        Limit::perMinutes(60, 5)->by('pwreset:'.sha1($email)),
+        Limit::perMinutes(60, 60)->by('pwreset-ip:'.$request->ip()),
+    ];
+});
+
+/*
+ * HOME-REALM DISCOVERY.
+ *
+ * `POST auth/sso/discover` turns an email address into a sign-in URL, which
+ * makes it an oracle for "is this company a customer, and is their domain
+ * federated". SsoController already answers vaguely for unknown domains; the
+ * limit is what stops the vague answer being ground down by enumerating a
+ * dictionary of domains.
+ *
+ * 30 per minute per IP. No account exists at this point in the flow, so the IP
+ * is the only key available. A real user hits this once per sign-in, so 30 a
+ * minute clears normal office use by a wide margin while making domain
+ * enumeration slow enough to be visible in the logs.
+ */
+RateLimiter::for('sso-discover', function (Request $request) {
+    return Limit::perMinute(30)->by('sso-discover:'.$request->ip());
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -80,14 +232,61 @@ Route::get('/', function () {
 /* ---------------------------------------------------------------------- */
 
 Route::get('login', [AuthController::class, 'showLogin'])->name('login');
-Route::post('login', [AuthController::class, 'login']);
+
+// The credential-guessing surface. See the `login` limiter above for why the
+// key is (email, IP) with a separate, looser per-IP ceiling.
+Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login');
+
 Route::post('logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
-Route::post('forgot-password', [AuthController::class, 'sendResetLink'])->name('password.email');
+
+// Sends mail to an address the caller names, so this is an outbound mailer
+// pointed at a member of staff unless it is limited. Keyed per email.
+Route::post('forgot-password', [AuthController::class, 'sendResetLink'])
+    ->middleware('throttle:password-reset')->name('password.email');
+
 Route::get('reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset');
-Route::post('reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
-Route::get('mfa/verify', [AuthController::class, 'showMfaVerify'])->name('mfa.verify');
-Route::post('mfa/verify', [AuthController::class, 'verifyMfa']);
+
+// The token is a 64-character random string held in the cache for an hour;
+// the limit is here so it cannot be guessed at line rate anyway.
+Route::post('reset-password', [AuthController::class, 'resetPassword'])
+    ->middleware('throttle:password-reset')->name('password.update');
+
+/*
+ * MFA VERIFICATION — GATED OFF BY DEFAULT (features.mfa_totp).
+ *
+ * `feature:mfa_totp` aborts 404 while the flag is off, so this pair of routes
+ * does not exist in a default environment. That is deliberate. The flow behind
+ * them is broken in three specific ways:
+ *
+ *   1. SIGN-IN CANNOT COMPLETE. AuthController::login() calls Auth::logout()
+ *      before redirecting here, and verifyMfa() sets session('mfa_verified')
+ *      without ever calling Auth::login(). A user with mfa_enabled = true has no
+ *      path back to an authenticated session — they are locked out permanently.
+ *
+ *   2. THE CODES ARE NOT RFC 6238 TOTP. verifyTotpCode() packs the time step
+ *      with pack('N', $time) — four bytes where the specification requires an
+ *      eight-byte big-endian counter — so no authenticator app can ever produce
+ *      a code it accepts.
+ *
+ *   3. THE SHARED SECRET WAS DISCLOSED TO A THIRD PARTY. The enrolment screen
+ *      fetched its QR code from api.qrserver.com with the TOTP seed and the
+ *      user's email address in the query string.
+ *
+ * DEFERRED, NOT FORGOTTEN. The rebuild is scheduled for deployment readiness and
+ * none of the MFA code has been deleted. config/features.php lists in full what
+ * must be true before FEATURE_MFA_TOTP is turned on — in short: sign-in
+ * completes, the counter is eight bytes and covered by an RFC 6238 known-answer
+ * test, the QR code is generated in-process, account recovery exists, failed
+ * verifications are counted, and MfaEnforcementTest passes with the flag on.
+ *
+ * `throttle:mfa-verify` is applied even though the route 404s today, so that
+ * turning the flag on cannot expose an unthrottled six-digit code check.
+ */
+Route::middleware('feature:mfa_totp')->group(function () {
+    Route::get('mfa/verify', [AuthController::class, 'showMfaVerify'])->name('mfa.verify');
+    Route::post('mfa/verify', [AuthController::class, 'verifyMfa'])->middleware('throttle:mfa-verify');
+});
 
 /* ---------------------------------------------------------------------- */
 /*  Single sign-on (public: the whole point is that the user is not yet */
@@ -96,7 +295,10 @@ Route::post('mfa/verify', [AuthController::class, 'verifyMfa']);
 
 // {slug} selects the client organization, because none of this can rely on an
 // authenticated user to tell us which tenant we are federating with.
-Route::post('auth/sso/discover', [SsoController::class, 'discover'])->name('sso.discover');
+// Discovery answers "is this domain federated", which is information about a
+// customer. The limiter keeps that answer from being enumerated in bulk.
+Route::post('auth/sso/discover', [SsoController::class, 'discover'])
+    ->middleware('throttle:sso-discover')->name('sso.discover');
 Route::get('auth/sso/{slug}', [SsoController::class, 'redirect'])->name('sso.redirect');
 Route::get('auth/sso/{slug}/callback', [SsoController::class, 'callback'])->name('sso.callback');
 Route::get('auth/sso/{slug}/metadata', [SsoController::class, 'metadata'])->name('sso.metadata');
@@ -112,11 +314,37 @@ Route::post('auth/sso/{slug}/acs', [SsoController::class, 'acs'])
 /* ---------------------------------------------------------------------- */
 
 Route::middleware(['auth'])->group(function () {
-    // Enrolling in MFA must stay reachable for every authenticated user:
-    // gating it on a permission would make mfa_required_roles unsatisfiable
-    // for anyone who lacks that permission.
-    Route::get('mfa/setup', [AuthController::class, 'showMfaSetup'])->name('mfa.setup');
-    Route::post('mfa/enable', [AuthController::class, 'enableMfa'])->name('mfa.enable');
+    /*
+     * MFA ENROLMENT — GATED OFF BY DEFAULT (features.mfa_totp).
+     *
+     * Enrolling in MFA must stay reachable for every authenticated user:
+     * gating it on a PERMISSION would make mfa_required_roles unsatisfiable for
+     * anyone who lacks that permission. It is gated on the FEATURE FLAG instead,
+     * which is a different thing — the surface is absent from every environment
+     * rather than present and forbidden to some users.
+     *
+     * `feature:mfa_totp` returns 404 while the flag is off. This is the entry
+     * point that did the standing damage: a user who followed the "2FA Setup"
+     * link in the user menu and completed enrolment set mfa_enabled = true and
+     * LOCKED THEMSELVES OUT PERMANENTLY, because AuthController::login() logs
+     * the user out before mfa.verify and verifyMfa() never calls Auth::login()
+     * again. Rendering this screen also disclosed the TOTP shared secret and the
+     * user's email address to api.qrserver.com. And even with both of those
+     * fixed, verifyTotpCode() packs the time step into four bytes instead of the
+     * eight RFC 6238 requires, so no authenticator app can produce an accepted
+     * code.
+     *
+     * DEFERRED, NOT FORGOTTEN. Nothing has been deleted; the rebuild is
+     * scheduled for deployment readiness. config/features.php lists everything
+     * that must be true before FEATURE_MFA_TOTP is switched on.
+     */
+    Route::middleware('feature:mfa_totp')->group(function () {
+        Route::get('mfa/setup', [AuthController::class, 'showMfaSetup'])->name('mfa.setup');
+
+        // Same six-digit check as mfa/verify, so the same limiter.
+        Route::post('mfa/enable', [AuthController::class, 'enableMfa'])
+            ->middleware('throttle:mfa-verify')->name('mfa.enable');
+    });
 
     Route::middleware('permission:notification.view')->group(function () {
         Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');

@@ -50,6 +50,15 @@ class EmergingRisksGrid extends GridDefinition
         // radar_score is selected as a real column so the engine can sort on
         // it: the register has always opened on the most urgent horizon scan
         // first, and velocity × proximity is what "urgent" means here.
+        // WP-00 node scoping is DELIBERATELY NOT APPLIED here. emerging_risks
+        // has no entity_id, and its only link to a scoped model is
+        // converted_risk_id, which is NULL until the horizon scan graduates
+        // into the register — scoping on it would show a subtree user only the
+        // emerging risks that had already stopped being emerging.
+        //
+        // Horizon scanning is also whole-organization work by nature: an
+        // emerging risk is a thing nobody owns yet, which is why it has no node
+        // to be pinned to.
         return EmergingRisk::query()
             ->select('emerging_risks.*')
             ->selectRaw('(emerging_risks.velocity_score * emerging_risks.proximity_score) as radar_score')

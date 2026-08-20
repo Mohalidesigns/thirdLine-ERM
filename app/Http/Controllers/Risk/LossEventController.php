@@ -11,6 +11,7 @@ use App\Models\LossEventRca;
 use App\Models\NearMiss;
 use App\Models\Risk;
 use App\Models\User;
+use App\Services\FileUploadService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,10 @@ use Illuminate\Support\Facades\Storage;
 
 class LossEventController extends Controller
 {
+    public function __construct(
+        private readonly FileUploadService $uploads,
+    ) {}
+
     /**
      * Canonical current_status values that count as "still open".
      *
@@ -548,21 +553,43 @@ class LossEventController extends Controller
             abort(403, 'Unauthorized access to this loss event.');
         }
 
+        // WP-00. Two defects are closed here, both of which this endpoint was
+        // the last in the codebase to carry:
+        //
+        //  1. NO TYPE RESTRICTION. The rule was `required|file|max:20480` and
+        //     nothing else — no `mimes:`, no `mimetypes:`. Every other upload
+        //     path in the product validated against a 13-type allowlist; this
+        //     one accepted an executable. The policy now comes from
+        //     FileUploadService::PROFILE_LOSS_EVENT_ATTACHMENT, so it is
+        //     declared in one place with the rest of the upload policy rather
+        //     than as a rule string in a controller that can drift again.
+        //
+        //  2. CLIENT-SUPPLIED FILE TYPE. `file_type` was set from
+        //     `$file->getClientMimeType()` — the multipart Content-Type header,
+        //     i.e. a string the client chose — and that column is what the
+        //     document repository later tells an auditor the file is. The
+        //     service derives it from the bytes on disk instead.
+        //
+        // The 20 MB cap is unchanged; see the profile for why it is wider than
+        // the other endpoints' 10 MB.
         $validated = $request->validate([
-            'file' => 'required|file|max:20480', // 20MB
+            'file' => $this->uploads->rules(FileUploadService::PROFILE_LOSS_EVENT_ATTACHMENT),
             'document_type' => 'nullable|string|max:50',
             'is_regulatory' => 'nullable|boolean',
         ]);
 
-        $file = $validated['file'];
-        $storagePath = $file->store("loss-events/{$lossEvent->id}/attachments", 'local');
+        $stored = $this->uploads->store(
+            $validated['file'],
+            "loss-events/{$lossEvent->id}/attachments",
+            FileUploadService::PROFILE_LOSS_EVENT_ATTACHMENT,
+        );
 
         LossEventAttachment::create([
             'loss_event_id' => $lossEvent->id,
-            'file_name' => $file->getClientOriginalName(),
-            'file_size_bytes' => $file->getSize(),
-            'file_type' => $file->getClientMimeType(),
-            'storage_path' => $storagePath,
+            'file_name' => $stored['file_name'],
+            'file_size_bytes' => $stored['file_size_bytes'],
+            'file_type' => $stored['file_type'],
+            'storage_path' => $stored['storage_path'],
             'document_type' => $validated['document_type'] ?? null,
             'is_regulatory' => (bool) ($validated['is_regulatory'] ?? false),
             'uploaded_by' => auth()->id(),

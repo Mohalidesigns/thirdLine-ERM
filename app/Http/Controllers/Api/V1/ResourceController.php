@@ -6,7 +6,9 @@ use App\Http\Api\ApiResourceRegistry;
 use App\Http\Api\QueryShaper;
 use App\Http\Controllers\Controller;
 use App\Models\ApiToken;
+use App\Models\Concerns\ScopedToGraph;
 use App\Services\ReferenceCodeService;
+use App\Support\Authorization\GraphScope;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +28,11 @@ use Illuminate\Validation\ValidationException;
  * registry carries BelongsToOrganization, so the global scope filters the query
  * before it is built. The explicit check in show()/update() is belt to that
  * brace, for the case where a model is added to the registry without the trait.
+ *
+ * NODE SCOPING IS this class's job, because it is not a global scope — it
+ * cannot be, or every roll-up and background job would inherit it. Every read
+ * therefore starts from baseQuery(), which derives the scope from the model's
+ * traits; see the note there for why that is not a registry flag.
  */
 class ResourceController extends Controller
 {
@@ -42,7 +49,7 @@ class ResourceController extends Controller
     {
         [$definition, $shaper] = $this->resolve($resource);
 
-        $query = $definition['model']::query();
+        $query = $this->baseQuery($definition);
         $shaper->apply($query, $request);
 
         $page = $shaper->paginate($query, $request);
@@ -65,7 +72,7 @@ class ResourceController extends Controller
     {
         [$definition, $shaper] = $this->resolve($resource);
 
-        $query = $definition['model']::query();
+        $query = $this->baseQuery($definition);
         $shaper->apply($query, $request);
 
         $model = $query->find($id);
@@ -128,7 +135,7 @@ class ResourceController extends Controller
             return $this->readOnly($resource);
         }
 
-        $model = $definition['model']::query()->find($id);
+        $model = $this->baseQuery($definition)->find($id);
 
         if ($model === null) {
             return $this->notFound($resource, $id);
@@ -172,6 +179,53 @@ class ResourceController extends Controller
     }
 
     /* ================================================================== */
+
+    /**
+     * The starting query for a resource, tenanted and node-scoped.
+     *
+     * WP-00 NODE SCOPING, APPLIED HERE RATHER THAN IN THE REGISTRY. The
+     * registry declares a resource's model and nothing about how to read it;
+     * adding a `scoped => true` flag there would mean every future resource is
+     * scoped only if somebody remembers the flag, and the one nobody remembers
+     * is the one that serves another branch's loss events. Deriving it from the
+     * model's own traits instead makes scoping the DEFAULT: a resource is node
+     * scoped exactly when its model carries ScopedToGraph, which is the same
+     * fact the web grids and exports read, so the API cannot drift from them.
+     *
+     * Currently that is risks, controls, kris, issues and loss-events. A
+     * resource added next quarter whose model carries the trait is scoped the
+     * moment it is registered, with no entry in this file.
+     *
+     * WHOSE SCOPE. AuthenticateApiToken calls auth()->setUser() for a token
+     * with an acting user, so visibleTo() resolves that user's pin — a
+     * personal token cannot read past its owner's subtree. A machine token has
+     * no user, GraphScope::isSubtreeLimited(null) is false, and the query stays
+     * organization-wide. That is the existing contract for integration tokens
+     * (a nightly reconciliation feed has to see the whole book) and this change
+     * does not narrow it; a machine token's blast radius is bounded by the
+     * permissions on the token itself.
+     *
+     * @param  array<string, mixed>  $definition
+     */
+    private function baseQuery(array $definition): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = $definition['model']::query();
+
+        if (in_array(ScopedToGraph::class, class_uses_recursive($definition['model']), true)) {
+            return $query->visibleTo();
+        }
+
+        // A child of a scoped model — a treatment plan, an assessment, a
+        // control test — has no node of its own, so which relation carries its
+        // visibility cannot be derived and the registry names it. This is the
+        // one case that has to be remembered, and it is remembered next to the
+        // model rather than here.
+        if (isset($definition['scope_through'])) {
+            GraphScope::applyThrough($query, $definition['scope_through']);
+        }
+
+        return $query;
+    }
 
     /**
      * @return array{0: array<string, mixed>, 1: QueryShaper}

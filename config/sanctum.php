@@ -54,6 +54,31 @@ return [
     | considered expired. This will override any values set in the token's
     | "expires_at" attribute, but first-party sessions are not affected.
     |
+    | LEFT NULL DELIBERATELY, AND IT IS NOT WHAT ENFORCES EXPIRY HERE.
+    |
+    | This setting belongs to Sanctum's own guard, and this application does not
+    | use it — `'guard' => []` above, and every API request goes through
+    | App\Http\Middleware\AuthenticateApiToken instead, which refuses a token
+    | whose ApiToken::isExpired() is true. isExpired() reads the per-token
+    | `expires_at` column and nothing else. Setting a number here would therefore
+    | be worse than useless: it would look like a control in the config file
+    | while changing nothing about which requests are accepted.
+    |
+    | A GLOBAL CEILING IS ALSO THE WRONG SHAPE for this platform. The two kinds
+    | of token have genuinely different lifetimes — a personal token is bounded
+    | by its owner's account (deactivate the leaver and every token they hold
+    | stops working, see AuthenticateApiToken), while a client_credentials token
+    | acts as nobody and no leaver process ever touches it. One number cannot be
+    | right for both.
+    |
+    | WHERE THE ENFORCEMENT ACTUALLY IS: App\Models\ApiToken::booted() gives
+    | every machine token an expires_at at creation — defaulting to
+    | MACHINE_DEFAULT_LIFETIME_DAYS (365) and capped at
+    | MACHINE_MAX_LIFETIME_DAYS (730) — across all three creation paths (the
+    | admin screen, `php artisan api:token`, and direct model creation).
+    | PREVIOUS BEHAVIOUR: with this null and expires_at nullable, a machine token
+    | issued without an explicit lifetime never expired at all.
+    |
     */
 
     'expiration' => null,

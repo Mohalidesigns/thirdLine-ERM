@@ -36,6 +36,21 @@ class NearMissesGrid extends GridDefinition
 
     public function query(): Builder
     {
+        // WP-00 node scoping is DELIBERATELY NOT APPLIED here, and this is
+        // a gap rather than a decision that near misses are public.
+        //
+        // near_misses has no entity_id — the 2026_02_25 migration added the
+        // column to risks, controls, issues, loss_events and key_risk_indicators
+        // only — so there is nothing to prefix-match on. Its scoped relations
+        // are linked_control_id and risk_register_id, and both are optional
+        // annotations added during investigation rather than the record's
+        // owner: most rows carry neither, so scoping through them would hide
+        // almost every near miss from every pinned user and reveal the rest by
+        // an accident of whether somebody had linked a control. That is
+        // arbitrary, not node-scoped.
+        //
+        // The fix is to give near_misses an entity_id and the ScopedToGraph
+        // trait, which is a migration and outside this change.
         return NearMiss::query()
             ->with('businessUnit')
             ->where('organization_id', TenantContext::organizationId());
@@ -152,7 +167,7 @@ class NearMissesGrid extends GridDefinition
 
                 return "{$converted} near ".str('miss')->plural($converted).' converted to loss events. Complete the Basel/CBN classification on each.';
             })->can('loss_event.create')
-              ->confirm('Convert the selected near misses to loss events? Already-converted rows are skipped.'),
+                ->confirm('Convert the selected near misses to loss events? Already-converted rows are skipped.'),
         ];
     }
 

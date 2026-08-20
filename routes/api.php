@@ -37,6 +37,35 @@ RateLimiter::for('api-token', function (Request $request) {
 });
 
 /*
+ * SCIM 2.0 PROVISIONING.
+ *
+ * Keyed on the PRESENTED BEARER TOKEN, not the IP: the callers are directory
+ * services (Entra ID, Okta), one per customer, and several customers may egress
+ * through the same cloud address. Keying on the credential also means the limit
+ * applies before AuthenticateScim resolves it, so token guessing is throttled
+ * too — which is why `throttle:scim` is listed BEFORE `scim.auth` on the group.
+ *
+ *   300 per minute per token — Entra ID sends one HTTP request per user or group
+ *   change and bursts hard on the first full sync of a directory. A 5,000-staff
+ *   bank's initial import is a long tail of requests, not a spike, but the
+ *   ceiling has to clear the burst or provisioning fails silently at the
+ *   customer end and nobody hears about it for a week.
+ *
+ *   20 per minute per IP when NO token is presented at all. The only thing an
+ *   unauthenticated caller can be doing on these endpoints is probing, and this
+ *   mirrors the `api-anon` limit already used in routes/api.php.
+ */
+RateLimiter::for('scim', function (Request $request) {
+    $bearer = $request->bearerToken();
+
+    if ($bearer === null || $bearer === '') {
+        return Limit::perMinute(20)->by('scim-anon:'.$request->ip());
+    }
+
+    return Limit::perMinute(300)->by('scim:'.hash('sha256', $bearer));
+});
+
+/*
 |--------------------------------------------------------------------------
 | API routes
 |--------------------------------------------------------------------------
@@ -51,8 +80,22 @@ RateLimiter::for('api-token', function (Request $request) {
 |
 */
 
+/*
+ * PREVIOUS BEHAVIOUR: the SCIM group carried no rate limit at all, so
+ * `GET /scim/v2/Users` and the token check in front of it accepted unlimited
+ * requests from anyone who could reach the host — both a token-guessing oracle
+ * and a way to enumerate a customer's whole staff directory at line rate.
+ *
+ * `throttle:scim` is listed BEFORE `scim.auth` ON PURPOSE. Middleware runs in
+ * the order given, so putting the limiter first means an invalid or absent
+ * token is counted too; behind the authentication check it would only ever
+ * limit callers who had already succeeded, which is the wrong half.
+ *
+ * The limiter keys on the PRESENTED BEARER TOKEN rather than the IP, for the
+ * same reason `api-token` above does — see its definition for the numbers.
+ */
 Route::prefix('scim/v2')
-    ->middleware('scim.auth')
+    ->middleware(['throttle:scim', 'scim.auth'])
     ->group(function () {
         Route::get('Users', [ScimUserController::class, 'index']);
         Route::post('Users', [ScimUserController::class, 'store']);

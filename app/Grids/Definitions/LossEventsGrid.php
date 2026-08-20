@@ -41,8 +41,12 @@ class LossEventsGrid extends GridDefinition
 
     public function query(): Builder
     {
+        // WP-00 node scoping — see RisksGrid. Loss events are the sharpest
+        // case: a row here names an incident, an amount and the unit it
+        // happened in.
         return LossEvent::query()
-            ->where('organization_id', TenantContext::organizationId());
+            ->where('organization_id', TenantContext::organizationId())
+            ->visibleTo();
     }
 
     public function columns(): array

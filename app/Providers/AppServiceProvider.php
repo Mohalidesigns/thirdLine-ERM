@@ -51,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->assertDebugModeIsOff();
+        $this->assertSessionCookieIsHardened();
 
         // One naming authority for every polymorphic entity_type column.
         // enforceMorphMap (rather than plain morphMap) makes an unmapped model
@@ -252,5 +253,58 @@ class AppServiceProvider extends ServiceProvider
                 .'Set APP_DEBUG=false: debug output exposes configuration, credentials and record contents.'
             );
         }
+    }
+
+    /**
+     * Refuse to boot with an unprotected session cookie outside development.
+     *
+     * config/session.php already forces both settings on outside local and
+     * testing, so in an ordinary deployment this check never fires. It exists
+     * for the one case that file cannot cover: A CACHED CONFIGURATION BUILT
+     * SOMEWHERE ELSE. `php artisan config:cache` freezes the resolved array,
+     * env() stops being consulted at runtime, and a cache built on a developer's
+     * machine or in a CI image with APP_ENV=local carries `secure => null` and
+     * `encrypt => false` into production unnoticed. Nothing else in the request
+     * would complain — the application would work perfectly, and the session
+     * cookie would simply travel unmarked.
+     *
+     * PREVIOUS BEHAVIOUR: 'secure' was env('SESSION_SECURE_COOKIE') with no
+     * default (null — the cookie was not marked Secure) and 'encrypt' was
+     * env('SESSION_ENCRYPT', false), so a deployment where nobody had set those
+     * two variables — which is every deployment, since no .env.example documents
+     * them — sent an unencrypted session identifier that a plain HTTP request
+     * would disclose.
+     *
+     * Modelled on assertDebugModeIsOff() above, and for the same reason: a
+     * configuration mistake that silently weakens a control should stop the
+     * application at boot, where somebody is watching, rather than surface as an
+     * incident months later.
+     */
+    private function assertSessionCookieIsHardened(): void
+    {
+        if (in_array($this->app->environment(), ['local', 'testing'], true)) {
+            return;
+        }
+
+        $problems = [];
+
+        if (! config('session.secure')) {
+            $problems[] = 'session.secure is off, so the session cookie is not marked Secure and will be sent over plain HTTP';
+        }
+
+        if (! config('session.encrypt')) {
+            $problems[] = 'session.encrypt is off, so session payloads — including the resolved tenant — are stored in the clear';
+        }
+
+        if ($problems === []) {
+            return;
+        }
+
+        throw new RuntimeException(
+            'Insecure session configuration in the "'.$this->app->environment().'" environment: '
+            .implode('; ', $problems).'. config/session.php forces both on outside local and testing, '
+            .'so seeing this almost certainly means a configuration cache was built in a different '
+            .'environment — run `php artisan config:clear` and rebuild it here.'
+        );
     }
 }

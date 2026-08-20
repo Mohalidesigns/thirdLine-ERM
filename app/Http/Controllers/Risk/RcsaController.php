@@ -14,6 +14,7 @@ use App\Models\RiskCategory;
 use App\Models\RiskControlMapping;
 use App\Services\ReferenceCodeService;
 use App\Services\RiskScoringService;
+use App\Support\Authorization\GraphScope;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -87,7 +88,11 @@ class RcsaController extends Controller
             ];
         });
 
+        // WP-00: a named list of risks, so it is scoped. The KPI counts
+        // above and the distribution charts below are roll-ups and are not —
+        // see the note on DashboardController for where that line comes from.
         $topRisks = Risk::where('organization_id', $orgId)
+            ->visibleTo()
             ->where('status', 'active')
             ->orderByRaw("FIELD(residual_rating,'Critical','High','Medium','Low')")
             ->orderByDesc('residual_score')
@@ -147,7 +152,10 @@ class RcsaController extends Controller
     {
         $orgId = TenantContext::organizationId();
 
+        // WP-00: the worksheet lists individual risks to be assessed, so a
+        // subtree-limited assessor works their own subtree.
         $query = Risk::where('organization_id', $orgId)
+            ->visibleTo()
             ->where('status', 'active')
             ->with(['category', 'riskOwner', 'businessUnit', 'controlMappings']);
 
@@ -198,7 +206,9 @@ class RcsaController extends Controller
     {
         $orgId = TenantContext::organizationId();
 
+        // WP-00: a paginated list of individual controls, so it is scoped.
         $query = Control::where('organization_id', $orgId)
+            ->visibleTo()
             ->with(['controlOwner', 'businessUnit', 'riskMappings']);
 
         if ($request->filled('effectiveness')) {
@@ -242,10 +252,16 @@ class RcsaController extends Controller
         $orgId = TenantContext::organizationId();
 
         // Build the risk-control mapping matrix
-        $query = RiskControlMapping::whereHas('risk', function ($q) use ($orgId) {
-            $q->where('organization_id', $orgId);
-        })
-            ->with(['risk.category', 'control']);
+        // WP-00: scoped through the risk, the same axis the export's RCSA
+        // matrix is scoped on — the matrix is read down the risk side, and a
+        // group-level control appearing against a branch's own risk is what
+        // the matrix is for.
+        $query = GraphScope::applyThrough(
+            RiskControlMapping::whereHas('risk', function ($q) use ($orgId) {
+                $q->where('organization_id', $orgId);
+            })->with(['risk.category', 'control']),
+            'risk'
+        );
 
         if ($request->filled('business_unit_id')) {
             $query->whereHas('risk', function ($q) use ($request) {

@@ -9,6 +9,7 @@ use App\Grids\GridDefinition;
 use App\Grids\RowAction;
 use App\Models\KeyRiskIndicator;
 use App\Models\MeasureBreach;
+use App\Support\Authorization\GraphScope;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -42,7 +43,7 @@ class KriBreachesGrid extends GridDefinition
 
     public function query(): Builder
     {
-        return MeasureBreach::query()
+        $query = MeasureBreach::query()
             ->joinSub(
                 DB::table('measures')->select('id as measure_row_id', 'name as measure_name', 'code as measure_code'),
                 'measure_names',
@@ -53,6 +54,23 @@ class KriBreachesGrid extends GridDefinition
             ->where('measure_breaches.organization_id', TenantContext::organizationId())
             ->select('measure_breaches.*')
             ->with(['measure.unit', 'measure.keyRiskIndicator.risk.category', 'measure.owner', 'period', 'acknowledgedBy']);
+
+        // WP-00 node scoping, two relations deep. A breach hangs off a measure,
+        // and a measure is the KRI's twin — KriMeasureMigrator writes
+        // measures.code = key_risk_indicators.kri_code, which is exactly the
+        // join Measure::keyRiskIndicator() makes — so the breach inherits the
+        // KRI's node. The breach row states the reading that broke a limit and
+        // names the unit that reported it, which is the same disclosure the KRI
+        // itself is.
+        //
+        // JUDGEMENT CALL: measure_breaches also covers measures that are not
+        // KRIs at all (measure_kind is only sometimes 'kri'), and those have no
+        // KRI to inherit from. They fall to the orWhereDoesntHave arm inside
+        // applyThrough and stay visible while subtree_users_see_unassigned is
+        // true, which is the same treatment a record with a NULL entity_id
+        // gets. This screen is the KRI breach screen, so in practice almost
+        // every row resolves to a KRI and is scoped.
+        return GraphScope::applyThrough($query, 'measure.keyRiskIndicator');
     }
 
     public function columns(): array
@@ -180,7 +198,7 @@ class KriBreachesGrid extends GridDefinition
 
                 return "{$count} ".str('breach')->plural($count).' acknowledged.';
             })->can('kri.acknowledge_breach')
-              ->confirm('Acknowledge the selected open breaches?'),
+                ->confirm('Acknowledge the selected open breaches?'),
 
             BulkAction::make('resolve', 'Close as resolved', 'task_alt', function ($breaches) {
                 $count = 0;
@@ -196,7 +214,7 @@ class KriBreachesGrid extends GridDefinition
 
                 return "{$count} ".str('breach')->plural($count).' closed as resolved.';
             })->can('kri.acknowledge_breach')
-              ->confirm('Close the selected breaches as resolved?'),
+                ->confirm('Close the selected breaches as resolved?'),
         ];
     }
 

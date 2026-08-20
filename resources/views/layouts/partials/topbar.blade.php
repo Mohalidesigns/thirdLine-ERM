@@ -174,10 +174,39 @@
                     <span class="material-symbols-outlined text-[18px] text-gray-400">person</span>
                     Profile
                 </a>
-                <a href="{{ route('mfa.setup') }}" wire:navigate class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                    <span class="material-symbols-outlined text-[18px] text-gray-400">verified_user</span>
-                    2FA Setup
-                </a>
+                {{--
+                    MFA ENROLMENT ENTRY POINT — GATED ON features.mfa_totp, DEFAULT OFF.
+
+                    This link is the only way a user reaches MFA enrolment on
+                    their own, and while the flag is off it must not render:
+                    mfa/setup returns 404 (see routes/web.php), so an always-
+                    visible menu item would simply be a broken link.
+
+                    More importantly, before the gate existed a user who
+                    followed this link and completed enrolment locked themselves
+                    out of the platform permanently. The implementation behind it
+                    is broken in three specific ways:
+
+                      1. Sign-in cannot complete — AuthController::login() calls
+                         Auth::logout() before mfa.verify, and verifyMfa() never
+                         calls Auth::login() again.
+                      2. The codes are not RFC 6238 TOTP — the time counter is
+                         packed into four bytes instead of eight, so no
+                         authenticator app can produce an accepted code.
+                      3. The shared secret was disclosed to api.qrserver.com,
+                         together with the enrolling user's email address.
+
+                    DEFERRED, NOT FORGOTTEN. Nothing has been deleted; the
+                    rebuild is scheduled for deployment readiness and
+                    config/features.php lists what must be true before
+                    FEATURE_MFA_TOTP is turned on.
+                --}}
+                @if (\App\Http\Middleware\EnsureMfaVerified::featureEnabled())
+                    <a href="{{ route('mfa.setup') }}" wire:navigate class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                        <span class="material-symbols-outlined text-[18px] text-gray-400">verified_user</span>
+                        2FA Setup
+                    </a>
+                @endif
                 <div class="h-px bg-gray-100 my-1"></div>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf

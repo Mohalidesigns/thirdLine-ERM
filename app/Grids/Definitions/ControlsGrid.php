@@ -30,10 +30,15 @@ class ControlsGrid extends GridDefinition
 
     public function query(): Builder
     {
+        // WP-00 node scoping — see RisksGrid. withCount('risks') is left
+        // whole on purpose: it counts the control's coverage, and a count that
+        // shrank with the viewer would make the same control look weaker to a
+        // branch than to the group.
         return Control::query()
             ->with('owner')
             ->withCount('risks')
-            ->where('organization_id', TenantContext::organizationId());
+            ->where('organization_id', TenantContext::organizationId())
+            ->visibleTo();
     }
 
     public function columns(): array
@@ -64,11 +69,11 @@ class ControlsGrid extends GridDefinition
                 'partially_effective' => 'amber',
                 'ineffective' => 'red',
             ])->using(fn (Control $c) => $c->effectiveness_rating ?? 'not tested')
-              ->editableSelect([
-                  'effective' => 'Effective',
-                  'partially_effective' => 'Partially Effective',
-                  'ineffective' => 'Ineffective',
-              ]),
+                ->editableSelect([
+                    'effective' => 'Effective',
+                    'partially_effective' => 'Partially Effective',
+                    'ineffective' => 'Ineffective',
+                ]),
 
             Column::make('risks_count', 'Linked Risks')->sortable()->count(),
 
@@ -122,7 +127,7 @@ class ControlsGrid extends GridDefinition
 
                 return "{$count} ".str('control')->plural($count).' deleted.';
             })->can('control.delete')
-              ->confirm('Delete the selected controls? Linked risks keep their history.'),
+                ->confirm('Delete the selected controls? Linked risks keep their history.'),
         ];
     }
 

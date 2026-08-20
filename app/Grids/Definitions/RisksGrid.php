@@ -46,9 +46,15 @@ class RisksGrid extends GridDefinition
 
     public function query(): Builder
     {
+        // WP-00 node scoping: tenancy answers "which bank", visibleTo()
+        // answers "which part of it". Without this line a user pinned to a
+        // branch was served the whole group's register — and because every
+        // grid path (list, CSV/XLSX export, bulk action, row action) funnels
+        // through this one method, the leak was in all of them at once.
         return Risk::query()
             ->with(['category', 'riskOwner', 'businessUnit'])
-            ->where('organization_id', TenantContext::organizationId());
+            ->where('organization_id', TenantContext::organizationId())
+            ->visibleTo();
     }
 
     public function columns(): array

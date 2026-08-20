@@ -24,6 +24,38 @@
             <p class="text-white/70 text-sm mt-2">Two-Factor Authentication</p>
         </div>
 
+        {{--
+            THIS SCREEN IS UNREACHABLE BY DEFAULT — features.mfa_totp, default OFF.
+
+            `mfa/verify` sits behind the `feature:mfa_totp` middleware in
+            routes/web.php and returns 404 while the flag is off. It is left in
+            place, not deleted, because the MFA rebuild is deferred to deployment
+            readiness rather than abandoned.
+
+            Reaching this form used to be a one-way door. The controller behind
+            it is broken in three specific ways:
+
+              1. SIGN-IN CANNOT COMPLETE. AuthController::login() calls
+                 Auth::logout() before redirecting here, and verifyMfa() marks
+                 session('mfa_verified') without ever calling Auth::login().
+                 Submitting a correct code therefore leaves the user
+                 unauthenticated — nobody with mfa_enabled = true could sign in.
+              2. THE CODES ARE NOT RFC 6238 TOTP. verifyTotpCode() packs the
+                 time step with pack('N', $time), four bytes where the spec
+                 requires an eight-byte big-endian counter, so no authenticator
+                 app can produce a code this form accepts.
+              3. THE SHARED SECRET WENT TO A THIRD PARTY. The enrolment screen
+                 fetched its QR code from api.qrserver.com with the seed and the
+                 user's email in the query string.
+
+            There is also no attempt counter in verifyMfa(): a six-digit code
+            with a plus/minus one step window is brute-forceable. routes/web.php
+            now throttles this route, but the controller should count failures
+            itself when it is rebuilt.
+
+            config/features.php lists everything that must be true before
+            FEATURE_MFA_TOTP is switched on.
+        --}}
         <!-- MFA Verification Card -->
         <div class="bg-white rounded-xl shadow-2xl overflow-hidden">
             <div class="p-8">

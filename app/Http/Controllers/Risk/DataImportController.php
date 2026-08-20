@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Risk;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessDataImportJob;
 use App\Models\DataImport;
+use App\Services\FileUploadService;
 use App\Services\SpreadsheetReader;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
@@ -13,6 +14,7 @@ class DataImportController extends Controller
 {
     public function __construct(
         private readonly SpreadsheetReader $reader,
+        private readonly FileUploadService $uploads,
     ) {}
 
     /**
@@ -31,21 +33,53 @@ class DataImportController extends Controller
         return view('risk.imports.create');
     }
 
+    /**
+     * Accept a spreadsheet for bulk import.
+     *
+     * WP-11. `$file->store(..., 'public')` wrote the uploaded workbook into
+     * `storage/app/public/imports/{organizationId}/`, and that directory is
+     * symlinked to `public/storage`, so the file was served straight off the
+     * web server at `GET /storage/imports/{organizationId}/{name}.xlsx` with no
+     * session, no `import.create` permission and no tenant check. A bulk risk
+     * register import is the customer's ENTIRE register — every risk, owner and
+     * rating in one file — and the directory name is the organisation id, so
+     * the URL space was trivially enumerable across tenants.
+     *
+     * The file now goes to the private `local` disk via FileUploadService,
+     * which is not web-reachable. Note that nothing in the application serves
+     * this file back to a user: there is no download route for a DataImport and
+     * no view links to one. It is written here and read once by
+     * ProcessDataImportJob. The only reader that ever existed was the web
+     * server, which is precisely the problem being fixed.
+     *
+     * The accepted types (csv/xlsx/xls) and the 10 MB cap are unchanged; they
+     * now live in FileUploadService::PROFILE_DATA_IMPORT so that the request
+     * rules and the storage-time check come from one definition.
+     */
     public function upload(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|mimes:csv,xlsx,xls|max:10240',
+            'file' => $this->uploads->rules(FileUploadService::PROFILE_DATA_IMPORT),
             'import_type' => 'required|in:risks,controls,loss_events,issues,kris',
         ]);
 
         $file = $request->file('file');
-        $path = $file->store('imports/'.auth()->user()->organization_id, 'public');
+
+        // storeAs() streams the temp file rather than moving it, so
+        // $file->getPathname() below still points at a readable upload.
+        $stored = $this->uploads->store(
+            $file,
+            'imports/'.auth()->user()->organization_id,
+            FileUploadService::PROFILE_DATA_IMPORT,
+        );
 
         $import = DataImport::create([
             'organization_id' => auth()->user()->organization_id,
             'import_type' => $request->import_type,
-            'file_name' => $file->getClientOriginalName(),
-            'file_path' => $path,
+            // Sanitised server-side: this string is rendered in the import
+            // history and used as a job label, and it arrives from the client.
+            'file_name' => $stored['file_name'],
+            'file_path' => $stored['storage_path'],
             'status' => 'pending',
             'imported_by' => auth()->id(),
         ]);

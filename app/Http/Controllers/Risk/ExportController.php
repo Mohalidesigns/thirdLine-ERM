@@ -11,10 +11,38 @@ use App\Models\Risk;
 use App\Models\RiskAppetite;
 use App\Models\RiskControlMapping;
 use App\Models\SimulationRun;
+use App\Support\Authorization\GraphScope;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
+/**
+ * CSV exports for the risk modules.
+ *
+ * WP-00 NODE SCOPING. Every export here used to be tenancy-only: it answered
+ * "which bank" and never "which part of it", so a user pinned to a branch could
+ * press Export on a screen showing twelve of their own rows and receive a file
+ * containing the whole group's register, control library, issue log or loss
+ * history. An export that ignores node scoping is worse than a screen that
+ * does, because the file leaves the building — it is mailed, it is opened on a
+ * laptop, and nothing about it says who was allowed to produce it.
+ *
+ * Everything backed by Risk, Control, Issue or LossEvent is now filtered with
+ * the same ->visibleTo() the corresponding grid uses, so an export is the file
+ * form of the screen the user was just looking at. The RCSA matrix is scoped
+ * through its risk.
+ *
+ * DELIBERATELY NOT SCOPED, and why:
+ *   - appetite(): risk_appetites is the board-approved framework, stated per
+ *     risk CATEGORY for the whole institution. It has no entity_id because an
+ *     appetite statement does not belong to a branch — it is the limit a branch
+ *     is measured against, and hiding it from the people it binds would be the
+ *     wrong kind of confidentiality.
+ *   - quantificationResults(): simulation_runs are whole-portfolio Monte Carlo
+ *     aggregates. There is no per-node figure inside them to filter to; a run
+ *     is either the organization's capital number or it is nothing.
+ * Both are org-wide by construction rather than by omission.
+ */
 class ExportController extends Controller
 {
     /**
@@ -25,6 +53,7 @@ class ExportController extends Controller
         $orgId = TenantContext::organizationId();
 
         $risks = Risk::where('organization_id', $orgId)
+            ->visibleTo()
             ->with(['category', 'riskOwner', 'businessUnit'])
             ->orderByDesc('inherent_score')
             ->get();
@@ -71,6 +100,7 @@ class ExportController extends Controller
         $orgId = TenantContext::organizationId();
 
         $risks = Risk::where('organization_id', $orgId)
+            ->visibleTo()
             ->where('status', 'active')
             ->with(['category', 'riskOwner'])
             ->orderByDesc('residual_score')
@@ -107,6 +137,7 @@ class ExportController extends Controller
         $orgId = TenantContext::organizationId();
 
         $controls = Control::where('organization_id', $orgId)
+            ->visibleTo()
             ->orderBy('control_code')
             ->get();
 
@@ -142,6 +173,7 @@ class ExportController extends Controller
         $orgId = TenantContext::organizationId();
 
         $issues = Issue::where('organization_id', $orgId)
+            ->visibleTo()
             ->with(['issueOwner', 'businessUnit'])
             ->orderByDesc('created_at')
             ->get();
@@ -182,6 +214,7 @@ class ExportController extends Controller
         $orgId = TenantContext::organizationId();
 
         $issues = Issue::where('organization_id', $orgId)
+            ->visibleTo()
             ->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])
             ->with(['issueOwner', 'businessUnit'])
             ->orderBy('created_at')
@@ -229,6 +262,7 @@ class ExportController extends Controller
         $orgId = TenantContext::organizationId();
 
         $events = LossEvent::where('organization_id', $orgId)
+            ->visibleTo()
             ->orderByDesc('date_of_loss')
             ->get();
 
@@ -301,9 +335,16 @@ class ExportController extends Controller
     {
         $orgId = TenantContext::organizationId();
 
-        $mappings = RiskControlMapping::where('organization_id', $orgId)
-            ->with(['risk', 'control'])
-            ->get();
+        // Scoped through the risk rather than on a column of its own: a
+        // mapping row is a risk-to-control pair with no node, and it prints the
+        // risk's code and title. Scoping on the risk alone (rather than risk
+        // AND control) is deliberate — the matrix is read down the risk axis,
+        // and a shared group-level control appearing against a branch's own
+        // risk is the point of the matrix, not a leak.
+        $mappings = GraphScope::applyThrough(
+            RiskControlMapping::where('organization_id', $orgId)->with(['risk', 'control']),
+            'risk'
+        )->get();
 
         $headers = [
             'Risk Code', 'Risk Title', 'Control Code', 'Control Name',
@@ -334,9 +375,12 @@ class ExportController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
+        // "Correlation Method" is deliberately absent. The column advertised a
+        // Gaussian copula to the customer; the engine aggregates scenario
+        // losses independently. It returns when a real correlation model does.
         $headers = [
             'Reference', 'Status', 'Iterations', 'Horizon (Years)',
-            'Correlation Method', 'Started At', 'Completed At',
+            'Started At', 'Completed At',
             'Runtime (Seconds)',
         ];
 
@@ -345,7 +389,6 @@ class ExportController extends Controller
             $r->status ?? '',
             $r->iterations ?? '',
             $r->horizon_years ?? '',
-            $r->correlation_method ?? '',
             $r->started_at ?? '',
             $r->completed_at ?? '',
             $r->runtime_seconds ?? '',
@@ -362,6 +405,7 @@ class ExportController extends Controller
         $orgId = TenantContext::organizationId();
 
         $risks = Risk::where('organization_id', $orgId)
+            ->visibleTo()
             ->with(['category', 'riskOwner', 'businessUnit'])
             ->orderByDesc('inherent_score')
             ->get();
@@ -410,6 +454,7 @@ class ExportController extends Controller
         $months = $quarterMonths[$quarter] ?? [1, 2, 3];
 
         $events = LossEvent::where('organization_id', $orgId)
+            ->visibleTo()
             ->whereYear('date_of_loss', $year)
             ->whereIn(\DB::raw('MONTH(date_of_loss)'), $months)
             ->orderBy('date_of_loss')
@@ -459,6 +504,7 @@ class ExportController extends Controller
         $to = $request->input('to_date', now()->toDateString());
 
         $events = LossEvent::where('organization_id', $orgId)
+            ->visibleTo()
             ->whereBetween('date_of_loss', [$from, $to])
             ->orderBy('date_of_loss')
             ->get();
@@ -516,6 +562,7 @@ class ExportController extends Controller
         };
 
         $events = LossEvent::where('organization_id', $orgId)
+            ->visibleTo()
             ->where('date_of_loss', '>=', $startDate)
             ->orderBy('date_of_loss')
             ->get();
@@ -562,6 +609,7 @@ class ExportController extends Controller
         $to = $request->input('to_date', now()->toDateString());
 
         $events = LossEvent::where('organization_id', $orgId)
+            ->visibleTo()
             ->where(function ($q) {
                 $q->where('nfiu_reportable', true)
                     ->orWhere('is_regulatory_reportable', true);
@@ -618,6 +666,7 @@ class ExportController extends Controller
         $startDate = now()->subMonths($months);
 
         $events = LossEvent::where('organization_id', $orgId)
+            ->visibleTo()
             ->where('date_of_loss', '>=', $startDate)
             ->orderBy('date_of_loss')
             ->get();

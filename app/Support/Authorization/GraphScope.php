@@ -60,6 +60,42 @@ class GraphScope
     }
 
     /**
+     * Constrain a query whose model does NOT hang off the graph itself, but
+     * whose parent does — a control test is visible exactly when its control
+     * is, a treatment plan exactly when its risk is.
+     *
+     * WHY THIS IS NOT JUST whereHas('risk', fn ($q) => $q->visibleTo()): for a
+     * user who is not subtree-limited, visibleTo() is a no-op but whereHas()
+     * is not — it would start requiring the parent row to exist and silently
+     * drop children whose parent has been soft-deleted, for EVERY user. This
+     * applies nothing at all unless the caller is actually confined.
+     *
+     * The orWhereDoesntHave arm is the relationship-shaped form of
+     * `subtree_users_see_unassigned`: a record whose scoped parent cannot be
+     * resolved sits on no node as surely as one with a NULL entity_id, and the
+     * same setting decides whether that hides it. It matters most for
+     * measure_breaches, where the parent measure is only sometimes a KRI.
+     *
+     * @param  string  $relation  a relation on this model whose target uses ScopedToGraph
+     */
+    public static function applyThrough(Builder $query, string $relation, ?User $user = null): Builder
+    {
+        $user ??= auth()->user();
+
+        if (! self::isSubtreeLimited($user)) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $outer) use ($relation, $user) {
+            $outer->whereHas($relation, fn (Builder $parent) => $parent->visibleTo($user));
+
+            if (config('authorization.subtree_users_see_unassigned', true)) {
+                $outer->orWhereDoesntHave($relation);
+            }
+        });
+    }
+
+    /**
      * True when this user is confined to part of the graph rather than all of it.
      */
     public static function isSubtreeLimited(?User $user): bool

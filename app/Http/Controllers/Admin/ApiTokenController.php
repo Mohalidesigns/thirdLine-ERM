@@ -7,6 +7,7 @@ use App\Models\ApiToken;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Spatie\Permission\Models\Permission;
 
 /**
@@ -62,6 +63,65 @@ class ApiTokenController extends Controller
                 .'Issuing one needs the api.tokens.manage permission.');
         }
 
+        /*
+         * A MACHINE TOKEN MAY NOT ASK FOR EVERYTHING.
+         *
+         * ApiToken::booted() enforces this for every creation path — this
+         * controller, `php artisan api:token`, and anything written later — but
+         * it enforces it by throwing, and a 500 on an admin form is not an
+         * answer. Caught here so the operator gets told what to do instead.
+         *
+         * PREVIOUS BEHAVIOUR: the scope list was passed through untouched, on
+         * the reasoning quoted below that "a personal token cannot grant what
+         * its owner does not have". That reasoning is sound and it is ONLY about
+         * personal tokens. A client_credentials token has no owner to be
+         * narrowed by, so `*` on one means every permission this organization
+         * has, plus every permission added to it in future, for the life of the
+         * credential — and ApiToken::permits() had no second check to catch it.
+         *
+         * An explicit list is workable: the form on this screen renders every
+         * seeded permission as a checkbox (see $scopes in index()), so an
+         * integration that legitimately needs broad access can be given twenty
+         * named scopes. What it cannot be given is the twenty-first, silently,
+         * six months from now.
+         */
+        if ($isMachine) {
+            try {
+                ApiToken::assertMachineScopesAreExplicit($validated['scopes']);
+            } catch (InvalidArgumentException $e) {
+                return back()->with('error', $e->getMessage())->withInput();
+            }
+        }
+
+        /*
+         * A MACHINE TOKEN MUST EXPIRE.
+         *
+         * PREVIOUS BEHAVIOUR: expires_in_days is optional and this method wrote
+         * `null` when it was omitted, which — with config/sanctum.php setting
+         * `'expiration' => null` — meant a credential with no end date at all,
+         * acting as nobody, living in an integrator's configuration file for as
+         * long as the integration does.
+         *
+         * The lifetime is resolved here so the CONFIRMATION MESSAGE can state
+         * the real expiry date. ApiToken::booted() applies the same default and
+         * the same ceiling regardless, but an operator who is told "expires
+         * 2027-08-20" once, at the moment they copy the token, is far more
+         * likely to diarise a rotation than one who has to go and look.
+         */
+        $expiresAt = isset($validated['expires_in_days'])
+            ? now()->addDays((int) $validated['expires_in_days'])
+            : null;
+
+        if ($isMachine) {
+            $ceiling = now()->addDays(ApiToken::MACHINE_MAX_LIFETIME_DAYS);
+
+            $expiresAt = match (true) {
+                $expiresAt === null => now()->addDays(ApiToken::MACHINE_DEFAULT_LIFETIME_DAYS),
+                $expiresAt->greaterThan($ceiling) => $ceiling,
+                default => $expiresAt,
+            };
+        }
+
         // A personal token cannot grant what its owner does not have, so there
         // is no need to police the scope list here — ApiToken::permits()
         // intersects at request time. Saying so on screen is more useful than
@@ -78,15 +138,15 @@ class ApiTokenController extends Controller
             'client_id' => $isMachine ? 'cid_'.Str::random(24) : null,
             'token' => hash('sha256', $plain),
             'abilities' => $validated['scopes'],
-            'expires_at' => isset($validated['expires_in_days'])
-                ? now()->addDays((int) $validated['expires_in_days'])
-                : null,
+            'expires_at' => $expiresAt,
             'rate_limit_per_minute' => (int) ($validated['rate_limit_per_minute'] ?? 120),
             'created_by' => $request->user()->id,
         ]);
 
         return back()
-            ->with('success', 'Token issued. Copy it now — it is not shown again.')
+            ->with('success', 'Token issued'
+                .($token->expires_at ? ', expiring '.$token->expires_at->toDayDateTimeString() : '')
+                .'. Copy it now — it is not shown again.')
             ->with('revealed_token', $token->id.'|'.$plain)
             ->with('revealed_token_for', $token->name);
     }

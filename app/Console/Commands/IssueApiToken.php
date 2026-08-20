@@ -66,13 +66,24 @@ class IssueApiToken extends Command
 
         if ($isMachine && in_array('*', $scopes, true)) {
             // A machine token has nobody behind it to narrow '*' down to, so
-            // '*' really does mean everything. That is a decision to make on
-            // purpose, not by omitting a flag.
-            $this->warn('A machine token with * has unrestricted access to this organization\'s data.');
+            // '*' really does mean everything — which is why ApiToken now
+            // REFUSES it outright rather than warning about it. This branch
+            // used to print a warning and offer to issue it anyway; the model
+            // would now throw an InvalidArgumentException out of that
+            // confirmation, giving whoever ran the command a stack trace
+            // instead of an explanation. Fail here, with the fix in the text.
+            $this->error('A machine token cannot hold "*".');
+            $this->line('');
+            $this->line('  A client_credentials token acts as nobody, so there is no user');
+            $this->line('  permission behind it to narrow "*" down to — it would mean');
+            $this->line('  unrestricted access to this organization\'s data, permanently.');
+            $this->line('');
+            $this->line('  Name the scopes it actually needs instead, for example:');
+            $this->line('    --scopes=risk.view --scopes=control.view --scopes=measure.write');
+            $this->line('');
+            $this->line('  Permissions are finite and seeded; `php artisan permission:show` lists them.');
 
-            if (! $this->confirm('Issue it anyway?', false)) {
-                return self::FAILURE;
-            }
+            return self::FAILURE;
         }
 
         $plain = Str::random(48);

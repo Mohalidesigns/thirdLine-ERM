@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Control;
 use App\Models\ControlTest;
 use App\Models\ControlTestEvidence;
+use App\Services\FileUploadService;
 use App\Services\ReferenceCodeService;
 use App\Services\Workflow\ModuleApprovals;
 use App\Support\Tenancy\TenantContext;
@@ -14,6 +15,15 @@ use Illuminate\Validation\Rule;
 
 class ControlTestController extends Controller
 {
+    /**
+     * WP-11. Evidence upload and download both go through the shared upload
+     * service now, so the disk, the extension allowlist, the size cap and the
+     * traversal guard are decided in one place instead of per action.
+     */
+    public function __construct(
+        private readonly FileUploadService $uploads,
+    ) {}
+
     public function dashboard(Request $request)
     {
         $orgId = auth()->user()->organization_id;
@@ -235,6 +245,30 @@ class ControlTestController extends Controller
         return back()->with('success', 'Test returned to in-progress for rework.');
     }
 
+    /**
+     * Stream a piece of control-test evidence to an authorised user.
+     *
+     * WP-11. The tenancy check below was always correct and was always
+     * irrelevant, because the bytes it guarded were ALSO being served straight
+     * off the web server. `uploadEvidence()` wrote to the `public` disk, whose
+     * root (`storage/app/public`) is symlinked to `public/storage`, so
+     * `GET /storage/control-test-evidence/{testId}/{name}.pdf` returned the
+     * evidence to anyone who could guess or be given the URL — no session, no
+     * `control_test.view` permission, no organisation check. Anyone holding one
+     * URL also held the directory naming scheme for every other tenant.
+     *
+     * Evidence now lives on the private `local` disk (`storage/app/private`,
+     * `serve => false`), which is not web-reachable, so THIS action is the only
+     * way to the bytes and its checks finally mean something. Loss-event and
+     * issue attachments were already on that disk behind exactly this shape of
+     * action; control-test evidence was simply missed.
+     *
+     * Cross-tenant requests do not usually reach the 403 below: ControlTest
+     * carries the tenant global scope, so route-model binding 404s first. The
+     * explicit check stays because a 404 from the binding is a side effect of
+     * another component's behaviour, and an authorisation guard should not
+     * depend on one.
+     */
     public function downloadEvidence(ControlTest $controlTest, ControlTestEvidence $evidence)
     {
         $orgId = TenantContext::organizationId();
@@ -242,14 +276,43 @@ class ControlTestController extends Controller
             abort(403, 'Unauthorized access.');
         }
 
-        $disk = \Illuminate\Support\Facades\Storage::disk('public');
-        if (! $disk->exists($evidence->file_path)) {
+        try {
+            return $this->uploads->download($evidence->file_path, $evidence->file_name);
+        } catch (\RuntimeException $e) {
+            // Missing on disk, or a stored path that does not resolve inside
+            // the private disk. Either way the user gets the same answer and
+            // the detail goes to the log, not to the response.
+            \Illuminate\Support\Facades\Log::warning('Control test evidence could not be served.', [
+                'evidence_id' => $evidence->id,
+                'control_test_id' => $controlTest->id,
+                'reason' => $e->getMessage(),
+            ]);
+
             abort(404, 'Evidence file not found.');
         }
-
-        return $disk->download($evidence->file_path, $evidence->file_name);
     }
 
+    /**
+     * Accept a piece of evidence against a control test.
+     *
+     * WP-11. Two defects fixed here, both of them upload-policy defects that
+     * existed because this endpoint hand-rolled its own policy instead of
+     * using the service written for it:
+     *
+     *  1. STORAGE. `$file->store(..., 'public')` put audit evidence in the
+     *     web-served bucket (see downloadEvidence() above). It now goes through
+     *     FileUploadService, which can only ever write to the private disk.
+     *
+     *  2. FILE TYPE. `file_type` was `$file->getClientOriginalExtension()` —
+     *     the tail of the client-supplied filename. A file could be recorded as
+     *     a `pdf` on the strength of nothing but its name, and that string is
+     *     what the document repository shows an auditor. It is now derived from
+     *     the MIME type detected off the bytes.
+     *
+     * The accepted extension list and the 10 MB cap are unchanged in effect;
+     * they have simply moved into FileUploadService::PROFILE_CONTROL_TEST_EVIDENCE
+     * so the request rules and the storage-time check cannot drift apart.
+     */
     public function uploadEvidence(Request $request, ControlTest $controlTest)
     {
         $orgId = TenantContext::organizationId();
@@ -258,19 +321,22 @@ class ControlTestController extends Controller
         }
 
         $request->validate([
-            'file' => 'required|file|max:10240|mimes:pdf,doc,docx,xls,xlsx,csv,ppt,pptx,txt,png,jpg,jpeg,gif',
+            'file' => $this->uploads->rules(FileUploadService::PROFILE_CONTROL_TEST_EVIDENCE),
             'description' => 'nullable|string|max:500',
         ]);
 
-        $file = $request->file('file');
-        $path = $file->store('control-test-evidence/'.$controlTest->id, 'public');
+        $stored = $this->uploads->store(
+            $request->file('file'),
+            'control-test-evidence/'.$controlTest->id,
+            FileUploadService::PROFILE_CONTROL_TEST_EVIDENCE,
+        );
 
         ControlTestEvidence::create([
             'control_test_id' => $controlTest->id,
-            'file_name' => $file->getClientOriginalName(),
-            'file_path' => $path,
-            'file_type' => $file->getClientOriginalExtension(),
-            'file_size' => $file->getSize(),
+            'file_name' => $stored['file_name'],
+            'file_path' => $stored['storage_path'],
+            'file_type' => $stored['file_type'],
+            'file_size' => $stored['file_size_bytes'],
             'description' => $request->description,
             'uploaded_by' => auth()->id(),
         ]);

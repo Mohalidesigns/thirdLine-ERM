@@ -141,7 +141,7 @@
                         <span class="text-xs">{{ $risk->category->name ?? '-' }}</span>
                     </td>
                     <td>
-                        <x-risk-badge :rating="$risk->inherent_rating ?? 'medium'" />
+                        <x-risk-badge :rating="$risk->inherent_rating ?? 'unrated'" />
                     </td>
                     <td>
                         @if ($risk->residual_rating)

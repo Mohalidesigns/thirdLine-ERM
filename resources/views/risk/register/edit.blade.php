@@ -252,7 +252,7 @@
                         <p class="text-sm text-gray-600">Current Inherent Score</p>
                         <p class="text-2xl font-bold text-[#1A365D]">{{ $risk->inherent_score ?? 0 }}/25</p>
                     </div>
-                    <x-risk-badge :rating="$risk->inherent_rating ?? 'medium'" />
+                    <x-risk-badge :rating="$risk->inherent_rating ?? 'unrated'" />
                 </div>
             </div>
         </div>

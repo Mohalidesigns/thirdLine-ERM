@@ -47,7 +47,17 @@
         <x-kpi-card title="VaR (95%)" :value="$compactNaira($result->var_95 ?? 0)" icon="trending_up" color="warning" />
         <x-kpi-card title="VaR (99%)" :value="$compactNaira($result->var_99 ?? 0)" icon="trending_up" color="warning" />
         <x-kpi-card title="VaR (99.5%)" :value="$compactNaira($result->var_995 ?? 0)" icon="priority_high" color="danger" />
-        <x-kpi-card title="Expected Shortfall" :value="$compactNaira($result->expected_shortfall ?? 0)" icon="warning" color="danger" />
+        {{-- Null, not ₦0, when no tail mean was stored: runs completed before
+             expected shortfall was computed have nothing to show, and a zero
+             here would read as a zero-loss tail. --}}
+        <x-kpi-card
+            title="Expected Shortfall"
+            :value="$result->expected_shortfall === null ? null : $compactNaira($result->expected_shortfall)"
+            icon="warning"
+            color="danger"
+            :unavailable="$result->expected_shortfall === null"
+            unavailableLabel="Not computed for this run"
+            subtitle="Mean loss beyond VaR 95" />
         <x-kpi-card title="Max Simulated Loss" :value="$compactNaira($result->max_loss ?? 0)" icon="error" color="danger" />
     </div>
 

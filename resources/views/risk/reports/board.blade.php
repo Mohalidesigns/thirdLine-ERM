@@ -38,18 +38,65 @@
         </div>
     </div>
 
-    {{-- Executive Summary --}}
+    {{-- Executive Summary
+
+         The fallback here used to be a paragraph of invented prose: a
+         Board-approved appetite the reader was told the profile sat inside, a
+         named "credit concentration in the oil and gas sector" that no risk in
+         the register had produced, and a CAR of 15.2% printed whenever the
+         controller had no ICAAP row to read. None of it was computed. If the
+         controller cannot produce a summary, the section says exactly that. --}}
     <div class="bg-gradient-to-r from-[#1A365D] to-[#2D4A7A] rounded-xl p-6 text-white mb-6">
         <h2 class="text-lg font-bold mb-3">Executive Summary</h2>
-        <p class="text-sm text-blue-100 leading-relaxed">{{ $executiveSummary ?? 'The overall risk profile remains within the Board-approved risk appetite framework. Key areas of attention include credit concentration in the oil and gas sector, rising operational risk incidents, and emerging cyber security threats. Capital adequacy remains above regulatory minimums with a CAR of ' . ($capitalAdequacyRatio ?? '15.2') . '%. ' . ($criticalRisks ?? 0) . ' critical risks require Board-level attention.' }}</p>
+        @if (! empty($executiveSummary))
+            <p class="text-sm text-blue-100 leading-relaxed">{{ $executiveSummary }}</p>
+        @else
+            <p class="text-sm text-blue-100/70 italic leading-relaxed">No executive summary has been generated for this period.</p>
+        @endif
     </div>
 
-    {{-- KPI Cards --}}
+    {{-- KPI Cards
+
+         Each tile is driven by a value the controller either computed or
+         reported as absent. All four previously carried a `?? <literal>`
+         fallback — 3.2/5, 72%, 15.2% and 78% — so a tenant with no data at all
+         saw a plausible, healthy-looking board dashboard. The Capital Adequacy
+         tile was the worst of them: it printed 15.2% in a green tile on the
+         same screen as a narrative reading "No ICAAP assessment is on record
+         for the current period". --}}
+    @php
+        $carSubtitle = ($capitalAdequacyMinimum ?? null) !== null
+            ? 'Regulatory minimum: '.rtrim(rtrim(number_format($capitalAdequacyMinimum, 2), '0'), '.').'%'
+            : null;
+    @endphp
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <x-kpi-card title="Risk Profile Score" :value="$riskProfileScore ?? '3.2/5'" icon="analytics" color="primary" />
-        <x-kpi-card title="Appetite Utilization" :value="($appetiteUtilization ?? 72) . '%'" icon="speed" :color="($appetiteUtilization ?? 72) > 90 ? 'danger' : (($appetiteUtilization ?? 72) > 75 ? 'warning' : 'success')" />
-        <x-kpi-card title="Capital Adequacy" :value="($capitalAdequacyRatio ?? 15.2) . '%'" icon="account_balance" color="success" subtitle="Min: 10%" />
-        <x-kpi-card title="Control Effectiveness" :value="($controlEffectiveness ?? 78) . '%'" icon="verified_user" color="info" />
+        <x-kpi-card title="Risk Profile Score"
+                    :value="$riskProfileScore"
+                    :unavailable="($riskProfileScore ?? null) === null"
+                    icon="analytics" color="primary" />
+
+        {{-- Utilisation of declared appetite tolerance, not the share of risks
+             that happen not to be rated Critical. See ReportController::board(). --}}
+        <x-kpi-card title="Appetite Utilization"
+                    :value="($appetiteUtilization ?? 0) . '%'"
+                    :unavailable="($appetiteUtilization ?? null) === null"
+                    unavailableLabel="No appetite declared"
+                    icon="speed"
+                    :subtitle="($appetiteUtilization ?? null) === null ? null : 'Of upper tolerance, across ' . ($appetiteCategoriesWithTolerance ?? 0) . ' categor' . (($appetiteCategoriesWithTolerance ?? 0) === 1 ? 'y' : 'ies')"
+                    :color="($appetiteUtilization ?? 0) > 90 ? 'danger' : (($appetiteUtilization ?? 0) > 75 ? 'warning' : 'success')" />
+
+        <x-kpi-card title="Capital Adequacy"
+                    :value="($capitalAdequacyRatio ?? 0) . '%'"
+                    :unavailable="($capitalAdequacyRatio ?? null) === null"
+                    unavailableLabel="No ICAAP on record"
+                    icon="account_balance" color="success"
+                    :subtitle="$carSubtitle" />
+
+        <x-kpi-card title="Control Effectiveness"
+                    :value="($controlEffectiveness ?? 0) . '%'"
+                    :unavailable="($controlEffectiveness ?? null) === null"
+                    unavailableLabel="No controls rated"
+                    icon="verified_user" color="info" />
     </div>
 
     {{-- Risk Profile --}}
@@ -67,24 +114,40 @@
     {{-- Critical Risks for Board --}}
     <div class="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
         <div class="px-5 py-4 border-b border-gray-100 bg-red-50"><h3 class="text-sm font-semibold text-red-700">Critical Risks Requiring Board Attention</h3></div>
+        {{-- Four of the seven columns this table used to carry read properties
+             that do not exist on `risks`:
+
+               * financial_exposure  — the column is financial_exposure_ngn, so
+                                       every row showed ₦0 regardless of the
+                                       exposure recorded against the risk;
+               * trend               — no trend is stored or derived anywhere,
+                                       so every critical risk was drawn with a
+                                       grey flat arrow, which a reader takes as
+                                       "stable". Column removed;
+               * treatment_status    — every row was badged "In Progress". Now
+                                       derived from the risk's treatment plans;
+               * recommendation      — nothing produces one. Column removed.
+
+             The residual rating badge also defaulted to "critical" when a risk
+             had not been re-scored after controls; it now shows Unrated. --}}
         <table class="data-table">
-            <thead><tr><th>Risk</th><th>Category</th><th>Rating</th><th>Financial Exposure</th><th>Trend</th><th>Treatment</th><th>Recommendation</th></tr></thead>
+            <thead><tr><th>Risk</th><th>Category</th><th>Residual Rating</th><th>Financial Exposure</th><th>Treatment</th></tr></thead>
             <tbody>
                 @forelse (($criticalRisksForBoard ?? []) as $risk)
                     <tr class="border-l-4 border-l-red-500">
                         <td class="font-medium text-[#1A365D]">{{ $risk->title ?? '-' }}</td>
                         <td class="text-xs">{{ $risk->category?->name ?? '-' }}</td>
-                        <td><x-risk-badge :rating="$risk->residual_rating ?? 'critical'" /></td>
-                        <td class="text-xs font-semibold">₦{{ number_format($risk->financial_exposure ?? 0) }}</td>
-                        <td>
-                            @if (($risk->trend ?? null) === 'up') <span class="material-symbols-outlined text-sm text-red-500">trending_up</span>
-                            @elseif (($risk->trend ?? null) === 'down') <span class="material-symbols-outlined text-sm text-green-500">trending_down</span>
-                            @else <span class="material-symbols-outlined text-sm text-gray-400">trending_flat</span> @endif
+                        <td><x-risk-badge :rating="$risk->residual_rating ?? 'Unrated'" /></td>
+                        <td class="text-xs font-semibold">
+                            @if ($risk->financial_exposure_ngn !== null)
+                                ₦{{ number_format((float) $risk->financial_exposure_ngn) }}
+                            @else
+                                <span class="text-gray-400 font-normal italic">Not quantified</span>
+                            @endif
                         </td>
-                        <td><x-status-badge :status="$risk->treatment_status ?? 'in progress'" type="treatment" /></td>
-                        <td class="text-xs text-gray-600">{{ $risk->recommendation ?? '-' }}</td>
+                        <td><x-status-badge :status="$risk->derived_treatment_status ?? 'Not started'" type="treatment" /></td>
                     </tr>
-                @empty <tr><td colspan="7" class="text-center py-8 text-gray-400">No critical risks to report</td></tr>
+                @empty <tr><td colspan="5" class="text-center py-8 text-gray-400">No critical risks to report</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -120,9 +183,13 @@ window.onPageReady(function() {
         options: { responsive: true, maintainAspectRatio: false, scales: { r: { beginAtZero: true, max: 5, ticks: { font: { size: 9 } }, pointLabels: { font: { size: 10 } } } }, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, usePointStyle: true } } } }
     });
 
+    // Appetite is null for a category with no declared tolerance, which Chart.js
+    // draws as a gap. The current-position bar is only coloured against a limit
+    // when there is a limit to colour it against — grey otherwise, because
+    // "breaching" a tolerance nobody declared is not a finding.
     const appData = @json($appetiteChartData ?? ['labels' => [], 'appetite' => [], 'current' => []]);
     new Chart(document.getElementById('appetiteChart'), {
-        type: 'bar', data: { labels: appData.labels, datasets: [{ label: 'Appetite Limit', data: appData.appetite, backgroundColor: 'rgba(26,54,93,0.3)', borderColor: '#1A365D', borderWidth: 2, borderDash: [5,5] }, { label: 'Current Position', data: appData.current, backgroundColor: appData.current.map((v,i) => v > (appData.appetite[i] || 0) ? '#C53030' : '#2D7D46'), borderRadius: 4 }] },
+        type: 'bar', data: { labels: appData.labels, datasets: [{ label: 'Declared Upper Tolerance', data: appData.appetite, backgroundColor: 'rgba(26,54,93,0.3)', borderColor: '#1A365D', borderWidth: 2, borderDash: [5,5] }, { label: 'Current Position', data: appData.current, backgroundColor: appData.current.map((v,i) => appData.appetite[i] == null ? '#9CA3AF' : (v > appData.appetite[i] ? '#C53030' : '#2D7D46')), borderRadius: 4 }] },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, usePointStyle: true } } }, scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { beginAtZero: true, grid: { color: '#F0F0F0' } } } }
     });
 });

@@ -233,7 +233,15 @@ class QuantificationSeeder extends Seeder
                 ['organization_id' => $orgId, 'simulation_reference' => $simData['simulation_reference']],
                 array_merge($simData, [
                     'organization_id' => $orgId,
-                    'correlation_method' => 'gaussian_copula',
+                    // 'independent', not 'gaussian_copula'. MonteCarloService
+                    // sums scenario losses at the same iteration index with
+                    // independent draws — there is no correlation matrix, no
+                    // Cholesky decomposition and no copula anywhere in the
+                    // engine. Seeding the copula string re-introduced, on every
+                    // reseed, exactly the claim migration 2026_08_19_120002 was
+                    // written to remove, and that string was reaching customers
+                    // through the quantification export.
+                    'correlation_method' => 'independent',
                     'confidence_levels' => [90, 95, 99, 99.5, 99.9],
                     'initiated_by' => $userId,
                 ])

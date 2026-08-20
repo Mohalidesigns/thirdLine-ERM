@@ -41,8 +41,15 @@
                     Enterprise-grade governance, risk, and compliance platform built for the African market. Manage risks, ensure compliance, and protect your organization.
                 </p>
 
+                {{-- Design intent, not accreditation. These four chips read
+                     "COSO ERM Aligned", "CBN ORMS Compliant", "ISO 31000" and
+                     "Basel III Ready" — claims of conformance with no
+                     certificate, audit reference or evidence artefact behind
+                     them anywhere in the repository. The wording now describes
+                     what the product was built to do, which is defensible, and
+                     the chip count and styling are unchanged. --}}
                 <div class="mt-8 grid grid-cols-2 gap-y-3 gap-x-6 max-w-md">
-                    @foreach (['COSO ERM Aligned', 'CBN ORMS Compliant', 'ISO 31000', 'Basel III Ready'] as $feature)
+                    @foreach (['COSO ERM informed', 'Designed for CBN ORMS', 'ISO 31000 informed', 'Basel III-aligned taxonomy'] as $feature)
                         <div class="flex items-center gap-2 text-sm">
                             <span class="w-1.5 h-1.5 rounded-full bg-[#D4AF37] flex-shrink-0"></span>
                             <span class="text-white/90">{{ $feature }}</span>

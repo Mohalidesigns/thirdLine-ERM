@@ -167,7 +167,13 @@
     <footer class="ml-[260px] bg-white border-t border-gray-200 py-3 px-6">
         <div class="flex items-center justify-between text-[11px] text-gray-400">
             <span>GRC Risk Management Platform v2.0 &copy; {{ date('Y') }}</span>
-            <span>CBN ORMS Compliant &middot; Basel III Aligned &middot; NDPA Certified</span>
+            {{-- Design intent, not accreditation. This read "CBN ORMS Compliant
+                 · Basel III Aligned · NDPA Certified". Nothing in this
+                 repository issues, records or evidences any of those, and
+                 "NDPA Certified" in particular names a certification that has
+                 no issuer — the question a bank's DPO asks first. Same three
+                 segments, same styling. --}}
+            <span>Designed for CBN ORMS reporting &middot; Basel III-aligned taxonomy &middot; Built for NDPA obligations</span>
         </div>
     </footer>
 

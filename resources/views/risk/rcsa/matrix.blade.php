@@ -60,7 +60,7 @@
                         <tr>
                             <td class="sticky left-0 bg-white z-10 font-medium text-[#1A365D]">
                                 <div class="flex items-center gap-2">
-                                    <x-risk-badge :rating="$risk->residual_rating ?? 'medium'" />
+                                    <x-risk-badge :rating="$risk->residual_rating ?? 'unrated'" />
                                     <span class="text-xs">{{ Str::limit($risk->title ?? '-', 30) }}</span>
                                 </div>
                             </td>

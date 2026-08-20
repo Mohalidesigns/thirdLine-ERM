@@ -11,13 +11,33 @@ use App\Services\Widgets\WidgetScope;
 use App\Services\Widgets\WidgetTypeResolver;
 
 /**
- * tornado — the financial distribution per scenario from the LATEST COMPLETED
- * Monte Carlo run: p5 → p95 span with the median marked, widest span first.
+ * Scenario range — the financial distribution per scenario from the LATEST
+ * COMPLETED Monte Carlo run: p5 → p95 span with the median marked, widest span
+ * first.
+ *
+ * This is a range plot of scenario OUTPUTS, and it is labelled as one
+ * everywhere a user can see it (the shipped definition is named "Scenario loss
+ * distribution"). It is NOT a tornado diagram. A tornado ranks input
+ * PARAMETERS by the swing each one induces in an output, which requires
+ * one-at-a-time or regression-based sensitivity analysis over the simulation
+ * inputs — the engine performs no such analysis and the schema stores no
+ * per-parameter sensitivities, so the product cannot draw one today. A real
+ * tornado is a future feature; until it exists, calling a p5–p95 span across
+ * scenarios a tornado would tell a reader that the widest bar is the input
+ * their result is most sensitive to, which is not what the bar measures.
+ *
+ * The class name and the 'tornado' registry key are deliberately left alone.
+ * The key is a string in WidgetDataService::RESOLVERS and it is also the value
+ * stored in widget_definitions.widget_type on every tenant's rows and the
+ * function name the front-end chart factory dispatches on
+ * (resources/js/widgets/charts.js), so renaming it would orphan existing
+ * dashboards for a cosmetic gain. When the real tornado lands it should take a
+ * new key of its own rather than this one.
  *
  * Reads simulation_results.percentile_distribution — numbers a seeded,
  * reproducible engine actually computed (MonteCarloService is the platform's
  * one allowlisted RNG). No completed run means an empty panel that says so;
- * a tornado sketched from single-point estimates would be a drawing of
+ * a range sketched from single-point estimates would be a drawing of
  * precision that was never calculated.
  */
 class TornadoResolver implements WidgetTypeResolver

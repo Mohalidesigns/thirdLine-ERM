@@ -51,19 +51,43 @@
         .kpi-strip .kpi-card .text-2xl { font-size: 1.25rem; line-height: 1.75rem; }
     </style>
     <div class="kpi-strip grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        <x-kpi-card title="Total Economic Capital" :value="$compactNaira($totalEconomicCapital ?? 0)" icon="account_balance" color="primary" subtitle="99.9% confidence" />
-        <x-kpi-card title="Capital Adequacy Ratio" :value="($capitalAdequacyRatio ?? 0) . '%'" icon="shield" :color="($capitalAdequacyRatio ?? 0) >= 15 ? 'success' : (($capitalAdequacyRatio ?? 0) >= 10 ? 'warning' : 'danger')" subtitle="CBN minimum: 10%" />
+        {{-- WP-08: this is the sum of the Pillar 2A and Pillar 2B columns on the
+             latest ICAAP assessment. It is not a modelled economic capital number
+             and it is not read at any confidence level — the tile used to be
+             subtitled "99.9% confidence", which nothing here computes. --}}
+        <x-kpi-card title="ICAAP Capital Add-on" :value="$compactNaira($totalEconomicCapital ?? 0)" icon="account_balance" color="primary" subtitle="Pillar 2A + Pillar 2B, as assessed" />
+        {{-- WP-08: CAR is computed from capital / RWA, is null (not 0) when that
+             is impossible, and is coloured against the RESOLVED CBN minimum for
+             this organisation rather than a hardcoded 10 / 15. --}}
+        <x-kpi-card title="Capital Adequacy Ratio"
+            :value="$capitalAdequacyRatio === null ? null : number_format($capitalAdequacyRatio, 2) . '%'"
+            :unavailable="$capitalAdequacyRatio === null" icon="shield"
+            :color="$capitalAdequacyRatio !== null && $capitalAdequacyRatio >= $minimumCar ? 'success' : 'danger'"
+            subtitle="CBN minimum: {{ rtrim(rtrim(number_format($minimumCar, 2), '0'), '.') }}%" />
         <x-kpi-card title="Active Scenarios" :value="$activeScenarios ?? 0" icon="category" color="info" />
         <x-kpi-card title="Simulations Run" :value="$simulationsRun ?? 0" icon="calculate" color="primary" />
-        <x-kpi-card title="VaR (95%)" :value="$compactNaira($var95 ?? 0)" icon="trending_up" color="warning" />
-        <x-kpi-card title="Expected Shortfall" :value="$compactNaira($expectedShortfall ?? 0)" icon="priority_high" color="danger" />
+        <x-kpi-card
+            title="VaR (95%)"
+            :value="$var95 === null ? null : $compactNaira($var95)"
+            icon="trending_up"
+            color="warning"
+            :unavailable="$var95 === null"
+            unavailableLabel="No completed run" />
+        <x-kpi-card
+            title="Expected Shortfall"
+            :value="$expectedShortfall === null ? null : $compactNaira($expectedShortfall)"
+            icon="priority_high"
+            color="danger"
+            :unavailable="$expectedShortfall === null"
+            unavailableLabel="No completed run"
+            subtitle="Mean loss beyond VaR 95" />
     </div>
 
     {{-- Charts Row --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div class="bg-white rounded-xl border border-gray-200 p-5">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-semibold text-[#1A365D]">Capital by Risk Type</h3>
+                <h3 class="text-sm font-semibold text-[#1A365D]">ICAAP Capital Add-on by Component</h3>
                 <span class="material-symbols-outlined text-gray-400 text-lg">donut_large</span>
             </div>
             <canvas id="capitalByTypeChart" height="250"></canvas>
@@ -108,22 +132,39 @@
         <div class="bg-white rounded-xl border border-gray-200 p-5">
             <h3 class="text-sm font-semibold text-[#1A365D] mb-4">ICAAP Summary</h3>
             <div class="space-y-4">
-                <div class="p-3 rounded-lg {{ ($capitalAdequacyRatio ?? 0) >= 15 ? 'bg-green-50 border border-green-200' : (($capitalAdequacyRatio ?? 0) >= 10 ? 'bg-yellow-50 border border-yellow-200' : 'bg-red-50 border border-red-200') }}">
+                @php
+                    $carOk = $capitalAdequacyRatio !== null && $capitalAdequacyRatio >= $minimumCar;
+                    $carBox = $capitalAdequacyRatio === null
+                        ? 'bg-gray-50 border border-gray-200'
+                        : ($carOk ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200');
+                    $carText = $capitalAdequacyRatio === null ? 'text-gray-400' : ($carOk ? 'text-green-700' : 'text-red-700');
+                    $minLabel = rtrim(rtrim(number_format($minimumCar, 2), '0'), '.');
+                @endphp
+                <div class="p-3 rounded-lg {{ $carBox }}">
                     <p class="text-xs font-medium text-gray-600">Capital Adequacy Ratio</p>
-                    <p class="text-2xl font-bold {{ ($capitalAdequacyRatio ?? 0) >= 15 ? 'text-green-700' : (($capitalAdequacyRatio ?? 0) >= 10 ? 'text-yellow-700' : 'text-red-700') }}">{{ $capitalAdequacyRatio ?? 0 }}%</p>
-                    <p class="text-xs text-gray-500 mt-1">CBN Minimum: 10% | Target: 15%</p>
+                    <p class="text-2xl font-bold {{ $carText }}">
+                        {{ $capitalAdequacyRatio === null ? 'Not assessed' : number_format($capitalAdequacyRatio, 2) . '%' }}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        CBN minimum: {{ $minLabel }}%
+                        @if ($capitalAdequacyRatio !== null)
+                            &middot; {{ $carBasis }}
+                        @endif
+                    </p>
                 </div>
                 <div>
-                    <p class="text-xs text-gray-500 mb-1">Pillar 1 Capital</p>
-                    <p class="text-sm font-semibold">₦{{ number_format($pillar1Capital ?? 0) }}</p>
+                    {{-- WP-08: these are the Pillar 2A columns and the Pillar 2B stress
+                         buffer. They were labelled "Pillar 1" and "Pillar 2" here. --}}
+                    <p class="text-xs text-gray-500 mb-1">Pillar 2A Add-on</p>
+                    <p class="text-sm font-semibold">{{ $pillar2aCapital === null ? 'Not recorded' : '₦' . number_format($pillar2aCapital) }}</p>
                 </div>
                 <div>
-                    <p class="text-xs text-gray-500 mb-1">Pillar 2 Capital</p>
-                    <p class="text-sm font-semibold">₦{{ number_format($pillar2Capital ?? 0) }}</p>
+                    <p class="text-xs text-gray-500 mb-1">Pillar 2B Stress Buffer</p>
+                    <p class="text-sm font-semibold">{{ $pillar2bCapital === null ? 'Not recorded' : '₦' . number_format($pillar2bCapital) }}</p>
                 </div>
                 <div>
                     <p class="text-xs text-gray-500 mb-1">Capital Buffer</p>
-                    <p class="text-sm font-semibold">₦{{ number_format($capitalBuffer ?? 0) }}</p>
+                    <p class="text-sm font-semibold">{{ $capitalBuffer === null ? 'Not assessed' : '₦' . number_format($capitalBuffer) }}</p>
                 </div>
                 <a href="{{ route('risk.quantification.icaap') }}" class="block text-center text-xs text-[#1A365D] font-medium hover:underline mt-4">View Full ICAAP Report</a>
             </div>

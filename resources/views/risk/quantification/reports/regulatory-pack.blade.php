@@ -43,10 +43,14 @@
 
     {{-- Headline Indicators --}}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <x-kpi-card title="Capital Adequacy Ratio" :value="$pct($summary->car_actual)" icon="shield"
-            :color="$summary->car_actual >= $summary->car_required ? 'success' : 'danger'"
-            subtitle="CBN minimum: {{ $pct($summary->car_required) }}" />
-        <x-kpi-card title="Total Capital"   :value="$naira($summary->total_capital)" icon="account_balance" color="primary" />
+        {{-- WP-08: CAR is computed from capital / RWA where both are on file, and
+             is null — "Not assessed" — where they are not. It is never shown as 0%,
+             which would read as an insolvent bank rather than as missing data. --}}
+        <x-kpi-card title="Capital Adequacy Ratio"
+            :value="$summary->car_actual === null ? 'Not assessed' : $pct($summary->car_actual)" icon="shield"
+            :color="$summary->car_actual === null ? 'info' : ($summary->car_actual >= $summary->car_required ? 'success' : 'danger')"
+            subtitle="CBN minimum: {{ $pct($summary->car_required) }}{{ $summary->car_actual === null ? '' : ' · ' . $summary->car_basis }}" />
+        <x-kpi-card title="Total Capital" :value="$summary->total_capital === null ? 'Not recorded' : $naira($summary->total_capital)" icon="account_balance" color="primary" />
         <x-kpi-card title="Active Risks"    :value="$summary->active_risks"         icon="security"        color="primary" subtitle="{{ $summary->critical_risks }} critical / {{ $summary->high_risks }} high" />
         <x-kpi-card title="Loss Events YTD" :value="$summary->loss_events_ytd"      icon="report_problem"  color="warning" subtitle="Net loss {{ $naira($summary->net_loss_ytd) }}" />
     </div>

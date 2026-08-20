@@ -59,36 +59,50 @@
 
     {{-- Movers Table --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {{-- These two panels used to be titled "Top Risk Increasers" and "Top
+             Risk Decreasers" with Previous / Current columns, which asserted
+             movement over time. The figure behind them has never been a
+             time series — it is inherent score minus residual score, i.e. how
+             far the control environment moves each risk as assessed today. The
+             headings, columns and arrow direction now say that. A genuine
+             period-over-period comparison needs RiskRepository::asOf() against
+             the measure engine and is a separate panel. --}}
         <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div class="px-5 py-4 border-b border-gray-100"><h3 class="text-sm font-semibold text-red-600">Top Risk Increasers</h3></div>
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h3 class="text-sm font-semibold text-green-600">Largest control effect</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Residual position furthest below inherent</p>
+            </div>
             <table class="data-table">
-                <thead><tr><th>Risk</th><th>Previous</th><th>Current</th><th>Change</th></tr></thead>
+                <thead><tr><th>Risk</th><th>Inherent</th><th>Residual</th><th>Reduction</th></tr></thead>
                 <tbody>
                     @forelse (($riskIncreasers ?? []) as $r)
                         <tr>
                             <td class="text-xs font-medium text-[#1A365D]">{{ $r->risk_code ?? '-' }}</td>
-                            <td><x-risk-badge :rating="$r->previous_rating ?? 'low'" /></td>
-                            <td><x-risk-badge :rating="$r->current_rating ?? 'medium'" /></td>
-                            <td class="text-red-500"><span class="material-symbols-outlined text-sm">arrow_upward</span> +{{ $r->score_change ?? 0 }}</td>
+                            <td><x-risk-badge :rating="$r->inherent_rating ?? 'unrated'" /></td>
+                            <td><x-risk-badge :rating="$r->residual_rating ?? 'unrated'" /></td>
+                            <td class="text-green-500"><span class="material-symbols-outlined text-sm">arrow_downward</span> {{ abs($r->score_change ?? 0) }}</td>
                         </tr>
-                    @empty <tr><td colspan="4" class="text-center py-6 text-gray-400">No significant increases</td></tr>
+                    @empty <tr><td colspan="4" class="text-center py-6 text-gray-400">No assessed risks with a residual position</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div class="px-5 py-4 border-b border-gray-100"><h3 class="text-sm font-semibold text-green-600">Top Risk Decreasers</h3></div>
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h3 class="text-sm font-semibold text-red-600">Residual above inherent</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Controls are not reducing exposure — review the assessment</p>
+            </div>
             <table class="data-table">
-                <thead><tr><th>Risk</th><th>Previous</th><th>Current</th><th>Change</th></tr></thead>
+                <thead><tr><th>Risk</th><th>Inherent</th><th>Residual</th><th>Increase</th></tr></thead>
                 <tbody>
                     @forelse (($riskDecreasers ?? []) as $r)
                         <tr>
                             <td class="text-xs font-medium text-[#1A365D]">{{ $r->risk_code ?? '-' }}</td>
-                            <td><x-risk-badge :rating="$r->previous_rating ?? 'high'" /></td>
-                            <td><x-risk-badge :rating="$r->current_rating ?? 'medium'" /></td>
-                            <td class="text-green-500"><span class="material-symbols-outlined text-sm">arrow_downward</span> {{ $r->score_change ?? 0 }}</td>
+                            <td><x-risk-badge :rating="$r->inherent_rating ?? 'unrated'" /></td>
+                            <td><x-risk-badge :rating="$r->residual_rating ?? 'unrated'" /></td>
+                            <td class="text-red-500"><span class="material-symbols-outlined text-sm">arrow_upward</span> +{{ abs($r->score_change ?? 0) }}</td>
                         </tr>
-                    @empty <tr><td colspan="4" class="text-center py-6 text-gray-400">No significant decreases</td></tr>
+                    @empty <tr><td colspan="4" class="text-center py-6 text-gray-400">No risks where residual exceeds inherent</td></tr>
                     @endforelse
                 </tbody>
             </table>

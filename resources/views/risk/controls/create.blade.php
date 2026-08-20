@@ -94,7 +94,7 @@
                             <span class="text-xs font-semibold text-[#1A365D]">{{ $risk->risk_code }}</span>
                             <span class="text-xs text-gray-600 ml-2">{{ Str::limit($risk->title, 50) }}</span>
                         </div>
-                        <x-risk-badge :rating="$risk->residual_rating ?? 'medium'" class="ml-auto" />
+                        <x-risk-badge :rating="$risk->residual_rating ?? 'unrated'" class="ml-auto" />
                     </label>
                 @empty
                     <p class="text-sm text-gray-400">No risks in the register yet — you can link this control later.</p>

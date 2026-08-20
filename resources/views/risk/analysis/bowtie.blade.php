@@ -35,7 +35,10 @@
                 <div class="flex-1">
                     <div class="flex items-center gap-3">
                         <h2 class="text-lg font-semibold text-[#1A365D]">{{ $selectedRisk->risk_code }}: {{ $selectedRisk->title }}</h2>
-                        <x-risk-badge :rating="$selectedRisk->residual_rating ?? 'medium'" />
+                        {{-- "Unrated", not "Medium": a risk that has not been
+                             re-scored after controls does not have a residual
+                             rating of Medium, it has none. --}}
+                        <x-risk-badge :rating="$selectedRisk->residual_rating ?? 'Unrated'" />
                     </div>
                     <p class="text-xs text-gray-500 mt-1">{{ $selectedRisk->category->name ?? '' }} &middot; {{ $selectedRisk->businessUnit->name ?? '' }}</p>
                 </div>
@@ -117,7 +120,21 @@
                             @endif
                         </div>
                     @empty
-                        <div class="p-3 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-xs text-gray-400 text-center">No consequences defined</div>
+                        {{--
+                            An honest empty state, matching the causes wing.
+                            This panel used to show the same three invented
+                            consequences for every risk in the register —
+                            financial loss, reputational damage, regulatory
+                            sanctions — because the controller read two columns
+                            that do not exist on `risks` and fell through to
+                            hardcoded text.
+                        --}}
+                        <div class="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 text-center">
+                            <p>No consequences recorded for this risk.</p>
+                            @if ($selectedRisk ?? null)
+                                <a href="{{ route('risk.assessments.create', ['risk_id' => $selectedRisk->id]) }}" class="text-[#1A365D] underline mt-1 inline-block">Rate its impact dimensions in an assessment</a>
+                            @endif
+                        </div>
                     @endforelse
                 </div>
             </div>

@@ -32,7 +32,14 @@
 
     {{-- Compliance Status --}}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <x-kpi-card title="Overall Compliance" :value="($overallCompliance ?? 0) . '%'" icon="verified" :color="($overallCompliance ?? 0) >= 90 ? 'success' : (($overallCompliance ?? 0) >= 70 ? 'warning' : 'danger')" />
+        {{-- Null, not 0%, when none of the three underlying measures has any
+             data behind it — see ReportController::regulatory(). --}}
+        <x-kpi-card title="Overall Compliance"
+                    :value="($overallCompliance ?? 0) . '%'"
+                    :unavailable="($overallCompliance ?? null) === null"
+                    unavailableLabel="Nothing measured"
+                    icon="verified"
+                    :color="($overallCompliance ?? 0) >= 90 ? 'success' : (($overallCompliance ?? 0) >= 70 ? 'warning' : 'danger')" />
         <x-kpi-card title="Pending Returns" :value="$pendingReturns ?? 0" icon="description" color="warning" subtitle="Regulatory filings" />
         <x-kpi-card title="Overdue Items" :value="$overdueItems ?? 0" icon="error" color="danger" />
         <x-kpi-card title="CBN Directives" :value="$cbnDirectives ?? 0" icon="gavel" color="info" subtitle="Active directives" />
@@ -41,25 +48,38 @@
     {{-- ORMS Framework Compliance --}}
     <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
         <h3 class="text-sm font-semibold text-[#1A365D] mb-4">CBN ORMS Framework Compliance</h3>
+        {{-- The pillar list and every score in it now come from the controller,
+             which scores only the three pillars this product measures and marks
+             the other five not assessed, with the reason. This block used to
+             hold its own eight-entry list with a numeric literal on each line
+             (90, 85, 78, 82, 75, 88, 70, 65) as the fallback, and the
+             controller's "derived" values were barely better: Business
+             Continuity was the constant 70 for every tenant on the platform and
+             the product stores no business continuity data at all. Eight full
+             progress bars on a report headed "CBN Regulatory Compliance" is
+             precisely the screenshot a bank should not be able to produce from
+             an empty system. --}}
         <div class="space-y-4">
-            @foreach ([
-                ['Risk Governance & Culture', $ormsGovernance ?? 90],
-                ['Risk Appetite & Strategy', $ormsAppetite ?? 85],
-                ['Risk Identification & Assessment', $ormsIdentification ?? 78],
-                ['Risk Monitoring & Reporting', $ormsMonitoring ?? 82],
-                ['Risk Mitigation & Control', $ormsMitigation ?? 75],
-                ['Capital Adequacy (ICAAP)', $ormsCapital ?? 88],
-                ['Business Continuity Management', $ormsBCM ?? 70],
-                ['Stress Testing', $ormsStress ?? 65],
-            ] as [$area, $score])
+            @foreach (($ormsPillars ?? []) as [$area, $score, $basis])
                 <div class="flex items-center gap-4">
-                    <div class="w-60 text-xs font-medium text-gray-700">{{ $area }}</div>
-                    <div class="flex-1">
-                        <div class="w-full bg-gray-200 rounded-full h-3">
-                            <div class="h-3 rounded-full transition-all {{ $score >= 90 ? 'bg-green-500' : ($score >= 70 ? 'bg-yellow-500' : 'bg-red-500') }}" style="width: {{ $score }}%"></div>
-                        </div>
+                    <div class="w-60 text-xs font-medium text-gray-700">
+                        {{ $area }}
+                        <span class="block text-[11px] font-normal text-gray-400 leading-tight mt-0.5">{{ $basis }}</span>
                     </div>
-                    <span class="text-xs font-bold w-12 text-right {{ $score >= 90 ? 'text-green-600' : ($score >= 70 ? 'text-yellow-600' : 'text-red-600') }}">{{ $score }}%</span>
+                    <div class="flex-1">
+                        @if ($score === null)
+                            <div class="w-full border border-dashed border-gray-300 rounded-full h-3"></div>
+                        @else
+                            <div class="w-full bg-gray-200 rounded-full h-3">
+                                <div class="h-3 rounded-full transition-all {{ $score >= 90 ? 'bg-green-500' : ($score >= 70 ? 'bg-yellow-500' : 'bg-red-500') }}" style="width: {{ $score }}%"></div>
+                            </div>
+                        @endif
+                    </div>
+                    @if ($score === null)
+                        <span class="text-[11px] italic w-28 text-right text-gray-400">Not assessed</span>
+                    @else
+                        <span class="text-xs font-bold w-28 text-right {{ $score >= 90 ? 'text-green-600' : ($score >= 70 ? 'text-yellow-600' : 'text-red-600') }}">{{ $score }}%</span>
+                    @endif
                 </div>
             @endforeach
         </div>
@@ -99,7 +119,9 @@
                         <td class="text-xs text-gray-500">{{ $dir->issued_date ?? '-' }}</td>
                         <td class="text-xs">{{ $dir->deadline ?? '-' }}</td>
                         <td><x-status-badge :status="$dir->status ?? 'pending'" /></td>
-                        <td><x-risk-badge :rating="$dir->impact ?? 'medium'" /></td>
+                        {{-- A circular with no impact_level recorded is
+                             Unrated, not Medium. --}}
+                        <td><x-risk-badge :rating="$dir->impact ?? 'Unrated'" /></td>
                     </tr>
                 @empty <tr><td colspan="6" class="text-center py-8 text-gray-400">No active directives</td></tr>
                 @endforelse

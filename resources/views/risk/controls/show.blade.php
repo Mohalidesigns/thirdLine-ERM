@@ -69,7 +69,7 @@
                             <tr>
                                 <td class="font-medium text-[#1A365D]"><a href="{{ route('risk.register.show', $risk) }}" class="hover:underline">{{ $risk->risk_code }}</a></td>
                                 <td class="text-xs">{{ Str::limit($risk->title, 40) }}</td>
-                                <td><x-risk-badge :rating="$risk->residual_rating ?? 'medium'" /></td>
+                                <td><x-risk-badge :rating="$risk->residual_rating ?? 'unrated'" /></td>
                                 <td><x-status-badge :status="$risk->status ?? 'open'" /></td>
                             </tr>
                         @empty <tr><td colspan="4" class="text-center py-6 text-gray-400">No linked risks</td></tr>

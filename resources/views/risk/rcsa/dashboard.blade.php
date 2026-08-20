@@ -103,8 +103,8 @@
                     <tr>
                         <td class="font-medium text-[#1A365D]">{{ $risk->title ?? '-' }}</td>
                         <td class="text-xs">{{ $risk->business_unit ?? '-' }}</td>
-                        <td><x-risk-badge :rating="$risk->inherent_rating ?? 'medium'" /></td>
-                        <td><x-risk-badge :rating="$risk->residual_rating ?? 'medium'" /></td>
+                        <td><x-risk-badge :rating="$risk->inherent_rating ?? 'unrated'" /></td>
+                        <td><x-risk-badge :rating="$risk->residual_rating ?? 'unrated'" /></td>
                         <td>
                             <span class="badge {{ ($risk->control_effectiveness ?? '') === 'effective' ? 'bg-green-100 text-green-700' : (($risk->control_effectiveness ?? '') === 'partially' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700') }}">
                                 {{ ucfirst($risk->control_effectiveness ?? '-') }}

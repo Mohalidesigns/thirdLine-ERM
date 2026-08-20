@@ -30,6 +30,22 @@
         </div>
     </div>
 
+    {{-- WP-08. Scenarios created before the distribution list was restricted may
+         still be typed pareto / weibull / normal / poisson / beta. The engine has
+         only ever had a log-normal severity draw, so those scenarios were, and
+         still are, simulated as log-normal. Saying so here is the honest reading
+         of the badge above. --}}
+    @if ($scenario->severity_distribution && $scenario->severity_distribution !== 'lognormal')
+        <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 text-sm text-yellow-900">
+            <span class="font-semibold">Simulated as log-normal.</span>
+            This scenario is recorded with a
+            <span class="font-semibold">{{ ucfirst($scenario->severity_distribution) }}</span>
+            severity distribution, but the simulation engine implements only a log-normal severity draw, so every
+            result produced for it is log-normal. Re-calibrate it as log-normal, or wait for engine support, before
+            relying on its tail.
+        </div>
+    @endif
+
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <x-kpi-card title="Mean Loss" :value="'₦' . number_format($scenario->mean ?? 0)" icon="payments" color="primary" />
         <x-kpi-card title="Std Deviation" :value="'₦' . number_format($scenario->std_dev ?? 0)" icon="analytics" color="warning" />

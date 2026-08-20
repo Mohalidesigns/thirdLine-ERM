@@ -119,12 +119,33 @@ class SimulationRun extends Model
         return $agg ? round(($agg->expected_annual_loss_kobo ?? 0) / 100, 2) : 0;
     }
 
+    /**
+     * Expected shortfall (CVaR) at 95%, in naira.
+     *
+     * This used to read `return round(($agg->var_99_kobo ?? 0) / 100, 2)` under
+     * a comment claiming "ES approximated as average of losses above VaR 95".
+     * Those are two different statistics: VaR(99) is a single order statistic
+     * of the loss sample, ES(95) is the mean of the whole tail beyond VaR(95).
+     * Neither the label nor the comment described what the number was, and it
+     * was rendered as a headline KPI on the quantification dashboard and on the
+     * results page. It is now read from the value MonteCarloService actually
+     * computes from the sorted loss vector.
+     *
+     * Returns null — not 0 — when no ES was stored, which is the case for every
+     * run completed before the es_*_kobo columns existed. A zero would be read
+     * off a dashboard as "this portfolio has no tail loss"; a null lets the
+     * view say the figure was never computed. Callers that still coalesce with
+     * `?? 0` will need updating before the empty state is honest on screen.
+     */
     public function getExpectedShortfallAttribute()
     {
-        // ES approximated as average of losses above VaR 95
         $agg = $this->aggregate_result;
 
-        return $agg ? round(($agg->var_99_kobo ?? 0) / 100, 2) : 0;
+        if (! $agg || $agg->es_95_kobo === null) {
+            return null;
+        }
+
+        return round($agg->es_95_kobo / 100, 2);
     }
 
     public function getMaxLossAttribute()

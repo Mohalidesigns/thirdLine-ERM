@@ -216,7 +216,11 @@
                 ['label' => 'Heat Map', 'url' => '/risk/analysis/heatmap'],
                 ['label' => 'Bow-Tie', 'url' => '/risk/analysis/bowtie'],
                 ['label' => 'Trends', 'url' => '/risk/analysis/trends'],
-                ['label' => 'Correlation', 'url' => '/risk/analysis/correlation'],
+                // The URL and route name stay `correlation` so existing links
+                // and bookmarks keep working; the page itself measures
+                // shared-control overlap, not correlation, and is labelled for
+                // what it measures. See AnalysisController::correlation().
+                ['label' => 'Shared Controls', 'url' => '/risk/analysis/correlation'],
             ],
         ],
         [
@@ -444,9 +448,13 @@
 
     {{-- Footer --}}
     <div class="px-4 py-3 border-t border-white/10 mt-auto">
+        {{-- Design-intent wording, not an accreditation claim. This read "CBN
+             ORMS Compliant" beside a "verified" badge icon; there is no
+             certificate, audit reference or evidence artefact behind it
+             anywhere in the repository. --}}
         <div class="flex items-center gap-2 text-[10px] text-white/30">
-            <span class="material-symbols-outlined text-[14px]">verified</span>
-            <span>CBN ORMS Compliant</span>
+            <span class="material-symbols-outlined text-[14px]">architecture</span>
+            <span>Designed for CBN ORMS reporting</span>
         </div>
     </div>
 </aside>

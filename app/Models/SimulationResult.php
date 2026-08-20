@@ -18,6 +18,12 @@ class SimulationResult extends Model
         'var_95_kobo',
         'var_99_kobo',
         'var_99_9_kobo',
+        // Expected shortfall (CVaR). Added because the model accessor that
+        // published "Expected Shortfall" was returning var_99_kobo — a
+        // quantile, not a tail mean. There is nowhere else to put it: the loss
+        // vector is discarded at the end of MonteCarloService::runSimulation().
+        'es_95_kobo',
+        'es_99_kobo',
         'std_deviation_kobo',
         'risk_contributions',
         'percentile_distribution',

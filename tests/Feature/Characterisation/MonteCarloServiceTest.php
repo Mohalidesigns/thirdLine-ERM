@@ -21,10 +21,18 @@ use Tests\TestCase;
  * A Monte Carlo result cannot be asserted exactly against a hand-computed
  * figure — it is a sample. What it *can* be held to, and what these tests
  * hold it to, is: the same seed reproduces the run byte for byte; the VaR
- * ladder and the percentile curve are monotone; the sample mean converges on
- * the analytic expected annual loss (λ · exp(μ + σ²/2)); scenario floors and
- * caps bind; and the tenancy guard refuses to simulate another organisation's
- * scenarios.
+ * ladder and the percentile curve are monotone AND agree with each other; the
+ * sample mean converges on the analytic expected annual loss (λ · exp(μ + σ²/2));
+ * expected shortfall is never below the quantile it sits beyond; the severity
+ * draw is not truncated; scenario floors and caps bind; and the tenancy guard
+ * refuses to simulate another organisation's scenarios.
+ *
+ * Until WP-08 every test in here ran at σ ≤ 0.5 and λ ≤ 3, which is why three
+ * tail defects survived it: a Box-Muller clamp that capped every severity at
+ * 4.292σ, a VaR ladder and a percentile ladder using two different order
+ * statistics for the same confidence level, and an "expected shortfall" that
+ * was VaR(99) wearing a different label. The high-σ cases below exist so that
+ * class of bug cannot hide here again.
  */
 class MonteCarloServiceTest extends TestCase
 {
@@ -34,6 +42,18 @@ class MonteCarloServiceTest extends TestCase
     private const SEED = 20260615;
 
     private const ITERATIONS = 5000;
+
+    /**
+     * Draw count for the truncation test.
+     *
+     * The old clamp bit on roughly one draw in 113,000 (the normal tail beyond
+     * 4.292σ), so a few thousand draws cannot see it and a test that used them
+     * would pass against the broken generator. One million draws puts the
+     * expected number of qualifying draws near nine and takes well under a
+     * second — the seed is fixed, so the count below is a measured fact about
+     * this stream, not a probability.
+     */
+    private const TRUNCATION_DRAWS = 1_000_000;
 
     protected function setUp(): void
     {
@@ -283,6 +303,213 @@ class MonteCarloServiceTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
+    /*  Tail truncation */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function the_severity_draw_is_no_longer_capped_at_the_old_four_point_two_nine_sigma_ceiling(): void
+    {
+        $mu = 10.0;
+        $sigma = 2.0;
+
+        // The old Box-Muller guard was `log(max($u1, 0.0001))`, which replaced
+        // every u1 below 1e-4 with exactly 1e-4 instead of redrawing it. That
+        // put a hard arithmetic ceiling of sqrt(-2 · ln(1e-4)) = 4.291932 on z,
+        // and so a hard ceiling of exp(μ + 4.291932σ) on any single event — no
+        // seed, and no number of iterations, could ever produce a severity
+        // above this line.
+        $ceiling = exp($mu + sqrt(-2 * log(0.0001)) * $sigma);
+
+        $service = new MonteCarloService(self::SEED);
+
+        // The draw itself is what was broken, so the draw itself is what is
+        // asserted on. Going through runSimulation() cannot see this: the
+        // published p99.9 of an ANNUAL loss sits around 3.1σ of the severity
+        // distribution, comfortably below the 4.292σ ceiling, so a whole-run
+        // assertion against the ceiling would pass against the broken engine.
+        $draw = fn (): float => $this->lognormalRandom($mu, $sigma);
+
+        $maximum = 0.0;
+        $aboveCeiling = 0;
+
+        for ($i = 0; $i < self::TRUNCATION_DRAWS; $i++) {
+            $loss = $draw->call($service);
+
+            $maximum = max($maximum, $loss);
+
+            if ($loss > $ceiling) {
+                $aboveCeiling++;
+            }
+        }
+
+        $this->assertGreaterThan(
+            0,
+            $aboveCeiling,
+            'The severity distribution is truncated: no draw exceeded exp(mu + 4.292 sigma), '
+            .'which is exactly what the old clamp guaranteed.'
+        );
+
+        $this->assertGreaterThan(
+            $ceiling,
+            $maximum,
+            'The largest severity drawn is still bounded by the old clamp ceiling.'
+        );
+    }
+
+    #[Test]
+    public function a_high_sigma_scenario_keeps_a_heavy_tail_and_still_converges(): void
+    {
+        // σ = 2.0. Every other test in this file runs at σ ≤ 0.5, where the
+        // 99.9% quantile is under twice the 95% one and a truncated tail is
+        // invisible.
+        $lambda = 2.0;
+        $mu = 10.0;
+        $sigma = 2.0;
+
+        $run = $this->makeRun();
+        $scenario = $this->makeScenario([
+            'frequency_lambda' => $lambda,
+            'severity_mu' => $mu,
+            'severity_sigma' => $sigma,
+        ]);
+
+        (new MonteCarloService(self::SEED))->runSimulation($run, [$scenario->id]);
+
+        $result = SimulationResult::where('simulation_run_id', $run->id)
+            ->where('result_type', 'scenario')->first();
+
+        // Strictly increasing, not merely non-decreasing: at this σ the loss
+        // distribution is continuous enough that two adjacent confidence levels
+        // landing on the same naira figure would mean the ladder had collapsed.
+        $this->assertGreaterThan($result->var_90_kobo, $result->var_95_kobo);
+        $this->assertGreaterThan($result->var_95_kobo, $result->var_99_kobo);
+        $this->assertGreaterThan($result->var_99_kobo, $result->var_99_9_kobo);
+
+        // At σ = 0.5 this ratio is about 1.8; at σ = 2.0 it is about 14. The
+        // floor is set well below the observed value — the assertion is that
+        // the heavy-tailed path is genuinely exercised, not that the sample
+        // reproduces a particular figure.
+        $this->assertGreaterThan(
+            3 * $result->var_95_kobo,
+            $result->var_99_9_kobo,
+            'A σ = 2.0 run produced a flat tail, which means the severity draw is being bounded somewhere.'
+        );
+
+        // E[S] = λ · exp(μ + σ²/2). A single draw at σ = 2 has a coefficient of
+        // variation of 7.3, so the standard error of the mean over ~10,000
+        // draws is about 7% — a 30% band is the honest width here, against the
+        // 20% the σ = 0.5 test can afford.
+        $analytic = $lambda * exp($mu + ($sigma ** 2) / 2);
+
+        $this->assertEqualsWithDelta(
+            $analytic,
+            (float) $result->expected_annual_loss_kobo,
+            $analytic * 0.30
+        );
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  One estimator, not two */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function the_var_ladder_and_the_percentile_curve_are_the_same_order_statistic(): void
+    {
+        // The VaR lines used `(int) ($iterations * $p)` and the percentile
+        // ladder `(int) (($iterations - 1) * $p / 100)` — index 9500 against
+        // index 9499 at 10,000 iterations. Two screens, both labelled "95%",
+        // showed two different naira figures off one sample.
+        $results = $this->simulate(self::SEED);
+
+        $pairs = [
+            'var_90_kobo' => 'p90',
+            'var_95_kobo' => 'p95',
+            'var_99_kobo' => 'p99',
+            'var_99_9_kobo' => 'p99.9',
+        ];
+
+        foreach (['scenario', 'aggregate'] as $resultType) {
+            $row = $results->firstWhere('result_type', $resultType);
+            $this->assertNotNull($row, "no {$resultType} row was written");
+
+            foreach ($pairs as $column => $key) {
+                $this->assertSame(
+                    (int) $row->{$column},
+                    (int) $row->percentile_distribution[$key],
+                    "{$resultType}: {$column} and percentile {$key} disagree — two estimators again"
+                );
+            }
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Expected shortfall */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function expected_shortfall_is_never_below_the_quantile_it_sits_beyond(): void
+    {
+        // ES(p) is the mean of the losses beyond VaR(p) on an ascending sort,
+        // so it cannot be smaller than VaR(p) at any sample size. This is the
+        // invariant the old accessor could not have satisfied except by luck:
+        // it returned VaR(99) under the label "expected shortfall at 95%".
+        $results = $this->simulate(self::SEED);
+
+        foreach (['scenario', 'aggregate'] as $resultType) {
+            $row = $results->firstWhere('result_type', $resultType);
+
+            $this->assertNotNull($row->es_95_kobo, "{$resultType}: no ES(95) was stored");
+            $this->assertNotNull($row->es_99_kobo, "{$resultType}: no ES(99) was stored");
+
+            $this->assertGreaterThanOrEqual($row->var_95_kobo, $row->es_95_kobo, "{$resultType}: ES(95) below VaR(95)");
+            $this->assertGreaterThanOrEqual($row->var_99_kobo, $row->es_99_kobo, "{$resultType}: ES(99) below VaR(99)");
+
+            // The 99% tail is a subset of the 95% tail and lies entirely above
+            // it, so its mean cannot be lower.
+            $this->assertGreaterThanOrEqual($row->es_95_kobo, $row->es_99_kobo, "{$resultType}: ES(99) below ES(95)");
+        }
+    }
+
+    #[Test]
+    public function the_expected_shortfall_accessor_reports_the_stored_tail_mean(): void
+    {
+        $run = $this->makeRun();
+        (new MonteCarloService(self::SEED))->runSimulation($run, [$this->makeScenario()->id]);
+
+        $aggregate = $run->fresh()->aggregate_result;
+
+        $this->assertSame(
+            round($aggregate->es_95_kobo / 100, 2),
+            $run->fresh()->expected_shortfall,
+            'The KPI must be the stored ES(95) in naira, not a VaR wearing its label.'
+        );
+    }
+
+    #[Test]
+    public function the_expected_shortfall_accessor_returns_null_when_no_tail_mean_was_stored(): void
+    {
+        // Every run completed before the es_*_kobo columns existed has no tail
+        // mean and cannot acquire one — the loss vector it was computed from is
+        // gone. The accessor used to answer 0 for those, which a dashboard
+        // renders as ₦0: a bank being told it has no tail loss. Null lets the
+        // view say the figure was never computed.
+        $run = $this->makeRun();
+
+        SimulationResult::create([
+            'simulation_run_id' => $run->id,
+            'scenario_id' => null,
+            'result_type' => 'aggregate',
+            'expected_annual_loss_kobo' => 1_000_000,
+            'var_95_kobo' => 2_000_000,
+            'var_99_kobo' => 3_000_000,
+            'es_95_kobo' => null,
+            'es_99_kobo' => null,
+        ]);
+
+        $this->assertNull($run->fresh()->expected_shortfall);
+    }
+
+    /* ------------------------------------------------------------------ */
     /*  Fixtures */
     /* ------------------------------------------------------------------ */
 
@@ -309,6 +536,8 @@ class MonteCarloServiceTest extends TestCase
             $r->var_95_kobo,
             $r->var_99_kobo,
             $r->var_99_9_kobo,
+            $r->es_95_kobo,
+            $r->es_99_kobo,
             $r->std_deviation_kobo,
             $r->percentile_distribution,
         ])->all();

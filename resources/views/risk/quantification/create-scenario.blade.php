@@ -70,15 +70,21 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
                     <label for="distribution_type" class="block text-sm font-medium text-gray-700 mb-2">Distribution Type <span class="text-red-500">*</span></label>
+                    {{-- WP-08. This list used to offer normal, poisson, pareto, weibull
+                         and beta alongside log-normal. MonteCarloService has one severity
+                         draw — lognormalRandom() — and calls it unconditionally, so
+                         picking "Pareto" stored the word 'pareto' and then simulated a
+                         log-normal. A scenario calibrated for a heavy tail was quantified
+                         with a light one, and nothing said so. The five come back when the
+                         engine implements them. --}}
                     <select id="distribution_type" name="distribution_type" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]" required>
-                        <option value="">Select Distribution</option>
-                        <option value="lognormal" {{ old('distribution_type') === 'lognormal' ? 'selected' : '' }}>Log-Normal</option>
-                        <option value="normal" {{ old('distribution_type') === 'normal' ? 'selected' : '' }}>Normal (Gaussian)</option>
-                        <option value="poisson" {{ old('distribution_type') === 'poisson' ? 'selected' : '' }}>Poisson</option>
-                        <option value="pareto" {{ old('distribution_type') === 'pareto' ? 'selected' : '' }}>Pareto (Heavy-tailed)</option>
-                        <option value="weibull" {{ old('distribution_type') === 'weibull' ? 'selected' : '' }}>Weibull</option>
-                        <option value="beta" {{ old('distribution_type') === 'beta' ? 'selected' : '' }}>Beta</option>
+                        <option value="lognormal" selected>Log-Normal</option>
                     </select>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Log-normal is the only severity distribution the simulation engine implements. Normal,
+                        Poisson, Pareto, Weibull and Beta are not offered because selecting them would still have
+                        run a log-normal.
+                    </p>
                     @error('distribution_type')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
                 <div>

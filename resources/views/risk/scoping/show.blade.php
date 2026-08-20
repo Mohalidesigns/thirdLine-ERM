@@ -202,7 +202,7 @@
                             </td>
                             <td class="text-sm">{{ Str::limit($risk->title, 50) }}</td>
                             <td class="text-xs">{{ $risk->category->name ?? '—' }}</td>
-                            <td><x-risk-badge :rating="$risk->inherent_rating ?? 'Medium'" /></td>
+                            <td><x-risk-badge :rating="$risk->inherent_rating ?? 'unrated'" /></td>
                             <td class="text-xs text-gray-600">{{ $risk->riskOwner->name ?? '—' }}</td>
                         </tr>
                     @empty

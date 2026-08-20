@@ -37,9 +37,22 @@
         <x-kpi-card title="Total Active Risks" :value="$totalRisks ?? 0" icon="shield" color="primary" :change="$risksChange ?? null" :changeDirection="$risksDirection ?? null" />
         <x-kpi-card title="Critical Risks" :value="$criticalRisks ?? 0" icon="error" color="danger" />
         <x-kpi-card title="Financial Exposure" :value="'₦' . number_format($financialExposure ?? 0)" icon="payments" color="warning" />
-        <x-kpi-card title="Treatment Completion" :value="($treatmentCompletion ?? 0) . '%'" icon="task_alt" color="success" />
+        <x-kpi-card title="Treatment Completion"
+                    :value="($treatmentCompletion ?? 0) . '%'"
+                    :unavailable="($treatmentCompletion ?? null) === null"
+                    unavailableLabel="No plans on record"
+                    icon="task_alt" color="success" />
         <x-kpi-card title="KRI Breaches" :value="$kriBreaches ?? 0" icon="notifications_active" color="danger" />
-        <x-kpi-card title="Risk Appetite Status" :value="$appetiteStatus ?? 'Within'" icon="speed" :color="($appetiteStatus ?? '') === 'Within' ? 'success' : 'danger'" />
+        {{-- Reads from the declared appetite statements via RiskAppetiteService.
+             The literal fallback here asserted "Within" — a green tile claiming
+             the organisation sat inside a Board-approved appetite — for any
+             tenant the controller had produced no status for. --}}
+        <x-kpi-card title="Risk Appetite Status"
+                    :value="$appetiteStatus"
+                    :unavailable="($appetiteStatus ?? null) === null"
+                    unavailableLabel="No appetite declared"
+                    icon="speed"
+                    :color="($appetiteStatus ?? '') === 'Within' ? 'success' : 'danger'" />
     </div>
 
     {{-- Charts --}}
@@ -62,7 +75,12 @@
     <div class="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
         <div class="px-5 py-4 border-b border-gray-100"><h3 class="text-sm font-semibold text-[#1A365D]">Top 10 Risks</h3></div>
         <table class="data-table">
-            <thead><tr><th>Rank</th><th>Risk Code</th><th>Title</th><th>Category</th><th>Residual Rating</th><th>Trend</th><th>Owner</th><th>Treatment Status</th></tr></thead>
+            {{-- The Trend column is gone: it read `$risk->trend`, which does
+                 not exist on `risks` and is not derived anywhere, so every row
+                 drew a grey flat arrow — a claim of "no change" that nothing
+                 computed. Treatment Status no longer reads the non-existent
+                 `treatment_status` column; see ReportController::applyTreatmentStatus(). --}}
+            <thead><tr><th>Rank</th><th>Risk Code</th><th>Title</th><th>Category</th><th>Residual Rating</th><th>Owner</th><th>Treatment Status</th></tr></thead>
             <tbody>
                 @forelse (($topRisks ?? []) as $index => $risk)
                     <tr>
@@ -70,16 +88,11 @@
                         <td class="font-medium text-[#1A365D]"><a href="{{ route('risk.register.show', $risk) }}" class="hover:underline">{{ $risk->risk_code }}</a></td>
                         <td class="text-xs">{{ Str::limit($risk->title, 40) }}</td>
                         <td class="text-xs">{{ $risk->category->name ?? '-' }}</td>
-                        <td><x-risk-badge :rating="$risk->residual_rating ?? 'medium'" /></td>
-                        <td>
-                            @if (($risk->trend ?? null) === 'up') <span class="material-symbols-outlined text-sm text-red-500">trending_up</span>
-                            @elseif (($risk->trend ?? null) === 'down') <span class="material-symbols-outlined text-sm text-green-500">trending_down</span>
-                            @else <span class="material-symbols-outlined text-sm text-gray-400">trending_flat</span> @endif
-                        </td>
+                        <td><x-risk-badge :rating="$risk->residual_rating ?? 'Unrated'" /></td>
                         <td class="text-xs">{{ $risk->owner->name ?? '-' }}</td>
-                        <td><x-status-badge :status="$risk->treatment_status ?? 'in progress'" type="treatment" /></td>
+                        <td><x-status-badge :status="$risk->derived_treatment_status ?? 'Not started'" type="treatment" /></td>
                     </tr>
-                @empty <tr><td colspan="8" class="text-center py-8 text-gray-400">No risk data available</td></tr>
+                @empty <tr><td colspan="7" class="text-center py-8 text-gray-400">No risk data available</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -189,8 +189,20 @@ class KriMeasureBridge
             'source' => $options['source'] ?? 'manual',
             'evidence_ref' => $options['evidence_ref'] ?? null,
             'note' => $options['notes'] ?? null,
-            'detect_breach' => true,
+            // Reconciled below instead of inside record(), so the legacy
+            // mirror lands first — see the comment on the mirror call.
+            'detect_breach' => false,
         ]);
+
+        // The mirror runs BEFORE the breach is reconciled, which is the one
+        // ordering constraint in this method. reconcileBreach() raises
+        // KriBreachDetected on a newly opened breach, and that event is typed
+        // on KriMeasurement — a row that only exists because of this mirror.
+        // Reconciling first would fire the breach for a KRI's first-ever
+        // reading naming the reading before it, or naming nothing at all.
+        $this->mirrorOntoLegacyTables($kri, $date, $value, $measureValue->rag_band, $options);
+
+        $this->measures->reconcileBreach($measure, (int) $measureValue->object_id, $period, $measureValue);
 
         $breach = MeasureBreach::withoutGlobalScopes()
             ->where('measure_id', $measure->id)
@@ -199,8 +211,6 @@ class KriMeasureBridge
             ->whereIn('status', ['open', 'acknowledged'])
             ->orderByDesc('breached_at')
             ->first();
-
-        $this->mirrorOntoLegacyTables($kri, $date, $value, $measureValue->rag_band, $options);
 
         return [
             'value' => $measureValue,

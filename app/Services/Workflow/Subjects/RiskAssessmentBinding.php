@@ -6,6 +6,7 @@ use App\Events\AssessmentApproved;
 use App\Models\RiskAssessment;
 use App\Models\User;
 use App\Models\WorkflowInstance;
+use App\Services\RiskScoringService;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -79,22 +80,24 @@ class RiskAssessmentBinding extends BaseSubjectBinding
             return;
         }
 
-        $updates = [
-            'inherent_likelihood' => $subject->likelihood_score,
-            'inherent_impact' => $subject->impact_score,
-            'inherent_score' => $subject->overall_score,
-            'inherent_rating' => $subject->overall_rating,
-            'last_assessment_date' => $subject->assessment_date,
-        ];
-
-        if ($subject->residual_score !== null) {
-            $updates['residual_likelihood'] = $subject->residual_likelihood;
-            $updates['residual_impact'] = $subject->residual_impact;
-            $updates['residual_score'] = $subject->residual_score;
-            $updates['residual_rating'] = $subject->residual_rating;
-        }
-
-        $risk->update($updates);
+        // ONE MAPPING, NOT TWO. This method used to map the approved scores
+        // onto the risk itself, and RiskScoringService::updateRiskFromAssessment
+        // — reached moments later through AssessmentApproved and
+        // App\Listeners\UpdateRiskFromAssessment — mapped them again, its own
+        // way, over the top. The two disagreed: this one took `impact_score`
+        // and copied the residual verbatim, that one re-aggregated the impact
+        // DIMENSION columns (scoring a dimensionless assessment at zero) and
+        // nulled any residual without a likelihood/impact pair. Whichever ran
+        // last won.
+        //
+        // The service is now the single authority for these columns and this
+        // call delegates to it, so the write inside the approval transaction
+        // and the write from the listener are the same write. The listener's
+        // pass finds nothing dirty and issues no second UPDATE. The call is
+        // kept here rather than left entirely to the listener so that the risk
+        // row is already correct when the transaction commits, whatever
+        // happens to the event later.
+        app(RiskScoringService::class)->updateRiskFromAssessment($risk, $subject);
 
         // WP-04 listens for this to period-stamp the approved scores into
         // measure_values. Firing it here rather than in the controller is what

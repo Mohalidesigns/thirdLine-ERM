@@ -2,9 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Events\KriBreachDetected;
 use App\Models\KeyRiskIndicator;
-use App\Models\KriMeasurement;
 use App\Models\MeasureBreach;
 use App\Models\Organization;
 use App\Models\Period;
@@ -33,6 +31,12 @@ use Illuminate\Console\Command;
  * opened breach, so the existing escalation and notification listeners keep
  * working; it does not fire again for a breach that is merely still open,
  * which is what turned the notification bell into noise.
+ *
+ * The dispatch itself no longer lives here. It moved into
+ * MeasureService::reconcileBreach(), the one point this command and the manual
+ * KRI entry screen both funnel through — the manual path raised no event at
+ * all before. Keeping a copy here would have announced every nightly breach
+ * twice.
  */
 class CheckKriBreaches extends Command
 {
@@ -145,7 +149,6 @@ class CheckKriBreaches extends Command
                     if ($breach !== null && $breach->wasRecentlyCreated) {
                         $opened++;
                         $this->line("  {$kri->kri_code} breached {$breach->band_to} at ".rtrim(rtrim((string) $value->value, '0'), '.'));
-                        $this->dispatchLegacyEvent($kri, $breach->band_to);
                     }
 
                     if ($breach === null && $before > 0) {
@@ -211,26 +214,5 @@ class CheckKriBreaches extends Command
 
         return PeriodContext::current()
             ?? $periods->current($bridge->periodTypeFor($kri), $organizationId);
-    }
-
-    /**
-     * Fire the pre-WP-04 event so EscalateRiskOnKriBreach and SendNotification
-     * keep working.
-     *
-     * Only for a newly opened breach. The old command re-dispatched every night
-     * for as long as a reading stayed over its limit, which is why breach
-     * notifications were something people learned to ignore.
-     */
-    private function dispatchLegacyEvent(KeyRiskIndicator $kri, string $band): void
-    {
-        $measurement = KriMeasurement::where('kri_id', $kri->id)
-            ->latest('measurement_date')
-            ->first();
-
-        if ($measurement === null) {
-            return;
-        }
-
-        KriBreachDetected::dispatch($kri, $measurement, $band);
     }
 }

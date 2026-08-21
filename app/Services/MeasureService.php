@@ -334,6 +334,14 @@ class MeasureService
             'band_to' => $band,
         ]);
 
+        // The two transitions INTO breach, captured before anything below
+        // mutates them: a band that has never breached in this period, and one
+        // that had recovered and has gone back over. Everything else — a
+        // reading that leaves an open breach open — is the same breach still
+        // running, and must not be announced twice. See announceBreach().
+        $isNewBreach = ! $breach->exists;
+        $isReopening = $breach->exists && $breach->status === 'resolved';
+
         if (! $breach->exists) {
             $breach->fill([
                 'organization_id' => $measure->organization_id,
@@ -373,7 +381,84 @@ class MeasureService
         // A worse band supersedes a lesser one: going red closes the amber.
         $this->resolveLesserBreaches($measure, $objectId, $period, $band);
 
+        if ($isNewBreach || $isReopening) {
+            $this->announceBreach($objectId, $band);
+        }
+
         return $breach;
+    }
+
+    /**
+     * Raise the domain event for a breach that has just been opened.
+     *
+     * This lives here because reconcileBreach() is the ONE place both breach
+     * paths meet — the nightly kri:check-breaches sweep and a risk officer
+     * typing a red reading into the KRI screen, which reaches this method
+     * through KriMeasureBridge::recordMeasurement() -> record(). The manual
+     * path used to raise nothing at all: a breach entered by hand appended a
+     * sentence to a flash message and told nobody, which is the opposite of
+     * what a breach register is for. Putting the dispatch at the funnel point
+     * rather than in each caller is also what keeps "announce once" honest —
+     * this method is only reached on a transition INTO breach, because it is
+     * the only code that can tell a new or reopened breach from one that is
+     * merely still open.
+     *
+     * Not every measure is a KRI. Capital, inflation and control effectiveness
+     * all breach through this same method, and KriBreachDetected has nowhere to
+     * put them: it is typed on KeyRiskIndicator. Those breaches are registered
+     * and simply not announced — no exception, and no fabricated indicator.
+     *
+     * Nothing in here may fail the measurement. A notification is a side
+     * effect of recording a number; it is not the reason the number was
+     * recorded, and losing the reading because a listener threw would be a far
+     * worse outcome than a missed alert.
+     */
+    private function announceBreach(int $objectId, string $band): void
+    {
+        try {
+            $object = GraphObject::withoutGlobalScopes()->find($objectId);
+
+            if ($object === null || $object->source_model_type !== 'key_risk_indicator') {
+                return;
+            }
+
+            $kri = \App\Models\KeyRiskIndicator::withoutGlobalScopes()
+                ->whereKey($object->source_model_id)
+                ->first();
+
+            if ($kri === null) {
+                return;
+            }
+
+            // The event is typed on KriMeasurement, so it needs a persisted
+            // row. KriMeasureBridge mirrors the reading onto kri_measurements
+            // BEFORE it reconciles the breach precisely so that this lookup
+            // finds the reading that caused the breach rather than the one
+            // before it. A KRI whose readings came in with no user attached
+            // has no legal legacy row (entered_by is NOT NULL), so there is
+            // nothing to name here; the breach is still registered.
+            $measurement = \App\Models\KriMeasurement::where('kri_id', $kri->id)
+                ->orderByDesc('measurement_date')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($measurement === null) {
+                logger()->info('KRI breach registered without a legacy measurement to announce', [
+                    'kri_id' => $kri->id,
+                    'band' => $band,
+                ]);
+
+                return;
+            }
+
+            \App\Events\KriBreachDetected::dispatch($kri, $measurement, $band);
+        } catch (\Throwable $e) {
+            logger()->warning('Could not announce a KRI breach', [
+                'object_id' => $objectId,
+                'band' => $band,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function resolveOpenBreaches(Measure $measure, int $objectId, Period $period, MeasureValue $value): void

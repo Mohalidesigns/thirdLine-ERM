@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Events\RcsaWorksheetSubmitted;
 use App\Http\Controllers\Controller;
 use App\Models\AssessmentCampaign;
 use App\Models\BusinessUnit;
@@ -10,6 +11,7 @@ use App\Models\CampaignResponse;
 use App\Models\Control;
 use App\Models\Questionnaire;
 use App\Models\Risk;
+use App\Services\NotificationService;
 use App\Services\ReferenceCodeService;
 use App\Services\RiskScoringService;
 use App\Support\Tenancy\TenantContext;
@@ -108,7 +110,7 @@ class CampaignController extends Controller
             'due_date' => 'required|date',
         ]);
 
-        CampaignAssignment::create([
+        $assignment = CampaignAssignment::create([
             'campaign_id' => $campaign->id,
             'business_unit_id' => $request->business_unit_id,
             'respondent_id' => $request->respondent_id,
@@ -118,6 +120,23 @@ class CampaignController extends Controller
         ]);
 
         $campaign->recalculateProgress();
+
+        // Somebody has just been given work with a deadline on it. Being told
+        // is the whole point of the assignment; before this, the only way a
+        // respondent learned they were on an RCSA was for someone to email
+        // them out of band.
+        NotificationService::send(
+            (int) $campaign->organization_id,
+            (int) $assignment->respondent_id,
+            'campaign_assignment',
+            "RCSA Assignment: {$campaign->campaign_code}",
+            "You have been assigned to '{$campaign->title}'".
+                ($assignment->due_date ? ', due '.$this->dateFor($assignment->due_date).'.' : '.'),
+            ['entity_type' => 'campaign_assignment', 'entity_id' => $assignment->id, 'campaign_id' => $campaign->id],
+            $this->respondUrl($assignment),
+            'medium',
+            'assessment',
+        );
 
         return back()->with('success', 'Assignment added.');
     }
@@ -132,6 +151,36 @@ class CampaignController extends Controller
             'status' => 'active',
             'launched_at' => now(),
         ]);
+
+        // The single largest gap in the module: launching a campaign to two
+        // hundred respondents told none of them. The recipients were always
+        // right there in campaign_assignments.
+        //
+        // Only the outstanding ones. An assignment that is already submitted
+        // or approved — which happens whenever a worksheet was filed against a
+        // draft campaign, or the campaign is being re-launched after a pause —
+        // is finished work, and telling that person to go and do it is exactly
+        // the kind of notification that teaches people to ignore the bell.
+        $respondents = $campaign->assignments()
+            ->whereNotIn('status', ['submitted', 'approved'])
+            ->pluck('respondent_id')
+            ->all();
+
+        // sendMany() sends a single recipient inline and hands anything larger
+        // to FanOutNotificationsJob, so a 200-respondent bank launch is one
+        // queued job rather than 200 inserts inside this request.
+        NotificationService::sendMany(
+            (int) $campaign->organization_id,
+            array_map('intval', array_filter($respondents)),
+            'campaign_launched',
+            "RCSA Campaign Open: {$campaign->campaign_code}",
+            "'{$campaign->title}' is now open for response".
+                ($campaign->end_date ? '. Responses are due by '.$this->dateFor($campaign->end_date).'.' : '.'),
+            ['entity_type' => 'campaign', 'entity_id' => $campaign->id],
+            "/risk/campaigns/{$campaign->id}",
+            'high',
+            'assessment',
+        );
 
         return back()->with('success', 'Campaign launched successfully.');
     }
@@ -175,7 +224,7 @@ class CampaignController extends Controller
 
     public function submitResponse(Request $request, CampaignAssignment $assignment)
     {
-        $this->tenantCampaignFor($assignment);
+        $campaign = $this->tenantCampaignFor($assignment);
 
         $request->validate([
             'responses' => 'required|array',
@@ -216,26 +265,66 @@ class CampaignController extends Controller
 
         $assignment->campaign->recalculateProgress();
 
+        // This is the second route into a submitted worksheet — the first is
+        // RcsaController::storeWorksheet(), which has dispatched this event
+        // since it was written. A submission made from the campaign screen
+        // instead of the RCSA worksheet screen produced the same row in the
+        // same table and put nothing in the reviewer's queue, so which screen
+        // the respondent happened to use decided whether their work was ever
+        // looked at. Same event, same listener, same reviewer.
+        RcsaWorksheetSubmitted::dispatch(
+            $assignment->fresh(),
+            $campaign,
+            count($request->responses),
+        );
+
         return redirect()->route('risk.campaigns.show', $assignment->campaign)->with('success', 'Assessment submitted for review.');
     }
 
     public function reviewAssignment(Request $request, CampaignAssignment $assignment)
     {
-        $this->tenantCampaignFor($assignment);
+        $campaign = $this->tenantCampaignFor($assignment);
 
         $request->validate([
             'action' => 'required|in:approve,reject',
             'reviewer_notes' => 'nullable|string',
         ]);
 
+        $approved = $request->action === 'approve';
+
         $assignment->update([
-            'status' => $request->action === 'approve' ? 'approved' : 'rejected',
+            'status' => $approved ? 'approved' : 'rejected',
             'reviewed_at' => now(),
             'reviewer_id' => auth()->id(),
             'reviewer_notes' => $request->reviewer_notes,
         ]);
 
         $assignment->campaign->recalculateProgress();
+
+        // A rejection is a request for rework and the respondent is the only
+        // person who can do it, so it is high priority and points at the form
+        // rather than the read-back. An approval closes the loop: lower
+        // priority, but still told — silence after submitting is why people
+        // chase reviewers by email.
+        $notes = trim((string) $request->reviewer_notes);
+
+        NotificationService::send(
+            (int) $campaign->organization_id,
+            (int) $assignment->respondent_id,
+            $approved ? 'campaign_assignment_approved' : 'campaign_assignment_rejected',
+            ($approved ? 'RCSA Assessment Approved: ' : 'RCSA Assessment Returned: ').$campaign->campaign_code,
+            "Your submission for '{$campaign->title}' has been ".($approved ? 'approved' : 'returned for rework').'.'.
+                ($notes === '' ? '' : " Reviewer notes: {$notes}"),
+            [
+                'entity_type' => 'campaign_assignment',
+                'entity_id' => $assignment->id,
+                'campaign_id' => $campaign->id,
+                'outcome' => $approved ? 'approved' : 'rejected',
+            ],
+            $approved ? $this->submissionUrl($assignment) : $this->respondUrl($assignment),
+            $approved ? 'medium' : 'high',
+            'assessment',
+        );
 
         return back()->with('success', 'Assignment '.$request->action.'d.');
     }
@@ -266,6 +355,40 @@ class CampaignController extends Controller
         abort_if($campaign === null, 404);
 
         return $campaign;
+    }
+
+    /**
+     * Where a respondent goes to do the work.
+     *
+     * Root-relative, and built by name rather than by string so a change to
+     * the route prefix cannot leave months of stored notifications pointing at
+     * a 404 — NotificationService::normaliseActionUrl() explains why a stored
+     * action URL must never carry a host.
+     */
+    private function respondUrl(CampaignAssignment $assignment): string
+    {
+        return route('risk.campaigns.respond', $assignment, false);
+    }
+
+    /** Where a respondent goes to read back what they filed. */
+    private function submissionUrl(CampaignAssignment $assignment): string
+    {
+        return route('risk.campaigns.submission', $assignment, false);
+    }
+
+    /**
+     * A date for a notification body, whatever the column casts to.
+     *
+     * due_date and end_date are cast on some models and plain strings on
+     * others; a notification is not worth a TypeError either way.
+     */
+    private function dateFor(mixed $date): string
+    {
+        try {
+            return \Illuminate\Support\Carbon::parse((string) $date)->toFormattedDateString();
+        } catch (\Throwable $e) {
+            return (string) $date;
+        }
     }
 
     /**

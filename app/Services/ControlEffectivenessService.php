@@ -39,7 +39,27 @@ class ControlEffectivenessService
     }
 
     /**
-     * Recalculate and update a risk's control effectiveness and residual scores
+     * Recalculate and update a risk's control effectiveness and residual scores.
+     *
+     * THE THIRD WRITER of risks.residual_*, and the odd one out. The other two
+     * are RiskScoringService::updateRiskFromAssessment() — the authority on the
+     * approval path — and RiskAssessmentBinding::onApproved(), which delegates
+     * to it. Those two write the axis-split pair
+     * (residual_likelihood × residual_impact = residual_score) that
+     * AssessmentChainService::deriveResidual() produces. This one is on a
+     * different trigger entirely: App\Listeners\RecalculateResidualRisk, from
+     * the ControlUpdated event.
+     *
+     * KNOWN GAP, DELIBERATELY LEFT: this method writes residual_score and
+     * residual_rating without touching residual_likelihood or residual_impact,
+     * so a control update on a risk whose residual came from an approved
+     * assessment leaves the risk row internally inconsistent — a residual_score
+     * that is no longer the product of the residual pair beside it. Fixing it
+     * means giving this method the same preventive/detective axis split
+     * AssessmentChainService already computes from control_type, which is a
+     * larger change than the approval-path repair it was found during. Pinned
+     * as current behaviour by
+     * tests/Feature/Assessments/AssessmentApprovalIntegrityTest.php.
      */
     public function recalculateForRisk(Risk $risk): Risk
     {

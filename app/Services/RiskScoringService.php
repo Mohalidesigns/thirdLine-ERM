@@ -256,47 +256,169 @@ class RiskScoringService
 
     /**
      * Update a risk record's scores from an assessment.
+     *
+     * THE AUTHORITATIVE WRITER of the risk row's score columns on approval.
+     * The other half of that pair is
+     * App\Services\Workflow\Subjects\RiskAssessmentBinding::onApproved(), which
+     * used to map the same columns itself — inherent from `overall_score`,
+     * residual copied verbatim — and now delegates here. Both still run on one
+     * approval (the binding inside the approval transaction, this method again
+     * from App\Listeners\UpdateRiskFromAssessment on AssessmentApproved), but
+     * they now run the SAME code, so the second pass finds nothing dirty and
+     * Eloquent issues no second UPDATE. Two writers that agree by construction,
+     * rather than two mappings that agreed by luck.
+     *
+     * A THIRD writer of residual_* exists on a different trigger:
+     * ControlEffectivenessService::recalculateForRisk(), from
+     * App\Listeners\RecalculateResidualRisk on ControlUpdated. It is scalar
+     * only — it moves residual_score without touching the residual likelihood
+     * and impact pair. See the note there; it is not this method's pair.
+     *
+     * NOTHING HERE IS INVENTED. An assessment that states no impact — no
+     * scored dimension and no scalar impact_score — has not stated an impact,
+     * and the risk keeps the inherent figures it already had. This method used
+     * to aggregate the dimension columns unconditionally, so a reassessment
+     * carrying only a scalar impact aggregated to 0, scored the risk at
+     * 0 and rated it at the bottom band: a risk assessed 4 × 5 = 20 Critical
+     * came out of its own approval as 0, "Low". The same rule governs the
+     * residual pair and the velocity: what the assessment does not state, the
+     * assessment does not overwrite.
      */
     public function updateRiskFromAssessment(Risk $risk, RiskAssessment $assessment): Risk
     {
         $profile = $this->profileForRisk($risk);
 
-        $impactScore = $this->calculateMaxImpact(
-            $assessment->impact_financial,
-            $assessment->impact_operational,
-            $assessment->impact_reputational,
-            $assessment->impact_regulatory,
-            $assessment->impact_strategic,
-            $risk->organization_id,
-            $profile,
-        );
+        $impactScore = $this->statedImpact($assessment, $risk->organization_id, $profile);
+        $likelihood = (int) $assessment->likelihood_score > 0 ? (int) $assessment->likelihood_score : null;
 
-        $inherentScore = $this->calculateScore($assessment->likelihood_score, $impactScore, $profile);
-        $inherentRating = $this->calculateRating($inherentScore, $profile);
+        $updates = ['last_assessment_date' => $assessment->assessment_date];
 
-        $hasResidual = $assessment->residual_likelihood && $assessment->residual_impact;
-        $residualScore = $hasResidual
-            ? $this->calculateScore($assessment->residual_likelihood, $assessment->residual_impact, $profile)
-            : null;
+        // A velocity the assessment did not state is not a velocity of "none".
+        if (($assessment->risk_velocity ?? '') !== '') {
+            $updates['risk_velocity'] = $assessment->risk_velocity;
+        }
 
-        $risk->update([
-            'inherent_likelihood' => $assessment->likelihood_score,
-            'inherent_impact' => $impactScore,
-            'inherent_impact_financial' => $assessment->impact_financial,
-            'inherent_impact_operational' => $assessment->impact_operational,
-            'inherent_impact_reputational' => $assessment->impact_reputational,
-            'inherent_impact_regulatory' => $assessment->impact_regulatory,
-            'inherent_score' => $inherentScore,
-            'inherent_rating' => $inherentRating,
-            'residual_likelihood' => $assessment->residual_likelihood,
-            'residual_impact' => $assessment->residual_impact,
-            'residual_score' => $residualScore,
-            'residual_rating' => $residualScore === null ? null : $this->calculateRating($residualScore, $profile),
-            'risk_velocity' => $assessment->risk_velocity,
-            'last_assessment_date' => $assessment->assessment_date,
-        ]);
+        if ($likelihood !== null && $impactScore !== null) {
+            $inherentScore = $this->calculateScore($likelihood, $impactScore, $profile);
+
+            $updates += [
+                'inherent_likelihood' => $likelihood,
+                'inherent_impact' => $impactScore,
+                'inherent_score' => $inherentScore,
+                'inherent_rating' => $this->calculateRating($inherentScore, $profile),
+            ];
+
+            // The per-dimension breakdown belongs to the assessment that stated
+            // it. Only an assessment that scored dimensions replaces it; one
+            // carrying a scalar impact leaves the previous breakdown standing
+            // rather than blanking four columns it never spoke about.
+            //
+            // Note for whoever comes here next: risks.inherent_impact_* exist
+            // in the schema but are NOT in Risk::$fillable, so mass assignment
+            // discards these four keys and always has. The condition is kept
+            // because it is the correct rule the day they become fillable, not
+            // because it changes anything today.
+            if ($this->scoredDimensions($assessment, $profile) !== []) {
+                $updates += [
+                    'inherent_impact_financial' => $assessment->impact_financial,
+                    'inherent_impact_operational' => $assessment->impact_operational,
+                    'inherent_impact_reputational' => $assessment->impact_reputational,
+                    'inherent_impact_regulatory' => $assessment->impact_regulatory,
+                ];
+            }
+        } else {
+            logger()->warning('Assessment states no inherent likelihood/impact pair; the risk keeps its previous inherent score.', [
+                'risk_id' => $risk->id,
+                'risk_code' => $risk->risk_code,
+                'risk_assessment_id' => $assessment->id,
+                'likelihood_score' => $assessment->likelihood_score,
+                'impact_score' => $assessment->getAttributes()['impact_score'] ?? null,
+                'kept_inherent_score' => $risk->inherent_score,
+            ]);
+        }
+
+        // Residual is written only where the assessment carries the axis-split
+        // pair AssessmentChainService::deriveResidual() produces. An assessment
+        // silent on residual risk leaves the risk's residual columns alone: it
+        // is a statement about inherent risk, not a withdrawal of the last
+        // residual assessment.
+        if ($assessment->residual_likelihood && $assessment->residual_impact) {
+            $residualScore = $this->calculateScore(
+                (int) $assessment->residual_likelihood,
+                (int) $assessment->residual_impact,
+                $profile,
+            );
+
+            $updates += [
+                'residual_likelihood' => (int) $assessment->residual_likelihood,
+                'residual_impact' => (int) $assessment->residual_impact,
+                'residual_score' => $residualScore,
+                'residual_rating' => $this->calculateRating($residualScore, $profile),
+            ];
+        } elseif ($assessment->residual_score !== null) {
+            logger()->info('Assessment carries a residual score with no likelihood/impact pair; the risk keeps its previous residual.', [
+                'risk_id' => $risk->id,
+                'risk_assessment_id' => $assessment->id,
+                'assessment_residual_score' => $assessment->residual_score,
+            ]);
+        }
+
+        $risk->update($updates);
 
         return $risk->fresh();
+    }
+
+    /**
+     * The impact this assessment actually states, or null if it states none.
+     *
+     * Dimensions first, because an assessment that scored them has said
+     * something more specific than a single number. A dimensionless assessment
+     * falls back to the RAW impact_score column — not the model accessor, which
+     * re-aggregates the same empty dimensions and answers 0.
+     */
+    private function statedImpact(
+        RiskAssessment $assessment,
+        ?int $organizationId,
+        ScoringProfile $profile,
+    ): ?int {
+        $scored = $this->scoredDimensions($assessment, $profile);
+
+        if ($scored !== []) {
+            $dimensionImpact = $this->calculateImpact($scored, $organizationId, $profile);
+
+            if ($dimensionImpact > 0) {
+                return $dimensionImpact;
+            }
+        }
+
+        $scalar = $assessment->getAttributes()['impact_score'] ?? null;
+
+        if ($scalar === null || $scalar === '' || (int) $scalar <= 0) {
+            return null;
+        }
+
+        return min((int) $scalar, $profile->matrix_cols);
+    }
+
+    /**
+     * The impact dimensions this assessment put a number against, keyed as the
+     * profile names them.
+     *
+     * @return array<string, int>
+     */
+    private function scoredDimensions(RiskAssessment $assessment, ScoringProfile $profile): array
+    {
+        $stated = [];
+
+        foreach ($profile->dimensions() as $dimension) {
+            $value = $assessment->getAttributes()['impact_'.$dimension] ?? null;
+
+            if ($value !== null && $value !== '' && (int) $value > 0) {
+                $stated[$dimension] = (int) $value;
+            }
+        }
+
+        return $stated;
     }
 
     /* ------------------------------------------------------------------ */

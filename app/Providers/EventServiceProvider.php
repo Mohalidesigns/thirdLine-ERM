@@ -6,6 +6,43 @@ use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvi
 
 class EventServiceProvider extends ServiceProvider
 {
+    /**
+     * WP-13 — turn OFF automatic listener discovery.
+     *
+     * Laravel registers its own base EventServiceProvider, and that instance
+     * scans app/Listeners and binds every listener whose handle() is typed
+     * against a concrete event class. This provider ALSO binds them, through
+     * the $listen map below. The result was that every synchronous listener in
+     * this application was registered twice and ran twice on every dispatch —
+     * `php artisan event:list` showed both `App\Listeners\X` and
+     * `App\Listeners\X@handle` under seven different events.
+     *
+     * What that actually did:
+     *   - RecalculateResidualRisk and UpdateRiskFromAssessment recomputed and
+     *     rewrote the same risk row twice per event;
+     *   - RecordAssessmentMeasures wrote each period-stamped measure twice;
+     *   - EvaluateRegulatoryThresholds evaluated every loss event twice, which
+     *     on a threshold breach is a duplicated regulatory filing;
+     *   - TriggerRiskReassessment would have raised two reassessments for one
+     *     completed treatment.
+     *
+     * `SendNotification` escaped only by accident: its handle() takes `object`
+     * rather than a concrete event, so discovery could not match it. That is
+     * luck, not design — narrowing that signature would have silently doubled
+     * every notification in the product.
+     *
+     * $listen is the explicit registry and it is authoritative. Discovery is
+     * disabled here rather than in bootstrap/app.php so the reason sits next
+     * to the map it duplicates. Verified before switching it off: every
+     * discovered listener was already declared below, so nothing is lost.
+     */
+    public function register(): void
+    {
+        parent::register();
+
+        static::disableEventDiscovery();
+    }
+
     protected $listen = [
         \App\Events\ControlUpdated::class => [
             \App\Listeners\RecalculateResidualRisk::class,

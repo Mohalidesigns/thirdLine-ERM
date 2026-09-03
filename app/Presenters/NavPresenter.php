@@ -3,6 +3,7 @@
 namespace App\Presenters;
 
 use App\Models\User;
+use App\Support\Migration\Ported;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -435,6 +436,10 @@ class NavPresenter
             'route' => $item['route'],
             'url' => (string) parse_url(route($item['route']), PHP_URL_PATH),
             'permission' => $item['permission'],
+            // Until Phase 6, a link to a Blade page has to be a full-page
+            // navigation; an Inertia <Link> would show the Blade HTML in an
+            // error modal. The layout renders <Link> only when this is true.
+            'inertia' => Ported::isRoute($item['route']),
         ];
     }
 

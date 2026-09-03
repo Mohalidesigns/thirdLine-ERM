@@ -27,14 +27,14 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `admin.webhooks.index` | `admin/webhooks` | `webhook.view` |  |  |  |  |  |  |  |  |  |  |
 | `hq.index` | `hq` | `hq.view` |  |  |  |  |  |  |  |  |  |  |
 | `hq.show` | `hq/{object}` | `hq.view` |  |  |  |  |  |  |  |  |  |  |
-| `login` | `login` | `` |  |  |  |  |  |  |  |  |  |  |
-| `mfa.setup` | `mfa/setup` | `` |  |  |  |  |  |  |  |  |  |  |
-| `mfa.verify` | `mfa/verify` | `` |  |  |  |  |  |  |  |  |  |  |
+| `login` | `login` | `` | auth/login.blade.php (deleted) | Pages/Auth/Login.jsx | Auth/LoginRequest |  |  |  |  | Inertia/AuthPagesTest, AuthenticationRateLimitTest | 2026-09-03 (Phase 1) |  |
+| `mfa.setup` | `mfa/setup` | `` | auth/mfa-setup.blade.php (deleted) | Pages/Auth/MfaSetup.jsx |  |  |  |  |  | Auth/MfaSetupTest, MfaFeatureGateTest | 2026-09-03 (Phase 1) |  |
+| `mfa.verify` | `mfa/verify` | `` | auth/mfa-verify.blade.php (deleted) | Pages/Auth/MfaVerify.jsx |  |  |  |  |  | Auth/MfaLoginFlowTest, MfaEnforcementTest | 2026-09-03 (Phase 1) |  |
 | `my.index` | `my` | `my.view` | my/index.blade.php (deleted) | Pages/My/Index.jsx |  |  |  |  |  | Inertia/MyPageTest | 2026-09-03 (Phase 0) |  |
-| `notifications.index` | `notifications` | `notification.view` |  |  |  |  |  |  |  |  |  |  |
+| `notifications.index` | `notifications` | `notification.view` | notifications/index.blade.php (deleted) | Pages/Notifications/Index.jsx |  |  |  |  |  | Inertia/AuthPagesTest, NotificationActionUrlTest | 2026-09-03 (Phase 1) |  |
 | `notifications.read` | `notifications/{id}/read` | `notification.view` |  |  |  |  |  |  |  |  |  |  |
-| `password.request` | `forgot-password` | `` |  |  |  |  |  |  |  |  |  |  |
-| `password.reset` | `reset-password/{token}` | `` |  |  |  |  |  |  |  |  |  |  |
+| `password.request` | `forgot-password` | `` | auth/forgot-password.blade.php (deleted) | Pages/Auth/ForgotPassword.jsx |  |  |  |  |  | Inertia/AuthPagesTest | 2026-09-03 (Phase 1) |  |
+| `password.reset` | `reset-password/{token}` | `` | auth/reset-password.blade.php (deleted) | Pages/Auth/ResetPassword.jsx |  |  |  |  |  | Inertia/AuthPagesTest | 2026-09-03 (Phase 1) |  |
 | `risk.ai.predictive` | `risk/ai/predictive` | `ai.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.ai.radar` | `risk/ai/radar` | `ai.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.ai.regulatory-pulse` | `risk/ai/regulatory-pulse` | `ai.view` |  |  |  |  |  |  |  |  |  |  |
@@ -187,8 +187,10 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.workflows.definitions` | `risk/workflows/definitions` | `workflow.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.workflows.edit-definition` | `risk/workflows/definitions/{definition}/design` | `workflow.manage` |  |  |  |  |  |  |  |  |  |  |
 | `risk.workflows.show-instance` | `risk/workflows/{instance}` | `workflow.view` |  |  |  |  |  |  |  |  |  |  |
-| `search.index` | `search` | `search.view` |  |  |  |  |  |  |  |  |  |  |
+| `search.index` | `search` | `search.view` | search/index.blade.php (deleted) | Pages/Search/Index.jsx |  |  |  |  |  | Inertia/AuthPagesTest, Widgets/HqSurfacesTest | 2026-09-03 (Phase 1) |  |
 | `search.suggest` | `search/suggest` | `search.view` |  |  |  |  |  |  |  |  |  |  |
 | `sso.callback` | `auth/sso/{slug}/callback` | `` |  |  |  |  |  |  |  |  |  |  |
 | `sso.metadata` | `auth/sso/{slug}/metadata` | `` |  |  |  |  |  |  |  |  |  |  |
 | `sso.redirect` | `auth/sso/{slug}` | `` |  |  |  |  |  |  |  |  |  |  |
+| `profile.edit` | `profile` | `dashboard.view` | — (new) | Pages/Profile/Edit.jsx | ProfileUpdateRequest |  |  |  |  | Inertia/AuthPagesTest | 2026-09-03 (Phase 1) |  |
+| `notifications.unread-count` | `notifications/unread-count` | `notification.view` | — (new, JSON) | n/a |  |  |  |  |  | Inertia/AuthPagesTest | 2026-09-03 (Phase 1) |  |

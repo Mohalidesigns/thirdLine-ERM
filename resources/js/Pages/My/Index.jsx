@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import EmptyState from '@/Components/EmptyState';
 
@@ -66,9 +66,10 @@ export default function Index({ queue }) {
                         )}
                     </div>
                     {tasksUrl && (
-                        <Link href={tasksUrl} className="text-xs font-medium text-[var(--color-primary)] hover:underline">
+                        // Plain anchor: the task inbox is a Blade page until Phase 3.
+                        <a href={tasksUrl} className="text-xs font-medium text-[var(--color-primary)] hover:underline">
                             Full task inbox →
-                        </Link>
+                        </a>
                     )}
                 </div>
 

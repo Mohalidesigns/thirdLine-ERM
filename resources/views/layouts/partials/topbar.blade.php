@@ -138,7 +138,7 @@
                 </div>
 
                 <div class="px-4 py-2 border-t border-gray-100 text-center">
-                    <a href="{{ route('notifications.index') }}" wire:navigate class="text-xs text-[#1A365D] font-medium hover:underline">View all notifications</a>
+                    <a href="{{ route('notifications.index') }}" class="text-xs text-[#1A365D] font-medium hover:underline">View all notifications</a>
                 </div>
             </div>
         </div>
@@ -170,7 +170,7 @@
 
             {{-- User Dropdown --}}
             <div class="hidden group-hover:block absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                <a href="{{ route('admin.users.show', auth()->id()) }}" wire:navigate class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <a href="{{ route('profile.edit') }}" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                     <span class="material-symbols-outlined text-[18px] text-gray-400">person</span>
                     Profile
                 </a>
@@ -202,7 +202,7 @@
                     FEATURE_MFA_TOTP is turned on.
                 --}}
                 @if (\App\Http\Middleware\EnsureMfaVerified::featureEnabled())
-                    <a href="{{ route('mfa.setup') }}" wire:navigate class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                    <a href="{{ route('mfa.setup') }}" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                         <span class="material-symbols-outlined text-[18px] text-gray-400">verified_user</span>
                         2FA Setup
                     </a>

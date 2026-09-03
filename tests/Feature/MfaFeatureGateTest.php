@@ -182,8 +182,12 @@ class MfaFeatureGateTest extends TestCase
         $this->assertStringNotContainsString('create-qr-code', $response->getContent());
 
         // The manual-entry key is what enrolment falls back to, so the screen
-        // still has to show the secret it was given.
-        $response->assertSee('Manual Entry', escape: false);
+        // still has to carry the secret it was given. The screen is an Inertia
+        // page as of migration Phase 1, so the secret is a prop rather than
+        // Blade text; MfaSetupTest covers the rest of the rebuilt flow.
+        $response->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+            ->component('Auth/MfaSetup')
+            ->has('secret'));
     }
 
     /* ================================================================== */

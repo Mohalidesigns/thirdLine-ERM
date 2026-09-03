@@ -1,116 +1,112 @@
-import { useState } from 'react';
+import { usePage } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
 
-const PRESETS = [
-    { key: 'this_month', label: 'This Month' },
-    { key: 'last_month', label: 'Last Month' },
-    { key: 'this_quarter', label: 'This Quarter' },
-    { key: 'last_quarter', label: 'Last Quarter' },
-    { key: 'ytd', label: 'YTD' },
-    { key: 'last_12_months', label: 'Last 12 Months' },
+const TYPES = [
+    ['month', 'Month'],
+    ['quarter', 'Qtr'],
+    ['half', 'Half'],
+    ['year', 'Year'],
 ];
 
+function formatDate(value) {
+    if (!value) return '';
+    try {
+        return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+        return value;
+    }
+}
+
 /**
- * Global dashboard period selector: preset ranges, a month-to-month picker
- * ("January to June"), and an exact date range. Emits URL-ready params via
- * onChange — the caller pushes them through Inertia so the selection
- * persists in the query string.
+ * The reporting-period selector (WP-04). Every dashboard, register and score
+ * on this platform is an "as at" view; this is the control that says as at
+ * WHEN. It lives in the top bar because the period has to survive
+ * navigation — following a link must not silently jump the user back to
+ * today.
+ *
+ * Each choice is a plain link to GET risk/periods/select, which stores the
+ * selection in the session and redirects back here. Plain, not an Inertia
+ * visit: the page it returns to may still be Blade.
  */
-export default function PeriodSelector({ period = {}, onChange }) {
-    const [mode, setMode] = useState(period.from_month ? 'months' : (period.preset ? 'preset' : (period.from ? 'dates' : 'preset')));
-    const [fromMonth, setFromMonth] = useState(period.from_month || '');
-    const [toMonth, setToMonth] = useState(period.to_month || '');
-    const [fromDate, setFromDate] = useState(period.from || '');
-    const [toDate, setToDate] = useState(period.to || '');
+export default function PeriodSelector() {
+    const { period, auth } = usePage().props;
+    const [open, setOpen] = useState(false);
+    const box = useRef(null);
 
-    const applyMonths = () => {
-        if (fromMonth && toMonth) onChange({ from_month: fromMonth, to_month: toMonth });
-    };
+    useEffect(() => {
+        const onClick = (e) => box.current && !box.current.contains(e.target) && setOpen(false);
+        const onKey = (e) => e.key === 'Escape' && setOpen(false);
+        document.addEventListener('mousedown', onClick);
+        document.addEventListener('keydown', onKey);
+        return () => {
+            document.removeEventListener('mousedown', onClick);
+            document.removeEventListener('keydown', onKey);
+        };
+    }, []);
 
-    const applyDates = () => {
-        if (fromDate && toDate) onChange({ from: fromDate, to: toDate });
+    if (!period) return null;
+
+    const current = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/';
+    const link = (params) => {
+        try {
+            return route('risk.periods.select', { ...params, redirect: current });
+        } catch {
+            return '#';
+        }
     };
+    const canManage = (auth?.permissions || []).includes('period.view');
+    let manageUrl = null;
+    try {
+        manageUrl = canManage ? route('risk.periods.index') : null;
+    } catch {
+        manageUrl = null;
+    }
 
     return (
-        <div className="card mb-6">
-            <div className="card-body">
-                <div className="flex flex-wrap items-center gap-2">
-                    {PRESETS.map(preset => (
-                        <button
-                            key={preset.key}
-                            type="button"
-                            onClick={() => { setMode('preset'); onChange({ preset: preset.key }); }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                period.preset === preset.key
-                                    ? 'bg-[var(--color-primary)] text-white'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                        >
-                            {preset.label}
-                        </button>
-                    ))}
+        <div ref={box} className="relative flex items-center gap-1 pl-3 pr-1 py-1 rounded-lg border border-gray-200 bg-gray-50" data-testid="period-selector">
+            <a href={link({ direction: 'previous' })} className="p-1 rounded hover:bg-white text-gray-500 hover:text-[var(--color-primary)]" title={`Previous ${period.type}`} aria-label="Previous period">
+                <span className="material-symbols-outlined text-[18px] leading-none">chevron_left</span>
+            </a>
 
-                    <span className="mx-1 h-5 w-px bg-gray-200 hidden sm:block"></span>
+            <button type="button" onClick={() => setOpen(!open)} className="px-2 py-0.5 text-xs font-semibold text-[var(--color-primary)] hover:bg-white rounded min-w-[104px] inline-flex items-center justify-center gap-1" aria-haspopup="true" aria-expanded={open}>
+                {period.name}
+                {period.is_closed && <span className="material-symbols-outlined text-[13px] text-gray-400" title="Closed — values locked">lock</span>}
+            </button>
 
-                    <button
-                        type="button"
-                        onClick={() => setMode(mode === 'months' ? 'preset' : 'months')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            mode === 'months' || period.from_month
-                                ? 'bg-[var(--color-primary)] text-white'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                    >
-                        Month range
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setMode(mode === 'dates' ? 'preset' : 'dates')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            mode === 'dates' || (period.from && !period.from_month && !period.preset)
-                                ? 'bg-[var(--color-primary)] text-white'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                    >
-                        Exact dates
-                    </button>
+            <a href={link({ direction: 'next' })} className="p-1 rounded hover:bg-white text-gray-500 hover:text-[var(--color-primary)]" title={`Next ${period.type}`} aria-label="Next period">
+                <span className="material-symbols-outlined text-[18px] leading-none">chevron_right</span>
+            </a>
+
+            {open && (
+                <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-50 p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold mb-2">Granularity</p>
+                    <div className="grid grid-cols-4 gap-1 mb-3">
+                        {TYPES.map(([type, label]) => (
+                            <a
+                                key={type}
+                                href={link({ type })}
+                                className={`text-center text-[11px] py-1 rounded border ${
+                                    period.type === type ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                                }`}
+                            >
+                                {label}
+                            </a>
+                        ))}
+                    </div>
+                    <a href={link({ direction: 'current' })} className="block text-center text-[11px] py-1.5 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 mb-2">
+                        Jump to today
+                    </a>
+                    {manageUrl && (
+                        <a href={manageUrl} className="block text-center text-[11px] py-1.5 rounded bg-gray-50 text-[var(--color-primary)] font-medium hover:bg-gray-100">
+                            Manage calendar &amp; close periods
+                        </a>
+                    )}
+                    <p className="text-[10px] text-gray-400 mt-2 leading-snug">
+                        {formatDate(period.start_date)} – {formatDate(period.end_date)}
+                        {period.is_closed ? ' · closed' : ''}
+                    </p>
                 </div>
-
-                {mode === 'months' && (
-                    <div className="flex flex-wrap items-end gap-3 mt-3 pt-3 border-t border-gray-100">
-                        <div>
-                            <label className="filter-label">From month</label>
-                            <input type="month" value={fromMonth} onChange={e => setFromMonth(e.target.value)} className="filter-input" />
-                        </div>
-                        <div>
-                            <label className="filter-label">To month</label>
-                            <input type="month" value={toMonth} onChange={e => setToMonth(e.target.value)} className="filter-input" />
-                        </div>
-                        <button type="button" onClick={applyMonths} disabled={!fromMonth || !toMonth} className="btn-primary text-sm disabled:opacity-50">
-                            Apply
-                        </button>
-                    </div>
-                )}
-
-                {mode === 'dates' && (
-                    <div className="flex flex-wrap items-end gap-3 mt-3 pt-3 border-t border-gray-100">
-                        <div>
-                            <label className="filter-label">From</label>
-                            <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="filter-input" />
-                        </div>
-                        <div>
-                            <label className="filter-label">To</label>
-                            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="filter-input" />
-                        </div>
-                        <button type="button" onClick={applyDates} disabled={!fromDate || !toDate} className="btn-primary text-sm disabled:opacity-50">
-                            Apply
-                        </button>
-                    </div>
-                )}
-
-                <p className="text-xs text-gray-400 mt-3">
-                    Active period: <span className="font-medium text-gray-600">{period.label}</span> — all widgets below reflect this range.
-                </p>
-            </div>
+            )}
         </div>
     );
 }

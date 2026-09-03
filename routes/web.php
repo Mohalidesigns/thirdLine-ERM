@@ -9,7 +9,6 @@ use App\Http\Controllers\Admin\OrganizationSettingsController;
 use App\Http\Controllers\Admin\SsoSettingsController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WebhookController;
-use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\SsoController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\NotificationController;
@@ -122,9 +121,9 @@ RateLimiter::for('login', function (Request $request) {
  * MFA VERIFICATION AND ENROLMENT CONFIRMATION.
  *
  * A six-digit code checked against a plus/minus-one-step window is one guess in
- * ~333,333 per attempt. AuthController::verifyMfa() keeps no attempt counter at
- * all, so before this limiter existed the expected number of requests to walk in
- * was well inside what a script does over a lunch break.
+ * ~333,333 per attempt. The verification controller keeps no attempt counter
+ * of its own, so before this limiter existed the expected number of requests to
+ * walk in was well inside what a script does over a lunch break.
  *
  * 5 attempts per 15 minutes per (account, IP) reduces that to roughly 20 codes
  * an hour, i.e. centuries of expected guessing, while still letting a user who
@@ -137,8 +136,8 @@ RateLimiter::for('login', function (Request $request) {
  * narrower key.
  *
  * NOTE: mfa/verify and mfa/enable are behind `feature:mfa_totp` and return 404
- * today. The limiter is applied anyway so that the route is not left unthrottled
- * for whoever turns the flag on.
+ * while the flag is off. The limiter is applied anyway so that the route is not
+ * left unthrottled for whoever turns the flag on.
  */
 RateLimiter::for('mfa-verify', function (Request $request) {
     $account = $request->session()->get('mfa_pending_user_id')
@@ -247,62 +246,10 @@ Route::get('/', function () {
 /*  Authentication (public) */
 /* ---------------------------------------------------------------------- */
 
-Route::get('login', [AuthController::class, 'showLogin'])->name('login');
-
-// The credential-guessing surface. See the `login` limiter above for why the
-// key is (email, IP) with a separate, looser per-IP ceiling.
-Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login');
-
-Route::post('logout', [AuthController::class, 'logout'])->name('logout');
-Route::get('forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
-
-// Sends mail to an address the caller names, so this is an outbound mailer
-// pointed at a member of staff unless it is limited. Keyed per email.
-Route::post('forgot-password', [AuthController::class, 'sendResetLink'])
-    ->middleware('throttle:password-reset')->name('password.email');
-
-Route::get('reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset');
-
-// The token is a 64-character random string held in the cache for an hour;
-// the limit is here so it cannot be guessed at line rate anyway.
-Route::post('reset-password', [AuthController::class, 'resetPassword'])
-    ->middleware('throttle:password-reset')->name('password.update');
-
-/*
- * MFA VERIFICATION — GATED OFF BY DEFAULT (features.mfa_totp).
- *
- * `feature:mfa_totp` aborts 404 while the flag is off, so this pair of routes
- * does not exist in a default environment. That is deliberate. The flow behind
- * them is broken in three specific ways:
- *
- *   1. SIGN-IN CANNOT COMPLETE. AuthController::login() calls Auth::logout()
- *      before redirecting here, and verifyMfa() sets session('mfa_verified')
- *      without ever calling Auth::login(). A user with mfa_enabled = true has no
- *      path back to an authenticated session — they are locked out permanently.
- *
- *   2. THE CODES ARE NOT RFC 6238 TOTP. verifyTotpCode() packs the time step
- *      with pack('N', $time) — four bytes where the specification requires an
- *      eight-byte big-endian counter — so no authenticator app can ever produce
- *      a code it accepts.
- *
- *   3. THE SHARED SECRET WAS DISCLOSED TO A THIRD PARTY. The enrolment screen
- *      fetched its QR code from api.qrserver.com with the TOTP seed and the
- *      user's email address in the query string.
- *
- * DEFERRED, NOT FORGOTTEN. The rebuild is scheduled for deployment readiness and
- * none of the MFA code has been deleted. config/features.php lists in full what
- * must be true before FEATURE_MFA_TOTP is turned on — in short: sign-in
- * completes, the counter is eight bytes and covered by an RFC 6238 known-answer
- * test, the QR code is generated in-process, account recovery exists, failed
- * verifications are counted, and MfaEnforcementTest passes with the flag on.
- *
- * `throttle:mfa-verify` is applied even though the route 404s today, so that
- * turning the flag on cannot expose an unthrottled six-digit code check.
- */
-Route::middleware('feature:mfa_totp')->group(function () {
-    Route::get('mfa/verify', [AuthController::class, 'showMfaVerify'])->name('mfa.verify');
-    Route::post('mfa/verify', [AuthController::class, 'verifyMfa'])->middleware('throttle:mfa-verify');
-});
+// Migration Phase 1: sign-in, sign-out, password reset, MFA and the profile
+// live in routes/auth.php (Breeze-shaped controllers, Inertia pages). Route
+// names are unchanged; the limiters they reference are defined above.
+require __DIR__.'/auth.php';
 
 /* ---------------------------------------------------------------------- */
 /*  Single sign-on (public: the whole point is that the user is not yet */
@@ -330,42 +277,12 @@ Route::post('auth/sso/{slug}/acs', [SsoController::class, 'acs'])
 /* ---------------------------------------------------------------------- */
 
 Route::middleware(['auth'])->group(function () {
-    /*
-     * MFA ENROLMENT — GATED OFF BY DEFAULT (features.mfa_totp).
-     *
-     * Enrolling in MFA must stay reachable for every authenticated user:
-     * gating it on a PERMISSION would make mfa_required_roles unsatisfiable for
-     * anyone who lacks that permission. It is gated on the FEATURE FLAG instead,
-     * which is a different thing — the surface is absent from every environment
-     * rather than present and forbidden to some users.
-     *
-     * `feature:mfa_totp` returns 404 while the flag is off. This is the entry
-     * point that did the standing damage: a user who followed the "2FA Setup"
-     * link in the user menu and completed enrolment set mfa_enabled = true and
-     * LOCKED THEMSELVES OUT PERMANENTLY, because AuthController::login() logs
-     * the user out before mfa.verify and verifyMfa() never calls Auth::login()
-     * again. Rendering this screen also disclosed the TOTP shared secret and the
-     * user's email address to api.qrserver.com. And even with both of those
-     * fixed, verifyTotpCode() packs the time step into four bytes instead of the
-     * eight RFC 6238 requires, so no authenticator app can produce an accepted
-     * code.
-     *
-     * DEFERRED, NOT FORGOTTEN. Nothing has been deleted; the rebuild is
-     * scheduled for deployment readiness. config/features.php lists everything
-     * that must be true before FEATURE_MFA_TOTP is switched on.
-     */
-    Route::middleware('feature:mfa_totp')->group(function () {
-        Route::get('mfa/setup', [AuthController::class, 'showMfaSetup'])->name('mfa.setup');
-
-        // Same six-digit check as mfa/verify, so the same limiter.
-        Route::post('mfa/enable', [AuthController::class, 'enableMfa'])
-            ->middleware('throttle:mfa-verify')->name('mfa.enable');
-    });
-
     Route::middleware('permission:notification.view')->group(function () {
         Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
         Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
         Route::get('notifications/{id}/read', [NotificationController::class, 'read'])->name('notifications.read');
+        // Polled by the React topbar bell every 30 s (migration Phase 1).
+        Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.unread-count');
     });
 });
 

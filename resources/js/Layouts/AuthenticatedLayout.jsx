@@ -2,6 +2,8 @@ import { Link, usePage, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import Dropdown from '@/Components/Dropdown';
 import FlashNotification from '@/Components/FlashNotification';
+import PeriodSelector from '@/Components/PeriodSelector';
+import SearchBox from '@/Components/SearchBox';
 
 /**
  * The authenticated shell: sidebar, top bar, page header slot.
@@ -47,11 +49,33 @@ function tryRoute(name, params) {
     }
 }
 
+/**
+ * A navigation link that knows which renderer is on the other end. Until
+ * Phase 6 an Inertia <Link> to a Blade page would show the Blade HTML in an
+ * error modal, so entries the NavPresenter did not mark `inertia` are plain
+ * anchors (a full-page navigation).
+ */
+function NavAnchor({ item, className, title, children }) {
+    if (item.inertia) {
+        return (
+            <Link href={item.url} className={className} title={title}>
+                {children}
+            </Link>
+        );
+    }
+
+    return (
+        <a href={item.url} className={className} title={title}>
+            {children}
+        </a>
+    );
+}
+
 function PrimaryLink({ item, current, collapsed }) {
     const active = isExact(current, item.url) || (item.key === 'hq' && isUnder(current, item.url)) || (item.key === 'dashboards' && isUnder(current, item.url));
     return (
-        <Link
-            href={item.url}
+        <NavAnchor
+            item={item}
             title={collapsed ? item.label : undefined}
             className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] ${
                 active ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8'
@@ -59,21 +83,21 @@ function PrimaryLink({ item, current, collapsed }) {
         >
             <Icon name={item.icon} />
             {!collapsed && <span className="truncate">{item.label}</span>}
-        </Link>
+        </NavAnchor>
     );
 }
 
 function SectionItem({ item, current }) {
     const active = isExact(current, item.url);
     return (
-        <Link
-            href={item.url}
+        <NavAnchor
+            item={item}
             className={`block px-3 py-1.5 rounded-md text-[12px] transition-all ${
                 active ? 'font-semibold bg-[var(--color-accent)] text-[var(--color-primary)]' : 'text-white/50 hover:text-white hover:bg-white/6'
             }`}
         >
             {item.label}
-        </Link>
+        </NavAnchor>
     );
 }
 
@@ -88,13 +112,13 @@ function Section({ section, current, collapsed, children }) {
     if (collapsed) {
         const first = section.items?.[0] ?? section.groups?.[0]?.items?.[0];
         return (
-            <Link
-                href={first?.url ?? '#'}
+            <NavAnchor
+                item={first ?? { url: '#', inertia: false }}
                 title={section.label}
                 className={`flex items-center justify-center px-3 py-2 rounded-lg ${sectionActive ? 'bg-white/12 text-white' : 'text-white/60 hover:bg-white/6 hover:text-white/80'}`}
             >
                 <Icon name={section.icon} className={`text-[18px] ${sectionActive ? 'text-[var(--color-accent)]' : ''}`} />
-            </Link>
+            </NavAnchor>
         );
     }
 
@@ -125,7 +149,8 @@ function Section({ section, current, collapsed, children }) {
 
 export default function AuthenticatedLayout({ header, title, children }) {
     const page = usePage();
-    const { auth, navigation, tenant, period, unreadNotifications } = page.props;
+    const { auth, navigation, tenant, period, unreadNotifications, features } = page.props;
+    const permissions = auth?.permissions ?? [];
     const current = page.url;
     const user = auth?.user ?? {};
 
@@ -169,6 +194,8 @@ export default function AuthenticatedLayout({ header, title, children }) {
     const nav = navigation || { primary: [], sections: [], admin: null };
     const notificationsUrl = tryRoute('notifications.index');
     const myUrl = tryRoute('my.index');
+    const profileUrl = tryRoute('profile.edit');
+    const mfaSetupUrl = features?.mfa_totp ? tryRoute('mfa.setup') : null;
     const logoutUrl = tryRoute('logout');
 
     return (
@@ -281,6 +308,13 @@ export default function AuthenticatedLayout({ header, title, children }) {
                         </div>
 
                         <div className="flex items-center gap-3">
+                            {/* Global search — type-ahead over the object graph, permission-filtered server-side. */}
+                            {permissions.includes('search.view') && (
+                                <div className="hidden md:block">
+                                    <SearchBox />
+                                </div>
+                            )}
+
                             {/* Tenant chip */}
                             {tenant && (
                                 <span
@@ -293,18 +327,11 @@ export default function AuthenticatedLayout({ header, title, children }) {
                                 </span>
                             )}
 
-                            {/* Reporting period. Read-only until Phase 1 ports the
-                                selector; everything on the page is "as at" this. */}
+                            {/* Reporting period: everything on the page is "as at" this. */}
                             {period && (
-                                <span
-                                    className="hidden sm:inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-[var(--color-primary)]"
-                                    title={`Reporting period: ${period.name}`}
-                                    data-testid="period-chip"
-                                >
-                                    <Icon name="calendar_month" className="text-[16px] text-gray-400" />
-                                    {period.name}
-                                    {period.is_closed && <Icon name="lock" className="text-[13px] text-gray-400" />}
-                                </span>
+                                <div className="hidden sm:block">
+                                    <PeriodSelector />
+                                </div>
                             )}
 
                             {/* Notifications */}
@@ -338,6 +365,8 @@ export default function AuthenticatedLayout({ header, title, children }) {
                                     </button>
                                 </Dropdown.Trigger>
                                 <Dropdown.Content>
+                                    {profileUrl && <Dropdown.Link href={profileUrl}>Profile</Dropdown.Link>}
+                                    {mfaSetupUrl && <Dropdown.Link href={mfaSetupUrl}>2FA Setup</Dropdown.Link>}
                                     {myUrl && <Dropdown.Link href={myUrl}>My Responsibilities</Dropdown.Link>}
                                     {logoutUrl && (
                                         <Dropdown.Link href={logoutUrl} method="post" as="button">

@@ -70,8 +70,13 @@ class HandleInertiaRequests extends Middleware
 
             'features' => fn () => array_map(
                 fn ($value) => filter_var($value, FILTER_VALIDATE_BOOLEAN),
-                (array) config('features', [])
+                (array) config('features', []) + ['sso' => config('sso.enabled', false)]
             ),
+
+            // Flashed input, for the forms that post natively because their
+            // redirect lands on a Blade page (login, MFA) — see
+            // resources/js/lib/nativeForm.jsx. Laravel never flashes passwords.
+            'old' => fn () => $request->session()->getOldInput(),
 
             'navigation' => fn () => app(NavPresenter::class)->for($user),
 

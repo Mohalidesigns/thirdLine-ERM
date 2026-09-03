@@ -34,56 +34,27 @@ return [
     /*
      * TOTP multi-factor authentication (enrolment, verification, enforcement).
      *
-     * OFF BY DEFAULT BECAUSE THE IMPLEMENTATION IS BROKEN, NOT BECAUSE THE
-     * CONTROL IS UNWANTED. Three separate defects, each sufficient on its own:
+     * REBUILT in migration Phase 1 (app/Support/Auth/Totp.php,
+     * app/Http/Controllers/Auth/Mfa*Controller.php). The three defects that
+     * put the flow behind this flag are fixed and each is held in place by a
+     * test:
      *
-     *   1. Sign-in cannot complete. AuthController::login() calls Auth::logout()
-     *      before redirecting to mfa.verify, and verifyMfa() sets
-     *      session('mfa_verified') without ever calling Auth::login(). A user
-     *      with mfa_enabled = true is therefore locked out permanently — there
-     *      is no code path that returns them to an authenticated session.
+     *   1. Sign-in completes. An enrolled user's password is checked without
+     *      establishing the session; MfaVerifyController logs them in once the
+     *      code is right. Nothing is logged out on the way in
+     *      (tests/Feature/Auth/MfaLoginFlowTest).
+     *   2. The codes are RFC 6238 TOTP: eight-byte big-endian counter, verified
+     *      against the RFC's Appendix B vectors (tests/Unit/Auth/TotpTest).
+     *   3. The QR code is drawn in the browser from an otpauth:// URI this
+     *      server generates; no secret leaves the deployment
+     *      (tests/Feature/Auth/MfaSetupTest).
      *
-     *   2. The TOTP codes are not TOTP. AuthController::verifyTotpCode() packs
-     *      the time counter with pack('N', $time), which is FOUR bytes. RFC 6238
-     *      requires an eight-byte big-endian counter, so the HMAC is computed
-     *      over the wrong message and no authenticator app can ever produce a
-     *      code this function accepts.
-     *
-     *   3. The shared secret is disclosed to a third party. The setup screen
-     *      built its QR code with https://api.qrserver.com/..., which means the
-     *      enrolling user's browser hands the TOTP seed AND their email address
-     *      to an external service on every enrolment. For a platform sold to
-     *      Nigerian banks that is an unreviewed cross-border disclosure of an
-     *      authentication credential.
-     *
-     * DEFERRED, NOT FORGOTTEN. The product owner has scheduled the rebuild for
-     * deployment readiness. None of the MFA code has been deleted — it is being
-     * rebuilt, and the gate is what keeps the broken path unreachable until
-     * then. While the flag is off, MFA is inert: the routes 404, the enrolment
-     * entry point does not render, EnsureMfaVerified passes everyone through,
-     * and organizations.settings->mfa_required_roles forces nobody into a flow
-     * they cannot complete.
-     *
-     * BEFORE THIS FLAG IS TURNED ON, ALL OF THE FOLLOWING MUST BE TRUE:
-     *   - verifyMfa() re-establishes the authenticated session (Auth::login),
-     *     and a user with mfa_enabled = true can sign in end to end.
-     *   - The counter is packed as eight bytes and verified against a
-     *     known-answer vector from RFC 6238 Appendix B, in a test.
-     *   - The QR code is rendered locally (an SVG/PNG generated in-process);
-     *     no secret, label or issuer leaves this deployment.
-     *   - Recovery exists: backup codes, or an audited administrator reset.
-     *     The setup screen already promises backup codes it never issues, so
-     *     today a lost authenticator is an unrecoverable lockout.
-     *   - Verification attempts are counted and limited (routes/web.php already
-     *     throttles mfa/verify; the controller should record the failures too).
-     *   - verifyMfa() stops passing a null secret into verifyTotpCode(). A
-     *     FOURTH defect, found while building the gate: the parameter is typed
-     *     `string`, and a pending user with mfa_secret = null makes
-     *     `POST mfa/verify` raise a TypeError — a 500 on an unauthenticated
-     *     endpoint. Not exploitable beyond the error itself while the flag is
-     *     off, because the route 404s.
-     *   - MfaEnforcementTest and MfaFeatureGateTest both pass with
-     *     FEATURE_MFA_TOTP=true.
+     * STILL OFF BY DEFAULT, for one remaining reason: there is no self-service
+     * recovery. A user who loses their authenticator needs an administrator to
+     * clear mfa_secret / mfa_enabled on their record (Administration → User
+     * Management), and backup codes are not issued. Turn the flag on per
+     * environment once that operating procedure is in place. MfaFeatureGateTest
+     * asserts the default; MfaEnforcementTest asserts the flag-on behaviour.
      */
     'mfa_totp' => env('FEATURE_MFA_TOTP', false),
 

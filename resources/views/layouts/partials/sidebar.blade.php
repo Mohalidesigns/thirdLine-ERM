@@ -370,7 +370,7 @@
 
         {{-- WP-08: the two navigation surfaces --}}
         @can('my.view')
-        <a href="{{ route('my.index') }}" wire:navigate
+        <a href="{{ route('my.index') }}"
            class="flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] mb-2
                   {{ $isActive('my') ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8' }}">
             <span class="material-symbols-outlined text-[18px]">checklist</span>
@@ -439,7 +439,7 @@
                             $itemPath = trim($item['url'], '/');
                             $itemActive = $isActive($itemPath);
                         @endphp
-                        <a href="{{ $item['url'] }}" wire:navigate
+                        <a href="{{ $item['url'] }}" {{ \App\Support\Migration\Ported::navigateAttribute($item['url']) }}
                            class="block px-3 py-1.5 rounded-md text-[12px] transition-all
                                   {{ $itemActive ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
                             {{ $item['label'] }}

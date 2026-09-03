@@ -1,4 +1,3 @@
-import { Transition } from '@headlessui/react';
 import { Link } from '@inertiajs/react';
 import { createContext, useContext, useState } from 'react';
 
@@ -59,15 +58,11 @@ const Content = ({
 
     return (
         <>
-            <Transition
-                show={open}
-                enter="transition ease-out duration-200"
-                enterFrom="opacity-0 scale-95"
-                enterTo="opacity-100 scale-100"
-                leave="transition ease-in duration-75"
-                leaveFrom="opacity-100 scale-100"
-                leaveTo="opacity-0 scale-95"
-            >
+            {/* Rendered without Headless UI's <Transition>: on this build (Headless
+                UI 2.2 + Tailwind 4) the enter transition never reaches its end
+                state and the menu stays at opacity 0. A menu that appears
+                instantly is better than one that never appears. */}
+            {open && (
                 <div
                     className={`absolute z-50 mt-2 rounded-md shadow-lg ${alignmentClasses} ${widthClasses}`}
                     onClick={() => setOpen(false)}
@@ -81,7 +76,7 @@ const Content = ({
                         {children}
                     </div>
                 </div>
-            </Transition>
+            )}
         </>
     );
 };

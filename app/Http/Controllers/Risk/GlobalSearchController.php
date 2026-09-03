@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Support\Authorization\GraphScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 /**
  * WP-08 TASK 6 — global search over the object graph.
@@ -62,9 +63,9 @@ class GlobalSearchController extends Controller
     {
         $term = trim((string) $request->query('q', ''));
 
-        return view('search.index', [
+        return Inertia::render('Search/Index', [
             'term' => $term,
-            'results' => $term === '' ? collect() : $this->search($request->user(), $term, 50),
+            'results' => $term === '' ? [] : $this->search($request->user(), $term, 50)->values()->all(),
         ]);
     }
 

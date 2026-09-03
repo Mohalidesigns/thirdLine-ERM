@@ -411,11 +411,16 @@ class OrganizationSsoSettingsTest extends TestCase
     #[Test]
     public function the_login_page_only_offers_sso_when_some_client_has_configured_it(): void
     {
-        $this->get('/login')->assertOk()->assertDontSee('Continue with single sign-on');
+        // The login page is an Inertia page as of migration Phase 1: the SSO
+        // entry renders when the `ssoAvailable` prop is true, so that prop is
+        // what carries the assertion.
+        $this->get('/login')->assertOk()
+            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->where('ssoAvailable', false));
 
         $this->oidcSetting($this->orgA, ['slug' => 'alpha', 'allowed_domains' => ['alphabank.test']]);
 
-        $this->get('/login')->assertOk()->assertSee('Continue with single sign-on');
+        $this->get('/login')->assertOk()
+            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->where('ssoAvailable', true));
     }
 
     /* ------------------------------------------------------------------ */

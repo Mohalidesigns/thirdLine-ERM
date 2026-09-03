@@ -13,48 +13,15 @@ use Symfony\Component\HttpFoundation\Response;
  * Applied to the whole `auth` group, so it covers every screen rather than
  * only the ones someone remembered to annotate.
  *
- * ---------------------------------------------------------------------------
- * GATED OFF BY DEFAULT — features.mfa_totp
- * ---------------------------------------------------------------------------
- *
- * The whole MFA flow is behind the `mfa_totp` flag in config/features.php,
- * which defaults to FALSE, because the implementation this middleware guards is
- * broken in three specific ways:
- *
- *   1. SIGN-IN CANNOT COMPLETE. AuthController::login() calls Auth::logout()
- *      before redirecting to mfa.verify, and AuthController::verifyMfa() sets
- *      session('mfa_verified') without ever calling Auth::login() again. Any
- *      user with mfa_enabled = true is permanently locked out: there is no
- *      code path that returns them to an authenticated session.
- *
- *   2. THE CODES ARE NOT RFC 6238 TOTP. AuthController::verifyTotpCode() packs
- *      the time step with pack('N', $time) — four bytes where the spec requires
- *      an eight-byte big-endian counter — so the HMAC is taken over the wrong
- *      message and no authenticator app can produce a code it accepts.
- *
- *   3. THE SHARED SECRET WENT TO A THIRD PARTY. The setup screen built its QR
- *      code with api.qrserver.com, so the enrolling user's browser handed the
- *      TOTP seed and their email address to an external service.
- *
- * PREVIOUS BEHAVIOUR: this middleware redirected an mfa_enabled user to
- * mfa.verify, and a user matched by organizations.settings->mfa_required_roles
- * to mfa.setup. Both destinations are dead ends today — the first cannot be
- * completed at all, the second enrols the user into the first. That is why the
- * gate is here rather than only on the routes: a redirect into a 404 is a
- * broken product, and a redirect into a working enrolment screen for a flow
- * that cannot be verified is a self-inflicted lockout.
- *
- * THIS IS DEFERRED, NOT FORGOTTEN. The rebuild is scheduled for deployment
- * readiness and none of the MFA code has been deleted. config/features.php
- * carries the full list of what must be true before FEATURE_MFA_TOTP is turned
- * on; in short: sign-in completes, the counter is eight bytes and covered by an
- * RFC 6238 known-answer test, the QR code is rendered in-process, recovery
- * exists, and MfaEnforcementTest passes with the flag on.
- *
- * WHEN THE FLAG IS ON, this middleware behaves exactly as it always did. The
- * gate adds one early return and changes nothing else.
- */
-class EnsureMfaVerified
+ * Behind features.mfa_totp. The flow this guards was rebuilt in migration
+ * Phase 1 — see config/features.php for what changed and why the flag still
+ * defaults to off. With the flag off this middleware passes everyone through,
+ * deliberately ignoring mfa_enabled and mfa_required_roles, so a tenant that
+ * set either before the rebuild cannot strand its users. With the flag on, an
+ * enrolled user without `mfa_verified` in the session is sent to mfa.verify
+ * (MfaVerifyController completes sign-in), and a user whose role requires a
+ * second factor but who has not enrolled is sent to mfa.setup.
+ */class EnsureMfaVerified
 {
     /**
      * Routes that must stay reachable, or a user who is required to enrol has
@@ -73,8 +40,8 @@ class EnsureMfaVerified
     /**
      * Is the TOTP flow switched on in this environment?
      *
-     * The single answer for every gate — this middleware, AuthController's
-     * post-login branch, SsoController::completeSignIn() and the user menu all
+     * The single answer for every gate — this middleware, the login
+     * controller, SsoController::completeSignIn() and the user menu all
      * ask here, so there is one place to change when the rebuild lands and no
      * chance of a surface being re-enabled by half.
      *
@@ -89,13 +56,9 @@ class EnsureMfaVerified
 
     public function handle(Request $request, Closure $next): Response
     {
-        // THE GATE. With the flag off there is nowhere safe to send anybody:
-        // mfa.verify and mfa.setup both 404 (see routes/web.php), and even if
-        // they did not, neither can be completed. Passing through is the only
-        // behaviour that does not lock a user out of a platform they are
-        // entitled to use. Note this deliberately ignores mfa_enabled and
-        // mfa_required_roles — a tenant that set either of those before the
-        // defect was found must not have its users stranded by it.
+        // THE GATE. With the flag off mfa.verify and mfa.setup 404 (see
+        // routes/auth.php), so passing through is the only behaviour that does
+        // not lock a user out of a platform they are entitled to use.
         if (! self::featureEnabled()) {
             return $next($request);
         }

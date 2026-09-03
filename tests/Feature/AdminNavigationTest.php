@@ -63,7 +63,7 @@ class AdminNavigationTest extends TestCase
      * @var array<string, string>
      */
     /** A Blade page every authenticated user can open — see setUp(). */
-    private const SIDEBAR_PAGE = '/notifications';
+    private const SIDEBAR_PAGE = '/risk/dashboard';
 
     private const RESTORED_SURFACES = [
         'hq.view' => 'hq.index',
@@ -82,12 +82,12 @@ class AdminNavigationTest extends TestCase
         // The page the sidebar is read from. Nothing about it is admin: it is
         // simply a screen every authenticated user can open, so the menu is
         // observed exactly as a real user would meet it. It was /my until
-        // migration Phase 0 ported that page to Inertia; the Blade sidebar this
-        // test guards is now read from the notifications page, which stays on
-        // Blade until Phase 1. (The React sidebar is covered, entry by entry,
-        // by NavigationPermissionGateTest.)
-        Permission::findOrCreate('notification.view');
-        $this->actor->givePermissionTo('notification.view');
+        // migration Phase 0 and /notifications until Phase 1 ported those pages
+        // to Inertia; the Blade sidebar this test guards is now read from the
+        // Command Centre, which stays on Blade until Phase 5. (The React sidebar
+        // is covered, entry by entry, by NavigationPermissionGateTest.)
+        Permission::findOrCreate('dashboard.view');
+        $this->actor->givePermissionTo('dashboard.view');
     }
 
     /**

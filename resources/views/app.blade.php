@@ -13,6 +13,10 @@
          Symbols are self-hosted through resources/css/fonts.css, which app.css
          imports — a deployment inside a bank must not tell a third party who is
          using it and when. --}}
+    {{-- Tenant branding overrides (--color-primary / --color-accent), the
+         same partial the Blade layout includes. --}}
+    @include('layouts.partials.branding')
+
     @routes
     @viteReactRefresh
     @vite(['resources/js/app.jsx'])

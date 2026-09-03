@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Models\BusinessUnit;
 use App\Models\LossEvent;
@@ -11,11 +12,13 @@ use App\Models\LossEventRca;
 use App\Models\NearMiss;
 use App\Models\Risk;
 use App\Models\User;
+use App\Presenters\GridPresenter;
 use App\Services\FileUploadService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 class LossEventController extends Controller
 {
@@ -132,11 +135,14 @@ class LossEventController extends Controller
      * grid (App\Grids\Definitions\LossEventsGrid); the controller computes
      * only what the page header still needs.
      */
-    public function index(Request $request)
+    public function index(Request $request, GridPresenter $presenter)
     {
         $total = LossEvent::where('organization_id', TenantContext::organizationId())->count();
 
-        return view('risk.loss-events.index', compact('total'));
+        return Inertia::render('LossEvents/Index', [
+            'total' => $total,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('loss_events'), $request, $request->user()),
+        ]);
     }
 
     /**
@@ -733,7 +739,7 @@ class LossEventController extends Controller
      * App\Grids\Definitions\NearMissesGrid. The controller now only feeds
      * the KPI summary cards.
      */
-    public function nearMisses(Request $request)
+    public function nearMisses(Request $request, GridPresenter $presenter)
     {
         $orgId = TenantContext::organizationId();
 
@@ -743,9 +749,13 @@ class LossEventController extends Controller
         $underReviewNearMisses = (clone $allNearMisses)->whereIn('status', ['investigating', 'under review'])->count();
         $potentialLossAvoided = ((clone $allNearMisses)->sum('potential_loss_kobo') ?? 0) / 100;
 
-        return view('risk.loss-events.near-misses', compact(
-            'totalNearMisses', 'openNearMisses', 'underReviewNearMisses', 'potentialLossAvoided'
-        ));
+        return Inertia::render('LossEvents/NearMisses', [
+            'totalNearMisses' => $totalNearMisses,
+            'openNearMisses' => $openNearMisses,
+            'underReviewNearMisses' => $underReviewNearMisses,
+            'potentialLossAvoided' => '₦'.number_format($potentialLossAvoided, 2),
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('near_misses'), $request, $request->user()),
+        ]);
     }
 
     /**

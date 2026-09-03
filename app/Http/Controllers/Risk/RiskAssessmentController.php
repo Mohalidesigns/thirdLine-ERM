@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Controller;
 use App\Models\KeyRiskIndicator;
@@ -12,6 +13,7 @@ use App\Models\RiskCause;
 use App\Models\RiskCauseCategory;
 use App\Models\TreatmentPlan;
 use App\Models\User;
+use App\Presenters\GridPresenter;
 use App\Services\AssessmentChainService;
 use App\Services\NotificationService;
 use App\Services\ReferenceCodeService;
@@ -21,6 +23,7 @@ use App\Support\Authorization\GraphScope;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 /**
  * The risk assessment journey.
@@ -59,7 +62,7 @@ class RiskAssessmentController extends Controller
      * moved into the shared data grid (WP-09) — see
      * App\Grids\Definitions\RiskAssessmentsGrid.
      */
-    public function index(Request $request)
+    public function index(Request $request, GridPresenter $presenter)
     {
         // WP-00: scoped through the risk, matching RiskAssessmentsGrid.
         $total = GraphScope::applyThrough(
@@ -67,7 +70,10 @@ class RiskAssessmentController extends Controller
             'risk'
         )->count();
 
-        return view('risk.assessments.index', compact('total'));
+        return Inertia::render('Assessments/Index', [
+            'total' => $total,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('assessments'), $request, $request->user()),
+        ]);
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Grid;
 
+use App\Grids\GridRegistry;
 use App\Models\AssessmentCampaign;
 use App\Models\Control;
 use App\Models\ControlTest;
@@ -9,8 +10,10 @@ use App\Models\DataImport;
 use App\Models\Organization;
 use App\Models\QuestionLibrary;
 use App\Models\Questionnaire;
+use App\Presenters\GridPresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
+use Illuminate\Http\Request;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -158,6 +161,12 @@ class SecondaryGridsTest extends TestCase
         ], $attributes));
     }
 
+    /** The text of one cell across every presented row. */
+    private static function column(array $rows, string $key): array
+    {
+        return collect($rows)->map(fn ($row) => $row['cells'][$key]['text'] ?? null)->all();
+    }
+
     /* --------------------------------------------------- control tests */
 
     #[Test]
@@ -170,9 +179,13 @@ class SecondaryGridsTest extends TestCase
 
         $this->get(route('risk.control-tests.index'))
             ->assertOk()
-            ->assertSee('All Control Tests')
-            ->assertSee('CT-VISIBLE-001')
-            ->assertSee('Quarterly access recertification');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('ControlTests/Index')
+                ->where('total', 1)
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.test_code.text', 'CT-VISIBLE-001')
+                // The title column truncates for the table; the export carries it whole.
+                ->where('grid.rows.data.0.cells.title.text', fn ($text) => str_starts_with($text, 'Quarterly access recertification')));
     }
 
     #[Test]
@@ -185,10 +198,10 @@ class SecondaryGridsTest extends TestCase
             'title' => 'Their control test',
         ]);
 
-        Livewire::test('data-grid', ['grid' => 'control_tests'])
-            ->assertSee('CT-MINE-001')
-            ->assertDontSee('CT-FOREIGN-001')
-            ->assertDontSee('Their control test');
+        $this->get(route('risk.control-tests.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.test_code.text', 'CT-MINE-001'));
     }
 
     /* ------------------------------------------------------- campaigns */
@@ -203,9 +216,12 @@ class SecondaryGridsTest extends TestCase
 
         $this->get(route('risk.campaigns.index'))
             ->assertOk()
-            ->assertSee('All Assessment Campaigns')
-            ->assertSee('CAM-VISIBLE-001')
-            ->assertSee('Annual RCSA cycle');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Campaigns/Index')
+                ->where('total', 1)
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.campaign_code.text', 'CAM-VISIBLE-001')
+                ->where('grid.rows.data.0.cells.title.text', 'Annual RCSA cycle'));
     }
 
     #[Test]
@@ -218,10 +234,10 @@ class SecondaryGridsTest extends TestCase
             'title' => 'Their campaign',
         ]);
 
-        Livewire::test('data-grid', ['grid' => 'campaigns'])
-            ->assertSee('CAM-MINE-001')
-            ->assertDontSee('CAM-FOREIGN-001')
-            ->assertDontSee('Their campaign');
+        $this->get(route('risk.campaigns.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.campaign_code.text', 'CAM-MINE-001'));
     }
 
     /* -------------------------------------------------- questionnaires */
@@ -233,9 +249,12 @@ class SecondaryGridsTest extends TestCase
 
         $this->get(route('risk.questionnaires.index'))
             ->assertOk()
-            ->assertSee('Questionnaire Library')
-            ->assertSee('Fraud risk self assessment')
-            ->assertSee('v2');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Questionnaires/Index')
+                ->where('total', 1)
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Fraud risk self assessment')
+                ->where('grid.rows.data.0.cells.version.text', 'v2'));
     }
 
     #[Test]
@@ -247,9 +266,10 @@ class SecondaryGridsTest extends TestCase
             'title' => 'Their questionnaire',
         ]);
 
-        Livewire::test('data-grid', ['grid' => 'questionnaires'])
-            ->assertSee('Our questionnaire')
-            ->assertDontSee('Their questionnaire');
+        $this->get(route('risk.questionnaires.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Our questionnaire'));
     }
 
     /* ------------------------------------------------- question library */
@@ -264,9 +284,12 @@ class SecondaryGridsTest extends TestCase
 
         $this->get(route('risk.questionnaires.library'))
             ->assertOk()
-            ->assertSee('Question Library')
-            ->assertSee('Credit Risk')
-            ->assertSee('Are collateral valuations refreshed annually');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Questionnaires/Library')
+                ->where('total', 1)
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.category.text', 'Credit Risk')
+                ->where('grid.rows.data.0.cells.question_text.text', 'Are collateral valuations refreshed annually'));
     }
 
     #[Test]
@@ -284,11 +307,17 @@ class SecondaryGridsTest extends TestCase
             'question_text' => 'Their private question',
         ]);
 
-        Livewire::test('data-grid', ['grid' => 'question_library'])
-            ->assertSee('Our own question')
-            ->assertSee('A shared system question')
-            ->assertDontSee('Their private question')
-            ->assertDontSee('Foreign Category');
+        $this->get(route('risk.questionnaires.library'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 2)
+                ->where('grid.rows.data', function ($rows) {
+                    $rows = collect($rows)->all();
+                    $questions = self::column($rows, 'question_text');
+                    sort($questions);
+
+                    return $questions === ['A shared system question', 'Our own question']
+                        && ! in_array('Foreign Category', self::column($rows, 'category'), true);
+                }));
     }
 
     #[Test]
@@ -296,8 +325,10 @@ class SecondaryGridsTest extends TestCase
     {
         $this->makeLibraryQuestion();
 
-        Livewire::test('data-grid', ['grid' => 'question_library'])
-            ->assertSet('perPage', 50);
+        $this->get(route('risk.questionnaires.library'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('grid.state.perPage', 50)
+                ->where('grid.rows.meta.per_page', 50));
     }
 
     /* --------------------------------------------------------- imports */
@@ -309,9 +340,12 @@ class SecondaryGridsTest extends TestCase
 
         $this->get(route('risk.imports.index'))
             ->assertOk()
-            ->assertSee('Data Import History')
-            ->assertSee('loss-events-january.csv')
-            ->assertSee('Risk Officer');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Imports/Index')
+                ->where('total', 1)
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.file_name.text', 'loss-events-january.csv')
+                ->where('grid.rows.data.0.cells', fn ($cells) => $cells['importer.name']['text'] === 'Risk Officer'));
     }
 
     #[Test]
@@ -323,9 +357,10 @@ class SecondaryGridsTest extends TestCase
             'file_name' => 'their-upload.csv',
         ]);
 
-        Livewire::test('data-grid', ['grid' => 'imports'])
-            ->assertSee('our-upload.csv')
-            ->assertDontSee('their-upload.csv');
+        $this->get(route('risk.imports.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.file_name.text', 'our-upload.csv'));
     }
 
     /* ----------------------------------------------------- every knob */
@@ -333,9 +368,10 @@ class SecondaryGridsTest extends TestCase
     /**
      * A definition is only proven by being run. This drives every declared
      * filter option, every sortable column and every hidden column of all
-     * five grids, which is what catches an aggregate alias that cannot be
-     * ordered by, an ambiguous column once a relation is joined, or a
-     * ->using() closure that only ever ran for the default columns.
+     * five grids through the presenter, which is what catches an aggregate
+     * alias that cannot be ordered by, an ambiguous column once a relation
+     * is joined, or a ->using() closure that only ever ran for the default
+     * columns.
      */
     #[Test]
     public function every_column_filter_and_sort_of_each_grid_actually_runs(): void
@@ -346,21 +382,28 @@ class SecondaryGridsTest extends TestCase
         $this->makeLibraryQuestion();
         $this->makeImport();
 
-        foreach (['control_tests', 'campaigns', 'questionnaires', 'question_library', 'imports'] as $grid) {
-            $definition = \App\Grids\GridRegistry::resolve($grid);
+        $presenter = app(GridPresenter::class);
 
-            $component = Livewire::test('data-grid', ['grid' => $grid]);
+        foreach (['control_tests', 'campaigns', 'questionnaires', 'question_library', 'imports'] as $grid) {
+            $definition = GridRegistry::resolve($grid);
+
+            $present = fn (array $query) => $presenter->present($definition, Request::create('/', 'GET', $query), $this->actor);
 
             // Show every column, including the hidden ones.
-            foreach ($definition->columns() as $column) {
-                if (! $column->visibleByDefault) {
-                    $component->call('toggleColumn', $column->key);
-                }
-            }
+            $every = collect($definition->columns())->pluck('key')->all();
+            $presented = $present(['columns' => implode(',', $every)]);
+
+            $this->assertSame($every, $presented['state']['columns'], "[{$grid}] every column can be shown");
+            $this->assertCount(1, $presented['rows']['data']);
+            $this->assertSame($every, array_keys($presented['rows']['data'][0]['cells']), "[{$grid}] every cell renders");
 
             foreach ($definition->columns() as $column) {
                 if ($column->sortable) {
-                    $component->call('sortBy', $column->key)->assertOk();
+                    foreach (['asc', 'desc'] as $dir) {
+                        $sorted = $present(['sort' => $column->key, 'dir' => $dir]);
+                        $this->assertSame($column->key, $sorted['state']['sort'], "[{$grid}] sorts by [{$column->key}]");
+                        $this->assertCount(1, $sorted['rows']['data']);
+                    }
                 }
             }
 
@@ -368,12 +411,14 @@ class SecondaryGridsTest extends TestCase
                 $options = $filter->resolveOptions();
                 $this->assertNotSame([], $options, "[{$grid}] filter [{$filter->key}] has no options");
 
-                $component->set("filters.{$filter->key}", (string) array_key_first($options))
-                    ->assertOk();
-                $component->set("filters.{$filter->key}", '');
+                $filtered = $present(['filters' => [$filter->key => (string) array_key_first($options)]]);
+                $this->assertSame((string) array_key_first($options), $filtered['state']['filters']->{$filter->key});
+                $this->assertArrayHasKey('data', $filtered['rows']);
             }
 
-            $component->set('search', 'zzz-no-such-row')->assertSee($definition->emptyMessage());
+            $empty = $present(['search' => 'zzz-no-such-row']);
+            $this->assertSame([], $empty['rows']['data']);
+            $this->assertSame($definition->emptyMessage(), $empty['emptyMessage']);
         }
     }
 }

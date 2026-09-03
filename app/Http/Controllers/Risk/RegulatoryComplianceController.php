@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Models\RegulatoryCircular;
 use App\Models\RegulatoryDeadline;
 use App\Models\RegulatoryFiling;
+use App\Presenters\GridPresenter;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class RegulatoryComplianceController extends Controller
 {
@@ -119,9 +122,11 @@ class RegulatoryComplianceController extends Controller
      * the regulator/compliance filters and the pagination. Nothing on the page
      * outside the grid needs data.
      */
-    public function circulars()
+    public function circulars(Request $request, GridPresenter $presenter)
     {
-        return view('risk.regulatory.circulars');
+        return Inertia::render('Regulatory/Circulars', [
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('circulars'), $request, $request->user()),
+        ]);
     }
 
     public function createCircular()

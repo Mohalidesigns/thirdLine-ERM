@@ -5,7 +5,7 @@ namespace Tests\Feature\Grid;
 use App\Models\LossEvent;
 use App\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -37,10 +37,14 @@ class LossEventsGridTest extends TestCase
     {
         $this->makeLossEvent(['title' => 'ATM cash-out fraud incident']);
 
-        $this->get('/risk/loss-events')
+        $this->get(route('risk.loss-events.index'))
             ->assertOk()
-            ->assertSee('Loss Event Register')
-            ->assertSee('ATM cash-out fraud incident');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('LossEvents/Index')
+                ->where('total', 1)
+                ->where('grid.name', 'loss_events')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'ATM cash-out fraud incident'));
     }
 
     #[Test]
@@ -49,12 +53,13 @@ class LossEventsGridTest extends TestCase
         $this->makeLossEvent(['title' => 'Wire transfer chargeback']);
         $this->makeLossEvent(['title' => 'Vault shortage discovery']);
 
-        Livewire::test('data-grid', ['grid' => 'loss_events'])
-            ->assertSee('Wire transfer chargeback')
-            ->assertSee('Vault shortage discovery')
-            ->set('search', 'Vault shortage')
-            ->assertSee('Vault shortage discovery')
-            ->assertDontSee('Wire transfer chargeback');
+        $this->get(route('risk.loss-events.index'))
+            ->assertInertia(fn (Assert $page) => $page->has('grid.rows.data', 2));
+
+        $this->get(route('risk.loss-events.index', ['search' => 'Vault shortage']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Vault shortage discovery'));
     }
 
     #[Test]
@@ -81,9 +86,9 @@ class LossEventsGridTest extends TestCase
             'created_by' => $this->actor->id,
         ]);
 
-        Livewire::test('data-grid', ['grid' => 'loss_events'])
-            ->assertSee('Our operational loss')
-            ->assertDontSee('Their operational loss')
-            ->assertDontSee('LE-FOREIGN-001');
+        $this->get(route('risk.loss-events.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Our operational loss'));
     }
 }

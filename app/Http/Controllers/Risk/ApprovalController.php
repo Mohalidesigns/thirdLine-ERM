@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Models\ApprovalRequest;
+use App\Presenters\GridPresenter;
 use App\Services\ApprovalService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class ApprovalController extends Controller
 {
@@ -98,8 +101,10 @@ class ApprovalController extends Controller
      * approved/rejected/superseded scope getHistoryPaginated applied, plus the
      * entity-type filter and pagination. The header needs no data.
      */
-    public function history()
+    public function history(Request $request, GridPresenter $presenter)
     {
-        return view('risk.approvals.history');
+        return Inertia::render('Approvals/History', [
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('approvals_history'), $request, $request->user()),
+        ]);
     }
 }

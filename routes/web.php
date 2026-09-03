@@ -29,6 +29,7 @@ use App\Http\Controllers\Risk\GlobalSearchController;
 use App\Http\Controllers\Risk\GridController;
 use App\Http\Controllers\Risk\HqController;
 use App\Http\Controllers\Risk\IssueController;
+use App\Http\Controllers\Risk\JobProgressController;
 use App\Http\Controllers\Risk\KriController;
 use App\Http\Controllers\Risk\LossEventController;
 use App\Http\Controllers\Risk\MyResponsibilitiesController;
@@ -45,6 +46,7 @@ use App\Http\Controllers\Risk\RiskRegisterController;
 use App\Http\Controllers\Risk\ScopingController;
 use App\Http\Controllers\Risk\ThresholdController;
 use App\Http\Controllers\Risk\TreatmentPlanController;
+use App\Http\Controllers\Risk\WidgetController;
 use App\Http\Controllers\Risk\WorkflowController;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -313,6 +315,15 @@ Route::middleware(['auth'])->group(function () {
     Route::get('hq/{object}', [HqController::class, 'show'])
         ->middleware('permission:hq.view')->name('hq.show');
 
+    // Migration Phase 2: one widget's payload on demand (refresh, register
+    // search and paging) and its CSV export. dashboard.view is the platform's
+    // "may use this application" grant; the engine's own source gate decides
+    // per widget what the viewer may actually see.
+    Route::middleware('permission:dashboard.view')->group(function () {
+        Route::get('risk/widgets/{widget}/payload', [WidgetController::class, 'payload'])->name('risk.widgets.payload');
+        Route::get('risk/widgets/{widget}/export', [WidgetController::class, 'export'])->name('risk.widgets.export');
+    });
+
     Route::middleware('permission:dashboard.manage')->group(function () {
         Route::get('risk/dashboards', [DashboardBuilderController::class, 'index'])
             ->name('risk.dashboards.index');
@@ -320,7 +331,28 @@ Route::middleware(['auth'])->group(function () {
             ->name('risk.dashboards.create');
         Route::get('risk/dashboards/{dashboard}/edit', [DashboardBuilderController::class, 'edit'])
             ->name('risk.dashboards.edit');
+
+        // Migration Phase 2: the builder's actions (formerly the Livewire
+        // DashboardBuilder component's methods). Every one edits the DRAFT;
+        // publish copies it over the live layout.
+        Route::patch('risk/dashboards/{dashboard}', [DashboardBuilderController::class, 'update'])->name('risk.dashboards.update');
+        Route::post('risk/dashboards/{dashboard}/layout', [DashboardBuilderController::class, 'updateLayout'])->name('risk.dashboards.layout');
+        Route::post('risk/dashboards/{dashboard}/tabs', [DashboardBuilderController::class, 'storeTab'])->name('risk.dashboards.tabs.store');
+        Route::patch('risk/dashboards/{dashboard}/tabs/{tab}', [DashboardBuilderController::class, 'updateTab'])->name('risk.dashboards.tabs.update');
+        Route::delete('risk/dashboards/{dashboard}/tabs/{tab}', [DashboardBuilderController::class, 'destroyTab'])->name('risk.dashboards.tabs.destroy');
+        Route::post('risk/dashboards/{dashboard}/tabs/{tab}/widgets', [DashboardBuilderController::class, 'storeWidget'])->name('risk.dashboards.widgets.store');
+        Route::patch('risk/dashboards/{dashboard}/tabs/{tab}/widgets/{position}', [DashboardBuilderController::class, 'updateWidget'])->name('risk.dashboards.widgets.update');
+        Route::delete('risk/dashboards/{dashboard}/tabs/{tab}/widgets/{position}', [DashboardBuilderController::class, 'destroyWidget'])->name('risk.dashboards.widgets.destroy');
+        Route::post('risk/dashboards/{dashboard}/publish', [DashboardBuilderController::class, 'publish'])->name('risk.dashboards.publish');
+        Route::post('risk/dashboards/{dashboard}/unpublish', [DashboardBuilderController::class, 'unpublish'])->name('risk.dashboards.unpublish');
+        Route::post('risk/dashboards/{dashboard}/discard', [DashboardBuilderController::class, 'discard'])->name('risk.dashboards.discard');
+        Route::post('risk/dashboards/{dashboard}/duplicate', [DashboardBuilderController::class, 'duplicate'])->name('risk.dashboards.duplicate');
     });
+
+    // Migration Phase 2: the session-authenticated twin of api/v1/jobs/{jobRun}
+    // for the SPA's useJobProgress hook. Same grant as the jobs screen.
+    Route::get('risk/jobs/{jobRun}/progress', [JobProgressController::class, 'show'])
+        ->middleware('permission:job.view')->name('risk.jobs.progress');
 });
 
 Route::middleware(['auth'])->group(function () {

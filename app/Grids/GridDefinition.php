@@ -7,9 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * Everything entity-specific about one grid: the base query (tenant-scoped
- * at the source), the columns, the toolbar filters, and the actions. The
- * Livewire DataGrid component owns all behaviour — definitions hold no
- * request state and are cheap to construct per request.
+ * at the source), the columns, the toolbar filters, and the actions.
+ * GridPresenter (shaping) and GridController (endpoints) own all behaviour
+ * — definitions hold no request state and are cheap to construct per
+ * request.
  */
 abstract class GridDefinition
 {

@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
 use App\Models\EmergingRisk;
 use App\Models\RiskCategory;
 use App\Models\User;
+use App\Presenters\GridPresenter;
 use App\Services\ReferenceCodeService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 /**
  * CRUD for the emerging risk register.
@@ -37,9 +40,11 @@ class EmergingRiskController extends Controller
      * status/horizon/impact filters, sorting and pagination. Only the page
      * header is left, and it needs no data.
      */
-    public function index()
+    public function index(Request $request, GridPresenter $presenter)
     {
-        return view('risk.emerging.index');
+        return Inertia::render('Emerging/Index', [
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('emerging_risks'), $request, $request->user()),
+        ]);
     }
 
     public function create()

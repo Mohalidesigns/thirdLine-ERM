@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
@@ -12,10 +13,12 @@ use App\Models\IssueProgressUpdate;
 use App\Models\IssueRemediationAction;
 use App\Models\Risk;
 use App\Models\User;
+use App\Presenters\GridPresenter;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 class IssueController extends Controller
 {
@@ -114,13 +117,15 @@ class IssueController extends Controller
     /**
      * Display issue listing with filters.
      */
-    public function index(Request $request)
+    public function index(Request $request, GridPresenter $presenter)
     {
         // WP-09: filtering, search, sorting, pagination and export moved into
         // the shared data grid (App\Grids\Definitions\IssuesGrid), which also
         // resolves the old issueOwner-loaded/owner-rendered N+1 by loading
         // and reading the same relation.
-        return view('risk.issues.index');
+        return Inertia::render('Issues/Index', [
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('issues'), $request, $request->user()),
+        ]);
     }
 
     /**

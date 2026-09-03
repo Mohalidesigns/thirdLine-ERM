@@ -2,16 +2,19 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Models\Control;
 use App\Models\ControlTest;
 use App\Models\ControlTestEvidence;
+use App\Presenters\GridPresenter;
 use App\Services\FileUploadService;
 use App\Services\ReferenceCodeService;
 use App\Services\Workflow\ModuleApprovals;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 
 class ControlTestController extends Controller
 {
@@ -66,11 +69,14 @@ class ControlTestController extends Controller
      * sorting, columns and export all live in
      * App\Grids\Definitions\ControlTestsGrid. Only the page header is left.
      */
-    public function index(Request $request)
+    public function index(Request $request, GridPresenter $presenter)
     {
         $total = ControlTest::where('organization_id', TenantContext::organizationId())->count();
 
-        return view('risk.controls.tests.index', compact('total'));
+        return Inertia::render('ControlTests/Index', [
+            'total' => $total,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('control_tests'), $request, $request->user()),
+        ]);
     }
 
     public function create()

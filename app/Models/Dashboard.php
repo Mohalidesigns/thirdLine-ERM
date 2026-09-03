@@ -29,6 +29,9 @@ use Illuminate\Database\Eloquent\Model;
  * split they were the same column, so moving a widget on a published dashboard
  * moved it for everyone immediately and "Publish" meant nothing but a boolean.
  * Read the live layout through publishedTabList(), never through tabList().
+ *
+ * @property-read ObjectType|null $objectType
+ * @property-read string $role_names
  */
 class Dashboard extends Model
 {

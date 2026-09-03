@@ -47,7 +47,7 @@ class GridController extends Controller
 
         $column = $definition->column($validated['key']);
 
-        abort_unless($column?->editable, 422, 'That column is not editable.');
+        abort_unless($column !== null && (bool) $column->editable, 422, 'That column is not editable.');
         abort_if($definition->editPermission() && ! $request->user()->can($definition->editPermission()), 403);
 
         $value = (string) ($validated['value'] ?? '');

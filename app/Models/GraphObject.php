@@ -20,6 +20,8 @@ use Illuminate\Support\Str;
  * inherent score lives on `risks` and nowhere else. What lives here is what the
  * graph needs: parentage, node ownership, lifecycle state, and the JSON bag of
  * configured attributes that has no column anywhere.
+ *
+ * @property-read ObjectType|null $objectType
  */
 class GraphObject extends Model
 {

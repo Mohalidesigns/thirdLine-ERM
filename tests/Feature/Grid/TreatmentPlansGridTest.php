@@ -5,7 +5,7 @@ namespace Tests\Feature\Grid;
 use App\Models\Organization;
 use App\Models\TreatmentPlan;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -56,10 +56,14 @@ class TreatmentPlansGridTest extends TestCase
     {
         $this->makePlan(['action_title' => 'Deploy EDR agents']);
 
-        $this->get('/risk/treatments')
+        $this->get(route('risk.treatments.index'))
             ->assertOk()
-            ->assertSee('Treatment Plans')
-            ->assertSee('Deploy EDR agents');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Treatments/Index')
+                ->where('total', 1)
+                ->where('grid.name', 'treatments')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Deploy EDR agents'));
     }
 
     #[Test]
@@ -68,12 +72,13 @@ class TreatmentPlansGridTest extends TestCase
         $this->makePlan(['action_title' => 'Deploy EDR agents']);
         $this->makePlan(['action_title' => 'Revise credit limits']);
 
-        Livewire::test('data-grid', ['grid' => 'treatments'])
-            ->assertSee('Deploy EDR agents')
-            ->assertSee('Revise credit limits')
-            ->set('search', 'EDR')
-            ->assertSee('Deploy EDR agents')
-            ->assertDontSee('Revise credit limits');
+        $this->get(route('risk.treatments.index'))
+            ->assertInertia(fn (Assert $page) => $page->has('grid.rows.data', 2));
+
+        $this->get(route('risk.treatments.index', ['search' => 'EDR']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Deploy EDR agents'));
     }
 
     #[Test]
@@ -95,8 +100,9 @@ class TreatmentPlansGridTest extends TestCase
             'created_by' => $this->actor->id,
         ]);
 
-        Livewire::test('data-grid', ['grid' => 'treatments'])
-            ->assertSee('Our own plan')
-            ->assertDontSee('Their foreign plan');
+        $this->get(route('risk.treatments.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Our own plan'));
     }
 }

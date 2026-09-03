@@ -793,14 +793,8 @@ parameters:
 			path: app/Http/Controllers/Risk/GlobalSearchController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Dashboard\:\:\$role_names\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/HqController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\GraphObject\:\:\$objectType\.$#'
-			identifier: property.notFound
+			message: '#^Property App\\Models\\Dashboard\:\:\$role_names is not writable\.$#'
+			identifier: assign.propertyReadOnly
 			count: 1
 			path: app/Http/Controllers/Risk/HqController.php
 
@@ -1475,6 +1469,12 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Middleware/ResolvePeriod.php
+
+		-
+			message: '#^Trait App\\Http\\Requests\\Concerns\\ValidatesConfiguredAttributes is used zero times and is not analysed\.$#'
+			identifier: trait.unused
+			count: 1
+			path: app/Http/Requests/Concerns/ValidatesConfiguredAttributes.php
 
 		-
 			message: '#^Strict comparison using \!\=\= between string and null will always evaluate to true\.$#'
@@ -2615,12 +2615,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Services/Graph/GraphQueryService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\GraphObject\:\:\$objectType\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Graph/ObjectSyncService.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:relate\(\)\.$#'

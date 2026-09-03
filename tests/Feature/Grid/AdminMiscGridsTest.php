@@ -10,7 +10,7 @@ use App\Models\RegulatoryCircular;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Livewire\Livewire;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -154,6 +154,12 @@ class AdminMiscGridsTest extends TestCase
         ], $attributes));
     }
 
+    /** The text of one cell across every presented row. */
+    private static function column($rows, string $key): array
+    {
+        return collect($rows)->map(fn ($row) => $row['cells'][$key]['text'] ?? null)->all();
+    }
+
     /* --------------------------------------------------------- admin_users */
 
     #[Test]
@@ -163,8 +169,11 @@ class AdminMiscGridsTest extends TestCase
 
         $this->get(route('admin.users.index'))
             ->assertOk()
-            ->assertSee('User Management')
-            ->assertSee('Adaeze Okonkwo');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/Users/Index')
+                ->where('totalUsers', 2)
+                ->where('grid.name', 'admin_users')
+                ->where('grid.rows.data', fn ($rows) => in_array('Adaeze Okonkwo', self::column($rows, 'name'), true)));
     }
 
     #[Test]
@@ -173,9 +182,13 @@ class AdminMiscGridsTest extends TestCase
         $this->makeUser('Adaeze Okonkwo', $this->organization->id);
         $this->makeUser('Foreign Administrator', $this->otherOrg->id);
 
-        Livewire::test('data-grid', ['grid' => 'admin_users'])
-            ->assertSee('Adaeze Okonkwo')
-            ->assertDontSee('Foreign Administrator');
+        $this->get(route('admin.users.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('grid.rows.data', function ($rows) {
+                    $names = self::column($rows, 'name');
+
+                    return in_array('Adaeze Okonkwo', $names, true) && ! in_array('Foreign Administrator', $names, true);
+                }));
     }
 
     #[Test]
@@ -187,11 +200,15 @@ class AdminMiscGridsTest extends TestCase
         Role::findOrCreate('compliance-officer');
         $auditor->assignRole('compliance-officer');
 
-        Livewire::test('data-grid', ['grid' => 'admin_users'])
-            ->assertSee('Unroled User')
-            ->set('filters.role', 'compliance-officer')
-            ->assertSee('Role Filtered User')
-            ->assertDontSee('Unroled User');
+        $this->get(route('admin.users.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('grid.rows.data', fn ($rows) => in_array('Unroled User', self::column($rows, 'name'), true)));
+
+        $this->get(route('admin.users.index', ['filters' => ['role' => 'compliance-officer']]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('grid.state.filters.role', 'compliance-officer')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.name.text', 'Role Filtered User'));
     }
 
     /* ----------------------------------------------------------- circulars */
@@ -203,8 +220,11 @@ class AdminMiscGridsTest extends TestCase
 
         $this->get(route('risk.regulatory.circulars'))
             ->assertOk()
-            ->assertSee('Regulatory Circulars')
-            ->assertSee('Revised capital adequacy guidance');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Regulatory/Circulars')
+                ->where('grid.name', 'circulars')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Revised capital adequacy guidance'));
     }
 
     #[Test]
@@ -213,9 +233,10 @@ class AdminMiscGridsTest extends TestCase
         $this->makeCircular('Our capital guidance', $this->organization->id);
         $this->makeCircular('Their capital guidance', $this->otherOrg->id);
 
-        Livewire::test('data-grid', ['grid' => 'circulars'])
-            ->assertSee('Our capital guidance')
-            ->assertDontSee('Their capital guidance');
+        $this->get(route('risk.regulatory.circulars'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Our capital guidance'));
     }
 
     /* ------------------------------------------------------ emerging_risks */
@@ -227,8 +248,11 @@ class AdminMiscGridsTest extends TestCase
 
         $this->get(route('risk.emerging.index'))
             ->assertOk()
-            ->assertSee('Emerging Risk Register')
-            ->assertSee('Quantum decryption of stored records');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Emerging/Index')
+                ->where('grid.name', 'emerging_risks')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Quantum decryption of stored records'));
     }
 
     #[Test]
@@ -237,9 +261,10 @@ class AdminMiscGridsTest extends TestCase
         $this->makeEmergingRisk('Our horizon entry', $this->organization->id);
         $this->makeEmergingRisk('Their horizon entry', $this->otherOrg->id);
 
-        Livewire::test('data-grid', ['grid' => 'emerging_risks'])
-            ->assertSee('Our horizon entry')
-            ->assertDontSee('Their horizon entry');
+        $this->get(route('risk.emerging.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Our horizon entry'));
     }
 
     #[Test]
@@ -248,9 +273,8 @@ class AdminMiscGridsTest extends TestCase
         $entry = $this->makeEmergingRisk('Unreviewed horizon entry', $this->organization->id);
         $this->assertNull($entry->last_reviewed_at);
 
-        Livewire::test('data-grid', ['grid' => 'emerging_risks'])
-            ->set('selected', [(string) $entry->id])
-            ->call('runBulk', 'mark_reviewed');
+        $this->post(route('risk.grids.bulk', ['emerging_risks', 'mark_reviewed']), ['ids' => [(string) $entry->id]])
+            ->assertRedirect();
 
         $this->assertSame(
             now()->toDateString(),
@@ -266,19 +290,15 @@ class AdminMiscGridsTest extends TestCase
         $viewer = $this->makeUser('Horizon Viewer', $this->organization->id);
         $viewer->givePermissionTo('risk.view');
 
-        Livewire::actingAs($viewer)
-            ->test('data-grid', ['grid' => 'emerging_risks'])
-            ->set('selected', [(string) $entry->id])
-            ->call('runBulk', 'delete')
-            ->assertStatus(403);
+        $this->actingAs($viewer)
+            ->post(route('risk.grids.bulk', ['emerging_risks', 'delete']), ['ids' => [(string) $entry->id]])
+            ->assertForbidden();
 
         $this->assertNull($entry->fresh()->deleted_at);
 
-        // Livewire::actingAs is sticky, so the actor has to be named again.
-        Livewire::actingAs($this->actor)
-            ->test('data-grid', ['grid' => 'emerging_risks'])
-            ->set('selected', [(string) $entry->id])
-            ->call('runBulk', 'delete');
+        $this->actingAs($this->actor)
+            ->post(route('risk.grids.bulk', ['emerging_risks', 'delete']), ['ids' => [(string) $entry->id]])
+            ->assertRedirect();
 
         $this->assertSoftDeleted('emerging_risks', ['id' => $entry->id]);
     }
@@ -292,8 +312,12 @@ class AdminMiscGridsTest extends TestCase
 
         $this->get(route('risk.reports.library'))
             ->assertOk()
-            ->assertSee('Report Library')
-            ->assertSee('March board pack');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Reports/Library')
+                ->has('types')
+                ->where('grid.name', 'reports_library')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.name.text', 'March board pack'));
     }
 
     #[Test]
@@ -302,9 +326,10 @@ class AdminMiscGridsTest extends TestCase
         $this->makeReport('Our board pack', $this->organization->id);
         $this->makeReport('Their board pack', $this->otherOrg->id);
 
-        Livewire::test('data-grid', ['grid' => 'reports_library'])
-            ->assertSee('Our board pack')
-            ->assertDontSee('Their board pack');
+        $this->get(route('risk.reports.library'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.name.text', 'Our board pack'));
     }
 
     /* --------------------------------------------------- approvals_history */
@@ -312,18 +337,21 @@ class AdminMiscGridsTest extends TestCase
     #[Test]
     public function the_approval_history_page_renders_a_decided_request(): void
     {
-        $this->makeApproval('treatment_plan', $this->organization->id);
+        $approval = $this->makeApproval('treatment_plan', $this->organization->id);
 
         $this->get(route('risk.approvals.history'))
             ->assertOk()
-            ->assertSee('Approval History')
-            ->assertSee('treatment_plan');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Approvals/History')
+                ->where('grid.name', 'approvals_history')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.entity.text', 'treatment_plan #'.$approval->entity_id));
     }
 
     #[Test]
     public function another_organizations_approvals_never_render_and_pending_stays_out_of_history(): void
     {
-        $this->makeApproval('risk', $this->organization->id);
+        $mine = $this->makeApproval('risk', $this->organization->id);
         $this->makeApproval('loss_event', $this->otherOrg->id);
 
         // History is the decided record, never the pending queue.
@@ -332,12 +360,9 @@ class AdminMiscGridsTest extends TestCase
             'reviewed_at' => null,
         ]);
 
-        // The entity cell reads "{alias} #{id}"; the bare alias also appears as
-        // a value in the entity-type filter's option list, so the assertions
-        // have to name the cell's shape rather than the alias alone.
-        Livewire::test('data-grid', ['grid' => 'approvals_history'])
-            ->assertSee('risk #')
-            ->assertDontSee('loss_event #')
-            ->assertDontSee('control_test #');
+        $this->get(route('risk.approvals.history'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.entity.text', 'risk #'.$mine->entity_id));
     }
 }

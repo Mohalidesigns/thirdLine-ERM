@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Controller;
 use App\Models\BusinessUnit;
@@ -11,12 +12,14 @@ use App\Models\RiskAuditTrail;
 use App\Models\RiskCategory;
 use App\Models\RiskControlMapping;
 use App\Models\User;
+use App\Presenters\GridPresenter;
 use App\Services\RiskScoringService;
 use App\Support\Authorization\GraphScope;
 use App\Support\Periods\PeriodContext;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class RiskRegisterController extends Controller
 {
@@ -30,7 +33,7 @@ class RiskRegisterController extends Controller
     /**
      * Display the risk register listing with filters.
      */
-    public function index(Request $request)
+    public function index(Request $request, GridPresenter $presenter)
     {
         $orgId = TenantContext::organizationId();
 
@@ -68,7 +71,11 @@ class RiskRegisterController extends Controller
 
         $total = Risk::where('organization_id', $orgId)->visibleTo()->count();
 
-        return view('risk.register.index', compact('total', 'ratingCounts'));
+        return Inertia::render('Register/Index', [
+            'total' => $total,
+            'ratingCounts' => $ratingCounts,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('risks'), $request, $request->user()),
+        ]);
     }
 
     /**
@@ -161,7 +168,7 @@ class RiskRegisterController extends Controller
         $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
 
-        return view('risk.register.index', [
+        return view('risk.register.historic', [
             'risks' => $paginated,
             'categories' => $categories,
             'businessUnits' => $businessUnits,

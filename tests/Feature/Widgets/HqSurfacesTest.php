@@ -8,6 +8,7 @@ use App\Models\Risk;
 use App\Models\TreatmentPlan;
 use App\Models\WidgetDefinition;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -140,8 +141,10 @@ class HqSurfacesTest extends TestCase
         $response = $this->actingAs($this->actor)->get('/hq/'.$node->id);
 
         $response->assertOk();
-        $response->assertDontSee('No dashboard published');
-        $response->assertSee('Enterprise Risk Management');
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Hq/Show')
+            ->where('dashboard.name', 'Enterprise Risk Management')
+            ->has('payloads', 1));
     }
 
     /**
@@ -192,8 +195,7 @@ class HqSurfacesTest extends TestCase
         $response = $this->actingAs($this->actor)->get('/hq/'.$node->id);
 
         $response->assertOk();
-        $response->assertSee('Our Own Composition');
-        $response->assertDontSee('System Composition');
+        $response->assertInertia(fn (Assert $page) => $page->where('dashboard.name', 'Our Own Composition'));
     }
 
     /**
@@ -232,8 +234,7 @@ class HqSurfacesTest extends TestCase
         $response = $this->actingAs($this->actor)->get('/hq/'.$node->id);
 
         $response->assertOk();
-        $response->assertSee('Reachable Anyway');
-        $response->assertDontSee('No dashboard published');
+        $response->assertInertia(fn (Assert $page) => $page->where('dashboard.name', 'Reachable Anyway'));
     }
 
     /** The builder is behind dashboard.manage, and hq.view is not enough. */

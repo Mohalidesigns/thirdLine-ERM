@@ -5,7 +5,7 @@ namespace Tests\Feature\Grid;
 use App\Models\Organization;
 use App\Models\Risk;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -35,10 +35,18 @@ class RisksGridTest extends TestCase
     {
         $this->makeRisk(['title' => 'Vendor concentration exposure']);
 
-        $this->get('/risk/register')
+        $this->get(route('risk.register.index'))
             ->assertOk()
-            ->assertSee('Risk Register')
-            ->assertSee('Vendor concentration exposure');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Register/Index')
+                ->where('total', 1)
+                ->has('ratingCounts', 4)
+                ->where('grid.name', 'risks')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Vendor concentration exposure'));
+
+        $this->assertFileDoesNotExist(resource_path('views/risk/register/index.blade.php'));
+        $this->assertFileExists(resource_path('views/risk/register/historic.blade.php'));
     }
 
     #[Test]
@@ -47,12 +55,13 @@ class RisksGridTest extends TestCase
         $this->makeRisk(['title' => 'Vendor concentration exposure']);
         $this->makeRisk(['title' => 'Data centre outage']);
 
-        Livewire::test('data-grid', ['grid' => 'risks'])
-            ->assertSee('Vendor concentration exposure')
-            ->assertSee('Data centre outage')
-            ->set('search', 'Vendor')
-            ->assertSee('Vendor concentration exposure')
-            ->assertDontSee('Data centre outage');
+        $this->get(route('risk.register.index'))
+            ->assertInertia(fn (Assert $page) => $page->has('grid.rows.data', 2));
+
+        $this->get(route('risk.register.index', ['search' => 'Vendor']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Vendor concentration exposure'));
     }
 
     #[Test]
@@ -71,8 +80,9 @@ class RisksGridTest extends TestCase
             'created_by' => $this->actor->id,
         ]);
 
-        Livewire::test('data-grid', ['grid' => 'risks'])
-            ->assertSee('Our own risk')
-            ->assertDontSee('Their foreign risk');
+        $this->get(route('risk.register.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Our own risk'));
     }
 }

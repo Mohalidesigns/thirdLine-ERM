@@ -5,7 +5,7 @@ namespace Tests\Feature\Grid;
 use App\Models\NearMiss;
 use App\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -55,23 +55,29 @@ class NearMissesGridTest extends TestCase
 
         $this->get(route('risk.loss-events.near-misses'))
             ->assertOk()
-            ->assertSee('Near Miss Register')
-            ->assertSee($nearMiss->reference)
-            ->assertSee('Server room flood averted');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('LossEvents/NearMisses')
+                ->where('totalNearMisses', 1)
+                ->where('openNearMisses', 1)
+                ->where('grid.name', 'near_misses')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.reference.text', $nearMiss->reference)
+                ->where('grid.rows.data.0.cells.title.text', 'Server room flood averted'));
     }
 
     #[Test]
     public function grid_search_narrows_server_side(): void
     {
         $flood = $this->makeNearMiss(['title' => 'Server room flood averted']);
-        $cash = $this->makeNearMiss(['title' => 'Cash counting mismatch caught']);
+        $this->makeNearMiss(['title' => 'Cash counting mismatch caught']);
 
-        Livewire::test('data-grid', ['grid' => 'near_misses'])
-            ->assertSee($flood->reference)
-            ->assertSee($cash->reference)
-            ->set('search', 'flood')
-            ->assertSee($flood->reference)
-            ->assertDontSee($cash->reference);
+        $this->get(route('risk.loss-events.near-misses'))
+            ->assertInertia(fn (Assert $page) => $page->has('grid.rows.data', 2));
+
+        $this->get(route('risk.loss-events.near-misses', ['search' => 'flood']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.reference.text', $flood->reference));
     }
 
     #[Test]
@@ -92,9 +98,10 @@ class NearMissesGridTest extends TestCase
             'reported_by' => $this->actor->id,
         ]);
 
-        Livewire::test('data-grid', ['grid' => 'near_misses'])
-            ->assertSee($mine->reference)
-            ->assertDontSee('NM-FOREIGN')
-            ->assertDontSee('Their near miss');
+        $this->get(route('risk.loss-events.near-misses'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.reference.text', $mine->reference)
+                ->where('grid.rows.data.0.cells.title.text', 'Our near miss'));
     }
 }

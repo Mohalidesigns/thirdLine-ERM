@@ -2,14 +2,13 @@
 
 namespace Tests\Feature\Widgets;
 
-use App\Livewire\Widgets\DashboardBuilder;
 use App\Models\BusinessUnit;
 use App\Models\Dashboard;
 use App\Models\User;
 use App\Models\WidgetDefinition;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Livewire\Livewire;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -32,6 +31,10 @@ use Tests\TestCase;
  *
  * Each test below is one of those three, plus the mechanics that make the
  * first two answerable.
+ *
+ * Migration Phase 2: the builder's actions are HTTP endpoints and the HQ page
+ * is an Inertia component, so the assertions read the page's props — the
+ * same facts, no longer smeared through rendered HTML.
  */
 class DashboardPublishingTest extends TestCase
 {
@@ -83,9 +86,7 @@ class DashboardPublishingTest extends TestCase
         $dashboard = $this->publishedDashboard();
         $node = $this->retail->graphObject();
 
-        Livewire::actingAs($this->actor)
-            ->test(DashboardBuilder::class, ['dashboardId' => $dashboard->id])
-            ->call('addWidget', $this->widgetB->id);
+        $this->addWidget($dashboard, $this->widgetB);
 
         $dashboard->refresh();
 
@@ -93,11 +94,12 @@ class DashboardPublishingTest extends TestCase
         $this->assertSame(1, $dashboard->publishedWidgetCount(), 'the live layout did not');
         $this->assertTrue($dashboard->hasUnpublishedChanges());
 
-        $response = $this->actingAs($this->actor)->get('/hq/'.$node->id);
-
-        $response->assertOk();
-        $response->assertSee('Live Widget');
-        $response->assertDontSee('Draft Only Widget');
+        $this->actingAs($this->actor)->get('/hq/'.$node->id)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Hq/Show')
+                ->has('payloads', 1)
+                ->where('payloads.0.title', 'Live Widget'));
     }
 
     /** Publishing is the moment the draft becomes what everyone else sees. */
@@ -107,17 +109,18 @@ class DashboardPublishingTest extends TestCase
         $dashboard = $this->publishedDashboard();
         $node = $this->retail->graphObject();
 
-        Livewire::actingAs($this->actor)
-            ->test(DashboardBuilder::class, ['dashboardId' => $dashboard->id])
-            ->call('addWidget', $this->widgetB->id)
-            ->call('publish');
+        $this->addWidget($dashboard, $this->widgetB);
+        $this->actingAs($this->actor)->post(route('risk.dashboards.publish', $dashboard))->assertRedirect();
 
         $dashboard->refresh();
 
         $this->assertSame(2, $dashboard->publishedWidgetCount());
         $this->assertFalse($dashboard->hasUnpublishedChanges());
 
-        $this->actingAs($this->actor)->get('/hq/'.$node->id)->assertSee('Draft Only Widget');
+        $this->actingAs($this->actor)->get('/hq/'.$node->id)
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('payloads', 2)
+                ->where('payloads.1.title', 'Draft Only Widget'));
     }
 
     /**
@@ -144,10 +147,8 @@ class DashboardPublishingTest extends TestCase
     {
         $dashboard = $this->publishedDashboard();
 
-        Livewire::actingAs($this->actor)
-            ->test(DashboardBuilder::class, ['dashboardId' => $dashboard->id])
-            ->call('addWidget', $this->widgetB->id)
-            ->call('discardChanges');
+        $this->addWidget($dashboard, $this->widgetB);
+        $this->actingAs($this->actor)->post(route('risk.dashboards.discard', $dashboard))->assertRedirect();
 
         $dashboard->refresh();
 
@@ -165,7 +166,7 @@ class DashboardPublishingTest extends TestCase
     {
         $dashboard = $this->publishedDashboard();
 
-        $dashboard->unpublish();
+        $this->actingAs($this->actor)->post(route('risk.dashboards.unpublish', $dashboard))->assertRedirect();
 
         $this->assertFalse($dashboard->fresh()->is_published);
         $this->assertSame(1, $dashboard->fresh()->publishedWidgetCount());
@@ -183,7 +184,8 @@ class DashboardPublishingTest extends TestCase
 
         $node = $this->retail->graphObject();
 
-        $this->actingAs($this->actor)->get('/hq/'.$node->id)->assertSee('Live Widget');
+        $this->actingAs($this->actor)->get('/hq/'.$node->id)
+            ->assertInertia(fn (Assert $page) => $page->where('payloads.0.title', 'Live Widget'));
     }
 
     /* ------------------------------------------------------------------ */
@@ -203,9 +205,9 @@ class DashboardPublishingTest extends TestCase
 
         $dashboard = $this->draftDashboard(['object_type_id' => $orphanType->id]);
 
-        Livewire::actingAs($this->actor)
-            ->test(DashboardBuilder::class, ['dashboardId' => $dashboard->id])
-            ->call('publish');
+        $this->actingAs($this->actor)->post(route('risk.dashboards.publish', $dashboard))
+            ->assertRedirect()
+            ->assertSessionHas('error');
 
         $this->assertFalse($dashboard->fresh()->is_published, 'a dashboard nobody could see was not published');
     }
@@ -216,10 +218,13 @@ class DashboardPublishingTest extends TestCase
     {
         $dashboard = $this->draftDashboard();
 
-        Livewire::actingAs($this->actor)
-            ->test(DashboardBuilder::class, ['dashboardId' => $dashboard->id])
-            ->assertSee('Renders on')
-            ->assertSee('node');
+        $this->actingAs($this->actor)->get(route('risk.dashboards.edit', $dashboard))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Dashboards/Edit')
+                ->where('binding.renderable', true)
+                ->where('binding.node_count', fn ($count) => (int) $count >= 1)
+                ->where('binding.name', $this->retail->graphObject()->objectType->name));
     }
 
     /* ------------------------------------------------------------------ */
@@ -233,15 +238,15 @@ class DashboardPublishingTest extends TestCase
         $dashboard = $this->publishedDashboard();
         $node = $this->retail->graphObject();
 
-        Livewire::actingAs($this->actor)
-            ->test(DashboardBuilder::class, ['dashboardId' => $dashboard->id])
-            ->call('addWidget', $this->widgetB->id);
+        $this->addWidget($dashboard, $this->widgetB);
 
-        $response = $this->actingAs($this->actor)->get('/hq/'.$node->id.'?preview='.$dashboard->id);
-
-        $response->assertOk();
-        $response->assertSee('Draft Only Widget');
-        $response->assertSee('Preview');
+        $this->actingAs($this->actor)->get('/hq/'.$node->id.'?preview='.$dashboard->id)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('preview.id', $dashboard->id)
+                ->where('preview.hasUnpublishedChanges', true)
+                ->has('payloads', 2)
+                ->where('payloads.1.title', 'Draft Only Widget'));
     }
 
     /**
@@ -257,11 +262,12 @@ class DashboardPublishingTest extends TestCase
         $dashboard = $this->draftDashboard(['object_type_id' => $otherType->id, 'name' => 'Policy Pack']);
         $node = $this->retail->graphObject();
 
-        $response = $this->actingAs($this->actor)->get('/hq/'.$node->id.'?preview='.$dashboard->id);
-
-        $response->assertOk();
-        $response->assertDontSee('Draft Only Widget');
-        $response->assertSee('Pick a Policy node');
+        $this->actingAs($this->actor)->get('/hq/'.$node->id.'?preview='.$dashboard->id)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('preview', null)
+                ->where('previewRefused', fn ($text) => str_contains((string) $text, 'Pick a Policy node'))
+                ->where('payloads', fn ($payloads) => ! collect($payloads)->contains('title', 'Draft Only Widget')));
     }
 
     /** Previewing unpublished work is an administrator's business, not a viewer's. */
@@ -270,9 +276,7 @@ class DashboardPublishingTest extends TestCase
     {
         $dashboard = $this->publishedDashboard();
 
-        Livewire::actingAs($this->actor)
-            ->test(DashboardBuilder::class, ['dashboardId' => $dashboard->id])
-            ->call('addWidget', $this->widgetB->id);
+        $this->addWidget($dashboard, $this->widgetB);
 
         $viewer = User::create([
             'name' => 'Read Only',
@@ -285,11 +289,13 @@ class DashboardPublishingTest extends TestCase
 
         $node = $this->retail->graphObject();
 
-        $response = $this->actingAs($viewer)->get('/hq/'.$node->id.'?preview='.$dashboard->id);
-
-        $response->assertOk();
-        $response->assertSee('Live Widget');
-        $response->assertDontSee('Draft Only Widget');
+        $this->actingAs($viewer)->get('/hq/'.$node->id.'?preview='.$dashboard->id)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('preview', null)
+                ->where('canManage', false)
+                ->has('payloads', 1)
+                ->where('payloads.0.title', 'Live Widget'));
     }
 
     /* ------------------------------------------------------------------ */
@@ -312,12 +318,13 @@ class DashboardPublishingTest extends TestCase
 
         $node = $this->retail->graphObject();
 
-        $response = $this->actingAs($this->actor)->get('/hq/'.$node->id);
-
-        $response->assertOk();
-        $response->assertSee('not for your roles');
-        $response->assertSee('board-member');
-        $response->assertDontSee('Nothing published for');
+        $this->actingAs($this->actor)->get('/hq/'.$node->id)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('dashboard', null)
+                ->has('roleBlocked', 1)
+                ->where('roleBlocked.0.role_names', fn ($names) => str_contains((string) $names, 'board-member'))
+                ->where('draftsForType', []));
     }
 
     /** With genuinely nothing published, the offer is to publish, not to build. */
@@ -328,12 +335,13 @@ class DashboardPublishingTest extends TestCase
 
         $node = $this->retail->graphObject();
 
-        $response = $this->actingAs($this->actor)->get('/hq/'.$node->id);
-
-        $response->assertOk();
-        $response->assertSee('Nothing published for');
-        $response->assertSee('Half Finished Pack', false);
-        $response->assertSee('object_type_id='.$node->object_type_id, false);
+        $this->actingAs($this->actor)->get('/hq/'.$node->id)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('dashboard', null)
+                ->where('roleBlocked', [])
+                ->where('draftsForType.0.name', 'Half Finished Pack')
+                ->where('createUrl', fn ($url) => str_contains((string) $url, 'object_type_id='.$node->object_type_id)));
     }
 
     /* ------------------------------------------------------------------ */
@@ -351,9 +359,7 @@ class DashboardPublishingTest extends TestCase
     {
         $dashboard = $this->publishedDashboard();
 
-        Livewire::actingAs($this->actor)
-            ->test(DashboardBuilder::class, ['dashboardId' => $dashboard->id])
-            ->call('duplicate');
+        $this->actingAs($this->actor)->post(route('risk.dashboards.duplicate', $dashboard))->assertRedirect();
 
         $copy = Dashboard::query()->where('name', 'like', '%(copy)')->firstOrFail();
 
@@ -366,6 +372,13 @@ class DashboardPublishingTest extends TestCase
     /* ------------------------------------------------------------------ */
     /*  Helpers */
     /* ------------------------------------------------------------------ */
+
+    private function addWidget(Dashboard $dashboard, WidgetDefinition $widget): void
+    {
+        $this->actingAs($this->actor)
+            ->post(route('risk.dashboards.widgets.store', [$dashboard, 'main']), ['widget_id' => $widget->id])
+            ->assertRedirect();
+    }
 
     /**
      * A node type with no objects in it.

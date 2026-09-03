@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
@@ -10,8 +11,10 @@ use App\Models\Control;
 use App\Models\Risk;
 use App\Models\RiskControlMapping;
 use App\Models\User;
+use App\Presenters\GridPresenter;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class ControlController extends Controller
 {
@@ -32,7 +35,7 @@ class ControlController extends Controller
      * pagination all moved into the shared data grid (WP-09) — see
      * App\Grids\Definitions\ControlsGrid.
      */
-    public function index(Request $request)
+    public function index(Request $request, GridPresenter $presenter)
     {
         // WP-00: scoped like ControlsGrid, so the header total counts the
         // rows the grid beneath it will actually show.
@@ -40,7 +43,10 @@ class ControlController extends Controller
             ->visibleTo()
             ->count();
 
-        return view('risk.controls.index', compact('total'));
+        return Inertia::render('Controls/Index', [
+            'total' => $total,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('controls'), $request, $request->user()),
+        ]);
     }
 
     /**

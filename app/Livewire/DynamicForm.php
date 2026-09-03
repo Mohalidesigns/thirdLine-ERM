@@ -5,10 +5,10 @@ namespace App\Livewire;
 use App\Models\GraphObject;
 use App\Models\ObjectAttribute;
 use App\Models\ObjectType;
+use App\Models\ObjectVersion;
 use App\Services\Graph\ObjectSyncService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 
@@ -180,10 +180,10 @@ class DynamicForm extends Component
         $object->updated_by = auth()->id();
         $object->saveQuietly();
 
-        DB::table('object_versions')->insert([
+        ObjectVersion::create([
             'object_id' => $object->id,
             'version' => $object->version,
-            'snapshot' => json_encode(['attributes' => $existing]),
+            'snapshot' => ['attributes' => $existing],
             'changed_by' => auth()->id(),
             'changed_at' => now(),
             'change_reason' => 'configured attributes updated',

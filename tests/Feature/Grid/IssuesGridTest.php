@@ -5,7 +5,7 @@ namespace Tests\Feature\Grid;
 use App\Models\Issue;
 use App\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -55,10 +55,13 @@ class IssuesGridTest extends TestCase
     {
         $this->makeIssue(['title' => 'Stale firewall rulebase']);
 
-        $this->get('/risk/issues')
+        $this->get(route('risk.issues.index'))
             ->assertOk()
-            ->assertSee('Issues Register')
-            ->assertSee('Stale firewall rulebase');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Issues/Index')
+                ->where('grid.name', 'issues')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Stale firewall rulebase'));
     }
 
     #[Test]
@@ -67,12 +70,13 @@ class IssuesGridTest extends TestCase
         $this->makeIssue(['title' => 'Stale firewall rulebase']);
         $this->makeIssue(['title' => 'Missing KYC files']);
 
-        Livewire::test('data-grid', ['grid' => 'issues'])
-            ->assertSee('Stale firewall rulebase')
-            ->assertSee('Missing KYC files')
-            ->set('search', 'firewall')
-            ->assertSee('Stale firewall rulebase')
-            ->assertDontSee('Missing KYC files');
+        $this->get(route('risk.issues.index'))
+            ->assertInertia(fn (Assert $page) => $page->has('grid.rows.data', 2));
+
+        $this->get(route('risk.issues.index', ['search' => 'firewall']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Stale firewall rulebase'));
     }
 
     #[Test]
@@ -95,8 +99,9 @@ class IssuesGridTest extends TestCase
             'created_by' => $this->actor->id,
         ]);
 
-        Livewire::test('data-grid', ['grid' => 'issues'])
-            ->assertSee('Our own issue')
-            ->assertDontSee('Their foreign issue');
+        $this->get(route('risk.issues.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.title.text', 'Our own issue'));
     }
 }

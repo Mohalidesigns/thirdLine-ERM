@@ -102,9 +102,6 @@ class NoFabricatedNumbersTest extends TestCase
         // Workflow designer: default x/y for a node dropped without coordinates.
         'resources/views/livewire/admin/workflow-designer.blade.php:256',
         'resources/views/livewire/admin/workflow-designer.blade.php:258',
-        // Dashboard builder: default GridStack width/height and per-widget minima.
-        'resources/views/livewire/widgets/dashboard-builder.blade.php:267',
-        'resources/views/livewire/widgets/dashboard-builder.blade.php:268',
     ];
 
     /**
@@ -391,7 +388,7 @@ class NoFabricatedNumbersTest extends TestCase
         );
 
         $this->assertCount(
-            4,
+            2,
             self::NUMERIC_FALLBACK_ALLOWLIST,
             'A line was added to the numeric-fallback allowlist. Every current entry is a '
             .'layout coordinate, not a metric. If a genuine metric needs a non-zero default, '

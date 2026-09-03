@@ -137,7 +137,7 @@ class GridPresenter
      */
     public function row(Model $row, $visible, GridDefinition $definition, $rowActions): array
     {
-        $primary = $visible->first(fn (Column $c) => $c->linkTo);
+        $primary = $visible->first(fn (Column $c) => $c->linkTo !== null);
 
         return [
             'id' => (string) $row->getKey(),

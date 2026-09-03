@@ -5,7 +5,7 @@ namespace Tests\Feature\Grid;
 use App\Models\MeasureBreach;
 use App\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -32,7 +32,7 @@ class KriBreachesGridTest extends TestCase
         parent::setUp();
         $this->bootDomainFixtures();
 
-        $this->fixture = new TenantFixture();
+        $this->fixture = new TenantFixture;
 
         foreach (['kri.view', 'kri.acknowledge_breach'] as $permission) {
             Permission::findOrCreate($permission);
@@ -72,10 +72,15 @@ class KriBreachesGridTest extends TestCase
     {
         $this->makeBreach('Failed transaction rate', $this->organization->id);
 
-        $this->get('/risk/kri/breaches')
+        $this->get(route('risk.kri.breaches'))
             ->assertOk()
-            ->assertSee('Active KRI Breaches')
-            ->assertSee('Failed transaction rate');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Kri/Breaches')
+                ->where('activeBreaches', 1)
+                ->where('redBreaches', 1)
+                ->where('grid.name', 'kri_breaches')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.kri_name.text', 'Failed transaction rate'));
     }
 
     #[Test]
@@ -84,12 +89,13 @@ class KriBreachesGridTest extends TestCase
         $this->makeBreach('Failed transaction rate', $this->organization->id);
         $this->makeBreach('Staff attrition ratio', $this->organization->id);
 
-        Livewire::test('data-grid', ['grid' => 'kri_breaches'])
-            ->assertSee('Failed transaction rate')
-            ->assertSee('Staff attrition ratio')
-            ->set('search', 'attrition')
-            ->assertSee('Staff attrition ratio')
-            ->assertDontSee('Failed transaction rate');
+        $this->get(route('risk.kri.breaches'))
+            ->assertInertia(fn (Assert $page) => $page->has('grid.rows.data', 2));
+
+        $this->get(route('risk.kri.breaches', ['search' => 'attrition']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.kri_name.text', 'Staff attrition ratio'));
     }
 
     #[Test]
@@ -100,9 +106,10 @@ class KriBreachesGridTest extends TestCase
         $otherOrg = Organization::create(['name' => 'Other Bank', 'slug' => 'other-bank']);
         $this->makeBreach('Their breach metric', $otherOrg->id);
 
-        Livewire::test('data-grid', ['grid' => 'kri_breaches'])
-            ->assertSee('Our breach metric')
-            ->assertDontSee('Their breach metric');
+        $this->get(route('risk.kri.breaches'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.kri_name.text', 'Our breach metric'));
     }
 
     #[Test]
@@ -114,17 +121,18 @@ class KriBreachesGridTest extends TestCase
             'resolved_at' => now(),
         ]);
 
-        // The register mounts with status=active: resolved breaches are archive.
-        $component = Livewire::test('data-grid', [
-            'grid' => 'kri_breaches',
-            'initialFilters' => ['status' => 'active'],
-        ])
-            ->assertSee('Open exposure metric')
-            ->assertDontSee('Settled exposure metric');
+        // The register opens with status=active: resolved breaches are archive.
+        $this->get(route('risk.kri.breaches'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('grid.state.filters.status', 'active')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.kri_name.text', 'Open exposure metric'));
 
-        $component->set('filters.status', 'closed')
-            ->assertSee('Settled exposure metric')
-            ->assertDontSee('Open exposure metric');
+        $this->get(route('risk.kri.breaches', ['filters' => ['status' => 'closed']]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('grid.state.filters.status', 'closed')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.kri_name.text', 'Settled exposure metric'));
     }
 
     #[Test]
@@ -137,14 +145,13 @@ class KriBreachesGridTest extends TestCase
             'email' => 'breach-viewer@example.test',
             'password' => bcrypt('secret-password'),
             'organization_id' => $this->organization->id,
+            'is_active' => true,
         ]);
         $viewer->givePermissionTo('kri.view');
 
-        Livewire::actingAs($viewer)
-            ->test('data-grid', ['grid' => 'kri_breaches'])
-            ->set('selected', [(string) $breach->id])
-            ->call('runBulk', 'acknowledge')
-            ->assertStatus(403);
+        $this->actingAs($viewer)
+            ->post(route('risk.grids.bulk', ['kri_breaches', 'acknowledge']), ['ids' => [(string) $breach->id]])
+            ->assertForbidden();
 
         $this->assertSame('open', $breach->fresh()->status);
     }

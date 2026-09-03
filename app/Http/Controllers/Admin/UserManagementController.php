@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Models\BusinessUnit;
 use App\Models\User;
+use App\Presenters\GridPresenter;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
 
 class UserManagementController extends Controller
@@ -20,16 +23,17 @@ class UserManagementController extends Controller
      * grid (App\Grids\Definitions\AdminUsersGrid). What remains is the header's
      * four counters, which the grid does not own.
      */
-    public function index()
+    public function index(Request $request, GridPresenter $presenter)
     {
         $orgId = TenantContext::organizationId();
         $scoped = fn () => User::where('organization_id', $orgId);
 
-        return view('admin.users.index', [
+        return Inertia::render('Admin/Users/Index', [
             'totalUsers' => $scoped()->count(),
             'activeUsers' => $scoped()->where('is_active', true)->count(),
             'inactiveUsers' => $scoped()->where('is_active', false)->count(),
             'mfaEnabled' => $scoped()->where('mfa_enabled', true)->count(),
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('admin_users'), $request, $request->user()),
         ]);
     }
 

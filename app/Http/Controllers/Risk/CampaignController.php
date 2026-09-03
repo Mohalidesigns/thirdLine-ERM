@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Events\RcsaWorksheetSubmitted;
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Models\AssessmentCampaign;
 use App\Models\BusinessUnit;
@@ -11,11 +12,13 @@ use App\Models\CampaignResponse;
 use App\Models\Control;
 use App\Models\Questionnaire;
 use App\Models\Risk;
+use App\Presenters\GridPresenter;
 use App\Services\NotificationService;
 use App\Services\ReferenceCodeService;
 use App\Services\RiskScoringService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class CampaignController extends Controller
 {
@@ -48,11 +51,14 @@ class CampaignController extends Controller
      * type filters this method used to read from the query string without the
      * view ever offering a control for them.
      */
-    public function index(Request $request)
+    public function index(Request $request, GridPresenter $presenter)
     {
         $total = AssessmentCampaign::where('organization_id', TenantContext::organizationId())->count();
 
-        return view('risk.campaigns.index', compact('total'));
+        return Inertia::render('Campaigns/Index', [
+            'total' => $total,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('campaigns'), $request, $request->user()),
+        ]);
     }
 
     public function create()

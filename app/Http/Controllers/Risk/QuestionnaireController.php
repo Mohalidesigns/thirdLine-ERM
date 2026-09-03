@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Models\Question;
 use App\Models\QuestionLibrary;
 use App\Models\Questionnaire;
 use App\Models\QuestionnaireSection;
+use App\Presenters\GridPresenter;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class QuestionnaireController extends Controller
 {
@@ -16,11 +19,14 @@ class QuestionnaireController extends Controller
      * WP-09: the register is the shared data grid — see
      * App\Grids\Definitions\QuestionnairesGrid.
      */
-    public function index()
+    public function index(Request $request, GridPresenter $presenter)
     {
         $total = Questionnaire::where('organization_id', TenantContext::organizationId())->count();
 
-        return view('risk.questionnaires.index', compact('total'));
+        return Inertia::render('Questionnaires/Index', [
+            'total' => $total,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('questionnaires'), $request, $request->user()),
+        ]);
     }
 
     public function create()
@@ -138,7 +144,7 @@ class QuestionnaireController extends Controller
      * App\Grids\Definitions\QuestionLibraryGrid, which also owns the
      * "mine or system-wide" scoping this method used to spell out.
      */
-    public function library()
+    public function library(Request $request, GridPresenter $presenter)
     {
         $organizationId = TenantContext::organizationId();
 
@@ -147,7 +153,10 @@ class QuestionnaireController extends Controller
             ->orWhereNull('question_library.organization_id'))
             ->count();
 
-        return view('risk.questionnaires.library', compact('total'));
+        return Inertia::render('Questionnaires/Library', [
+            'total' => $total,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('question_library'), $request, $request->user()),
+        ]);
     }
 
     public function storeLibraryQuestion(Request $request)

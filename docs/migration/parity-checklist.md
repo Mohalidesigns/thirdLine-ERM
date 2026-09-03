@@ -21,12 +21,12 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `admin.settings.sso` | `admin/settings/sso` | `admin.sso` |  |  |  |  |  |  |  |  |  |  |
 | `admin.users.create` | `admin/users/create` | `admin.users` |  |  |  |  |  |  |  |  |  |  |
 | `admin.users.edit` | `admin/users/{user}/edit` | `admin.users` |  |  |  |  |  |  |  |  |  |  |
-| `admin.users.index` | `admin/users` | `admin.users` |  |  |  |  |  |  |  |  |  |  |
+| `admin.users.index` | `admin/users` | `admin.users` | admin/users/index.blade.php (deleted) | Pages/Admin/Users/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `admin.users.show` | `admin/users/{user}` | `admin.users` |  |  |  |  |  |  |  |  |  |  |
 | `admin.webhooks.deliveries` | `admin/webhooks/{webhook}/deliveries` | `webhook.view` |  |  |  |  |  |  |  |  |  |  |
 | `admin.webhooks.index` | `admin/webhooks` | `webhook.view` |  |  |  |  |  |  |  |  |  |  |
-| `hq.index` | `hq` | `hq.view` |  |  |  |  |  |  |  |  |  |  |
-| `hq.show` | `hq/{object}` | `hq.view` |  |  |  |  |  |  |  |  |  |  |
+| `hq.index` | `hq` | `hq.view` | — (redirect) | n/a (redirects to hq.show) |  |  |  |  |  | Inertia/HqPagesTest | 2026-09-03 (Phase 2) |  |
+| `hq.show` | `hq/{object}` | `hq.view` | hq/show.blade.php, hq/empty.blade.php, hq/partials/tree.blade.php (deleted) | Pages/Hq/Show.jsx, Pages/Hq/Empty.jsx |  |  |  | Components/Widget.jsx + widgets/renderers/* | risk.widgets.export | Inertia/HqPagesTest, Widgets/DashboardPublishingTest, Widgets/HqSurfacesTest | 2026-09-03 (Phase 2) |  |
 | `login` | `login` | `` | auth/login.blade.php (deleted) | Pages/Auth/Login.jsx | Auth/LoginRequest |  |  |  |  | Inertia/AuthPagesTest, AuthenticationRateLimitTest | 2026-09-03 (Phase 1) |  |
 | `mfa.setup` | `mfa/setup` | `` | auth/mfa-setup.blade.php (deleted) | Pages/Auth/MfaSetup.jsx |  |  |  |  |  | Auth/MfaSetupTest, MfaFeatureGateTest | 2026-09-03 (Phase 1) |  |
 | `mfa.verify` | `mfa/verify` | `` | auth/mfa-verify.blade.php (deleted) | Pages/Auth/MfaVerify.jsx |  |  |  |  |  | Auth/MfaLoginFlowTest, MfaEnforcementTest | 2026-09-03 (Phase 1) |  |
@@ -45,14 +45,14 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.analysis.trends` | `risk/analysis/trends` | `analysis.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.appetite.index` | `risk/appetite` | `appetite.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.approvals.dashboard` | `risk/approvals` | `approval.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.approvals.history` | `risk/approvals/history` | `approval.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.approvals.history` | `risk/approvals/history` | `approval.view` | risk/approvals/history.blade.php (deleted) | Pages/Approvals/History.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.assessments.create` | `risk/assessments/create` | `assessment.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.assessments.edit` | `risk/assessments/{assessment}/edit` | `assessment.create` |  |  |  |  |  |  |  |  |  |  |
-| `risk.assessments.index` | `risk/assessments` | `assessment.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.assessments.index` | `risk/assessments` | `assessment.view` | risk/assessments/index.blade.php (deleted) | Pages/Assessments/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.assessments.show` | `risk/assessments/{assessment}` | `assessment.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.campaigns.create` | `risk/campaigns/create` | `campaign.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.campaigns.dashboard` | `risk/campaigns/dashboard` | `campaign.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.campaigns.index` | `risk/campaigns` | `campaign.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.campaigns.index` | `risk/campaigns` | `campaign.view` | risk/campaigns/index.blade.php (deleted) | Pages/Campaigns/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.campaigns.respond` | `risk/campaigns/assignments/{assignment}/respond` | `campaign.respond` |  |  |  |  |  |  |  |  |  |  |
 | `risk.campaigns.show` | `risk/campaigns/{campaign}` | `campaign.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.campaigns.submission` | `risk/campaigns/assignments/{assignment}/submission` | `campaign.view` |  |  |  |  |  |  |  |  |  |  |
@@ -60,20 +60,20 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.control-tests.dashboard` | `risk/control-tests/dashboard` | `control_test.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.control-tests.download-evidence` | `risk/control-tests/{controlTest}/evidence/{evidence}/download` | `control_test.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.control-tests.edit` | `risk/control-tests/{controlTest}/edit` | `control_test.edit` |  |  |  |  |  |  |  |  |  |  |
-| `risk.control-tests.index` | `risk/control-tests` | `control_test.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.control-tests.index` | `risk/control-tests` | `control_test.view` | risk/controls/tests/index.blade.php (deleted) | Pages/ControlTests/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.control-tests.show` | `risk/control-tests/{controlTest}` | `control_test.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.controls.create` | `risk/controls/create` | `control.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.controls.edit` | `risk/controls/{control}/edit` | `control.edit` |  |  |  |  |  |  |  |  |  |  |
-| `risk.controls.index` | `risk/controls` | `control.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.controls.index` | `risk/controls` | `control.view` | risk/controls/index.blade.php (deleted) | Pages/Controls/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/ControlsGridTest | 2026-09-03 (Phase 2) |  |
 | `risk.controls.show` | `risk/controls/{control}` | `control.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.dashboard` | `risk/dashboard` | `dashboard.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.dashboards.create` | `risk/dashboards/create` | `dashboard.manage` |  |  |  |  |  |  |  |  |  |  |
-| `risk.dashboards.edit` | `risk/dashboards/{dashboard}/edit` | `dashboard.manage` |  |  |  |  |  |  |  |  |  |  |
-| `risk.dashboards.index` | `risk/dashboards` | `dashboard.manage` |  |  |  |  |  |  |  |  |  |  |
+| `risk.dashboards.create` | `risk/dashboards/create` | `dashboard.manage` | — (redirect) | n/a (creates, redirects to edit) |  |  |  |  |  | Widgets/DashboardPublishingTest | 2026-09-03 (Phase 2) |  |
+| `risk.dashboards.edit` | `risk/dashboards/{dashboard}/edit` | `dashboard.manage` | risk/dashboards/edit.blade.php + livewire/widgets/dashboard-builder.blade.php (deleted) | Pages/Dashboards/Edit.jsx (Components/DashboardBuilder.jsx) | inline validate() — see phase-2-notes |  |  | DashboardEditor |  | Widgets/DashboardLayoutRoundTripTest, Widgets/DashboardPublishingTest | 2026-09-03 (Phase 2) |  |
+| `risk.dashboards.index` | `risk/dashboards` | `dashboard.manage` | risk/dashboards/index.blade.php (deleted) | Pages/Dashboards/Index.jsx |  |  |  |  |  | Widgets/DashboardLayoutRoundTripTest | 2026-09-03 (Phase 2) |  |
 | `risk.documents.index` | `risk/documents` | `document.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.emerging.create` | `risk/emerging-risks/create` | `risk.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.emerging.edit` | `risk/emerging-risks/{emerging}/edit` | `risk.edit` |  |  |  |  |  |  |  |  |  |  |
-| `risk.emerging.index` | `risk/emerging-risks` | `risk.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.emerging.index` | `risk/emerging-risks` | `risk.view` | risk/emerging/index.blade.php (deleted) | Pages/Emerging/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.export.appetite` | `risk/export/appetite` | `report.export` |  |  |  |  |  |  |  |  |  |  |
 | `risk.export.assessments` | `risk/export/assessments` | `report.export` |  |  |  |  |  |  |  |  |  |  |
 | `risk.export.controls` | `risk/export/controls` | `report.export` |  |  |  |  |  |  |  |  |  |  |
@@ -91,20 +91,20 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.export.rcsa-matrix` | `risk/export/rcsa-matrix` | `report.export` |  |  |  |  |  |  |  |  |  |  |
 | `risk.export.register` | `risk/export/register` | `report.export` |  |  |  |  |  |  |  |  |  |  |
 | `risk.imports.create` | `risk/imports/create` | `import.create` |  |  |  |  |  |  |  |  |  |  |
-| `risk.imports.index` | `risk/imports` | `import.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.imports.index` | `risk/imports` | `import.view` | risk/imports/index.blade.php (deleted) | Pages/Imports/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.issues.ageing` | `risk/issues/ageing` | `issue.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.issues.closure` | `risk/issues/closure` | `issue.close` |  |  |  |  |  |  |  |  |  |  |
 | `risk.issues.create` | `risk/issues/create` | `issue.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.issues.dashboard` | `risk/issues/dashboard` | `issue.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.issues.download-attachment` | `risk/issues/{issue}/attachments/{attachment}/download` | `issue.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.issues.edit` | `risk/issues/{issue}/edit` | `issue.edit` |  |  |  |  |  |  |  |  |  |  |
-| `risk.issues.index` | `risk/issues` | `issue.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.issues.index` | `risk/issues` | `issue.view` | risk/issues/index.blade.php (deleted) | Pages/Issues/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.issues.show` | `risk/issues/{issue}` | `issue.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.kri.breaches` | `risk/kri/breaches` | `kri.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.kri.breaches` | `risk/kri/breaches` | `kri.view` | risk/kri/breaches.blade.php (deleted) | Pages/Kri/Breaches.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.kri.create` | `risk/kri/create` | `kri.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.kri.dashboard` | `risk/kri/dashboard` | `kri.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.kri.edit` | `risk/kri/{kri}/edit` | `kri.edit` |  |  |  |  |  |  |  |  |  |  |
-| `risk.kri.index` | `risk/kri` | `kri.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.kri.index` | `risk/kri` | `kri.view` | risk/kri/index.blade.php (deleted) | Pages/Kri/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.kri.show` | `risk/kri/{kri}` | `kri.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.kri.thresholds` | `risk/kri/thresholds` | `kri.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.loss-events.approvals` | `risk/loss-events/approvals` | `loss_event.approve` |  |  |  |  |  |  |  |  |  |  |
@@ -113,8 +113,8 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.loss-events.dashboard` | `risk/loss-events/dashboard` | `loss_event.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.loss-events.download-attachment` | `risk/loss-events/{lossEvent}/attachments/{attachment}/download` | `loss_event.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.loss-events.edit` | `risk/loss-events/{loss_event}/edit` | `loss_event.edit` |  |  |  |  |  |  |  |  |  |  |
-| `risk.loss-events.index` | `risk/loss-events` | `loss_event.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.loss-events.near-misses` | `risk/loss-events/near-misses` | `loss_event.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.loss-events.index` | `risk/loss-events` | `loss_event.view` | risk/loss-events/index.blade.php (deleted) | Pages/LossEvents/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
+| `risk.loss-events.near-misses` | `risk/loss-events/near-misses` | `loss_event.view` | risk/loss-events/near-misses.blade.php (deleted) | Pages/LossEvents/NearMisses.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.loss-events.rca` | `risk/loss-events/rca` | `loss_event.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.loss-events.reports` | `risk/loss-events/reports` | `loss_event.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.loss-events.show` | `risk/loss-events/{loss_event}` | `loss_event.view` |  |  |  |  |  |  |  |  |  |  |
@@ -141,8 +141,8 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.quantification.simulate` | `risk/quantification/simulate` | `quantification.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.questionnaires.create` | `risk/questionnaires/create` | `questionnaire.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.questionnaires.edit` | `risk/questionnaires/{questionnaire}/edit` | `questionnaire.edit` |  |  |  |  |  |  |  |  |  |  |
-| `risk.questionnaires.index` | `risk/questionnaires` | `questionnaire.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.questionnaires.library` | `risk/question-library` | `questionnaire.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.questionnaires.index` | `risk/questionnaires` | `questionnaire.view` | risk/questionnaires/index.blade.php (deleted) | Pages/Questionnaires/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
+| `risk.questionnaires.library` | `risk/question-library` | `questionnaire.view` | risk/questionnaires/library.blade.php (deleted) | Pages/Questionnaires/Library.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.questionnaires.show` | `risk/questionnaires/{questionnaire}` | `questionnaire.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.rcsa.controls` | `risk/rcsa/controls` | `rcsa.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.rcsa.dashboard` | `risk/rcsa/dashboard` | `rcsa.view` |  |  |  |  |  |  |  |  |  |  |
@@ -150,10 +150,10 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.rcsa.worksheet` | `risk/rcsa/worksheet` | `rcsa.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.register.create` | `risk/register/create` | `risk.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.register.edit` | `risk/register/{register}/edit` | `risk.edit` |  |  |  |  |  |  |  |  |  |  |
-| `risk.register.index` | `risk/register` | `risk.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.register.index` | `risk/register` | `risk.view` | risk/register/index.blade.php (deleted; historic branch → risk/register/historic.blade.php) | Pages/Register/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/RiskRegisterGridTest | 2026-09-03 (Phase 2) |  |
 | `risk.register.show` | `risk/register/{register}` | `risk.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.regulatory.calendar` | `risk/regulatory/calendar` | `regulatory.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.regulatory.circulars` | `risk/regulatory/circulars` | `regulatory.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.regulatory.circulars` | `risk/regulatory/circulars` | `regulatory.view` | risk/regulatory/circulars.blade.php (deleted) | Pages/Regulatory/Circulars.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.regulatory.create-circular` | `risk/regulatory/circulars/create` | `regulatory.manage` |  |  |  |  |  |  |  |  |  |  |
 | `risk.regulatory.create-deadline` | `risk/regulatory/deadlines/create` | `regulatory.manage` |  |  |  |  |  |  |  |  |  |  |
 | `risk.regulatory.dashboard` | `risk/regulatory/dashboard` | `regulatory.view` |  |  |  |  |  |  |  |  |  |  |
@@ -166,20 +166,20 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.reports.custom.generate` | `risk/reports/custom/generate` | `report.generate` |  |  |  |  |  |  |  |  |  |  |
 | `risk.reports.download` | `risk/reports/{report}/download` | `report.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.reports.executive` | `risk/reports/executive` | `report.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.reports.library` | `risk/reports/library` | `report.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.reports.library` | `risk/reports/library` | `report.view` | risk/reports/library.blade.php (deleted) | Pages/Reports/Library.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.reports.regulatory` | `risk/reports/regulatory` | `report.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.reports.status` | `risk/reports/{report}/status` | `report.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.reports.status-json` | `risk/reports/{report}/status.json` | `report.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.scoping.create` | `risk/scoping/create` | `entity.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.scoping.dashboard` | `risk/scoping/dashboard` | `entity.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.scoping.edit` | `risk/scoping/{scoping}/edit` | `entity.edit` |  |  |  |  |  |  |  |  |  |  |
-| `risk.scoping.index` | `risk/scoping` | `entity.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.scoping.index` | `risk/scoping` | `entity.view` | risk/scoping/index.blade.php (deleted) | Pages/Scoping/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Inertia/ScopingIndexTest, Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.scoping.show` | `risk/scoping/{scoping}` | `entity.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.thresholds.rebaseline` | `risk/thresholds/rebaseline` | `threshold.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.treatments.create` | `risk/treatments/create` | `treatment.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.treatments.dashboard` | `risk/treatments/dashboard` | `treatment.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.treatments.edit` | `risk/treatments/{treatment}/edit` | `treatment.edit` |  |  |  |  |  |  |  |  |  |  |
-| `risk.treatments.index` | `risk/treatments` | `treatment.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.treatments.index` | `risk/treatments` | `treatment.view` | risk/treatments/index.blade.php (deleted) | Pages/Treatments/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.treatments.review` | `risk/treatments/review` | `treatment.approve` |  |  |  |  |  |  |  |  |  |  |
 | `risk.treatments.show` | `risk/treatments/{treatment}` | `treatment.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.workflows.create-definition` | `risk/workflows/definitions/create` | `workflow.manage` |  |  |  |  |  |  |  |  |  |  |
@@ -194,3 +194,8 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `sso.redirect` | `auth/sso/{slug}` | `` |  |  |  |  |  |  |  |  |  |  |
 | `profile.edit` | `profile` | `dashboard.view` | — (new) | Pages/Profile/Edit.jsx | ProfileUpdateRequest |  |  |  |  | Inertia/AuthPagesTest | 2026-09-03 (Phase 1) |  |
 | `notifications.unread-count` | `notifications/unread-count` | `notification.view` | — (new, JSON) | n/a |  |  |  |  |  | Inertia/AuthPagesTest | 2026-09-03 (Phase 1) |  |
+| `risk.grids.show` | `risk/grids/{grid}` | `view-grid gate` | — (new, JSON) | n/a |  |  |  |  |  | Grid/*, Widgets/WidgetPayloadEndpointTest, Inertia/JobProgressTest | 2026-09-03 (Phase 2) |  |
+| `risk.grids.export` | `risk/grids/{grid}/export/{format}` | `view-grid gate` | — (new, file) | n/a |  |  |  |  |  | Grid/*, Widgets/WidgetPayloadEndpointTest, Inertia/JobProgressTest | 2026-09-03 (Phase 2) |  |
+| `risk.widgets.payload` | `risk/widgets/{widget}/payload` | `dashboard.view` | — (new, JSON) | n/a |  |  |  |  |  | Grid/*, Widgets/WidgetPayloadEndpointTest, Inertia/JobProgressTest | 2026-09-03 (Phase 2) |  |
+| `risk.widgets.export` | `risk/widgets/{widget}/export` | `dashboard.view` | — (new, file) | n/a |  |  |  |  |  | Grid/*, Widgets/WidgetPayloadEndpointTest, Inertia/JobProgressTest | 2026-09-03 (Phase 2) |  |
+| `risk.jobs.progress` | `risk/jobs/{jobRun}/progress` | `job.view` | — (new, JSON) | n/a |  |  |  |  |  | Grid/*, Widgets/WidgetPayloadEndpointTest, Inertia/JobProgressTest | 2026-09-03 (Phase 2) |  |

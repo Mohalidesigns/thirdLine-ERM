@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
@@ -10,6 +11,7 @@ use App\Models\KriMeasurement;
 use App\Models\MeasureBreach;
 use App\Models\Risk;
 use App\Models\User;
+use App\Presenters\GridPresenter;
 use App\Services\KriMeasureBridge;
 use App\Services\MeasureService;
 use App\Services\PeriodService;
@@ -17,6 +19,7 @@ use App\Support\Periods\PeriodContext;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class KriController extends Controller
 {
@@ -121,7 +124,7 @@ class KriController extends Controller
      * grid (App\Grids\Definitions\KrisGrid); the controller computes only
      * what the page header still needs.
      */
-    public function index(Request $request)
+    public function index(Request $request, GridPresenter $presenter)
     {
         $orgId = TenantContext::organizationId();
 
@@ -137,7 +140,11 @@ class KriController extends Controller
             ->where('current_status', 'red')
             ->count();
 
-        return view('risk.kri.index', compact('total', 'activeBreachCount'));
+        return Inertia::render('Kri/Index', [
+            'total' => $total,
+            'activeBreachCount' => $activeBreachCount,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('kris'), $request, $request->user()),
+        ]);
     }
 
     /**
@@ -571,11 +578,17 @@ class KriController extends Controller
      * The breach REGISTER, not a filtered list of readings. WP-09: the table
      * itself — search, filters, sorting, bulk acknowledge/resolve, export —
      * lives inside the shared data grid (App\Grids\Definitions\KriBreachesGrid),
-     * which the view mounts with status=active so the default stays the work
-     * list. The controller computes only the KPI cards.
+     * which this action opens with status=active so the default stays the
+     * work list. The controller computes only the KPI cards.
      */
-    public function breaches(Request $request)
+    public function breaches(Request $request, GridPresenter $presenter)
     {
+        // The register defaults to the work list (open + acknowledged), not
+        // the archive. Explicit grid state — a filter or a named view — wins.
+        if (! $request->has('filters') && ! $request->filled('view')) {
+            $request->query->set('filters', ['status' => 'active']);
+        }
+
         $orgId = TenantContext::organizationId();
 
         $open = MeasureBreach::query()->where('organization_id', $orgId)->open();
@@ -596,10 +609,15 @@ class KriController extends Controller
 
         $unacknowledged = (clone $open)->where('measure_breaches.status', 'open')->count();
 
-        return view('risk.kri.breaches', compact(
-            'activeBreaches', 'redBreaches', 'amberBreaches', 'avgDaysInBreach',
-            'mttrHours', 'unacknowledged'
-        ));
+        return Inertia::render('Kri/Breaches', [
+            'activeBreaches' => $activeBreaches,
+            'redBreaches' => $redBreaches,
+            'amberBreaches' => $amberBreaches,
+            'avgDaysInBreach' => $avgDaysInBreach,
+            'mttrDays' => $mttrHours === null ? null : number_format($mttrHours / 24, 1),
+            'unacknowledged' => $unacknowledged,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('kri_breaches'), $request, $request->user()),
+        ]);
     }
 
     /**

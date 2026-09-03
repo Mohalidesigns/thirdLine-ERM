@@ -65,6 +65,12 @@ final class GridState
                 ->first();
         }
 
+        // A view id that is not this user's on this grid is not applied — and
+        // not echoed back either, or the client would believe it was.
+        if ($view === null) {
+            $viewId = null;
+        }
+
         if ($view !== null) {
             $state = (array) $view->state;
 

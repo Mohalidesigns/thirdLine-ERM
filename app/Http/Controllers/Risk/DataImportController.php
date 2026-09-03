@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessDataImportJob;
 use App\Models\DataImport;
+use App\Presenters\GridPresenter;
 use App\Services\FileUploadService;
 use App\Services\SpreadsheetReader;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class DataImportController extends Controller
 {
@@ -21,11 +24,14 @@ class DataImportController extends Controller
      * WP-09: the history table is the shared data grid — see
      * App\Grids\Definitions\DataImportsGrid.
      */
-    public function index()
+    public function index(Request $request, GridPresenter $presenter)
     {
         $total = DataImport::where('organization_id', TenantContext::organizationId())->count();
 
-        return view('risk.imports.index', compact('total'));
+        return Inertia::render('Imports/Index', [
+            'total' => $total,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('imports'), $request, $request->user()),
+        ]);
     }
 
     public function create()

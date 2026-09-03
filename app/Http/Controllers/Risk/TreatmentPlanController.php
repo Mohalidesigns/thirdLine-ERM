@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
@@ -9,11 +10,13 @@ use App\Models\Risk;
 use App\Models\RiskAuditTrail;
 use App\Models\TreatmentPlan;
 use App\Models\User;
+use App\Presenters\GridPresenter;
 use App\Services\Workflow\ModuleApprovals;
 use App\Support\Authorization\GraphScope;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class TreatmentPlanController extends Controller
 {
@@ -145,7 +148,7 @@ class TreatmentPlanController extends Controller
     /**
      * Display the treatment plan listing with filters.
      */
-    public function index(Request $request)
+    public function index(Request $request, GridPresenter $presenter)
     {
         // WP-09: filtering, search, sorting, pagination, bulk delete and
         // export moved into the shared data grid
@@ -159,7 +162,11 @@ class TreatmentPlanController extends Controller
             'risk'
         )->count();
 
-        return view('risk.treatments.index', compact('total'));
+        return Inertia::render('Treatments/Index', [
+            'total' => $total,
+            'lastUpdated' => now()->format('M d, Y'),
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('treatments'), $request, $request->user()),
+        ]);
     }
 
     /**

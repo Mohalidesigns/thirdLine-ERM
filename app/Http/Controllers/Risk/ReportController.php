@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Jobs\GenerateReportJob;
 use App\Models\ApprovalRequest;
@@ -18,6 +19,7 @@ use App\Models\RegulatoryDeadline;
 use App\Models\Risk;
 use App\Models\RiskCategory;
 use App\Models\TreatmentPlan;
+use App\Presenters\GridPresenter;
 use App\Services\BoardPackAssembler;
 use App\Services\DocumentRenderer;
 use App\Services\RegulatoryReportService;
@@ -29,6 +31,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 
 class ReportController extends Controller
 {
@@ -914,10 +917,12 @@ class ReportController extends Controller
      * (App\Grids\Definitions\ReportsLibraryGrid). What remains is the
      * generate-a-report form above it, which needs the report type list.
      */
-    public function library()
+    public function library(Request $request, GridPresenter $presenter)
     {
-        return view('risk.reports.library', [
+        return Inertia::render('Reports/Library', [
             'types' => GenerateReportJob::TYPES,
+            'today' => now()->format('Y-m-d'),
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('reports_library'), $request, $request->user()),
         ]);
     }
 

@@ -5,7 +5,7 @@ namespace Tests\Feature\Grid;
 use App\Models\KeyRiskIndicator;
 use App\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -62,10 +62,15 @@ class KrisGridTest extends TestCase
     {
         $this->makeIndicator(['name' => 'System downtime hours']);
 
-        $this->get('/risk/kri')
+        $this->get(route('risk.kri.index'))
             ->assertOk()
-            ->assertSee('Key Risk Indicators Library')
-            ->assertSee('System downtime hours');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Kri/Index')
+                ->where('total', 1)
+                ->where('activeBreachCount', 0)
+                ->where('grid.name', 'kris')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.name.text', 'System downtime hours'));
     }
 
     #[Test]
@@ -74,12 +79,13 @@ class KrisGridTest extends TestCase
         $this->makeIndicator(['name' => 'Failed transaction rate']);
         $this->makeIndicator(['name' => 'Staff attrition ratio']);
 
-        Livewire::test('data-grid', ['grid' => 'kris'])
-            ->assertSee('Failed transaction rate')
-            ->assertSee('Staff attrition ratio')
-            ->set('search', 'attrition')
-            ->assertSee('Staff attrition ratio')
-            ->assertDontSee('Failed transaction rate');
+        $this->get(route('risk.kri.index'))
+            ->assertInertia(fn (Assert $page) => $page->has('grid.rows.data', 2));
+
+        $this->get(route('risk.kri.index', ['search' => 'attrition']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.name.text', 'Staff attrition ratio'));
     }
 
     #[Test]
@@ -101,9 +107,9 @@ class KrisGridTest extends TestCase
             'created_by' => $this->actor->id,
         ]);
 
-        Livewire::test('data-grid', ['grid' => 'kris'])
-            ->assertSee('Our indicator')
-            ->assertDontSee('Their indicator')
-            ->assertDontSee('KRI-FOREIGN-001');
+        $this->get(route('risk.kri.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.name.text', 'Our indicator'));
     }
 }

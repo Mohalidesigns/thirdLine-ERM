@@ -198,9 +198,10 @@ class AuthPagesTest extends TestCase
         }
 
         $this->assertTrue(Ported::isPath('/my'));
-        $this->assertFalse(Ported::isPath('/risk/register'));
+        // /risk/register flipped in Phase 2; the dashboard is Blade until Phase 4.
+        $this->assertFalse(Ported::isPath('/risk/dashboard'));
         $this->assertSame('', Ported::navigateAttribute('/my'));
-        $this->assertSame('wire:navigate', Ported::navigateAttribute('/risk/register'));
+        $this->assertSame('wire:navigate', Ported::navigateAttribute('/risk/dashboard'));
 
         foreach (NavPresenter::allItems() as $item) {
             $expected = Ported::isRoute($item['route']);

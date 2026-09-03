@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Concerns;
 
 use App\Models\ObjectAttribute;
 use App\Models\ObjectType;
+use App\Models\ObjectVersion;
 use App\View\Components\DynamicForm;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 /**
  * WP-05 TASK 2 — the second half of "a tenant adds a field and it works".
@@ -111,10 +111,10 @@ trait PersistsConfiguredAttributes
         $object->updated_by = auth()->id();
         $object->saveQuietly();
 
-        DB::table('object_versions')->insert([
+        ObjectVersion::create([
             'object_id' => $object->id,
             'version' => $object->version,
-            'snapshot' => json_encode(['attributes' => $bag]),
+            'snapshot' => ['attributes' => $bag],
             'changed_by' => auth()->id(),
             'changed_at' => now(),
             'change_reason' => 'configured attributes saved with the record',

@@ -6,10 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Dashboard;
 use App\Models\GraphObject;
 use App\Models\ObjectType;
+use App\Models\WidgetDefinition;
+use App\Presenters\WidgetPayloadPresenter;
 use App\Services\Graph\GraphQueryService;
 use App\Services\Widgets\DashboardBinding;
 use App\Services\Widgets\DashboardResolver;
+use App\Services\Widgets\WidgetContext;
+use App\Services\Widgets\WidgetDataService;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
 
 /**
@@ -30,6 +35,8 @@ class HqController extends Controller
         private readonly DashboardResolver $dashboards,
         private readonly GraphQueryService $graph,
         private readonly DashboardBinding $binding,
+        private readonly WidgetDataService $widgets,
+        private readonly WidgetPayloadPresenter $payloads,
     ) {}
 
     /**
@@ -49,7 +56,7 @@ class HqController extends Controller
             ->get(['id', 'hierarchy_path']);
 
         if ($roots->isEmpty()) {
-            return view('hq.empty');
+            return Inertia::render('Hq/Empty');
         }
 
         $busiest = $roots
@@ -104,17 +111,75 @@ class HqController extends Controller
 
         $ancestors = $this->graph->ancestors((int) $object->id, $user)->reverse()->values();
 
-        return view('hq.show', [
-            'object' => $object,
-            'objectType' => $object->objectType,
-            'dashboard' => $dashboard,
-            'tabs' => $tabs,
-            'activeTab' => $activeTab,
-            'ancestors' => $ancestors,
+        // Every panel on the active tab is resolved here, server-side, so the
+        // page paints with its numbers on first load. Refresh, register
+        // search and paging go through WidgetController afterwards.
+        $payloads = [];
+
+        if ($activeTab !== null) {
+            $definitions = WidgetDefinition::query()
+                ->whereIn('id', collect($activeTab['layout'])->pluck('widget_id')->map(fn ($id) => (int) $id)->unique())
+                ->get()
+                ->keyBy('id');
+
+            foreach ($activeTab['layout'] as $index => $placement) {
+                $definition = $definitions->get((int) ($placement['widget_id'] ?? 0));
+
+                $payloads[$index] = $definition === null
+                    ? ['state' => 'error', 'widget_id' => (int) ($placement['widget_id'] ?? 0), 'code' => 'missing', 'type' => 'missing', 'title' => 'Missing widget', 'data' => [], 'visualisation' => [], 'meta' => []]
+                    : $this->payloads->present(
+                        $this->widgets->render($definition, WidgetContext::for($user, $object), (array) ($placement['overrides'] ?? [])),
+                        $definition,
+                        ['node' => (int) $object->id, 'overrides' => (object) ($placement['overrides'] ?? [])],
+                    );
+            }
+        }
+
+        $createUrl = $canManage
+            ? route('risk.dashboards.create', ['object_type_id' => $object->object_type_id])
+            : null;
+
+        return Inertia::render('Hq/Show', [
+            'object' => [
+                'id' => (int) $object->id,
+                'name' => $object->name,
+                'object_type_id' => $object->object_type_id,
+                'type' => $object->objectType?->name,
+                'icon' => $object->objectType?->icon,
+            ],
+            'dashboard' => $dashboard === null ? null : [
+                'id' => $dashboard->id,
+                'name' => $dashboard->name,
+                'object_type_id' => $dashboard->object_type_id,
+                'objectTypeName' => $dashboard->objectType?->name,
+                'isSystem' => $dashboard->organization_id === null,
+                'version' => (int) $dashboard->version,
+                'editUrl' => $canManage ? route('risk.dashboards.edit', $dashboard) : null,
+            ],
+            'tabs' => collect($tabs)->map(fn (array $tab) => [
+                'code' => $tab['code'],
+                'label' => $tab['label'],
+                'count' => count($tab['layout']),
+            ])->values()->all(),
+            'activeTab' => $activeTab === null ? null : [
+                'code' => $activeTab['code'],
+                'label' => $activeTab['label'],
+                'layout' => array_values($activeTab['layout']),
+            ],
+            'payloads' => $payloads,
+            'ancestors' => $ancestors->map(fn (GraphObject $a) => ['id' => (int) $a->id, 'name' => $a->name])->values()->all(),
             'tree' => $this->tree($user),
 
             // Preview chrome. Null on a normal page load.
-            'preview' => $preview,
+            'preview' => $preview === null ? null : [
+                'id' => $preview->id,
+                'name' => $preview->name,
+                'objectTypeName' => $preview->objectType?->name,
+                'isPublished' => (bool) $preview->is_published,
+                'hasUnpublishedChanges' => $preview->hasUnpublishedChanges(),
+                'version' => (int) $preview->version,
+                'editUrl' => route('risk.dashboards.edit', $preview),
+            ],
             // Asked for a preview and did not get one — the banner explains why
             // rather than pretending the request was never made.
             'previewRefused' => $preview === null && $request->filled('preview')
@@ -123,13 +188,23 @@ class HqController extends Controller
 
             // Empty-state material, only worth loading for someone who can act.
             'canManage' => $canManage,
-            'draftsForType' => $canManage ? $this->draftsForType($object) : collect(),
+            'createUrl' => $createUrl,
+            'draftsForType' => $canManage
+                ? $this->draftsForType($object)->map(fn (Dashboard $d) => ['id' => $d->id, 'name' => $d->name, 'editUrl' => route('risk.dashboards.edit', $d)])->values()->all()
+                : [],
             'nodeCountForType' => $canManage
                 ? ($this->binding->nodeCounts()[$object->object_type_id] ?? 0)
                 : 0,
             // Published, bound to this type, and still not on screen because
             // of who is looking. See roleBlockedDashboards().
-            'roleBlocked' => $dashboard === null ? $this->roleBlockedDashboards($object, $user) : collect(),
+            'roleBlocked' => $dashboard === null
+                ? $this->roleBlockedDashboards($object, $user)->map(fn (Dashboard $d) => [
+                    'id' => $d->id,
+                    'name' => $d->name,
+                    'role_names' => $d->role_names,
+                    'editUrl' => $canManage ? route('risk.dashboards.edit', $d) : null,
+                ])->values()->all()
+                : [],
         ]);
     }
 

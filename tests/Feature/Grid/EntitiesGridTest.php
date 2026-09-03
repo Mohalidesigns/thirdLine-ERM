@@ -6,7 +6,7 @@ use App\Models\Entity;
 use App\Models\EntityType;
 use App\Models\Organization;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -64,25 +64,26 @@ class EntitiesGridTest extends TestCase
 
         $this->get(route('risk.scoping.index'))
             ->assertOk()
-            ->assertSee('Entity Register')
-            ->assertSee($entity->entity_code)
-            ->assertSee('Lagos Island Branch');
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Scoping/Index')
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.entity_code.text', $entity->entity_code)
+                ->where('grid.rows.data.0.cells.name.text', 'Lagos Island Branch'));
     }
 
     #[Test]
     public function grid_search_narrows_server_side(): void
     {
-        // Entity codes distinguish rows: names also appear in the parent_id
-        // filter dropdown, so a name cannot carry a DontSee.
         $this->makeEntity(['name' => 'Lagos Operations Hub', 'entity_code' => 'ENT-LAG']);
         $this->makeEntity(['name' => 'Abuja Treasury Desk', 'entity_code' => 'ENT-ABJ']);
 
-        Livewire::test('data-grid', ['grid' => 'entities'])
-            ->assertSee('ENT-LAG')
-            ->assertSee('ENT-ABJ')
-            ->set('search', 'Lagos')
-            ->assertSee('ENT-LAG')
-            ->assertDontSee('ENT-ABJ');
+        $this->get(route('risk.scoping.index'))
+            ->assertInertia(fn (Assert $page) => $page->has('grid.rows.data', 2));
+
+        $this->get(route('risk.scoping.index', ['search' => 'Lagos']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.entity_code.text', 'ENT-LAG'));
     }
 
     #[Test]
@@ -100,9 +101,10 @@ class EntitiesGridTest extends TestCase
             'level' => 2,
         ]);
 
-        Livewire::test('data-grid', ['grid' => 'entities'])
-            ->assertSee($mine->entity_code)
-            ->assertDontSee('ENT-FOREIGN')
-            ->assertDontSee('Their Entity');
+        $this->get(route('risk.scoping.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('grid.rows.data', 1)
+                ->where('grid.rows.data.0.cells.entity_code.text', $mine->entity_code)
+                ->where('grid.rows.data.0.cells.name.text', 'Our Branch'));
     }
 }

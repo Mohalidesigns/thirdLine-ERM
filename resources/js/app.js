@@ -44,43 +44,10 @@ window.onPageReady ??= (fn) => {
 };
 
 /*
-| The WP-08 widget engine hydrates here. initWidgets() finds [data-widget]
-| panels and hands each its JSON payload; initDashboardBuilder() wires
-| GridStack on the builder surface.
-|
-| Both were removed when Business HQ and the dashboard builder were retired —
-| at that point the two calls only ever walked an empty DOM while their
-| imports pulled GridStack and every chart resolver into the bundle for every
-| page in the product. WP-12 restores the surfaces, so they are back.
-|
-| The imports are dynamic on purpose. GridStack plus the chart resolvers are
-| the single largest thing in this bundle and exactly two screens need them;
-| a static import would put that cost back on every pageview, which was a fair
-| half of the argument for retiring them in the first place. The DOM probe
-| below costs one querySelector.
+| Migration Phase 2: the widget engine and the dashboard builder render in
+| React (resources/js/widgets/renderers, Components/DashboardBuilder). The
+| Livewire-era hydration (widgets/index.js, widgets/builder.js) is gone.
 */
-window.onPageReady(() => {
-    const needsWidgets = document.querySelector('[data-widget]') !== null;
-    const needsBuilder = document.querySelector('[data-dashboard-builder]') !== null;
-
-    if (!needsWidgets && !needsBuilder) {
-        return;
-    }
-
-    // Two chunks, not one: the builder drags in GridStack and its stylesheet,
-    // which the read-only HQ page has no use for.
-    if (needsWidgets) {
-        import('./widgets/index.js')
-            .then(({ initWidgets }) => initWidgets())
-            .catch((e) => console.error('[widgets] panel hydration failed', e));
-    }
-
-    if (needsBuilder) {
-        import('./widgets/builder.js')
-            .then(({ initDashboardBuilder }) => initDashboardBuilder())
-            .catch((e) => console.error('[widgets] builder failed to load', e));
-    }
-});
 
 /*
 | Canvas sizing, re-applied per pageview.

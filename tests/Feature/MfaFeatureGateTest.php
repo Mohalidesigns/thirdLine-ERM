@@ -226,10 +226,13 @@ class MfaFeatureGateTest extends TestCase
     {
         config(['features.mfa_totp' => true]);
 
+        // The React shell shows "2FA Setup" in the user menu when the shared
+        // `features.mfa_totp` prop is on (migration Phase 2: /risk/register is
+        // an Inertia page, so the menu is no longer server-rendered text).
         $this->actingAs($this->user())
             ->get('/risk/register')
             ->assertOk()
-            ->assertSee('2FA Setup');
+            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->where('features.mfa_totp', true));
     }
 
     /* ================================================================== */

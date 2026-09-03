@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Grids\BulkAction;
 use App\Grids\Column;
 use App\Grids\GridDefinition;
+use App\Grids\GridQuery;
 use App\Grids\GridRegistry;
 use App\Models\DataGridView;
 use Illuminate\Database\Eloquent\Builder;
@@ -64,17 +65,19 @@ class DataGrid extends Component
 
     /** Inline edit state: "rowId:columnKey" or null. */
     public ?string $editing = null;
+
     public string $editValue = '';
 
     public ?int $currentViewId = null;
+
     public string $newViewName = '';
 
     /* ------------------------------------------------------------ setup */
 
     /**
-     * @param array<string, string> $initialFilters pre-applied filter values
-     *        (e.g. a register that opens on "active" rows); the user can
-     *        still clear them. URL state wins over the initial value.
+     * @param  array<string, string>  $initialFilters  pre-applied filter values
+     *                                                 (e.g. a register that opens on "active" rows); the user can
+     *                                                 still clear them. URL state wins over the initial value.
      */
     public function mount(string $grid, array $initialFilters = []): void
     {
@@ -123,39 +126,10 @@ class DataGrid extends Component
 
     protected function baseQuery(): Builder
     {
-        $definition = $this->definition();
-        $query = $definition->query();
-
-        $searchable = collect($definition->columns())->filter(fn (Column $c) => $c->searchable);
-        $term = trim($this->search);
-
-        if ($term !== '' && $searchable->isNotEmpty()) {
-            $query->where(function (Builder $q) use ($searchable, $term) {
-                foreach ($searchable as $column) {
-                    $q->orWhere($column->orderByColumn(), 'like', "%{$term}%");
-                }
-            });
-        }
-
-        $filters = collect($definition->filters())->keyBy('key');
-        foreach ($this->filters as $key => $value) {
-            if ($value === '' || $value === null) {
-                continue;
-            }
-            $filter = $filters->get($key);
-            if ($filter && array_key_exists((string) $value, $filter->resolveOptions())) {
-                $filter->applyTo($query, (string) $value);
-            }
-        }
-
-        $sortColumn = $definition->column($this->sort);
-        if ($sortColumn?->sortable) {
-            $query->orderBy($sortColumn->orderByColumn(), $this->dir === 'asc' ? 'asc' : 'desc');
-        }
-
-        return $query;
+        // Migration Phase 2: the pipeline lives in GridQuery so the React
+        // grid's presenter and this component build identical SQL.
+        return GridQuery::apply($this->definition(), $this->search, $this->filters, $this->sort, $this->dir);
     }
-
     /* ----------------------------------------------------------- events */
 
     public function updatedSearch(): void

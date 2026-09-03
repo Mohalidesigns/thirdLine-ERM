@@ -32,6 +32,12 @@ final class Ported
         'profile.edit',
         'notifications.index',
         'search.index',
+        // Phase 2
+        'risk.scoping.index',
+        'hq.index',
+        'hq.show',
+        'risk.dashboards.index',
+        'risk.dashboards.edit',
     ];
 
     public static function isRoute(string $name): bool

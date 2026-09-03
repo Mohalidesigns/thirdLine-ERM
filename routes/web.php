@@ -26,6 +26,7 @@ use App\Http\Controllers\Risk\DocumentRepositoryController;
 use App\Http\Controllers\Risk\EmergingRiskController;
 use App\Http\Controllers\Risk\ExportController;
 use App\Http\Controllers\Risk\GlobalSearchController;
+use App\Http\Controllers\Risk\GridController;
 use App\Http\Controllers\Risk\HqController;
 use App\Http\Controllers\Risk\IssueController;
 use App\Http\Controllers\Risk\KriController;
@@ -328,6 +329,17 @@ Route::middleware(['auth'])->group(function () {
     Route::get('my', [MyResponsibilitiesController::class, 'index'])
         ->middleware('permission:my.view')->name('my.index');
 
+    // Migration Phase 2: the shared data grid's endpoints. `view-grid`
+    // resolves the named definition's own permission (AppServiceProvider);
+    // GridController re-checks edit / bulk permissions per action.
+    Route::prefix('risk/grids/{grid}')->middleware('can:view-grid,grid')->group(function () {
+        Route::get('/', [GridController::class, 'show'])->name('risk.grids.show');
+        Route::post('cell', [GridController::class, 'cell'])->name('risk.grids.cell');
+        Route::post('bulk/{action}', [GridController::class, 'bulk'])->name('risk.grids.bulk');
+        Route::post('views', [GridController::class, 'storeView'])->name('risk.grids.views.store');
+        Route::delete('views/{view}', [GridController::class, 'destroyView'])->name('risk.grids.views.destroy');
+        Route::get('export/{format}', [GridController::class, 'export'])->name('risk.grids.export');
+    });
     // Global search: type-ahead JSON and the full results page.
     Route::get('search', [GlobalSearchController::class, 'index'])
         ->middleware('permission:search.view')->name('search.index');

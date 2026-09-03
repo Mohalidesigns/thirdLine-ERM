@@ -113,6 +113,17 @@ class AppServiceProvider extends ServiceProvider
         // Super-admin bypass: any `can()` check short-circuits true.
         Gate::before(fn (?User $user, string $ability) => $user?->hasRole('super-admin') ? true : null);
 
+        // Migration Phase 2: the data grid endpoints are guarded per grid.
+        // `can:view-grid,grid` on the route hands the {grid} name here, and
+        // the definition's own permission decides — the same check the
+        // Livewire component made on every update.
+        Gate::define('view-grid', function (User $user, string $grid) {
+            try {
+                return $user->can(\App\Grids\GridRegistry::resolve($grid)->permission());
+            } catch (\InvalidArgumentException) {
+                return false;
+            }
+        });
         // Control test review: the assigned reviewer OR a user with an
         // approver-class role can approve/reject the test.
         Gate::define('review-control-test', function (User $user, ControlTest $test) {

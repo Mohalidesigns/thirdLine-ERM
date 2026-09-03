@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Models\Entity;
 use App\Models\EntityType;
 use App\Models\Risk;
 use App\Models\User;
+use App\Presenters\GridPresenter;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class ScopingController extends Controller
 {
@@ -113,7 +116,7 @@ class ScopingController extends Controller
      * App\Grids\Definitions\EntitiesGrid. The controller now only feeds
      * the header count and the quick-filter pill row.
      */
-    public function index(Request $request)
+    public function index(Request $request, GridPresenter $presenter)
     {
         $orgId = TenantContext::organizationId();
 
@@ -130,11 +133,18 @@ class ScopingController extends Controller
 
         $totalCount = Entity::where('organization_id', $orgId)->count();
 
-        return view('risk.scoping.index', compact(
-            'entityTypes',
-            'typeCounts',
-            'totalCount',
-        ));
+        // Migration Phase 2 — the pilot grid flip. The grid prop is a closure
+        // so a partial reload (`only: ['grid']`) re-presents the grid without
+        // recomputing the pill counts.
+        return Inertia::render('Scoping/Index', [
+            'entityTypes' => $entityTypes->map(fn (EntityType $type) => [
+                'id' => $type->id,
+                'name' => $type->name,
+                'count' => (int) ($typeCounts[$type->id] ?? 0),
+            ])->values()->all(),
+            'totalCount' => $totalCount,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('entities'), $request, $request->user()),
+        ]);
     }
 
     /* ------------------------------------------------------------------ */

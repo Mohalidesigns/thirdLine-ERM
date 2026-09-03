@@ -3,107 +3,42 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Grids\GridRegistry;
+use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Scoping\StoreEntityRequest;
+use App\Http\Requests\Scoping\UpdateEntityRequest;
 use App\Models\Entity;
 use App\Models\EntityType;
-use App\Models\Risk;
-use App\Models\User;
+use App\Presenters\FormSchemaPresenter;
 use App\Presenters\GridPresenter;
+use App\Services\Scoping\EntityService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
+/**
+ * Scoping / entities (migration Phase 3.1). Each action authorises through
+ * EntityPolicy, hands the work to EntityService, and renders a page.
+ */
 class ScopingController extends Controller
 {
+    use PersistsConfiguredAttributes;
+
+    public function __construct(
+        private readonly EntityService $entities,
+        private readonly FormSchemaPresenter $schemas,
+    ) {}
+
     /* ------------------------------------------------------------------ */
     /*  Dashboard */
     /* ------------------------------------------------------------------ */
 
-    public function dashboard()
+    public function dashboard(Request $request)
     {
-        $orgId = TenantContext::organizationId();
+        Gate::authorize('viewAny', Entity::class);
 
-        // KPI data
-        $totalEntities = Entity::where('organization_id', $orgId)->count();
-        $activeOwners = Entity::where('organization_id', $orgId)->whereNotNull('owner_id')->distinct('owner_id')->count('owner_id');
-        $exceedingAppetite = 0; // computed below
-        $pendingAssessments = Risk::where('organization_id', $orgId)
-            ->whereNotNull('entity_id')
-            ->whereNull('last_assessment_date')
-            ->count();
-
-        // Hierarchy tree: root entities with recursive descendants
-        $hierarchyTree = Entity::where('organization_id', $orgId)
-            ->whereNull('parent_id')
-            ->with(['entityType', 'descendants.entityType'])
-            ->orderBy('name')
-            ->get();
-
-        // Entity risk heatmap: entities with risk counts by rating
-        $entities = Entity::where('organization_id', $orgId)
-            ->with(['entityType', 'owner'])
-            ->withCount(['risks', 'issues', 'keyRiskIndicators'])
-            ->get();
-
-        // Compute risk counts by rating per entity
-        $entityHeatmap = $entities->map(function ($entity) {
-            $risksByRating = $entity->risks()
-                ->selectRaw("
-                    COUNT(*) as total,
-                    SUM(CASE WHEN inherent_rating = 'Critical' THEN 1 ELSE 0 END) as critical_count,
-                    SUM(CASE WHEN inherent_rating = 'High' THEN 1 ELSE 0 END) as high_count,
-                    SUM(CASE WHEN inherent_rating = 'Medium' THEN 1 ELSE 0 END) as medium_count,
-                    SUM(CASE WHEN inherent_rating = 'Low' THEN 1 ELSE 0 END) as low_count
-                ")->first();
-
-            $entity->risk_total = $risksByRating->total ?? 0;
-            $entity->critical_count = $risksByRating->critical_count ?? 0;
-            $entity->high_count = $risksByRating->high_count ?? 0;
-            $entity->medium_count = $risksByRating->medium_count ?? 0;
-            $entity->low_count = $risksByRating->low_count ?? 0;
-
-            // Simple risk score: weighted average (Critical=5, High=4, Medium=3, Low=2)
-            $total = $entity->risk_total;
-            if ($total > 0) {
-                $entity->risk_score = round(
-                    (($entity->critical_count * 5) + ($entity->high_count * 4) + ($entity->medium_count * 3) + ($entity->low_count * 2)) / $total,
-                    1
-                );
-            } else {
-                $entity->risk_score = 0;
-            }
-
-            return $entity;
-        })->sortByDesc('risk_score')->values();
-
-        // Entity type distribution for chart
-        $entityTypes = EntityType::where('organization_id', $orgId)
-            ->withCount('entities')
-            ->orderBy('sort_order')
-            ->get();
-
-        $typeDistribution = [
-            'labels' => $entityTypes->pluck('name')->toArray(),
-            'data' => $entityTypes->pluck('entities_count')->toArray(),
-        ];
-
-        // Recent entity activity (latest 5 entities by updated_at)
-        $recentActivity = Entity::where('organization_id', $orgId)
-            ->with('entityType')
-            ->orderByDesc('updated_at')
-            ->limit(5)
-            ->get();
-
-        return view('risk.scoping.dashboard', compact(
-            'totalEntities',
-            'activeOwners',
-            'exceedingAppetite',
-            'pendingAssessments',
-            'hierarchyTree',
-            'entityHeatmap',
-            'typeDistribution',
-            'recentActivity',
-        ));
+        return Inertia::render('Scoping/Dashboard', $this->entities->dashboard($request->user()));
     }
 
     /* ------------------------------------------------------------------ */
@@ -118,6 +53,8 @@ class ScopingController extends Controller
      */
     public function index(Request $request, GridPresenter $presenter)
     {
+        Gate::authorize('viewAny', Entity::class);
+
         $orgId = TenantContext::organizationId();
 
         $entityTypes = EntityType::where('organization_id', $orgId)
@@ -148,253 +85,77 @@ class ScopingController extends Controller
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Create */
+    /*  Create / Store */
     /* ------------------------------------------------------------------ */
 
-    public function create()
+    public function create(Request $request)
     {
-        $orgId = TenantContext::organizationId();
+        Gate::authorize('create', Entity::class);
 
-        $entityTypes = EntityType::where('organization_id', $orgId)
-            ->where('is_active', true)
-            ->orderBy('sort_order')
-            ->get();
-
-        $parentEntities = Entity::where('organization_id', $orgId)
-            ->with('entityType')
-            ->orderBy('name')
-            ->get();
-
-        $users = User::orderBy('name')->get(['id', 'name', 'email']);
-
-        return view('risk.scoping.create', compact('entityTypes', 'parentEntities', 'users'));
+        return Inertia::render('Scoping/Create', array_merge(
+            $this->entities->formOptions($request->user()),
+            ['schemas' => $this->schemasByEntityType()],
+        ));
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Store */
-    /* ------------------------------------------------------------------ */
-
-    public function store(Request $request)
+    public function store(StoreEntityRequest $request)
     {
-        $orgId = TenantContext::organizationId();
+        $entity = $this->entities->create($request->validated(), $request->user());
 
-        $validated = $request->validate([
-            'entity_type_id' => 'required|exists:entity_types,id',
-            'name' => 'required|string|max:255',
-            'parent_id' => 'nullable|exists:entities,id',
-            'description' => 'nullable|string|max:5000',
-            'owner_id' => 'nullable|exists:users,id',
-            'delegate_owner_id' => 'nullable|exists:users,id',
-            'status' => 'required|in:active,inactive',
-            'regulatory_frameworks' => 'nullable|array',
-            'regulatory_frameworks.*' => 'string|max:50',
-            'risk_appetite_level' => 'nullable|in:averse,minimal,cautious,open,hungry',
-            'category_appetites' => 'nullable|array',
-        ]);
-
-        // Auto-generate entity code
-        $lastEntity = Entity::where('organization_id', $orgId)
-            ->orderByDesc('id')
-            ->first();
-        $nextNumber = $lastEntity ? ($lastEntity->id + 1) : 1;
-        $entityCode = sprintf('ENT-%04d', $nextNumber);
-
-        // Get level from entity type
-        $entityType = EntityType::findOrFail($validated['entity_type_id']);
-
-        $entity = Entity::create(array_merge($validated, [
-            'organization_id' => $orgId,
-            'entity_code' => $entityCode,
-            'level' => $entityType->level,
-            'created_by' => auth()->id(),
-        ]));
-
-        // Audit trail
-        if (class_exists(\App\Services\AuditTrailService::class)) {
-            \App\Services\AuditTrailService::record($entity, 'create');
-        }
+        $this->saveConfiguredAttributes($request, $entity, StoreEntityRequest::objectTypeCodeFor($entity->entityType));
 
         return redirect()
             ->route('risk.scoping.show', $entity)
-            ->with('success', "Entity {$entityCode} — {$entity->name} has been created successfully.");
+            ->with('success', "Entity {$entity->entity_code} — {$entity->name} has been created successfully.");
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Show (Entity Detail) */
+    /*  Show */
     /* ------------------------------------------------------------------ */
 
-    public function show(Entity $scoping)
+    public function show(Request $request, Entity $scoping)
     {
-        $entity = $scoping;
-        $orgId = TenantContext::organizationId();
+        Gate::authorize('view', $scoping);
 
-        if ($entity->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this entity.');
-        }
+        $user = $request->user();
 
-        $entity->load(['entityType', 'parent.entityType', 'owner', 'delegateOwner', 'creator']);
-
-        // Sub-entities
-        $subEntities = Entity::where('parent_id', $entity->id)
-            ->with('entityType')
-            ->withCount(['risks', 'issues', 'keyRiskIndicators'])
-            ->get();
-
-        // Risk posture stats
-        $riskStats = $entity->risks()
-            ->selectRaw("
-                COUNT(*) as total,
-                SUM(CASE WHEN inherent_rating = 'Critical' THEN 1 ELSE 0 END) as critical,
-                SUM(CASE WHEN inherent_rating = 'High' THEN 1 ELSE 0 END) as high,
-                SUM(CASE WHEN inherent_rating = 'Medium' THEN 1 ELSE 0 END) as medium,
-                SUM(CASE WHEN inherent_rating = 'Low' THEN 1 ELSE 0 END) as low
-            ")->first();
-
-        // Risks list
-        $risks = $entity->risks()
-            ->with(['category', 'riskOwner'])
-            ->orderByDesc('inherent_score')
-            ->limit(20)
-            ->get();
-
-        // Issues list
-        $issues = $entity->issues()
-            ->with('responsibleOwner')
-            ->orderByDesc('created_at')
-            ->limit(10)
-            ->get();
-
-        // KRIs
-        $kris = $entity->keyRiskIndicators()
-            ->orderByDesc('updated_at')
-            ->limit(10)
-            ->get();
-
-        // Sub-entity heatmap
-        $subEntityHeatmap = $subEntities->map(function ($sub) {
-            $stats = $sub->risks()
-                ->selectRaw("
-                    COUNT(*) as total,
-                    SUM(CASE WHEN inherent_rating = 'Critical' THEN 1 ELSE 0 END) as critical,
-                    SUM(CASE WHEN inherent_rating = 'High' THEN 1 ELSE 0 END) as high
-                ")->first();
-
-            $sub->risk_total = $stats->total ?? 0;
-            $sub->critical_count = $stats->critical ?? 0;
-            $sub->high_count = $stats->high ?? 0;
-
-            $total = $sub->risk_total;
-            if ($total > 0) {
-                $sub->risk_score = round(
-                    (($sub->critical_count * 5) + ($sub->high_count * 4)) / $total,
-                    1
-                );
-            } else {
-                $sub->risk_score = 0;
-            }
-
-            return $sub;
-        });
-
-        // Risk distribution by category for chart
-        $riskByCategory = $entity->risks()
-            ->join('risk_categories', 'risks.category_id', '=', 'risk_categories.id')
-            ->selectRaw('risk_categories.name as category_name, COUNT(*) as count')
-            ->groupBy('risk_categories.name')
-            ->orderByDesc('count')
-            ->get();
-
-        $categoryDistribution = [
-            'labels' => $riskByCategory->pluck('category_name')->toArray(),
-            'data' => $riskByCategory->pluck('count')->toArray(),
-        ];
-
-        return view('risk.scoping.show', compact(
-            'entity',
-            'subEntities',
-            'riskStats',
-            'risks',
-            'issues',
-            'kris',
-            'subEntityHeatmap',
-            'categoryDistribution',
+        return Inertia::render('Scoping/Show', array_merge(
+            $this->entities->detail($scoping),
+            [
+                'configured' => $this->schemas->detail($scoping, $scoping->resolveObjectTypeCode(), hideEmpty: true),
+                'can' => [
+                    'update' => $user->can('update', $scoping),
+                    'delete' => $user->can('delete', $scoping),
+                    'create' => $user->can('create', Entity::class),
+                ],
+            ],
         ));
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Edit */
+    /*  Edit / Update */
     /* ------------------------------------------------------------------ */
 
-    public function edit(Entity $scoping)
+    public function edit(Request $request, Entity $scoping)
     {
-        $entity = $scoping;
-        $orgId = TenantContext::organizationId();
+        Gate::authorize('update', $scoping);
 
-        if ($entity->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this entity.');
-        }
+        $scoping->load(['entityType', 'parent']);
 
-        $entity->load(['entityType', 'parent']);
-
-        $entityTypes = EntityType::where('organization_id', $orgId)
-            ->where('is_active', true)
-            ->orderBy('sort_order')
-            ->get();
-
-        $parentEntities = Entity::where('organization_id', $orgId)
-            ->where('id', '!=', $entity->id)
-            ->with('entityType')
-            ->orderBy('name')
-            ->get();
-
-        $users = User::orderBy('name')->get(['id', 'name', 'email']);
-
-        return view('risk.scoping.edit', compact('entity', 'entityTypes', 'parentEntities', 'users'));
+        return Inertia::render('Scoping/Edit', array_merge(
+            $this->entities->formOptions($request->user(), $scoping),
+            [
+                'entity' => $this->entities->present($scoping),
+                'schemas' => $this->schemasByEntityType($scoping),
+            ],
+        ));
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Update */
-    /* ------------------------------------------------------------------ */
-
-    public function update(Request $request, Entity $scoping)
+    public function update(UpdateEntityRequest $request, Entity $scoping)
     {
-        $entity = $scoping;
-        $orgId = TenantContext::organizationId();
+        $entity = $this->entities->update($scoping, $request->validated());
 
-        if ($entity->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this entity.');
-        }
-
-        $validated = $request->validate([
-            'entity_type_id' => 'required|exists:entity_types,id',
-            'name' => 'required|string|max:255',
-            'parent_id' => 'nullable|exists:entities,id',
-            'description' => 'nullable|string|max:5000',
-            'owner_id' => 'nullable|exists:users,id',
-            'delegate_owner_id' => 'nullable|exists:users,id',
-            'status' => 'required|in:active,inactive,archived',
-            'regulatory_frameworks' => 'nullable|array',
-            'regulatory_frameworks.*' => 'string|max:50',
-            'risk_appetite_level' => 'nullable|in:averse,minimal,cautious,open,hungry',
-            'category_appetites' => 'nullable|array',
-        ]);
-
-        // Get level from entity type
-        $entityType = EntityType::findOrFail($validated['entity_type_id']);
-        $validated['level'] = $entityType->level;
-
-        // Prevent self-referencing parent
-        if (isset($validated['parent_id']) && $validated['parent_id'] == $entity->id) {
-            return back()->withErrors(['parent_id' => 'An entity cannot be its own parent.'])->withInput();
-        }
-
-        $original = $entity->getAttributes();
-        $entity->update($validated);
-
-        // Audit trail
-        if (class_exists(\App\Services\AuditTrailService::class)) {
-            \App\Services\AuditTrailService::recordChanges($entity, $original);
-        }
+        $this->saveConfiguredAttributes($request, $entity, StoreEntityRequest::objectTypeCodeFor($entity->entityType));
 
         return redirect()
             ->route('risk.scoping.show', $entity)
@@ -407,29 +168,60 @@ class ScopingController extends Controller
 
     public function destroy(Entity $scoping)
     {
-        $entity = $scoping;
-        $orgId = TenantContext::organizationId();
+        Gate::authorize('delete', $scoping);
 
-        if ($entity->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this entity.');
+        if (($refusal = $this->entities->delete($scoping)) !== null) {
+            return back()->with('error', $refusal);
         }
-
-        // Check for child entities
-        $childCount = Entity::where('parent_id', $entity->id)->count();
-        if ($childCount > 0) {
-            return back()->with('error', "Cannot delete entity \"{$entity->name}\" because it has {$childCount} sub-entities. Please reassign or delete them first.");
-        }
-
-        // Check for linked risks
-        $riskCount = $entity->risks()->count();
-        if ($riskCount > 0) {
-            return back()->with('error', "Cannot delete entity \"{$entity->name}\" because it has {$riskCount} linked risks. Please reassign them first.");
-        }
-
-        $entity->delete();
 
         return redirect()
             ->route('risk.scoping.index')
-            ->with('success', "Entity {$entity->entity_code} — {$entity->name} has been deleted.");
+            ->with('success', "Entity {$scoping->entity_code} — {$scoping->name} has been deleted.");
+    }
+
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * The tenant-configured fields for each entity type the form can choose,
+     * keyed by entity type id. An entity is a Group or a Branch or a Process
+     * depending on that choice, so the page swaps the DynamicForm section as
+     * the type changes. Column-backed fields are dropped: the bespoke form
+     * already owns those inputs, and one input per column is the rule.
+     *
+     * @return array<int, array{objectType: array{id:int,code:string,name:string}|null, sections: list<array<string,mixed>>}>
+     */
+    private function schemasByEntityType(?Entity $record = null): array
+    {
+        $out = [];
+        $byCode = [];
+
+        foreach (EntityType::query()->where('is_active', true)->get() as $type) {
+            $code = StoreEntityRequest::objectTypeCodeFor($type);
+
+            $byCode[$code] ??= $this->configuredOnly($this->schemas->form($code, $record));
+
+            $out[$type->id] = $byCode[$code];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  array{objectType: mixed, sections: list<array{code:string,label:string,fields:list<array<string,mixed>>}>}  $schema
+     * @return array{objectType: mixed, sections: list<array{code:string,label:string,fields:list<array<string,mixed>>}>}
+     */
+    private function configuredOnly(array $schema): array
+    {
+        $sections = [];
+
+        foreach ($schema['sections'] as $section) {
+            $fields = array_values(array_filter($section['fields'], fn (array $field) => ! $field['mapped']));
+
+            if ($fields !== []) {
+                $sections[] = array_merge($section, ['fields' => $fields]);
+            }
+        }
+
+        return ['objectType' => $schema['objectType'], 'sections' => $sections];
     }
 }

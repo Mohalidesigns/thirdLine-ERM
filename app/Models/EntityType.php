@@ -5,9 +5,14 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
+/**
+ * @property-read int|null $entities_count
+ */
 class EntityType extends Model
 {
     use BelongsToOrganization, HasFactory, SoftDeletes;
@@ -45,12 +50,14 @@ class EntityType extends Model
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function organization()
+    /** @return BelongsTo<Organization, $this> */
+    public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }
 
-    public function entities()
+    /** @return HasMany<Entity, $this> */
+    public function entities(): HasMany
     {
         return $this->hasMany(Entity::class);
     }

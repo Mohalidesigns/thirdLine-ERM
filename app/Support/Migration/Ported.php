@@ -59,6 +59,11 @@ final class Ported
         'risk.regulatory.circulars',
         // Phase 3 — appetite
         'risk.appetite.index',
+        // Phase 3 — scoping
+        'risk.scoping.dashboard',
+        'risk.scoping.create',
+        'risk.scoping.show',
+        'risk.scoping.edit',
     ];
 
     public static function isRoute(string $name): bool

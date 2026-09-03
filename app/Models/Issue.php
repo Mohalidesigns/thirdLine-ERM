@@ -128,7 +128,8 @@ class Issue extends Model
         return $this->belongsTo(BusinessUnit::class);
     }
 
-    public function responsibleOwner()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function responsibleOwner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'responsible_owner_id');
     }

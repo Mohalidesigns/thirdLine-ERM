@@ -143,7 +143,8 @@ class Risk extends Model
         return $children->sum(fn ($c) => $c->residual_score * $c->roll_up_weight) / $totalWeight;
     }
 
-    public function category()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<RiskCategory, $this> */
+    public function category(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(RiskCategory::class, 'category_id');
     }
@@ -158,7 +159,8 @@ class Risk extends Model
         return $this->belongsTo(BusinessProcess::class, 'process_id');
     }
 
-    public function riskOwner()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function riskOwner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'risk_owner_id');
     }

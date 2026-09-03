@@ -1,4 +1,4 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import DataGrid from '@/Components/DataGrid/DataGrid';
 import PageHeader from '@/Components/PageHeader';
@@ -36,15 +36,15 @@ export default function Index({ entityTypes, totalCount, grid }) {
                 actions={
                     <>
                         {permissions.includes('entity.create') && createUrl && (
-                            // Plain anchors: these pages are Blade until Phase 3.
-                            <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
+                            // Inertia links since Phase 3.1 ported the create and dashboard pages.
+                            <Link href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
                                 <span className="material-symbols-outlined text-lg">add_circle</span> New Entity
-                            </a>
+                            </Link>
                         )}
                         {dashboardUrl && (
-                            <a href={dashboardUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
+                            <Link href={dashboardUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
                                 <span className="material-symbols-outlined text-lg">dashboard</span> Dashboard
-                            </a>
+                            </Link>
                         )}
                     </>
                 }

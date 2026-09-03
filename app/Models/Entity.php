@@ -6,9 +6,16 @@ use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasObjectIdentity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
+/**
+ * @property-read int|null $risks_count
+ * @property-read int|null $issues_count
+ * @property-read int|null $key_risk_indicators_count
+ */
 class Entity extends Model
 {
     use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
@@ -107,74 +114,94 @@ class Entity extends Model
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function organization()
+    /** @return BelongsTo<Organization, $this> */
+    public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }
 
-    public function entityType()
+    /** @return BelongsTo<EntityType, $this> */
+    public function entityType(): BelongsTo
     {
         return $this->belongsTo(EntityType::class);
     }
 
-    public function parent()
+    /** @return BelongsTo<self, $this> */
+    public function parent(): BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_id');
     }
 
-    public function children()
+    /** @return HasMany<self, $this> */
+    public function children(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');
     }
 
-    /** Recursive children for hierarchy tree */
-    public function descendants()
+    /**
+     * Recursive children for hierarchy tree
+     *
+     * @return HasMany<self, $this>
+     */
+    public function descendants(): HasMany
     {
         return $this->children()->with('descendants.entityType');
     }
 
-    /** Recursive parent for full path */
-    public function ancestors()
+    /**
+     * Recursive parent for full path
+     *
+     * @return BelongsTo<self, $this>
+     */
+    public function ancestors(): BelongsTo
     {
         return $this->parent()->with('ancestors');
     }
 
-    public function owner()
+    /** @return BelongsTo<User, $this> */
+    public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
     }
 
-    public function delegateOwner()
+    /** @return BelongsTo<User, $this> */
+    public function delegateOwner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'delegate_owner_id');
     }
 
-    public function creator()
+    /** @return BelongsTo<User, $this> */
+    public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function risks()
+    /** @return HasMany<Risk, $this> */
+    public function risks(): HasMany
     {
         return $this->hasMany(Risk::class);
     }
 
-    public function controls()
+    /** @return HasMany<Control, $this> */
+    public function controls(): HasMany
     {
         return $this->hasMany(Control::class);
     }
 
-    public function issues()
+    /** @return HasMany<Issue, $this> */
+    public function issues(): HasMany
     {
         return $this->hasMany(Issue::class);
     }
 
-    public function lossEvents()
+    /** @return HasMany<LossEvent, $this> */
+    public function lossEvents(): HasMany
     {
         return $this->hasMany(LossEvent::class);
     }
 
-    public function keyRiskIndicators()
+    /** @return HasMany<KeyRiskIndicator, $this> */
+    public function keyRiskIndicators(): HasMany
     {
         return $this->hasMany(KeyRiskIndicator::class);
     }

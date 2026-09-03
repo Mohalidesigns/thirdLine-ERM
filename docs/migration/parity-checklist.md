@@ -170,11 +170,11 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.reports.regulatory` | `risk/reports/regulatory` | `report.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.reports.status` | `risk/reports/{report}/status` | `report.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.reports.status-json` | `risk/reports/{report}/status.json` | `report.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.scoping.create` | `risk/scoping/create` | `entity.create` |  |  |  |  |  |  |  |  |  |  |
-| `risk.scoping.dashboard` | `risk/scoping/dashboard` | `entity.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.scoping.edit` | `risk/scoping/{scoping}/edit` | `entity.edit` |  |  |  |  |  |  |  |  |  |  |
+| `risk.scoping.create` | `risk/scoping/create` | `entity.create` | risk/scoping/create.blade.php (deleted) | Pages/Scoping/Create.jsx (+ EntityForm.jsx) | Scoping/StoreEntityRequest | EntityPolicy |  | DynamicForm (FormSchemaPresenter) | n/a | Scoping/EntityPagesTest, Scoping/EntityRequestsTest, Scoping/EntityPolicyTest | 2026-09-03 (Phase 3) |  |
+| `risk.scoping.dashboard` | `risk/scoping/dashboard` | `entity.view` | risk/scoping/dashboard.blade.php, risk/scoping/_tree-node.blade.php (deleted) | Pages/Scoping/Dashboard.jsx (+ Components/EntityTree.jsx) | n/a | EntityPolicy |  | KpiCard, DonutChart (props from EntityService) | n/a | Scoping/EntityPagesTest, Characterisation/EntityRiskScoreTest | 2026-09-03 (Phase 3) |  |
+| `risk.scoping.edit` | `risk/scoping/{scoping}/edit` | `entity.edit` | risk/scoping/edit.blade.php (deleted) | Pages/Scoping/Edit.jsx (+ EntityForm.jsx) | Scoping/UpdateEntityRequest | EntityPolicy |  | DynamicForm (FormSchemaPresenter) | n/a | Scoping/EntityPagesTest, Scoping/EntityRequestsTest, Scoping/EntityPolicyTest | 2026-09-03 (Phase 3) |  |
 | `risk.scoping.index` | `risk/scoping` | `entity.view` | risk/scoping/index.blade.php (deleted) | Pages/Scoping/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Inertia/ScopingIndexTest, Grid/* | 2026-09-03 (Phase 2) |  |
-| `risk.scoping.show` | `risk/scoping/{scoping}` | `entity.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.scoping.show` | `risk/scoping/{scoping}` | `entity.view` | risk/scoping/show.blade.php (deleted) | Pages/Scoping/Show.jsx | n/a | EntityPolicy |  | KpiCard, DonutChart, DynamicDetail (FormSchemaPresenter) | n/a | Scoping/EntityPagesTest, Scoping/EntityPolicyTest, Characterisation/EntityRiskScoreTest | 2026-09-03 (Phase 3) |  |
 | `risk.thresholds.rebaseline` | `risk/thresholds/rebaseline` | `threshold.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.treatments.create` | `risk/treatments/create` | `treatment.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.treatments.dashboard` | `risk/treatments/dashboard` | `treatment.view` |  |  |  |  |  |  |  |  |  |  |

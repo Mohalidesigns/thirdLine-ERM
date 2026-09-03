@@ -57,6 +57,8 @@ final class Ported
         'risk.reports.library',
         'risk.approvals.history',
         'risk.regulatory.circulars',
+        // Phase 3 — appetite
+        'risk.appetite.index',
     ];
 
     public static function isRoute(string $name): bool

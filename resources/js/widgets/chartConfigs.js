@@ -849,6 +849,66 @@ function timeline(data, env, t, width) {
 
 /* -------------------------------------------------------------- exports */
 
+/* ------------------------------------------------------ appetite bands */
+
+/* Current position per category as a bar coloured by its band (the band
+   colours travel in the payload — they are semantic, not a palette), with
+   the target maximum and the hard limit drawn as lines over the bars. */
+function appetitePosition(data, env, t, width) {
+    const bars = (data.bars || []).filter((b) => b.label);
+    if (bars.length === 0) return null;
+
+    const colors = data.colors || {};
+    const tone = (status) => colors[status] || t.series[0];
+
+    return {
+        type: 'bar',
+        data: {
+            labels: bars.map((b) => b.label),
+            datasets: [
+                {
+                    type: 'line',
+                    label: 'Hard limit',
+                    data: bars.map((b) => num(b.limit)),
+                    borderColor: colors.breach || t.trendUp,
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false,
+                    order: 0,
+                },
+                {
+                    type: 'line',
+                    label: 'Target max',
+                    data: bars.map((b) => num(b.target_max)),
+                    borderColor: t.inkSecondary,
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    fill: false,
+                    order: 1,
+                },
+                {
+                    label: 'Current position',
+                    data: bars.map((b) => num(b.current)),
+                    backgroundColor: bars.map((b) => tone(b.status)),
+                    borderRadius: 4,
+                    maxBarThickness: 28,
+                    order: 2,
+                },
+            ],
+        },
+        options: baseOptions(t, {
+            scales: { x: catScale(t), y: linScale(t, { beginAtZero: true }) },
+            plugins: {
+                legend: legend(t),
+                tooltip: tooltip(t, {
+                    label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y === null ? 'not recorded' : fmtNum(ctx.parsed.y)}`,
+                }),
+            },
+        }),
+    };
+}
+
 export const chartConfigs = {
     donut,
     pareto,
@@ -863,4 +923,5 @@ export const chartConfigs = {
     lec_curve: lecCurve,
     gauge,
     timeline,
+    appetite_position: appetitePosition,
 };

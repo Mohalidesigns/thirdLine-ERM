@@ -43,7 +43,7 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.analysis.correlation` | `risk/analysis/correlation` | `analysis.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.analysis.heatmap` | `risk/analysis/heatmap` | `analysis.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.analysis.trends` | `risk/analysis/trends` | `analysis.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.appetite.index` | `risk/appetite` | `appetite.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.appetite.index` | `risk/appetite` | `appetite.view` | risk/appetite/index.blade.php (deleted) | Pages/Appetite/Index.jsx | Appetite/{StoreRiskAppetiteRequest,UpdateRiskAppetiteRequest} | RiskAppetitePolicy |  | appetite_position (chartConfigs) | risk.export.appetite (unchanged) | Appetite/AppetitePageTest, Characterisation/AppetitePositionTest | 2026-09-03 (Phase 3) |  |
 | `risk.approvals.dashboard` | `risk/approvals` | `approval.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.approvals.history` | `risk/approvals/history` | `approval.view` | risk/approvals/history.blade.php (deleted) | Pages/Approvals/History.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.assessments.create` | `risk/assessments/create` | `assessment.create` |  |  |  |  |  |  |  |  |  |  |

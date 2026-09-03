@@ -66,12 +66,12 @@ class RiskAppetite extends Model
         return $this->belongsTo(Organization::class);
     }
 
-    public function riskCategory()
+    public function riskCategory(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(RiskCategory::class);
     }
 
-    public function category()
+    public function category(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->riskCategory();
     }

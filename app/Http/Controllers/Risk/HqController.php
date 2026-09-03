@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
+use App\Models\Dashboard;
 use App\Models\GraphObject;
 use App\Models\ObjectType;
 use App\Services\Graph\GraphQueryService;
+use App\Services\Widgets\DashboardBinding;
 use App\Services\Widgets\DashboardResolver;
 use Illuminate\Http\Request;
+use Spatie\Permission\Models\Role;
 
 /**
  * WP-08 TASK 4 — Business HQ: one landing page per node of the organization.
@@ -26,6 +29,7 @@ class HqController extends Controller
     public function __construct(
         private readonly DashboardResolver $dashboards,
         private readonly GraphQueryService $graph,
+        private readonly DashboardBinding $binding,
     ) {}
 
     /**
@@ -64,13 +68,36 @@ class HqController extends Controller
         return redirect()->route('hq.show', $busiest);
     }
 
+    /**
+     * WP-13 — two things were added here, both of them answers to the same
+     * complaint: this page said "No dashboard published for Enterprise" and
+     * stopped, leaving the administrator to guess which of five possible
+     * causes it was.
+     *
+     * PREVIEW (?preview={dashboard}). The builder can now send an admin here
+     * to see a DRAFT rendered on a real node with real data, before anyone
+     * else sees it. It is refused unless the viewer can manage dashboards and
+     * the draft is bound to this node's type — a preview that silently fell
+     * back to the published dashboard would be worse than no preview, because
+     * the admin would sign off on the wrong composition.
+     *
+     * DIAGNOSIS. When nothing resolves, the empty state now needs to say what
+     * this node's type is, what IS bound to that type, and what the admin can
+     * do about it — so the drafts and the binding options are loaded whether
+     * or not a dashboard was found.
+     */
     public function show(Request $request, GraphObject $object)
     {
         $user = $request->user();
+        $canManage = (bool) $user?->can('dashboard.manage');
 
-        $dashboard = $this->dashboards->resolveFor($object, $user);
+        $preview = $this->previewDashboard($request, $object, $canManage);
 
-        $tabs = $dashboard === null ? [] : $this->dashboards->layoutFor($dashboard, $user);
+        $dashboard = $preview ?? $this->dashboards->resolveFor($object, $user);
+
+        $tabs = $dashboard === null
+            ? []
+            : $this->dashboards->layoutFor($dashboard, $user, draft: $preview !== null);
 
         $activeTab = collect($tabs)->firstWhere('code', $request->query('tab'))
             ?? ($tabs[0] ?? null);
@@ -85,7 +112,143 @@ class HqController extends Controller
             'activeTab' => $activeTab,
             'ancestors' => $ancestors,
             'tree' => $this->tree($user),
+
+            // Preview chrome. Null on a normal page load.
+            'preview' => $preview,
+            // Asked for a preview and did not get one — the banner explains why
+            // rather than pretending the request was never made.
+            'previewRefused' => $preview === null && $request->filled('preview')
+                ? $this->previewRefusal($request, $object, $canManage)
+                : null,
+
+            // Empty-state material, only worth loading for someone who can act.
+            'canManage' => $canManage,
+            'draftsForType' => $canManage ? $this->draftsForType($object) : collect(),
+            'nodeCountForType' => $canManage
+                ? ($this->binding->nodeCounts()[$object->object_type_id] ?? 0)
+                : 0,
+            // Published, bound to this type, and still not on screen because
+            // of who is looking. See roleBlockedDashboards().
+            'roleBlocked' => $dashboard === null ? $this->roleBlockedDashboards($object, $user) : collect(),
         ]);
+    }
+
+    /**
+     * The draft this request is asking to preview, or null.
+     *
+     * Every condition below is a refusal to show something misleading rather
+     * than a security control (the route already demands hq.view, and the
+     * tenant scope stops a foreign id resolving at all).
+     */
+    private function previewDashboard(Request $request, GraphObject $object, bool $canManage): ?Dashboard
+    {
+        if (! $request->filled('preview') || ! $canManage) {
+            return null;
+        }
+
+        $dashboard = Dashboard::query()->find($request->integer('preview'));
+
+        if ($dashboard === null) {
+            return null;
+        }
+
+        // A dashboard bound to a type renders only on that type. The
+        // type-agnostic default (NULL) renders anywhere, so it previews
+        // anywhere.
+        if ($dashboard->object_type_id !== null
+            && (int) $dashboard->object_type_id !== (int) $object->object_type_id) {
+            return null;
+        }
+
+        return $dashboard;
+    }
+
+    /** Why the preview did not happen, in words the admin can act on. */
+    private function previewRefusal(Request $request, GraphObject $object, bool $canManage): string
+    {
+        if (! $canManage) {
+            return 'You do not have permission to preview unpublished dashboards.';
+        }
+
+        $dashboard = Dashboard::query()->find($request->integer('preview'));
+
+        if ($dashboard === null) {
+            return 'That dashboard no longer exists.';
+        }
+
+        return sprintf(
+            '“%s” is bound to %s, and %s is %s. Pick a %s node in the tree to preview it.',
+            $dashboard->name,
+            $dashboard->objectType?->name ?? 'another type',
+            $object->name,
+            $object->objectType?->name ?? 'a different type',
+            $dashboard->objectType?->name ?? 'matching',
+        );
+    }
+
+    /**
+     * Published dashboards for this node's type that this viewer's roles
+     * exclude.
+     *
+     * This is the empty state's third cause and by far the worst one to hit,
+     * because every other screen says everything is fine. The Dashboards list
+     * shows a green "Published · Enterprise — 1 node"; the builder shows
+     * "Renders on 1 node"; and Business HQ on that very node says nothing is
+     * published. All three are telling the truth. The dashboard is published
+     * to three roles and the person looking holds none of them, and until now
+     * nothing anywhere said so.
+     *
+     * DashboardResolver::pick() is the authority on the rule, so this mirrors
+     * it rather than reimplementing it: role_ids NULL or [] means everyone, so
+     * a dashboard reaching this method has a non-empty role list that does not
+     * intersect the viewer's.
+     */
+    private function roleBlockedDashboards(GraphObject $object, $user)
+    {
+        $roleIds = $user->roles->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $roleNames = Role::query()->pluck('name', 'id');
+
+        return Dashboard::query()
+            ->published()
+            ->with('objectType')
+            ->where(fn ($q) => $q
+                ->where('object_type_id', $object->object_type_id)
+                ->orWhereNull('object_type_id'))
+            ->whereNotNull('role_ids')
+            ->where('role_ids', '!=', '[]')
+            ->get(['id', 'name', 'object_type_id', 'role_ids'])
+            ->reject(fn (Dashboard $d) => array_intersect($roleIds, array_map('intval', $d->role_ids ?? [])) !== [])
+            ->each(function (Dashboard $d) use ($roleNames) {
+                // Resolved here rather than in the view: naming the roles is
+                // the actionable half of the message ("add chief-risk-officer
+                // to it, or clear the list"), and a Blade template should not
+                // be running queries to say it.
+                $d->role_names = collect($d->role_ids ?? [])
+                    ->map(fn ($id) => $roleNames[(int) $id] ?? '#'.$id)
+                    ->implode(', ');
+            })
+            ->values();
+    }
+
+    /**
+     * Unpublished dashboards already bound to this node's type.
+     *
+     * The empty state offers these before it offers "create a new one",
+     * because the overwhelmingly common cause of an empty HQ page is a
+     * dashboard that was built and never published — not one that was never
+     * built. Offering "Create" first is how a tenant ends up with four drafts
+     * called "Untitled dashboard".
+     */
+    private function draftsForType(GraphObject $object)
+    {
+        return Dashboard::query()
+            ->where('is_published', false)
+            ->where(fn ($q) => $q
+                ->where('object_type_id', $object->object_type_id)
+                ->orWhereNull('object_type_id'))
+            ->orderBy('name')
+            ->limit(5)
+            ->get(['id', 'name', 'object_type_id']);
     }
 
     /**

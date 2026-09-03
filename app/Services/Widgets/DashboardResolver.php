@@ -50,9 +50,26 @@ class DashboardResolver
             ?? ($typeId === null ? null : $this->pick(null, $user));
     }
 
-    /** The viewer's saved layout for a dashboard, already staleness-checked. */
-    public function layoutFor(Dashboard $dashboard, User $user): array
+    /**
+     * The viewer's saved layout for a dashboard, already staleness-checked.
+     *
+     * WP-13: the base is the PUBLISHED layout, not the draft. It used to be
+     * `tabList()`, which is the column the builder autosaves into on every
+     * drag — so a half-finished rearrangement was on the board's HQ page
+     * before the admin had let go of the mouse.
+     *
+     * $draft = true is the one deliberate exception: Business HQ's ?preview=
+     * mode, where an admin is checking what a draft WILL look like on a real
+     * node. A user layout override is skipped entirely in that mode — the
+     * point of a preview is to see the composition as published, not as one
+     * viewer happens to have rearranged it.
+     */
+    public function layoutFor(Dashboard $dashboard, User $user, bool $draft = false): array
     {
+        if ($draft) {
+            return $dashboard->tabList();
+        }
+
         $pref = DashboardUserPref::query()
             ->where('user_id', $user->id)
             ->where('dashboard_id', $dashboard->id)
@@ -61,12 +78,12 @@ class DashboardResolver
         $override = $pref?->layoutFor($dashboard);
 
         if ($override === null) {
-            return $dashboard->tabList();
+            return $dashboard->publishedTabList();
         }
 
         // The override replaces placements per tab but can neither add nor
         // remove widgets — hiding a published widget is the builder's call.
-        return collect($dashboard->tabList())
+        return collect($dashboard->publishedTabList())
             ->map(function (array $tab) use ($override) {
                 $placements = $override[$tab['code']] ?? null;
 

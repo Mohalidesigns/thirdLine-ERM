@@ -756,6 +756,13 @@ class WidgetDashboardSeeder extends Seeder
                     'object_type_id' => $objectTypeId,
                     'role_ids' => null,
                     'tabs' => $tabs,
+                    // WP-13 — a published dashboard has a live layout as well
+                    // as a draft. Writing only `tabs` here would leave
+                    // published_tabs NULL, and publishedTabList() falls back to
+                    // the draft when it is: the first edit anyone made in the
+                    // builder would go live mid-drag, which is the exact
+                    // behaviour the split exists to stop.
+                    'published_tabs' => $tabs,
                     'is_published' => true,
                 ],
             ),
@@ -834,6 +841,9 @@ class WidgetDashboardSeeder extends Seeder
                 'object_type_id' => null, // the default for every node type
                 'role_ids' => null,       // and every role
                 'tabs' => $tabs,
+                // The live layout, seeded alongside the draft. See the note in
+                // publishSystemDashboard().
+                'published_tabs' => $tabs,
                 'is_published' => true,
                 // `version` is not written on re-seed: it is the staleness key
                 // for every user's saved layout_override, and resetting it to

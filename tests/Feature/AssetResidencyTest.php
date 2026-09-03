@@ -16,6 +16,9 @@ use Tests\TestCase;
  */
 class AssetResidencyTest extends TestCase
 {
+    /** This test is about the real bundle, so the base class must not stub @vite. */
+    protected bool $stubVite = false;
+
     use RefreshDatabase;
 
     /** @var list<string> */

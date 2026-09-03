@@ -34,6 +34,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'scope' => \App\Http\Middleware\EnsureTokenScope::class,
             'scope.resource' => \App\Http\Middleware\EnsureResourceScope::class,
             'idempotency' => \App\Http\Middleware\IdempotentRequest::class,
+
+            // Migration Phase 0: the ThirdLine licensing client. Neither alias is
+            // applied to a route group yet — LICENSE_ENFORCE_VALID ships false —
+            // so a deployment cannot lock itself out on a validation hiccup.
+            'ensure.license.valid' => \App\Http\Middleware\EnsureLicenseValid::class,
+            'ensure.license.feature' => \App\Http\Middleware\EnsureLicenseFeature::class,
         ]);
 
         // ResolveTenant must run after StartSession (so the user is known) but
@@ -52,6 +58,15 @@ return Application::configure(basePath: dirname(__DIR__))
                 \App\Http\Middleware\ResolveTenant::class,
                 \App\Http\Middleware\ResolvePeriod::class,
                 SubstituteBindings::class,
+
+                // Migration Phase 0. HandleInertiaRequests shares `tenant` and
+                // `period` with every React page, so it has to run after the two
+                // middleware above have bound them. SetSecurityHeaders decorates
+                // every web response; LicenseHeartbeat is a terminate-time
+                // check-in that does nothing until a licence is activated.
+                \App\Http\Middleware\HandleInertiaRequests::class,
+                \App\Http\Middleware\SetSecurityHeaders::class,
+                \App\Http\Middleware\LicenseHeartbeat::class,
             ],
         );
 

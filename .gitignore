@@ -22,3 +22,16 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Scratch and planning directories that must not ship (migration Phase 0).
+# Kept on disk; git rm --cached + docs/history move happens in Phase 7.
+/plans/
+/erm-update/
+/files_/
+/_to_delete/
+/migration/
+/risk
+*.tgz
+*.zip
+/storage/licensing/*
+!/storage/licensing/.gitignore

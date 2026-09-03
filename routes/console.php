@@ -48,3 +48,9 @@ Schedule::command('connectors:run --schedule=monthly')->monthlyOn(1, '06:00');
 // runs this too — this is the safety net for periods closed by a job, and for a
 // denominator (capital, CPI) entered days after the close itself.
 Schedule::command('measures:rebaseline-thresholds')->monthlyOn(2, '05:00');
+
+// Licensing (migration Phase 0): keep the deployment visible to the
+// LicensingServer — and pick up revocations and entitlement changes — even
+// when the app receives no traffic. The command itself defers to the
+// server-driven heartbeat / revocation cadence, so hourly is a ceiling.
+Schedule::command('license:heartbeat')->hourly()->withoutOverlapping();

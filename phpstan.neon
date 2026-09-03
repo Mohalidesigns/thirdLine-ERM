@@ -1,0 +1,17 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - phpstan-baseline.neon
+
+parameters:
+    level: 5
+
+    paths:
+        - app
+        - config
+        - database
+        - routes
+
+    # Phase 7 of the migration programme drives the baseline to zero for
+    # app/Http/** and app/Policies/** and raises the level; until then the
+    # baseline is the debt register and CI fails on anything new.
+    treatPhpDocTypesAsCertain: false

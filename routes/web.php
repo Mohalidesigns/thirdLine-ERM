@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WebhookController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\SsoController;
+use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
 use App\Http\Controllers\Risk\AiToolsController;
@@ -197,6 +198,19 @@ RateLimiter::for('password-reset', function (Request $request) {
  */
 RateLimiter::for('sso-discover', function (Request $request) {
     return Limit::perMinute(30)->by('sso-discover:'.$request->ip());
+});
+
+/*
+ * LICENCE ACTIVATION.
+ *
+ * `POST admin/settings/license/activate` forwards the supplied key to the
+ * LicensingServer with retries, which makes an unthrottled endpoint a
+ * licence-key brute-forcer with somebody else's server as the oracle. The
+ * caller is always an authenticated licence manager, so the key is the user;
+ * five attempts a minute is more than a person pasting a key needs.
+ */
+RateLimiter::for('license-activate', function (Request $request) {
+    return Limit::perMinute(5)->by('license:'.($request->user()?->getAuthIdentifier() ?? $request->ip()));
 });
 
 /*
@@ -433,6 +447,24 @@ Route::prefix('admin')->middleware(['auth'])->group(function () {
     Route::middleware('permission:admin.sso')->group(function () {
         Route::get('settings/sso', [SsoSettingsController::class, 'edit'])->name('admin.settings.sso');
         Route::put('settings/sso', [SsoSettingsController::class, 'update'])->name('admin.settings.sso.update');
+    });
+
+    // Migration Phase 0: the ThirdLine licensing client. license.manage is a
+    // super-admin grant — activating, deactivating or re-binding the licence
+    // is a platform act, not an organisation setting.
+    Route::middleware('permission:license.manage')->group(function () {
+        Route::get('settings/license', [LicenseController::class, 'index'])->name('admin.license');
+
+        // Each of these reaches the LicensingServer; see the license-activate
+        // limiter at the top of this file.
+        Route::middleware('throttle:license-activate')->group(function () {
+            Route::post('settings/license/activate', [LicenseController::class, 'activate'])->name('admin.license.activate');
+            Route::post('settings/license/offline-activate', [LicenseController::class, 'offlineActivate'])->name('admin.license.offline-activate');
+            Route::post('settings/license/sync', [LicenseController::class, 'syncHeartbeat'])->name('admin.license.sync');
+        });
+
+        Route::post('settings/license/generate-fingerprint', [LicenseController::class, 'generateFingerprint'])->name('admin.license.generate-fingerprint');
+        Route::post('settings/license/deactivate', [LicenseController::class, 'deactivate'])->name('admin.license.deactivate');
     });
 
     /* ------------------------------------------------------------------ */

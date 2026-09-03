@@ -19,6 +19,8 @@ use App\Models\IssueRemediationAction;
 use App\Models\JobRun;
 use App\Models\KeyRiskIndicator;
 use App\Models\KriMeasurement;
+use App\Models\LicenseAuditLog;
+use App\Models\LicenseStore;
 use App\Models\LossEvent;
 use App\Models\LossEventRca;
 use App\Models\Measure;
@@ -104,6 +106,11 @@ class MorphTypes
             'issue_remediation_action' => IssueRemediationAction::class,
             'key_risk_indicator' => KeyRiskIndicator::class,
             'kri_measurement' => KriMeasurement::class,
+            // Migration Phase 0: the licensing client's two tables. Neither is
+            // audited today, but enforceMorphMap makes any unmapped model fatal
+            // the moment something asks for its morph class.
+            'license_audit_log' => LicenseAuditLog::class,
+            'license_store' => LicenseStore::class,
             'loss_event' => LossEvent::class,
             'loss_event_rca' => LossEventRca::class,
             // WP-04. The measure engine is audited and approvable — a period

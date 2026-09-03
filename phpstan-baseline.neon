@@ -1,0 +1,3871 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$treatment_code\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Console/Commands/CheckOverdueTreatments.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$cbn_report_deadline\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/CheckRegulatoryDeadlines.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$nfiu_report_deadline\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/CheckRegulatoryDeadlines.php
+
+		-
+			message: '#^Relation ''bundle'' is not found in App\\Models\\ConfigBundleApplication model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Console/Commands/ConfigRollback.php
+
+		-
+			message: '#^Argument of an invalid type Illuminate\\Routing\\RouteCollectionInterface supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 1
+			path: app/Console/Commands/Preflight.php
+
+		-
+			message: '#^Relation ''instance'' is not found in App\\Models\\WorkflowTask model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Console/Commands/SweepWorkflowSlas.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/SweepWorkflowSlas.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Grids/Definitions/AdminUsersGrid.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:role\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Grids/Definitions/AdminUsersGrid.php
+
+		-
+			message: '#^Parameter \#1 \$apply of method App\\Grids\\Filter\:\:apply\(\) expects Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: void, Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: Illuminate\\Database\\Eloquent\\Builder given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Grids/Definitions/AdminUsersGrid.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\User model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/AdminUsersGrid.php
+
+		-
+			message: '#^Relation ''requestedBy'' is not found in App\\Models\\ApprovalRequest model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/ApprovalsHistoryGrid.php
+
+		-
+			message: '#^Relation ''reviewedBy'' is not found in App\\Models\\ApprovalRequest model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/ApprovalsHistoryGrid.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Grids/Definitions/ApprovalsHistoryGrid.php
+
+		-
+			message: '#^Relation ''creator'' is not found in App\\Models\\AssessmentCampaign model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/CampaignsGrid.php
+
+		-
+			message: '#^Relation ''questionnaire'' is not found in App\\Models\\AssessmentCampaign model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/CampaignsGrid.php
+
+		-
+			message: '#^Relation ''control'' is not found in App\\Models\\ControlTest model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/ControlTestsGrid.php
+
+		-
+			message: '#^Relation ''reviewer'' is not found in App\\Models\\ControlTest model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/ControlTestsGrid.php
+
+		-
+			message: '#^Relation ''tester'' is not found in App\\Models\\ControlTest model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/ControlTestsGrid.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\Control model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/ControlsGrid.php
+
+		-
+			message: '#^Relation ''importer'' is not found in App\\Models\\DataImport model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/DataImportsGrid.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\EmergingRisk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/EmergingRisksGrid.php
+
+		-
+			message: '#^Relation ''convertedRisk'' is not found in App\\Models\\EmergingRisk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/EmergingRisksGrid.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\EmergingRisk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/EmergingRisksGrid.php
+
+		-
+			message: '#^Relation ''entityType'' is not found in App\\Models\\Entity model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/EntitiesGrid.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\Entity model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/EntitiesGrid.php
+
+		-
+			message: '#^Relation ''parent'' is not found in App\\Models\\Entity model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/EntitiesGrid.php
+
+		-
+			message: '#^Parameter \#1 \$apply of method App\\Grids\\Filter\:\:apply\(\) expects Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: void, Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: Illuminate\\Database\\Eloquent\\Builder given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Grids/Definitions/IssuesGrid.php
+
+		-
+			message: '#^Parameter \#1 \$options of method App\\Grids\\Filter\:\:options\(\) expects array\<string, string\>\|Closure, array\{''Level 0 \- None'', ''Level 1'', ''Level 2'', ''Level 3 \- Board''\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Grids/Definitions/IssuesGrid.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\Issue model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/IssuesGrid.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\MeasureBreach\:\:\$measure\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Grids/Definitions/KriBreachesGrid.php
+
+		-
+			message: '#^Parameter \#1 \$apply of method App\\Grids\\Filter\:\:apply\(\) expects Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: void, Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: Illuminate\\Database\\Eloquent\\Builder given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Grids/Definitions/KriBreachesGrid.php
+
+		-
+			message: '#^Relation ''measure'' is not found in App\\Models\\MeasureBreach model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/KriBreachesGrid.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Grids/Definitions/KriBreachesGrid.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>decimal_places" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Grids/Definitions/KriBreachesGrid.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Grids/Definitions/KriBreachesGrid.php
+
+		-
+			message: '#^Parameter \#1 \$apply of method App\\Grids\\Filter\:\:apply\(\) expects Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: void, Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: Illuminate\\Database\\Eloquent\\Builder given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Grids/Definitions/KrisGrid.php
+
+		-
+			message: '#^Relation ''risk'' is not found in App\\Models\\KeyRiskIndicator model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/KrisGrid.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Grids/Definitions/KrisGrid.php
+
+		-
+			message: '#^Parameter \#1 \$options of method App\\Grids\\Filter\:\:options\(\) expects array\<string, string\>\|Closure, array\{1\: ''Regulatory…'', 0\: ''Not reportable''\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Grids/Definitions/LossEventsGrid.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\NearMiss model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/NearMissesGrid.php
+
+		-
+			message: '#^Relation ''creator'' is not found in App\\Models\\Questionnaire model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/QuestionnairesGrid.php
+
+		-
+			message: '#^Relation ''assignee'' is not found in App\\Models\\RegulatoryCircular model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/RegulatoryCircularsGrid.php
+
+		-
+			message: '#^Relation ''generatedBy'' is not found in App\\Models\\GeneratedReport model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/ReportsLibraryGrid.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$impact_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Grids/Definitions/RiskAssessmentsGrid.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$overall_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Grids/Definitions/RiskAssessmentsGrid.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$previous_overall_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Grids/Definitions/RiskAssessmentsGrid.php
+
+		-
+			message: '#^Relation ''assessor'' is not found in App\\Models\\RiskAssessment model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/RiskAssessmentsGrid.php
+
+		-
+			message: '#^Relation ''risk'' is not found in App\\Models\\RiskAssessment model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/RiskAssessmentsGrid.php
+
+		-
+			message: '#^Parameter \#1 \$options of method App\\Grids\\Filter\:\:options\(\) expects array\<string, string\>\|Closure, array\<int, non\-falsy\-string\> given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Grids/Definitions/RisksGrid.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/RisksGrid.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/RisksGrid.php
+
+		-
+			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/RisksGrid.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$risk\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Grids/Definitions/TreatmentPlansGrid.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\TreatmentPlan model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/TreatmentPlansGrid.php
+
+		-
+			message: '#^Relation ''risk'' is not found in App\\Models\\TreatmentPlan model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/TreatmentPlansGrid.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>key" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Grids/GridDefinition.php
+
+		-
+			message: '#^Relation ''creator'' is not found in App\\Models\\ApiToken model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Admin/ApiTokenController.php
+
+		-
+			message: '#^Relation ''actor'' is not found in App\\Models\\ConfigBundleApplication model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Admin/ConfigurationBundleController.php
+
+		-
+			message: '#^Relation ''bundle'' is not found in App\\Models\\ConfigBundleApplication model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Admin/ConfigurationBundleController.php
+
+		-
+			message: '#^Relation ''creator'' is not found in App\\Models\\Connector model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Admin/ConnectorController.php
+
+		-
+			message: '#^Relation ''creator'' is not found in App\\Models\\JobRun model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Admin/JobRunController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\User\:\:\$organization\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Admin/SsoSettingsController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\ApiToken\:\:\$organization\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/V1/MeController.php
+
+		-
+			message: '#^Cannot call method isFuture\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Auth/AuthController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Auth\\AuthController\:\:getPasswordRules\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Http/Controllers/Auth/AuthController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Auth/AuthController.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\EmergingRisk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/AiIntelligenceController.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\EmergingRisk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/AiIntelligenceController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/AiIntelligenceController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\Risk\>\:\:\$category\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Risk/AiToolsController.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/AiToolsController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$businessUnit\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$controlMappings\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_rating\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$riskOwner\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskCause\:\:\$category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskControlMapping\:\:\$risk\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Risk\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Relation ''control'' is not found in App\\Models\\RiskControlMapping model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Relation ''controlMappings'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Relation ''risk'' is not found in App\\Models\\RiskControlMapping model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/AnalysisController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$assignments\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/CampaignController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CampaignAssignment\:\:\$campaign\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/Risk/CampaignController.php
+
+		-
+			message: '#^Relation ''campaign'' is not found in App\\Models\\CampaignAssignment model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/CampaignController.php
+
+		-
+			message: '#^Relation ''creator'' is not found in App\\Models\\AssessmentCampaign model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/CampaignController.php
+
+		-
+			message: '#^Relation ''questionnaire'' is not found in App\\Models\\AssessmentCampaign model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/CampaignController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Control\:\:\$risks\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/ControlController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/ControlController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\ControlTest\:\:\$control\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/ControlTestController.php
+
+		-
+			message: '#^Relation ''control'' is not found in App\\Models\\ControlTest model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/ControlTestController.php
+
+		-
+			message: '#^Relation ''tester'' is not found in App\\Models\\ControlTest model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/ControlTestController.php
+
+		-
+			message: '#^Relation ''objectType'' is not found in App\\Models\\Dashboard model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/DashboardBuilderController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/DashboardBuilderController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$event_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$gross\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net_loss_amount_kobo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/DashboardController.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/DashboardController.php
+
+		-
+			message: '#^Relation ''risk'' is not found in App\\Models\\RiskAssessment model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/DashboardController.php
+
+		-
+			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/DashboardController.php
+
+		-
+			message: '#^Relation ''treatmentPlans'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$uploaded_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>event_reference" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>issue_reference" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>test_code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$age_bucket\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$age_days\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$is_regulatory_reportable\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net_loss_amount_kobo\.$#'
+			identifier: property.notFound
+			count: 5
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_rating\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_score\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_key_control\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Risk\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 3
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Issue model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\RiskAppetite model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Relation ''control'' is not found in App\\Models\\RiskControlMapping model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Relation ''issueOwner'' is not found in App\\Models\\Issue model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Relation ''risk'' is not found in App\\Models\\RiskControlMapping model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/Risk/ExportController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Risk\\GlobalSearchController\:\:search\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, code\: string, type\: string\|null, icon\: string\|null, description\: string, url\: string\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/Risk/GlobalSearchController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Dashboard\:\:\$role_names\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/HqController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GraphObject\:\:\$objectType\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/HqController.php
+
+		-
+			message: '#^Relation ''objectType'' is not found in App\\Models\\Dashboard model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/HqController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Http/Controllers/Risk/HqController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$age_bucket\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/IssueController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$age_days\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/IssueController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/IssueController.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 1
+			path: app/Http/Controllers/Risk/IssueController.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Issue model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/Risk/IssueController.php
+
+		-
+			message: '#^Relation ''issueOwner'' is not found in App\\Models\\Issue model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/Risk/IssueController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/KriController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$is_active\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/KriController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$latestMeasurement\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/KriController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$risk\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/KriController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/KriController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\KeyRiskIndicator\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Risk/KriController.php
+
+		-
+			message: '#^Relation ''acknowledgedBy'' is not found in App\\Models\\MeasureBreach model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/KriController.php
+
+		-
+			message: '#^Relation ''kri'' is not found in App\\Models\\KriMeasurement model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/KriController.php
+
+		-
+			message: '#^Relation ''latestMeasurement'' is not found in App\\Models\\KeyRiskIndicator model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/KriController.php
+
+		-
+			message: '#^Relation ''risk'' is not found in App\\Models\\KeyRiskIndicator model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/KriController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$c\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/LossEventController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$s\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/LossEventController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Risk/LossEventController.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\LossEvent model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/LossEventController.php
+
+		-
+			message: '#^Relation ''generatedBy'' is not found in App\\Models\\GeneratedReport model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/LossEventController.php
+
+		-
+			message: '#^Relation ''rca'' is not found in App\\Models\\LossEvent model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/LossEventController.php
+
+		-
+			message: '#^Relation ''reporter'' is not found in App\\Models\\LossEvent model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/LossEventController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>node_code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/LossEventController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkflowTask\:\:\$instance\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/Risk/MyTaskController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\>\:\:getCollection\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/MyTaskController.php
+
+		-
+			message: '#^Match expression does not handle remaining value\: mixed$#'
+			identifier: match.unhandled
+			count: 1
+			path: app/Http/Controllers/Risk/PeriodController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>start_date" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/PeriodController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$businessUnit\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/QuantificationController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/QuantificationController.php
+
+		-
+			message: '#^Binary operation "/" between float and object\{label\: mixed, risks\: mixed, value\: float\}&stdClass results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: app/Http/Controllers/Risk/QuantificationController.php
+
+		-
+			message: '#^Binary operation "/" between float and object\{label\: mixed, value\: float, risks\: mixed\}&stdClass results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: app/Http/Controllers/Risk/QuantificationController.php
+
+		-
+			message: '#^Comparison operation "\>" between object\{label\: mixed, risks\: mixed, value\: float\}&stdClass and 0 results in an error\.$#'
+			identifier: greater.invalid
+			count: 1
+			path: app/Http/Controllers/Risk/QuantificationController.php
+
+		-
+			message: '#^Comparison operation "\>" between object\{label\: mixed, value\: float, risks\: mixed\}&stdClass and 0 results in an error\.$#'
+			identifier: greater.invalid
+			count: 1
+			path: app/Http/Controllers/Risk/QuantificationController.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/QuantificationController.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/QuantificationController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>scenario_ids" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/QuantificationController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\BusinessUnit\:\:\$assessed\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\BusinessUnit\:\:\$high_risks\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\BusinessUnit\:\:\$total_risks\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$businessUnit\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_rating\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\BusinessUnit\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Risk\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\CampaignAssignment model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Control model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Relation ''campaign'' is not found in App\\Models\\CampaignAssignment model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Relation ''controlMappings'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Relation ''controlOwner'' is not found in App\\Models\\Control model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Relation ''responses'' is not found in App\\Models\\CampaignAssignment model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Relation ''risk'' is not found in App\\Models\\RiskControlMapping model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Relation ''riskMappings'' is not found in App\\Models\\Control model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RcsaController.php
+
+		-
+			message: '#^Relation ''assignee'' is not found in App\\Models\\RegulatoryCircular model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RegulatoryComplianceController.php
+
+		-
+			message: '#^Relation ''children'' is not found in App\\Models\\RiskTaxonomy model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RegulatoryComplianceController.php
+
+		-
+			message: '#^Relation ''responsible'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/RegulatoryComplianceController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RegulatoryDeadline\:\:\$filings\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/ReportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$treatmentPlans\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/ReportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$treatment_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/ReportController.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/ReportController.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 5
+			path: app/Http/Controllers/Risk/ReportController.php
+
+		-
+			message: '#^Relation ''filings'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/ReportController.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\TreatmentPlan model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/ReportController.php
+
+		-
+			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/Risk/ReportController.php
+
+		-
+			message: '#^Relation ''treatmentPlans'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Risk/ReportController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type mixed\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/ReportController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/ReportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAppetite\:\:\$category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/RiskAppetiteController.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\RiskAppetite model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RiskAppetiteController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$assessedControls\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/RiskAssessmentController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$overall_score\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Risk/RiskAssessmentController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$risk\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/Risk/RiskAssessmentController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$score_change\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/RiskAssessmentController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/RiskAssessmentController.php
+
+		-
+			message: '#^Parameter \#1 \$string of function str_pad expects string, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Risk/RiskAssessmentController.php
+
+		-
+			message: '#^Relation ''assessor'' is not found in App\\Models\\RiskAssessment model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RiskAssessmentController.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RiskAssessmentController.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\TreatmentPlan model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/RiskAssessmentController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>score_change" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/RiskAssessmentController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$controlMappings\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/RiskRegisterController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_rating\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/RiskRegisterController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/RiskRegisterController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$critical_count\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Risk/ScopingController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$high_count\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Risk/ScopingController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$low_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/ScopingController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$medium_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/ScopingController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$risk_score\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/Risk/ScopingController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$risk_total\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Risk/ScopingController.php
+
+		-
+			message: '#^Relation ''descendants'' is not found in App\\Models\\Entity model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/ScopingController.php
+
+		-
+			message: '#^Relation ''entityType'' is not found in App\\Models\\Entity model\.$#'
+			identifier: larastan.relationExistence
+			count: 5
+			path: app/Http/Controllers/Risk/ScopingController.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\Entity model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/ScopingController.php
+
+		-
+			message: '#^Relation ''measure'' is not found in App\\Models\\MeasureThreshold model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/ThresholdController.php
+
+		-
+			message: '#^Relation ''requestedBy'' is not found in App\\Models\\ApprovalRequest model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/ThresholdController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$owner\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/TreatmentPlanController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$risk\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/TreatmentPlanController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$treatment_code\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/Risk/TreatmentPlanController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/TreatmentPlanController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\TreatmentPlan\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Risk/TreatmentPlanController.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\TreatmentPlan model\.$#'
+			identifier: larastan.relationExistence
+			count: 4
+			path: app/Http/Controllers/Risk/TreatmentPlanController.php
+
+		-
+			message: '#^Relation ''risk'' is not found in App\\Models\\TreatmentPlan model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/Risk/TreatmentPlanController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkflowTask\:\:\$instance\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/WorkflowController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Risk\\WorkflowController\:\:startableSubjects\(\) should return array\<string, array\{label\: string, items\: Illuminate\\Support\\Collection\}\> but returns non\-empty\-array\{issue\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, loss_event\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, risk_assessment\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, treatment_plan\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, control_test\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, risk\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, risk_appetite\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, icaap_assessment\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/Risk/WorkflowController.php
+
+		-
+			message: '#^Relation ''creator'' is not found in App\\Models\\WorkflowDefinition model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/WorkflowController.php
+
+		-
+			message: '#^Relation ''tasks'' is not found in App\\Models\\WorkflowInstance model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Risk/WorkflowController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Scim/ScimUserController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Scim/ScimUserController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Scim/ScimUserController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>type" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Middleware/ResolvePeriod.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between string and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Integrations/Connectors/CsvConnector.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between non\-empty\-list\<string\|null\> and array\{\} will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Integrations/Connectors/CsvConnector.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Jobs/Concerns/TracksJobProgress.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WebhookDelivery\:\:\$subscription\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Jobs/DeliverWebhookJob.php
+
+		-
+			message: '#^Relation ''subscription'' is not found in App\\Models\\WebhookDelivery model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Jobs/DeliverWebhookJob.php
+
+		-
+			message: '#^Call to function method_exists\(\) with \$this\(App\\Jobs\\ProcessDataImportJob\) and ''attempts'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Jobs/ProcessDataImportJob.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\GraphObject\>\:\:orWhereKey\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Jobs/RebuildHierarchyPaths.php
+
+		-
+			message: '#^Call to function method_exists\(\) with \$this\(App\\Jobs\\RunConnectorJob\) and ''attempts'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Jobs/RunConnectorJob.php
+
+		-
+			message: '#^Call to function method_exists\(\) with \$this\(App\\Jobs\\RunSimulationJob\) and ''attempts'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Jobs/RunSimulationJob.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$risks\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Listeners/EscalateRiskOnKriBreach.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net_loss_amount_kobo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Listeners/EvaluateRegulatoryThresholds.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$risk\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Listeners/FlagRiskForReview.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$risk_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Listeners/FlagRiskForReview.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Control\:\:\$risks\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Listeners/RecalculateResidualRisk.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$expected_residual_impact\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Listeners/TriggerRiskReassessment.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$expected_residual_likelihood\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Listeners/TriggerRiskReassessment.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$owner\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Listeners/TriggerRiskReassessment.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$treatment_code\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Listeners/TriggerRiskReassessment.php
+
+		-
+			message: '#^Relation ''objectType'' is not found in App\\Models\\ObjectLifecycle model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Livewire/Admin/LifecycleBuilder.php
+
+		-
+			message: '#^Relation ''parentType'' is not found in App\\Models\\ObjectType model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Livewire/Admin/ObjectTypeBuilder.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_rating\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Livewire/Admin/ScoringProfileBuilder.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>settings" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Livewire/Admin/ScoringProfileBuilder.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ApiToken.php
+
+		-
+			message: '#^Method App\\Models\\ApiToken\:\:findToken\(\) should return static\(App\\Models\\ApiToken\)\|null but returns App\\Models\\ApiToken\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/ApiToken.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/ApiToken.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ApprovalRequest.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$assignments\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AssessmentCampaign.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$assignments_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AssessmentCampaign.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$awaiting_review_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AssessmentCampaign.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$completed_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AssessmentCampaign.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/AssessmentCampaign.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/AssessmentCampaign.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\AssessmentCampaign\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/AssessmentCampaign.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/BusinessProcess.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/BusinessProcess.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\BusinessProcess\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/BusinessProcess.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/BusinessUnit.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/BusinessUnit.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\BusinessUnit\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/BusinessUnit.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ConfigBundle.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ConfigBundleApplication.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Connector.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Connector.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ConnectorRun.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Control.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Control.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/Control.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\Control\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/Control.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ControlTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/ControlTest.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\ControlTest\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/ControlTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Dashboard.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/DataImport.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DomainEvent\:\:\$aggregate_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DomainEvent.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/DomainEvent.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/EmergingRisk.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$entityType\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Entity.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Entity.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/Entity.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\Entity\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/Entity.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/Entity.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/EntityType.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/FxRate.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/GeneratedReport.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/GraphObject.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/IcaapAssessment.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$closed_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$due_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$identified_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\Issue\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/IssueEscalationRule.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/JobRun.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/KeyRiskIndicator.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/KeyRiskIndicator.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/KeyRiskIndicator.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\KeyRiskIndicator\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/KeyRiskIndicator.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$closed_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$event_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net_loss_amount_kobo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\LossEvent\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Method App\\Models\\LossEvent\:\:grossLossNairaSql\(\) should return Illuminate\\Database\\Query\\Expression but returns Illuminate\\Contracts\\Database\\Query\\Expression\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Method App\\Models\\LossEvent\:\:netLossKoboSql\(\) should return Illuminate\\Database\\Query\\Expression but returns Illuminate\\Contracts\\Database\\Query\\Expression\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Method App\\Models\\LossEvent\:\:netLossNairaSql\(\) should return Illuminate\\Database\\Query\\Expression but returns Illuminate\\Contracts\\Database\\Query\\Expression\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/LossEventRca.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Measure\:\:\$unit\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Measure.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Measure.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:resolved\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/MeasureBreach.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/MeasureBreach.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/MeasureThreshold.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/MeasureValue.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/NearMiss.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/NearMiss.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\NearMiss\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/NearMiss.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ObjectLifecycle.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ObjectMergeCandidate.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ObjectRelationship.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ObjectRelationshipType.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ObjectType.php
+
+		-
+			message: '#^Method App\\Models\\ObjectType\:\:resolvedAttributes\(\) should return Illuminate\\Support\\Collection\<string, App\\Models\\ObjectAttribute\> but returns Illuminate\\Support\\Collection\<\(int\|string\), Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/ObjectType.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/OrganizationSsoSetting.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Period.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/PeriodCalendar.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/QuantificationScenario.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/QuantificationScenario.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\QuantificationScenario\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/QuantificationScenario.php
+
+		-
+			message: '#^Parameter \#1 \$num of function exp expects float, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/QuantificationScenario.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/QuantificationSetting.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/QuestionLibrary.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Questionnaire.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/RegulatoryCircular.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/RegulatoryDeadline.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Risk.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Risk.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/Risk.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\Risk\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/Risk.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/RiskAppetite.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/RiskAppetite.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\RiskAppetite\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/RiskAppetite.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$impact_score\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/RiskAssessment.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$risk\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/RiskAssessment.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/RiskAssessment.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/RiskAssessmentControl.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/RiskAuditTrail.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/RiskCategory.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/RiskCategory.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\RiskCategory\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/RiskCategory.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskCause\:\:\$category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/RiskCause.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/RiskCause.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/RiskCause.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/RiskCauseCategory.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/RiskControlMapping.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/RiskTaxonomy.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ScimToken.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ScoringProfile.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between int and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Models/ScoringProfile.php
+
+		-
+			message: '#^Variable \$organizationId on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.variable
+			count: 1
+			path: app/Models/ScoringProfile.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/SimulationRun.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/TreatmentPlan.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/TreatmentPlan.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\TreatmentPlan\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/TreatmentPlan.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/User.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/WebhookDelivery.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/WebhookSubscription.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/WidgetDefinition.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/WorkflowAction.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/WorkflowDefinition.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkflowInstance\:\:\$definition\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/WorkflowInstance.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/WorkflowInstance.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkflowTask\:\:\$instance\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/WorkflowTask.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:open\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/WorkflowTask.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/WorkflowTask.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_rating\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Repositories/RiskRepository.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/ApprovalService.php
+
+		-
+			message: '#^Relation ''organization'' is not found in App\\Models\\ApprovalRequest model\.$#'
+			identifier: larastan.relationExistence
+			count: 4
+			path: app/Services/ApprovalService.php
+
+		-
+			message: '#^Relation ''requestedBy'' is not found in App\\Models\\ApprovalRequest model\.$#'
+			identifier: larastan.relationExistence
+			count: 4
+			path: app/Services/ApprovalService.php
+
+		-
+			message: '#^Relation ''reviewedBy'' is not found in App\\Models\\ApprovalRequest model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Services/ApprovalService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$impact_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/AssessmentChainService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$overall_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/AssessmentChainService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$risk\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/AssessmentChainService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessmentControl\:\:\$control\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/AssessmentChainService.php
+
+		-
+			message: '#^Default value of the parameter \#2 \$override \(array\{\}\) of method App\\Services\\AssessmentChainService\:\:applyToAssessment\(\) is incompatible with type array\{likelihood\: int\|null, impact\: int\|null, justification\: string\|null\}\.$#'
+			identifier: parameter.defaultValue
+			count: 1
+			path: app/Services/AssessmentChainService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>design_effectiveness" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/AssessmentChainService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>operating_effectiveness" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/AssessmentChainService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/AuditTrailService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$c\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/BoardPackAssembler.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/BoardPackAssembler.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/BoardPackAssembler.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\RiskAppetite model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/BoardPackAssembler.php
+
+		-
+			message: '#^Relation ''filings'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/BoardPackAssembler.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\Issue model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/BoardPackAssembler.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\KeyRiskIndicator model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/BoardPackAssembler.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\TreatmentPlan model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/BoardPackAssembler.php
+
+		-
+			message: '#^Relation ''responsible'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/BoardPackAssembler.php
+
+		-
+			message: '#^Relation ''risk'' is not found in App\\Models\\TreatmentPlan model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/BoardPackAssembler.php
+
+		-
+			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/BoardPackAssembler.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ControlEffectivenessService.php
+
+		-
+			message: '#^Match expression does not handle remaining value\: string$#'
+			identifier: match.unhandled
+			count: 1
+			path: app/Services/DocumentRenderer.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/DocumentRenderer.php
+
+		-
+			message: '#^Method App\\Services\\Graph\\GraphQueryService\:\:ancestors\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\GraphObject\> but returns Illuminate\\Support\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Graph/GraphQueryService.php
+
+		-
+			message: '#^Method App\\Services\\Graph\\GraphQueryService\:\:find\(\) should return App\\Models\\GraphObject\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Graph/GraphQueryService.php
+
+		-
+			message: '#^Method App\\Services\\Graph\\GraphQueryService\:\:related\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\GraphObject\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Graph/GraphQueryService.php
+
+		-
+			message: '#^Method App\\Services\\Graph\\GraphQueryService\:\:traverse\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\GraphObject\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Graph/GraphQueryService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:each\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed, Closure\(App\\Models\\GraphObject\)\: void given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Graph/GraphQueryService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\GraphObject\:\:\$objectType\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Graph/ObjectSyncService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:relate\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/Graph/PivotEdgeProjector.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:unrelate\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/Graph/PivotEdgeProjector.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$node_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Integrations/ConnectorRunner.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Integrations/ConnectorRunner.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>node_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Integrations/ConnectorRunner.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkflowTask\:\:\$instance\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/Mcp/McpToolRegistry.php
+
+		-
+			message: '#^Offset ''amber''\|''red'' on array\{red\: ''high'', amber\: ''medium'', yellow\: ''low''\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/MeasureService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkflowTask\:\:\$instance\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/MyResponsibilitiesService.php
+
+		-
+			message: '#^Relation ''measure'' is not found in App\\Models\\MeasureBreach model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/MyResponsibilitiesService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Services/MyResponsibilitiesService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Period\:\:\$calendar\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PeriodService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/PeriodService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RegulatoryCircular\:\:\$assignee\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryPulseService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RegulatoryDeadline\:\:\$responsible\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryPulseService.php
+
+		-
+			message: '#^Relation ''assignee'' is not found in App\\Models\\RegulatoryCircular model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/RegulatoryPulseService.php
+
+		-
+			message: '#^Relation ''filings'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/RegulatoryPulseService.php
+
+		-
+			message: '#^Relation ''responsible'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/RegulatoryPulseService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Control\:\:\$coverage_scope\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Control\:\:\$last_tested_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Control\:\:\$test_frequency\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Control\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$kri_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$risk_category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$threshold_green_upper\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$threshold_red_upper\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$threshold_yellow_upper\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_score\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/ReportDataService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Risk\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 2
+			path: app/Services/ReportDataService.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/ReportDataService.php
+
+		-
+			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/ReportDataService.php
+
+		-
+			message: '#^Relation ''filings'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/ReportDataService.php
+
+		-
+			message: '#^Relation ''responsible'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/ReportDataService.php
+
+		-
+			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/ReportDataService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 7
+			path: app/Services/ReportDataService.php
+
+		-
+			message: '#^Relation ''riskCategory'' is not found in App\\Models\\RiskAppetite model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/RiskAppetiteService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$impact_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RiskMeasureRecorder.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$overall_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RiskMeasureRecorder.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$risk\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RiskMeasureRecorder.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RiskScoringService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\MeasureThreshold\:\:\$measure\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/ThresholdRebaselineService.php
+
+		-
+			message: '#^Relation ''measure'' is not found in App\\Models\\MeasureThreshold model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/ThresholdRebaselineService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between App\\Models\\ApprovalRequest and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Services/ThresholdRebaselineService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Services/ThresholdRebaselineService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Services/Webhooks/WebhookDispatcher.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Webhooks/WebhookDispatcher.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/ResolvedPeriods.php
+
+		-
+			message: '#^Anonymous function should return Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: ''green''\}\> but returns Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: ''green''\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Widgets/Types/ActivityTableResolver.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: string\}, Closure\(App\\Models\\TreatmentPlan\)\: array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: string\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Widgets/Types/ActivityTableResolver.php
+
+		-
+			message: '#^Parameter \#2 \$callback of method Illuminate\\Support\\Collection\<int,array\<string, mixed\>\>\:\:when\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Services/Widgets/Types/ActivityTableResolver.php
+
+		-
+			message: '#^Parameter \#2 \$callback of method Illuminate\\Support\\Collection\<int,array\<string, mixed\>\>\:\:when\(\) expects \(callable\(Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: string\}\>, bool\)\: Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: ''green''\}\>\)\|null, Closure\(mixed\)\: Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: ''green''\}\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Widgets/Types/ActivityTableResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$control_effectiveness_pct\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/BubbleResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$financial_exposure_ngn\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/BubbleResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/BubbleResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$residual_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/BubbleResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/BubbleResolver.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WidgetDefinition\:\:\$measure\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/GaugeResolver.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$node_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/HeatmapResolver.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WidgetDefinition\:\:\$measure\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/KpiTileResolver.php
+
+		-
+			message: '#^Property App\\Services\\Widgets\\Types\\KpiTileResolver\:\:\$periodResolver is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/Widgets/Types/KpiTileResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>percentile_distribution" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/Types/LecCurveResolver.php
+
+		-
+			message: '#^Anonymous function should return Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\}\> but returns Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Widgets/Types/MeasureTableResolver.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\}, Closure\(App\\Models\\Control\)\: array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Widgets/Types/MeasureTableResolver.php
+
+		-
+			message: '#^Parameter \#2 \$callback of method Illuminate\\Support\\Collection\<int,array\<string, mixed\>\>\:\:when\(\) expects \(callable\(Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\}\>, bool\)\: Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\}\>\)\|null, Closure\(mixed\)\: Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\}\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Widgets/Types/MeasureTableResolver.php
+
+		-
+			message: '#^Relation ''relationshipType'' is not found in App\\Models\\ObjectRelationship model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/Widgets/Types/NetworkResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/Types/NetworkResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$action_title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$completed_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$scheduled_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$target_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Property App\\Services\\Widgets\\Types\\TimelineResolver\:\:\$registry is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Relation ''scenario'' is not found in App\\Models\\SimulationResult model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/Widgets/Types/TornadoResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/Types/TornadoResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>end_date" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/Types/TrendStackedBarResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/WidgetDataService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/WidgetDataService.php
+
+		-
+			message: '#^Parameter \#1 \$rows of method App\\Services\\Widgets\\WidgetQueryEngine\:\:sortAndLimit\(\) expects Illuminate\\Support\\Collection\<int, object\{key\: mixed, value\: float\|int\}\>, Illuminate\\Support\\Collection\<int, object\{key\: mixed, value\: \(float\|int\)\}&stdClass\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Widgets/WidgetQueryEngine.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>owner_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/AssigneeResolver.php
+
+		-
+			message: '#^Dead catch \- Symfony\\Component\\ExpressionLanguage\\SyntaxError is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 2
+			path: app/Services/Workflow/ConditionEvaluator.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$control\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$control_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$result\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$reviewer_id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$reviewer_notes\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$test_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>control_title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkflowInstance\:\:\$definition\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/GenericSubjectBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$car_actual\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cbn_minimum_car\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$period\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$prepared_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$reviewed_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total_qualifying_capital_kobo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total_rwa_kobo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cbn_reportable\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$issue_category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$issue_reference\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$issue_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$potential_loss_kobo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$priority\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$regulatory_reportable\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$basel_level_1\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$current_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$date_of_loss\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$event_reference\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$gross_loss_amount_kobo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$net_loss_amount_kobo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$bands\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$effective_from\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$measure\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$measure_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$object_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$inherent_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$node_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$residual_rating\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$residual_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$risk_category_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$risk_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$treatment_strategy\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$appetite_level\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$appetite_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$effective_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$max_tolerance\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$risk_category_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$target_max\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$target_min\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$risk\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$assessment_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$overall_rating\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$overall_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$residual_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$reviewer_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$risk\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$risk_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cost_estimate_ngn\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/TreatmentPlanBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/TreatmentPlanBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$risk_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/TreatmentPlanBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$strategy\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/TreatmentPlanBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$target_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/TreatmentPlanBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$treatment_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/TreatmentPlanBinding.php
+
+		-
+			message: '#^Generic type Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\> in PHPDoc tag @return does not specify all template types of interface Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\: TKey, TValue$#'
+			identifier: generics.lessTypes
+			count: 1
+			path: app/Services/Workflow/TaskQueryService.php
+
+		-
+			message: '#^Method App\\Services\\Workflow\\TaskQueryService\:\:openFor\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\WorkflowTask\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Workflow/TaskQueryService.php
+
+		-
+			message: '#^Method App\\Services\\Workflow\\TaskQueryService\:\:paginateFor\(\) should return Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\> but returns Illuminate\\Pagination\\LengthAwarePaginator\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Workflow/TaskQueryService.php
+
+		-
+			message: '#^Method App\\Services\\Workflow\\TaskQueryService\:\:workloadFor\(\) should return Illuminate\\Support\\Collection\<int, object\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\WorkflowTask\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Workflow/TaskQueryService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\WorkflowTask\)\: bool given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/Workflow/TaskQueryService.php
+
+		-
+			message: '#^Relation ''instance'' is not found in App\\Models\\WorkflowTask model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Services/Workflow/TaskQueryService.php
+
+		-
+			message: '#^Type App\\Models\\WorkflowTask in generic type Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\> in PHPDoc tag @return is not subtype of template type TKey of \(int\|string\) of interface Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\.$#'
+			identifier: generics.notSubtype
+			count: 1
+			path: app/Services/Workflow/TaskQueryService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkflowInstance\:\:\$definition\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WorkflowTask\:\:\$instance\.$#'
+			identifier: property.notFound
+			count: 12
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^PHPDoc tag @param references unknown parameter\: \$_$#'
+			identifier: parameter.notFound
+			count: 1
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^Relation ''definition'' is not found in App\\Models\\WorkflowInstance model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^Relation ''instance'' is not found in App\\Models\\WorkflowTask model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>escalation_rules" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 10
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>node_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>created_by" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/WorkflowPublisher.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Services/Workflow/WorkflowPublisher.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>organization_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/WorkflowPublisher.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>version" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/WorkflowPublisher.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between App\\Models\\WorkflowInstance and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Services/Workflow/WorkflowTriggerService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Support/Authorization/GraphScope.php
+
+		-
+			message: '#^PHPDoc tag @param for parameter \$entityColumn with type string\|null is not subtype of native type string\.$#'
+			identifier: parameter.phpDocType
+			count: 1
+			path: app/Support/Authorization/GraphScope.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$deleted_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/Graph/ObjectBackfiller.php
+
+		-
+			message: '#^Parameter \#1 \$rows of method App\\Support\\Graph\\OrganisationGraphUnifier\:\:normalisedNameIndex\(\) expects Illuminate\\Support\\Collection\<int, object\>, Illuminate\\Support\\Collection\<int, stdClass\> given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Support/Graph/OrganisationGraphUnifier.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$direction\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/Measures/KriMeasureMigrator.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$kri_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/Measures/KriMeasureMigrator.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$kri_owner_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/Measures/KriMeasureMigrator.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$measurement_unit\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/Measures/KriMeasureMigrator.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$risk_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/Measures/KriMeasureMigrator.php
+
+		-
+			message: '#^Call to an undefined method TModel of Illuminate\\Database\\Eloquent\\Model\:\:getQualifiedOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Support/Tenancy/OrganizationScope.php
+
+		-
+			message: '#^Call to an undefined method TModel of Illuminate\\Database\\Eloquent\\Model\:\:tenantIncludesGlobalRecords\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Support/Tenancy/OrganizationScope.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\User\:\:\$organization\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/View/Components/DynamicDetail.php
+
+		-
+			message: '#^Match expression does not handle remaining value\: mixed$#'
+			identifier: match.unhandled
+			count: 1
+			path: database/migrations/2026_02_22_200038_align_schema_with_controllers.php
+
+		-
+			message: '#^Comparison operation "\>\=" between 4\|6\|8\|9\|12 and 20 is always false\.$#'
+			identifier: greaterOrEqual.alwaysFalse
+			count: 1
+			path: database/seeders/DemoDataSeeder.php
+
+		-
+			message: '#^Comparison operation "\>\=" between 75\.0\|78\.0\|80\.0\|82\.0\|85\.0\|88\.0\|90\.0\|91\.0\|92\.0\|95\.0 and 70 is always true\.$#'
+			identifier: greaterOrEqual.alwaysTrue
+			count: 1
+			path: database/seeders/DemoDataSeeder.php
+
+		-
+			message: '#^Result of && is always false\.$#'
+			identifier: booleanAnd.alwaysFalse
+			count: 1
+			path: database/seeders/DemoDataSeeder.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between \-30\|\-10\|15\|30\|45\|60\|90 and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: database/seeders/DemoDataSeeder.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between 9\|10\|11\|13\|14\|17\|21\|24 and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: database/seeders/DemoDataSeeder.php
+
+		-
+			message: '#^Parameter \#2 \.\.\.\$arg1 of function max expects non\-empty\-array, 0 given\.$#'
+			identifier: argument.type
+			count: 1
+			path: database/seeders/EnterpriseGapSeeder.php
+
+		-
+			message: '#^Result of \|\| is always true\.$#'
+			identifier: booleanOr.alwaysTrue
+			count: 1
+			path: database/seeders/EnterpriseGapSeeder.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: database/seeders/RiskAnalysisSeeder.php
+
+		-
+			message: '#^Relation ''controls'' is not found in App\\Models\\Risk model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: database/seeders/WidgetDashboardSeeder.php

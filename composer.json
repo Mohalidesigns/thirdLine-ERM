@@ -1,14 +1,16 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "thirdline/risk",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Atheris ERM — the ThirdLine risk product.",
     "keywords": ["laravel", "framework"],
     "license": "MIT",
     "require": {
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "^3.1",
         "dedoc/scramble": "^0.13.39",
+        "firebase/php-jwt": "^7.1",
+        "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.0",
         "laravel/horizon": "^5.48",
         "laravel/sanctum": "^4.3",
@@ -18,10 +20,12 @@
         "maatwebsite/excel": "^3.1",
         "onelogin/php-saml": "^4.3",
         "spatie/laravel-permission": "^7.2",
-        "symfony/expression-language": "^8.1"
+        "symfony/expression-language": "^8.1",
+        "tightenco/ziggy": "^2.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
+        "larastan/larastan": "^3.9",
         "laravel/pail": "^1.2.2",
         "laravel/pint": "^1.24",
         "laravel/sail": "^1.41",

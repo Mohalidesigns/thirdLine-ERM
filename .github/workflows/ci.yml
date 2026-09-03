@@ -8,8 +8,27 @@ on:
 
 jobs:
   test:
-    name: Lint, guards and tests
+    name: Lint, guards, build and tests (${{ matrix.database }})
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, mysql]
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: risk_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
     steps:
       - uses: actions/checkout@v4
@@ -18,8 +37,14 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: mbstring, pdo, pdo_sqlite, sqlite3, gd, zip, bcmath
+          extensions: mbstring, pdo, pdo_sqlite, pdo_mysql, sqlite3, gd, zip, bcmath
           coverage: none
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
 
       - name: Cache Composer packages
         uses: actions/cache@v4
@@ -44,8 +69,41 @@ jobs:
       - name: Lint — Pint
         run: ./vendor/bin/pint --test
 
-      - name: Tests
+      # Migration Phase 0: the React bundle must build, and both entries
+      # (Livewire app.js, Inertia app.jsx) must land in the manifest.
+      - name: Build front-end
+        run: |
+          npm ci
+          npm run build
+          node -e "const m=require('./public/build/manifest.json'); for (const k of ['resources/js/app.js','resources/js/app.jsx','resources/css/app.css']) { if (!m[k]) { console.error('manifest missing '+k); process.exit(1); } }"
+
+      - name: Static analysis — PHPStan (Larastan, level 5, baseline)
+        if: matrix.database == 'sqlite'
+        run: ./vendor/bin/phpstan analyse --memory-limit=2G --no-progress
+
+      - name: Tests (SQLite)
+        if: matrix.database == 'sqlite'
         run: php vendor/bin/phpunit
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+
+      - name: Tests (MySQL)
+        if: matrix.database == 'mysql'
+        run: php vendor/bin/phpunit
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: risk_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+
+      # Legacy dual-path tables must not gain new readers during the port
+      # (docs/schema/deprecations.md).
+      - name: Guard — deprecated schema paths
+        if: matrix.database == 'sqlite'
+        run: php artisan schema:audit-deprecated
         env:
           DB_CONNECTION: sqlite
           DB_DATABASE: ':memory:'

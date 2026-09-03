@@ -122,6 +122,13 @@ class RolesAndPermissionsSeeder extends Seeder
             // wrong, so it is grantable separately from the rest of settings.
             'admin.sso',
 
+            // Migration Phase 0: the licensing client. Viewing the licence state
+            // and activating / deactivating are separate grants; both go to
+            // super-admin only, because a licence binds the whole deployment,
+            // not one organisation's settings.
+            'license.view',
+            'license.manage',
+
             /* -------------------------------------------------------------- */
             /*  Added by WP-00 TASK 2: modules that shipped with routes but no */
             /*  permission to guard them. Same module.action convention. */

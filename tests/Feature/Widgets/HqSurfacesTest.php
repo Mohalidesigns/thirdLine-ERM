@@ -306,19 +306,24 @@ class HqSurfacesTest extends TestCase
             'created_by' => $this->actor->id,
         ]);
 
-        $response = $this->actingAs($this->actor)->get('/my');
-
-        $response->assertOk()
-            ->assertSee('Overdue')
-            ->assertSee('Recalibrate loan approval limits');
+        // /my renders through Inertia as of migration Phase 0: the obligation
+        // arrives as a prop in the overdue bucket rather than as Blade text.
+        $this->actingAs($this->actor)->get('/my')
+            ->assertOk()
+            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+                ->component('My/Index')
+                ->has('queue.buckets.overdue', 1)
+                ->where('queue.buckets.overdue.0.title', fn ($title) => str_contains($title, 'Recalibrate loan approval limits')));
     }
 
     #[Test]
     public function my_is_empty_for_a_user_who_owes_nothing(): void
     {
-        $response = $this->actingAs($this->actor)->get('/my');
-
-        $response->assertOk()->assertSee('Nothing on your list');
+        $this->actingAs($this->actor)->get('/my')
+            ->assertOk()
+            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+                ->component('My/Index')
+                ->where('queue.total_items', 0));
     }
 
     #[Test]

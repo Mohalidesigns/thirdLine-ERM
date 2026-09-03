@@ -458,6 +458,7 @@
             'admin.users', 'admin.sso',
             'admin.metadata', 'admin.scoring', 'admin.configuration', 'admin.settings',
             'webhook.view', 'api.tokens', 'connector.view', 'job.view',
+            'license.manage',
         ])
             <div class="h-px bg-white/10 mx-1 my-3"></div>
 
@@ -525,7 +526,7 @@
                     @can('admin.settings')
                         <a href="{{ route('admin.settings') }}" wire:navigate
                            class="block px-3 py-1.5 rounded-md text-[12px] transition-all
-                                  {{ $isSection('admin/settings', ['admin/settings/sso']) ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
+                                  {{ $isSection('admin/settings', ['admin/settings/sso', 'admin/settings/license']) ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
                             Settings
                         </a>
                     @endcan
@@ -566,6 +567,17 @@
                         </a>
                     @endcan
                 @endcanany
+
+                {{-- Migration Phase 0: the licensing client. Renders through Inertia;
+                     the Blade sidebar links to it until Phase 6 retires this file. --}}
+                @can('license.manage')
+                    <div class="px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/30">Platform</div>
+                    <a href="{{ route('admin.license') }}"
+                       class="block px-3 py-1.5 rounded-md text-[12px] transition-all
+                              {{ $isSection('admin/settings/license') ? 'font-semibold bg-[#D4AF37] text-[#1A365D]' : 'text-white/50 hover:text-white hover:bg-white/6' }}">
+                        License
+                    </a>
+                @endcan
                 </div>
             </div>
         @endcanany

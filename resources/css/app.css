@@ -1,61 +1,242 @@
 @import 'tailwindcss';
 @import './fonts.css';
 
-/* widgets.css is not imported: every class it defines (.widget-chart,
-   .widget-treemap, .widget-network, …) is styling for widget panels, and the
-   two surfaces that rendered them are retired — see the RETIRED SURFACES note
-   in routes/web.php. The file is still there; restore the import alongside the
-   engine's JS if the screens come back.
-   @import './widgets.css'; */
+/* Widget layer: the --viz-* tokens that resources/js/widgets/theme.js reads at
+   render time, plus the panel styles for the chart/treemap/network renderers.
+   Imported again as of the migration programme (Phase 0): Business HQ and the
+   dashboard builder are live surfaces, and the React Widget component (Phase 2)
+   reads the same tokens. */
+@import './widgets.css';
+
+/* Tailwind's form reset, class strategy only: `.form-input`, `.form-select`,
+   `.form-checkbox` and friends opt in. The default (base) strategy restyles
+   every <input> on every screen, which would change the look of the ~140
+   Blade forms this programme has not ported yet. */
+@plugin '@tailwindcss/forms' {
+    strategy: class;
+}
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 @source '../**/*.blade.php';
 @source '../**/*.js';
+@source '../**/*.jsx';
 
 /*
 | Brand theme
 |--------------------------------------------------------------------------
 |
-| These were an inline `tailwind.config` object in layouts/app.blade.php,
-| evaluated by the Tailwind CDN script at runtime. Tailwind 4 is configured in
-| CSS rather than JavaScript, so they live here.
-|
-| NOTE: WP-00 TASK 6 asks for "a real tailwind.config.js". This project is on
-| Tailwind 4 (see package.json), where a v3-style tailwind.config.js is not
-| read by the build at all — it would look configured while doing nothing. The
-| `@theme` block below is the v4 equivalent and is what the build honours.
+| Tailwind 4 is configured in CSS rather than JavaScript: the `@theme` block is
+| the v4 equivalent of tailwind.config.js and is what the build honours.
 |
 | Every colour is emitted as a CSS custom property, which is what makes
 | per-organization branding possible: layouts/partials/branding.blade.php
 | re-declares --color-primary and friends on :root from
 | organizations.settings->branding, and every `bg-primary` / `text-primary`
 | utility follows without a rebuild.
+|
+| The token set is ThirdLine's (internalaudit/resources/css/app.css) merged
+| with this product's. On conflict ThirdLine wins; the three colours that both
+| files define (--color-primary #1a365d, --color-secondary #2d7d46,
+| --color-accent #d4af37) carry the same value in both, so nothing moved.
 */
 @theme {
     --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-mono: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
     --color-primary: #1a365d;
     --color-secondary: #2d7d46;
     --color-accent: #d4af37;
 }
 
+@layer base {
+    :root {
+        --color-primary-light: #2a4a7f;
+        --color-primary-dark: #0f2340;
+        --color-secondary-light: #38a169;
+        --color-accent-light: #e2c458;
+        --color-bg: #f7fafc;
+        --color-card: #ffffff;
+        --color-text-primary: #2d3748;
+        --color-text-secondary: #718096;
+        --color-error: #c53030;
+        --color-warning: #dd6b20;
+        --color-info: #319795;
+        --color-success: #2d7d46;
+        --sidebar-width: 260px;
+        --sidebar-collapsed-width: 72px;
+    }
+
+    body {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        color: var(--color-text-primary);
+        background-color: var(--color-bg);
+    }
+}
+
 /*
-| Global styles
+| ThirdLine component layer
 |--------------------------------------------------------------------------
 |
-| Lifted verbatim out of the <style> block in layouts/app.blade.php so they are
-| compiled, minified and cached once instead of re-sent with every page.
+| Converted from ThirdLine's Tailwind 3 `@layer components` block to v4 syntax
+| (same class names, same @apply lists). React pages compose from these; the
+| Blade screens keep their inline utilities until they are ported.
+*/
+@layer components {
+    .sidebar-nav-item {
+        @apply flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200;
+    }
+
+    .sidebar-nav-item.active {
+        @apply bg-white/10 text-white border-l-[3px] border-[var(--color-accent)];
+    }
+
+    .sidebar-nav-item:not(.active) {
+        @apply text-white/70 hover:bg-white/5 hover:text-white;
+    }
+
+    .stat-card {
+        @apply bg-white rounded-xl shadow-sm border border-gray-100 p-5 transition-all duration-200 hover:shadow-md;
+    }
+
+    /* Conflict: this product defined .badge as `padding: 2px 10px` with no
+       ring. ThirdLine's definition wins (px-2.5 py-0.5 is 2px 10px anyway). */
+    .badge {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    }
+
+    .badge-critical { @apply bg-red-100 text-red-800; }
+    .badge-high { @apply bg-orange-100 text-orange-800; }
+    .badge-medium { @apply bg-yellow-100 text-yellow-800; }
+    .badge-low { @apply bg-green-100 text-green-800; }
+
+    .badge-status-draft { @apply bg-gray-100 text-gray-700; }
+    .badge-status-pending { @apply bg-blue-100 text-blue-700; }
+    .badge-status-active { @apply bg-green-100 text-green-700; }
+    .badge-status-completed { @apply bg-purple-100 text-purple-700; }
+    .badge-status-overdue { @apply bg-red-100 text-red-700; }
+
+    .btn-primary {
+        @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[var(--color-primary)] rounded-lg hover:bg-[var(--color-primary-light)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-2;
+    }
+
+    .btn-secondary {
+        @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-[var(--color-primary)] bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200;
+    }
+
+    .btn-success {
+        @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[var(--color-secondary)] rounded-lg hover:bg-[var(--color-secondary-light)] transition-colors duration-200;
+    }
+
+    .btn-danger {
+        @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[var(--color-error)] rounded-lg hover:bg-red-700 transition-colors duration-200;
+    }
+
+    .btn-warning {
+        @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[var(--color-warning)] rounded-lg hover:bg-orange-700 transition-colors duration-200;
+    }
+
+    /* Conflict: this product styled .data-table th/td with explicit px
+       values (10px 12px padding, uppercase 0.75rem headings). ThirdLine's
+       utility-based version wins; the visual difference is a 2px taller
+       cell and a lighter header background. */
+    .data-table {
+        @apply w-full text-sm text-left;
+    }
+
+    .data-table thead th {
+        @apply px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-200;
+    }
+
+    .data-table tbody td {
+        @apply px-4 py-3 border-b border-gray-100;
+    }
+
+    .data-table tbody tr {
+        @apply hover:bg-gray-50 transition-colors;
+    }
+
+    .form-input {
+        @apply w-full rounded-lg border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)] text-sm;
+    }
+
+    .form-label {
+        @apply block text-sm font-medium text-gray-700 mb-1;
+    }
+
+    .form-select {
+        @apply w-full rounded-lg border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)] text-sm;
+    }
+
+    .page-header {
+        @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6;
+    }
+
+    .page-title {
+        @apply text-2xl font-bold text-[var(--color-text-primary)];
+    }
+
+    .card {
+        @apply bg-white rounded-xl shadow-sm border border-gray-100;
+    }
+
+    .card-header {
+        @apply px-6 py-4 border-b border-gray-100;
+    }
+
+    .card-body {
+        @apply px-6 py-4;
+    }
+
+    .progress-bar {
+        @apply h-2 bg-gray-200 rounded-full overflow-hidden;
+    }
+
+    .progress-bar-fill {
+        @apply h-full rounded-full transition-all duration-500;
+    }
+
+    .filter-bar {
+        @apply bg-gray-50/80 rounded-xl border border-gray-200 px-5 py-4 mb-6;
+    }
+
+    .filter-bar-inner {
+        @apply flex flex-wrap items-end gap-4;
+    }
+
+    .filter-group {
+        @apply flex flex-col gap-1.5 min-w-0;
+    }
+
+    .filter-group.flex-1 {
+        flex: 1 1 0%;
+    }
+
+    .filter-label {
+        @apply text-[10px] font-semibold text-gray-400 uppercase tracking-wider;
+    }
+
+    .filter-input {
+        @apply w-full rounded-lg border-0 bg-white shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-[var(--color-primary)] text-sm py-2.5 px-3 text-gray-700 placeholder-gray-400;
+    }
+
+    .filter-select {
+        @apply w-full rounded-lg border-0 bg-white shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-[var(--color-primary)] text-sm py-2.5 px-3 text-gray-700 appearance-none;
+    }
+
+    .filter-reset {
+        @apply px-5 py-2.5 text-sm font-semibold text-gray-600 bg-white rounded-lg ring-1 ring-gray-200 hover:bg-gray-100 hover:text-gray-800 transition-colors duration-200 whitespace-nowrap;
+    }
+}
+
+/*
+| Global styles kept from this product
+|--------------------------------------------------------------------------
 */
 
 [x-cloak] {
     display: none !important;
-}
-
-body {
-    font-family: 'Inter', system-ui, sans-serif;
-    background: #f7fafc;
 }
 
 .material-symbols-outlined {
@@ -75,9 +256,10 @@ body {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar (both files defined this identically) */
 ::-webkit-scrollbar {
     width: 6px;
+    height: 6px;
 }
 ::-webkit-scrollbar-track {
     background: transparent;
@@ -86,8 +268,19 @@ body {
     background: #cbd5e0;
     border-radius: 3px;
 }
+::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+}
 
-/* Risk rating badges */
+/* Sidebar scrollbar (ThirdLine) */
+.sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Risk rating badges (this product only — the Blade screens use them) */
 .risk-critical {
     background: #fed7d7;
     color: #c53030;
@@ -105,16 +298,6 @@ body {
     color: #2f855a;
 }
 
-/* Generic badge */
-.badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 10px;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
 /* Trend indicators */
 .trend-up {
     color: #c53030;
@@ -126,39 +309,13 @@ body {
     color: #718096;
 }
 
-/* KPI card */
+/* KPI card (Blade). The React equivalent is .stat-card above. */
 .kpi-card {
     background: white;
     border-radius: 12px;
     padding: 1.25rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     border: 1px solid #e2e8f0;
-}
-
-/* Data table */
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-.data-table th {
-    background: #f7fafc;
-    padding: 10px 12px;
-    text-align: left;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #4a5568;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    border-bottom: 2px solid #e2e8f0;
-}
-.data-table td {
-    padding: 10px 12px;
-    font-size: 0.8125rem;
-    color: #2d3748;
-    border-bottom: 1px solid #edf2f7;
-}
-.data-table tr:hover {
-    background: #f7fafc;
 }
 
 /* Tabs */
@@ -176,14 +333,41 @@ body {
     display: none;
 }
 
+/* Bell ring animation for new notifications (ThirdLine) */
+@keyframes bell-ring {
+    0% { transform: rotate(0deg); }
+    10% { transform: rotate(14deg); }
+    20% { transform: rotate(-14deg); }
+    30% { transform: rotate(10deg); }
+    40% { transform: rotate(-10deg); }
+    50% { transform: rotate(6deg); }
+    60% { transform: rotate(-6deg); }
+    70% { transform: rotate(2deg); }
+    80% { transform: rotate(-2deg); }
+    100% { transform: rotate(0deg); }
+}
+.animate-bell-ring {
+    animation: bell-ring 1s ease-in-out;
+    transform-origin: top center;
+}
+
+@keyframes slide-in {
+    from { opacity: 0; transform: translateX(100%); }
+    to { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in {
+    animation: slide-in 0.3s ease-out;
+}
+
 /* ------------------------------------------------------------------ charts
 
-   Every chart canvas is placed inside a fixed-height box by
+   Every chart canvas on a Blade screen is placed inside a fixed-height box by
    window.wrapSizedCanvases (layouts/app.blade.php) before Chart.js sees it.
    Clipping that box is the structural backstop: a canvas can then never paint
    over the cards around it, and — more importantly — can never feed its own
    height back into its parent and start the responsive resize loop that used
-   to grow it without bound.                                                  */
+   to grow it without bound. React renderers (Phase 2) own their container and
+   do not need this.                                                          */
 
 [data-chart-wrap] {
     position: relative;
@@ -212,8 +396,8 @@ body {
         font-size: 10.5pt;
     }
 
-    /* Hide navigation + layout chrome */
     aside#sidebar,
+    aside[data-sidebar],
     body > header,
     footer,
     .no-print,
@@ -227,7 +411,6 @@ body {
         display: none !important;
     }
 
-    /* Also hide the breadcrumb bar + flash banners that sit inside main */
     main > div.px-6.py-3.bg-white,
     main > div.bg-green-50,
     main > div.bg-red-50,
@@ -235,7 +418,6 @@ body {
         display: none !important;
     }
 
-    /* Reset main layout so content fills the page */
     main,
     main.ml-\[260px\] {
         margin: 0 !important;
@@ -246,7 +428,6 @@ body {
         padding: 0 !important;
     }
 
-    /* Cards become plain on paper */
     .bg-white,
     .rounded-xl,
     .rounded-lg {
@@ -256,7 +437,6 @@ body {
         border: 1px solid #e2e8f0 !important;
     }
 
-    /* Make tables legible */
     table,
     .data-table {
         width: 100% !important;
@@ -270,14 +450,11 @@ body {
         display: table-header-group;
     }
 
-    /* Charts render as static images in print — keep the canvas */
     canvas {
         max-width: 100% !important;
         height: auto !important;
     }
 
-    /* ...which means the fixed-height box around it must let go, or it
-       clips the print rendering of the chart it was sizing on screen. */
     [data-chart-wrap] {
         height: auto !important;
         overflow: visible !important;

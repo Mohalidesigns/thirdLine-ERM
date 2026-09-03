@@ -51,6 +51,8 @@ class AdminNavigationTest extends TestCase
         'api.tokens' => 'admin.api-tokens.index',
         'connector.view' => 'admin.connectors.index',
         'job.view' => 'admin.jobs.index',
+        // Platform (migration Phase 0)
+        'license.manage' => 'admin.license',
     ];
 
     /**
@@ -60,6 +62,9 @@ class AdminNavigationTest extends TestCase
      *
      * @var array<string, string>
      */
+    /** A Blade page every authenticated user can open — see setUp(). */
+    private const SIDEBAR_PAGE = '/notifications';
+
     private const RESTORED_SURFACES = [
         'hq.view' => 'hq.index',
         'dashboard.manage' => 'risk.dashboards.index',
@@ -76,9 +81,13 @@ class AdminNavigationTest extends TestCase
 
         // The page the sidebar is read from. Nothing about it is admin: it is
         // simply a screen every authenticated user can open, so the menu is
-        // observed exactly as a real user would meet it.
-        Permission::findOrCreate('my.view');
-        $this->actor->givePermissionTo('my.view');
+        // observed exactly as a real user would meet it. It was /my until
+        // migration Phase 0 ported that page to Inertia; the Blade sidebar this
+        // test guards is now read from the notifications page, which stays on
+        // Blade until Phase 1. (The React sidebar is covered, entry by entry,
+        // by NavigationPermissionGateTest.)
+        Permission::findOrCreate('notification.view');
+        $this->actor->givePermissionTo('notification.view');
     }
 
     /**
@@ -119,7 +128,7 @@ class AdminNavigationTest extends TestCase
     {
         $this->actor->givePermissionTo($permission);
 
-        $sidebar = $this->actingAs($this->actor)->get('/my');
+        $sidebar = $this->actingAs($this->actor)->get(self::SIDEBAR_PAGE);
 
         $sidebar->assertOk()
             ->assertSee('Administration')
@@ -147,7 +156,7 @@ class AdminNavigationTest extends TestCase
     {
         $this->actor->givePermissionTo($permission);
 
-        $sidebar = $this->actingAs($this->actor)->get('/my');
+        $sidebar = $this->actingAs($this->actor)->get(self::SIDEBAR_PAGE);
 
         foreach (self::ADMIN_SURFACES as $otherPermission => $otherRoute) {
             if ($otherPermission === $permission) {
@@ -169,7 +178,7 @@ class AdminNavigationTest extends TestCase
 
         $this->actor->givePermissionTo($permission);
 
-        $this->actingAs($this->actor)->get('/my')
+        $this->actingAs($this->actor)->get(self::SIDEBAR_PAGE)
             ->assertOk()
             ->assertSee('href="'.route($routeName).'"', false);
 
@@ -183,7 +192,7 @@ class AdminNavigationTest extends TestCase
     #[Test]
     public function a_user_with_no_admin_permissions_sees_no_administration_section(): void
     {
-        $response = $this->actingAs($this->actor)->get('/my');
+        $response = $this->actingAs($this->actor)->get(self::SIDEBAR_PAGE);
 
         $response->assertOk()
             ->assertDontSee('Administration')

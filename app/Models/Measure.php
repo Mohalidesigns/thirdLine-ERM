@@ -49,7 +49,8 @@ class Measure extends Model
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function unit()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Unit, $this> */
+    public function unit(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Unit::class);
     }

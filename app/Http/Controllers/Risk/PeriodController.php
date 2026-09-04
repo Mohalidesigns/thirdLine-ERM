@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\ResolvePeriod;
+use App\Http\Requests\Periods\ReopenPeriodRequest;
 use App\Models\MeasureValue;
 use App\Models\Period;
 use App\Services\PeriodService;
@@ -11,6 +12,8 @@ use App\Services\ThresholdRebaselineService;
 use App\Support\Periods\PeriodContext;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
 
 /**
  * The reporting calendar: selecting a period, and closing one.
@@ -81,6 +84,8 @@ class PeriodController extends Controller
      */
     public function index(Request $request)
     {
+        Gate::authorize('viewAny', Period::class);
+
         $organizationId = TenantContext::organizationId();
         $calendar = $this->periods->ensureCalendar($organizationId);
 
@@ -89,6 +94,7 @@ class PeriodController extends Controller
         $periods = Period::query()
             ->where('calendar_id', $calendar->id)
             ->where('type', $type)
+            ->with('closedBy')
             ->orderByDesc('start_date')
             ->paginate(24)
             ->withQueryString();
@@ -99,7 +105,39 @@ class PeriodController extends Controller
             ->groupBy('period_id')
             ->pluck('total', 'period_id');
 
-        return view('risk.periods.index', compact('calendar', 'periods', 'type', 'valueCounts'));
+        // The Blade table drew a "selected" badge from $selectedPeriod, which
+        // the controller never passed — so it never appeared. The selected
+        // period is the one bound to the session.
+        $selectedId = PeriodContext::current()?->id;
+
+        return Inertia::render('Periods/Index', [
+            'calendar' => [
+                'name' => $calendar->name,
+                'fiscalYearStartMonth' => $calendar->fiscal_year_start_month,
+                'fiscalYearStartLabel' => \Carbon\Carbon::create(null, $calendar->fiscal_year_start_month, 1)->format('F'),
+            ],
+            'type' => $type,
+            'types' => ['month' => 'Months', 'quarter' => 'Quarters', 'half' => 'Halves', 'year' => 'Years'],
+            'periods' => [
+                'data' => collect($periods->items())->map(fn (Period $period) => [
+                    'id' => $period->id,
+                    'name' => $period->name,
+                    'code' => $period->code,
+                    'startDate' => $period->start_date?->format('d M Y'),
+                    'endDate' => $period->end_date?->format('d M Y'),
+                    'values' => (int) ($valueCounts[$period->id] ?? 0),
+                    'isClosed' => (bool) $period->is_closed,
+                    'closedAt' => $period->closed_at?->format('d M Y'),
+                    'closedBy' => $period->closedBy?->name,
+                    'isSelected' => $period->id === $selectedId,
+                    'selectUrl' => route('risk.periods.select', ['period' => $period->id, 'redirect' => '/risk/periods']),
+                    'canClose' => Gate::allows('close', $period),
+                    'canReopen' => Gate::allows('reopen', $period),
+                ])->all(),
+                'links' => $periods->linkCollection()->toArray(),
+                'meta' => ['from' => $periods->firstItem(), 'to' => $periods->lastItem(), 'total' => $periods->total()],
+            ],
+        ]);
     }
 
     /**
@@ -108,7 +146,7 @@ class PeriodController extends Controller
      */
     public function close(Request $request, Period $period, ThresholdRebaselineService $rebaseline)
     {
-        abort_unless($period->organization_id === TenantContext::organizationId(), 403);
+        Gate::authorize('close', $period);
 
         if ($period->is_closed) {
             return back()->with('error', "{$period->name} is already closed.");
@@ -136,13 +174,9 @@ class PeriodController extends Controller
      * A reason is mandatory: this is the one operation that can change a number
      * a board pack has already been built on.
      */
-    public function reopen(Request $request, Period $period)
+    public function reopen(ReopenPeriodRequest $request, Period $period)
     {
-        abort_unless($period->organization_id === TenantContext::organizationId(), 403);
-
-        $validated = $request->validate([
-            'reason' => 'required|string|min:10|max:1000',
-        ]);
+        $validated = $request->validated();
 
         if (! $period->is_closed) {
             return back()->with('error', "{$period->name} is not closed.");

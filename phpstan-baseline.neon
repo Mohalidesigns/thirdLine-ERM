@@ -643,12 +643,6 @@ parameters:
 			path: app/Http/Controllers/Risk/RiskAssessmentController.php
 
 		-
-			message: '#^Relation ''measure'' is not found in App\\Models\\MeasureThreshold model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/ThresholdController.php
-
-		-
 			message: '#^Relation ''creator'' is not found in App\\Models\\WorkflowDefinition model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -1181,12 +1175,6 @@ parameters:
 			identifier: method.notFound
 			count: 1
 			path: app/Models/LossEventRca.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Measure\:\:\$unit\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/Measure.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
@@ -1805,18 +1793,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 7
 			path: app/Services/ReportDataService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\MeasureThreshold\:\:\$measure\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/ThresholdRebaselineService.php
-
-		-
-			message: '#^Relation ''measure'' is not found in App\\Models\\MeasureThreshold model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/ThresholdRebaselineService.php
 
 		-
 			message: '#^Strict comparison using \!\=\= between App\\Models\\ApprovalRequest and null will always evaluate to true\.$#'

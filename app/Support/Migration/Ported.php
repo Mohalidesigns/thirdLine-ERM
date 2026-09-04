@@ -94,6 +94,9 @@ final class Ported
         'risk.kri.show',
         'risk.kri.edit',
         'risk.kri.thresholds',
+        // Phase 4 — periods and threshold re-baselining
+        'risk.periods.index',
+        'risk.thresholds.rebaseline',
         // Phase 3 — RCSA
         'risk.rcsa.dashboard',
         'risk.rcsa.worksheet',

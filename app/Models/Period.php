@@ -63,7 +63,8 @@ class Period extends Model
         return $this->hasMany(self::class, 'parent_period_id');
     }
 
-    public function closedBy()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function closedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'closed_by');
     }

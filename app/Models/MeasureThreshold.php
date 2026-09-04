@@ -50,7 +50,8 @@ class MeasureThreshold extends Model
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function measure()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Measure, $this> */
+    public function measure(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Measure::class);
     }

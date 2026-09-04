@@ -46,7 +46,13 @@ class RisksGridTest extends TestCase
                 ->where('grid.rows.data.0.cells.title.text', 'Vendor concentration exposure'));
 
         $this->assertFileDoesNotExist(resource_path('views/risk/register/index.blade.php'));
-        $this->assertFileExists(resource_path('views/risk/register/historic.blade.php'));
+        // Phase 3.2 ported the remaining register screens, the "as at" view
+        // among them; the whole directory is gone. The as-at path is still a
+        // separate page from the grid, for the reason it always was — its
+        // scores are measure-engine overlay values with no SQL column to sort
+        // or filter on.
+        $this->assertDirectoryDoesNotExist(resource_path('views/risk/register'));
+        $this->assertFileExists(resource_path('js/Pages/Register/Historic.jsx'));
     }
 
     #[Test]

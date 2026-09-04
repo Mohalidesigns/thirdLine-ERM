@@ -64,6 +64,10 @@ final class Ported
         'risk.scoping.create',
         'risk.scoping.show',
         'risk.scoping.edit',
+        // Phase 3 — risk register
+        'risk.register.create',
+        'risk.register.show',
+        'risk.register.edit',
         // Phase 3 — workflow
         'risk.approvals.dashboard',
         'risk.my-tasks.index',

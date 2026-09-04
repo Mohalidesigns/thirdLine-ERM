@@ -1,4 +1,4 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import DataGrid from '@/Components/DataGrid/DataGrid';
 import PageHeader from '@/Components/PageHeader';
@@ -7,8 +7,8 @@ import tryRoute from '@/lib/tryRoute';
 
 /**
  * The live risk register (migration Phase 2) — see
- * App\Grids\Definitions\RisksGrid. The "as at" view of a closed period stays
- * Blade (resources/views/risk/register/historic.blade.php): its scores exist
+ * App\Grids\Definitions\RisksGrid. The "as at" view of a closed period is a
+ * separate page (Register/Historic, migration Phase 3.2): its scores exist
  * only in memory, so it cannot ride the SQL-backed grid.
  */
 export default function Index({ total, ratingCounts, grid }) {
@@ -29,9 +29,9 @@ export default function Index({ total, ratingCounts, grid }) {
                 subtitle={`${total} risks registered`}
                 actions={
                     permissions.includes('risk.create') && createUrl && (
-                        <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
+                        <Link href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
                             <span className="material-symbols-outlined text-lg">add_circle</span> New Risk
-                        </a>
+                        </Link>
                     )
                 }
             />

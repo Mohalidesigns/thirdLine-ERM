@@ -13,6 +13,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
+/**
+ * @property int|null $inherent_score never null in practice: the accessor
+ *                                    derives likelihood x impact when the
+ *                                    column is unset
+ * @property string|null $inherent_rating likewise, banded from that score
+ * @property string|null $risk_type
+ */
 class Risk extends Model
 {
     use BelongsToOrganization, HasFactory, HasObjectIdentity, ScopedToGraph, SoftDeletes;
@@ -97,7 +104,8 @@ class Risk extends Model
         return $this->belongsTo(Organization::class);
     }
 
-    public function entity()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Entity, $this> */
+    public function entity(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Entity::class);
     }
@@ -149,7 +157,8 @@ class Risk extends Model
         return $this->belongsTo(RiskCategory::class, 'category_id');
     }
 
-    public function businessUnit()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<BusinessUnit, $this> */
+    public function businessUnit(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(BusinessUnit::class);
     }
@@ -180,12 +189,14 @@ class Risk extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function assessments()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<RiskAssessment, $this> */
+    public function assessments(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(RiskAssessment::class);
     }
 
-    public function treatmentPlans()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<TreatmentPlan, $this> */
+    public function treatmentPlans(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(TreatmentPlan::class);
     }
@@ -202,13 +213,15 @@ class Risk extends Model
      * trail was in fact full: the change history screen showed nothing, which
      * on a compliance platform reads as "nothing ever happened".
      */
-    public function auditTrail()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<RiskAuditTrail, $this> */
+    public function auditTrail(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(RiskAuditTrail::class, 'entity_id')
             ->whereIn('entity_type', MorphTypes::spellingsFor($this->getMorphClass()));
     }
 
-    public function controls()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<Control, $this, RiskControlMapping> */
+    public function controls(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
         // using() is load-bearing, not decoration: without it attach()/sync()
         // write the pivot through the query builder, which fires no model
@@ -240,7 +253,8 @@ class Risk extends Model
         return $this->hasOne(RiskCause::class)->where('is_primary', true);
     }
 
-    public function kris()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<KeyRiskIndicator, $this> */
+    public function kris(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         // KRIs are linked to risks via the direct FK `key_risk_indicators.risk_id`
         // (see KriController::store).
@@ -287,19 +301,28 @@ class Risk extends Model
             ->withTimestamps();
     }
 
-    public function controlMappings()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<Control, $this, RiskControlMapping> */
+    public function controlMappings(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
         return $this->controls();
     }
 
-    /** Alias: controller uses keyRiskIndicators, model has kris() */
-    public function keyRiskIndicators()
+    /**
+     * Alias: controller uses keyRiskIndicators, model has kris().
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<KeyRiskIndicator, $this>
+     */
+    public function keyRiskIndicators(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->kris();
     }
 
-    /** Alias: controller uses auditTrails (plural), model has auditTrail() */
-    public function auditTrails()
+    /**
+     * Alias: controller uses auditTrails (plural), model has auditTrail().
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<RiskAuditTrail, $this>
+     */
+    public function auditTrails(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->auditTrail();
     }

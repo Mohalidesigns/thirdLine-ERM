@@ -148,10 +148,10 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.rcsa.dashboard` | `risk/rcsa/dashboard` | `rcsa.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.rcsa.matrix` | `risk/rcsa/matrix` | `rcsa.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.rcsa.worksheet` | `risk/rcsa/worksheet` | `rcsa.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.register.create` | `risk/register/create` | `risk.create` |  |  |  |  |  |  |  |  |  |  |
-| `risk.register.edit` | `risk/register/{register}/edit` | `risk.edit` |  |  |  |  |  |  |  |  |  |  |
-| `risk.register.index` | `risk/register` | `risk.view` | risk/register/index.blade.php (deleted; historic branch → risk/register/historic.blade.php) | Pages/Register/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/RiskRegisterGridTest | 2026-09-03 (Phase 2) |  |
-| `risk.register.show` | `risk/register/{register}` | `risk.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.register.create` | `risk/register/create` | `risk.create` | risk/register/create.blade.php (deleted) | Pages/Register/Create.jsx | StoreRiskRequest | RiskPolicy | n/a | n/a | n/a | Register/RiskPagesTest, RiskRequestsTest, Characterisation/RiskRegisterScoringTest | 2026-09-04 (Phase 3.2) |  |
+| `risk.register.edit` | `risk/register/{register}/edit` | `risk.edit` | risk/register/edit.blade.php (deleted) | Pages/Register/Edit.jsx | UpdateRiskRequest | RiskPolicy | n/a | n/a | n/a | Register/RiskPagesTest, RiskRequestsTest | 2026-09-04 (Phase 3.2) |  |
+| `risk.register.index` | `risk/register` | `risk.view` | risk/register/{index,historic}.blade.php (both deleted) | Pages/Register/Index.jsx; Pages/Register/Historic.jsx (as-at branch) |  | RiskPolicy | GridPresenter |  | risk.grids.export | Grid/RisksGridTest, Measures/PeriodSelectorTest | 2026-09-03 (Phase 2), as-at 2026-09-04 (Phase 3.2) |  |
+| `risk.register.show` | `risk/register/{register}` | `risk.view` | risk/register/show.blade.php (deleted) | Pages/Register/Show.jsx | MapControlRequest, UpdateRiskAttributesRequest | RiskPolicy | n/a | n/a | n/a | Register/RiskPagesTest, RiskPolicyTest, Characterisation/RiskRegisterScoringTest, Metadata/DynamicDetailIntegrationTest | 2026-09-04 (Phase 3.2) |  |
 | `risk.regulatory.calendar` | `risk/regulatory/calendar` | `regulatory.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.regulatory.circulars` | `risk/regulatory/circulars` | `regulatory.view` | risk/regulatory/circulars.blade.php (deleted) | Pages/Regulatory/Circulars.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.regulatory.create-circular` | `risk/regulatory/circulars/create` | `regulatory.manage` |  |  |  |  |  |  |  |  |  |  |

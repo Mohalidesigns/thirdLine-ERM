@@ -98,12 +98,20 @@ class DynamicDetailIntegrationTest extends TestCase
         $response = $this->actingAs($this->actor)->get(route('risk.register.show', $risk));
 
         $response->assertOk();
-        $response->assertSee('Additional Information');
-        $response->assertSee('Annual Transfer Cost');
-        // Major units with a currency. The Attributes tab's editor holds the
-        // same field but posts through Livewire and renders no formatted
-        // value, so this string can only have come from the detail renderer.
-        $response->assertSee('NGN 2,500.50');
+
+        // Migration Phase 3.2 put this page on Inertia (Register/Show), so the
+        // "Additional Information" card is the `configuredDetail` prop rather
+        // than rendered HTML. The Attributes tab carries the same field as an
+        // editable input in `configured`, which holds the raw minor-unit value
+        // — so a formatted "NGN 2,500.50" can still only have come from the
+        // detail renderer, which is what this test is about.
+        $fields = collect($response->inertiaProps()['configuredDetail']['sections'])
+            ->flatMap(fn (array $section) => $section['fields'])
+            ->keyBy('code');
+
+        $this->assertTrue($fields->has('annual_transfer_cost'));
+        $this->assertSame('Annual Transfer Cost', $fields['annual_transfer_cost']['label']);
+        $this->assertSame('NGN 2,500.50', $fields['annual_transfer_cost']['value']);
     }
 
     /* ------------------------------------------------------------------ */

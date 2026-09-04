@@ -561,6 +561,12 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         ->middleware('permission:risk.edit')->name('risk.register.update');
     Route::delete('register/{register}', [RiskRegisterController::class, 'destroy'])
         ->middleware('permission:risk.delete')->name('risk.register.destroy');
+    // Migration Phase 3.2: the Attributes tab. The Blade page edited the
+    // tenant-configured fields through a Livewire component that saved itself;
+    // the Inertia page posts them here, validated by rules derived from the
+    // same attribute definitions.
+    Route::patch('register/{register}/attributes', [RiskRegisterController::class, 'updateAttributes'])
+        ->middleware('permission:risk.edit')->name('risk.register.attributes');
 
     /* ------------------------------------------------------------------ */
     /*  Risk Assessments */

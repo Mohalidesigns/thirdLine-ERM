@@ -31,12 +31,6 @@ parameters:
 			path: app/Console/Commands/Preflight.php
 
 		-
-			message: '#^Relation ''instance'' is not found in App\\Models\\WorkflowTask model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Console/Commands/SweepWorkflowSlas.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -65,18 +59,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Grids/Definitions/AdminUsersGrid.php
-
-		-
-			message: '#^Relation ''requestedBy'' is not found in App\\Models\\ApprovalRequest model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/ApprovalsHistoryGrid.php
-
-		-
-			message: '#^Relation ''reviewedBy'' is not found in App\\Models\\ApprovalRequest model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/ApprovalsHistoryGrid.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -143,24 +125,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Grids/Definitions/EmergingRisksGrid.php
-
-		-
-			message: '#^Relation ''entityType'' is not found in App\\Models\\Entity model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/EntitiesGrid.php
-
-		-
-			message: '#^Relation ''owner'' is not found in App\\Models\\Entity model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/EntitiesGrid.php
-
-		-
-			message: '#^Relation ''parent'' is not found in App\\Models\\Entity model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/EntitiesGrid.php
 
 		-
 			message: '#^Parameter \#1 \$apply of method App\\Grids\\Filter\:\:apply\(\) expects Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: void, Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: Illuminate\\Database\\Eloquent\\Builder given\.$#'
@@ -301,24 +265,6 @@ parameters:
 			path: app/Grids/Definitions/RisksGrid.php
 
 		-
-			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/RisksGrid.php
-
-		-
-			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/RisksGrid.php
-
-		-
-			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/RisksGrid.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$risk\.$#'
 			identifier: property.notFound
 			count: 1
@@ -403,54 +349,6 @@ parameters:
 			path: app/Http/Controllers/Risk/AiIntelligenceController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Risk\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\Risk\>\:\:\$category\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Risk/AiToolsController.php
-
-		-
-			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Risk/AiToolsController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$businessUnit\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$category\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$controlMappings\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_rating\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_score\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$riskOwner\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\RiskCause\:\:\$category\.$#'
 			identifier: property.notFound
 			count: 1
@@ -463,31 +361,7 @@ parameters:
 			path: app/Http/Controllers/Risk/AnalysisController.php
 
 		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Risk\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
-			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 3
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
-			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 3
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
 			message: '#^Relation ''control'' is not found in App\\Models\\RiskControlMapping model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
-			message: '#^Relation ''controlMappings'' is not found in App\\Models\\Risk model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Risk/AnalysisController.php
@@ -496,12 +370,6 @@ parameters:
 			message: '#^Relation ''risk'' is not found in App\\Models\\RiskControlMapping model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
-			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
 			path: app/Http/Controllers/Risk/AnalysisController.php
 
 		-
@@ -607,25 +475,7 @@ parameters:
 			path: app/Http/Controllers/Risk/DashboardController.php
 
 		-
-			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/DashboardController.php
-
-		-
 			message: '#^Relation ''risk'' is not found in App\\Models\\RiskAssessment model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/DashboardController.php
-
-		-
-			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/DashboardController.php
-
-		-
-			message: '#^Relation ''treatmentPlans'' is not found in App\\Models\\Risk model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Risk/DashboardController.php
@@ -715,51 +565,15 @@ parameters:
 			path: app/Http/Controllers/Risk/ExportController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_rating\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_score\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_key_control\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Controllers/Risk/ExportController.php
 
 		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Risk\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 3
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
 			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Issue model\.$#'
 			identifier: larastan.relationExistence
 			count: 2
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
-			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
-			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 3
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
-			message: '#^Relation ''category'' is not found in App\\Models\\RiskAppetite model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
 			path: app/Http/Controllers/Risk/ExportController.php
 
 		-
@@ -778,12 +592,6 @@ parameters:
 			message: '#^Relation ''risk'' is not found in App\\Models\\RiskControlMapping model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
-			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 3
 			path: app/Http/Controllers/Risk/ExportController.php
 
 		-
@@ -955,12 +763,6 @@ parameters:
 			path: app/Http/Controllers/Risk/LossEventController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\WorkflowTask\:\:\$instance\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Controllers/Risk/MyTaskController.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\>\:\:getCollection\(\)\.$#'
 			identifier: method.notFound
 			count: 1
@@ -977,18 +779,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/Risk/PeriodController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$businessUnit\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/QuantificationController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$category\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/QuantificationController.php
 
 		-
 			message: '#^Binary operation "/" between float and object\{label\: mixed, risks\: mixed, value\: float\}&stdClass results in an error\.$#'
@@ -1011,18 +801,6 @@ parameters:
 		-
 			message: '#^Comparison operation "\>" between object\{label\: mixed, value\: float, risks\: mixed\}&stdClass and 0 results in an error\.$#'
 			identifier: greater.invalid
-			count: 1
-			path: app/Http/Controllers/Risk/QuantificationController.php
-
-		-
-			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/QuantificationController.php
-
-		-
-			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Risk/QuantificationController.php
 
@@ -1051,25 +829,7 @@ parameters:
 			path: app/Http/Controllers/Risk/RcsaController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$businessUnit\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_rating\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\BusinessUnit\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Risk\>\:\:map\(\) contains unresolvable type\.$#'
 			identifier: argument.unresolvableType
 			count: 1
 			path: app/Http/Controllers/Risk/RcsaController.php
@@ -1087,27 +847,9 @@ parameters:
 			path: app/Http/Controllers/Risk/RcsaController.php
 
 		-
-			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
 			message: '#^Relation ''campaign'' is not found in App\\Models\\CampaignAssignment model\.$#'
 			identifier: larastan.relationExistence
 			count: 2
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Relation ''controlMappings'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
 			path: app/Http/Controllers/Risk/RcsaController.php
 
 		-
@@ -1130,12 +872,6 @@ parameters:
 
 		-
 			message: '#^Relation ''riskMappings'' is not found in App\\Models\\Control model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Risk/RcsaController.php
@@ -1165,27 +901,9 @@ parameters:
 			path: app/Http/Controllers/Risk/ReportController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$treatmentPlans\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/ReportController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$treatment_code\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Http/Controllers/Risk/ReportController.php
-
-		-
-			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/ReportController.php
-
-		-
-			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 5
 			path: app/Http/Controllers/Risk/ReportController.php
 
 		-
@@ -1201,18 +919,6 @@ parameters:
 			path: app/Http/Controllers/Risk/ReportController.php
 
 		-
-			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 3
-			path: app/Http/Controllers/Risk/ReportController.php
-
-		-
-			message: '#^Relation ''treatmentPlans'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Risk/ReportController.php
-
-		-
 			message: '#^Using nullsafe method call on non\-nullable type mixed\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -1223,18 +929,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/Risk/ReportController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskAppetite\:\:\$category\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/RiskAppetiteController.php
-
-		-
-			message: '#^Relation ''category'' is not found in App\\Models\\RiskAppetite model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/RiskAppetiteController.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$assessedControls\.$#'
@@ -1279,12 +973,6 @@ parameters:
 			path: app/Http/Controllers/Risk/RiskAssessmentController.php
 
 		-
-			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/RiskAssessmentController.php
-
-		-
 			message: '#^Relation ''owner'' is not found in App\\Models\\TreatmentPlan model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -1297,85 +985,7 @@ parameters:
 			path: app/Http/Controllers/Risk/RiskAssessmentController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$controlMappings\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/RiskRegisterController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_rating\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/RiskRegisterController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/RiskRegisterController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$critical_count\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Risk/ScopingController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$high_count\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Risk/ScopingController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$low_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/ScopingController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$medium_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/ScopingController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$risk_score\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Http/Controllers/Risk/ScopingController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$risk_total\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Risk/ScopingController.php
-
-		-
-			message: '#^Relation ''descendants'' is not found in App\\Models\\Entity model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/ScopingController.php
-
-		-
-			message: '#^Relation ''entityType'' is not found in App\\Models\\Entity model\.$#'
-			identifier: larastan.relationExistence
-			count: 5
-			path: app/Http/Controllers/Risk/ScopingController.php
-
-		-
-			message: '#^Relation ''owner'' is not found in App\\Models\\Entity model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/ScopingController.php
-
-		-
 			message: '#^Relation ''measure'' is not found in App\\Models\\MeasureThreshold model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/ThresholdController.php
-
-		-
-			message: '#^Relation ''requestedBy'' is not found in App\\Models\\ApprovalRequest model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Risk/ThresholdController.php
@@ -1423,25 +1033,7 @@ parameters:
 			path: app/Http/Controllers/Risk/TreatmentPlanController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\WorkflowTask\:\:\$instance\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/WorkflowController.php
-
-		-
-			message: '#^Method App\\Http\\Controllers\\Risk\\WorkflowController\:\:startableSubjects\(\) should return array\<string, array\{label\: string, items\: Illuminate\\Support\\Collection\}\> but returns non\-empty\-array\{issue\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, loss_event\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, risk_assessment\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, treatment_plan\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, control_test\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, risk\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, risk_appetite\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}, icaap_assessment\?\: array\{class\: ''App\\\\Models\\\\ControlTest''\|''App\\\\Models\\\\IcaapAssessment''\|''App\\\\Models\\\\Issue''\|''App\\\\Models\\\\LossEvent''\|''App\\\\Models\\\\Risk''\|''App\\\\Models\\\\RiskAppetite''\|''App\\\\Models\\\\RiskAssessment''\|''App\\\\Models\\\\TreatmentPlan'', items\: Illuminate\\Support\\Collection\<int, array\{id\: mixed, label\: string\}\>\}\}\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Http/Controllers/Risk/WorkflowController.php
-
-		-
 			message: '#^Relation ''creator'' is not found in App\\Models\\WorkflowDefinition model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/WorkflowController.php
-
-		-
-			message: '#^Relation ''tasks'' is not found in App\\Models\\WorkflowInstance model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Risk/WorkflowController.php
@@ -1469,12 +1061,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Middleware/ResolvePeriod.php
-
-		-
-			message: '#^Trait App\\Http\\Requests\\Concerns\\ValidatesConfiguredAttributes is used zero times and is not analysed\.$#'
-			identifier: trait.unused
-			count: 1
-			path: app/Http/Requests/Concerns/ValidatesConfiguredAttributes.php
 
 		-
 			message: '#^Strict comparison using \!\=\= between string and null will always evaluate to true\.$#'
@@ -1595,12 +1181,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Livewire/Admin/ObjectTypeBuilder.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_rating\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Livewire/Admin/ScoringProfileBuilder.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>settings" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -1811,12 +1391,6 @@ parameters:
 			identifier: method.notFound
 			count: 1
 			path: app/Models/EmergingRisk.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Entity\:\:\$entityType\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/Entity.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
@@ -2395,22 +1969,10 @@ parameters:
 			path: app/Models/WorkflowDefinition.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\WorkflowInstance\:\:\$definition\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/WorkflowInstance.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: app/Models/WorkflowInstance.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\WorkflowTask\:\:\$instance\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/WorkflowTask.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:open\(\)\.$#'
@@ -2425,33 +1987,9 @@ parameters:
 			path: app/Models/WorkflowTask.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_rating\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Repositories/RiskRepository.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
 			identifier: property.notFound
 			count: 3
-			path: app/Services/ApprovalService.php
-
-		-
-			message: '#^Relation ''organization'' is not found in App\\Models\\ApprovalRequest model\.$#'
-			identifier: larastan.relationExistence
-			count: 4
-			path: app/Services/ApprovalService.php
-
-		-
-			message: '#^Relation ''requestedBy'' is not found in App\\Models\\ApprovalRequest model\.$#'
-			identifier: larastan.relationExistence
-			count: 4
-			path: app/Services/ApprovalService.php
-
-		-
-			message: '#^Relation ''reviewedBy'' is not found in App\\Models\\ApprovalRequest model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
 			path: app/Services/ApprovalService.php
 
 		-
@@ -2509,24 +2047,6 @@ parameters:
 			path: app/Services/BoardPackAssembler.php
 
 		-
-			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/BoardPackAssembler.php
-
-		-
-			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/BoardPackAssembler.php
-
-		-
-			message: '#^Relation ''category'' is not found in App\\Models\\RiskAppetite model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/BoardPackAssembler.php
-
-		-
 			message: '#^Relation ''filings'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -2561,18 +2081,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Services/BoardPackAssembler.php
-
-		-
-			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/BoardPackAssembler.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_score\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ControlEffectivenessService.php
 
 		-
 			message: '#^Match expression does not handle remaining value\: string$#'
@@ -2647,22 +2155,10 @@ parameters:
 			path: app/Services/Integrations/ConnectorRunner.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\WorkflowTask\:\:\$instance\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Mcp/McpToolRegistry.php
-
-		-
 			message: '#^Offset ''amber''\|''red'' on array\{red\: ''high'', amber\: ''medium'', yellow\: ''low''\} on left side of \?\? always exists and is not nullable\.$#'
 			identifier: nullCoalesce.offset
 			count: 1
 			path: app/Services/MeasureService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\WorkflowTask\:\:\$instance\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/MyResponsibilitiesService.php
 
 		-
 			message: '#^Relation ''measure'' is not found in App\\Models\\MeasureBreach model\.$#'
@@ -2773,30 +2269,6 @@ parameters:
 			path: app/Services/RegulatoryReportService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_score\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/ReportDataService.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Risk\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 2
-			path: app/Services/ReportDataService.php
-
-		-
-			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/ReportDataService.php
-
-		-
-			message: '#^Relation ''category'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/ReportDataService.php
-
-		-
 			message: '#^Relation ''filings'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -2809,22 +2281,10 @@ parameters:
 			path: app/Services/ReportDataService.php
 
 		-
-			message: '#^Relation ''riskOwner'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/ReportDataService.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 7
 			path: app/Services/ReportDataService.php
-
-		-
-			message: '#^Relation ''riskCategory'' is not found in App\\Models\\RiskAppetite model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/RiskAppetiteService.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$impact_score\.$#'
@@ -2843,12 +2303,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Services/RiskMeasureRecorder.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_score\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RiskScoringService.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\MeasureThreshold\:\:\$measure\.$#'
@@ -3173,12 +2627,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Services/Workflow/Subjects/ControlTestBinding.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\WorkflowInstance\:\:\$definition\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Workflow/Subjects/GenericSubjectBinding.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$car_actual\.$#'
@@ -3619,44 +3067,14 @@ parameters:
 			path: app/Services/Workflow/TaskQueryService.php
 
 		-
-			message: '#^Relation ''instance'' is not found in App\\Models\\WorkflowTask model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Services/Workflow/TaskQueryService.php
-
-		-
 			message: '#^Type App\\Models\\WorkflowTask in generic type Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\> in PHPDoc tag @return is not subtype of template type TKey of \(int\|string\) of interface Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\.$#'
 			identifier: generics.notSubtype
 			count: 1
 			path: app/Services/Workflow/TaskQueryService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\WorkflowInstance\:\:\$definition\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Workflow/WorkflowEngine.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\WorkflowTask\:\:\$instance\.$#'
-			identifier: property.notFound
-			count: 12
-			path: app/Services/Workflow/WorkflowEngine.php
-
-		-
 			message: '#^PHPDoc tag @param references unknown parameter\: \$_$#'
 			identifier: parameter.notFound
-			count: 1
-			path: app/Services/Workflow/WorkflowEngine.php
-
-		-
-			message: '#^Relation ''definition'' is not found in App\\Models\\WorkflowInstance model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/Workflow/WorkflowEngine.php
-
-		-
-			message: '#^Relation ''instance'' is not found in App\\Models\\WorkflowTask model\.$#'
-			identifier: larastan.relationExistence
 			count: 1
 			path: app/Services/Workflow/WorkflowEngine.php
 
@@ -3833,15 +3251,3 @@ parameters:
 			identifier: booleanOr.alwaysTrue
 			count: 1
 			path: database/seeders/EnterpriseGapSeeder.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$inherent_score\.$#'
-			identifier: property.notFound
-			count: 1
-			path: database/seeders/RiskAnalysisSeeder.php
-
-		-
-			message: '#^Relation ''controls'' is not found in App\\Models\\Risk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: database/seeders/WidgetDashboardSeeder.php

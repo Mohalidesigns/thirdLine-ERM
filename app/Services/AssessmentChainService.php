@@ -72,42 +72,53 @@ class AssessmentChainService
         $previous = $this->previousRatings($risk, $assessment);
 
         return $risk->controls()->orderBy('control_code')->get()
-            ->map(function (Control $control) use ($existing, $previous) {
-                $saved = $existing->get($control->id);
-                $prior = $previous->get($control->id);
-
-                // Precedence: what this assessment already holds, then what the
-                // last one concluded, then the library's standing rating.
-                $design = $saved->design_effectiveness
-                    ?? $prior?->design_effectiveness
-                    ?? $control->effectiveness_rating;
-
-                $operating = $saved->operating_effectiveness
-                    ?? $prior?->operating_effectiveness
-                    ?? $control->effectiveness_rating;
-
-                return [
-                    'control_id' => $control->id,
-                    'control_code' => $control->control_code,
-                    'control_name' => $control->name,
-                    'control_type' => $control->control_type,
-                    'axis' => $this->axisFor($control->control_type),
-                    'automation_level' => $control->automation_level,
-                    'last_test_date' => $control->last_test_date,
-                    'last_test_result' => $control->last_test_result,
-                    'library_rating' => $control->effectiveness_rating,
-                    'design_effectiveness' => $design,
-                    'operating_effectiveness' => $operating,
-                    'control_weight' => (float) ($control->pivot->control_weight ?? 1.0),
-                    'is_key_control' => (bool) ($control->pivot->is_key_control ?? false),
-                    'notes' => $saved?->notes,
-                    'evidence_ref' => $saved?->evidence_ref,
-                    // Drives the "changed since last assessment" highlight.
-                    'prior_design' => $prior?->design_effectiveness,
-                    'prior_operating' => $prior?->operating_effectiveness,
-                ];
-            })
+            ->map(fn (Control $control) => $this->controlRow($control, $existing->get($control->id), $previous->get($control->id)))
             ->values();
+    }
+
+    /**
+     * One control's row in the chain.
+     *
+     * Extracted from the map() closure above so its return type is declared
+     * rather than inferred: Phase 3.2 gave Risk::controls() a generic type,
+     * and without a declaration here PHPStan narrows the closure to the
+     * precise array shape, which Collection's invariant value template will
+     * not accept as controlsFor()'s declared array<string, mixed>.
+     *
+     * @return array<string, mixed>
+     */
+    private function controlRow(Control $control, ?RiskAssessmentControl $saved, ?RiskAssessmentControl $prior): array
+    {
+        // Precedence: what this assessment already holds, then what the last
+        // one concluded, then the library's standing rating.
+        $design = $saved->design_effectiveness
+            ?? $prior?->design_effectiveness
+            ?? $control->effectiveness_rating;
+
+        $operating = $saved->operating_effectiveness
+            ?? $prior?->operating_effectiveness
+            ?? $control->effectiveness_rating;
+
+        return [
+            'control_id' => $control->id,
+            'control_code' => $control->control_code,
+            'control_name' => $control->name,
+            'control_type' => $control->control_type,
+            'axis' => $this->axisFor($control->control_type),
+            'automation_level' => $control->automation_level,
+            'last_test_date' => $control->last_test_date,
+            'last_test_result' => $control->last_test_result,
+            'library_rating' => $control->effectiveness_rating,
+            'design_effectiveness' => $design,
+            'operating_effectiveness' => $operating,
+            'control_weight' => (float) ($control->pivot->control_weight ?? 1.0),
+            'is_key_control' => (bool) ($control->pivot->is_key_control ?? false),
+            'notes' => $saved?->notes,
+            'evidence_ref' => $saved?->evidence_ref,
+            // Drives the "changed since last assessment" highlight.
+            'prior_design' => $prior?->design_effectiveness,
+            'prior_operating' => $prior?->operating_effectiveness,
+        ];
     }
 
     /**

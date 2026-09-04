@@ -147,24 +147,50 @@ class PeriodSelectorTest extends TestCase
         $inQ1 = $this->actingAs($this->actor)->get('/risk/register');
 
         $inQ1->assertOk();
-        $inQ1->assertSee('Showing the register as at '.$q1->name, false);
 
-        // Asserted on the view's own data rather than on rendered text: the
-        // filter dropdown on this page contains the word "Critical" whatever
-        // the register happens to hold.
-        $inQ1Risk = $inQ1->viewData('risks')->firstWhere('id', $risk->id);
-        $this->assertSame(25.0, (float) $inQ1Risk->residual_score);
-        $this->assertSame('Critical', $inQ1Risk->residual_rating);
+        // Migration Phase 3.2 put the as-at register on Inertia
+        // (Register/Historic), so the period banner and the rows are read from
+        // the page's props rather than from view data. Asserted on the data
+        // rather than on rendered text for the reason it always was: the filter
+        // dropdown on this page contains the word "Critical" whatever the
+        // register happens to hold.
+        $this->assertSame($q1->name, $this->historicProps($inQ1)['asOfPeriod']['name']);
+
+        $inQ1Risk = $this->historicRow($inQ1, $risk->id);
+        $this->assertSame(25.0, (float) $inQ1Risk['residual_score']);
+        $this->assertSame('Critical', $inQ1Risk['residual_rating']);
 
         $this->actingAs($this->actor)->get(route('risk.periods.select', ['period' => $q2->code]));
         $inQ2 = $this->actingAs($this->actor)->get('/risk/register');
 
         $inQ2->assertOk();
-        $inQ2->assertSee('Showing the register as at '.$q2->name, false);
+        $this->assertSame($q2->name, $this->historicProps($inQ2)['asOfPeriod']['name']);
 
-        $inQ2Risk = $inQ2->viewData('risks')->firstWhere('id', $risk->id);
-        $this->assertSame(2.0, (float) $inQ2Risk->residual_score);
-        $this->assertSame('Low', $inQ2Risk->residual_rating);
+        $inQ2Risk = $this->historicRow($inQ2, $risk->id);
+        $this->assertSame(2.0, (float) $inQ2Risk['residual_score']);
+        $this->assertSame('Low', $inQ2Risk['residual_rating']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function historicProps(\Illuminate\Testing\TestResponse $response): array
+    {
+        $response->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->component('Register/Historic'));
+
+        return $response->inertiaProps();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function historicRow(\Illuminate\Testing\TestResponse $response, int $riskId): array
+    {
+        $row = collect($this->historicProps($response)['risks']['data'])->firstWhere('id', $riskId);
+
+        $this->assertNotNull($row, "risk {$riskId} is absent from the as-at register");
+
+        return $row;
     }
 
     #[Test]

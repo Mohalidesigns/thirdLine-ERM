@@ -110,6 +110,13 @@ class AppServiceProvider extends ServiceProvider
         // Super-admin bypass: any `can()` check short-circuits true.
         Gate::before(fn (?User $user, string $ability) => $user?->hasRole('super-admin') ? true : null);
 
+        // Migration Phase 3.8. The only policy registered by hand: RCSA has no
+        // model for Laravel to discover one from — it is four screens over
+        // Risk, Control and RiskControlMapping plus a write into the campaign
+        // tables — so its abilities are authorised against a subject class.
+        // See App\Support\Rcsa\RcsaProgramme.
+        Gate::policy(\App\Support\Rcsa\RcsaProgramme::class, \App\Policies\RcsaPolicy::class);
+
         // Migration Phase 2: the data grid endpoints are guarded per grid.
         // `can:view-grid,grid` on the route hands the {grid} name here, and
         // the definition's own permission decides — the same check the

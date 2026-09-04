@@ -87,6 +87,11 @@ final class Ported
         'risk.treatments.create',
         'risk.treatments.show',
         'risk.treatments.edit',
+        // Phase 3 — RCSA
+        'risk.rcsa.dashboard',
+        'risk.rcsa.worksheet',
+        'risk.rcsa.controls',
+        'risk.rcsa.matrix',
         // Phase 3 — workflow
         'risk.approvals.dashboard',
         'risk.my-tasks.index',

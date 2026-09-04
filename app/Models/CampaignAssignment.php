@@ -19,12 +19,14 @@ class CampaignAssignment extends Model
         'reviewed_at' => 'datetime',
     ];
 
-    public function campaign()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<AssessmentCampaign, $this> */
+    public function campaign(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(AssessmentCampaign::class, 'campaign_id');
     }
 
-    public function businessUnit()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<BusinessUnit, $this> */
+    public function businessUnit(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(BusinessUnit::class);
     }
@@ -39,7 +41,8 @@ class CampaignAssignment extends Model
         return $this->belongsTo(User::class, 'reviewer_id');
     }
 
-    public function responses()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<CampaignResponse, $this> */
+    public function responses(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(CampaignResponse::class, 'assignment_id');
     }

@@ -277,38 +277,8 @@ parameters:
 			path: app/Http/Controllers/Risk/AiIntelligenceController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\RiskControlMapping\:\:\$risk\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
-			message: '#^Relation ''control'' is not found in App\\Models\\RiskControlMapping model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
-			message: '#^Relation ''risk'' is not found in App\\Models\\RiskControlMapping model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/AnalysisController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$assignments\.$#'
 			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/CampaignController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\CampaignAssignment\:\:\$campaign\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Controllers/Risk/CampaignController.php
-
-		-
-			message: '#^Relation ''campaign'' is not found in App\\Models\\CampaignAssignment model\.$#'
-			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Risk/CampaignController.php
 
@@ -469,21 +439,9 @@ parameters:
 			path: app/Http/Controllers/Risk/ExportController.php
 
 		-
-			message: '#^Relation ''control'' is not found in App\\Models\\RiskControlMapping model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
 			message: '#^Relation ''issueOwner'' is not found in App\\Models\\Issue model\.$#'
 			identifier: larastan.relationExistence
 			count: 2
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
-			message: '#^Relation ''risk'' is not found in App\\Models\\RiskControlMapping model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
 			path: app/Http/Controllers/Risk/ExportController.php
 
 		-
@@ -701,54 +659,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/Risk/QuantificationController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\BusinessUnit\:\:\$assessed\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\BusinessUnit\:\:\$high_risks\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\BusinessUnit\:\:\$total_risks\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\BusinessUnit\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Relation ''businessUnit'' is not found in App\\Models\\CampaignAssignment model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Relation ''campaign'' is not found in App\\Models\\CampaignAssignment model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Relation ''responses'' is not found in App\\Models\\CampaignAssignment model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Relation ''risk'' is not found in App\\Models\\RiskControlMapping model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Risk/RcsaController.php
 
 		-
 			message: '#^Relation ''assignee'' is not found in App\\Models\\RegulatoryCircular model\.$#'

@@ -331,11 +331,17 @@ class RcsaWorksheetSubmissionTest extends TestCase
     {
         $this->actingAs($this->user)->post(route('risk.rcsa.worksheet.store'), $this->payload());
 
-        $this->actingAs($this->user)
+        // Migration Phase 3.8 — the worksheet is an Inertia page now, so the
+        // respondent's trail is asserted on the props that render it rather
+        // than on the Blade markup. Same question: can they see the work they
+        // filed from this screen?
+        $props = $this->actingAs($this->user)
             ->get(route('risk.rcsa.worksheet'))
             ->assertOk()
-            ->assertSee('Your recent worksheets')
-            ->assertSee('Retail Banking');
+            ->viewData('page')['props'];
+
+        $this->assertCount(1, $props['mySubmissions']);
+        $this->assertSame('Retail Banking', $props['mySubmissions'][0]['unit']);
     }
 
     #[Test]

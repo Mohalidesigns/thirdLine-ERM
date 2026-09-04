@@ -9,6 +9,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
+/**
+ * @property int|null $overall_score the inherent score this assessment reached
+ * @property string|null $overall_rating
+ * @property int|null $impact_score the aggregated impact behind it
+ */
 class RiskAssessment extends Model
 {
     use BelongsToOrganization, HasFactory;
@@ -93,17 +98,20 @@ class RiskAssessment extends Model
         return $this->belongsTo(Organization::class);
     }
 
-    public function risk()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Risk, $this> */
+    public function risk(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Risk::class);
     }
 
-    public function assessor()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function assessor(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'assessor_id');
     }
 
-    public function reviewer()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function reviewer(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewer_id');
     }
@@ -122,7 +130,8 @@ class RiskAssessment extends Model
      * Steps 6 and 7: the controls considered in this assessment, with the
      * effectiveness they were rated at when it was performed.
      */
-    public function assessedControls()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<RiskAssessmentControl, $this> */
+    public function assessedControls(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(RiskAssessmentControl::class, 'risk_assessment_id');
     }

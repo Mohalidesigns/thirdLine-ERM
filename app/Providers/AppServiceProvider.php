@@ -4,7 +4,6 @@ namespace App\Providers;
 
 use App\Models\ControlTest;
 use App\Models\LossEvent;
-use App\Models\RiskAssessment;
 use App\Models\TreatmentPlan;
 use App\Models\User;
 use App\Observers\WebhookEventObserver;
@@ -168,26 +167,10 @@ class AppServiceProvider extends ServiceProvider
             ]));
         });
 
-        // Risk assessment approval: assigned reviewer_id OR approver role.
-        Gate::define('approve-risk-assessment', function (User $user, RiskAssessment $assessment) {
-            if ($user->organization_id !== $assessment->organization_id) {
-                return false;
-            }
-            if ($assessment->reviewer_id === $user->id) {
-                return true;
-            }
-
-            return $user->hasAnyRole(['chief-risk-officer', 'risk-manager']);
-        });
-
-        // Risk assessment resubmit: the assessor.
-        Gate::define('resubmit-risk-assessment', function (User $user, RiskAssessment $assessment) {
-            if ($user->organization_id !== $assessment->organization_id) {
-                return false;
-            }
-
-            return $assessment->assessor_id === $user->id;
-        });
+        // Risk assessment approval and resubmission moved into
+        // App\Policies\RiskAssessmentPolicy in migration Phase 3.3 — `approve`,
+        // `reject` and `resubmit` there — where they also pick up the node
+        // scope every other assessment ability applies.
 
         // Loss event approval: loss event manager or CRO.
         Gate::define('approve-loss-event', function (User $user, LossEvent $event) {

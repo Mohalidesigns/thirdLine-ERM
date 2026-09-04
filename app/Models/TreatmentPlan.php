@@ -86,7 +86,8 @@ class TreatmentPlan extends Model
         return $this->belongsTo(Risk::class);
     }
 
-    public function owner()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function owner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
     }

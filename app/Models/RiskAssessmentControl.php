@@ -65,7 +65,8 @@ class RiskAssessmentControl extends Model
         return $this->belongsTo(RiskAssessment::class, 'risk_assessment_id');
     }
 
-    public function control()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Control, $this> */
+    public function control(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Control::class);
     }

@@ -74,7 +74,8 @@ class RiskCause extends Model
         return $this->belongsTo(Risk::class);
     }
 
-    public function category()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<RiskCauseCategory, $this> */
+    public function category(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(RiskCauseCategory::class, 'cause_category_id');
     }

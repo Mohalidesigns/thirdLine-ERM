@@ -229,32 +229,8 @@ parameters:
 			path: app/Grids/Definitions/ReportsLibraryGrid.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$impact_score\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Grids/Definitions/RiskAssessmentsGrid.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$overall_score\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Grids/Definitions/RiskAssessmentsGrid.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$previous_overall_score\.$#'
 			identifier: property.notFound
-			count: 1
-			path: app/Grids/Definitions/RiskAssessmentsGrid.php
-
-		-
-			message: '#^Relation ''assessor'' is not found in App\\Models\\RiskAssessment model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/RiskAssessmentsGrid.php
-
-		-
-			message: '#^Relation ''risk'' is not found in App\\Models\\RiskAssessment model\.$#'
-			identifier: larastan.relationExistence
 			count: 1
 			path: app/Grids/Definitions/RiskAssessmentsGrid.php
 
@@ -267,12 +243,6 @@ parameters:
 		-
 			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$risk\.$#'
 			identifier: property.notFound
-			count: 1
-			path: app/Grids/Definitions/TreatmentPlansGrid.php
-
-		-
-			message: '#^Relation ''owner'' is not found in App\\Models\\TreatmentPlan model\.$#'
-			identifier: larastan.relationExistence
 			count: 1
 			path: app/Grids/Definitions/TreatmentPlansGrid.php
 
@@ -347,12 +317,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/Risk/AiIntelligenceController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskCause\:\:\$category\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/AnalysisController.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\RiskControlMapping\:\:\$risk\.$#'
@@ -471,12 +435,6 @@ parameters:
 		-
 			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$count\.$#'
 			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/DashboardController.php
-
-		-
-			message: '#^Relation ''risk'' is not found in App\\Models\\RiskAssessment model\.$#'
-			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Risk/DashboardController.php
 
@@ -913,12 +871,6 @@ parameters:
 			path: app/Http/Controllers/Risk/ReportController.php
 
 		-
-			message: '#^Relation ''owner'' is not found in App\\Models\\TreatmentPlan model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/ReportController.php
-
-		-
 			message: '#^Using nullsafe method call on non\-nullable type mixed\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -931,56 +883,8 @@ parameters:
 			path: app/Http/Controllers/Risk/ReportController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$assessedControls\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/RiskAssessmentController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$overall_score\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Risk/RiskAssessmentController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$risk\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Controllers/Risk/RiskAssessmentController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$score_change\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/RiskAssessmentController.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
 			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/RiskAssessmentController.php
-
-		-
-			message: '#^Parameter \#1 \$string of function str_pad expects string, int given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Risk/RiskAssessmentController.php
-
-		-
-			message: '#^Relation ''assessor'' is not found in App\\Models\\RiskAssessment model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/RiskAssessmentController.php
-
-		-
-			message: '#^Relation ''owner'' is not found in App\\Models\\TreatmentPlan model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/RiskAssessmentController.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>score_change" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/Risk/RiskAssessmentController.php
 
@@ -989,12 +893,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Risk/ThresholdController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$owner\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/TreatmentPlanController.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$risk\.$#'
@@ -1012,18 +910,6 @@ parameters:
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
 			identifier: method.notFound
 			count: 1
-			path: app/Http/Controllers/Risk/TreatmentPlanController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\TreatmentPlan\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/Risk/TreatmentPlanController.php
-
-		-
-			message: '#^Relation ''owner'' is not found in App\\Models\\TreatmentPlan model\.$#'
-			identifier: larastan.relationExistence
-			count: 4
 			path: app/Http/Controllers/Risk/TreatmentPlanController.php
 
 		-
@@ -1154,12 +1040,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$expected_residual_likelihood\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Listeners/TriggerRiskReassessment.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$owner\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Listeners/TriggerRiskReassessment.php
@@ -1801,18 +1681,6 @@ parameters:
 			path: app/Models/RiskAppetite.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$impact_score\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Models/RiskAssessment.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$risk\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/RiskAssessment.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
 			identifier: method.notFound
 			count: 1
@@ -1847,12 +1715,6 @@ parameters:
 			identifier: function.alreadyNarrowedType
 			count: 1
 			path: app/Models/RiskCategory.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskCause\:\:\$category\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/RiskCause.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
@@ -1993,30 +1855,6 @@ parameters:
 			path: app/Services/ApprovalService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$impact_score\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/AssessmentChainService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$overall_score\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/AssessmentChainService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$risk\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/AssessmentChainService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessmentControl\:\:\$control\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/AssessmentChainService.php
-
-		-
 			message: '#^Default value of the parameter \#2 \$override \(array\{\}\) of method App\\Services\\AssessmentChainService\:\:applyToAssessment\(\) is incompatible with type array\{likelihood\: int\|null, impact\: int\|null, justification\: string\|null\}\.$#'
 			identifier: parameter.defaultValue
 			count: 1
@@ -2060,12 +1898,6 @@ parameters:
 
 		-
 			message: '#^Relation ''owner'' is not found in App\\Models\\KeyRiskIndicator model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/BoardPackAssembler.php
-
-		-
-			message: '#^Relation ''owner'' is not found in App\\Models\\TreatmentPlan model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Services/BoardPackAssembler.php
@@ -2285,24 +2117,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 7
 			path: app/Services/ReportDataService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$impact_score\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RiskMeasureRecorder.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$overall_score\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RiskMeasureRecorder.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$risk\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RiskMeasureRecorder.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\MeasureThreshold\:\:\$measure\.$#'
@@ -2927,12 +2741,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$risk\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$assessment_date\.$#'

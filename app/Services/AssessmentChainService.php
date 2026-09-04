@@ -182,6 +182,195 @@ class AssessmentChainService
     }
 
     /* ------------------------------------------------------------------ */
+    /*  The live preview (migration Phase 3.3) */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Score an unsaved chain, exactly as saving it would.
+     *
+     * This replaces the Alpine `assessmentChain()` component that used to run
+     * the same arithmetic in the browser. That mirror had two problems. It was
+     * a second implementation of impact aggregation, effectiveness weighting
+     * and the axis split, free to drift from the server's; and it could not
+     * evaluate a tenant's configured residual formula at all — it said so in a
+     * comment and fell back to the platform default, so an organisation on a
+     * custom formula watched one number while it typed and got a different one
+     * on save.
+     *
+     * The equivalence here is structural rather than asserted: the input is
+     * turned into UNSAVED RiskAssessmentControl instances, and then the same
+     * effectiveness() and deriveResidual() the save path calls are called on
+     * them. There is no second implementation to keep in step.
+     *
+     * @param  array<string, mixed>  $input  the chain as the form currently holds it
+     * @return array<string, mixed>
+     */
+    public function preview(Risk $risk, array $input): array
+    {
+        $profile = $this->scoring->profileForRisk($risk);
+
+        // Steps 4-5 — impact aggregation and inherent risk.
+        $impacts = collect($profile->dimensions())
+            ->mapWithKeys(fn (string $dimension) => [
+                $dimension => $this->positiveInt(data_get($input, "impacts.{$dimension}")),
+            ])
+            ->all();
+
+        $impactScore = $this->scoring->calculateImpact($impacts, $risk->organization_id, $profile);
+        $likelihood = (int) ($this->positiveInt(data_get($input, 'likelihood')) ?? 0);
+        $inherentScore = $this->scoring->calculateScore($likelihood, $impactScore, $profile);
+
+        // Steps 6-7 — the control ratings, scored through the model that
+        // stores them so the percentages and findings are the stored ones.
+        $rated = $this->unsavedControls($risk, (array) data_get($input, 'controls', []));
+        $effectiveness = $this->effectiveness($rated);
+
+        // Step 8 — residual, through the organisation's own residual formula.
+        $derived = $this->deriveResidual($likelihood, $impactScore, $inherentScore, $effectiveness, $profile);
+
+        $override = $this->overrideFrom($input, $derived, $profile);
+
+        return [
+            'impacts' => $impacts,
+            'impactScore' => $impactScore,
+            'inherent' => [
+                'likelihood' => $likelihood ?: null,
+                'impact' => $impactScore ?: null,
+                'score' => $inherentScore ?: null,
+                'rating' => $inherentScore > 0 ? $this->scoring->calculateRating($inherentScore, $profile) : null,
+            ],
+            'controls' => $rated->map(fn (RiskAssessmentControl $row) => [
+                'id' => (int) $row->control_id,
+                'design' => $row->design_effectiveness,
+                'operating' => $row->operating_effectiveness,
+                'effective' => $row->effectiveness_pct === null ? null : (float) $row->effectiveness_pct,
+                'finding' => $row->finding,
+                'changed' => (bool) $row->getAttribute('changed_since_prior'),
+            ])->values()->all(),
+            'aggregate' => $effectiveness,
+            'derived' => $derived,
+            'residual' => $override ?? $derived,
+            'isOverride' => $override !== null,
+            // What the configured formula asked for before the matrix rounded
+            // it to a cell, kept so the difference stays inspectable.
+            'target' => $derived['target'] ?? null,
+        ];
+    }
+
+    /**
+     * The posted control ratings as unsaved RiskAssessmentControl rows.
+     *
+     * Confined to the controls actually mapped to the risk, for the reason
+     * syncControls() is: a forged control id in the request body must not pull
+     * another tenant's control into the arithmetic.
+     *
+     * @param  array<int|string, array<string, mixed>>  $input  keyed by control id
+     * @return Collection<int, RiskAssessmentControl>
+     */
+    private function unsavedControls(Risk $risk, array $input): Collection
+    {
+        $permitted = $risk->controls()->get()->keyBy('id');
+        $ratings = array_keys(RiskAssessmentControl::RATINGS);
+        $previous = $this->previousRatings($risk, null);
+
+        $rows = collect();
+
+        foreach ($input as $controlId => $row) {
+            $control = $permitted->get((int) $controlId);
+
+            if ($control === null) {
+                continue;
+            }
+
+            $design = in_array($row['design_effectiveness'] ?? null, $ratings, true)
+                ? $row['design_effectiveness']
+                : null;
+
+            $operating = in_array($row['operating_effectiveness'] ?? null, $ratings, true)
+                ? $row['operating_effectiveness']
+                : null;
+
+            $assessed = new RiskAssessmentControl([
+                'organization_id' => $risk->organization_id,
+                'control_id' => $control->id,
+                'control_code' => $control->control_code,
+                'control_name' => $control->name,
+                'design_effectiveness' => $design,
+                'operating_effectiveness' => $operating,
+                'control_weight' => (float) (data_get($control, 'pivot.control_weight') ?? 1.0),
+                'is_key_control' => (bool) data_get($control, 'pivot.is_key_control'),
+            ]);
+
+            // effectiveness() groups by the control's type, so the relation has
+            // to be there without a query per row.
+            $assessed->setRelation('control', $control);
+            $assessed->applyEffectiveness();
+
+            $prior = $previous->get($control->id);
+            $assessed->setAttribute(
+                'changed_since_prior',
+                $prior !== null && (
+                    $design !== $prior->design_effectiveness
+                    || $operating !== $prior->operating_effectiveness
+                ),
+            );
+
+            $rows->push($assessed);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * An assessor's own residual pair, but only where it actually differs from
+     * the derivation — the same test applyToAssessment() applies, so a form
+     * posting back the pre-filled derived values is not branded an override
+     * by the preview either.
+     *
+     * @param  array<string, mixed>  $input
+     * @param  array<string, mixed>|null  $derived
+     * @return array<string, mixed>|null
+     */
+    private function overrideFrom(array $input, ?array $derived, ScoringProfile $profile): ?array
+    {
+        $likelihood = $this->positiveInt(data_get($input, 'residual_likelihood'));
+        $impact = $this->positiveInt(data_get($input, 'residual_impact'));
+
+        if ($likelihood === null || $impact === null) {
+            return null;
+        }
+
+        $isReal = $derived === null
+            || $likelihood !== $derived['likelihood']
+            || $impact !== $derived['impact'];
+
+        if (! $isReal) {
+            return null;
+        }
+
+        $score = $this->scoring->calculateScore($likelihood, $impact, $profile);
+
+        return [
+            'likelihood' => $likelihood,
+            'impact' => $impact,
+            'score' => $score,
+            'rating' => $this->scoring->calculateRating($score, $profile),
+        ];
+    }
+
+    /** A scored axis value, or null for "not scored". */
+    private function positiveInt(mixed $value): ?int
+    {
+        if ($value === null || $value === '' || ! is_numeric($value)) {
+            return null;
+        }
+
+        $int = (int) $value;
+
+        return $int > 0 ? $int : null;
+    }
+
+    /* ------------------------------------------------------------------ */
     /*  Step 7 — Control Effectiveness */
     /* ------------------------------------------------------------------ */
 

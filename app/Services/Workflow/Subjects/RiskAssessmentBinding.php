@@ -22,7 +22,12 @@ class RiskAssessmentBinding extends BaseSubjectBinding
 {
     public function gate(): ?string
     {
-        return 'approve-risk-assessment';
+        // Migration Phase 3.3 folded the `approve-risk-assessment` closure into
+        // App\Policies\AssessmentPolicy. `can('approve', $assessment)` resolves
+        // through that policy, so the engine's authorization is unchanged and
+        // there is one implementation of "the assigned reviewer OR a
+        // risk-manager/CRO" rather than two.
+        return 'approve';
     }
 
     public function ownerId(Model $subject): ?int

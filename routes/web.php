@@ -577,6 +577,13 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         ->middleware('permission:assessment.create')->name('risk.assessments.create');
     Route::post('assessments', [RiskAssessmentController::class, 'store'])
         ->middleware('permission:assessment.create')->name('risk.assessments.store');
+    // Migration Phase 3.3, Decision 5b. The running totals on the assessment
+    // form used to be an Alpine mirror of RiskScoringService and
+    // AssessmentChainService that could not evaluate a tenant's configured
+    // residual formula. The form now asks the server, which scores the chain
+    // with the same code that saves it.
+    Route::post('assessments/preview', [RiskAssessmentController::class, 'preview'])
+        ->middleware('permission:assessment.create')->name('risk.assessments.preview');
     Route::get('assessments/{assessment}', [RiskAssessmentController::class, 'show'])
         ->middleware('permission:assessment.view')->name('risk.assessments.show');
     Route::get('assessments/{assessment}/edit', [RiskAssessmentController::class, 'edit'])

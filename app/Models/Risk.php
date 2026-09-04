@@ -240,7 +240,8 @@ class Risk extends Model
      * accumulate across cycles and stay answerable in aggregate ("which causes
      * recur across the register?").
      */
-    public function causes()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<RiskCause, $this> */
+    public function causes(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(RiskCause::class)
             ->orderBy('is_primary', 'desc')

@@ -14,6 +14,7 @@ use App\Models\Risk;
 use App\Models\User;
 use App\Presenters\GridPresenter;
 use App\Services\FileUploadService;
+use App\Services\LossEvents\LossEventService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +25,7 @@ class LossEventController extends Controller
 {
     public function __construct(
         private readonly FileUploadService $uploads,
+        private readonly LossEventService $lossEvents,
     ) {}
 
     /**
@@ -161,70 +163,6 @@ class LossEventController extends Controller
     }
 
     /**
-     * Form fields that are already canonical and pass straight through.
-     */
-    private const PASSTHROUGH_FIELDS = [
-        'date_of_loss',
-        'date_discovered',
-        'business_unit_id',
-        'reported_by',
-        'currency',
-        'corrective_action_summary',
-        'regulatory_body',
-        'reporting_deadline',
-        'is_regulatory_reportable',
-    ];
-
-    /**
-     * The subset of the validated input that already names canonical columns.
-     *
-     * Taken by allow-list rather than by unsetting the deprecated keys: an
-     * unset-list silently lets a newly added form field through to a column
-     * that may not exist, which is how the two-sources-of-truth problem got
-     * here in the first place.
-     */
-    private function retainedAttributes(array $validated): array
-    {
-        return array_intersect_key($validated, array_flip(self::PASSTHROUGH_FIELDS));
-    }
-
-    /**
-     * Translate the form's field names onto the canonical columns.
-     *
-     * The create/edit forms still post the 200038 names (event_title,
-     * gross_loss_amount, severity, …) because those are what the Blade
-     * templates and every bookmarked filter URL use. This is the single place
-     * that mapping happens; nothing else writes a deprecated column.
-     *
-     * Case matters. basel_l1_category, cbn_risk_category and event_severity
-     * are stored upper case because that is what RegulatoryThresholdService
-     * matches on — the previous lower-case write is why the NFIU STR, EFCC and
-     * cyber-fraud alerts never fired. See docs/schema/canonical-columns.md.
-     */
-    private function canonicalAttributes(array $validated): array
-    {
-        $baselCategory = strtoupper($validated['basel_event_type'] ?? 'OTHER');
-
-        return [
-            'title' => $validated['event_title'],
-            'description' => $validated['event_description'],
-            'initial_root_cause' => $validated['root_cause_summary'] ?? null,
-            'basel_l1_category' => $baselCategory,
-            // The form collects a single Basel classification. Mirroring it
-            // into L2 keeps the NOT NULL constraint satisfied and matches the
-            // behaviour this replaced; a genuine L2/L3 taxonomy is WP-10 work.
-            'basel_l2_category' => $baselCategory,
-            'cbn_risk_category' => strtoupper($validated['cbn_loss_category'] ?? 'OTHER'),
-            'loss_category' => $validated['event_type'] ?? 'actual_loss',
-            'event_severity' => strtoupper($validated['severity'] ?? 'MODERATE'),
-            // Money is stored in minor units, with the currency alongside it.
-            'gross_loss_amount_kobo' => (int) round(($validated['gross_loss_amount'] ?? 0) * 100),
-            'insurance_recovery_kobo' => (int) round(($validated['insurance_recovery'] ?? 0) * 100),
-            'other_recovery_kobo' => (int) round(($validated['recovery_amount'] ?? 0) * 100),
-        ];
-    }
-
-    /**
      * Store a newly created loss event.
      */
     public function store(Request $request)
@@ -258,58 +196,18 @@ class LossEventController extends Controller
             'reporting_deadline' => 'nullable|date',
         ]);
 
-        return DB::transaction(function () use ($validated, $orgId) {
-            // Auto-generate event reference using ReferenceCodeService
-            $eventReference = \App\Services\ReferenceCodeService::generate('loss_events', 'event_reference', 'LE');
+        $lossEvent = $this->lossEvents->report($validated, auth()->id());
 
-            // Near misses always have zero loss + get classified as near_miss
-            $isNearMiss = (bool) ($validated['is_near_miss'] ?? false);
-            if ($isNearMiss) {
-                $validated['gross_loss_amount'] = 0;
-                $validated['recovery_amount'] = 0;
-                $validated['insurance_recovery'] = 0;
-                $validated['event_type'] = 'near_miss';
-            }
+        // Raised by EvaluateRegulatoryThresholds during the create, and carried
+        // back rather than recomputed: "CBN notification required within seven
+        // days" is the reporter's cue to act, and losing it was the one
+        // user-visible thing the inline evaluation was doing.
+        if ($this->lossEvents->lastAlerts() !== []) {
+            session()->flash('regulatory_alerts', $this->lossEvents->lastAlerts());
+        }
 
-            // Auto-detect regulatory threshold (example: amounts over 10M NGN)
-            $regulatoryThreshold = 10000000; // 10 million
-            $isRegulatoryReportable = $validated['is_regulatory_reportable']
-                ?? ($validated['gross_loss_amount'] >= $regulatoryThreshold);
-
-            // Map form field risk_id to actual DB column risk_register_id
-            $riskRegisterId = $validated['risk_id'] ?? null;
-            unset($validated['risk_id']);
-
-            $lossEvent = LossEvent::create(array_merge(
-                $this->retainedAttributes($validated),
-                $this->canonicalAttributes($validated),
-                [
-                    'organization_id' => $orgId,
-                    'event_reference' => $eventReference,
-                    'risk_register_id' => $riskRegisterId,
-                    'is_regulatory_reportable' => $isRegulatoryReportable,
-                    'is_near_miss' => $isNearMiss,
-                    'current_status' => 'REPORTED',
-                    'created_by' => auth()->id(),
-                ]
-            ));
-
-            \App\Events\LossEventCreated::dispatch($lossEvent);
-
-            // Evaluate regulatory thresholds
-            $regulatoryService = new \App\Services\RegulatoryThresholdService;
-            $alerts = $regulatoryService->evaluateThresholds($lossEvent);
-
-            if (! empty($alerts)) {
-                session()->flash('regulatory_alerts', $alerts);
-            }
-
-            // Audit trail
-            \App\Services\AuditTrailService::record($lossEvent, 'create');
-
-            return redirect()->route('risk.loss-events.show', $lossEvent)
-                ->with('success', "Loss event {$eventReference} has been reported.");
-        });
+        return redirect()->route('risk.loss-events.show', $lossEvent)
+            ->with('success', "Loss event {$lossEvent->event_reference} has been reported.");
     }
 
     /**
@@ -387,29 +285,7 @@ class LossEventController extends Controller
             'reporting_deadline' => 'nullable|date',
         ]);
 
-        // Map form field risk_id to actual DB column risk_register_id
-        $riskRegisterId = $validated['risk_id'] ?? null;
-        unset($validated['risk_id']);
-
-        $original = $lossEvent->getAttributes();
-
-        $lossEvent->update(array_merge(
-            $this->retainedAttributes($validated),
-            $this->canonicalAttributes($validated),
-            [
-                'risk_register_id' => $riskRegisterId,
-                'updated_by' => auth()->id(),
-            ]
-        ));
-
-        // Audit trail
-        \App\Services\AuditTrailService::recordChanges($lossEvent, $original);
-
-        $newKobo = (int) round($validated['gross_loss_amount'] * 100);
-        $oldKobo = (int) ($original['gross_loss_amount_kobo'] ?? 0);
-        if ($newKobo !== $oldKobo) {
-            \App\Events\LossEventAmountChanged::dispatch($lossEvent, $oldKobo, $newKobo);
-        }
+        $this->lossEvents->amend($lossEvent, $validated, auth()->id());
 
         return redirect()->route('risk.loss-events.show', $lossEvent)
             ->with('success', "Loss event {$lossEvent->event_reference} has been updated.");

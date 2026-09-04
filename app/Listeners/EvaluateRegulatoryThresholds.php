@@ -13,7 +13,14 @@ class EvaluateRegulatoryThresholds
         private RegulatoryThresholdService $regulatoryService
     ) {}
 
-    public function handle(LossEventCreated|LossEventAmountChanged $event): void
+    /**
+     * @return list<array<string, mixed>> the violations found, so the caller
+     *                                    that dispatched the event can show
+     *                                    them to the reporter without
+     *                                    evaluating the whole threshold set a
+     *                                    second time (migration Phase 4.3)
+     */
+    public function handle(LossEventCreated|LossEventAmountChanged $event): array
     {
         $lossEvent = $event->lossEvent;
         $organizationId = $lossEvent->organization_id;
@@ -54,5 +61,7 @@ class EvaluateRegulatoryThresholds
                 'updated_at' => now(),
             ]);
         }
+
+        return $thresholdViolations;
     }
 }

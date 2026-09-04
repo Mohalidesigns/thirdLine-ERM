@@ -41,6 +41,21 @@ class RiskCalculationSettings
     }
 
     /**
+     * The gross loss, in naira, at or above which a loss event is flagged
+     * `is_regulatory_reportable` when the reporter has not answered
+     * (migration Phase 4.3).
+     *
+     * This was a bare literal (NGN 10 million) inside LossEventController::store().
+     */
+    public static function regulatoryReportableThresholdNgn(?int $organizationId = null): float
+    {
+        $default = (float) config('risk.regulatory_reportable_threshold_ngn');
+        $override = self::organizationSettings($organizationId)['regulatory_reportable_threshold_ngn'] ?? null;
+
+        return is_numeric($override) ? (float) $override : $default;
+    }
+
+    /**
      * One of: max, average, weighted, worst_two.
      *
      * An unrecognised value falls back to the configured default rather than

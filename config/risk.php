@@ -64,4 +64,29 @@ return [
         'strategic' => 1.0,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Regulatory reportability threshold
+    |--------------------------------------------------------------------------
+    |
+    | The gross loss, in naira, at or above which a loss event is flagged
+    | `is_regulatory_reportable` unless the reporter answers the question
+    | themselves. This was the literal `10000000` in
+    | LossEventController::store() (migration Phase 4.3).
+    |
+    | IT DOES NOT AGREE WITH RegulatoryThresholdService::CBN_REPORTING_THRESHOLD_KOBO,
+    | which is NGN 5,000,000, and that disagreement is older than this config
+    | key. An event of NGN 6m raises a CBN alert saying notification is required
+    | within seven days AND is left with the reportable flag false. The value
+    | here is the one the product has been shipping; moving it is a policy
+    | decision for the compliance owner, not a refactor, so it is surfaced here
+    | rather than quietly aligned. See docs/migration/phase-4-notes/loss-events.md.
+    |
+    | An organization may override it via its `settings` JSON under
+    | `risk.regulatory_reportable_threshold_ngn`.
+    |
+    */
+
+    'regulatory_reportable_threshold_ngn' => 10_000_000,
+
 ];

@@ -205,12 +205,25 @@ class DynamicRendererTest extends TestCase
         app(ScoringProfileProvisioner::class)->resize($this->organization, 4, 4);
         ScoringProfile::flushResolutionCache();
 
+        // Migration Phase 3.5 — the treatment create form is an Inertia page
+        // now, so the scale is asserted on the schema the React DynamicForm
+        // renders from rather than on the Blade markup. Same question: does
+        // this organisation's own scale reach the form?
         $response = $this->actingAs($this->actor)->get(route('risk.treatments.create'));
 
         $response->assertOk();
-        $response->assertSee('name="expected_residual_impact"', false);
+
+        $field = collect($response->viewData('page')['props']['schema']['sections'])
+            ->flatMap(fn (array $section) => $section['fields'])
+            ->firstWhere('code', 'expected_residual_impact');
+
+        $this->assertNotNull($field, 'the impact scale is offered on the form');
+
         // A 4×4 organisation must not be offered a 5 its matrix cannot hold.
-        $response->assertDontSee('<option value="5" >5 —', false);
+        $offered = array_map('strval', array_column($field['options'] ?? [], 'value'));
+
+        $this->assertNotContains('5', $offered);
+        $this->assertContains('4', $offered);
     }
 
     /* ------------------------------------------------------------------ */

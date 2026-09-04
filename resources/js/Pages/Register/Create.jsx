@@ -66,10 +66,22 @@ export default function Create({
             {canDraftWithAi && (
                 <div className="max-w-5xl">
                     <AiDraftButton
-                        categoryName={nameOf(categories, data.category_id)}
-                        businessUnitName={nameOf(businessUnits, data.business_unit_id)}
-                        onDraft={({ title, description }) => {
-                            setData((current) => ({ ...current, title, description }));
+                        title="AI Risk Statement Builder"
+                        blurb="Describe the scenario in plain English — the model drafts a board-ready Cause → Event → Consequence statement and prefills the form."
+                        placeholder="e.g. core banking outage during month-end settlement"
+                        endpoint={route('risk.ai.tools.risk-statement')}
+                        payload={() => ({
+                            category: nameOf(categories, data.category_id),
+                            business_unit: nameOf(businessUnits, data.business_unit_id),
+                        })}
+                        onDraft={(draft) => {
+                            setData((current) => ({
+                                ...current,
+                                title: draft.title,
+                                description:
+                                    `Cause: ${draft.cause}\nEvent: ${draft.event}\nConsequence: ${draft.consequence}` +
+                                    `\n\n${draft.description}`,
+                            }));
                         }}
                     />
                 </div>

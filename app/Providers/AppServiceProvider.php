@@ -3,7 +3,6 @@
 namespace App\Providers;
 
 use App\Models\LossEvent;
-use App\Models\TreatmentPlan;
 use App\Models\User;
 use App\Observers\WebhookEventObserver;
 use App\Observers\WorkflowTriggerObserver;
@@ -129,26 +128,14 @@ class AppServiceProvider extends ServiceProvider
         // — because Laravel resolves a hyphenated ability on a model to the
         // camel-cased policy method, reviewControlTest().
 
-        // Treatment plan approval: role-based (no assigned reviewer column).
-        Gate::define('approve-treatment-plan', function (User $user, TreatmentPlan $plan) {
-            if ($user->organization_id !== $plan->organization_id) {
-                return false;
-            }
-
-            return $user->hasAnyRole(['chief-risk-officer', 'risk-manager']);
-        });
-
-        // Treatment plan resubmit: owner or creator.
-        Gate::define('resubmit-treatment-plan', function (User $user, TreatmentPlan $plan) {
-            if ($user->organization_id !== $plan->organization_id) {
-                return false;
-            }
-
-            return in_array($user->id, array_filter([
-                $plan->owner_id ?? null,
-                $plan->created_by ?? null,
-            ]));
-        });
+        // Treatment plan approval and resubmission moved into
+        // App\Policies\TreatmentPlanPolicy in migration Phase 3.5. Both keep
+        // their hyphenated names — WorkflowEngine::canAct() asks
+        // `can('approve-treatment-plan', $plan)` through
+        // TreatmentPlanBinding::gate() — because Laravel resolves a hyphenated
+        // ability on a model to the camel-cased policy method,
+        // approveTreatmentPlan(). They also pick up the node scope every other
+        // treatment ability applies.
 
         // Risk assessment approval and resubmission moved into
         // App\Policies\RiskAssessmentPolicy in migration Phase 3.3 — `approve`,

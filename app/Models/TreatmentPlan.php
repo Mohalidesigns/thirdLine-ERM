@@ -9,9 +9,73 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
+/**
+ * The columns 2026_02_22_200038_align_schema_with_controllers adds through its
+ * own addColumns() helper. Larastan reads schema from Schema::create/table
+ * calls it can see statically, so a column added in a loop is invisible to it
+ * and every read of one is reported as an undefined property. These are
+ * declarations of columns that exist, not overrides of anything inferred.
+ *
+ * The deprecated 200038 DUPLICATES (treatment_title, treatment_type, …) are
+ * deliberately absent: they are served by the read-only accessors below and
+ * go away with the columns in Migration B.
+ *
+ * @property string|null $treatment_code
+ * @property string|null $milestones
+ * @property string|null $success_criteria
+ * @property int|null $expected_residual_likelihood
+ * @property int|null $expected_residual_impact
+ * @property int|null $approved_by
+ * @property \Illuminate\Support\Carbon|null $approved_at
+ * @property string|null $rejection_reason
+ * @property int|null $updated_by
+ */
 class TreatmentPlan extends Model
 {
     use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
+
+    /**
+     * The four response strategies, from TreatmentPlanController's inline
+     * `in:mitigate,transfer,avoid,accept` rule (migration Phase 3.5).
+     *
+     * @var list<string>
+     */
+    public const STRATEGIES = ['mitigate', 'transfer', 'avoid', 'accept'];
+
+    /** @var list<string> */
+    public const PRIORITIES = ['critical', 'high', 'medium', 'low'];
+
+    /**
+     * What the edit form may set `status` to. NOT the full set the column
+     * holds: 'draft', 'approved', 'rejected' and 'on_hold' are written by the
+     * approval path (TreatmentPlanBinding) and by data older than it, and were
+     * absent from the controller's inline rule — offering them on the edit
+     * form would let an owner approve their own plan by choosing a value.
+     *
+     * @var list<string>
+     */
+    public const EDITABLE_STATUSES = [
+        'not_started', 'in_progress', 'completed', 'overdue', 'cancelled', 'pending_review',
+    ];
+
+    /**
+     * Statuses the dashboard counts as ACTIVE. Both spellings of in-progress
+     * are here because both are in the data: the column was a free string
+     * before it was constrained, and the Blade dashboard counted both.
+     *
+     * @var list<string>
+     */
+    public const ACTIVE_STATUSES = ['in_progress', 'in-progress', 'open', 'not_started'];
+
+    /**
+     * Statuses that can run overdue — ACTIVE_STATUSES minus 'not_started': a
+     * plan nobody has started is not late, it is unstarted. Carried from the
+     * dashboard's own two different status lists, which is why they are two
+     * constants and not one.
+     *
+     * @var list<string>
+     */
+    public const RUNNING_STATUSES = ['in_progress', 'in-progress', 'open'];
 
     protected $fillable = [
         'organization_id',
@@ -76,12 +140,14 @@ class TreatmentPlan extends Model
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function organization()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Organization, $this> */
+    public function organization(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }
 
-    public function risk()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Risk, $this> */
+    public function risk(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Risk::class);
     }

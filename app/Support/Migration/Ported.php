@@ -80,6 +80,13 @@ final class Ported
         'risk.control-tests.create',
         'risk.control-tests.show',
         'risk.control-tests.edit',
+        // Phase 3 — treatment plans ('risk.treatments.index' is above, from
+        // Phase 2's grid work)
+        'risk.treatments.dashboard',
+        'risk.treatments.review',
+        'risk.treatments.create',
+        'risk.treatments.show',
+        'risk.treatments.edit',
         // Phase 3 — workflow
         'risk.approvals.dashboard',
         'risk.my-tasks.index',

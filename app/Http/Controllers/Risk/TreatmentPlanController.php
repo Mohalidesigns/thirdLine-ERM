@@ -3,163 +3,103 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Grids\GridRegistry;
-use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
-use App\Models\Risk;
-use App\Models\RiskAuditTrail;
+use App\Http\Requests\Treatments\ApproveTreatmentPlanRequest;
+use App\Http\Requests\Treatments\RejectTreatmentPlanRequest;
+use App\Http\Requests\Treatments\StoreTreatmentCommentRequest;
+use App\Http\Requests\Treatments\StoreTreatmentPlanRequest;
+use App\Http\Requests\Treatments\UpdateTreatmentPlanRequest;
 use App\Models\TreatmentPlan;
-use App\Models\User;
+use App\Presenters\FormSchemaPresenter;
 use App\Presenters\GridPresenter;
-use App\Services\Workflow\ModuleApprovals;
+use App\Services\Treatments\TreatmentPlanService;
 use App\Support\Authorization\GraphScope;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
+/**
+ * Treatment plans (migration Phase 3.5).
+ *
+ * Every figure this used to compute inline now comes from
+ * TreatmentPlanService; every authorisation goes through TreatmentPlanPolicy,
+ * which absorbed the `approve-treatment-plan` and `resubmit-treatment-plan`
+ * closures; every write body is validated by a Form Request in
+ * App\Http\Requests\Treatments.
+ *
+ * Node scoping is the policy's job now (withinReach, resolved through the
+ * risk), so the EnforcesNodeScope trait and its six
+ * abortUnlessNodeVisibleThrough() calls are gone — they and the six
+ * hand-written organization_id comparisons said what `Gate::authorize` says
+ * here, one line earlier.
+ */
 class TreatmentPlanController extends Controller
 {
-    // WP-00 node scoping: a treatment plan inherits its risk's visibility.
-    use EnforcesNodeScope;
-
-    // WP-05 TASK 2 — receives the fields a tenant added through the
-    // builder. Without it, a configured field would render on the form,
-    // accept what was typed, and discard it on submit.
+    // WP-05 TASK 2 — receives the fields a tenant added through the builder.
+    // Without it, a configured field would render on the form, accept what was
+    // typed, and discard it on submit.
     use PersistsConfiguredAttributes;
 
-    /**
-     * Treatment plans dashboard with statistics.
-     */
+    /** The object type whose configured fields the create/edit forms render. */
+    private const OBJECT_TYPE = 'TreatmentPlan';
+
+    public function __construct(
+        private readonly TreatmentPlanService $plans,
+        private readonly FormSchemaPresenter $schemas,
+    ) {}
+
+    /* ------------------------------------------------------------------ */
+    /*  Dashboard / review queue */
+    /* ------------------------------------------------------------------ */
+
     public function dashboard()
     {
-        $orgId = TenantContext::organizationId();
+        Gate::authorize('viewAny', TreatmentPlan::class);
 
-        $base = fn () => TreatmentPlan::where('organization_id', $orgId);
-
-        $totalPlans = $base()->count();
-        $activePlans = $base()->whereIn('status', ['in_progress', 'in-progress', 'open', 'not_started'])->count();
-        $completedPlans = $base()->where('status', 'completed')->count();
-        $overduePlans = $base()->whereIn('status', ['in_progress', 'in-progress', 'open'])
-            ->whereNotNull('target_date')->where('target_date', '<', now())->count();
-        // Budget lives in the canonical cost_estimate_ngn column.
-        $totalBudget = (float) $base()
-            ->selectRaw('COALESCE(SUM(cost_estimate_ngn), 0) as total')
-            ->value('total');
-        $avgEffectiveness = (int) round((float) $base()->whereNotNull('progress_pct')->avg('progress_pct'));
-
-        $activeTreatments = $base()
-            ->whereIn('status', ['in_progress', 'in-progress', 'open', 'not_started'])
-            ->with(['risk', 'owner'])
-            ->orderBy('target_date')
-            ->limit(10)
-            ->get();
-
-        $recentActivities = $base()
-            ->with('owner')
-            ->orderByDesc('updated_at')
-            ->limit(8)
-            ->get()
-            ->map(fn ($p) => (object) [
-                'description' => 'Treatment plan "'.($p->title ?? 'Untitled').'" was updated',
-                'icon' => 'update',
-                'user' => $p->owner,
-                'created_at' => $p->updated_at,
-            ]);
-
-        $strategyCounts = $base()->selectRaw('LOWER(strategy) s, COUNT(*) c')->groupBy('s')->pluck('c', 's');
-        $strategyChartData = [
-            'labels' => ['Mitigate', 'Transfer', 'Accept', 'Avoid'],
-            'values' => [
-                (int) ($strategyCounts['mitigate'] ?? 0),
-                (int) ($strategyCounts['transfer'] ?? 0),
-                (int) ($strategyCounts['accept'] ?? 0),
-                (int) ($strategyCounts['avoid'] ?? 0),
-            ],
-        ];
-
-        $statusChartData = [
-            'labels' => ['Not Started', 'In Progress', 'Completed', 'Overdue', 'On Hold'],
-            'values' => [
-                $base()->where('status', 'not_started')->count(),
-                $base()->whereIn('status', ['in_progress', 'in-progress', 'open'])->count(),
-                $completedPlans,
-                $overduePlans,
-                $base()->where('status', 'on_hold')->count(),
-            ],
-        ];
-
-        $monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        $createdByMonth = [];
-        $completedByMonth = [];
-        $year = now()->year;
-        for ($m = 1; $m <= 12; $m++) {
-            $createdByMonth[] = $base()->whereYear('created_at', $year)->whereMonth('created_at', $m)->count();
-            $completedByMonth[] = $base()->where('status', 'completed')
-                ->whereYear('updated_at', $year)->whereMonth('updated_at', $m)->count();
-        }
-        $completionTrendData = ['labels' => $monthLabels, 'created' => $createdByMonth, 'completed' => $completedByMonth];
-
-        $budgetByStrategy = $base()
-            ->selectRaw('LOWER(strategy) s, COALESCE(SUM(cost_estimate_ngn), 0) as b, COALESCE(SUM(actual_cost_ngn), 0) as a')
-            ->groupBy('s')->get()->keyBy('s');
-        $budgetChartData = [
-            'labels' => ['Mitigate', 'Transfer', 'Accept', 'Avoid'],
-            'budget' => array_map(fn ($k) => (float) (optional($budgetByStrategy->get($k))->b ?? 0), ['mitigate', 'transfer', 'accept', 'avoid']),
-            'actual' => array_map(fn ($k) => (float) (optional($budgetByStrategy->get($k))->a ?? 0), ['mitigate', 'transfer', 'accept', 'avoid']),
-        ];
-
-        $upcomingDeadlines = $base()
-            ->whereIn('status', ['in_progress', 'in-progress', 'open'])
-            ->whereNotNull('target_date')
-            ->where('target_date', '<=', now()->addDays(30))
-            ->with(['risk', 'owner'])
-            ->orderBy('target_date')
-            ->limit(10)
-            ->get();
-
-        return view('risk.treatments.dashboard', compact(
-            'totalPlans', 'activePlans', 'completedPlans', 'overduePlans',
-            'totalBudget', 'avgEffectiveness',
-            'activeTreatments', 'recentActivities',
-            'strategyChartData', 'statusChartData', 'completionTrendData', 'budgetChartData',
-            'upcomingDeadlines'
-        ));
+        return Inertia::render('Treatments/Dashboard', [
+            'stats' => $this->plans->dashboard(),
+            'budgetByStrategy' => $this->plans->budgetByStrategy(),
+            'strategyMix' => $this->plans->strategyMix(),
+            'statusMix' => $this->plans->statusMix(),
+            'completionTrend' => $this->plans->completionTrend(),
+            'activeTreatments' => $this->plans->activeTreatments()->map($this->row(...))->all(),
+            'upcomingDeadlines' => $this->plans->upcomingDeadlines()->map($this->row(...))->all(),
+            'recentActivity' => $this->plans->recentActivity(),
+        ]);
     }
 
-    /**
-     * Review pending treatments.
-     */
-    public function review(Request $request)
+    public function review()
     {
-        $orgId = TenantContext::organizationId();
+        Gate::authorize('viewAny', TreatmentPlan::class);
 
-        // The view iterates $pendingPlans and renders Approve/Reject actions,
-        // which are only valid for plans in pending_review status.
-        $pendingPlans = TreatmentPlan::where('organization_id', $orgId)
-            ->where('status', 'pending_review')
-            ->with(['risk', 'owner'])
-            ->orderBy('target_date')
-            ->get();
-
-        return view('risk.treatments.review', compact('pendingPlans'));
+        return Inertia::render('Treatments/Review', [
+            'pendingPlans' => $this->plans->pendingReview()
+                ->map(fn (TreatmentPlan $plan) => $this->row($plan) + [
+                    'description' => $plan->description,
+                    'budget' => (float) ($plan->cost_estimate_ngn ?? 0),
+                    'canApprove' => Gate::allows('approve', $plan),
+                    'canComment' => Gate::allows('comment', $plan),
+                ])
+                ->all(),
+        ]);
     }
 
-    /**
-     * Display the treatment plan listing with filters.
-     */
+    /* ------------------------------------------------------------------ */
+    /*  List */
+    /* ------------------------------------------------------------------ */
+
     public function index(Request $request, GridPresenter $presenter)
     {
         // WP-09: filtering, search, sorting, pagination, bulk delete and
-        // export moved into the shared data grid
-        // (App\Grids\Definitions\TreatmentPlansGrid); the strategy and
-        // priority selects — which this method never read — are now real
-        // filters there. The header only needs the total.
-        // WP-00: scoped through the risk, matching TreatmentPlansGrid, so the
+        // export live in the shared data grid
+        // (App\Grids\Definitions\TreatmentPlansGrid); the header only needs
+        // the total. WP-00: scoped through the risk, matching the grid, so the
         // header total counts the rows the grid beneath it will show.
         $total = GraphScope::applyThrough(
             TreatmentPlan::where('organization_id', TenantContext::organizationId()),
-            'risk'
+            'risk',
         )->count();
 
         return Inertia::render('Treatments/Index', [
@@ -169,442 +109,270 @@ class TreatmentPlanController extends Controller
         ]);
     }
 
-    /**
-     * Show the form for creating a new treatment plan.
-     */
+    /* ------------------------------------------------------------------ */
+    /*  Create / store */
+    /* ------------------------------------------------------------------ */
+
     public function create(Request $request)
     {
-        $orgId = TenantContext::organizationId();
+        Gate::authorize('create', TreatmentPlan::class);
 
-        $risks = Risk::where('organization_id', $orgId)
-            ->where('status', 'active')
-            ->orderBy('risk_code')
-            ->get();
-        $users = User::where('organization_id', $orgId)->orderBy('name')->get();
-        $selectedRiskId = $request->get('risk_id');
-
-        return view('risk.treatments.create', compact('risks', 'users', 'selectedRiskId'));
-    }
-
-    /**
-     * Store a newly created treatment plan.
-     */
-    /**
-     * Form field => canonical column.
-     *
-     * The create/edit forms still post the 200038 names; this is the single
-     * place that mapping happens. See docs/schema/canonical-columns.md.
-     */
-    private const FIELD_MAP = [
-        'treatment_title' => 'action_title',
-        'treatment_description' => 'action_description',
-        'treatment_type' => 'strategy',
-        'treatment_owner_id' => 'owner_id',
-        'target_completion_date' => 'target_date',
-        'actual_completion_date' => 'completion_date',
-        'estimated_cost' => 'cost_estimate_ngn',
-        'actual_cost' => 'actual_cost_ngn',
-        'progress_percentage' => 'progress_pct',
-        'implementation_notes' => 'progress_notes',
-    ];
-
-    /**
-     * Form fields that already name canonical columns.
-     */
-    private const PASSTHROUGH_FIELDS = [
-        'risk_id',
-        'priority',
-        'status',
-        'expected_residual_likelihood',
-        'expected_residual_impact',
-        'milestones',
-        'success_criteria',
-    ];
-
-    /**
-     * Taken by allow-list rather than by unsetting the mapped keys: a new form
-     * field then has to be added here deliberately instead of silently landing
-     * on a column that may not exist.
-     */
-    private function retainedAttributes(array $validated): array
-    {
-        return array_intersect_key($validated, array_flip(self::PASSTHROUGH_FIELDS));
-    }
-
-    /**
-     * array_key_exists rather than ?? so that clearing a field on the edit
-     * form writes NULL instead of being silently skipped.
-     */
-    private function canonicalAttributes(array $validated): array
-    {
-        $attributes = [];
-
-        foreach (self::FIELD_MAP as $formField => $canonical) {
-            if (array_key_exists($formField, $validated)) {
-                $attributes[$canonical] = $validated[$formField];
-            }
-        }
-
-        return $attributes;
-    }
-
-    public function store(Request $request)
-    {
-        $orgId = TenantContext::organizationId();
-
-        $validated = $request->validate([
-            'risk_id' => 'required|exists:risks,id',
-            'treatment_title' => 'required|string|max:255',
-            'treatment_description' => 'required|string|max:5000',
-            'treatment_type' => 'required|in:mitigate,transfer,avoid,accept',
-            'treatment_owner_id' => 'required|exists:users,id',
-            'priority' => 'required|in:critical,high,medium,low',
-            'target_completion_date' => 'required|date|after:today',
-            'estimated_cost' => 'nullable|numeric|min:0',
-            'expected_residual_likelihood' => 'nullable|integer|min:1|max:5',
-            'expected_residual_impact' => 'nullable|integer|min:1|max:5',
-            'milestones' => 'nullable|array',
-            'milestones.*.title' => 'nullable|string|max:255',
-            'milestones.*.due_date' => 'nullable|date',
-            'milestones.*.responsible' => 'nullable|string|max:255',
-            'success_criteria' => 'nullable|string|max:2000',
+        return Inertia::render('Treatments/Create', [
+            'schema' => $this->schemas->form(
+                self::OBJECT_TYPE,
+                sections: ['Details', 'Plan', 'Expected Outcome'],
+                defaults: ['risk_id' => $request->query('risk_id')],
+            ),
+            // The AI Treatment Plan Builder posts to a route behind
+            // `permission:ai.use`. The Blade page drew the card
+            // unconditionally, so a tenant without the permission got a button
+            // that 403'd.
+            'canDraftWithAi' => $request->user()?->can('ai.use') ?? false,
         ]);
-
-        // Convert milestones array to JSON string for storage
-        if (isset($validated['milestones'])) {
-            $validated['milestones'] = json_encode(array_filter($validated['milestones'], fn ($m) => ! empty($m['title'])));
-        }
-
-        // Verify risk belongs to org
-        $risk = Risk::where('id', $validated['risk_id'])
-            ->where('organization_id', $orgId)
-            ->firstOrFail();
-
-        return DB::transaction(function () use ($request, $validated, $orgId) {
-            // Auto-generate treatment code using ReferenceCodeService
-            $treatmentCode = \App\Services\ReferenceCodeService::generate('treatment_plans', 'treatment_code', 'TP');
-
-            $plan = TreatmentPlan::create(array_merge(
-                $this->retainedAttributes($validated),
-                $this->canonicalAttributes($validated),
-                [
-                    'organization_id' => $orgId,
-                    'treatment_code' => $treatmentCode,
-                    'status' => 'not_started',
-                    'progress_pct' => 0,
-                    'created_by' => auth()->id(),
-                ]
-            ));
-
-            // Fields the tenant added through the builder, if any.
-            $this->saveConfiguredAttributes($request, $plan);
-
-            // Audit trail
-            \App\Services\AuditTrailService::record($plan, 'create');
-
-            return redirect()->route('risk.treatments.show', $plan)
-                ->with('success', "Treatment plan {$treatmentCode} has been created.");
-        });
     }
 
-    /**
-     * Display the specified treatment plan.
-     */
+    public function store(StoreTreatmentPlanRequest $request)
+    {
+        $plan = $this->plans->create($request->validated(), $request->user()?->id);
+
+        $this->saveConfiguredAttributes($request, $plan);
+
+        return redirect()->route('risk.treatments.show', $plan)
+            ->with('success', "Treatment plan {$plan->treatment_code} has been created.");
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Show / edit / update / destroy */
+    /* ------------------------------------------------------------------ */
+
     public function show(TreatmentPlan $treatment)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($treatment->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this treatment plan.');
-        }
-
-        // WP-00 node scoping, inherited from the risk — see EnforcesNodeScope.
-        $this->abortUnlessNodeVisibleThrough($treatment, 'risk');
+        Gate::authorize('view', $treatment);
 
         $treatment->load(['risk.category', 'risk.riskOwner', 'owner']);
 
-        $progressHistory = [
-            'labels' => [],
-            'values' => [],
-        ];
-
-        $costData = [
-            'budget' => (float) ($treatment->cost_estimate_ngn ?? 0),
-            'actual' => (float) ($treatment->actual_cost_ngn ?? 0),
-        ];
-
-        return view('risk.treatments.show', [
-            'plan' => $treatment,
-            'progressHistory' => $progressHistory,
-            'costData' => $costData,
+        return Inertia::render('Treatments/Show', [
+            'plan' => $this->detail($treatment),
+            'can' => [
+                'update' => Gate::allows('update', $treatment),
+                'approve' => Gate::allows('approve', $treatment),
+                'resubmit' => Gate::allows('resubmit', $treatment),
+                'submit' => Gate::allows('submit', $treatment),
+            ],
         ]);
     }
 
-    /**
-     * Show the form for editing the specified treatment plan.
-     */
     public function edit(TreatmentPlan $treatment)
     {
-        $orgId = TenantContext::organizationId();
+        Gate::authorize('update', $treatment);
 
-        if ($treatment->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this treatment plan.');
-        }
-
-        // WP-00 node scoping, inherited from the risk — see EnforcesNodeScope.
-        $this->abortUnlessNodeVisibleThrough($treatment, 'risk');
-
-        $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
-        $users = User::where('organization_id', $orgId)->orderBy('name')->get();
-
-        return view('risk.treatments.edit', [
-            'plan' => $treatment,
-            'risks' => $risks,
-            'users' => $users,
+        return Inertia::render('Treatments/Edit', [
+            'plan' => [
+                'id' => $treatment->id,
+                'title' => $treatment->title,
+                'milestones' => $this->milestones($treatment),
+            ],
+            // risk_id is omitted: update() does not accept it, so offering it
+            // would be an editable field that never saves.
+            'schema' => $this->schemas->form(self::OBJECT_TYPE, $treatment, omit: ['risk_id']),
         ]);
     }
 
-    /**
-     * Update the specified treatment plan.
-     */
-    public function update(Request $request, TreatmentPlan $treatment)
+    public function update(UpdateTreatmentPlanRequest $request, TreatmentPlan $treatment)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($treatment->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this treatment plan.');
-        }
-
-        // WP-00 node scoping, inherited from the risk — see EnforcesNodeScope.
-        $this->abortUnlessNodeVisibleThrough($treatment, 'risk');
-
-        $validated = $request->validate([
-            'treatment_title' => 'required|string|max:255',
-            'treatment_description' => 'required|string|max:5000',
-            'treatment_type' => 'required|in:mitigate,transfer,avoid,accept',
-            'treatment_owner_id' => 'required|exists:users,id',
-            'priority' => 'required|in:critical,high,medium,low',
-            'status' => 'required|in:not_started,in_progress,completed,overdue,cancelled,pending_review',
-            'progress_percentage' => 'nullable|integer|min:0|max:100',
-            'target_completion_date' => 'required|date',
-            'actual_completion_date' => 'nullable|date',
-            'estimated_cost' => 'nullable|numeric|min:0',
-            'actual_cost' => 'nullable|numeric|min:0',
-            'expected_residual_likelihood' => 'nullable|integer|min:1|max:5',
-            'expected_residual_impact' => 'nullable|integer|min:1|max:5',
-            'milestones' => 'nullable|array',
-            'milestones.*.title' => 'nullable|string|max:255',
-            'milestones.*.due_date' => 'nullable|date',
-            'milestones.*.responsible' => 'nullable|string|max:255',
-            'success_criteria' => 'nullable|string|max:2000',
-            'implementation_notes' => 'nullable|string|max:5000',
-        ]);
-
-        // Convert milestones array to JSON string for storage
-        if (isset($validated['milestones'])) {
-            $validated['milestones'] = json_encode(array_filter($validated['milestones'], fn ($m) => ! empty($m['title'])));
-        }
-
-        // Auto-set completion date when status becomes completed
-        if ($validated['status'] === 'completed' && empty($validated['actual_completion_date'])) {
-            $validated['actual_completion_date'] = now()->toDateString();
-            $validated['progress_percentage'] = 100;
-        }
-
-        $original = $treatment->getAttributes();
-
-        $treatment->update(array_merge(
-            $this->retainedAttributes($validated),
-            $this->canonicalAttributes($validated),
-            ['updated_by' => auth()->id()]
-        ));
+        $this->plans->update($treatment, $request->validated(), $request->user()?->id);
 
         $this->saveConfiguredAttributes($request, $treatment);
-
-        // Audit trail
-        \App\Services\AuditTrailService::recordChanges($treatment, $original);
-
-        if (($original['status'] ?? null) !== 'completed' && $treatment->status === 'completed' && $treatment->risk) {
-            \App\Events\TreatmentCompleted::dispatch($treatment, $treatment->risk);
-        }
 
         return redirect()->route('risk.treatments.show', $treatment)
             ->with('success', "Treatment plan {$treatment->treatment_code} has been updated.");
     }
 
-    /**
-     * Delete the specified treatment plan.
-     */
     public function destroy(TreatmentPlan $treatment)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($treatment->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this treatment plan.');
-        }
-
-        // WP-00 node scoping, inherited from the risk — see EnforcesNodeScope.
-        $this->abortUnlessNodeVisibleThrough($treatment, 'risk');
+        Gate::authorize('delete', $treatment);
 
         $code = $treatment->treatment_code;
-        $riskId = $treatment->risk_id;
 
-        DB::transaction(function () use ($treatment, $orgId, $code) {
-            RiskAuditTrail::create([
-                'organization_id' => $orgId,
-                'entity_type' => $treatment->getMorphClass(),
-                'entity_id' => $treatment->id,
-                'action_type' => 'deleted',
-                'changed_by' => auth()->id(),
-                'changed_at' => now(),
-                'change_reason' => "Treatment plan {$code} deleted",
-                'ip_address' => request()->ip(),
-            ]);
-
-            $treatment->delete();
-        });
+        $this->plans->destroy($treatment);
 
         return redirect()->route('risk.treatments.index')
             ->with('success', "Treatment plan {$code} has been deleted.");
     }
 
-    /**
-     * Approve a treatment plan.
-     */
-    public function approve(Request $request, TreatmentPlan $treatment, ModuleApprovals $approvals)
-    {
-        abort_unless(auth()->user()->can('approve-treatment-plan', $treatment), 403,
-            'Only users with risk-manager or CRO role can approve treatment plans.');
+    /* ------------------------------------------------------------------ */
+    /*  Approval lifecycle */
+    /* ------------------------------------------------------------------ */
 
+    /**
+     * The lifecycle guards below answer a wrong status with a flash message
+     * rather than a 403, exactly as they did: the policy decides WHO may act,
+     * the status decides WHETHER there is anything to act on, and conflating
+     * them would turn "this plan is not pending review" into "you may not
+     * review plans".
+     */
+    public function approve(ApproveTreatmentPlanRequest $request, TreatmentPlan $treatment)
+    {
         if ($treatment->status !== 'pending_review') {
             return back()->with('error', 'Only plans pending review can be approved.');
         }
 
-        $validated = $request->validate([
-            'comments' => 'nullable|string|max:1000',
-        ]);
+        $final = $this->plans->approve($treatment, $request->user(), $request->validated('comments'));
 
-        // WP-06. Where the tenant has published the definition, this may not be
-        // the final approval — a plan over the cost threshold goes on to the
-        // CRO — so the message says what actually happened rather than assuming.
-        if ($approvals->decide($treatment, 'approve', $request->user(), $validated)) {
-            return back()->with('success', $treatment->fresh()->status === 'approved'
-                ? 'Treatment plan approved.'
-                : 'Recorded. The plan has moved to the next approval step.');
-        }
-
-        $approvals->decideDirectly($treatment, 'approve', $request->user(), $validated['comments'] ?? null);
-
-        return back()->with('success', 'Treatment plan approved.');
+        return back()->with('success', $final
+            ? 'Treatment plan approved.'
+            : 'Recorded. The plan has moved to the next approval step.');
     }
 
-    /**
-     * Reject a treatment plan with a required reason.
-     */
-    public function reject(Request $request, TreatmentPlan $treatment, ModuleApprovals $approvals)
+    public function reject(RejectTreatmentPlanRequest $request, TreatmentPlan $treatment)
     {
-        abort_unless(auth()->user()->can('approve-treatment-plan', $treatment), 403,
-            'Only users with risk-manager or CRO role can reject treatment plans.');
-
         if ($treatment->status !== 'pending_review') {
             return back()->with('error', 'Only plans pending review can be rejected.');
         }
 
-        $validated = $request->validate([
-            'rejection_reason' => 'required|string|max:2000',
-        ]);
-
-        $decided = $approvals->decide($treatment, 'reject', $request->user(), [
-            'comments' => $validated['rejection_reason'],
-        ]);
-
-        if (! $decided) {
-            $approvals->decideDirectly($treatment, 'reject', $request->user(), $validated['rejection_reason']);
-        }
+        $this->plans->reject($treatment, $request->user(), $request->validated('rejection_reason'));
 
         return back()->with('success', 'Treatment plan rejected. The plan owner has been notified.');
     }
 
-    /**
-     * Owner submits a draft plan for review.
-     */
-    public function submitForReview(TreatmentPlan $treatment, ModuleApprovals $approvals)
+    public function submitForReview(Request $request, TreatmentPlan $treatment)
     {
-        $orgId = TenantContext::organizationId();
-        if ($treatment->organization_id !== $orgId) {
-            abort(403);
-        }
+        Gate::authorize('submit', $treatment);
 
-        if (! in_array($treatment->status, ['draft', 'rejected', 'not_started'])) {
+        if (! in_array($treatment->status, ['draft', 'rejected', 'not_started'], true)) {
             return back()->with('error', 'This plan is not in a state that can be submitted for review.');
         }
 
-        // WP-06. The engine raises the task against the approver role and
-        // notifies its holders; the loop below is what happens for a tenant
-        // that has not published the definition yet.
-        if (! $approvals->submit('treatment_plan_approval', $treatment, [], auth()->user())) {
-            $approvals->markSubmitted($treatment);
-
-            $approvers = User::role(['risk-manager', 'chief-risk-officer'])
-                ->where('organization_id', $orgId)
-                ->get();
-
-            foreach ($approvers as $approver) {
-                \App\Services\NotificationService::send(
-                    $orgId,
-                    $approver->id,
-                    'approval_request',
-                    "Treatment plan awaiting review: {$treatment->action_title}",
-                    "Treatment plan #{$treatment->id} ({$treatment->treatment_code}) has been submitted for review.",
-                    ['entity_type' => $treatment->getMorphClass(), 'entity_id' => $treatment->id]
-                );
-            }
-        }
+        $this->plans->submitForReview($treatment, $request->user());
 
         return back()->with('success', 'Plan submitted for review.');
     }
 
-    /**
-     * Owner resubmits a rejected plan after rework.
-     */
     public function resubmit(TreatmentPlan $treatment)
     {
-        abort_unless(auth()->user()->can('resubmit-treatment-plan', $treatment), 403,
-            'Only the plan owner or creator can resubmit.');
+        Gate::authorize('resubmit', $treatment);
 
         if ($treatment->status !== 'rejected') {
             return back()->with('error', 'Only rejected plans can be resubmitted.');
         }
 
-        $treatment->update([
-            'status' => 'draft',
-            'rejection_reason' => null,
-        ]);
+        $this->plans->returnToDraft($treatment);
 
         return back()->with('success', 'Plan returned to draft. Edit it and submit again for review.');
     }
 
-    /**
-     * Add a comment to a treatment plan.
-     */
-    public function comment(Request $request, TreatmentPlan $treatment)
+    public function comment(StoreTreatmentCommentRequest $request, TreatmentPlan $treatment)
     {
-        $orgId = TenantContext::organizationId();
-        if ($treatment->organization_id !== $orgId) {
-            abort(403);
-        }
-
-        RiskAuditTrail::create([
-            'organization_id' => $orgId,
-            'entity_type' => $treatment->getMorphClass(),
-            'entity_id' => $treatment->id,
-            'action_type' => 'commented',
-            'changed_by' => auth()->id(),
-            'changed_at' => now(),
-            'change_reason' => $request->input('comment', 'Comment added'),
-            'ip_address' => request()->ip(),
-        ]);
+        $this->plans->comment($treatment, $request->validated('comment'));
 
         return back()->with('success', 'Comment added.');
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Presentation */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * One plan as a table row.
+     *
+     * @return array<string, mixed>
+     */
+    private function row(TreatmentPlan $plan): array
+    {
+        return [
+            'id' => $plan->id,
+            'code' => $plan->treatment_code,
+            'title' => $plan->title,
+            'strategy' => $plan->strategy,
+            'priority' => $plan->priority,
+            'status' => $plan->status,
+            'progress' => $plan->progress,
+            'owner' => $plan->owner?->name,
+            'riskCode' => $plan->risk?->risk_code,
+            'targetDate' => $plan->target_date?->format('d M Y'),
+            'url' => route('risk.treatments.show', $plan),
+        ];
+    }
+
+    /**
+     * The show page's plan.
+     *
+     * `daysRemaining` is a signed whole number of days, negative when the
+     * target has passed — the page words it. Carbon 3's diffInDays returns a
+     * signed float, so it is floored here rather than in three places there.
+     *
+     * @return array<string, mixed>
+     */
+    private function detail(TreatmentPlan $plan): array
+    {
+        $target = $plan->target_date;
+
+        return $this->row($plan) + [
+            'description' => $plan->description,
+            'progressNotes' => $plan->progress_notes,
+            'budget' => (float) ($plan->cost_estimate_ngn ?? 0),
+            'actualSpend' => (float) ($plan->actual_cost_ngn ?? 0),
+            'daysRemaining' => $target
+                ? (int) floor(now()->startOfDay()->diffInDays($target->copy()->startOfDay(), false))
+                : null,
+            'completionDate' => $plan->completion_date?->format('d M Y'),
+            'createdAt' => $plan->created_at?->format('M d, Y'),
+            'rejectionReason' => $plan->rejection_reason,
+            'dependencies' => $plan->dependencies,
+            'successCriteria' => $plan->success_criteria,
+            'milestones' => $this->milestones($plan),
+            'residual' => $plan->expected_residual_likelihood && $plan->expected_residual_impact
+                ? $this->residualRating((int) $plan->expected_residual_likelihood * (int) $plan->expected_residual_impact)
+                : null,
+            'risk' => $plan->risk ? [
+                'code' => $plan->risk->risk_code,
+                'title' => $plan->risk->title,
+                'rating' => $plan->risk->residual_rating,
+                'status' => $plan->risk->status,
+                'url' => route('risk.register.show', $plan->risk),
+            ] : null,
+        ];
+    }
+
+    /**
+     * Milestones are stored as a JSON string and were read back three
+     * different ways across the two views. One way here.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function milestones(TreatmentPlan $plan): array
+    {
+        $milestones = $plan->milestones;
+
+        if (is_string($milestones)) {
+            $milestones = json_decode($milestones, true) ?: [];
+        }
+
+        if (! is_array($milestones)) {
+            return [];
+        }
+
+        return array_values(array_map(fn ($milestone) => is_array($milestone) ? [
+            'title' => $milestone['title'] ?? $milestone['name'] ?? '',
+            'due_date' => $milestone['due_date'] ?? null,
+            'responsible' => $milestone['responsible'] ?? null,
+            'completed' => (bool) ($milestone['completed'] ?? false),
+        ] : [
+            'title' => (string) $milestone,
+            'due_date' => null,
+            'responsible' => null,
+            'completed' => false,
+        ], $milestones));
+    }
+
+    /** The 5x5 bands the show sidebar labelled the expected residual with. */
+    private function residualRating(int $score): string
+    {
+        return match (true) {
+            $score >= 20 => 'critical',
+            $score >= 12 => 'high',
+            $score >= 5 => 'medium',
+            default => 'low',
+        };
     }
 }

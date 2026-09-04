@@ -45,32 +45,38 @@ class WorkflowInstance extends Model
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function definition()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\WorkflowDefinition, $this> */
+    public function definition(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(WorkflowDefinition::class, 'definition_id');
     }
 
-    public function initiator()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, $this> */
+    public function initiator(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'initiated_by');
     }
 
-    public function canceller()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, $this> */
+    public function canceller(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');
     }
 
-    public function actions()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\WorkflowAction, $this> */
+    public function actions(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(WorkflowAction::class, 'instance_id')->orderBy('acted_at');
     }
 
-    public function tasks()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\WorkflowTask, $this> */
+    public function tasks(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(WorkflowTask::class, 'instance_id')->orderBy('id');
     }
 
-    public function openTasks()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\WorkflowTask, $this> */
+    public function openTasks(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->tasks()->whereIn('status', WorkflowTaskStatus::openValues());
     }

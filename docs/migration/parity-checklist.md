@@ -44,7 +44,7 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.analysis.heatmap` | `risk/analysis/heatmap` | `analysis.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.analysis.trends` | `risk/analysis/trends` | `analysis.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.appetite.index` | `risk/appetite` | `appetite.view` | risk/appetite/index.blade.php (deleted) | Pages/Appetite/Index.jsx | Appetite/{StoreRiskAppetiteRequest,UpdateRiskAppetiteRequest} | RiskAppetitePolicy |  | appetite_position (chartConfigs) | risk.export.appetite (unchanged) | Appetite/AppetitePageTest, Characterisation/AppetitePositionTest | 2026-09-03 (Phase 3) |  |
-| `risk.approvals.dashboard` | `risk/approvals` | `approval.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.approvals.dashboard` | `risk/approvals` | `approval.view` | risk/approvals/dashboard.blade.php (deleted) | Pages/Approvals/Dashboard.jsx | Approvals/{ApproveRequest,RejectRequest} | ApprovalRequestPolicy |  |  |  | Workflow/WorkflowPagesTest | 2026-09-03 (Phase 3) |  |
 | `risk.approvals.history` | `risk/approvals/history` | `approval.view` | risk/approvals/history.blade.php (deleted) | Pages/Approvals/History.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.assessments.create` | `risk/assessments/create` | `assessment.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.assessments.edit` | `risk/assessments/{assessment}/edit` | `assessment.create` |  |  |  |  |  |  |  |  |  |  |
@@ -119,8 +119,8 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.loss-events.reports` | `risk/loss-events/reports` | `loss_event.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.loss-events.show` | `risk/loss-events/{loss_event}` | `loss_event.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.loss-events.show-rca` | `risk/loss-events/{lossEvent}/rca` | `loss_event.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.my-tasks.index` | `risk/my-tasks` | `task.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.my-tasks.show` | `risk/my-tasks/{task}` | `task.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.my-tasks.index` | `risk/my-tasks` | `task.view` | risk/my-tasks/index.blade.php (deleted) | Pages/MyTasks/Index.jsx | Workflow/{ActOnTaskRequest,DelegateTaskRequest,ReturnTaskRequest} | WorkflowTaskPolicy |  |  |  | Workflow/WorkflowPagesTest, Workflow/MyTasksTest | 2026-09-03 (Phase 3) |  |
+| `risk.my-tasks.show` | `risk/my-tasks/{task}` | `task.view` | risk/my-tasks/show.blade.php (deleted) | Pages/MyTasks/Show.jsx | Workflow/{ActOnTaskRequest,DelegateTaskRequest,ReturnTaskRequest} | WorkflowTaskPolicy |  |  |  | Workflow/WorkflowPagesTest, Workflow/MyTasksTest | 2026-09-03 (Phase 3) |  |
 | `risk.periods.index` | `risk/periods` | `period.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.periods.select` | `risk/periods/select` | `dashboard.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.quantification.create-scenario` | `risk/quantification/scenarios/create` | `quantification.create` |  |  |  |  |  |  |  |  |  |  |
@@ -183,10 +183,10 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.treatments.review` | `risk/treatments/review` | `treatment.approve` |  |  |  |  |  |  |  |  |  |  |
 | `risk.treatments.show` | `risk/treatments/{treatment}` | `treatment.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.workflows.create-definition` | `risk/workflows/definitions/create` | `workflow.manage` |  |  |  |  |  |  |  |  |  |  |
-| `risk.workflows.dashboard` | `risk/workflows/dashboard` | `workflow.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.workflows.definitions` | `risk/workflows/definitions` | `workflow.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.workflows.dashboard` | `risk/workflows/dashboard` | `workflow.view` | risk/workflows/dashboard.blade.php (deleted) | Pages/Workflows/Dashboard.jsx |  | WorkflowInstancePolicy |  |  |  | Workflow/WorkflowPagesTest, Workflow/WorkflowScreensTest, Characterisation/WorkflowDashboardStatsTest | 2026-09-03 (Phase 3) |  |
+| `risk.workflows.definitions` | `risk/workflows/definitions` | `workflow.view` | risk/workflows/definitions.blade.php (deleted) | Pages/Workflows/Definitions.jsx | Workflow/{StartWorkflowRequest,StoreWorkflowDefinitionRequest} | WorkflowDefinitionPolicy |  |  |  | Workflow/WorkflowPagesTest, Workflow/WorkflowScreensTest | 2026-09-03 (Phase 3) |  |
 | `risk.workflows.edit-definition` | `risk/workflows/definitions/{definition}/design` | `workflow.manage` |  |  |  |  |  |  |  |  |  |  |
-| `risk.workflows.show-instance` | `risk/workflows/{instance}` | `workflow.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.workflows.show-instance` | `risk/workflows/{instance}` | `workflow.view` | risk/workflows/show-instance.blade.php (deleted) | Pages/Workflows/ShowInstance.jsx | Workflow/ActOnInstanceRequest | WorkflowInstancePolicy |  |  |  | Workflow/WorkflowPagesTest, Workflow/WorkflowScreensTest | 2026-09-03 (Phase 3) |  |
 | `search.index` | `search` | `search.view` | search/index.blade.php (deleted) | Pages/Search/Index.jsx |  |  |  |  |  | Inertia/AuthPagesTest, Widgets/HqSurfacesTest | 2026-09-03 (Phase 1) |  |
 | `search.suggest` | `search/suggest` | `search.view` |  |  |  |  |  |  |  |  |  |  |
 | `sso.callback` | `auth/sso/{slug}/callback` | `` |  |  |  |  |  |  |  |  |  |  |

@@ -40,32 +40,38 @@ class WorkflowTask extends Model
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function instance()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\WorkflowInstance, $this> */
+    public function instance(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(WorkflowInstance::class, 'instance_id');
     }
 
-    public function assignee()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, $this> */
+    public function assignee(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'assignee_id');
     }
 
-    public function delegatedFrom()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, $this> */
+    public function delegatedFrom(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'delegated_from');
     }
 
-    public function delegatedTo()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, $this> */
+    public function delegatedTo(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'delegated_to');
     }
 
-    public function completedBy()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, $this> */
+    public function completedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'completed_by');
     }
 
-    public function actions()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\WorkflowAction, $this> */
+    public function actions(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(WorkflowAction::class, 'task_id')->orderBy('acted_at');
     }

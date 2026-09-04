@@ -2,78 +2,91 @@
 
 namespace App\Http\Controllers\Risk;
 
-use App\Enums\WorkflowInstanceStatus;
-use App\Enums\WorkflowTaskStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Workflow\ActOnInstanceRequest;
+use App\Http\Requests\Workflow\StartWorkflowRequest;
+use App\Http\Requests\Workflow\StoreWorkflowDefinitionRequest;
+use App\Models\User;
+use App\Models\WorkflowAction;
 use App\Models\WorkflowDefinition;
 use App\Models\WorkflowInstance;
-use App\Services\Workflow\SubjectRegistry;
-use App\Services\Workflow\TaskQueryService;
+use App\Models\WorkflowTask;
+use App\Presenters\WorkflowPresenter;
+use App\Services\Workflow\StartableSubjects;
+use App\Services\Workflow\WorkflowDashboardService;
 use App\Services\Workflow\WorkflowEngine;
 use App\Services\Workflow\WorkflowPublisher;
 use App\Support\MorphTypes;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
 use RuntimeException;
 
+/**
+ * Workflow dashboard, definitions and instances (migration Phase 3.7).
+ * The designer (createDefinition / editDefinition) stays a Livewire screen
+ * until Phase 6.
+ */
 class WorkflowController extends Controller
 {
     public function __construct(
-        private WorkflowEngine $engine,
-        private WorkflowPublisher $publisher,
-        private TaskQueryService $tasks,
-        private SubjectRegistry $subjects,
+        private readonly WorkflowEngine $engine,
+        private readonly WorkflowPublisher $publisher,
+        private readonly WorkflowDashboardService $dashboard,
+        private readonly StartableSubjects $startable,
+        private readonly WorkflowPresenter $presenter,
     ) {}
 
-    public function dashboard()
+    public function dashboard(Request $request)
     {
-        $orgId = TenantContext::organizationId();
+        Gate::authorize('viewAny', WorkflowInstance::class);
 
-        $openTasks = \App\Models\WorkflowTask::where('organization_id', $orgId)->open();
+        $organizationId = (int) TenantContext::organizationId();
 
-        return view('risk.workflows.dashboard', [
-            'activeWorkflows' => WorkflowInstance::where('organization_id', $orgId)->open()->count(),
-            'completedToday' => WorkflowInstance::where('organization_id', $orgId)
-                ->where('status', WorkflowInstanceStatus::Completed->value)
-                ->whereDate('completed_at', today())
-                ->count(),
-            // What was "how many instances sit on a stage whose approver_role
-            // matches one of mine", computed by loading every open instance
-            // into PHP. It is now an index lookup on workflow_tasks.
-            'pendingMyAction' => $this->tasks->countsFor(auth()->user())['open'],
-            'overdueTasks' => (clone $openTasks)->overdue()->count(),
-            'escalatedTasks' => (clone $openTasks)->where('status', WorkflowTaskStatus::Escalated->value)->count(),
-            'totalDefinitions' => WorkflowDefinition::where('organization_id', $orgId)->published()->count(),
-            'recentInstances' => WorkflowInstance::where('organization_id', $orgId)
-                ->with(['definition', 'initiator', 'tasks.assignee'])
-                ->latest()
-                ->take(15)
-                ->get(),
-            'workload' => $this->tasks->workloadFor($orgId),
+        return Inertia::render('Workflows/Dashboard', [
+            'stats' => $this->dashboard->stats($organizationId, $request->user()),
+            'recentInstances' => $this->dashboard->recentInstances($organizationId)
+                ->map(fn (WorkflowInstance $i) => $this->presenter->recentInstance($i))
+                ->values()
+                ->all(),
+            'workload' => $this->dashboard->workload($organizationId),
+            'urls' => [
+                'myTasks' => route('risk.my-tasks.index'),
+                'newDefinition' => route('risk.workflows.create-definition'),
+            ],
         ]);
     }
 
     public function definitions()
     {
-        $orgId = TenantContext::organizationId();
+        Gate::authorize('viewAny', WorkflowDefinition::class);
 
-        $definitions = WorkflowDefinition::where('organization_id', $orgId)
+        $organizationId = (int) TenantContext::organizationId();
+        $startOptions = $this->startable->options($organizationId);
+
+        $definitions = WorkflowDefinition::query()
+            ->where('organization_id', $organizationId)
             ->with('creator', 'publisher')
             ->orderBy('code')
             ->orderByDesc('version')
             ->paginate(25);
 
-        return view('risk.workflows.definitions', [
-            'definitions' => $definitions,
-            'entityOptions' => $this->startableSubjects($orgId),
-            'subjectTypes' => $this->subjects->boundTypes(),
+        return Inertia::render('Workflows/Definitions', [
+            'definitions' => $this->presenter->paginate($definitions, fn (WorkflowDefinition $d) => $this->presenter->definitionRow($d, $startOptions)),
+            'canManage' => Gate::allows('create', WorkflowDefinition::class),
+            'urls' => [
+                'newDefinition' => route('risk.workflows.create-definition'),
+                'start' => route('risk.workflows.start'),
+            ],
         ]);
     }
 
     /**
      * The designer. The old create-definition form built a linear stage list;
      * the graph designer replaces it, and the route name is kept so existing
-     * links do not break.
+     * links do not break. Livewire until Phase 6.
      */
     public function createDefinition(Request $request)
     {
@@ -84,7 +97,7 @@ class WorkflowController extends Controller
 
     public function editDefinition(WorkflowDefinition $definition)
     {
-        abort_unless($definition->organization_id === TenantContext::organizationId(), 403);
+        Gate::authorize('update', $definition);
 
         // A published version is immutable; editing it opens a draft of the
         // next version so running instances keep the graph they started on.
@@ -99,20 +112,9 @@ class WorkflowController extends Controller
      * Kept for the legacy linear form and for API-shaped posts. The designer
      * saves through Livewire rather than here.
      */
-    public function storeDefinition(Request $request)
+    public function storeDefinition(StoreWorkflowDefinitionRequest $request)
     {
-        $validated = $request->validate([
-            'code' => 'required|string|max:80|regex:/^[a-z0-9_]+$/',
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:2000',
-            'entity_type' => 'required|string|max:50',
-            'definition' => 'required|array',
-            'definition.nodes' => 'required|array|min:1',
-            'definition.edges' => 'nullable|array',
-            'escalation_rules' => 'nullable|array',
-        ]);
-
-        $definition = $this->publisher->saveDraft(null, $validated, $request->user());
+        $definition = $this->publisher->saveDraft(null, $request->validated(), $request->user());
 
         return redirect()
             ->route('risk.workflows.edit-definition', $definition)
@@ -121,7 +123,7 @@ class WorkflowController extends Controller
 
     public function publishDefinition(WorkflowDefinition $definition)
     {
-        abort_unless($definition->organization_id === TenantContext::organizationId(), 403);
+        Gate::authorize('publish', $definition);
 
         try {
             $this->publisher->publish($definition, auth()->user());
@@ -135,24 +137,20 @@ class WorkflowController extends Controller
 
     public function unpublishDefinition(WorkflowDefinition $definition)
     {
-        abort_unless($definition->organization_id === TenantContext::organizationId(), 403);
+        Gate::authorize('publish', $definition);
 
         $this->publisher->unpublish($definition);
 
         return back()->with('success', 'Unpublished. No new instances will start on this version.');
     }
 
-    public function startWorkflow(Request $request)
+    public function startWorkflow(StartWorkflowRequest $request)
     {
-        $validated = $request->validate([
-            'definition_id' => 'required|exists:workflow_definitions,id',
-            'entity_type' => 'required|string',
-            'entity_id' => 'required|integer',
-        ]);
+        $validated = $request->validated();
 
-        $definition = WorkflowDefinition::findOrFail($validated['definition_id']);
+        $definition = WorkflowDefinition::query()->findOrFail($validated['definition_id']);
 
-        abort_unless($definition->organization_id === TenantContext::organizationId(), 403);
+        Gate::authorize('start', $definition);
 
         $entityType = MorphTypes::normalise($validated['entity_type']);
 
@@ -162,8 +160,8 @@ class WorkflowController extends Controller
             return back()->with('error', "That workflow runs over {$definition->entity_type} records, not {$entityType}.");
         }
 
-        $class = \Illuminate\Database\Eloquent\Relations\Relation::getMorphedModel($entityType);
-        $subject = $class::findOrFail($validated['entity_id']);
+        $class = Relation::getMorphedModel($entityType);
+        $subject = $class::query()->findOrFail($validated['entity_id']);
 
         if ($this->engine->openInstanceFor($subject) !== null) {
             return back()->with('error', 'That record already has a workflow running. Finish or cancel it first.');
@@ -185,21 +183,12 @@ class WorkflowController extends Controller
      * previous version of this method wrote a workflow_actions row for
      * delegate, escalate and return, and changed nothing.
      */
-    public function actOnWorkflow(Request $request, WorkflowInstance $instance)
+    public function actOnWorkflow(ActOnInstanceRequest $request, WorkflowInstance $instance)
     {
-        abort_unless($instance->organization_id === TenantContext::organizationId(), 403);
-
-        $validated = $request->validate([
-            'action' => 'required|in:approve,reject,delegate,escalate,comment,return,cancel',
-            'comments' => 'nullable|string|max:3000',
-            'delegated_to' => 'nullable|integer|exists:users,id',
-            'to_node' => 'nullable|string|max:80',
-        ]);
-
+        $validated = $request->validated();
         $user = $request->user();
 
         if ($validated['action'] === 'cancel') {
-            abort_unless($user->can('workflow.manage'), 403);
             $this->engine->cancel($instance, $validated['comments'] ?? null, $user);
 
             return back()->with('success', 'Workflow cancelled.');
@@ -215,8 +204,7 @@ class WorkflowController extends Controller
             match ($validated['action']) {
                 'delegate' => $this->engine->delegate(
                     $task,
-                    \App\Models\User::where('organization_id', $instance->organization_id)
-                        ->findOrFail($validated['delegated_to'] ?? 0),
+                    User::query()->where('organization_id', $instance->organization_id)->findOrFail($validated['delegated_to'] ?? 0),
                     $validated['comments'] ?? null,
                     $user,
                 ),
@@ -232,18 +220,23 @@ class WorkflowController extends Controller
         return back()->with('success', 'Workflow action recorded.');
     }
 
-    public function showInstance(WorkflowInstance $instance)
+    public function showInstance(Request $request, WorkflowInstance $instance)
     {
-        abort_unless($instance->organization_id === TenantContext::organizationId(), 403);
+        Gate::authorize('view', $instance);
 
         $instance->load(['definition', 'initiator', 'actions.actor', 'tasks.assignee', 'tasks.delegatedFrom']);
 
-        return view('risk.workflows.show-instance', [
-            'instance' => $instance,
-            'graph' => $instance->definitionSnapshot(),
-            'subject' => $instance->entity()->withoutGlobalScopes()->first(),
-            'actionableTasks' => $instance->openTasks()->get()
-                ->filter(fn ($task) => $this->engine->canAct($task, auth()->user())),
+        $user = $request->user();
+        $actionable = $instance->openTasks()->get()->filter(fn ($task) => $this->engine->canAct($task, $user));
+
+        return Inertia::render('Workflows/ShowInstance', [
+            'instance' => $this->presenter->instanceSummary($instance, $instance->entity()->withoutGlobalScopes()->first()),
+            'steps' => $this->presenter->graphSteps($instance),
+            'history' => $instance->actions->map(fn ($a) => $this->presenter->action($a))->values()->all(),
+            'actionable' => $actionable->map(fn (WorkflowTask $t) => $t->node_name ?? $t->node_code)->values()->all(),
+            'canAct' => $actionable->isNotEmpty() && Gate::allows('act', $instance),
+            'canCancel' => $instance->isOpen() && Gate::allows('cancel', $instance),
+            'urls' => ['act' => route('risk.workflows.act', $instance)],
         ]);
     }
 
@@ -251,9 +244,9 @@ class WorkflowController extends Controller
      * A comment leaves the task where it is — the one action that is meant to
      * change nothing but the record.
      */
-    private function comment(\App\Models\WorkflowTask $task, ?string $comments, \App\Models\User $user): void
+    private function comment(WorkflowTask $task, ?string $comments, User $user): void
     {
-        \App\Models\WorkflowAction::create([
+        WorkflowAction::create([
             'instance_id' => $task->instance_id,
             'task_id' => $task->id,
             'stage' => $task->instance?->current_stage,
@@ -264,39 +257,5 @@ class WorkflowController extends Controller
             'comments' => $comments,
             'acted_at' => now(),
         ]);
-    }
-
-    /**
-     * Records a workflow can be started over, per bound subject type.
-     *
-     * @return array<string, array{label:string, items:\Illuminate\Support\Collection}>
-     */
-    private function startableSubjects(int $orgId): array
-    {
-        $options = [];
-
-        $sources = [
-            'issue' => [\App\Models\Issue::class, fn ($i) => ($i->issue_reference ?? "ISS-{$i->id}").' — '.($i->title ?? '')],
-            'loss_event' => [\App\Models\LossEvent::class, fn ($e) => ($e->event_reference ?? "LE-{$e->id}").' — '.($e->title ?? '')],
-            'risk_assessment' => [\App\Models\RiskAssessment::class, fn ($a) => 'ASS-'.str_pad((string) $a->id, 4, '0', STR_PAD_LEFT)],
-            'treatment_plan' => [\App\Models\TreatmentPlan::class, fn ($t) => ($t->treatment_code ?? "TP-{$t->id}").' — '.($t->action_title ?? '')],
-            'control_test' => [\App\Models\ControlTest::class, fn ($t) => ($t->test_code ?? "CT-{$t->id}")],
-            'risk' => [\App\Models\Risk::class, fn ($r) => ($r->risk_code ?? "RSK-{$r->id}").' — '.($r->title ?? '')],
-            'risk_appetite' => [\App\Models\RiskAppetite::class, fn ($a) => 'Appetite #'.$a->id.' — '.($a->appetite_level ?? '')],
-            'icaap_assessment' => [\App\Models\IcaapAssessment::class, fn ($i) => 'ICAAP '.($i->period ?? '#'.$i->id)],
-        ];
-
-        foreach ($sources as $alias => [$class, $label]) {
-            $options[$alias] = [
-                'class' => $class,
-                'items' => $class::where('organization_id', $orgId)
-                    ->orderByDesc('id')
-                    ->limit(100)
-                    ->get()
-                    ->map(fn ($model) => ['id' => $model->id, 'label' => trim($label($model))]),
-            ];
-        }
-
-        return $options;
     }
 }

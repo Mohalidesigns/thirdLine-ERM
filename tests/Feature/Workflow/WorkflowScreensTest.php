@@ -53,11 +53,15 @@ class WorkflowScreensTest extends TestCase
         $this->actingAs($this->actor)
             ->get(route('risk.workflows.dashboard'))
             ->assertOk()
-            ->assertSee('Linear review')
-            ->assertSee('Overdue Tasks')
-            // The waiting-on column names the role the step was offered to,
-            // which the old "3 of 5" stage counter could not express.
-            ->assertSee('any risk-manager');
+            // Migration Phase 3.7: the page is an Inertia component; the same
+            // facts are read from its props. The waiting-on column names the
+            // role the step was offered to, which the old "3 of 5" stage
+            // counter could not express.
+            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+                ->component('Workflows/Dashboard')
+                ->where('recentInstances.0.name', 'Linear review')
+                ->has('stats.overdue')
+                ->where('recentInstances.0.waiting_on.0.who', 'any risk-manager'));
     }
 
     #[Test]
@@ -68,9 +72,11 @@ class WorkflowScreensTest extends TestCase
         $this->actingAs($this->actor)
             ->get(route('risk.workflows.definitions'))
             ->assertOk()
-            ->assertSee('Loss event approval')
-            ->assertSee('shipped')
-            ->assertSee('Published');
+            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+                ->component('Workflows/Definitions')
+                ->where('definitions.data', fn ($rows) => collect($rows)->contains(
+                    fn ($row) => $row['name'] === 'Loss event approval' && $row['is_system'] === true && $row['is_published'] === true
+                )));
     }
 
     #[Test]
@@ -81,9 +87,13 @@ class WorkflowScreensTest extends TestCase
         $this->actingAs($this->riskManager)
             ->get(route('risk.workflows.show-instance', $instance))
             ->assertOk()
-            ->assertSee('Review')
-            ->assertSee('offered to risk-manager')
-            ->assertSee('Return for rework');
+            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+                ->component('Workflows/ShowInstance')
+                ->where('steps', fn ($steps) => collect($steps)->contains(
+                    fn ($s) => $s['name'] === 'Review' && ($s['task']['who'] ?? null) === 'offered to risk-manager'
+                ))
+                // The action block (Approve / Reject / Return for rework) renders when canAct is true.
+                ->where('canAct', true));
     }
 
     #[Test]
@@ -106,7 +116,10 @@ class WorkflowScreensTest extends TestCase
         $this->actingAs($cro)
             ->get(route('risk.workflows.show-instance', $instance))
             ->assertOk()
-            ->assertSee('no open step here that you can act on');
+            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+                ->where('instance.open', true)
+                ->where('canAct', false)
+                ->where('actionable', []));
     }
 
     #[Test]

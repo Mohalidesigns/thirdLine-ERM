@@ -97,7 +97,8 @@ class MyTasksTest extends TestCase
         $this->actingAs($this->riskManager)
             ->get(route('risk.my-tasks.index'))
             ->assertOk()
-            ->assertSee('Review');
+            // Migration Phase 3.7: the queue is an Inertia prop.
+            ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->where('tasks.data.0.name', 'Review'));
     }
 
     #[Test]

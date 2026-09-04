@@ -64,6 +64,13 @@ final class Ported
         'risk.scoping.create',
         'risk.scoping.show',
         'risk.scoping.edit',
+        // Phase 3 — workflow
+        'risk.approvals.dashboard',
+        'risk.my-tasks.index',
+        'risk.my-tasks.show',
+        'risk.workflows.dashboard',
+        'risk.workflows.definitions',
+        'risk.workflows.show-instance',
     ];
 
     public static function isRoute(string $name): bool

@@ -3,12 +3,18 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Workflow\ActOnTaskRequest;
+use App\Http\Requests\Workflow\DelegateTaskRequest;
+use App\Http\Requests\Workflow\ReturnTaskRequest;
 use App\Models\User;
 use App\Models\WorkflowTask;
+use App\Presenters\WorkflowPresenter;
 use App\Services\Workflow\TaskQueryService;
+use App\Services\Workflow\TaskSubjectResolver;
 use App\Services\Workflow\WorkflowEngine;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
 use RuntimeException;
 
 /**
@@ -16,17 +22,22 @@ use RuntimeException;
  *
  * One queue for every decision a person owes, whatever module it came from.
  * Deciding here does exactly what deciding on the module's own screen does,
- * because both call the same engine.
+ * because both call the same engine. Migration Phase 3.7: Inertia pages,
+ * Form Requests, WorkflowTaskPolicy.
  */
 class MyTaskController extends Controller
 {
     public function __construct(
-        private TaskQueryService $tasks,
-        private WorkflowEngine $engine,
+        private readonly TaskQueryService $tasks,
+        private readonly WorkflowEngine $engine,
+        private readonly TaskSubjectResolver $subjects,
+        private readonly WorkflowPresenter $presenter,
     ) {}
 
     public function index(Request $request)
     {
+        Gate::authorize('viewAny', WorkflowTask::class);
+
         $user = $request->user();
 
         $filters = [
@@ -36,42 +47,51 @@ class MyTaskController extends Controller
         ];
 
         $tasks = $this->tasks->paginateFor($user, array_filter($filters), 25);
-        $counts = $this->tasks->countsFor($user);
 
-        // Each task's subject, resolved once here rather than per row in the
-        // view: the alternative is a query per task and a list screen that
-        // slows down as somebody's queue grows.
-        $subjects = $this->resolveSubjects($tasks->getCollection());
+        // Each task's subject, resolved once here rather than per row.
+        $subjects = $this->subjects->resolve($tasks->getCollection());
 
-        return view('risk.my-tasks.index', compact('tasks', 'counts', 'subjects', 'filters'));
+        return Inertia::render('MyTasks/Index', [
+            'tasks' => $this->presenter->paginate($tasks, fn (WorkflowTask $task) => $this->presenter->taskRow($task, $subjects)),
+            'counts' => $this->tasks->countsFor($user),
+            'filters' => $filters,
+        ]);
     }
 
-    public function show(WorkflowTask $task)
+    public function show(Request $request, WorkflowTask $task)
     {
-        $this->authorizeTenant($task);
+        Gate::authorize('view', $task);
 
         $task->load(['instance.definition', 'instance.tasks.assignee', 'instance.actions.actor', 'assignee']);
 
-        return view('risk.my-tasks.show', [
-            'task' => $task,
-            'node' => $task->node(),
-            'subject' => $task->instance?->entity()->withoutGlobalScopes()->first(),
-            'canAct' => $this->engine->canAct($task, auth()->user()),
-            'delegates' => $this->delegateOptions($task),
+        $node = $task->node() ?? [];
+        $subject = $task->instance?->entity()->withoutGlobalScopes()->first();
+        $canAct = $this->engine->canAct($task, $request->user());
+
+        return Inertia::render('MyTasks/Show', [
+            'task' => $this->presenter->taskRow($task, $subject ? [$task->instance?->entity_type.':'.$subject->getKey() => $subject] : []) + [
+                'due_full' => $task->due_at?->format('d M Y H:i'),
+                'instructions' => $node['instructions'] ?? null,
+                'comments_required' => in_array('comments', (array) ($node['required_fields'] ?? []), true),
+                'allow_delegate' => ($node['allow_delegate'] ?? true) !== false,
+                'allow_return' => ($node['allow_return'] ?? true) !== false,
+            ],
+            'canAct' => $canAct,
+            'delegates' => $canAct ? $this->presenter->delegateOptions($task, $request->user()) : [],
+            'steps' => ($task->instance ? $task->instance->tasks : collect())->map(fn (WorkflowTask $t) => $this->presenter->step($t))->values()->all(),
+            'history' => ($task->instance ? $task->instance->actions : collect())->map(fn ($a) => $this->presenter->action($a))->values()->all(),
+            'urls' => [
+                'index' => route('risk.my-tasks.index'),
+                'act' => route('risk.my-tasks.act', $task),
+                'delegate' => route('risk.my-tasks.delegate', $task),
+                'return' => route('risk.my-tasks.return', $task),
+            ],
         ]);
     }
 
-    public function act(Request $request, WorkflowTask $task)
+    public function act(ActOnTaskRequest $request, WorkflowTask $task)
     {
-        $this->authorizeTenant($task);
-
-        $validated = $request->validate([
-            'outcome' => 'required|string|max:30',
-            'comments' => 'nullable|string|max:3000',
-        ]);
-
-        abort_unless($this->engine->canAct($task, $request->user()), 403,
-            'This decision is not yours to make.');
+        $validated = $request->validated();
 
         try {
             $this->engine->advance($task, $validated['outcome'], $validated, $request->user());
@@ -83,20 +103,10 @@ class MyTaskController extends Controller
             ->with('success', 'Recorded: '.$validated['outcome'].'.');
     }
 
-    public function delegate(Request $request, WorkflowTask $task)
+    public function delegate(DelegateTaskRequest $request, WorkflowTask $task)
     {
-        $this->authorizeTenant($task);
-
-        $validated = $request->validate([
-            'delegate_to' => 'required|integer|exists:users,id',
-            'reason' => 'required|string|max:1000',
-        ]);
-
-        abort_unless($this->engine->canAct($task, $request->user()), 403,
-            'This decision is not yours to delegate.');
-
-        $to = User::where('organization_id', TenantContext::organizationId())
-            ->findOrFail($validated['delegate_to']);
+        $validated = $request->validated();
+        $to = User::query()->findOrFail($validated['delegate_to']);
 
         try {
             $this->engine->delegate($task, $to, $validated['reason'], $request->user());
@@ -107,17 +117,9 @@ class MyTaskController extends Controller
         return back()->with('success', 'Delegated to '.$to->name.'. It is now on their list, not yours.');
     }
 
-    public function returnForRework(Request $request, WorkflowTask $task)
+    public function returnForRework(ReturnTaskRequest $request, WorkflowTask $task)
     {
-        $this->authorizeTenant($task);
-
-        $validated = $request->validate([
-            'reason' => 'required|string|max:2000',
-            'to_node' => 'nullable|string|max:80',
-        ]);
-
-        abort_unless($this->engine->canAct($task, $request->user()), 403,
-            'This decision is not yours to return.');
+        $validated = $request->validated();
 
         try {
             $this->engine->returnForRework($task, $validated['to_node'] ?? null, $validated['reason'], $request->user());
@@ -127,50 +129,5 @@ class MyTaskController extends Controller
 
         return redirect()->route('risk.my-tasks.index')
             ->with('success', 'Returned for rework. It is back with the previous step.');
-    }
-
-    private function authorizeTenant(WorkflowTask $task): void
-    {
-        abort_unless($task->organization_id === TenantContext::organizationId(), 403);
-    }
-
-    /**
-     * @param  \Illuminate\Support\Collection<int, WorkflowTask>  $tasks
-     * @return array<string, \Illuminate\Database\Eloquent\Model>
-     */
-    private function resolveSubjects($tasks): array
-    {
-        $subjects = [];
-
-        $tasks->groupBy(fn (WorkflowTask $task) => $task->instance?->entity_type)
-            ->each(function ($group, $entityType) use (&$subjects) {
-                if (blank($entityType)) {
-                    return;
-                }
-
-                $class = \Illuminate\Database\Eloquent\Relations\Relation::getMorphedModel($entityType);
-
-                if ($class === null || ! class_exists($class)) {
-                    return;
-                }
-
-                $ids = $group->map(fn (WorkflowTask $task) => $task->instance?->entity_id)->filter()->unique();
-
-                foreach ($class::query()->whereIn('id', $ids)->get() as $model) {
-                    $subjects[$entityType.':'.$model->getKey()] = $model;
-                }
-            });
-
-        return $subjects;
-    }
-
-    /** @return \Illuminate\Support\Collection<int, User> */
-    private function delegateOptions(WorkflowTask $task)
-    {
-        return User::where('organization_id', $task->organization_id)
-            ->where('is_active', true)
-            ->whereKeyNot(auth()->id())
-            ->orderBy('name')
-            ->get(['id', 'name', 'email']);
     }
 }

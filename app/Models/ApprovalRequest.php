@@ -48,17 +48,20 @@ class ApprovalRequest extends Model
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function organization()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\Organization, $this> */
+    public function organization(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }
 
-    public function requestedBy()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, $this> */
+    public function requestedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'requested_by');
     }
 
-    public function reviewedBy()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, $this> */
+    public function reviewedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
     }

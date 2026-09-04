@@ -57,16 +57,16 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.campaigns.respond` | `risk/campaigns/assignments/{assignment}/respond` | `campaign.respond` |  |  |  |  |  |  |  |  |  |  |
 | `risk.campaigns.show` | `risk/campaigns/{campaign}` | `campaign.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.campaigns.submission` | `risk/campaigns/assignments/{assignment}/submission` | `campaign.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.control-tests.create` | `risk/control-tests/create` | `control_test.create` |  |  |  |  |  |  |  |  |  |  |
-| `risk.control-tests.dashboard` | `risk/control-tests/dashboard` | `control_test.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.control-tests.create` | `risk/control-tests/create` | `control_test.create` | risk/controls/tests/create.blade.php (deleted) | Pages/ControlTests/Create.jsx | StoreControlTestRequest | ControlTestPolicy | n/a | n/a | n/a | Controls/{ControlTestPagesTest,ControlPoliciesTest} | 2026-09-04 (Phase 3.4) |  |
+| `risk.control-tests.dashboard` | `risk/control-tests/dashboard` | `control_test.view` | risk/controls/testing-dashboard.blade.php (deleted) | Pages/ControlTests/Dashboard.jsx | n/a | ControlTestPolicy | n/a | KpiCard row | n/a | Characterisation/ControlTestingDashboardTest, Controls/ControlTestPagesTest | 2026-09-04 (Phase 3.4) |  |
 | `risk.control-tests.download-evidence` | `risk/control-tests/{controlTest}/evidence/{evidence}/download` | `control_test.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.control-tests.edit` | `risk/control-tests/{controlTest}/edit` | `control_test.edit` |  |  |  |  |  |  |  |  |  |  |
+| `risk.control-tests.edit` | `risk/control-tests/{controlTest}/edit` | `control_test.edit` | risk/controls/tests/edit.blade.php (deleted) | Pages/ControlTests/Edit.jsx | UpdateControlTestRequest | ControlTestPolicy | n/a | n/a | n/a | Controls/ControlTestPagesTest | 2026-09-04 (Phase 3.4) |  |
 | `risk.control-tests.index` | `risk/control-tests` | `control_test.view` | risk/controls/tests/index.blade.php (deleted) | Pages/ControlTests/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
-| `risk.control-tests.show` | `risk/control-tests/{controlTest}` | `control_test.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.controls.create` | `risk/controls/create` | `control.create` |  |  |  |  |  |  |  |  |  |  |
-| `risk.controls.edit` | `risk/controls/{control}/edit` | `control.edit` |  |  |  |  |  |  |  |  |  |  |
+| `risk.control-tests.show` | `risk/control-tests/{controlTest}` | `control_test.view` | risk/controls/tests/show.blade.php (deleted) | Pages/ControlTests/Show.jsx | ExecuteControlTestRequest, ReviewControlTestRequest, UploadControlTestEvidenceRequest | ControlTestPolicy | n/a | n/a | n/a | Controls/ControlTestPagesTest | 2026-09-04 (Phase 3.4) |  |
+| `risk.controls.create` | `risk/controls/create` | `control.create` | risk/controls/create.blade.php (deleted) | Pages/Controls/Create.jsx | StoreControlRequest | ControlPolicy | n/a | n/a | n/a | Controls/ControlPagesTest, Metadata/DynamicRendererTest | 2026-09-04 (Phase 3.4) |  |
+| `risk.controls.edit` | `risk/controls/{control}/edit` | `control.edit` | risk/controls/edit.blade.php (deleted) | Pages/Controls/Edit.jsx | UpdateControlRequest | ControlPolicy | n/a | n/a | n/a | Controls/ControlPagesTest, Metadata/DynamicRendererTest | 2026-09-04 (Phase 3.4) |  |
 | `risk.controls.index` | `risk/controls` | `control.view` | risk/controls/index.blade.php (deleted) | Pages/Controls/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/ControlsGridTest | 2026-09-03 (Phase 2) |  |
-| `risk.controls.show` | `risk/controls/{control}` | `control.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.controls.show` | `risk/controls/{control}` | `control.view` | risk/controls/show.blade.php (deleted) | Pages/Controls/Show.jsx | LinkControlRiskRequest | ControlPolicy | n/a | n/a | n/a | Controls/ControlPagesTest, Metadata/DynamicDetailIntegrationTest | 2026-09-04 (Phase 3.4) |  |
 | `risk.dashboard` | `risk/dashboard` | `dashboard.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.dashboards.create` | `risk/dashboards/create` | `dashboard.manage` | — (redirect) | n/a (creates, redirects to edit) |  |  |  |  |  | Widgets/DashboardPublishingTest | 2026-09-03 (Phase 2) |  |
 | `risk.dashboards.edit` | `risk/dashboards/{dashboard}/edit` | `dashboard.manage` | risk/dashboards/edit.blade.php + livewire/widgets/dashboard-builder.blade.php (deleted) | Pages/Dashboards/Edit.jsx (Components/DashboardBuilder.jsx) | inline validate() — see phase-2-notes |  |  | DashboardEditor |  | Widgets/DashboardLayoutRoundTripTest, Widgets/DashboardPublishingTest | 2026-09-03 (Phase 2) |  |

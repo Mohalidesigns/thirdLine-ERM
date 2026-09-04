@@ -15,6 +15,34 @@ class Control extends Model
 {
     use BelongsToOrganization, HasFactory, HasObjectIdentity, ScopedToGraph, SoftDeletes;
 
+    /**
+     * The vocabularies the control library form accepts, lifted out of
+     * ControlController's inline `in:` rules (migration Phase 3.4) so the
+     * Form Requests, the page's selects and any future caller read one list.
+     *
+     * EFFECTIVENESS_RATINGS is the LIBRARY's three-value list and is
+     * deliberately not the assessment's five (RiskAssessmentControl::RATINGS,
+     * which adds `mostly_effective` and `not_operating`). Control::$effectiveness_label
+     * already renders all five, so a control rated through an assessment
+     * displays correctly while the library form still offers the three it
+     * always did. Widening this list is a domain decision, not a porting one.
+     *
+     * @var list<string>
+     */
+    public const TYPES = ['preventive', 'detective', 'corrective', 'directive'];
+
+    /** @var list<string> */
+    public const NATURES = ['manual', 'automated', 'semi_automated'];
+
+    /** @var list<string> */
+    public const FREQUENCIES = ['continuous', 'daily', 'weekly', 'monthly', 'quarterly', 'annually', 'ad_hoc'];
+
+    /** @var list<string> */
+    public const EFFECTIVENESS_RATINGS = ['effective', 'partially_effective', 'ineffective'];
+
+    /** @var list<string> */
+    public const STATUSES = ['active', 'inactive', 'under_review'];
+
     protected $fillable = [
         'organization_id',
         'control_code',
@@ -107,17 +135,20 @@ class Control extends Model
         return $this->belongsTo(Entity::class);
     }
 
-    public function owner()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function owner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
     }
 
-    public function businessUnit()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<BusinessUnit, $this> */
+    public function businessUnit(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(BusinessUnit::class);
     }
 
-    public function risks()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<Risk, $this, RiskControlMapping> */
+    public function risks(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
         return $this->belongsToMany(Risk::class, 'risk_control_mapping')
             ->using(RiskControlMapping::class)
@@ -125,12 +156,14 @@ class Control extends Model
             ->withTimestamps();
     }
 
-    public function riskMappings()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<Risk, $this, RiskControlMapping> */
+    public function riskMappings(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
         return $this->risks();
     }
 
-    public function controlOwner()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function controlOwner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->owner();
     }
@@ -151,7 +184,8 @@ class Control extends Model
     }
 
     // ── Control Testing ──────────────────────────────────────────────
-    public function tests()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<ControlTest, $this> */
+    public function tests(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(ControlTest::class);
     }

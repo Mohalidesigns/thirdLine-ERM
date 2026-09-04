@@ -72,6 +72,14 @@ final class Ported
         'risk.assessments.create',
         'risk.assessments.show',
         'risk.assessments.edit',
+        // Phase 3 — controls and control testing
+        'risk.controls.create',
+        'risk.controls.show',
+        'risk.controls.edit',
+        'risk.control-tests.dashboard',
+        'risk.control-tests.create',
+        'risk.control-tests.show',
+        'risk.control-tests.edit',
         // Phase 3 — workflow
         'risk.approvals.dashboard',
         'risk.my-tasks.index',

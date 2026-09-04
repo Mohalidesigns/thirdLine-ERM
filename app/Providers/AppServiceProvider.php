@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Models\ControlTest;
 use App\Models\LossEvent;
 use App\Models\TreatmentPlan;
 use App\Models\User;
@@ -123,28 +122,12 @@ class AppServiceProvider extends ServiceProvider
                 return false;
             }
         });
-        // Control test review: the assigned reviewer OR a user with an
-        // approver-class role can approve/reject the test.
-        Gate::define('review-control-test', function (User $user, ControlTest $test) {
-            if ($user->organization_id !== $test->organization_id) {
-                return false;
-            }
-            if ($test->reviewer_id === $user->id) {
-                return true;
-            }
-
-            return $user->hasAnyRole(['chief-risk-officer', 'risk-manager', 'compliance-officer']);
-        });
-
-        // Resubmit a rejected control test: the assigned tester or the
-        // original creator.
-        Gate::define('resubmit-control-test', function (User $user, ControlTest $test) {
-            if ($user->organization_id !== $test->organization_id) {
-                return false;
-            }
-
-            return in_array($user->id, array_filter([$test->tester_id, $test->created_by]));
-        });
+        // Control test review and resubmission moved into
+        // App\Policies\ControlTestPolicy in migration Phase 3.4. The abilities
+        // keep their hyphenated names — WorkflowEngine::canAct() asks
+        // `can('review-control-test', $test)` through ControlTestBinding::gate()
+        // — because Laravel resolves a hyphenated ability on a model to the
+        // camel-cased policy method, reviewControlTest().
 
         // Treatment plan approval: role-based (no assigned reviewer column).
         Gate::define('approve-treatment-plan', function (User $user, TreatmentPlan $plan) {

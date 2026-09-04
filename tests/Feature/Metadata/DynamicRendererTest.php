@@ -127,13 +127,32 @@ class DynamicRendererTest extends TestCase
     #[Test]
     public function the_control_create_form_renders_every_configured_field(): void
     {
-        $response = $this->actingAs($this->actor)->get(route('risk.controls.create'));
+        // Migration Phase 3.4 put this form on Inertia (Controls/Create), and
+        // with it the split every ported form makes: a COLUMN-BACKED attribute
+        // is an input the bespoke form owns, and only the rest reach the
+        // schema prop that drives DynamicForm. Rendering both copies is the
+        // "attribute appears twice" defect the omit lists exist to prevent.
+        $props = $this->actingAs($this->actor)
+            ->get(route('risk.controls.create'))
+            ->assertOk()
+            ->inertiaProps();
 
-        $response->assertOk();
+        $offered = collect($props['schema']['sections'])
+            ->flatMap(fn (array $section) => $section['fields'])
+            ->keyBy('code');
 
         foreach (ObjectType::resolve('Control')->attributeDefinitions as $field) {
-            $response->assertSee('name="'.$field->maps_to_column.'"', false);
-            $response->assertSee($field->label, false);
+            if ($field->maps_to_column !== null) {
+                $this->assertFalse(
+                    $offered->has($field->code),
+                    "{$field->code} is column-backed and is already an input on the bespoke form",
+                );
+
+                continue;
+            }
+
+            $this->assertTrue($offered->has($field->code), "{$field->code} is not offered on the form");
+            $this->assertSame($field->label, $offered[$field->code]['label']);
         }
     }
 
@@ -146,12 +165,16 @@ class DynamicRendererTest extends TestCase
             'effectiveness_rating' => 'effective',
         ]);
 
-        $response = $this->actingAs($this->actor)->get(route('risk.controls.edit', $control));
+        $props = $this->actingAs($this->actor)
+            ->get(route('risk.controls.edit', $control))
+            ->assertOk()
+            ->inertiaProps();
 
-        $response->assertOk();
-        $response->assertSee('Dual authorisation on wire transfers', false);
-        // The stored enum renders as the selected option, not merely present.
-        $response->assertSee('value="preventive" selected', false);
+        // The stored values reach the form as its initial state, which is what
+        // `value="preventive" selected` asserted before the port.
+        $this->assertSame('Dual authorisation on wire transfers', $props['control']['name']);
+        $this->assertSame('preventive', $props['control']['control_type']);
+        $this->assertSame('effective', $props['control']['effectiveness_rating']);
     }
 
     #[Test]
@@ -213,11 +236,20 @@ class DynamicRendererTest extends TestCase
     {
         $this->addTenantField();
 
-        $response = $this->actingAs($this->actor)->get(route('risk.controls.create'));
+        $props = $this->actingAs($this->actor)
+            ->get(route('risk.controls.create'))
+            ->assertOk()
+            ->inertiaProps();
 
-        $response->assertOk();
-        $response->assertSee('NDPR Lawful Basis', false);
-        $response->assertSee('name="configured_attributes[ndpr_lawful_basis]"', false);
+        $field = collect($props['schema']['sections'])
+            ->flatMap(fn (array $section) => $section['fields'])
+            ->firstWhere('code', 'ndpr_lawful_basis');
+
+        $this->assertNotNull($field, 'a field added through the builder must reach the form');
+        $this->assertSame('NDPR Lawful Basis', $field['label']);
+        // The name the value is posted under — what `name="configured_attributes[...]"`
+        // asserted when the form was Blade.
+        $this->assertSame('configured_attributes[ndpr_lawful_basis]', $field['name']);
     }
 
     #[Test]
@@ -241,10 +273,17 @@ class DynamicRendererTest extends TestCase
             'a configured field that renders on the form must actually be stored'
         );
 
-        // And it comes back on the edit form.
-        $this->actingAs($this->actor)
+        // And it comes back on the edit form, as the field's current value in
+        // the schema rather than as a `selected` attribute in markup.
+        $props = $this->actingAs($this->actor)
             ->get(route('risk.controls.edit', $control))
-            ->assertSee('value="consent" selected', false);
+            ->inertiaProps();
+
+        $field = collect($props['schema']['sections'])
+            ->flatMap(fn (array $section) => $section['fields'])
+            ->firstWhere('code', 'ndpr_lawful_basis');
+
+        $this->assertSame('consent', $field['value']);
     }
 
     #[Test]
@@ -371,9 +410,16 @@ class DynamicRendererTest extends TestCase
             'enum_options' => null,
         ]);
 
-        $this->actingAs($this->actor)
-            ->get(route('risk.controls.create'))
-            ->assertDontSee('configured_attributes[computed_coverage]', false);
+        $props = $this->actingAs($this->actor)->get(route('risk.controls.create'))->inertiaProps();
+
+        $field = collect($props['schema']['sections'])
+            ->flatMap(fn (array $section) => $section['fields'])
+            ->firstWhere('code', 'computed_coverage');
+
+        // The React form shows a formula field as a read-only box rather than
+        // dropping it, so it may be PRESENT — what it must never be is
+        // writable, and formDataFor() never posts a readonly field.
+        $this->assertTrue($field === null || $field['readonly'] === true);
     }
 
     /* ------------------------------------------------------------------ */

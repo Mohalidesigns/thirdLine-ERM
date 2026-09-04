@@ -79,30 +79,6 @@ parameters:
 			path: app/Grids/Definitions/CampaignsGrid.php
 
 		-
-			message: '#^Relation ''control'' is not found in App\\Models\\ControlTest model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/ControlTestsGrid.php
-
-		-
-			message: '#^Relation ''reviewer'' is not found in App\\Models\\ControlTest model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/ControlTestsGrid.php
-
-		-
-			message: '#^Relation ''tester'' is not found in App\\Models\\ControlTest model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/ControlTestsGrid.php
-
-		-
-			message: '#^Relation ''owner'' is not found in App\\Models\\Control model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/ControlsGrid.php
-
-		-
 			message: '#^Relation ''importer'' is not found in App\\Models\\DataImport model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -367,34 +343,10 @@ parameters:
 			path: app/Http/Controllers/Risk/CampaignController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Control\:\:\$risks\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/ControlController.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: app/Http/Controllers/Risk/ControlController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\ControlTest\:\:\$control\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/ControlTestController.php
-
-		-
-			message: '#^Relation ''control'' is not found in App\\Models\\ControlTest model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Risk/ControlTestController.php
-
-		-
-			message: '#^Relation ''tester'' is not found in App\\Models\\ControlTest model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Risk/ControlTestController.php
 
 		-
 			message: '#^Relation ''objectType'' is not found in App\\Models\\Dashboard model\.$#'
@@ -799,21 +751,9 @@ parameters:
 			path: app/Http/Controllers/Risk/RcsaController.php
 
 		-
-			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Control model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
 			message: '#^Relation ''campaign'' is not found in App\\Models\\CampaignAssignment model\.$#'
 			identifier: larastan.relationExistence
 			count: 2
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Relation ''controlOwner'' is not found in App\\Models\\Control model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
 			path: app/Http/Controllers/Risk/RcsaController.php
 
 		-
@@ -826,12 +766,6 @@ parameters:
 			message: '#^Relation ''risk'' is not found in App\\Models\\RiskControlMapping model\.$#'
 			identifier: larastan.relationExistence
 			count: 2
-			path: app/Http/Controllers/Risk/RcsaController.php
-
-		-
-			message: '#^Relation ''riskMappings'' is not found in App\\Models\\Control model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
 			path: app/Http/Controllers/Risk/RcsaController.php
 
 		-
@@ -1025,12 +959,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Listeners/FlagRiskForReview.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Control\:\:\$risks\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Listeners/RecalculateResidualRisk.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\TreatmentPlan\:\:\$expected_residual_impact\.$#'

@@ -71,15 +71,23 @@ class DynamicDetailIntegrationTest extends TestCase
         $control = $this->makeControl(['name' => 'Customer onboarding lawful basis check']);
         $this->storeAttributes($control, ['ndpr_lawful_basis' => 'consent']);
 
-        $response = $this->actingAs($this->actor)->get(route('risk.controls.show', $control));
+        // Migration Phase 3.4 put this page on Inertia (Controls/Show), so the
+        // "Additional Information" card is the `configuredDetail` prop rather
+        // than rendered HTML.
+        $props = $this->actingAs($this->actor)
+            ->get(route('risk.controls.show', $control))
+            ->assertOk()
+            ->inertiaProps();
 
-        $response->assertOk();
-        $response->assertSee('Additional Information');
-        $response->assertSee('NDPR Lawful Basis');
+        $field = collect($props['configuredDetail']['sections'])
+            ->flatMap(fn (array $section) => $section['fields'])
+            ->firstWhere('code', 'ndpr_lawful_basis');
+
+        $this->assertNotNull($field);
+        $this->assertSame('NDPR Lawful Basis', $field['label']);
         // The label, not the stored code — the whole point of displaying a
         // value through its definition.
-        $response->assertSee('Consent');
-        $response->assertDontSee('consent', false);
+        $this->assertSame('Consent', $field['value']);
     }
 
     #[Test]
@@ -156,15 +164,23 @@ class DynamicDetailIntegrationTest extends TestCase
 
         $control = $this->makeControl(['business_unit_id' => $unit->id]);
 
-        $response = $this->actingAs($this->actor)->get(route('risk.controls.show', $control));
+        $props = $this->actingAs($this->actor)
+            ->get(route('risk.controls.show', $control))
+            ->assertOk()
+            ->inertiaProps();
 
-        $response->assertOk();
+        // The page's own Attributes panel carries it...
+        $this->assertSame('Retail Banking', $props['control']['business_unit']);
 
-        $response->assertSee('Retail Banking');
+        // ...so the metadata renderer must not carry it as well. Counting
+        // occurrences of "Business Unit" in the HTML was the Blade way of
+        // asking this; the omit list is now inspectable directly.
+        $configured = collect($props['configuredDetail']['sections'])
+            ->flatMap(fn (array $section) => $section['fields'])
+            ->pluck('code');
 
-        $this->assertSame(
-            1,
-            substr_count($response->getContent(), 'Business Unit'),
+        $this->assertFalse(
+            $configured->contains('business_unit_id'),
             'the hand-written panel and the metadata renderer must not both draw the same field'
         );
     }

@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Models\LossEvent;
 use App\Models\User;
 use App\Observers\WebhookEventObserver;
 use App\Observers\WorkflowTriggerObserver;
@@ -149,17 +148,11 @@ class AppServiceProvider extends ServiceProvider
         // `reject` and `resubmit` there — where they also pick up the node
         // scope every other assessment ability applies.
 
-        // Loss event approval: loss event manager or CRO.
-        Gate::define('approve-loss-event', function (User $user, LossEvent $event) {
-            if ($user->organization_id !== $event->organization_id) {
-                return false;
-            }
-            if ($event->assigned_to_id === $user->id) {
-                return true;
-            }
-
-            return $user->hasAnyRole(['chief-risk-officer', 'loss-event-manager', 'compliance-officer']);
-        });
+        // Loss event approval moved into App\Policies\LossEventPolicy in
+        // migration Phase 4.3 — the LAST risk-module closure. It keeps its
+        // hyphenated name because WorkflowEngine::canAct() asks
+        // `can('approve-loss-event', $event)` through LossEventBinding::gate(),
+        // and Laravel resolves that to the camel-cased approveLossEvent().
     }
 
     /**

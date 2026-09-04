@@ -18,6 +18,7 @@ use App\Services\LossEvents\LossEventService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
@@ -41,6 +42,8 @@ class LossEventController extends Controller
      */
     public function dashboard()
     {
+        Gate::authorize('viewAny', LossEvent::class);
+
         $orgId = TenantContext::organizationId();
         $currentYear = now()->year;
 
@@ -152,6 +155,8 @@ class LossEventController extends Controller
      */
     public function create(Request $request)
     {
+        Gate::authorize('create', LossEvent::class);
+
         $orgId = TenantContext::organizationId();
 
         $step = $request->get('step', 1);
@@ -215,11 +220,7 @@ class LossEventController extends Controller
      */
     public function show(LossEvent $lossEvent)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($lossEvent->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this loss event.');
-        }
+        Gate::authorize('view', $lossEvent);
 
         $lossEvent->load([
             'risk',
@@ -239,11 +240,7 @@ class LossEventController extends Controller
      */
     public function edit(LossEvent $lossEvent)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($lossEvent->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this loss event.');
-        }
+        Gate::authorize('update', $lossEvent);
 
         $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
@@ -257,11 +254,7 @@ class LossEventController extends Controller
      */
     public function update(Request $request, LossEvent $lossEvent)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($lossEvent->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this loss event.');
-        }
+        Gate::authorize('update', $lossEvent);
 
         $validated = $request->validate([
             'event_title' => 'required|string|max:255',
@@ -296,11 +289,7 @@ class LossEventController extends Controller
      */
     public function destroy(LossEvent $lossEvent)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($lossEvent->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this loss event.');
-        }
+        Gate::authorize('delete', $lossEvent);
 
         if (! in_array($lossEvent->status, ['reported', 'draft'])) {
             return back()->with('error', 'Only reported or draft loss events can be deleted.');
@@ -318,11 +307,7 @@ class LossEventController extends Controller
      */
     public function updateStatus(Request $request, LossEvent $lossEvent)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($lossEvent->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this loss event.');
-        }
+        Gate::authorize('update', $lossEvent);
 
         $validated = $request->validate([
             'status' => 'required|in:reported,under_investigation,pending_approval,approved,closed,reopened',
@@ -367,11 +352,7 @@ class LossEventController extends Controller
      */
     public function rca(LossEvent $lossEvent)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($lossEvent->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this loss event.');
-        }
+        Gate::authorize('recordRca', $lossEvent);
 
         // The RCA form and details live on the loss event detail page.
         return redirect()->route('risk.loss-events.show', ['loss_event' => $lossEvent, 'tab' => 'rca']);
@@ -382,11 +363,7 @@ class LossEventController extends Controller
      */
     public function storeRca(Request $request, LossEvent $lossEvent)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($lossEvent->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this loss event.');
-        }
+        Gate::authorize('recordRca', $lossEvent);
 
         $validated = $request->validate([
             'root_cause_category' => 'required|in:people,process,system,external',
@@ -429,11 +406,7 @@ class LossEventController extends Controller
      */
     public function uploadAttachment(Request $request, LossEvent $lossEvent)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($lossEvent->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this loss event.');
-        }
+        Gate::authorize('recordRca', $lossEvent);
 
         // WP-00. Two defects are closed here, both of which this endpoint was
         // the last in the codebase to carry:
@@ -523,11 +496,7 @@ class LossEventController extends Controller
      */
     public function approveRca(Request $request, LossEvent $lossEvent)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($lossEvent->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this loss event.');
-        }
+        Gate::authorize('approveRca', $lossEvent);
 
         $rca = LossEventRca::where('loss_event_id', $lossEvent->id)->firstOrFail();
 
@@ -550,6 +519,8 @@ class LossEventController extends Controller
      */
     public function rcaIndex()
     {
+        Gate::authorize('viewAny', LossEvent::class);
+
         $orgId = TenantContext::organizationId();
 
         $rcaEvents = LossEvent::where('organization_id', $orgId)
@@ -593,6 +564,8 @@ class LossEventController extends Controller
      */
     public function reports()
     {
+        Gate::authorize('viewAny', LossEvent::class);
+
         $orgId = TenantContext::organizationId();
 
         $lossEvents = LossEvent::where('organization_id', $orgId)
@@ -639,6 +612,8 @@ class LossEventController extends Controller
      */
     public function createNearMiss()
     {
+        Gate::authorize('create', NearMiss::class);
+
         $orgId = TenantContext::organizationId();
 
         $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
@@ -710,6 +685,8 @@ class LossEventController extends Controller
      */
     public function approvals(Request $request)
     {
+        Gate::authorize('viewAny', LossEvent::class);
+
         $orgId = TenantContext::organizationId();
 
         $query = LossEvent::where('organization_id', $orgId)
@@ -730,7 +707,7 @@ class LossEventController extends Controller
      */
     public function submitApproval(Request $request, LossEvent $lossEvent, \App\Services\Workflow\ModuleApprovals $approvals)
     {
-        abort_unless(auth()->user()->can('approve-loss-event', $lossEvent), 403,
+        abort_unless(auth()->user()->can('approve', $lossEvent), 403,
             'Only an assigned handler, loss-event-manager, compliance-officer or CRO can decide on loss events.');
 
         $validated = $request->validate([
@@ -807,11 +784,7 @@ class LossEventController extends Controller
      */
     public function convertNearMiss(NearMiss $nearMiss)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($nearMiss->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this near-miss.');
-        }
+        Gate::authorize('convert', $nearMiss);
 
         // Create loss event from near-miss data
         $lossEvent = LossEvent::create([

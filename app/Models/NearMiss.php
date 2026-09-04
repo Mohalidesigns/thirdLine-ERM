@@ -15,6 +15,16 @@ class NearMiss extends Model
 
     protected $table = 'near_misses';
 
+    /**
+     * From LossEventController's inline `in:` rule (migration Phase 4.3).
+     * These are NOT LossEvent::SEVERITIES — a near miss is graded low/medium/
+     * high/critical and a loss event insignificant..catastrophic, which is a
+     * pre-existing divergence rather than something this port introduced.
+     *
+     * @var list<string>
+     */
+    public const SEVERITIES = ['low', 'medium', 'high', 'critical'];
+
     protected $fillable = [
         'organization_id',
         'reference',

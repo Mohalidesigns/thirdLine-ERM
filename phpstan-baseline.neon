@@ -187,12 +187,6 @@ parameters:
 			path: app/Grids/Definitions/RegulatoryCircularsGrid.php
 
 		-
-			message: '#^Relation ''generatedBy'' is not found in App\\Models\\GeneratedReport model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/ReportsLibraryGrid.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$previous_overall_score\.$#'
 			identifier: property.notFound
 			count: 1
@@ -409,12 +403,6 @@ parameters:
 			path: app/Http/Controllers/Risk/ExportController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$is_regulatory_reportable\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net_loss_amount_kobo\.$#'
 			identifier: property.notFound
 			count: 5
@@ -499,45 +487,9 @@ parameters:
 			path: app/Http/Controllers/Risk/IssueController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$c\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/LossEventController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$s\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/LossEventController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$status\.$#'
 			identifier: property.notFound
 			count: 2
-			path: app/Http/Controllers/Risk/LossEventController.php
-
-		-
-			message: '#^Relation ''businessUnit'' is not found in App\\Models\\LossEvent model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/LossEventController.php
-
-		-
-			message: '#^Relation ''generatedBy'' is not found in App\\Models\\GeneratedReport model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/LossEventController.php
-
-		-
-			message: '#^Relation ''rca'' is not found in App\\Models\\LossEvent model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Risk/LossEventController.php
-
-		-
-			message: '#^Relation ''reporter'' is not found in App\\Models\\LossEvent model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
 			path: app/Http/Controllers/Risk/LossEventController.php
 
 		-
@@ -737,12 +689,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Listeners/EvaluateRegulatoryThresholds.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$risk\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Listeners/FlagRiskForReview.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$risk_id\.$#'

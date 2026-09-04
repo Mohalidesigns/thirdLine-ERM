@@ -6,6 +6,16 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
+/**
+ * Columns added by the 200038 alignment migration through its addColumns()
+ * loop, which Larastan cannot see statically.
+ *
+ * @property int|null $file_size
+ * @property string|null $original_name
+ * @property string|null $file_name
+ * @property string|null $document_type
+ * @property bool $is_regulatory
+ */
 class LossEventAttachment extends Model
 {
     use HasFactory;

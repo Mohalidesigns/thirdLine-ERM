@@ -38,7 +38,8 @@ class LossEventApproval extends Model
         return $this->belongsTo(LossEvent::class);
     }
 
-    public function actionedBy()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function actionedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'actioned_by');
     }

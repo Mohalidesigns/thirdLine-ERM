@@ -8,6 +8,18 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
+/**
+ * Columns added by the 200038 alignment migration through its addColumns()
+ * loop, which Larastan cannot see statically.
+ *
+ * @property string|null $root_cause_category
+ * @property string|null $contributing_factors
+ * @property string|null $analysis_details
+ * @property string|null $recommendations
+ * @property string|null $lessons_learned
+ * @property string|null $methodology
+ * @property string|null $rca_status
+ */
 class LossEventRca extends Model
 {
     use BelongsToOrganization, HasFactory;
@@ -19,6 +31,12 @@ class LossEventRca extends Model
      * contributing_factors_text, status, performed_by and analysis_date — are
      * no longer written; see docs/schema/canonical-columns.md.
      */
+    /** @var list<string> */
+    public const CATEGORIES = ['people', 'process', 'system', 'external'];
+
+    /** @var list<string> */
+    public const METHODOLOGIES = ['five_whys', 'fishbone', 'fault_tree', 'other'];
+
     protected $fillable = [
         'loss_event_id',
         'organization_id',

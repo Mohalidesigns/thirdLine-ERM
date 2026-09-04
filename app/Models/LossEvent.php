@@ -14,9 +14,56 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
+/**
+ * The columns 2026_02_22_200038_align_schema_with_controllers adds through its
+ * own addColumns() helper. Larastan reads schema from Schema::create/table
+ * calls it can see statically, so a column added in a loop is invisible to it.
+ *
+ * @property bool $is_regulatory_reportable
+ * @property bool $is_near_miss
+ * @property string|null $regulatory_body
+ * @property string|null $reporting_deadline
+ * @property string|null $corrective_action_summary
+ * @property string|null $root_cause_summary
+ * @property string|null $currency
+ * @property int|null $updated_by
+ * @property int|null $status_changed_by
+ * @property \Illuminate\Support\Carbon|null $status_changed_at
+ * @property int|null $approved_by
+ * @property \Illuminate\Support\Carbon|null $approved_at
+ */
 class LossEvent extends Model
 {
     use BelongsToOrganization, HasFactory, HasObjectIdentity, ScopedToGraph, SoftDeletes;
+
+    /**
+     * The Basel level-1 event types, from LossEventController's inline `in:`
+     * rule (migration Phase 4.3). Stored UPPER CASE — see the note on
+     * LossEventService::canonicalAttributes() for why that matters.
+     *
+     * @var list<string>
+     */
+    public const BASEL_EVENT_TYPES = [
+        'internal_fraud', 'external_fraud', 'employment_practices', 'clients_products',
+        'damage_physical_assets', 'business_disruption', 'execution_delivery',
+    ];
+
+    /** @var list<string> */
+    public const EVENT_TYPES = ['actual_loss', 'potential_loss', 'near_miss', 'gain_event'];
+
+    /** @var list<string> */
+    public const SEVERITIES = ['insignificant', 'minor', 'moderate', 'major', 'catastrophic'];
+
+    /**
+     * The lifecycle states the status action may target. The legal TRANSITIONS
+     * between them are LossEventController::STATUS_TRANSITIONS — an illegal one
+     * is a flash message, not a validation error.
+     *
+     * @var list<string>
+     */
+    public const STATUSES = [
+        'reported', 'under_investigation', 'pending_approval', 'approved', 'closed', 'reopened',
+    ];
 
     protected $fillable = [
         // --- Original migration columns (actual DB columns) ---
@@ -180,7 +227,8 @@ class LossEvent extends Model
         return $this->belongsTo(Entity::class);
     }
 
-    public function businessUnit()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<BusinessUnit, $this> */
+    public function businessUnit(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(BusinessUnit::class);
     }
@@ -205,32 +253,38 @@ class LossEvent extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function failedControls()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<LossEventControl, $this> */
+    public function failedControls(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(LossEventControl::class);
     }
 
-    public function attachments()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<LossEventAttachment, $this> */
+    public function attachments(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(LossEventAttachment::class);
     }
 
-    public function approvals()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<LossEventApproval, $this> */
+    public function approvals(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(LossEventApproval::class);
     }
 
-    public function rca()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasOne<LossEventRca, $this> */
+    public function rca(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(LossEventRca::class);
     }
 
-    public function reporter()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function reporter(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->responsibleOfficer();
     }
 
-    public function risk()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Risk, $this> */
+    public function risk(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->riskRegister();
     }

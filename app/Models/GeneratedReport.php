@@ -79,7 +79,8 @@ class GeneratedReport extends Model
         return round($size, $unit === 0 ? 0 : 1).' '.$units[$unit];
     }
 
-    public function generatedBy()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function generatedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'generated_by');
     }

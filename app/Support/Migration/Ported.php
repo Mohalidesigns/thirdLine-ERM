@@ -94,6 +94,16 @@ final class Ported
         'risk.kri.show',
         'risk.kri.edit',
         'risk.kri.thresholds',
+        // Phase 4 — loss events ('risk.loss-events.index' and '.near-misses'
+        // are above, from Phase 2's grid work)
+        'risk.loss-events.dashboard',
+        'risk.loss-events.create',
+        'risk.loss-events.show',
+        'risk.loss-events.edit',
+        'risk.loss-events.approvals',
+        'risk.loss-events.rca',
+        'risk.loss-events.reports',
+        'risk.loss-events.create-near-miss',
         // Phase 4 — periods and threshold re-baselining
         'risk.periods.index',
         'risk.thresholds.rebaseline',

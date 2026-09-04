@@ -87,6 +87,13 @@ final class Ported
         'risk.treatments.create',
         'risk.treatments.show',
         'risk.treatments.edit',
+        // Phase 4 — KRI ('risk.kri.index' and '.breaches' are above, from
+        // Phase 2's grid work)
+        'risk.kri.dashboard',
+        'risk.kri.create',
+        'risk.kri.show',
+        'risk.kri.edit',
+        'risk.kri.thresholds',
         // Phase 3 — RCSA
         'risk.rcsa.dashboard',
         'risk.rcsa.worksheet',

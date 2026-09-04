@@ -66,12 +66,14 @@ class MeasureBreach extends Model
         return $this->belongsTo(GraphObject::class, 'object_id');
     }
 
-    public function period()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Period, $this> */
+    public function period(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Period::class);
     }
 
-    public function acknowledgedBy()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function acknowledgedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'acknowledged_by');
     }

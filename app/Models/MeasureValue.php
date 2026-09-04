@@ -75,7 +75,8 @@ class MeasureValue extends Model
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function measure()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Measure, $this> */
+    public function measure(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Measure::class);
     }
@@ -85,12 +86,14 @@ class MeasureValue extends Model
         return $this->belongsTo(GraphObject::class, 'object_id');
     }
 
-    public function period()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Period, $this> */
+    public function period(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Period::class);
     }
 
-    public function enteredBy()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function enteredBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'entered_by');
     }

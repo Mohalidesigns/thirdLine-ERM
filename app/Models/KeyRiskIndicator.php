@@ -10,11 +10,42 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
+/**
+ * The columns 2026_02_22_200038_align_schema_with_controllers adds through its
+ * own addColumns() helper. Larastan reads schema from Schema::create/table
+ * calls it can see statically, so a column added in a loop is invisible to it
+ * and every read of one is reported as an undefined property.
+ *
+ * @property string|null $kri_name
+ * @property string|null $measurement_unit
+ * @property string|null $direction
+ * @property float|null $target_value
+ * @property int|null $kri_owner_id
+ * @property int|null $risk_id
+ * @property bool $is_active
+ * @property \Illuminate\Support\Carbon|null $last_measurement_date
+ */
 class KeyRiskIndicator extends Model
 {
     use BelongsToOrganization, HasFactory, HasObjectIdentity, ScopedToGraph, SoftDeletes;
 
     protected $table = 'key_risk_indicators';
+
+    /**
+     * How often a reading is expected, from KriController's inline
+     * `in:daily,weekly,monthly,quarterly` rule (migration Phase 4.1).
+     *
+     * @var list<string>
+     */
+    public const FREQUENCIES = ['daily', 'weekly', 'monthly', 'quarterly'];
+
+    /**
+     * Which way is bad. The FORM's spelling, which the service maps onto the
+     * `threshold_direction` column's `higher_worse` / `lower_worse`.
+     *
+     * @var list<string>
+     */
+    public const DIRECTIONS = ['higher_is_worse', 'lower_is_worse'];
 
     protected $fillable = [
         // Original migration columns
@@ -86,7 +117,8 @@ class KeyRiskIndicator extends Model
         return $this->belongsTo(Entity::class);
     }
 
-    public function owner()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function owner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
     }
@@ -111,7 +143,8 @@ class KeyRiskIndicator extends Model
      * - belongsTo(Risk, 'risk_id') for direct single assignment (kept for backward compatibility)
      * Controllers may still use this single relationship; prefer risks() for new code.
      */
-    public function risk()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Risk, $this> */
+    public function risk(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Risk::class, 'risk_id');
     }

@@ -157,12 +157,6 @@ parameters:
 			path: app/Grids/Definitions/KrisGrid.php
 
 		-
-			message: '#^Relation ''risk'' is not found in App\\Models\\KeyRiskIndicator model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/KrisGrid.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -503,66 +497,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 3
 			path: app/Http/Controllers/Risk/IssueController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$category\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/KriController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$is_active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/KriController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$latestMeasurement\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/KriController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$risk\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/KriController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/KriController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\KeyRiskIndicator\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/Risk/KriController.php
-
-		-
-			message: '#^Relation ''acknowledgedBy'' is not found in App\\Models\\MeasureBreach model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/KriController.php
-
-		-
-			message: '#^Relation ''kri'' is not found in App\\Models\\KriMeasurement model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Risk/KriController.php
-
-		-
-			message: '#^Relation ''latestMeasurement'' is not found in App\\Models\\KeyRiskIndicator model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/KriController.php
-
-		-
-			message: '#^Relation ''risk'' is not found in App\\Models\\KeyRiskIndicator model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Risk/KriController.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$c\.$#'
@@ -1669,12 +1603,6 @@ parameters:
 			path: app/Services/BoardPackAssembler.php
 
 		-
-			message: '#^Relation ''owner'' is not found in App\\Models\\KeyRiskIndicator model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/BoardPackAssembler.php
-
-		-
 			message: '#^Relation ''responsible'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -1832,12 +1760,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Control\:\:\$title\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RegulatoryReportService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$kri_name\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Services/RegulatoryReportService.php
@@ -2729,36 +2651,6 @@ parameters:
 			identifier: argument.type
 			count: 2
 			path: app/Support/Graph/OrganisationGraphUnifier.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$direction\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Support/Measures/KriMeasureMigrator.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$kri_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Support/Measures/KriMeasureMigrator.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$kri_owner_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Support/Measures/KriMeasureMigrator.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$measurement_unit\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Support/Measures/KriMeasureMigrator.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$risk_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Support/Measures/KriMeasureMigrator.php
 
 		-
 			message: '#^Call to an undefined method TModel of Illuminate\\Database\\Eloquent\\Model\:\:getQualifiedOrganizationIdColumn\(\)\.$#'

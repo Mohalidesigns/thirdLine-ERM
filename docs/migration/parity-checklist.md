@@ -102,12 +102,12 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.issues.index` | `risk/issues` | `issue.view` | risk/issues/index.blade.php (deleted) | Pages/Issues/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.issues.show` | `risk/issues/{issue}` | `issue.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.kri.breaches` | `risk/kri/breaches` | `kri.view` | risk/kri/breaches.blade.php (deleted) | Pages/Kri/Breaches.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
-| `risk.kri.create` | `risk/kri/create` | `kri.create` |  |  |  |  |  |  |  |  |  |  |
-| `risk.kri.dashboard` | `risk/kri/dashboard` | `kri.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.kri.edit` | `risk/kri/{kri}/edit` | `kri.edit` |  |  |  |  |  |  |  |  |  |  |
+| `risk.kri.create` | `risk/kri/create` | `kri.create` | risk/kri/create.blade.php (deleted) | Pages/Kri/Create.jsx | StoreKriRequest | KeyRiskIndicatorPolicy |  |  |  | Kri/KriPagesTest, KriPolicyTest, KriThresholdsTest, Characterisation/KriDashboardFiguresTest | 2026-09-04 (Phase 4.1) |  |
+| `risk.kri.dashboard` | `risk/kri/dashboard` | `kri.view` | risk/kri/dashboard.blade.php (deleted) | Pages/Kri/Dashboard.jsx |  | KeyRiskIndicatorPolicy |  | house SVG/CSS charts (see notes) |  | Kri/KriPagesTest, KriPolicyTest, KriThresholdsTest, Characterisation/KriDashboardFiguresTest | 2026-09-04 (Phase 4.1) |  |
+| `risk.kri.edit` | `risk/kri/{kri}/edit` | `kri.edit` | risk/kri/edit.blade.php (deleted) | Pages/Kri/Edit.jsx | UpdateKriRequest | KeyRiskIndicatorPolicy |  |  |  | Kri/KriPagesTest, KriPolicyTest, KriThresholdsTest, Characterisation/KriDashboardFiguresTest | 2026-09-04 (Phase 4.1) |  |
 | `risk.kri.index` | `risk/kri` | `kri.view` | risk/kri/index.blade.php (deleted) | Pages/Kri/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
-| `risk.kri.show` | `risk/kri/{kri}` | `kri.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.kri.thresholds` | `risk/kri/thresholds` | `kri.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.kri.show` | `risk/kri/{kri}` | `kri.view` | risk/kri/show.blade.php (deleted) | Pages/Kri/Show.jsx | RecordKriMeasurementRequest | KeyRiskIndicatorPolicy |  |  |  | Kri/KriPagesTest, KriPolicyTest, KriThresholdsTest, Characterisation/KriDashboardFiguresTest | 2026-09-04 (Phase 4.1) |  |
+| `risk.kri.thresholds` | `risk/kri/thresholds` | `kri.view` | risk/kri/thresholds.blade.php (deleted) | Pages/Kri/Thresholds.jsx | UpdateKriThresholdsRequest | KeyRiskIndicatorPolicy |  |  |  | Kri/KriPagesTest, KriPolicyTest, KriThresholdsTest, Characterisation/KriDashboardFiguresTest | 2026-09-04 (Phase 4.1) |  |
 | `risk.loss-events.approvals` | `risk/loss-events/approvals` | `loss_event.approve` |  |  |  |  |  |  |  |  |  |  |
 | `risk.loss-events.create` | `risk/loss-events/create` | `loss_event.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.loss-events.create-near-miss` | `risk/loss-events/near-misses/create` | `loss_event.create` |  |  |  |  |  |  |  |  |  |  |

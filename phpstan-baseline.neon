@@ -403,36 +403,6 @@ parameters:
 			path: app/Http/Controllers/Risk/PeriodController.php
 
 		-
-			message: '#^Binary operation "/" between float and object\{label\: mixed, risks\: mixed, value\: float\}&stdClass results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: app/Http/Controllers/Risk/QuantificationController.php
-
-		-
-			message: '#^Binary operation "/" between float and object\{label\: mixed, value\: float, risks\: mixed\}&stdClass results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: app/Http/Controllers/Risk/QuantificationController.php
-
-		-
-			message: '#^Comparison operation "\>" between object\{label\: mixed, risks\: mixed, value\: float\}&stdClass and 0 results in an error\.$#'
-			identifier: greater.invalid
-			count: 1
-			path: app/Http/Controllers/Risk/QuantificationController.php
-
-		-
-			message: '#^Comparison operation "\>" between object\{label\: mixed, value\: float, risks\: mixed\}&stdClass and 0 results in an error\.$#'
-			identifier: greater.invalid
-			count: 1
-			path: app/Http/Controllers/Risk/QuantificationController.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>scenario_ids" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Http/Controllers/Risk/QuantificationController.php
-
-		-
 			message: '#^Relation ''assignee'' is not found in App\\Models\\RegulatoryCircular model\.$#'
 			identifier: larastan.relationExistence
 			count: 1

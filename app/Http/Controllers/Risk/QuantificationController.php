@@ -12,6 +12,7 @@ use App\Models\RiskCategory;
 use App\Models\SimulationRun;
 use App\Services\MonteCarloService;
 use App\Services\Quantification\IcaapService;
+use App\Services\Quantification\QuantificationReportService;
 use App\Services\Quantification\ScenarioLibrary;
 use App\Support\Quantification\Distributions;
 use App\Support\Tenancy\TenantContext;
@@ -41,12 +42,14 @@ class QuantificationController extends Controller
      * The capital arithmetic, shared by the ICAAP screen and the four reports.
      *
      * `naira()`, `capitalRatioPercent()`, the two resolvers and
-     * `stressImpactRows()` all moved here in Phase 5.2. The reports still need
-     * them, which is why the service is injected rather than method-injected on
-     * icaap() alone — PHPStan found four other callers the moment the private
-     * copies were deleted.
+     * `stressImpactRows()` all moved to IcaapService in Phase 5.2; the four
+     * report assemblers moved to QuantificationReportService, which reads the
+     * same arithmetic so the reports and the screen cannot drift apart.
      */
-    public function __construct(private readonly IcaapService $icaap) {}
+    public function __construct(
+        private readonly IcaapService $icaap,
+        private readonly QuantificationReportService $reports,
+    ) {}
 
     /**
      * Quantification dashboard.
@@ -645,376 +648,39 @@ class QuantificationController extends Controller
     }
 
     /**
-     * Capital Adequacy Summary — condensed view of the latest ICAAP: CAR,
-     * tier breakdown, Pillar 1 requirement, Pillar 2A/2B demand, headroom.
-     *
-     * WP-08. This report carried the same two defects as the ICAAP screen and
-     * is corrected the same way: the `pillar2a_*` columns were being printed
-     * under a "Pillar 1 — Minimum Capital Requirements" heading, and the
-     * regulatory minimum came from `$icaap->car_required ?? 10` — a column
-     * that does not exist, so every tenant saw 10%. Pillar 1 is now computed
-     * as (minimum CAR / 100) x total RWA, and the minimum is resolved once in
-     * resolveMinimumCar().
+     * Capital Adequacy Summary — the latest ICAAP condensed to CAR, tier
+     * breakdown, Pillar 1 requirement, Pillar 2A/2B demand and headroom.
      */
     public function capitalAdequacyReport()
     {
-        $orgId = TenantContext::organizationId();
-
-        $icaap = IcaapAssessment::where('organization_id', $orgId)
-            ->orderByDesc('created_at')->first();
-
-        $minimumCar = $this->icaap->resolveMinimumCar($icaap, $orgId);
-
-        $rwaKobo = $icaap?->total_rwa_kobo;
-        $capitalKobo = $icaap?->total_qualifying_capital_kobo;
-
-        $data = (object) [
-            'as_of' => $icaap?->created_at,
-            'total_capital' => $this->icaap->naira($capitalKobo),
-            'total_rwa' => $this->icaap->naira($rwaKobo),
-            'cet1' => $this->icaap->naira($icaap?->cet1_capital_kobo),
-            'tier1' => $this->icaap->naira($icaap?->tier1_capital_kobo),
-            'tier2' => $this->icaap->naira($icaap?->tier2_capital_kobo),
-            'car_computed' => $this->icaap->capitalRatioPercent($capitalKobo, $rwaKobo),
-            'car_reported' => ($icaap !== null && $icaap->car_actual !== null) ? round((float) $icaap->car_actual, 2) : null,
-            'cet1_ratio' => $this->icaap->capitalRatioPercent($icaap?->cet1_capital_kobo, $rwaKobo),
-            'tier1_ratio' => $this->icaap->capitalRatioPercent($icaap?->tier1_capital_kobo, $rwaKobo),
-            'car_required' => $minimumCar,
-            'conservation_buffer' => $this->icaap->resolveConservationBuffer($icaap, $orgId),
-            'pillar2a_credit' => $this->icaap->naira($icaap?->pillar2a_credit_kobo),
-            'pillar2a_market' => $this->icaap->naira($icaap?->pillar2a_market_kobo),
-            'pillar2a_operational' => $this->icaap->naira($icaap?->pillar2a_operational_kobo),
-            'pillar2a_other' => $this->icaap->naira($icaap?->pillar2a_other_kobo),
-            'pillar2b_buffer' => $this->icaap->naira($icaap?->pillar2b_stress_buffer_kobo),
-        ];
-
-        // Pillar 1 minimum capital requirement = (minimum CAR / 100) x RWA.
-        $data->pillar1_requirement = ($rwaKobo !== null && (float) $rwaKobo > 0)
-            ? $this->icaap->naira(($minimumCar / 100) * (float) $rwaKobo)
-            : null;
-
-        $pillar2aParts = array_filter(
-            [$data->pillar2a_credit, $data->pillar2a_market, $data->pillar2a_operational, $data->pillar2a_other],
-            fn ($v) => $v !== null,
-        );
-        $data->total_pillar2a = $pillar2aParts === [] ? null : round(array_sum($pillar2aParts), 2);
-
-        // Headroom is only meaningful once every deduction is known; a partial
-        // total would read as more headroom than the bank has.
-        $deductions = [$data->pillar1_requirement, $data->total_pillar2a, $data->pillar2b_buffer];
-        $data->headroom = ($data->total_capital !== null && ! in_array(null, $deductions, true))
-            ? round($data->total_capital - array_sum($deductions), 2)
-            : null;
-
-        $data->car_surplus = $data->car_computed === null
-            ? null
-            : round($data->car_computed - $minimumCar, 2);
-
-        $data->car_variance = ($data->car_computed !== null && $data->car_reported !== null)
-            ? round($data->car_computed - $data->car_reported, 2)
-            : null;
-
-        $data->car_variance_material = $data->car_variance !== null
-            && abs($data->car_variance) > (float) config('quantification.car_reconciliation_tolerance');
-
-        return view('risk.quantification.reports.capital-adequacy', [
-            'd' => $data, 'hasData' => (bool) $icaap,
-        ]);
+        return view('risk.quantification.reports.capital-adequacy', $this->reports->capitalAdequacy());
     }
 
     /**
-     * Stress Testing Report — capital impact of the stress simulation bound to
-     * the latest ICAAP assessment, plus the stress scenarios this tenant has
-     * actually defined.
-     *
-     * WP-08 rewrite. What was deleted, and why:
-     *
-     * 1. FIVE HARDCODED SCENARIOS. 'Severe Recession' (-3.50pp), 'Oil Price
-     *    Shock' (-2.10pp), 'Naira Devaluation' (-2.80pp), 'Cyber Attack +
-     *    Market Crash' (-5.20pp) and 'Liquidity Squeeze' (-1.60pp), each
-     *    scaled by an invented `factor`. Those CAR deltas were literals: they
-     *    did not depend on the bank's balance sheet, its RWA, its portfolio
-     *    mix or its own scenario library, so every tenant of this product saw
-     *    the same five numbers regardless of what they hold. A stress test
-     *    whose result is independent of the thing being stressed is not a
-     *    stress test.
-     *
-     * 2. THE "LATEST COMPLETED SIMULATION" FALLBACK. When no stress run was
-     *    bound, the report picked up whatever simulation had finished most
-     *    recently. That is how a single-scenario operational-risk run — an
-     *    internal fraud calibration, say — ended up presented to a bank's
-     *    board as a macroeconomic stress test. There is no honest way to guess
-     *    which run the preparer intended, so the report no longer guesses: it
-     *    reports on the run that was deliberately bound to the assessment, or
-     *    it reports nothing and says what to do about it.
-     *
-     * 3. THE 'Marginal' VERDICT BAND. Pass at >= 10%, Marginal at >= 8%, Fail
-     *    below. There is no 8% supervisory threshold in the CBN capital
-     *    guidelines; it was invented. The verdict is now binary against the
-     *    resolved minimum.
-     *
-     * What replaces them is the arithmetic in stressImpactRows(): one row per
-     * confidence level the bound run genuinely computed, each stating its own
-     * confidence level, with capital impact, capital after stress, CAR after
-     * stress and shortfall all derived from stored capital and RWA.
+     * Stress Testing Report — the capital impact of the run deliberately bound
+     * to the latest ICAAP assessment, and nothing else.
      */
     public function stressTestingReport()
     {
-        $orgId = TenantContext::organizationId();
-
-        $icaap = IcaapAssessment::where('organization_id', $orgId)
-            ->orderByDesc('created_at')->first();
-
-        $minimumCar = $this->icaap->resolveMinimumCar($icaap, $orgId);
-
-        $totalCapital = $this->icaap->naira($icaap?->total_qualifying_capital_kobo);
-        $totalRwa = $this->icaap->naira($icaap?->total_rwa_kobo);
-
-        $carComputed = $this->icaap->capitalRatioPercent(
-            $icaap?->total_qualifying_capital_kobo,
-            $icaap?->total_rwa_kobo,
-        );
-        $carReported = ($icaap !== null && $icaap->car_actual !== null)
-            ? round((float) $icaap->car_actual, 2)
-            : null;
-
-        // Only the deliberately bound run, and only this organisation's.
-        $stressSim = null;
-        if ($icaap !== null && $icaap->stress_simulation_id) {
-            $stressSim = SimulationRun::where('organization_id', $orgId)
-                ->whereKey($icaap->stress_simulation_id)
-                ->first();
-        }
-
-        $rows = ($stressSim !== null && $icaap !== null)
-            ? $this->icaap->stressImpactRows($stressSim, $icaap, $minimumCar)
-            : collect();
-
-        // The stress scenarios this tenant has defined for itself, so the
-        // report can show what was in scope of the bound run and what was not.
-        // A scenario is "stress" if it carries a CBN stress designation or was
-        // typed as one — the two ways this schema records the flag.
-        $stressScenarios = QuantificationScenario::where('organization_id', $orgId)
-            ->where(function ($q) {
-                $q->whereNotNull('cbn_stress_scenario')
-                    ->orWhereRaw('LOWER(scenario_type) = ?', ['stress']);
-            })
-            ->orderBy('scenario_reference')
-            ->get();
-
-        $runScenarioIds = collect($stressSim?->scenario_ids ?? [])->map(fn ($id) => (int) $id)->all();
-
-        $stressScenarios = $stressScenarios->map(fn ($scenario) => (object) [
-            'reference' => $scenario->scenario_reference,
-            'name' => $scenario->name,
-            'category' => $scenario->cbn_risk_category,
-            'cbn_stress_scenario' => $scenario->cbn_stress_scenario,
-            'expected_annual_loss' => $this->icaap->naira($scenario->expected_annual_loss_kobo),
-            'in_bound_run' => in_array((int) $scenario->id, $runScenarioIds, true),
-        ]);
-
-        return view('risk.quantification.reports.stress-testing', [
-            'icaap' => $icaap,
-            'rows' => $rows,
-            'stressScenarios' => $stressScenarios,
-            'stressSim' => $stressSim,
-            'minimumCar' => $minimumCar,
-            'totalCapital' => $totalCapital,
-            'totalRwa' => $totalRwa,
-            'carComputed' => $carComputed,
-            'carReported' => $carReported,
-            'hasBoundRun' => $stressSim !== null,
-            'hasRows' => $rows->isNotEmpty(),
-        ]);
+        return view('risk.quantification.reports.stress-testing', $this->reports->stressTesting());
     }
 
     /**
      * Risk Contribution Analysis — where the modelled loss sits, by risk type
      * and by business unit.
-     *
-     * WP-08. TWO THINGS WERE CALLED "CAPITAL" THAT ARE NOT CAPITAL.
-     *
-     * 1. `round($group->sum('residual_score'), 2)`, aggregated by category and
-     *    by business unit, was emitted under the key `capital` and rendered in
-     *    a column headed "Capital / Score". A residual score is an ordinal
-     *    point on a 1-25 matrix. Ordinal values are not additive — the
-     *    distance from 4 to 6 is not the distance from 20 to 22 — and they are
-     *    not denominated in Naira, so a sum of them is neither a capital
-     *    number nor a quantity that supports the percentage shares computed
-     *    from it. The rows are now labelled for what they are: a total of
-     *    residual scores, with the count of risks behind it, and the view is
-     *    told which basis it is rendering via $byTypeBasis / $byUnitBasis so
-     *    it cannot print a naira sign in front of an ordinal total. Nothing is
-     *    fabricated to replace it; a bank that wants capital by business unit
-     *    needs a simulation scoped to business units, which this engine does
-     *    not yet run.
-     *
-     * 2. `risk_contributions` / `scenario_contributions` off a simulation
-     *    result is each scenario's share of EXPECTED ANNUAL LOSS — it is
-     *    computed in MonteCarloService as scenario expected loss over total
-     *    expected loss. It is NOT a component-VaR or Euler capital allocation:
-     *    it says nothing about how each scenario contributes to the TAIL, and
-     *    a scenario with a small mean and a fat tail is exactly the one this
-     *    measure under-reports. It must not be presented as an allocation of
-     *    economic capital. The by-type rows therefore carry the expected-loss
-     *    basis explicitly and the view labels the column "Expected Annual
-     *    Loss", not "Capital".
      */
     public function riskContributionReport()
     {
-        $orgId = TenantContext::organizationId();
-
-        $latestSim = SimulationRun::where('organization_id', $orgId)
-            ->where('status', 'completed')
-            ->orderByDesc('completed_at')->first();
-
-        // By risk type — scenario contributions when a completed run exists.
-        // 'expected_loss' basis: Naira, share of total expected annual loss.
-        $byType = collect();
-        $byTypeBasis = 'residual_score';
-
-        if ($latestSim) {
-            $contribs = $latestSim->scenario_contributions;
-            if ($contribs && $contribs->count()) {
-                $byTypeBasis = 'expected_loss';
-                $byType = $contribs->map(fn ($c) => (object) [
-                    'label' => $c->scenario_name,
-                    'value' => (float) ($c->expected_loss ?? 0),
-                    'share_pct' => (float) ($c->contribution_pct ?? 0),
-                    'risks' => null,
-                ])->sortByDesc('value')->values();
-            }
-        }
-
-        // Fallback when no simulation has run: risk categories by residual
-        // score. 'residual_score' basis: ordinal totals, NOT Naira.
-        if ($byType->isEmpty()) {
-            $byTypeBasis = 'residual_score';
-            $byType = Risk::where('organization_id', $orgId)
-                ->where('status', 'active')
-                ->with('category')
-                ->get()
-                ->groupBy(fn ($r) => optional($r->category)->name ?? 'Uncategorised')
-                ->map(fn ($group, $label) => (object) [
-                    'label' => $label,
-                    'value' => round($group->sum('residual_score'), 2),
-                    'risks' => $group->count(),
-                ])->values();
-
-            $total = $byType->sum('value');
-            $byType = $byType->map(function ($row) use ($total) {
-                $row->share_pct = $total > 0 ? round(($row->value / $total) * 100, 2) : null;
-
-                return $row;
-            })->sortByDesc('value')->values();
-        }
-
-        // By business unit — always residual score; the engine has never
-        // produced a business-unit loss distribution.
-        $byUnitBasis = 'residual_score';
-        $byUnit = Risk::where('organization_id', $orgId)
-            ->where('status', 'active')
-            ->with('businessUnit')
-            ->get()
-            ->groupBy(fn ($r) => optional($r->businessUnit)->name ?? 'Unassigned')
-            ->map(fn ($group, $label) => (object) [
-                'label' => $label,
-                'risks' => $group->count(),
-                'value' => round($group->sum('residual_score'), 2),
-            ])->values();
-
-        $totalUnit = $byUnit->sum('value');
-        $byUnit = $byUnit->map(function ($row) use ($totalUnit) {
-            $row->share_pct = $totalUnit > 0 ? round(($row->value / $totalUnit) * 100, 2) : null;
-
-            return $row;
-        })->sortByDesc('value')->values();
-
-        return view('risk.quantification.reports.risk-contribution', [
-            'byType' => $byType,
-            'byTypeBasis' => $byTypeBasis,
-            'byUnit' => $byUnit,
-            'byUnitBasis' => $byUnitBasis,
-            'latestSim' => $latestSim,
-            'hasData' => $byType->isNotEmpty() || $byUnit->isNotEmpty(),
-        ]);
+        return view('risk.quantification.reports.risk-contribution', $this->reports->riskContribution());
     }
 
     /**
-     * Regulatory Compliance Pack — combined reporting snapshot pulling
-     * capital, KRI, loss-event, and issues data for a one-page regulatory
-     * view aligned to CBN ORMS expectations.
+     * Regulatory Compliance Pack — one-page capital, KRI, loss-event and issue
+     * snapshot aligned to CBN ORMS expectations.
      */
     public function regulatoryPack()
     {
-        $orgId = TenantContext::organizationId();
-        $year = now()->year;
-
-        $icaap = IcaapAssessment::where('organization_id', $orgId)
-            ->orderByDesc('created_at')->first();
-
-        // WP-08. Was `$icaap->car_required ?? 10` against a column that does
-        // not exist, so the pack filed to CBN always claimed a 10% minimum.
-        $minimumCar = $this->icaap->resolveMinimumCar($icaap, $orgId);
-
-        // WP-08. CAR is recomputed from stored capital and RWA; the preparer's
-        // typed `car_actual` is only used when RWA is not on file, and the
-        // checklist says which basis it used.
-        $carComputed = $this->icaap->capitalRatioPercent(
-            $icaap?->total_qualifying_capital_kobo,
-            $icaap?->total_rwa_kobo,
-        );
-        $carReported = ($icaap !== null && $icaap->car_actual !== null)
-            ? round((float) $icaap->car_actual, 2)
-            : null;
-
-        $summary = (object) [
-            'car_actual' => $carComputed ?? $carReported,
-            'car_computed' => $carComputed,
-            'car_reported' => $carReported,
-            'car_basis' => $carComputed !== null ? 'computed from capital / RWA' : 'as reported on the assessment',
-            'car_required' => $minimumCar,
-            'total_capital' => $this->icaap->naira($icaap?->total_qualifying_capital_kobo),
-            'active_risks' => Risk::where('organization_id', $orgId)->where('status', 'active')->count(),
-            'critical_risks' => Risk::where('organization_id', $orgId)->where('residual_rating', 'Critical')->count(),
-            'high_risks' => Risk::where('organization_id', $orgId)->where('residual_rating', 'High')->count(),
-            'red_kris' => \App\Models\KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'red')->count(),
-            'amber_kris' => \App\Models\KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'amber')->count(),
-            'loss_events_ytd' => \App\Models\LossEvent::where('organization_id', $orgId)->whereYear('date_of_loss', $year)->count(),
-            'net_loss_ytd' => (float) \App\Models\LossEvent::where('organization_id', $orgId)->whereYear('date_of_loss', $year)->sum(\App\Models\LossEvent::netLossNairaSql()),
-            'open_issues' => \App\Models\Issue::where('organization_id', $orgId)->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->count(),
-            'overdue_issues' => \App\Models\Issue::where('organization_id', $orgId)->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->where('remediation_due_date', '<', now())->count(),
-            'regulatory_issues' => \App\Models\Issue::where('organization_id', $orgId)->where('regulatory_reportable', true)->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->count(),
-        ];
-
-        // Checklist of filing items with a simple pass/warning/fail indicator.
-        // The minimum is printed as resolved, not as a hardcoded "10%" — a
-        // bank on international authorisation or designated a D-SIB is
-        // measured against 15%, and this line is read as a compliance
-        // assertion.
-        $checklist = [
-            ['item' => 'CAR above CBN minimum ('.rtrim(rtrim(number_format($summary->car_required, 2), '0'), '.').'%)',
-                'status' => $summary->car_actual === null ? 'warning' : ($summary->car_actual >= $summary->car_required ? 'pass' : 'fail'),
-                'detail' => $summary->car_actual === null
-                    ? 'No capital position on record — CAR cannot be assessed'
-                    : $summary->car_actual.'% ('.$summary->car_basis.') vs '.$summary->car_required.'% required'],
-            ['item' => 'ICAAP submitted this cycle', 'status' => $icaap ? 'pass' : 'fail',
-                'detail' => $icaap ? 'Last assessment: '.$icaap->created_at->format('d M Y') : 'No ICAAP on record'],
-            ['item' => 'No critical residual risks', 'status' => $summary->critical_risks === 0 ? 'pass' : 'warning',
-                'detail' => $summary->critical_risks.' critical residual risks open'],
-            ['item' => 'KRI breaches under threshold', 'status' => $summary->red_kris === 0 ? 'pass' : 'warning',
-                'detail' => $summary->red_kris.' red / '.$summary->amber_kris.' amber'],
-            ['item' => 'Regulatory issues closed',  'status' => $summary->regulatory_issues === 0 ? 'pass' : 'fail',
-                'detail' => $summary->regulatory_issues.' regulatory issues still open'],
-            ['item' => 'No overdue issues',         'status' => $summary->overdue_issues === 0 ? 'pass' : 'warning',
-                'detail' => $summary->overdue_issues.' overdue issues'],
-        ];
-
-        return view('risk.quantification.reports.regulatory-pack', [
-            'summary' => $summary,
-            'checklist' => collect($checklist),
-            'icaap' => $icaap,
-        ]);
+        return view('risk.quantification.reports.regulatory-pack', $this->reports->regulatoryPack());
     }
 
     /**

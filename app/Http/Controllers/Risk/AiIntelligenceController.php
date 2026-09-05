@@ -8,6 +8,7 @@ use App\Services\RegulatoryPulseService;
 use App\Services\RiskForecastService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 /**
  * Risk Intelligence screens.
@@ -83,7 +84,7 @@ class AiIntelligenceController extends Controller
             $rangeLow[] = $p['range_low'];
         }
 
-        return view('risk.ai.predictive', [
+        return Inertia::render('Ai/Forecast', [
             'chart' => [
                 'labels' => $labels,
                 'observed' => $observed,
@@ -137,8 +138,25 @@ class AiIntelligenceController extends Controller
             $byHorizon[$horizon] = $register->where('horizon', $horizon)->count();
         }
 
-        return view('risk.ai.radar', [
-            'register' => $register,
+        return Inertia::render('Ai/Radar', [
+            // Presented rather than serialised whole: the page reads a fixed
+            // set of fields and `docs/ai-number-provenance.md` names them.
+            'register' => $register->map(fn (EmergingRisk $e) => [
+                'id' => $e->id,
+                'reference' => $e->reference,
+                'title' => $e->title,
+                'description' => $e->description,
+                'category' => $e->getRelationValue('category')?->name,
+                'owner' => $e->getRelationValue('owner')?->name,
+                'horizon' => $e->horizon,
+                'source' => $e->source,
+                'proximity_score' => (int) $e->proximity_score,
+                'proximity_label' => $e->proximity_label,
+                'velocity_score' => (int) $e->velocity_score,
+                'velocity_label' => $e->velocity_label,
+                'potential_impact' => $e->potential_impact,
+                'last_reviewed_at' => $e->last_reviewed_at,
+            ])->values(),
             'points' => $points,
             'categoryChart' => [
                 'labels' => $byCategory->keys()->all(),
@@ -167,7 +185,7 @@ class AiIntelligenceController extends Controller
 
         $pulse = $pulseService->pulse($orgId);
 
-        return view('risk.ai.regulatory-pulse', [
+        return Inertia::render('Ai/RegulatoryPulse', [
             'feed' => $pulse['feed'],
             'upcomingDeadlines' => $pulse['upcoming_deadlines'],
             'impactMix' => $pulse['impact_mix'],

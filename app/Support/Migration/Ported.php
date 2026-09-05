@@ -52,6 +52,13 @@ final class Ported
         'risk.questionnaires.index',
         'risk.questionnaires.library',
         'risk.imports.index',
+        // Phase 5.5
+        'risk.imports.create',
+        'risk.documents.index',
+        // Phase 5.6
+        'risk.ai.predictive',
+        'risk.ai.radar',
+        'risk.ai.regulatory-pulse',
         'admin.users.index',
         'risk.emerging.index',
         'risk.reports.library',

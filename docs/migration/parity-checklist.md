@@ -35,9 +35,9 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `notifications.read` | `notifications/{id}/read` | `notification.view` |  |  |  |  |  |  |  |  |  |  |
 | `password.request` | `forgot-password` | `` | auth/forgot-password.blade.php (deleted) | Pages/Auth/ForgotPassword.jsx |  |  |  |  |  | Inertia/AuthPagesTest | 2026-09-03 (Phase 1) |  |
 | `password.reset` | `reset-password/{token}` | `` | auth/reset-password.blade.php (deleted) | Pages/Auth/ResetPassword.jsx |  |  |  |  |  | Inertia/AuthPagesTest | 2026-09-03 (Phase 1) |  |
-| `risk.ai.predictive` | `risk/ai/predictive` | `ai.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.ai.radar` | `risk/ai/radar` | `ai.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.ai.regulatory-pulse` | `risk/ai/regulatory-pulse` | `ai.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.ai.predictive` | `risk/ai/predictive` | `ai.view` | risk/ai/predictive.blade.php (deleted) | Pages/Ai/Forecast.jsx |  |  |  |  |  | RiskIntelligenceGateTest | 2026-09-05 (Phase 5.6) |  |
+| `risk.ai.radar` | `risk/ai/radar` | `ai.view` | risk/ai/radar.blade.php (deleted) | Pages/Ai/Radar.jsx |  |  |  |  |  | RiskIntelligenceGateTest | 2026-09-05 (Phase 5.6) |  |
+| `risk.ai.regulatory-pulse` | `risk/ai/regulatory-pulse` | `ai.view` | risk/ai/regulatory-pulse.blade.php (deleted) | Pages/Ai/RegulatoryPulse.jsx |  |  |  |  |  | RiskIntelligenceGateTest | 2026-09-05 (Phase 5.6) |  |
 | `risk.ai.tools.health` | `risk/ai/tools/health` | `ai.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.analysis.bowtie` | `risk/analysis/bowtie` | `analysis.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.analysis.correlation` | `risk/analysis/correlation` | `analysis.view` |  |  |  |  |  |  |  |  |  |  |
@@ -71,7 +71,7 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.dashboards.create` | `risk/dashboards/create` | `dashboard.manage` | — (redirect) | n/a (creates, redirects to edit) |  |  |  |  |  | Widgets/DashboardPublishingTest | 2026-09-03 (Phase 2) |  |
 | `risk.dashboards.edit` | `risk/dashboards/{dashboard}/edit` | `dashboard.manage` | risk/dashboards/edit.blade.php + livewire/widgets/dashboard-builder.blade.php (deleted) | Pages/Dashboards/Edit.jsx (Components/DashboardBuilder.jsx) | inline validate() — see phase-2-notes |  |  | DashboardEditor |  | Widgets/DashboardLayoutRoundTripTest, Widgets/DashboardPublishingTest | 2026-09-03 (Phase 2) |  |
 | `risk.dashboards.index` | `risk/dashboards` | `dashboard.manage` | risk/dashboards/index.blade.php (deleted) | Pages/Dashboards/Index.jsx |  |  |  |  |  | Widgets/DashboardLayoutRoundTripTest | 2026-09-03 (Phase 2) |  |
-| `risk.documents.index` | `risk/documents` | `document.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.documents.index` | `risk/documents` | `document.view` | risk/documents/index.blade.php (deleted) | Pages/Documents/Index.jsx |  |  |  |  |  |  | 2026-09-05 (Phase 5.5) |  |
 | `risk.emerging.create` | `risk/emerging-risks/create` | `risk.create` | risk/emerging/{create,_form}.blade.php (deleted) | Pages/Emerging/Create.jsx | StoreEmergingRiskRequest | EmergingRiskPolicy |  |  |  | Emerging/*, Metadata/DynamicRendererTest | 2026-09-05 (Phase 4.6) |  |
 | `risk.emerging.edit` | `risk/emerging-risks/{emerging}/edit` | `risk.edit` | risk/emerging/{edit,_form}.blade.php (deleted) | Pages/Emerging/Edit.jsx | UpdateEmergingRiskRequest | EmergingRiskPolicy |  |  |  | Emerging/*, RiskIntelligenceGateTest | 2026-09-05 (Phase 4.6) |  |
 | `risk.emerging.index` | `risk/emerging-risks` | `risk.view` | risk/emerging/index.blade.php (deleted) | Pages/Emerging/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
@@ -91,7 +91,7 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.export.quantification-results` | `risk/export/quantification-results` | `report.export` |  |  |  |  |  |  |  |  |  |  |
 | `risk.export.rcsa-matrix` | `risk/export/rcsa-matrix` | `report.export` |  |  |  |  |  |  |  |  |  |  |
 | `risk.export.register` | `risk/export/register` | `report.export` |  |  |  |  |  |  |  |  |  |  |
-| `risk.imports.create` | `risk/imports/create` | `import.create` |  |  |  |  |  |  |  |  |  |  |
+| `risk.imports.create` | `risk/imports/create` | `import.create` | risk/imports/create.blade.php (deleted) | Pages/Imports/Create.jsx |  | DataImportPolicy |  |  |  | Imports/{ImportPolicyTest,ImportMappingSecurityTest} | 2026-09-05 (Phase 5.5) |  |
 | `risk.imports.index` | `risk/imports` | `import.view` | risk/imports/index.blade.php (deleted) | Pages/Imports/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.issues.ageing` | `risk/issues/ageing` | `issue.view` | risk/issues/ageing.blade.php (deleted) | Pages/Issues/Ageing.jsx |  | IssuePolicy |  |  |  | Issues/IssuePagesTest, Characterisation/IssueDashboardFiguresTest | 2026-09-04 (Phase 4.4) |  |
 | `risk.issues.closure` | `risk/issues/closure` | `issue.close` | risk/issues/closure.blade.php (deleted) | Pages/Issues/Closure.jsx | RejectIssueClosureRequest | IssuePolicy |  |  |  | Issues/IssuePagesTest, Characterisation/IssueDashboardFiguresTest | 2026-09-04 (Phase 4.4) |  |

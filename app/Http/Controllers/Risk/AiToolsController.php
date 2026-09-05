@@ -24,6 +24,24 @@ class AiToolsController extends Controller
     public function __construct(protected LlmService $llm) {}
 
     /**
+     * The token and timeout budget for a call of a given shape.
+     *
+     * These were literals at seven call sites — 600/60, 1200/90, 900/90 — and
+     * they are budgets rather than tenant settings, so they live in
+     * `config/services.php` under `llm.budgets`, named for the shape of the
+     * answer being asked for. A tool returning truncated JSON gets its budget
+     * raised there, next to the others it should be compared against.
+     *
+     * @return array{max_tokens: int, timeout: int}
+     */
+    private static function budget(string $shape): array
+    {
+        $budgets = config('services.llm.budgets', []);
+
+        return $budgets[$shape] ?? $budgets['short'] ?? ['max_tokens' => 600, 'timeout' => 60];
+    }
+
+    /**
      * Risk Statement Builder — transforms a terse user scenario into a
      * structured Cause → Event → Consequence risk statement plus a concise
      * title and a board-ready description.
@@ -79,7 +97,7 @@ Produce a JSON object with EXACTLY these keys:
 Respond with the JSON object only.
 PROMPT;
 
-        $data = $this->llm->json($prompt, $system, ['max_tokens' => 600, 'timeout' => 60]);
+        $data = $this->llm->json($prompt, $system, self::budget('short'));
 
         $required = ['title', 'cause', 'event', 'consequence', 'description'];
         foreach ($required as $k) {
@@ -176,7 +194,7 @@ PROMPT;
 
         $cacheKey = 'controls:'.md5(($validated['risk_id'] ?? '').'|'.$title.'|'.$description);
         $data = $this->llm->json($prompt, $system, [
-            'max_tokens' => 1200, 'timeout' => 90, 'cache_key' => $cacheKey,
+            ...self::budget('long'), 'cache_key' => $cacheKey,
         ]);
 
         if (empty($data['controls']) || ! is_array($data['controls'])) {
@@ -280,7 +298,7 @@ PROMPT;
 
         $cacheKey = 'kris:'.md5(($validated['risk_id'] ?? '').'|'.$title.'|'.$description);
         $data = $this->llm->json($prompt, $system, [
-            'max_tokens' => 1200, 'timeout' => 90, 'cache_key' => $cacheKey,
+            ...self::budget('long'), 'cache_key' => $cacheKey,
         ]);
 
         if (empty($data['kris']) || ! is_array($data['kris'])) {
@@ -393,7 +411,7 @@ PROMPT;
         $fingerprint = md5("$totalActive|$critical|$high|$redKris|$lossCount|$netLoss|$openIssues");
         $cacheKey = 'narrative:'.$orgId.':'.$fingerprint;
         $data = $this->llm->json($prompt, $system, [
-            'max_tokens' => 900, 'timeout' => 90,
+            ...self::budget('narrative'),
             'cache_key' => $cacheKey, 'cache_ttl' => 3600,
         ]);
 
@@ -481,7 +499,7 @@ Produce a JSON object with EXACTLY these keys:
 Respond with the JSON object only.
 PROMPT;
 
-        $data = $this->llm->json($prompt, $system, ['max_tokens' => 600, 'timeout' => 60]);
+        $data = $this->llm->json($prompt, $system, self::budget('short'));
 
         if (empty($data['description']) || ! is_string($data['description'])) {
             return response()->json([
@@ -563,7 +581,7 @@ Produce a JSON object with EXACTLY these keys:
 Respond with the JSON object only.
 PROMPT;
 
-        $data = $this->llm->json($prompt, $system, ['max_tokens' => 700, 'timeout' => 60]);
+        $data = $this->llm->json($prompt, $system, self::budget('medium'));
 
         if (empty($data['description']) || ! is_string($data['description'])) {
             return response()->json([
@@ -634,7 +652,7 @@ Produce a JSON object with EXACTLY these keys:
 Respond with the JSON object only.
 PROMPT;
 
-        $data = $this->llm->json($prompt, $system, ['max_tokens' => 600, 'timeout' => 60]);
+        $data = $this->llm->json($prompt, $system, self::budget('short'));
 
         if (empty($data['description']) || ! is_string($data['description'])) {
             return response()->json([

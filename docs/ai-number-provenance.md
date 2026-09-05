@@ -107,6 +107,31 @@ the screen, its route, its view, its sidebar entry and `AiDataService` are gone.
 `RiskIntelligenceGateTest::the_benchmarking_route_no_longer_exists` keeps it
 gone until someone brings back a real one.
 
+## Phase 5.6 — the screens moved to React, the mapping did not
+
+The three surviving screens are `Pages/Ai/{Forecast,Radar,RegulatoryPulse}.jsx`
+now. **Every prop name is the one the Blade view used**, deliberately, so that
+every row of this document still points at the figure it describes without
+being rewritten. Nothing above changed.
+
+Two properties this document commits to are worth naming as things the React
+pages had to be built to preserve, because a chart library would have broken
+both by default:
+
+- **A month with no assessment stays a gap.** The forecast chart is hand-drawn
+  SVG that splits each series into contiguous runs, so a null is a hole rather
+  than a line joined across it. A default line chart interpolates, which would
+  turn "nobody assessed anything in March" into a plotted value.
+- **The projection is a range, not a confidence band.** It is drawn from the
+  fit's standard error of prediction and labelled with its basis; there is no
+  percentage attached, because that would assert distributional properties
+  nobody has verified.
+
+The radar scatter is likewise fixed to a 1-5 grid on both axes rather than
+auto-fitted, because proximity and velocity are ordinal scores — an axis scaled
+to the data would imply a continuous measure and make two registers
+incomparable.
+
 ## Enforcement
 
 - `scripts/check-no-rng.sh` — CI step. Fails on `mt_rand`, `rand`, `random_int`,

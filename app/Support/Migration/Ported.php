@@ -141,6 +141,17 @@ final class Ported
         'risk.quantification.reports.stress-testing',
         'risk.quantification.reports.risk-contribution',
         'risk.quantification.reports.regulatory-pack',
+        // Phase 5 — quantification scenarios, runs and settings
+        'risk.quantification.scenarios',
+        'risk.quantification.create-scenario',
+        'risk.quantification.edit-scenario',
+        'risk.quantification.show-scenario',
+        'risk.quantification.simulate',
+        'risk.quantification.results',
+        'risk.quantification.show-results',
+        'risk.quantification.icaap',
+        'risk.quantification.library',
+        'risk.quantification.settings',
         // Phase 3 — RCSA
         'risk.rcsa.dashboard',
         'risk.rcsa.worksheet',

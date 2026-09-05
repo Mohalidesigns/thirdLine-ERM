@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SimulationResult extends Model
 {
@@ -38,12 +39,14 @@ class SimulationResult extends Model
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function simulationRun()
+    /** @return BelongsTo<SimulationRun, $this> */
+    public function simulationRun(): BelongsTo
     {
         return $this->belongsTo(SimulationRun::class);
     }
 
-    public function scenario()
+    /** @return BelongsTo<QuantificationScenario, $this> */
+    public function scenario(): BelongsTo
     {
         return $this->belongsTo(QuantificationScenario::class, 'scenario_id');
     }

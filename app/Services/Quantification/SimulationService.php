@@ -137,6 +137,56 @@ class SimulationService
     }
 
     /**
+     * A run as the results list shows it.
+     *
+     * TWO THINGS THE BLADE TABLE GOT WRONG.
+     *
+     * 1. IT HEADED A COLUMN "VaR (99.5%)". `SimulationRun::getVar995Attribute()`
+     *    reads `var_99_9_kobo`, because the engine stores no 99.5 column —
+     *    MonteCarloService writes 90 / 95 / 99 / 99.9. So the figure under that
+     *    heading was the 99.9 loss, which is LARGER than the 99.5 loss it
+     *    claimed to be, on a page read as the output of a capital model.
+     *    IcaapService already refuses this — it reports stress impact off the
+     *    columns that exist rather than off the levels a run requested — and
+     *    this row now states 99.9 for the same reason.
+     *
+     * 2. IT COST THREE QUERIES A ROW. `var_95`, `var_995` and `expected_loss`
+     *    each call `$this->aggregate_result`, which runs its own query; at 25
+     *    rows a page that is 75. The aggregate is read once here.
+     *
+     * A run with no aggregate result yet — queued, running, failed or cancelled
+     * — reports nulls rather than zeroes. A zero VaR is a claim about the
+     * portfolio; "not computed" is the truth.
+     *
+     * @return array<string, mixed>
+     */
+    public function toListRow(SimulationRun $run): array
+    {
+        $aggregate = $run->aggregate_result;
+
+        $naira = fn (int|float|null $kobo) => $kobo === null ? null : round((float) $kobo / 100, 2);
+
+        return [
+            'id' => $run->id,
+            'simulation_reference' => $run->simulation_reference,
+            'status' => $run->status,
+            'progress' => (int) $run->progress,
+            'iterations' => $run->iterations,
+            'scenario_count' => is_array($run->scenario_ids) ? count($run->scenario_ids) : 0,
+            'random_seed' => $run->random_seed,
+            'job_run_id' => $run->job_run_id,
+            'cancel_requested_at' => $run->cancel_requested_at,
+            'error_message' => $run->error_message,
+            'created_at' => $run->created_at,
+            'completed_at' => $run->completed_at,
+            'expected_loss' => $naira($aggregate?->expected_annual_loss_kobo),
+            'var_95' => $naira($aggregate?->var_95_kobo),
+            'var_99' => $naira($aggregate?->var_99_kobo),
+            'var_99_9' => $naira($aggregate?->var_99_9_kobo),
+        ];
+    }
+
+    /**
      * Ask a running simulation to stop.
      *
      * A request, not an interrupt: a worker cannot be killed from here, only

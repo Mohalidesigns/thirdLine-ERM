@@ -72,4 +72,39 @@ final class Distributions
 
         return [$mu, $sigma, $meanKobo];
     }
+
+    /**
+     * The standard deviation that produced a stored sigma.
+     *
+     * The exact inverse of the sigma half of lognormalFromMoments(): that
+     * method derives sigma from the coefficient of variation s/m, so
+     *
+     *     s = m * sqrt( exp(sigma^2) - 1 )
+     *
+     * recovers it. This exists so the EDIT FORM can be populated with what the
+     * user actually typed. Until Phase 5.2 that form was rendered blank on
+     * every scenario, which meant a small correction to one parameter required
+     * retyping the whole calibration from memory — and, because the form also
+     * posted to the create route, saving it filed a second scenario rather
+     * than amending the first.
+     *
+     * Returns null when there is no standard deviation to recover: a scenario
+     * stored at DEFAULT_SIGMA was never given one, and inventing
+     * m * sqrt(exp(1) - 1) for it would put a number the user never chose into
+     * a field they are about to save.
+     */
+    public static function stdDevFromLognormal(?float $meanNaira, int|float|null $sigma): ?float
+    {
+        if ($meanNaira === null || $meanNaira <= 0 || $sigma === null) {
+            return null;
+        }
+
+        $sigma = (float) $sigma;
+
+        if ($sigma <= 0.0 || abs($sigma - self::DEFAULT_SIGMA) < 1e-9) {
+            return null;
+        }
+
+        return round($meanNaira * sqrt(exp($sigma ** 2) - 1), 2);
+    }
 }

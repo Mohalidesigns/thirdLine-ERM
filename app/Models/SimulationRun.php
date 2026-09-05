@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class SimulationRun extends Model
@@ -66,17 +68,20 @@ class SimulationRun extends Model
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function organization()
+    /** @return BelongsTo<Organization, $this> */
+    public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }
 
-    public function initiatedBy()
+    /** @return BelongsTo<User, $this> */
+    public function initiatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'initiated_by');
     }
 
-    public function results()
+    /** @return HasMany<SimulationResult, $this> */
+    public function results(): HasMany
     {
         return $this->hasMany(SimulationResult::class);
     }

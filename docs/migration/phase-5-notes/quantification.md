@@ -3,11 +3,9 @@
 `Risk/QuantificationController`, 1,611 lines — the largest single controller in
 the programme. Extraction before pages, characterisation before extraction.
 
-**In progress.** The extraction is done — `IcaapService`, `ScenarioLibrary`,
-`Distributions`, `QuantificationReportService`, `ScenarioService`,
-`SimulationService`, `QuantificationSettingsService` — along with four defects
-that had been shipping. Still to come: the three policies and the fifteen
-pages.
+The extraction, the three policies and all fifteen pages are done, along with
+**eight defects that had been shipping**. `risk/quantification/` is down to
+`dashboard.blade.php`, which is criterion 7's Command Centre work.
 
 ## Scope check
 
@@ -220,7 +218,128 @@ Two separations they exist to make, both of which had been unenforceable:
   preparer ≠ approver: segregation of duties is the tenant's role assignment to
   make, and the abilities are separate so it CAN be made.
 
+## The register was blind on four screens
+
+`quantification_scenarios` has no `risk_category`, `distribution_type`, `mean`,
+`std_dev`, `frequency_per_year`, `min_loss`, `max_loss` or `last_run_at`
+column. **Those are the create form's field names.** The real columns are
+`cbn_risk_category`, `severity_distribution`, `expected_loss_per_event_kobo`,
+`severity_sigma`, `expected_annual_frequency`, `severity_min_kobo` and
+`severity_max_kobo` — which is why the write path has always had a mapping
+(`attributesFrom()`).
+
+Four screens read the form's vocabulary straight off the model, every one
+behind `?? 0` or `?? '-'`:
+
+- the **register list** — 6 of 9 columns: category `-`, distribution `-`, mean
+  ₦0, std dev ₦0, `-/year`, last run `Never`;
+- the **show page** — all four headline tiles (₦0, ₦0, 0/year, `-`) and six of
+  seven parameter rows, printed beside a correctly-parameterised log-normal
+  curve drawn from the very parameters the panel called zero;
+- the **simulate picker** — every row read "· · Mean: ₦0", so an operator
+  assembling a capital run had nothing to choose on;
+- the **edit form** — below.
+
+These are the parameters `MonteCarloService` draws to produce the VaR that
+becomes a Pillar 2B buffer. ₦0 is the same class of claim as 0% CAR.
+
+The fix is `ScenarioService::toFormValues()`, the exact inverse of
+`attributesFrom()`, plus `Distributions::stdDevFromLognormal()` — the inverse
+of the sigma half of the moment conversion. A scenario stored at
+`DEFAULT_SIGMA` gets **null** back rather than the standard deviation that
+sigma would imply: inventing one would put a number the preparer never chose
+into a field they are about to save.
+
+`last_run_at` is not resurrected. No such column has ever existed, and "which
+runs included this scenario" is a query — the show page lists them.
+
+## The edit screen could not edit, and filed a duplicate instead
+
+`editScenario()` rendered `create-scenario.blade.php`. That form populated every
+field from `old(...)` with **no fallback to the record**, so opening a scenario
+for editing showed a completely blank form; and its action was hardcoded to
+`route('risk.quantification.store-scenario')`, so saving it **created a second
+scenario rather than amending the first**.
+
+`grep -rn "update-scenario" resources/ app/` returned nothing outside
+`routes/web.php`. The PUT route, `updateScenario()`, its validation and (as of
+this phase) its policy check had never been reachable from the interface.
+
+This is 4.6's defect one turn further on: there the create form could not
+create; here the edit form creates instead of editing.
+
+`ScenarioRegisterTest` is the guard. Its headline assertion goes IN through the
+create form and comes OUT through the edit form's props, so a read naming a
+column the write path never fills cannot survive it.
+
+**A precision note worth keeping.** The mean round-trips exactly — it has its
+own kobo column. The standard deviation does not: it is not stored, it is
+recovered from `severity_sigma`, which is `decimal:6`. Six decimal places moves
+the recovered figure by about one part in a million — four naira in three
+million. The test asserts a relative tolerance and says why, rather than
+pretending the round trip is exact.
+
+## "VaR (99.5%)" was the 99.9% figure
+
+`SimulationRun::getVar995Attribute()` reads `var_99_9_kobo`, because the engine
+stores no 99.5 column — `MonteCarloService` writes 90 / 95 / 99 / 99.9. The
+results list headed a column "VaR (99.5%)" and the results page a KPI tile the
+same, both showing the 99.9 loss: a **larger** number than the one they claimed
+to be, on pages read as the output of a capital model.
+
+`IcaapService` already refuses this — it reports stress impact off the columns
+that exist rather than off the levels a run requested — and both screens now
+say 99.9.
+
+The same presenter fixes an N+1 while it is there: `var_95`, `var_995` and
+`expected_loss` each called `$this->aggregate_result`, which issues its own
+query, so the list cost three queries a row.
+
+## Notes on the pages
+
+- **`figures.js` / `Figure.jsx`** hold the "missing stays missing" rule once.
+  Each Blade report carried its own pair of closures for it; a zero in a
+  capital column is a statement about the bank, and four copies of that rule
+  would drift.
+- **`SeriesChart.jsx`** is inline SVG. The house convention is no chart
+  dependency (see `TrendChart`, `HBarChart`); the Blade screens broke it by
+  reaching for Chart.js. All four series these pages draw are one dimension
+  against one label, so they share it. An empty series renders **nothing**
+  rather than an empty axis, and the callers say so in words.
+- **The results page polls and cancels.** `useJobProgress` on the run's
+  `JobRun`, with the cancel button that — until the `$fillable` fix earlier in
+  this phase — requested nothing of anybody.
+- **The library page** says which templates this organisation already holds, so
+  a preparer is not offered an import that would file a duplicate.
+
+## What the Inertia crossing did to the characterisation tests
+
+Both characterisation tests had to change, and not by renaming a helper. Props
+arrive as JSON: objects become arrays, and `json_encode` writes a whole float
+without its fraction, so `13.0` crosses as `13` and returns an **int**. Every
+`assertSame(13.0, ...)` failed — the trap already recorded from 3.5.
+
+The assertions compare figures by VALUE now, through an `assertFigure` helper.
+`assertNull` stays strict everywhere: an absent capital input staying absent is
+the property those files exist to defend.
+
+One assertion was added that PHP could not otherwise make. The pages call
+`.map()` on `rows`, `stressScenarios`, `byType`, `byUnit` and `checklist`; a
+Collection whose keys survive serialisation arrives as a JSON **object** and
+the page throws at render while the props stay perfectly correct. No existing
+test would catch it. `every_collection_prop_reaches_the_page_as_a_list` asserts
+each has keys `0..n-1`.
+
 ## Numbers
 
-`QuantificationController` 1,611 → 520 lines. Criterion 3 wants under 300 with
-no method over 40; the pages are the rest of the distance.
+`QuantificationController` 1,611 → 611 lines, and the only Blade view left in
+`risk/quantification/` is `dashboard.blade.php`.
+
+Criterion 3 wants the controller under 300 with **no method over 40**. Exactly
+one method breaks that rule now: `dashboard()`, at 117 lines of capital
+arithmetic the screen computes inline — the same shape `icaap()` had before
+`IcaapService`, and the same reason to extract it. Every other method is under
+40. Removing it leaves ~490 lines, of which the majority is docblock; getting
+under 300 means the remaining prose moves to the services it describes, which
+is the honest way to hit that number rather than deleting the record of what
+these screens got wrong.

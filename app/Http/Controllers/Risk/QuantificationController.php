@@ -168,6 +168,38 @@ class QuantificationController extends Controller
     }
 
     /**
+     * The register's own category vocabulary.
+     *
+     * `cbn_risk_category` is a free string on the scenario, and the create form
+     * has always offered the tenant's RiskCategory names for it.
+     *
+     * @return list<string>
+     */
+    private function categoryNames(int $orgId): array
+    {
+        return RiskCategory::where('organization_id', $orgId)
+            ->orderBy('name')->pluck('name')->all();
+    }
+
+    /**
+     * Everything both scenario forms need besides the values themselves.
+     *
+     * @return array<string, mixed>
+     */
+    private function scenarioFormOptions(int $orgId): array
+    {
+        return [
+            'risks' => Risk::where('organization_id', $orgId)
+                ->where('status', 'active')
+                ->orderBy('risk_code')
+                ->get(['id', 'risk_code', 'title'])
+                ->all(),
+            'categories' => $this->categoryNames($orgId),
+            'distributions' => ScenarioService::SUPPORTED_SEVERITY_DISTRIBUTIONS,
+        ];
+    }
+
+    /**
      * List all scenarios.
      */
     public function scenarios(Request $request)
@@ -194,9 +226,16 @@ class QuantificationController extends Controller
 
         $scenarios = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
 
-        $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
+        // Presented through ScenarioService, which maps the table's columns to
+        // the form's vocabulary. The Blade table read that vocabulary straight
+        // off the model, where none of it exists.
+        $scenarios->through(fn (QuantificationScenario $scenario) => $this->scenarios->toListRow($scenario));
 
-        return view('risk.quantification.scenarios', compact('scenarios', 'categories'));
+        return Inertia::render('Quantification/Scenarios/Index', [
+            'scenarios' => $scenarios,
+            'categories' => $this->categoryNames($orgId),
+            'filters' => $request->only(['search', 'status', 'risk_category']),
+        ]);
     }
 
     /**
@@ -208,10 +247,21 @@ class QuantificationController extends Controller
 
         $orgId = TenantContext::organizationId();
 
-        $risks = Risk::where('organization_id', $orgId)->where('status', 'active')->orderBy('risk_code')->get();
-        $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
-
-        return view('risk.quantification.create-scenario', compact('risks', 'categories'));
+        return Inertia::render('Quantification/Scenarios/Create', array_merge(
+            $this->scenarioFormOptions($orgId),
+            ['initial' => [
+                'name' => '',
+                'description' => '',
+                'risk_category' => '',
+                'linked_risk_id' => '',
+                'distribution_type' => ScenarioService::SUPPORTED_SEVERITY_DISTRIBUTIONS[0],
+                'frequency_per_year' => '',
+                'mean' => '',
+                'std_dev' => '',
+                'min_loss' => '',
+                'max_loss' => '',
+            ]],
+        ));
     }
 
     /**
@@ -249,9 +299,14 @@ class QuantificationController extends Controller
             ->limit(10)
             ->get();
 
-        $distributionVisualization = $this->scenarios->distributionVisualization($scenario);
-
-        return view('risk.quantification.show-scenario', compact('scenario', 'simulations', 'distributionVisualization'));
+        return Inertia::render('Quantification/Scenarios/Show', [
+            'scenario' => $scenario->only(['id', 'scenario_reference', 'name', 'description', 'status']),
+            'values' => $this->scenarios->toFormValues($scenario),
+            'simulations' => $simulations->map(fn (SimulationRun $run) => $run->only([
+                'id', 'simulation_reference', 'status', 'iterations', 'completed_at',
+            ]))->values(),
+            'distributionVisualization' => $this->scenarios->distributionVisualization($scenario),
+        ]);
     }
 
     /**
@@ -285,15 +340,17 @@ class QuantificationController extends Controller
         // The settings screen's whole purpose. Until Phase 5.2 this form
         // hardcoded 10,000 iterations, a one-year horizon and 95/99/99.5, so
         // the one setting that did persist reached nothing.
-        return view('risk.quantification.simulate', array_merge(
-            ['scenarios' => $scenarios],
-            [
-                'defaults' => $this->settings->simulationDefaults($orgId),
-                'iterationChoices' => QuantificationSettingsService::ITERATION_CHOICES,
-                'horizonChoices' => QuantificationSettingsService::HORIZON_CHOICES,
-                'confidenceChoices' => QuantificationSettingsService::CONFIDENCE_CHOICES,
-            ],
-        ));
+        return Inertia::render('Quantification/Simulate', [
+            // Presented, so the picker states each scenario's real calibration.
+            // The Blade version's subtitle read `risk_category`,
+            // `distribution_type` and `mean` off the model, none of which are
+            // columns, so every row offered "· · Mean: ₦0".
+            'scenarios' => $scenarios->map(fn (QuantificationScenario $scenario) => $this->scenarios->toListRow($scenario))->values(),
+            'defaults' => $this->settings->simulationDefaults($orgId),
+            'iterationChoices' => QuantificationSettingsService::ITERATION_CHOICES,
+            'horizonChoices' => QuantificationSettingsService::HORIZON_CHOICES,
+            'confidenceChoices' => QuantificationSettingsService::CONFIDENCE_CHOICES,
+        ]);
     }
 
     /**
@@ -352,9 +409,14 @@ class QuantificationController extends Controller
             $query->where('status', $request->status);
         }
 
-        $results = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
+        $results = $query->with('results')->orderByDesc('created_at')->paginate(25)->withQueryString();
 
-        return view('risk.quantification.results', compact('results'));
+        $results->through(fn (SimulationRun $run) => $this->simulations->toListRow($run));
+
+        return Inertia::render('Quantification/Results/Index', [
+            'results' => $results,
+            'filters' => $request->only('status'),
+        ]);
     }
 
     /**
@@ -367,8 +429,14 @@ class QuantificationController extends Controller
     {
         $this->allow('view', $simulation);
 
-        return view('risk.quantification.show-results', array_merge(
-            ['result' => $simulation],
+        return Inertia::render('Quantification/Results/Show', array_merge(
+            [
+                'result' => $this->simulations->toListRow($simulation),
+                'percentiles' => $simulation->percentiles,
+                'expectedShortfall' => $simulation->expected_shortfall,
+                'maxLoss' => $simulation->max_loss,
+                'contributions' => collect($simulation->scenario_contributions)->values(),
+            ],
             $this->simulations->resultCharts($simulation),
         ));
     }
@@ -381,7 +449,7 @@ class QuantificationController extends Controller
      */
     public function icaap()
     {
-        return view('risk.quantification.icaap', $this->icaap->report());
+        return Inertia::render('Quantification/Icaap', $this->icaap->report());
     }
 
     /**
@@ -390,7 +458,22 @@ class QuantificationController extends Controller
      */
     public function library(ScenarioLibrary $library)
     {
-        return view('risk.quantification.library', ['libraryScenarios' => $library->all()]);
+        // Each template says whether this organisation already holds it, so a
+        // preparer is not offered an import that would file a duplicate.
+        $templates = $library->all()->map(function (object $template) use ($library) {
+            $existing = $library->importedScenario($template);
+
+            return array_merge((array) $template, [
+                'imported' => $existing === null
+                    ? null
+                    : ['id' => $existing->id, 'scenario_reference' => $existing->scenario_reference],
+            ]);
+        })->values();
+
+        return Inertia::render('Quantification/Library', [
+            'libraryScenarios' => $templates,
+            'canImport' => Gate::allows('import', QuantificationScenario::class),
+        ]);
     }
 
     /**
@@ -403,11 +486,15 @@ class QuantificationController extends Controller
      */
     public function settings()
     {
-        return view('risk.quantification.settings', [
-            'settings' => (object) $this->settings->forDisplay(),
+        return Inertia::render('Quantification/Settings', [
+            'settings' => $this->settings->forDisplay(),
             'iterationChoices' => QuantificationSettingsService::ITERATION_CHOICES,
             'horizonChoices' => QuantificationSettingsService::HORIZON_CHOICES,
             'confidenceChoices' => QuantificationSettingsService::CONFIDENCE_CHOICES,
+            'minimumCarGuidance' => [
+                'national' => (float) config('quantification.default_minimum_car'),
+                'international' => (float) config('quantification.international_or_dsib_minimum_car'),
+            ],
         ]);
     }
 
@@ -480,10 +567,13 @@ class QuantificationController extends Controller
     {
         $orgId = $this->allow('update', $scenario);
 
-        $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
-        $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
-
-        return view('risk.quantification.create-scenario', compact('scenario', 'risks', 'categories'));
+        return Inertia::render('Quantification/Scenarios/Edit', array_merge(
+            $this->scenarioFormOptions($orgId),
+            [
+                'scenario' => $scenario->only(['id', 'scenario_reference', 'name']),
+                'initial' => $this->scenarios->toFormValues($scenario),
+            ],
+        ));
     }
 
     /**

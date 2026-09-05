@@ -5,6 +5,7 @@ namespace Tests\Feature\Quantification;
 use App\Models\QuantificationSetting;
 use App\Services\Quantification\IcaapService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -48,24 +49,19 @@ class QuantificationSettingsTest extends TestCase
     #[Test]
     public function every_field_the_form_offers_is_a_field_the_save_stores(): void
     {
-        $html = $this->actingAs($this->actor)
-            ->get(route('risk.quantification.settings'))
-            ->assertOk()->getContent();
-
-        // Only the controls inside the settings form itself; the layout's own
-        // <meta name="viewport"> is not a field.
-        $form = substr($html, (int) strpos($html, '<form'), (int) strrpos($html, '</form>') - (int) strpos($html, '<form'));
-
-        preg_match_all('/<(?:input|select|textarea)\b[^>]*\bname="([a-z_]+)(?:\[\])?"/i', $form, $matches);
-
-        $offered = collect($matches[1])->reject(fn ($name) => $name === '_token' || $name === '_method')
-            ->unique()->values()->all();
+        // The page is React now, so the fields it offers are the keys of the
+        // `settings` prop its useForm is seeded from — the same check one step
+        // earlier in the pipeline, and a stricter one: a field the page renders
+        // without a prop would have nothing to submit.
+        $offered = array_keys($this->settingsProps()['settings']);
 
         $this->assertSame(
-            ['default_iterations', 'default_horizon_years', 'default_confidence_levels', 'cbn_minimum_car', 'cbn_conservation_buffer'],
+            ['default_iterations', 'default_confidence_levels', 'default_horizon_years', 'cbn_minimum_car', 'cbn_conservation_buffer'],
             $offered,
             'The form offers exactly the five fields that have somewhere to be stored.',
         );
+
+        sort($offered);
 
         $submission = [
             'default_iterations' => 50_000,
@@ -75,9 +71,12 @@ class QuantificationSettingsTest extends TestCase
             'cbn_conservation_buffer' => 1.0,
         ];
 
+        $submitted = array_keys($submission);
+        sort($submitted);
+
         $this->assertSame(
             $offered,
-            array_keys($submission),
+            $submitted,
             'Every offered field is submitted below; add the assertion when a field is added.',
         );
 
@@ -112,7 +111,9 @@ class QuantificationSettingsTest extends TestCase
 
         $data = $this->actingAs($this->actor)
             ->get(route('risk.quantification.simulate'))
-            ->assertOk()->original->getData();
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->component('Quantification/Simulate'))
+            ->inertiaProps();
 
         $this->assertSame(50_000, $data['defaults']['iterations']);
         $this->assertSame(5, $data['defaults']['horizon_years']);
@@ -130,16 +131,22 @@ class QuantificationSettingsTest extends TestCase
     #[Test]
     public function an_unconfigured_organisation_is_shown_the_figures_the_resolver_will_use(): void
     {
-        $data = $this->actingAs($this->actor)
-            ->get(route('risk.quantification.settings'))
-            ->assertOk()->original->getData();
-
-        $settings = $data['settings'];
+        $settings = $this->settingsProps()['settings'];
         $icaap = app(IcaapService::class);
 
-        $this->assertSame($icaap->resolveMinimumCar(null, $this->organization->id), $settings->cbn_minimum_car);
-        $this->assertSame($icaap->resolveConservationBuffer(null, $this->organization->id), $settings->cbn_conservation_buffer);
-        $this->assertSame(1.0, $settings->cbn_conservation_buffer, 'The CBN figure, not Basel III’s 2.5.');
+        $this->assertEqualsWithDelta($icaap->resolveMinimumCar(null, $this->organization->id), $settings['cbn_minimum_car'], 0.001);
+        $this->assertEqualsWithDelta($icaap->resolveConservationBuffer(null, $this->organization->id), $settings['cbn_conservation_buffer'], 0.001);
+        $this->assertEqualsWithDelta(1.0, $settings['cbn_conservation_buffer'], 0.001, 'The CBN figure, not Basel III’s 2.5.');
+    }
+
+    /** @return array<string, mixed> */
+    private function settingsProps(): array
+    {
+        return $this->actingAs($this->actor)
+            ->get(route('risk.quantification.settings'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->component('Quantification/Settings'))
+            ->inertiaProps();
     }
 
     /** A confidence level the engine does not compute is refused, not stored. */

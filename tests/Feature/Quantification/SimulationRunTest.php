@@ -11,6 +11,7 @@ use App\Models\SimulationRun;
 use App\Services\Quantification\SimulationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Inertia\Testing\AssertableInertia;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -224,16 +225,18 @@ class SimulationRunTest extends TestCase
 
         $data = $this->actingAs($this->actor)
             ->get(route('risk.quantification.show-results', $run))
-            ->assertOk()->original->getData();
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->component('Quantification/Results/Show'))
+            ->inertiaProps();
 
         $this->assertSame(['50%', '95%'], $data['histogramData']['labels'], 'Only the two levels on file.');
-        $this->assertSame([5_000_000_000.0, 20_000_000_000.0], $data['histogramData']['values'], 'Kobo in, naira out.');
+        $this->assertEqualsWithDelta([5_000_000_000.0, 20_000_000_000.0], $data['histogramData']['values'], 0.001, 'Kobo in, naira out.');
 
-        $this->assertSame([0.5, 0.95], $data['cdfData']['values']);
+        $this->assertEqualsWithDelta([0.5, 0.95], $data['cdfData']['values'], 0.001);
         $this->assertSame('₦5,000,000,000', $data['cdfData']['labels'][0]);
 
         $this->assertSame(['Internal Fraud'], $data['contribChartData']['labels']);
-        $this->assertSame([100.0], $data['contribChartData']['values']);
+        $this->assertEqualsWithDelta([100.0], $data['contribChartData']['values'], 0.001);
     }
 
     /**

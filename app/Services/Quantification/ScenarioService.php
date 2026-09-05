@@ -163,6 +163,82 @@ class ScenarioService
     }
 
     /**
+     * A scenario in the FORM's vocabulary — the exact inverse of
+     * attributesFrom().
+     *
+     * THIS IS THE FIX FOR A DEFECT THAT SPANNED FOUR SCREENS. The scenario
+     * list, the show page, the simulate picker and the edit form all read
+     * `risk_category`, `distribution_type`, `mean`, `std_dev`,
+     * `frequency_per_year`, `min_loss`, `max_loss` and `last_run_at` straight
+     * off the model. NOT ONE of those is a column on `quantification_scenarios`
+     * — they are the create form's field names, and the write path has always
+     * had to translate them (that is what attributesFrom() is for). Every read
+     * sat behind `?? 0` or `?? '-'`, so nothing ever failed:
+     *
+     *   - the register listed every scenario as category "-", distribution "-",
+     *     mean ₦0, std dev ₦0, "-/year", last run "Never";
+     *   - the show page's four headline tiles were ₦0, ₦0, 0/year and "-",
+     *     printed beside a correctly-parameterised log-normal curve drawn from
+     *     the very parameters the tiles claimed were zero;
+     *   - the simulate picker offered each scenario as "· · Mean: ₦0", giving
+     *     an operator assembling a capital run nothing to choose on.
+     *
+     * These are the parameters MonteCarloService draws to produce the VaR that
+     * becomes a Pillar 2B buffer, so ₦0 is the same class of claim as 0% CAR.
+     *
+     * `last_run_at` is not resurrected: no such column has ever existed, and
+     * the runs that included a scenario are a query, not a field. The show page
+     * lists them.
+     *
+     * @return array<string, mixed>
+     */
+    public function toFormValues(QuantificationScenario $scenario): array
+    {
+        $mean = $this->naira($scenario->expected_loss_per_event_kobo);
+
+        return [
+            'name' => $scenario->name,
+            'description' => $scenario->description,
+            'risk_category' => $scenario->cbn_risk_category,
+            'linked_risk_id' => $scenario->risk_register_id,
+            'distribution_type' => $scenario->severity_distribution ?? self::SUPPORTED_SEVERITY_DISTRIBUTIONS[0],
+            'frequency_per_year' => $scenario->expected_annual_frequency === null
+                ? null
+                : (float) $scenario->expected_annual_frequency,
+            'mean' => $mean,
+            // `severity_sigma` is cast decimal:6, so it arrives as a string.
+            'std_dev' => Distributions::stdDevFromLognormal(
+                $mean,
+                $scenario->severity_sigma === null ? null : (float) $scenario->severity_sigma,
+            ),
+            'min_loss' => $this->naira($scenario->severity_min_kobo),
+            'max_loss' => $this->naira($scenario->severity_max_kobo),
+            'expected_annual_loss' => $this->naira($scenario->expected_annual_loss_kobo),
+            'status' => $scenario->status,
+        ];
+    }
+
+    /**
+     * A scenario as the register, the picker and the show page list it: its
+     * identity plus the form-vocabulary figures above.
+     *
+     * @return array<string, mixed>
+     */
+    public function toListRow(QuantificationScenario $scenario): array
+    {
+        return array_merge([
+            'id' => $scenario->id,
+            'scenario_reference' => $scenario->scenario_reference,
+        ], $this->toFormValues($scenario));
+    }
+
+    /** Kobo → Naira, keeping "not stated" distinct from zero. */
+    private function naira(int|float|null $kobo): ?float
+    {
+        return $kobo === null ? null : round((float) $kobo / 100, 2);
+    }
+
+    /**
      * Build visualization data for a lognormal distribution.
      *
      * WP-08 note on the mu fallback below. When a scenario has no stored

@@ -6,6 +6,7 @@ use App\Models\QuantificationScenario;
 use App\Services\Quantification\ScenarioLibrary;
 use App\Support\Quantification\Distributions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -88,10 +89,20 @@ class QuantificationLibraryTest extends TestCase
     #[Test]
     public function the_library_screen_lists_every_template(): void
     {
-        $this->actingAs($this->actor)
+        $templates = $this->actingAs($this->actor)
             ->get(route('risk.quantification.library'))
             ->assertOk()
-            ->assertViewHas('libraryScenarios', fn ($scenarios) => $scenarios->count() === count(config('quantification_library.scenarios')));
+            ->assertInertia(fn (AssertableInertia $page) => $page->component('Quantification/Library'))
+            ->inertiaProps('libraryScenarios');
+
+        $this->assertCount(count(config('quantification_library.scenarios')), $templates);
+
+        // Every card states where its parameters came from; a template whose
+        // provenance cannot be named has no business feeding a capital model.
+        foreach ($templates as $template) {
+            $this->assertNotEmpty($template['source']);
+            $this->assertNull($template['imported'], 'Nothing has been imported into this fixture organisation yet.');
+        }
     }
 
     /**

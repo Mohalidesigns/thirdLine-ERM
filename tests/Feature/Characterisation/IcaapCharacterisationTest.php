@@ -5,6 +5,7 @@ namespace Tests\Feature\Characterisation;
 use App\Models\IcaapAssessment;
 use App\Models\QuantificationSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -65,13 +66,13 @@ class IcaapCharacterisationTest extends TestCase
 
         $data = $this->icaapData();
 
-        $this->assertSame(13.0, $data['carComputed']);
-        $this->assertSame(9.0, $data['cet1Ratio'], 'CET1 180bn / RWA 2trn.');
-        $this->assertSame(10.0, $data['tier1Ratio']);
+        $this->assertFigure(13.0, $data['carComputed']);
+        $this->assertFigure(9.0, $data['cet1Ratio'], 'CET1 180bn / RWA 2trn.');
+        $this->assertFigure(10.0, $data['tier1Ratio']);
 
         // Kobo in, naira out.
-        $this->assertSame(260_000_000_000.0, $data['totalCapital']);
-        $this->assertSame(2_000_000_000_000.0, $data['totalRwa']);
+        $this->assertFigure(260_000_000_000.0, $data['totalCapital']);
+        $this->assertFigure(2_000_000_000_000.0, $data['totalRwa']);
     }
 
     /** An unrecorded balance sheet is not a balance sheet of zeroes. */
@@ -113,7 +114,7 @@ class IcaapCharacterisationTest extends TestCase
     {
         $this->assessment(['total_rwa_kobo' => 200_000_000_000_000, 'cbn_minimum_car' => 10.0]);
 
-        $this->assertSame(200_000_000_000.0, $this->icaapData()['pillar1Requirement'], '10% of NGN 2trn.');
+        $this->assertFigure(200_000_000_000.0, $this->icaapData()['pillar1Requirement'], '10% of NGN 2trn.');
     }
 
     /** Pillar 2A is reported exactly as stored. Nothing is decomposed. */
@@ -129,11 +130,11 @@ class IcaapCharacterisationTest extends TestCase
 
         $data = $this->icaapData();
 
-        $this->assertSame(40_000_000_000.0, $data['pillar2aCredit']);
-        $this->assertSame(10_000_000_000.0, $data['pillar2aMarket']);
-        $this->assertSame(20_000_000_000.0, $data['pillar2aOperational']);
+        $this->assertFigure(40_000_000_000.0, $data['pillar2aCredit']);
+        $this->assertFigure(10_000_000_000.0, $data['pillar2aMarket']);
+        $this->assertFigure(20_000_000_000.0, $data['pillar2aOperational']);
         $this->assertNull($data['pillar2aOther'], 'An unrecorded component is absent, not zero.');
-        $this->assertSame(70_000_000_000.0, $data['totalPillar2a'], 'The recorded three, summed.');
+        $this->assertFigure(70_000_000_000.0, $data['totalPillar2a'], 'The recorded three, summed.');
     }
 
     /**
@@ -182,7 +183,7 @@ class IcaapCharacterisationTest extends TestCase
 
         $this->assertSame([], $data['waterfallMissing']);
         // 260 − 200 − 10 − 5 − 20 = 25bn
-        $this->assertSame(25_000_000_000.0, $data['availableCapital']);
+        $this->assertFigure(25_000_000_000.0, $data['availableCapital']);
     }
 
     /**
@@ -211,14 +212,14 @@ class IcaapCharacterisationTest extends TestCase
 
         $data = $this->icaapData();
 
-        $this->assertSame(13.0, $data['carComputed']);
-        $this->assertSame(12.4, $data['carReported']);
-        $this->assertSame(0.6, $data['carVariance']);
+        $this->assertFigure(13.0, $data['carComputed']);
+        $this->assertFigure(12.4, $data['carReported']);
+        $this->assertFigure(0.6, $data['carVariance']);
         $this->assertTrue($data['carVarianceMaterial'], 'Above the 0.05 reconciliation tolerance.');
 
         // Both minimums are on the screen, because they disagree.
-        $this->assertSame(10.0, $data['minimumCar'], 'The assessment was prepared under 10.');
-        $this->assertSame(15.0, $data['organizationMinimumCar'], 'The organisation now stands at 15.');
+        $this->assertFigure(10.0, $data['minimumCar'], 'The assessment was prepared under 10.');
+        $this->assertFigure(15.0, $data['organizationMinimumCar'], 'The organisation now stands at 15.');
     }
 
     #[Test]
@@ -232,7 +233,7 @@ class IcaapCharacterisationTest extends TestCase
 
         $data = $this->icaapData();
 
-        $this->assertSame(0.0, $data['carVariance']);
+        $this->assertFigure(0.0, $data['carVariance']);
         $this->assertFalse($data['carVarianceMaterial']);
     }
 
@@ -251,13 +252,38 @@ class IcaapCharacterisationTest extends TestCase
 
     /* ------------------------------------------------------------------ */
 
-    /** @return array<string, mixed> */
+    /**
+     * The ICAAP screen's props.
+     *
+     * This screen was Blade when the test was written and the assertions read
+     * `$response->original->getData()`. It is Inertia now and the same figures
+     * arrive as page props — the point being that not one of them moved.
+     *
+     * @return array<string, mixed>
+     */
     private function icaapData(): array
     {
         return $this->actingAs($this->actor)
             ->get(route('risk.quantification.icaap'))
             ->assertOk()
-            ->original->getData();
+            ->assertInertia(fn (AssertableInertia $page) => $page->component('Quantification/Icaap'))
+            ->inertiaProps();
+    }
+
+    /**
+     * A figure, compared by VALUE rather than by PHP type.
+     *
+     * Props reach the page as JSON and json_encode writes a whole float
+     * without its fraction, so 13.0 crosses as `13` and returns an int. The
+     * figures are unchanged by the port; only their PHP type on the far side
+     * is. What is NOT loosened is null — an absent capital input staying
+     * absent is the property this whole file exists to defend, and assertNull
+     * is used for it throughout.
+     */
+    private function assertFigure(int|float $expected, mixed $actual, string $message = ''): void
+    {
+        $this->assertNotNull($actual, $message !== '' ? $message : 'The figure is present, not absent.');
+        $this->assertEqualsWithDelta($expected, $actual, 0.001, $message);
     }
 
     private function assessment(array $attributes = []): IcaapAssessment

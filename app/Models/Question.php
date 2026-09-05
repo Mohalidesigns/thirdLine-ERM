@@ -19,7 +19,8 @@ class Question extends Model
         'weight' => 'decimal:2',
     ];
 
-    public function section()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<QuestionnaireSection, $this> */
+    public function section(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(QuestionnaireSection::class, 'section_id');
     }

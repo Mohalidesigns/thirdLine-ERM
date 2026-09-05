@@ -5,6 +5,10 @@ namespace App\Http\Controllers\Risk;
 use App\Events\RcsaWorksheetSubmitted;
 use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Campaigns\AddAssignmentRequest;
+use App\Http\Requests\Campaigns\ReviewAssignmentRequest;
+use App\Http\Requests\Campaigns\StoreCampaignRequest;
+use App\Http\Requests\Campaigns\SubmitResponseRequest;
 use App\Models\AssessmentCampaign;
 use App\Models\BusinessUnit;
 use App\Models\CampaignAssignment;
@@ -13,36 +17,28 @@ use App\Models\Control;
 use App\Models\Questionnaire;
 use App\Models\Risk;
 use App\Presenters\GridPresenter;
+use App\Services\Campaigns\CampaignDashboardService;
 use App\Services\NotificationService;
 use App\Services\ReferenceCodeService;
 use App\Services\RiskScoringService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
 class CampaignController extends Controller
 {
-    public function dashboard()
+    public function dashboard(CampaignDashboardService $dashboard)
     {
-        $orgId = auth()->user()->organization_id;
+        Gate::authorize('viewAny', AssessmentCampaign::class);
 
-        $activeCampaigns = AssessmentCampaign::where('organization_id', $orgId)->whereIn('status', ['active', 'in_progress'])->count();
-        $totalCampaigns = AssessmentCampaign::where('organization_id', $orgId)->count();
-        $pendingReview = CampaignAssignment::whereHas('campaign', fn ($q) => $q->where('organization_id', $orgId))->where('status', 'submitted')->count();
-        $avgCompletion = AssessmentCampaign::where('organization_id', $orgId)->whereIn('status', ['active', 'in_progress'])->avg('completion_pct') ?? 0;
+        // The four aggregates used to be four inline queries here; they are one
+        // grouped query plus a count in the service, pinned by
+        // Characterisation\CampaignDashboardFiguresTest.
+        $stats = $dashboard->stats();
+        $campaigns = $dashboard->recent();
 
-        // withProgressCounts() feeds the two-segment progress bar without a
-        // query per row — see AssessmentCampaign::progressBreakdown().
-        $campaigns = AssessmentCampaign::where('organization_id', $orgId)
-            ->with(['creator', 'questionnaire'])
-            ->withProgressCounts()
-            ->latest()
-            ->take(10)
-            ->get();
-
-        return view('risk.campaigns.dashboard', compact(
-            'activeCampaigns', 'totalCampaigns', 'pendingReview', 'avgCompletion', 'campaigns'
-        ));
+        return view('risk.campaigns.dashboard', [...$stats, 'campaigns' => $campaigns]);
     }
 
     /**
@@ -53,6 +49,8 @@ class CampaignController extends Controller
      */
     public function index(Request $request, GridPresenter $presenter)
     {
+        Gate::authorize('viewAny', AssessmentCampaign::class);
+
         $total = AssessmentCampaign::where('organization_id', TenantContext::organizationId())->count();
 
         return Inertia::render('Campaigns/Index', [
@@ -63,33 +61,20 @@ class CampaignController extends Controller
 
     public function create()
     {
-        $orgId = auth()->user()->organization_id;
-        $questionnaires = Questionnaire::where('organization_id', $orgId)->where('status', 'published')->get();
-        $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
-        $users = \App\Models\User::where('organization_id', $orgId)->where('is_active', true)->orderBy('name')->get();
+        Gate::authorize('create', AssessmentCampaign::class);
 
-        return view('risk.campaigns.create', compact('questionnaires', 'businessUnits', 'users'));
+        return view('risk.campaigns.create', $this->campaignFormOptions());
     }
 
-    public function store(Request $request)
+    public function store(StoreCampaignRequest $request)
     {
-        $request->validate([
-            'title' => 'required|string|max:255',
-            'campaign_type' => 'required|in:rcsa,fraud_risk,compliance,new_product,custom',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
-        ]);
-
         $campaign = AssessmentCampaign::create([
+            ...$request->safe()->only([
+                'title', 'description', 'campaign_type', 'questionnaire_id',
+                'start_date', 'end_date', 'reviewer_id',
+            ]),
             'organization_id' => auth()->user()->organization_id,
             'campaign_code' => ReferenceCodeService::generate('assessment_campaigns', 'campaign_code', 'CAM'),
-            'title' => $request->title,
-            'description' => $request->description,
-            'campaign_type' => $request->campaign_type,
-            'questionnaire_id' => $request->questionnaire_id,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date,
-            'reviewer_id' => $request->reviewer_id,
             'created_by' => auth()->id(),
             'status' => 'draft',
         ]);
@@ -99,6 +84,8 @@ class CampaignController extends Controller
 
     public function show(AssessmentCampaign $campaign)
     {
+        Gate::authorize('view', $campaign);
+
         $campaign->load(['assignments.businessUnit', 'assignments.respondent', 'assignments.reviewer', 'questionnaire', 'creator']);
 
         // Drives the "View submission" link: an assignment with lines against
@@ -108,14 +95,8 @@ class CampaignController extends Controller
         return view('risk.campaigns.show', compact('campaign'));
     }
 
-    public function addAssignment(Request $request, AssessmentCampaign $campaign)
+    public function addAssignment(AddAssignmentRequest $request, AssessmentCampaign $campaign)
     {
-        $request->validate([
-            'business_unit_id' => 'required|exists:business_units,id',
-            'respondent_id' => 'required|exists:users,id',
-            'due_date' => 'required|date',
-        ]);
-
         $assignment = CampaignAssignment::create([
             'campaign_id' => $campaign->id,
             'business_unit_id' => $request->business_unit_id,
@@ -149,6 +130,8 @@ class CampaignController extends Controller
 
     public function launch(AssessmentCampaign $campaign)
     {
+        Gate::authorize('manage', $campaign);
+
         if ($campaign->assignments()->count() === 0) {
             return back()->with('error', 'Cannot launch a campaign with no assignments.');
         }
@@ -205,6 +188,8 @@ class CampaignController extends Controller
     {
         $campaign = $this->tenantCampaignFor($assignment);
 
+        Gate::authorize('view', $campaign);
+
         $assignment->load(['businessUnit', 'respondent', 'reviewer', 'responses.risk', 'responses.control']);
         $assignment->setRelation('campaign', $campaign);
 
@@ -213,7 +198,9 @@ class CampaignController extends Controller
 
     public function respond(CampaignAssignment $assignment)
     {
-        $this->tenantCampaignFor($assignment);
+        $campaign = $this->tenantCampaignFor($assignment);
+
+        Gate::authorize('respond', $campaign);
 
         $assignment->load(['campaign.questionnaire.sections.questions', 'businessUnit', 'responses']);
 
@@ -228,24 +215,16 @@ class CampaignController extends Controller
         return view('risk.campaigns.respond', compact('assignment', 'risks', 'controls'));
     }
 
-    public function submitResponse(Request $request, CampaignAssignment $assignment)
+    public function submitResponse(SubmitResponseRequest $request, CampaignAssignment $assignment)
     {
         $campaign = $this->tenantCampaignFor($assignment);
 
-        $request->validate([
-            'responses' => 'required|array',
-            'responses.*.risk_id' => 'nullable|exists:risks,id',
-            'responses.*.control_id' => 'nullable|exists:controls,id',
-            'responses.*.likelihood_score' => 'nullable|integer|min:1|max:5',
-            'responses.*.impact_score' => 'nullable|integer|min:1|max:5',
-            'responses.*.control_effectiveness' => 'nullable|string',
-            'responses.*.comments' => 'nullable|string',
-        ]);
+        $responses = $request->validated('responses');
 
         // Clear existing responses
         $assignment->responses()->delete();
 
-        foreach ($request->responses as $responseData) {
+        foreach ($responses as $responseData) {
             $likelihood = $responseData['likelihood_score'] ?? null;
             $impact = $responseData['impact_score'] ?? null;
             $score = ($likelihood && $impact) ? $likelihood * $impact : null;
@@ -281,22 +260,17 @@ class CampaignController extends Controller
         RcsaWorksheetSubmitted::dispatch(
             $assignment->fresh(),
             $campaign,
-            count($request->responses),
+            count($responses),
         );
 
         return redirect()->route('risk.campaigns.show', $assignment->campaign)->with('success', 'Assessment submitted for review.');
     }
 
-    public function reviewAssignment(Request $request, CampaignAssignment $assignment)
+    public function reviewAssignment(ReviewAssignmentRequest $request, CampaignAssignment $assignment)
     {
         $campaign = $this->tenantCampaignFor($assignment);
 
-        $request->validate([
-            'action' => 'required|in:approve,reject',
-            'reviewer_notes' => 'nullable|string',
-        ]);
-
-        $approved = $request->action === 'approve';
+        $approved = $request->validated('action') === 'approve';
 
         $assignment->update([
             'status' => $approved ? 'approved' : 'rejected',
@@ -337,12 +311,47 @@ class CampaignController extends Controller
 
     public function closeCampaign(AssessmentCampaign $campaign)
     {
+        Gate::authorize('manage', $campaign);
+
         $campaign->update([
             'status' => 'closed',
             'closed_at' => now(),
         ]);
 
         return back()->with('success', 'Campaign closed.');
+    }
+
+    /**
+     * The three pick-lists the create screen needs, all tenant-bound.
+     *
+     * Only PUBLISHED questionnaires: an unpublished one can still have its
+     * questions rewritten, and StoreCampaignRequest refuses it — the list and
+     * the validator now agree.
+     *
+     * `businessUnits` and `users` are here rather than queried from the view.
+     * The campaign show screen used to build both lists inside the Blade
+     * template itself, which is a query the controller cannot see, cannot
+     * scope and cannot test.
+     *
+     * @return array<string, \Illuminate\Support\Collection<int, mixed>>
+     */
+    private function campaignFormOptions(): array
+    {
+        $orgId = auth()->user()->organization_id;
+
+        return [
+            'questionnaires' => Questionnaire::where('organization_id', $orgId)
+                ->where('status', 'published')
+                ->orderBy('title')
+                ->get(['id', 'title']),
+            'businessUnits' => BusinessUnit::where('organization_id', $orgId)
+                ->orderBy('name')
+                ->get(['id', 'name', 'code']),
+            'users' => \App\Models\User::where('organization_id', $orgId)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']),
+        ];
     }
 
     /**

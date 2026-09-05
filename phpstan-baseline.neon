@@ -61,18 +61,6 @@ parameters:
 			path: app/Grids/Definitions/ApprovalsHistoryGrid.php
 
 		-
-			message: '#^Relation ''creator'' is not found in App\\Models\\AssessmentCampaign model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/CampaignsGrid.php
-
-		-
-			message: '#^Relation ''questionnaire'' is not found in App\\Models\\AssessmentCampaign model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/CampaignsGrid.php
-
-		-
 			message: '#^Relation ''importer'' is not found in App\\Models\\DataImport model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -175,12 +163,6 @@ parameters:
 			path: app/Grids/Definitions/NearMissesGrid.php
 
 		-
-			message: '#^Relation ''creator'' is not found in App\\Models\\Questionnaire model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/QuestionnairesGrid.php
-
-		-
 			message: '#^Relation ''assignee'' is not found in App\\Models\\RegulatoryCircular model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -263,24 +245,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/Risk/AiIntelligenceController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$assignments\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/CampaignController.php
-
-		-
-			message: '#^Relation ''creator'' is not found in App\\Models\\AssessmentCampaign model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/CampaignController.php
-
-		-
-			message: '#^Relation ''questionnaire'' is not found in App\\Models\\AssessmentCampaign model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/CampaignController.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
@@ -689,18 +653,6 @@ parameters:
 			identifier: method.notFound
 			count: 1
 			path: app/Models/ApprovalRequest.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$assignments\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/AssessmentCampaign.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$assignments_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/AssessmentCampaign.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$awaiting_review_count\.$#'
@@ -2591,3 +2543,4 @@ parameters:
 			identifier: booleanOr.alwaysTrue
 			count: 1
 			path: database/seeders/EnterpriseGapSeeder.php
+

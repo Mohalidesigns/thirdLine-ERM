@@ -15,22 +15,26 @@ class Questionnaire extends Model
         'scoring_method', 'questionnaire_type', 'created_by',
     ];
 
-    public function organization()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Organization, $this> */
+    public function organization(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }
 
-    public function creator()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function creator(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function sections()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<QuestionnaireSection, $this> */
+    public function sections(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(QuestionnaireSection::class)->orderBy('sort_order');
     }
 
-    public function questions()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasManyThrough<Question, QuestionnaireSection, $this> */
+    public function questions(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
     {
         return $this->hasManyThrough(Question::class, QuestionnaireSection::class, 'questionnaire_id', 'section_id');
     }

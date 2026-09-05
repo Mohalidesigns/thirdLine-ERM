@@ -50,7 +50,8 @@ class SubmitRcsaWorksheetRequest extends FormRequest
             'risks.*.inherent_impact' => ['required', 'integer', 'min:1', 'max:5'],
             'risks.*.residual_likelihood' => ['required', 'integer', 'min:1', 'max:5'],
             'risks.*.residual_impact' => ['required', 'integer', 'min:1', 'max:5'],
-            'risks.*.control_effectiveness' => ['nullable', 'in:effective,partially_effective,ineffective,not_tested'],
+            // One vocabulary, one home — see CampaignResponse::EFFECTIVENESS.
+            'risks.*.control_effectiveness' => ['nullable', Rule::in(\App\Models\CampaignResponse::EFFECTIVENESS)],
             'risks.*.existing_controls' => ['nullable', 'string', 'max:5000'],
             'risks.*.action_plan' => ['nullable', 'string', 'max:5000'],
         ];

@@ -28,27 +28,32 @@ class AssessmentCampaign extends Model
         'completion_pct' => 'decimal:2',
     ];
 
-    public function organization()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Organization, $this> */
+    public function organization(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }
 
-    public function creator()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function creator(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function reviewer()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function reviewer(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewer_id');
     }
 
-    public function questionnaire()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Questionnaire, $this> */
+    public function questionnaire(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Questionnaire::class);
     }
 
-    public function assignments()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<CampaignAssignment, $this> */
+    public function assignments(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(CampaignAssignment::class, 'campaign_id');
     }

@@ -31,12 +31,14 @@ class CampaignAssignment extends Model
         return $this->belongsTo(BusinessUnit::class);
     }
 
-    public function respondent()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function respondent(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'respondent_id');
     }
 
-    public function reviewer()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function reviewer(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewer_id');
     }

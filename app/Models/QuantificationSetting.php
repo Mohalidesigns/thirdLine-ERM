@@ -13,6 +13,7 @@ class QuantificationSetting extends Model
         'organization_id',
         'default_iterations',
         'default_confidence_levels',
+        'default_horizon_years',
         'cbn_minimum_car',
         'cbn_conservation_buffer',
         'cbn_mpr',

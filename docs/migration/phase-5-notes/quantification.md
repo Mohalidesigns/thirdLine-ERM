@@ -3,10 +3,10 @@
 `Risk/QuantificationController`, 1,611 lines — the largest single controller in
 the programme. Extraction before pages, characterisation before extraction.
 
-**In progress.** This note covers what has landed so far: `IcaapService`,
-`ScenarioLibrary`, `Distributions`, and two create paths that had never worked.
-Still to come: `QuantificationReportService` (the four report assemblers),
-`ScenarioService`, `SimulationService`, the three policies, and the fifteen
+**In progress.** The extraction is done — `IcaapService`, `ScenarioLibrary`,
+`Distributions`, `QuantificationReportService`, `ScenarioService`,
+`SimulationService`, `QuantificationSettingsService` — along with four defects
+that had been shipping. Still to come: the three policies and the fifteen
 pages.
 
 ## Scope check
@@ -90,8 +90,113 @@ the constructor now rather than method-injected on `icaap()` alone.
 have tests.** Run the static analyser before believing a green characterisation
 means the extraction is complete.
 
-## Numbers so far
+## The four reports
 
-`QuantificationController` 1,611 → 1,129 lines. Criterion 3 wants it under 300
-with no method over 40; the four report assemblers and the simulation
-orchestration are the rest of the distance.
+`QuantificationReportService` took the Capital Adequacy Summary, the Stress
+Testing Report, the Risk Contribution Analysis and the Regulatory Compliance
+Pack whole. `QuantificationReportsCharacterisationTest` was written first,
+against the running Blade screens, and pins what only the reports do — the
+capital arithmetic they share with the ICAAP screen is already
+`IcaapCharacterisationTest`'s:
+
+- Pillar 1 computed from the **resolved** minimum, and the partial-total rule
+  that keeps headroom null until every deduction is known;
+- the stress report reading the deliberately bound run and **never** falling
+  back to the latest completed one — the fallback that let a single-scenario
+  operational calibration be presented to a board as a macroeconomic stress
+  test — including when the bound run belongs to another tenant;
+- the basis flags on Risk Contribution, which are the only thing stopping an
+  ordinal residual-score total from being printed with a naira sign;
+- the resolved minimum reaching the regulatory pack's checklist line.
+
+**A trap worth recording**: `keyBy('confidence')` truncates the float key 99.9
+to the array key 99, because PHP array keys cannot be floats. "The run computed
+no 99.9 row" therefore cannot be asserted with `has()`; the levels are asserted
+as a list instead.
+
+Five stale `phpstan-baseline` entries for the controller were **dropped rather
+than re-homed**: summing a shaped collection with a closure instead of a string
+key, and dropping a nullsafe that `??` already handled, fixes them outright.
+
+## The cancel button had never cancelled anything
+
+WP-06 added `progress`, `completed_iterations`, `cancel_requested_at` and
+`job_run_id` to `simulation_runs` in `2026_08_15_120001` so a run could be
+observed and cancelled, and `RunSimulationJob` reads all four. **None of them
+was ever added to `SimulationRun::$fillable`**, so every `update()` naming them
+was dropped in silence:
+
+- the run never linked to its `JobRun`, so the results page could not find the
+  job whose progress it was drawing;
+- `MonteCarloService`'s progress writes went nowhere — the bar sat at zero for
+  the whole run;
+- `cancel_requested_at` never landed on the run, and the cancel handler then
+  looked up `JobRun::whereKey(null)`, which matches no row. **The cancel button
+  requested nothing of anybody**, while flashing "Cancellation requested. The
+  run stops at its next checkpoint."
+
+A Monte Carlo run over a real scenario set is the path that produces the
+aggregate VaR that becomes a Pillar 2B stress buffer, and it could not be
+stopped once started.
+
+Found because `SimulationRunTest` asserts the cancellation **landed** — on both
+records — rather than that the flash message did. There was no test of this
+path at all before it. This is the mass-assignment half of the recurring
+column-mismatch family: the other modules wrote columns the table lacks; here
+the table had the columns and the model would not let them through.
+
+## The settings screen saved three of its ten fields
+
+`default_confidence`, `default_time_horizon`, `seed`, `target_car`,
+`countercyclical_buffer`, `alert_green`, `alert_amber` and `alert_red` had no
+column anywhere. A preparer typed them, the screen redirected with
+"Quantification settings have been updated", and every one was discarded — and
+`default_confidence` and `default_time_horizon` were `required` in the
+validator, so they had to be filled in on every save to be thrown away.
+
+The third stored field was worse in its way: `default_iterations` **did**
+persist, and nothing read it — `simulate.blade.php` hardcoded 10,000 as its
+selected option. The one setting that saved never reached the screen it
+configures.
+
+What the screen offers now is five fields, all of which round-trip:
+
+- the three simulation defaults (iterations, confidence levels, horizon), read
+  by the simulate form. `default_horizon_years` is the one column this needed;
+- `cbn_minimum_car` and `cbn_conservation_buffer`, which already worked. Their
+  **display** fallbacks now come from `config/quantification.php` rather than
+  from literals that disagreed with it: the screen used to show 2.5 for the
+  conservation buffer, the Basel III figure, while `resolveConservationBuffer()`
+  fell back to the CBN's 1.0.
+
+### Deviation from the phase prompt (criterion 3)
+
+The prompt asks for `alert_amber => 12` and `target_car => 15.0` to move into
+config. **They are deleted instead.** Relocating a number does not fix a form
+that cannot save it, and a config key nothing reads is the same dead weight one
+indirection further away. Nothing in the product reads a CAR RAG band: the
+ICAAP screen and all four reports colour CAR binarily against the resolved
+minimum (`meets_minimum`), so a green/amber/red band would have to be invented
+— which is exactly what WP-08 deleted when it removed the 8% "Marginal" verdict
+that appears in no CBN guideline.
+
+`seed` goes for the same reason: WP-07 draws a fresh seed per run at queue
+time, so the figure is re-derivable and a replayed job cannot produce a
+different capital number. A box offering to pin it contradicts that design.
+
+The controller-side half of the criterion holds:
+`grep -n "12.5\|10.0\|15.0\|=> 12" app/Http/Controllers` now returns only
+`AiToolsController`'s `max_tokens`/`timeout`, which is 5.6's work.
+
+### The test that would have caught it
+
+`QuantificationSettingsTest` reads the field names off the **rendered page**,
+submits exactly those, and asserts every one came back. That is 4.6's lesson
+generalised — *a test that POSTs a route is not a test of the form in front of
+it* — and it means a field that saves nothing cannot be added to this screen
+without turning it red.
+
+## Numbers
+
+`QuantificationController` 1,611 → 507 lines. Criterion 3 wants under 300 with
+no method over 40; the pages are the rest of the distance.

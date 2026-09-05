@@ -40,72 +40,61 @@
         {{-- Simulation Defaults --}}
         <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
             <div class="flex items-center gap-2 mb-6"><div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">1</div><h2 class="text-lg font-semibold text-[#1A365D]">Simulation Defaults</h2></div>
+            <p class="text-xs text-gray-500 mb-6">These are the values the simulation setup form opens with. Any run may still override them.</p>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
                     <label for="default_iterations" class="block text-sm font-medium text-gray-700 mb-2">Default Iterations</label>
                     <select id="default_iterations" name="default_iterations" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
-                        @foreach ([1000, 5000, 10000, 50000, 100000] as $iter)
-                            <option value="{{ $iter }}" {{ old('default_iterations', $settings->default_iterations ?? 10000) == $iter ? 'selected' : '' }}>{{ number_format($iter) }}</option>
+                        @foreach ($iterationChoices as $iter)
+                            <option value="{{ $iter }}" {{ (int) old('default_iterations', $settings->default_iterations) === $iter ? 'selected' : '' }}>{{ number_format($iter) }}</option>
                         @endforeach
                     </select>
+                    @error('default_iterations')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
                 <div>
-                    <label for="default_confidence" class="block text-sm font-medium text-gray-700 mb-2">Default Confidence Level (%)</label>
-                    <input type="number" step="0.1" id="default_confidence" name="default_confidence" value="{{ old('default_confidence', $settings->default_confidence ?? 99.5) }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
-                </div>
-                <div>
-                    <label for="default_time_horizon" class="block text-sm font-medium text-gray-700 mb-2">Default Time Horizon (Years)</label>
-                    <select id="default_time_horizon" name="default_time_horizon" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
-                        @foreach ([1, 3, 5] as $horizon)
-                            <option value="{{ $horizon }}" {{ old('default_time_horizon', $settings->default_time_horizon ?? 1) == $horizon ? 'selected' : '' }}>{{ $horizon }} Year{{ $horizon > 1 ? 's' : '' }}</option>
+                    <label for="default_horizon_years" class="block text-sm font-medium text-gray-700 mb-2">Default Time Horizon</label>
+                    <select id="default_horizon_years" name="default_horizon_years" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
+                        @foreach ($horizonChoices as $horizon)
+                            <option value="{{ $horizon }}" {{ (int) old('default_horizon_years', $settings->default_horizon_years) === $horizon ? 'selected' : '' }}>{{ $horizon }} Year{{ $horizon > 1 ? 's' : '' }}</option>
                         @endforeach
                     </select>
+                    @error('default_horizon_years')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
-                <div>
-                    <label for="seed" class="block text-sm font-medium text-gray-700 mb-2">Random Seed (for reproducibility)</label>
-                    <input type="number" id="seed" name="seed" value="{{ old('seed', $settings->seed ?? '') }}" placeholder="Leave blank for random" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
+                <div class="lg:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Default Confidence Levels</label>
+                    <div class="flex flex-wrap gap-4">
+                        @foreach ($confidenceChoices as $level)
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" name="default_confidence_levels[]" value="{{ $level }}" class="rounded border-gray-300 text-[#1A365D] focus:ring-[#1A365D]"
+                                    {{ in_array($level, old('default_confidence_levels', $settings->default_confidence_levels)) ? 'checked' : '' }}>
+                                <span class="text-sm text-gray-700">{{ $level }}%</span>
+                            </label>
+                        @endforeach
+                    </div>
+                    @error('default_confidence_levels')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
             </div>
         </div>
 
-        {{-- CBN Regulatory Parameters --}}
+        {{-- CBN Capital Parameters --}}
         <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <div class="flex items-center gap-2 mb-6"><div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">2</div><h2 class="text-lg font-semibold text-[#1A365D]">CBN Regulatory Parameters</h2></div>
+            <div class="flex items-center gap-2 mb-6"><div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">2</div><h2 class="text-lg font-semibold text-[#1A365D]">CBN Capital Parameters</h2></div>
+            <p class="text-xs text-gray-500 mb-6">
+                The minimum CAR an ICAAP assessment is reconciled against when the assessment itself does not carry one.
+                The CBN sets {{ config('quantification.default_minimum_car') }}% for a national or regional authorisation and
+                {{ config('quantification.international_or_dsib_minimum_car') }}% for an international authorisation or a D-SIB designation.
+                Nothing here infers which applies to this institution.
+            </p>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
-                    <label for="cbn_min_car" class="block text-sm font-medium text-gray-700 mb-2">CBN Minimum CAR (%)</label>
-                    <input type="number" step="0.1" id="cbn_min_car" name="cbn_min_car" value="{{ old('cbn_min_car', $settings->cbn_min_car ?? 10.0) }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
+                    <label for="cbn_minimum_car" class="block text-sm font-medium text-gray-700 mb-2">Minimum CAR (%)</label>
+                    <input type="number" step="0.1" id="cbn_minimum_car" name="cbn_minimum_car" value="{{ old('cbn_minimum_car', $settings->cbn_minimum_car) }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
+                    @error('cbn_minimum_car')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
                 <div>
-                    <label for="target_car" class="block text-sm font-medium text-gray-700 mb-2">Target CAR (%)</label>
-                    <input type="number" step="0.1" id="target_car" name="target_car" value="{{ old('target_car', $settings->target_car ?? 15.0) }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
-                </div>
-                <div>
-                    <label for="conservation_buffer" class="block text-sm font-medium text-gray-700 mb-2">Capital Conservation Buffer (%)</label>
-                    <input type="number" step="0.1" id="conservation_buffer" name="conservation_buffer" value="{{ old('conservation_buffer', $settings->conservation_buffer ?? 2.5) }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
-                </div>
-                <div>
-                    <label for="countercyclical_buffer" class="block text-sm font-medium text-gray-700 mb-2">Countercyclical Buffer (%)</label>
-                    <input type="number" step="0.1" id="countercyclical_buffer" name="countercyclical_buffer" value="{{ old('countercyclical_buffer', $settings->countercyclical_buffer ?? 0) }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
-                </div>
-            </div>
-        </div>
-
-        {{-- Alert Thresholds --}}
-        <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <div class="flex items-center gap-2 mb-6"><div class="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">3</div><h2 class="text-lg font-semibold text-[#1A365D]">Alert Thresholds</h2></div>
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <label class="flex items-center gap-2 mb-2"><span class="w-3 h-3 rounded-full bg-green-500"></span><span class="text-sm font-semibold text-green-700">Green (CAR above)</span></label>
-                    <input type="number" step="0.1" name="alert_green" value="{{ old('alert_green', $settings->alert_green ?? 15) }}" class="w-full px-3 py-2 border border-green-300 rounded-lg text-sm">
-                </div>
-                <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <label class="flex items-center gap-2 mb-2"><span class="w-3 h-3 rounded-full bg-yellow-500"></span><span class="text-sm font-semibold text-yellow-700">Amber (CAR above)</span></label>
-                    <input type="number" step="0.1" name="alert_amber" value="{{ old('alert_amber', $settings->alert_amber ?? 12) }}" class="w-full px-3 py-2 border border-yellow-300 rounded-lg text-sm">
-                </div>
-                <div class="p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <label class="flex items-center gap-2 mb-2"><span class="w-3 h-3 rounded-full bg-red-500"></span><span class="text-sm font-semibold text-red-700">Red (CAR below)</span></label>
-                    <input type="number" step="0.1" name="alert_red" value="{{ old('alert_red', $settings->alert_red ?? 10) }}" class="w-full px-3 py-2 border border-red-300 rounded-lg text-sm">
+                    <label for="cbn_conservation_buffer" class="block text-sm font-medium text-gray-700 mb-2">Capital Conservation Buffer (%)</label>
+                    <input type="number" step="0.1" id="cbn_conservation_buffer" name="cbn_conservation_buffer" value="{{ old('cbn_conservation_buffer', $settings->cbn_conservation_buffer) }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]">
+                    @error('cbn_conservation_buffer')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
             </div>
         </div>

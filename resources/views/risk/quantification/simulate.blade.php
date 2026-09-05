@@ -38,27 +38,30 @@
                 </div>
                 <div>
                     <label for="iterations" class="block text-sm font-medium text-gray-700 mb-2">Number of Iterations <span class="text-red-500">*</span></label>
+                    {{-- Opens on the organisation's configured default. Until
+                         Phase 5.2 this list hardcoded 10,000, so the setting
+                         reached nothing. --}}
                     <select id="iterations" name="iterations" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]" required>
-                        <option value="1000" {{ old('iterations') == '1000' ? 'selected' : '' }}>1,000 (Quick)</option>
-                        <option value="10000" {{ old('iterations', '10000') == '10000' ? 'selected' : '' }}>10,000 (Standard)</option>
-                        <option value="50000" {{ old('iterations') == '50000' ? 'selected' : '' }}>50,000 (High precision)</option>
-                        <option value="100000" {{ old('iterations') == '100000' ? 'selected' : '' }}>100,000 (Maximum precision)</option>
+                        @php($iterationLabels = [1000 => 'Quick', 10000 => 'Standard', 50000 => 'High precision', 100000 => 'Maximum precision'])
+                        @foreach ($iterationChoices as $iter)
+                            <option value="{{ $iter }}" {{ (int) old('iterations', $defaults['iterations']) === $iter ? 'selected' : '' }}>{{ number_format($iter) }}{{ isset($iterationLabels[$iter]) ? ' ('.$iterationLabels[$iter].')' : '' }}</option>
+                        @endforeach
                     </select>
                     @error('iterations')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                 </div>
                 <div>
                     <label for="time_horizon" class="block text-sm font-medium text-gray-700 mb-2">Time Horizon <span class="text-red-500">*</span></label>
                     <select id="time_horizon" name="time_horizon" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]" required>
-                        <option value="1" {{ old('time_horizon', '1') == '1' ? 'selected' : '' }}>1 Year</option>
-                        <option value="3" {{ old('time_horizon') == '3' ? 'selected' : '' }}>3 Years</option>
-                        <option value="5" {{ old('time_horizon') == '5' ? 'selected' : '' }}>5 Years</option>
+                        @foreach ($horizonChoices as $horizon)
+                            <option value="{{ $horizon }}" {{ (int) old('time_horizon', $defaults['horizon_years']) === $horizon ? 'selected' : '' }}>{{ $horizon }} Year{{ $horizon > 1 ? 's' : '' }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Confidence Levels</label>
                     <div class="flex flex-wrap gap-3">
-                        @foreach ([90, 95, 99, 99.5, 99.9] as $level)
-                            <label class="flex items-center gap-2"><input type="checkbox" name="confidence_levels[]" value="{{ $level }}" class="rounded border-gray-300 text-[#1A365D] focus:ring-[#1A365D]" {{ in_array($level, old('confidence_levels', [95, 99, 99.5])) ? 'checked' : '' }}><span class="text-sm text-gray-700">{{ $level }}%</span></label>
+                        @foreach ($confidenceChoices as $level)
+                            <label class="flex items-center gap-2"><input type="checkbox" name="confidence_levels[]" value="{{ $level }}" class="rounded border-gray-300 text-[#1A365D] focus:ring-[#1A365D]" {{ in_array($level, old('confidence_levels', $defaults['confidence_levels'])) ? 'checked' : '' }}><span class="text-sm text-gray-700">{{ $level }}%</span></label>
                         @endforeach
                     </div>
                 </div>

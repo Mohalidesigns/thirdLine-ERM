@@ -5,12 +5,12 @@ namespace App\Http\Controllers\Risk;
 use App\Http\Controllers\Controller;
 use App\Models\IcaapAssessment;
 use App\Models\QuantificationScenario;
-use App\Models\QuantificationSetting;
 use App\Models\Risk;
 use App\Models\RiskCategory;
 use App\Models\SimulationRun;
 use App\Services\Quantification\IcaapService;
 use App\Services\Quantification\QuantificationReportService;
+use App\Services\Quantification\QuantificationSettingsService;
 use App\Services\Quantification\ScenarioLibrary;
 use App\Services\Quantification\ScenarioService;
 use App\Services\Quantification\SimulationService;
@@ -32,6 +32,7 @@ class QuantificationController extends Controller
         private readonly QuantificationReportService $reports,
         private readonly ScenarioService $scenarios,
         private readonly SimulationService $simulations,
+        private readonly QuantificationSettingsService $settings,
     ) {}
 
     /**
@@ -271,7 +272,18 @@ class QuantificationController extends Controller
             ->orderBy('scenario_reference')
             ->get();
 
-        return view('risk.quantification.simulate', compact('scenarios'));
+        // The settings screen's whole purpose. Until Phase 5.2 this form
+        // hardcoded 10,000 iterations, a one-year horizon and 95/99/99.5, so
+        // the one setting that did persist reached nothing.
+        return view('risk.quantification.simulate', array_merge(
+            ['scenarios' => $scenarios],
+            [
+                'defaults' => $this->settings->simulationDefaults($orgId),
+                'iterationChoices' => QuantificationSettingsService::ITERATION_CHOICES,
+                'horizonChoices' => QuantificationSettingsService::HORIZON_CHOICES,
+                'confidenceChoices' => QuantificationSettingsService::CONFIDENCE_CHOICES,
+            ],
+        ));
     }
 
     /**
@@ -371,29 +383,20 @@ class QuantificationController extends Controller
 
     /**
      * Quantification settings.
-     * View expects $settings as an object (accessed with ->).
+     *
+     * Every field on this screen is now one QuantificationSettingsService
+     * writes. The six that configured nothing — a pinned seed, a target CAR, a
+     * countercyclical buffer and a green/amber/red band — are gone rather than
+     * relocated; the note on that service says why.
      */
     public function settings()
     {
-        $orgId = TenantContext::organizationId();
-
-        $dbSettings = QuantificationSetting::where('organization_id', $orgId)->first();
-
-        $settings = (object) [
-            'default_iterations' => $dbSettings->default_iterations ?? 10000,
-            'default_confidence' => 99.5,
-            'default_time_horizon' => 1,
-            'seed' => null,
-            'cbn_min_car' => $dbSettings ? (float) $dbSettings->cbn_minimum_car : 10.0,
-            'target_car' => 15.0,
-            'conservation_buffer' => $dbSettings ? (float) $dbSettings->cbn_conservation_buffer : 2.5,
-            'countercyclical_buffer' => 0,
-            'alert_green' => 15,
-            'alert_amber' => 12,
-            'alert_red' => 10,
-        ];
-
-        return view('risk.quantification.settings', compact('settings'));
+        return view('risk.quantification.settings', [
+            'settings' => (object) $this->settings->forDisplay(),
+            'iterationChoices' => QuantificationSettingsService::ITERATION_CHOICES,
+            'horizonChoices' => QuantificationSettingsService::HORIZON_CHOICES,
+            'confidenceChoices' => QuantificationSettingsService::CONFIDENCE_CHOICES,
+        ]);
     }
 
     /**
@@ -401,25 +404,7 @@ class QuantificationController extends Controller
      */
     public function updateSettings(Request $request)
     {
-        $orgId = TenantContext::organizationId();
-
-        $request->validate([
-            'default_iterations' => 'required|integer|min:1000|max:1000000',
-            'default_confidence' => 'required|numeric|min:90|max:99.99',
-            'default_time_horizon' => 'required|integer|min:1|max:10',
-            'cbn_min_car' => 'required|numeric|min:0',
-            'target_car' => 'required|numeric|min:0',
-            'conservation_buffer' => 'required|numeric|min:0',
-        ]);
-
-        QuantificationSetting::updateOrCreate(
-            ['organization_id' => $orgId],
-            [
-                'default_iterations' => $request->default_iterations,
-                'cbn_minimum_car' => $request->cbn_min_car,
-                'cbn_conservation_buffer' => $request->conservation_buffer,
-            ]
-        );
+        $this->settings->save($request->validate($this->settings->rules()));
 
         return redirect()->route('risk.quantification.settings')
             ->with('success', 'Quantification settings have been updated.');

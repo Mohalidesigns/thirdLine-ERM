@@ -93,14 +93,14 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.export.register` | `risk/export/register` | `report.export` |  |  |  |  |  |  |  |  |  |  |
 | `risk.imports.create` | `risk/imports/create` | `import.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.imports.index` | `risk/imports` | `import.view` | risk/imports/index.blade.php (deleted) | Pages/Imports/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
-| `risk.issues.ageing` | `risk/issues/ageing` | `issue.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.issues.closure` | `risk/issues/closure` | `issue.close` |  |  |  |  |  |  |  |  |  |  |
-| `risk.issues.create` | `risk/issues/create` | `issue.create` |  |  |  |  |  |  |  |  |  |  |
-| `risk.issues.dashboard` | `risk/issues/dashboard` | `issue.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.issues.ageing` | `risk/issues/ageing` | `issue.view` | risk/issues/ageing.blade.php (deleted) | Pages/Issues/Ageing.jsx |  | IssuePolicy |  |  |  | Issues/IssuePagesTest, Characterisation/IssueDashboardFiguresTest | 2026-09-04 (Phase 4.4) |  |
+| `risk.issues.closure` | `risk/issues/closure` | `issue.close` | risk/issues/closure.blade.php (deleted) | Pages/Issues/Closure.jsx | RejectIssueClosureRequest | IssuePolicy |  |  |  | Issues/IssuePagesTest, Characterisation/IssueDashboardFiguresTest | 2026-09-04 (Phase 4.4) |  |
+| `risk.issues.create` | `risk/issues/create` | `issue.create` | risk/issues/create.blade.php (deleted) | Pages/Issues/Create.jsx | StoreIssueRequest | IssuePolicy |  |  |  | Issues/IssuePagesTest, Characterisation/IssueDashboardFiguresTest | 2026-09-04 (Phase 4.4) |  |
+| `risk.issues.dashboard` | `risk/issues/dashboard` | `issue.view` | risk/issues/dashboard.blade.php (deleted) | Pages/Issues/Dashboard.jsx |  | IssuePolicy |  |  |  | Issues/IssuePagesTest, Characterisation/IssueDashboardFiguresTest | 2026-09-04 (Phase 4.4) |  |
 | `risk.issues.download-attachment` | `risk/issues/{issue}/attachments/{attachment}/download` | `issue.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.issues.edit` | `risk/issues/{issue}/edit` | `issue.edit` |  |  |  |  |  |  |  |  |  |  |
+| `risk.issues.edit` | `risk/issues/{issue}/edit` | `issue.edit` | risk/issues/edit.blade.php (deleted) | Pages/Issues/Edit.jsx | UpdateIssueRequest | IssuePolicy |  |  |  | Issues/IssuePagesTest, Characterisation/IssueDashboardFiguresTest | 2026-09-04 (Phase 4.4) |  |
 | `risk.issues.index` | `risk/issues` | `issue.view` | risk/issues/index.blade.php (deleted) | Pages/Issues/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
-| `risk.issues.show` | `risk/issues/{issue}` | `issue.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.issues.show` | `risk/issues/{issue}` | `issue.view` | risk/issues/show.blade.php (deleted) | Pages/Issues/Show.jsx | UpdateIssueStatusRequest, StoreProgressUpdateRequest, StoreRemediationActionRequest, RequestIssueClosureRequest | IssuePolicy |  |  |  | Issues/IssuePagesTest, Characterisation/IssueDashboardFiguresTest | 2026-09-04 (Phase 4.4) |  |
 | `risk.kri.breaches` | `risk/kri/breaches` | `kri.view` | risk/kri/breaches.blade.php (deleted) | Pages/Kri/Breaches.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.kri.create` | `risk/kri/create` | `kri.create` | risk/kri/create.blade.php (deleted) | Pages/Kri/Create.jsx | StoreKriRequest | KeyRiskIndicatorPolicy |  |  |  | Kri/KriPagesTest, KriPolicyTest, KriThresholdsTest, Characterisation/KriDashboardFiguresTest | 2026-09-04 (Phase 4.1) |  |
 | `risk.kri.dashboard` | `risk/kri/dashboard` | `kri.view` | risk/kri/dashboard.blade.php (deleted) | Pages/Kri/Dashboard.jsx |  | KeyRiskIndicatorPolicy |  | house SVG/CSS charts (see notes) |  | Kri/KriPagesTest, KriPolicyTest, KriThresholdsTest, Characterisation/KriDashboardFiguresTest | 2026-09-04 (Phase 4.1) |  |

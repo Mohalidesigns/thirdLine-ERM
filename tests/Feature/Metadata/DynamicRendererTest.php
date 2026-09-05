@@ -448,13 +448,20 @@ class DynamicRendererTest extends TestCase
 
         $response->assertOk();
 
-        // The rule travels into the markup as a live Alpine expression, not as
-        // an @if that decided once at render time. That distinction is the
-        // feature: the field has to appear the moment the source is switched,
-        // without a round trip.
-        $response->assertSee('x-show=', false);
-        $response->assertSee('issue_source', false);
-        $response->assertSee('regulatory', false);
+        // Migration Phase 4.4 — the issue form is an Inertia page now, so the
+        // rule travels as DATA on the field rather than as an Alpine
+        // expression in the markup. The distinction the assertion protects is
+        // unchanged and is the whole feature: the condition reaches the
+        // client, so the field appears the moment the source is switched,
+        // without a round trip. React DynamicForm evaluates `visibleWhen`.
+        $field = collect($response->inertiaProps()['schema']['sections'])
+            ->flatMap(fn (array $section) => $section['fields'])
+            ->firstWhere('code', 'examination_ref');
+
+        $this->assertNotNull($field, 'the conditional field is in the schema');
+        $this->assertNotNull($field['visibleWhen'] ?? null, 'it carries its condition');
+        $this->assertStringContainsString('issue_source', json_encode($field['visibleWhen']));
+        $this->assertStringContainsString('regulatory', json_encode($field['visibleWhen']));
     }
 
     /* ------------------------------------------------------------------ */

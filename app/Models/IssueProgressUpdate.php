@@ -9,6 +9,12 @@ class IssueProgressUpdate extends Model
 {
     use HasFactory;
 
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, $this> */
+    public function createdBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'created_by');
+    }
+
     protected $fillable = [
         'issue_id',
         'update_type',

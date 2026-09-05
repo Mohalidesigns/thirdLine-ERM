@@ -415,18 +415,6 @@ parameters:
 			path: app/Http/Controllers/Risk/ExportController.php
 
 		-
-			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Issue model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
-			message: '#^Relation ''issueOwner'' is not found in App\\Models\\Issue model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
 			message: '#^Method App\\Http\\Controllers\\Risk\\GlobalSearchController\:\:search\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, code\: string, type\: string\|null, icon\: string\|null, description\: string, url\: string\}\>\.$#'
 			identifier: return.type
 			count: 1
@@ -449,42 +437,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 3
 			path: app/Http/Controllers/Risk/HqController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$age_bucket\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/IssueController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$age_days\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/IssueController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/IssueController.php
-
-		-
-			message: '#^Expression on left side of \?\? is not nullable\.$#'
-			identifier: nullCoalesce.expr
-			count: 1
-			path: app/Http/Controllers/Risk/IssueController.php
-
-		-
-			message: '#^Relation ''businessUnit'' is not found in App\\Models\\Issue model\.$#'
-			identifier: larastan.relationExistence
-			count: 3
-			path: app/Http/Controllers/Risk/IssueController.php
-
-		-
-			message: '#^Relation ''issueOwner'' is not found in App\\Models\\Issue model\.$#'
-			identifier: larastan.relationExistence
-			count: 3
-			path: app/Http/Controllers/Risk/IssueController.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$status\.$#'

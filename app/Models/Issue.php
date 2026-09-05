@@ -12,9 +12,50 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
+/**
+ * Columns added by 2026_02_22_200038_align_schema_with_controllers through its
+ * own addColumns() loop, which Larastan cannot see statically, plus the
+ * is_overdue accessor below.
+ *
+ * @property string|null $root_cause
+ * @property string|null $impact_description
+ * @property string|null $recommended_action
+ * @property string|null $closure_justification
+ * @property string|null $evidence_of_resolution
+ * @property \Illuminate\Support\Carbon|null $closure_requested_at
+ * @property int|null $closure_requested_by
+ * @property string|null $closure_rejection_reason
+ * @property \Illuminate\Support\Carbon|null $closure_rejected_at
+ * @property int|null $closure_rejected_by
+ * @property \Illuminate\Support\Carbon|null $closed_at
+ * @property int|null $closed_by
+ * @property int|null $progress_percentage
+ * @property \Illuminate\Support\Carbon|null $status_changed_at
+ * @property int|null $status_changed_by
+ * @property int|null $updated_by
+ * @property-read bool $is_overdue
+ */
 class Issue extends Model
 {
     use BelongsToOrganization, HasFactory, HasObjectIdentity, ScopedToGraph, SoftDeletes;
+
+    /**
+     * From IssueController's inline `in:` rules (migration Phase 4.4).
+     *
+     * @var list<string>
+     */
+    public const SOURCES = [
+        'audit', 'risk_assessment', 'incident', 'regulatory',
+        'self_identified', 'customer_complaint', 'other',
+    ];
+
+    /** @var list<string> */
+    public const PRIORITIES = ['critical', 'high', 'medium', 'low'];
+
+    /** @var list<string> */
+    public const STATUSES = [
+        'OPEN', 'IN_PROGRESS', 'OVERDUE', 'PENDING_CLOSURE', 'CLOSED', 'CANCELLED', 'REOPENED',
+    ];
 
     protected $fillable = [
         'organization_id',
@@ -123,7 +164,8 @@ class Issue extends Model
         return $this->belongsTo(Entity::class);
     }
 
-    public function businessUnit()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<BusinessUnit, $this> */
+    public function businessUnit(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(BusinessUnit::class);
     }
@@ -149,17 +191,44 @@ class Issue extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function remediationActions()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<IssueRemediationAction, $this> */
+    public function remediationActions(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(IssueRemediationAction::class);
     }
 
-    public function progressUpdates()
+    /**
+     * Whether the remediation is past its due date (migration Phase 4.4).
+     *
+     * THE SHOW PAGE HAS ALWAYS READ `$issue->is_overdue` AND IT HAS NEVER
+     * EXISTED — no column, no accessor — so every use of it was null and the
+     * overdue badge, the red due-date and the warning banner on an issue's own
+     * detail page never rendered once. An issue could be six weeks late and its
+     * page would look ordinary.
+     *
+     * Derived rather than stored, from the two facts that decide it: a settled
+     * issue is not overdue however old, and one with no due date cannot be.
+     * `issue_status` carries an OVERDUE value too, but that is set by a
+     * scheduled command and lags reality by up to a day.
+     */
+    public function getIsOverdueAttribute(): bool
+    {
+        if (in_array($this->issue_status, ['CLOSED', 'CANCELLED'], true)) {
+            return false;
+        }
+
+        return $this->remediation_due_date !== null
+            && $this->remediation_due_date->startOfDay()->isPast();
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<IssueProgressUpdate, $this> */
+    public function progressUpdates(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(IssueProgressUpdate::class);
     }
 
-    public function attachments()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<IssueAttachment, $this> */
+    public function attachments(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(IssueAttachment::class);
     }
@@ -169,7 +238,8 @@ class Issue extends Model
         return $this->hasMany(IssueEscalationLog::class);
     }
 
-    public function issueOwner()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function issueOwner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->responsibleOwner();
     }
@@ -179,12 +249,14 @@ class Issue extends Model
         return $this->responsibleOwner();
     }
 
-    public function escalationLogs()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<IssueEscalationLog, $this> */
+    public function escalationLogs(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->escalationLog();
     }
 
-    public function risk()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Risk, $this> */
+    public function risk(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->riskRegister();
     }

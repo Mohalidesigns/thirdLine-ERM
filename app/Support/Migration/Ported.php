@@ -94,6 +94,14 @@ final class Ported
         'risk.kri.show',
         'risk.kri.edit',
         'risk.kri.thresholds',
+        // Phase 4 — issues ('risk.issues.index' is above, from Phase 2's
+        // grid work)
+        'risk.issues.dashboard',
+        'risk.issues.create',
+        'risk.issues.show',
+        'risk.issues.edit',
+        'risk.issues.ageing',
+        'risk.issues.closure',
         // Phase 4 — loss events ('risk.loss-events.index' and '.near-misses'
         // are above, from Phase 2's grid work)
         'risk.loss-events.dashboard',

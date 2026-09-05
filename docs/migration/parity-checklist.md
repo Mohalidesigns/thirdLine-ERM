@@ -129,11 +129,11 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.quantification.edit-scenario` | `risk/quantification/scenarios/{scenario}/edit` | `quantification.create` |  |  |  |  |  |  |  |  |  |  |
 | `risk.quantification.icaap` | `risk/quantification/icaap` | `quantification.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.quantification.library` | `risk/quantification/library` | `quantification.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.quantification.reports` | `risk/quantification/reports` | `quantification.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.quantification.reports.capital-adequacy` | `risk/quantification/reports/capital-adequacy` | `quantification.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.quantification.reports.regulatory-pack` | `risk/quantification/reports/regulatory-pack` | `quantification.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.quantification.reports.risk-contribution` | `risk/quantification/reports/risk-contribution` | `quantification.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.quantification.reports.stress-testing` | `risk/quantification/reports/stress-testing` | `quantification.view` |  |  |  |  |  |  |  |  |  |  |
+| `risk.quantification.reports` | `risk/quantification/reports` | `quantification.view` | risk/quantification/reports.blade.php (deleted) | Pages/Quantification/Reports/Index.jsx |  | SimulationRunPolicy |  |  |  | Characterisation/QuantificationReportsCharacterisationTest | 2026-09-05 (Phase 5.2) |  |
+| `risk.quantification.reports.capital-adequacy` | `risk/quantification/reports/capital-adequacy` | `quantification.view` | risk/quantification/reports/capital-adequacy.blade.php (deleted) | Pages/Quantification/Reports/CapitalAdequacy.jsx |  | IcaapAssessmentPolicy |  |  |  | Characterisation/QuantificationReportsCharacterisationTest | 2026-09-05 (Phase 5.2) |  |
+| `risk.quantification.reports.regulatory-pack` | `risk/quantification/reports/regulatory-pack` | `quantification.view` | risk/quantification/reports/regulatory-pack.blade.php (deleted) | Pages/Quantification/Reports/RegulatoryPack.jsx |  | IcaapAssessmentPolicy |  |  |  | Characterisation/QuantificationReportsCharacterisationTest | 2026-09-05 (Phase 5.2) |  |
+| `risk.quantification.reports.risk-contribution` | `risk/quantification/reports/risk-contribution` | `quantification.view` | risk/quantification/reports/risk-contribution.blade.php (deleted) | Pages/Quantification/Reports/RiskContribution.jsx |  | SimulationRunPolicy |  |  |  | Characterisation/QuantificationReportsCharacterisationTest | 2026-09-05 (Phase 5.2) |  |
+| `risk.quantification.reports.stress-testing` | `risk/quantification/reports/stress-testing` | `quantification.view` | risk/quantification/reports/stress-testing.blade.php (deleted) | Pages/Quantification/Reports/StressTesting.jsx |  | IcaapAssessmentPolicy |  |  |  | Characterisation/QuantificationReportsCharacterisationTest | 2026-09-05 (Phase 5.2) |  |
 | `risk.quantification.results` | `risk/quantification/results` | `quantification.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.quantification.scenarios` | `risk/quantification/scenarios` | `quantification.view` |  |  |  |  |  |  |  |  |  |  |
 | `risk.quantification.settings` | `risk/quantification/settings` | `quantification.view` |  |  |  |  |  |  |  |  |  |  |

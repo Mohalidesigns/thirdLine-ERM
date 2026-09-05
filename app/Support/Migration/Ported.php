@@ -135,6 +135,12 @@ final class Ported
         'risk.analysis.bowtie',
         'risk.analysis.trends',
         'risk.analysis.correlation',
+        // Phase 5 — quantification reports
+        'risk.quantification.reports',
+        'risk.quantification.reports.capital-adequacy',
+        'risk.quantification.reports.stress-testing',
+        'risk.quantification.reports.risk-contribution',
+        'risk.quantification.reports.regulatory-pack',
         // Phase 3 — RCSA
         'risk.rcsa.dashboard',
         'risk.rcsa.worksheet',

@@ -11,6 +11,7 @@ use App\Models\QuantificationSetting;
 use App\Models\SimulationResult;
 use App\Models\SimulationRun;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -69,10 +70,10 @@ class QuantificationReportsCharacterisationTest extends TestCase
 
         $d = $this->capitalAdequacy()['d'];
 
-        $this->assertSame(15.0, $d->car_required);
-        $this->assertSame(300_000_000_000.0, $d->pillar1_requirement, '15% of NGN 2trn.');
-        $this->assertSame(13.0, $d->car_computed);
-        $this->assertSame(-2.0, $d->car_surplus, 'Computed CAR less the minimum, and it may be negative.');
+        $this->assertFigure(15.0, $d['car_required']);
+        $this->assertFigure(300_000_000_000.0, $d['pillar1_requirement'], '15% of NGN 2trn.');
+        $this->assertFigure(13.0, $d['car_computed']);
+        $this->assertFigure(-2.0, $d['car_surplus'], 'Computed CAR less the minimum, and it may be negative.');
     }
 
     /** The minimum is resolved, not the hardcoded 10 that `car_required ?? 10` produced. */
@@ -87,7 +88,7 @@ class QuantificationReportsCharacterisationTest extends TestCase
         // No assessment at all: the org-wide figure is what is left to resolve to.
         $d = $this->capitalAdequacy()['d'];
 
-        $this->assertSame(15.0, $d->car_required);
+        $this->assertFigure(15.0, $d['car_required']);
         $this->assertFalse($this->capitalAdequacy()['hasData']);
     }
 
@@ -103,7 +104,7 @@ class QuantificationReportsCharacterisationTest extends TestCase
         $d = $this->capitalAdequacy()['d'];
 
         foreach (['total_capital', 'total_rwa', 'car_computed', 'cet1_ratio', 'tier1_ratio', 'pillar1_requirement', 'car_surplus', 'headroom'] as $key) {
-            $this->assertNull($d->{$key}, "{$key} must be null, not zero, when nothing was recorded.");
+            $this->assertNull($d[$key], "{$key} must be null, not zero, when nothing was recorded.");
         }
     }
 
@@ -118,12 +119,12 @@ class QuantificationReportsCharacterisationTest extends TestCase
             'pillar2a_other_kobo' => null,
         ]);
 
-        $this->assertSame(50_000_000_000.0, $this->capitalAdequacy()['d']->total_pillar2a);
+        $this->assertFigure(50_000_000_000.0, $this->capitalAdequacy()['d']['total_pillar2a']);
 
         $this->flushAssessments();
         $this->assessment([]);
 
-        $this->assertNull($this->capitalAdequacy()['d']->total_pillar2a, 'No component on file is unknown, not zero.');
+        $this->assertNull($this->capitalAdequacy()['d']['total_pillar2a'], 'No component on file is unknown, not zero.');
     }
 
     /**
@@ -141,7 +142,7 @@ class QuantificationReportsCharacterisationTest extends TestCase
             'pillar2b_stress_buffer_kobo' => null,                   // missing
         ]);
 
-        $this->assertNull($this->capitalAdequacy()['d']->headroom);
+        $this->assertNull($this->capitalAdequacy()['d']['headroom']);
 
         $this->flushAssessments();
         $this->assessment([
@@ -153,7 +154,7 @@ class QuantificationReportsCharacterisationTest extends TestCase
         ]);
 
         // 260 − 200 − 10 − 5 = 45bn.
-        $this->assertSame(45_000_000_000.0, $this->capitalAdequacy()['d']->headroom);
+        $this->assertFigure(45_000_000_000.0, $this->capitalAdequacy()['d']['headroom']);
     }
 
     /** The preparer's CAR is reconciled against the computed one, not merged with it. */
@@ -168,10 +169,10 @@ class QuantificationReportsCharacterisationTest extends TestCase
 
         $d = $this->capitalAdequacy()['d'];
 
-        $this->assertSame(13.0, $d->car_computed);
-        $this->assertSame(12.4, $d->car_reported);
-        $this->assertSame(0.6, $d->car_variance);
-        $this->assertTrue($d->car_variance_material, 'Above the 0.05 reconciliation tolerance.');
+        $this->assertFigure(13.0, $d['car_computed']);
+        $this->assertFigure(12.4, $d['car_reported']);
+        $this->assertFigure(0.6, $d['car_variance']);
+        $this->assertTrue($d['car_variance_material'], 'Above the 0.05 reconciliation tolerance.');
     }
 
     /* ================================================================== */
@@ -257,24 +258,24 @@ class QuantificationReportsCharacterisationTest extends TestCase
 
         // keyBy() would truncate 99.9 to the array key 99 — PHP float keys —
         // so the levels are asserted as a list and the rows read positionally.
-        $this->assertSame([95.0, 99.0], $data['rows']->pluck('confidence')->all(),
+        $this->assertSame([95, 99], collect($data['rows'])->pluck('confidence')->all(),
             'One row per level the run stored, and no row for a level it did not.');
 
-        $rows = $data['rows']->keyBy('confidence');
+        $rows = collect($data['rows'])->keyBy('confidence');
 
         // 260 − 20 = 240bn against 2trn RWA = 12.00%, above a 10% minimum.
-        $this->assertSame(20_000_000_000.0, $rows[95.0]->capital_impact);
-        $this->assertSame(240_000_000_000.0, $rows[95.0]->capital_after);
-        $this->assertSame(12.0, $rows[95.0]->car_after);
-        $this->assertSame(0.0, $rows[95.0]->shortfall);
-        $this->assertTrue($rows[95.0]->meets_minimum);
+        $this->assertFigure(20_000_000_000.0, $rows[95.0]['capital_impact']);
+        $this->assertFigure(240_000_000_000.0, $rows[95.0]['capital_after']);
+        $this->assertFigure(12.0, $rows[95.0]['car_after']);
+        $this->assertFigure(0.0, $rows[95.0]['shortfall']);
+        $this->assertTrue($rows[95.0]['meets_minimum']);
 
         // 260 − 60 = 200bn = 10.00% exactly; required capital is 200bn, so no
         // shortfall and the verdict is a pass at the boundary.
-        $this->assertSame(200_000_000_000.0, $rows[99.0]->capital_after);
-        $this->assertSame(10.0, $rows[99.0]->car_after);
-        $this->assertSame(0.0, $rows[99.0]->shortfall);
-        $this->assertTrue($rows[99.0]->meets_minimum);
+        $this->assertFigure(200_000_000_000.0, $rows[99.0]['capital_after']);
+        $this->assertFigure(10.0, $rows[99.0]['car_after']);
+        $this->assertFigure(0.0, $rows[99.0]['shortfall']);
+        $this->assertTrue($rows[99.0]['meets_minimum']);
     }
 
     /**
@@ -300,10 +301,10 @@ class QuantificationReportsCharacterisationTest extends TestCase
 
         $this->assertCount(2, $scenarios, 'Only the two carrying a stress designation; the single_event one is out.');
 
-        $byReference = $scenarios->keyBy('reference');
-        $this->assertTrue($byReference['QS-001']->in_bound_run);
-        $this->assertFalse($byReference['QS-002']->in_bound_run);
-        $this->assertSame(15_000_000_000.0, $byReference['QS-001']->expected_annual_loss, 'Kobo in, naira out.');
+        $byReference = collect($scenarios)->keyBy('reference');
+        $this->assertTrue($byReference['QS-001']['in_bound_run']);
+        $this->assertFalse($byReference['QS-002']['in_bound_run']);
+        $this->assertFigure(15_000_000_000.0, $byReference['QS-001']['expected_annual_loss'], 'Kobo in, naira out.');
         $this->assertSame($outOfRun->id, QuantificationScenario::where('scenario_reference', 'QS-002')->value('id'));
     }
 
@@ -331,11 +332,11 @@ class QuantificationReportsCharacterisationTest extends TestCase
         $this->assertSame('expected_loss', $data['byTypeBasis']);
 
         $rows = $data['byType'];
-        $this->assertSame('Internal Fraud', $rows[0]->label, 'Sorted by value, descending.');
-        $this->assertSame(7_500_000_000.0, $rows[0]->value);
-        $this->assertSame(75.0, $rows[0]->share_pct);
-        $this->assertSame(25.0, $rows[1]->share_pct);
-        $this->assertNull($rows[0]->risks, 'An expected-loss row counts no risks.');
+        $this->assertSame('Internal Fraud', $rows[0]['label'], 'Sorted by value, descending.');
+        $this->assertFigure(7_500_000_000.0, $rows[0]['value']);
+        $this->assertFigure(75.0, $rows[0]['share_pct']);
+        $this->assertFigure(25.0, $rows[1]['share_pct']);
+        $this->assertNull($rows[0]['risks'], 'An expected-loss row counts no risks.');
     }
 
     /**
@@ -355,13 +356,13 @@ class QuantificationReportsCharacterisationTest extends TestCase
         $this->assertSame('residual_score', $data['byUnitBasis'], 'By unit is ALWAYS residual score; the engine has never produced a business-unit loss distribution.');
 
         $row = $data['byType'][0];
-        $this->assertSame('Operational Risk', $row->label);
-        $this->assertSame(20.0, $row->value);
-        $this->assertSame(2, $row->risks);
-        $this->assertSame(100.0, $row->share_pct);
+        $this->assertSame('Operational Risk', $row['label']);
+        $this->assertFigure(20.0, $row['value']);
+        $this->assertFigure(2, $row['risks']);
+        $this->assertFigure(100.0, $row['share_pct']);
 
-        $this->assertSame('Unassigned', $data['byUnit'][0]->label);
-        $this->assertSame(20.0, $data['byUnit'][0]->value);
+        $this->assertSame('Unassigned', $data['byUnit'][0]['label']);
+        $this->assertFigure(20.0, $data['byUnit'][0]['value']);
     }
 
     /** Nothing on file is an empty report that says so, not a report of zeroes. */
@@ -396,13 +397,13 @@ class QuantificationReportsCharacterisationTest extends TestCase
         $data = $this->regulatoryPack();
         $summary = $data['summary'];
 
-        $this->assertSame(15.0, $summary->car_required);
-        $this->assertSame(13.0, $summary->car_computed);
-        $this->assertSame(12.4, $summary->car_reported);
-        $this->assertSame(13.0, $summary->car_actual, 'The computed figure wins where it can be computed.');
-        $this->assertSame('computed from capital / RWA', $summary->car_basis);
+        $this->assertFigure(15.0, $summary['car_required']);
+        $this->assertFigure(13.0, $summary['car_computed']);
+        $this->assertFigure(12.4, $summary['car_reported']);
+        $this->assertFigure(13.0, $summary['car_actual'], 'The computed figure wins where it can be computed.');
+        $this->assertSame('computed from capital / RWA', $summary['car_basis']);
 
-        $car = $data['checklist']->firstWhere('item', 'CAR above CBN minimum (15%)');
+        $car = collect($data['checklist'])->firstWhere('item', 'CAR above CBN minimum (15%)');
         $this->assertNotNull($car, 'The minimum is printed as resolved, not as a hardcoded 10%.');
         $this->assertSame('fail', $car['status'], '13.00% against a 15% minimum.');
     }
@@ -420,9 +421,9 @@ class QuantificationReportsCharacterisationTest extends TestCase
 
         $summary = $this->regulatoryPack()['summary'];
 
-        $this->assertNull($summary->car_computed);
-        $this->assertSame(12.4, $summary->car_actual);
-        $this->assertSame('as reported on the assessment', $summary->car_basis);
+        $this->assertNull($summary['car_computed']);
+        $this->assertFigure(12.4, $summary['car_actual']);
+        $this->assertSame('as reported on the assessment', $summary['car_basis']);
     }
 
     /** No capital position at all is a warning, not a fail and not a 0% CAR. */
@@ -431,12 +432,12 @@ class QuantificationReportsCharacterisationTest extends TestCase
     {
         $data = $this->regulatoryPack();
 
-        $this->assertNull($data['summary']->car_actual);
+        $this->assertNull($data['summary']['car_actual']);
 
         $statuses = collect($data['checklist'])->keyBy('item')->map(fn ($row) => $row['status']);
 
         $this->assertSame('warning', $statuses->first(), 'CAR cannot be assessed.');
-        $this->assertSame('fail', $data['checklist']->firstWhere('item', 'ICAAP submitted this cycle')['status']);
+        $this->assertSame('fail', collect($data['checklist'])->firstWhere('item', 'ICAAP submitted this cycle')['status']);
     }
 
     /** The operational counts the pack files: risks, KRIs, losses and issues. */
@@ -461,49 +462,130 @@ class QuantificationReportsCharacterisationTest extends TestCase
 
         $summary = $this->regulatoryPack()['summary'];
 
-        $this->assertSame(2, $summary->active_risks, 'The archived one is out.');
-        $this->assertSame(1, $summary->critical_risks);
-        $this->assertSame(2, $summary->high_risks, 'residual_rating is counted regardless of status, as it always has been.');
-        $this->assertSame(1, $summary->red_kris);
-        $this->assertSame(1, $summary->amber_kris);
-        $this->assertSame(1, $summary->loss_events_ytd, 'Year to date only.');
-        $this->assertSame(2, $summary->open_issues);
-        $this->assertSame(1, $summary->overdue_issues);
-        $this->assertSame(1, $summary->regulatory_issues, 'The closed one is out.');
+        $this->assertFigure(2, $summary['active_risks'], 'The archived one is out.');
+        $this->assertFigure(1, $summary['critical_risks']);
+        $this->assertFigure(2, $summary['high_risks'], 'residual_rating is counted regardless of status, as it always has been.');
+        $this->assertFigure(1, $summary['red_kris']);
+        $this->assertFigure(1, $summary['amber_kris']);
+        $this->assertFigure(1, $summary['loss_events_ytd'], 'Year to date only.');
+        $this->assertFigure(2, $summary['open_issues']);
+        $this->assertFigure(1, $summary['overdue_issues']);
+        $this->assertFigure(1, $summary['regulatory_issues'], 'The closed one is out.');
+    }
+
+    /* ================================================================== */
+    /*  The shape the React pages rely on */
+    /* ================================================================== */
+
+    /**
+     * Every collection-shaped prop crosses as a JSON LIST.
+     *
+     * The four pages call `.map()` and `.length` on these directly. A
+     * Collection whose keys survive serialisation arrives as an OBJECT instead
+     * of an array and the page throws at render — which no PHP test would
+     * catch, because the props themselves would still be correct. Each of the
+     * services below therefore ends its collection pipeline with `values()` or
+     * builds by `push()`, and this test is what says so out loud.
+     */
+    #[Test]
+    public function every_collection_prop_reaches_the_page_as_a_list(): void
+    {
+        $scenario = $this->scenario(['scenario_reference' => 'QS-100', 'scenario_type' => 'stress']);
+        $run = $this->completedRun(
+            ['var_95_kobo' => 1_000_000_000_000, 'expected_annual_loss_kobo' => 1_000_000_000_000],
+            ['scenario_ids' => [$scenario->id]],
+        );
+        $this->scenarioResult($run, $scenario, 1_000_000_000_000);
+        $this->makeRisk(['residual_score' => 9]);
+
+        $this->assessment([
+            'total_qualifying_capital_kobo' => 26_000_000_000_000,
+            'total_rwa_kobo' => 200_000_000_000_000,
+            'stress_simulation_id' => $run->id,
+        ]);
+
+        $stress = $this->stressTesting();
+        $contribution = $this->riskContribution();
+        $pack = $this->regulatoryPack();
+
+        $lists = [
+            'stressTesting.rows' => $stress['rows'],
+            'stressTesting.stressScenarios' => $stress['stressScenarios'],
+            'riskContribution.byType' => $contribution['byType'],
+            'riskContribution.byUnit' => $contribution['byUnit'],
+            'regulatoryPack.checklist' => $pack['checklist'],
+        ];
+
+        foreach ($lists as $prop => $value) {
+            $this->assertIsArray($value, "{$prop} must be an array the page can map over.");
+            $this->assertNotSame([], $value, "{$prop} has nothing in it, so this assertion proves nothing.");
+            $this->assertSame(
+                range(0, count($value) - 1),
+                array_keys($value),
+                "{$prop} must be a LIST — a keyed collection serialises to a JSON object and the page cannot map it.",
+            );
+        }
     }
 
     /* ================================================================== */
     /*  Fixtures and screen readers */
     /* ================================================================== */
 
-    /** @return array<string, mixed> */
-    private function screen(string $route): array
+    /**
+     * A figure, compared by VALUE rather than by PHP type.
+     *
+     * These props reach the page as JSON, and json_encode writes a whole float
+     * without its fraction — 13.0 crosses as `13` and comes back an int. The
+     * figures are unchanged by the port; only their PHP type on the far side
+     * is, so these assertions pin the number rather than the type. The one
+     * thing NOT loosened is null: an absent capital input stays absent, and
+     * assertNull is used for that throughout.
+     */
+    private function assertFigure(int|float $expected, mixed $actual, string $message = ''): void
     {
-        return $this->actingAs($this->actor)->get(route($route))->assertOk()->original->getData();
+        $this->assertNotNull($actual, $message !== '' ? $message : 'The figure is present, not absent.');
+        $this->assertEqualsWithDelta($expected, $actual, 0.001, $message);
+    }
+
+    /**
+     * The report's props.
+     *
+     * These four screens were Blade when this test was written and the
+     * assertions were made against `$response->original->getData()`. They are
+     * Inertia now and the same figures arrive as page props — the point of the
+     * exercise being that not one of them moved in the crossing.
+     */
+    private function screen(string $route, string $component): array
+    {
+        return $this->actingAs($this->actor)
+            ->get(route($route))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->component($component))
+            ->inertiaProps();
     }
 
     /** @return array<string, mixed> */
     private function capitalAdequacy(): array
     {
-        return $this->screen('risk.quantification.reports.capital-adequacy');
+        return $this->screen('risk.quantification.reports.capital-adequacy', 'Quantification/Reports/CapitalAdequacy');
     }
 
     /** @return array<string, mixed> */
     private function stressTesting(): array
     {
-        return $this->screen('risk.quantification.reports.stress-testing');
+        return $this->screen('risk.quantification.reports.stress-testing', 'Quantification/Reports/StressTesting');
     }
 
     /** @return array<string, mixed> */
     private function riskContribution(): array
     {
-        return $this->screen('risk.quantification.reports.risk-contribution');
+        return $this->screen('risk.quantification.reports.risk-contribution', 'Quantification/Reports/RiskContribution');
     }
 
     /** @return array<string, mixed> */
     private function regulatoryPack(): array
     {
-        return $this->screen('risk.quantification.reports.regulatory-pack');
+        return $this->screen('risk.quantification.reports.regulatory-pack', 'Quantification/Reports/RegulatoryPack');
     }
 
     private function assessment(array $attributes = []): IcaapAssessment
@@ -549,7 +631,7 @@ class QuantificationReportsCharacterisationTest extends TestCase
     {
         return SimulationResult::create([
             'simulation_run_id' => $run->id,
-            'scenario_id' => $scenario->id,
+            'scenario_id' => $scenario['id'],
             'result_type' => 'scenario',
             'expected_annual_loss_kobo' => $expectedLossKobo,
         ]);

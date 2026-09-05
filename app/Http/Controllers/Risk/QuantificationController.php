@@ -17,6 +17,7 @@ use App\Services\Quantification\SimulationService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
 
 class QuantificationController extends Controller
 {
@@ -433,7 +434,7 @@ class QuantificationController extends Controller
             ->orderByDesc('completed_at')
             ->paginate(25);
 
-        return view('risk.quantification.reports', compact('completedSimulations'));
+        return Inertia::render('Quantification/Reports/Index', compact('completedSimulations'));
     }
 
     /**
@@ -442,7 +443,7 @@ class QuantificationController extends Controller
      */
     public function capitalAdequacyReport()
     {
-        return view('risk.quantification.reports.capital-adequacy', $this->reports->capitalAdequacy());
+        return Inertia::render('Quantification/Reports/CapitalAdequacy', $this->reports->capitalAdequacy());
     }
 
     /**
@@ -451,7 +452,7 @@ class QuantificationController extends Controller
      */
     public function stressTestingReport()
     {
-        return view('risk.quantification.reports.stress-testing', $this->reports->stressTesting());
+        return Inertia::render('Quantification/Reports/StressTesting', $this->reports->stressTesting());
     }
 
     /**
@@ -460,7 +461,7 @@ class QuantificationController extends Controller
      */
     public function riskContributionReport()
     {
-        return view('risk.quantification.reports.risk-contribution', $this->reports->riskContribution());
+        return Inertia::render('Quantification/Reports/RiskContribution', $this->reports->riskContribution());
     }
 
     /**
@@ -469,7 +470,7 @@ class QuantificationController extends Controller
      */
     public function regulatoryPack()
     {
-        return view('risk.quantification.reports.regulatory-pack', $this->reports->regulatoryPack());
+        return Inertia::render('Quantification/Reports/RegulatoryPack', $this->reports->regulatoryPack());
     }
 
     /**

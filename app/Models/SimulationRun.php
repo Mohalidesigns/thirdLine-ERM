@@ -15,6 +15,18 @@ class SimulationRun extends Model
         'organization_id',
         'simulation_reference',
         'status',
+        // WP-06 added progress, completed_iterations, cancel_requested_at and
+        // job_run_id in 2026_08_15_120001 so a run could be observed and
+        // cancelled. None of the four was added to $fillable, so every
+        // update() naming them silently dropped them: the progress bar never
+        // moved, the run never linked to its JobRun, and — because the cancel
+        // handler then looked up JobRun::whereKey(null) — the cancel button
+        // requested nothing of anybody. Found in Phase 5.2 by asserting the
+        // cancellation actually landed rather than that the flash message did.
+        'progress',
+        'completed_iterations',
+        'cancel_requested_at',
+        'job_run_id',
         'iterations',
         'random_seed',
         'horizon_years',
@@ -36,6 +48,7 @@ class SimulationRun extends Model
         'stress_config' => 'array',
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
+        'cancel_requested_at' => 'datetime',
     ];
 
     protected static function boot(): void

@@ -3,41 +3,22 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\RunSimulationJob;
 use App\Models\IcaapAssessment;
 use App\Models\QuantificationScenario;
 use App\Models\QuantificationSetting;
 use App\Models\Risk;
 use App\Models\RiskCategory;
 use App\Models\SimulationRun;
-use App\Services\MonteCarloService;
 use App\Services\Quantification\IcaapService;
 use App\Services\Quantification\QuantificationReportService;
 use App\Services\Quantification\ScenarioLibrary;
-use App\Support\Quantification\Distributions;
+use App\Services\Quantification\ScenarioService;
+use App\Services\Quantification\SimulationService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 
 class QuantificationController extends Controller
 {
-    /**
-     * Severity distributions a user is allowed to choose.
-     *
-     * WP-08. The form used to offer six — lognormal, normal, poisson, pareto,
-     * weibull, beta — and the validator accepted all six. MonteCarloService
-     * has exactly one severity draw, lognormalRandom(), and calls it
-     * unconditionally. Choosing "Pareto" therefore stored the string 'pareto'
-     * and then simulated a lognormal, so a scenario calibrated for a heavy
-     * tail was quantified with a light one and nothing on screen said so. On
-     * an ICAAP tail measure that is not a cosmetic difference.
-     *
-     * normal, poisson, pareto, weibull and beta come back to this list when —
-     * and only when — MonteCarloService implements a draw for them. Offering a
-     * distribution the engine cannot run is worse than not offering it: the
-     * user gets a number, it just is not the number they asked for.
-     */
-    private const SUPPORTED_SEVERITY_DISTRIBUTIONS = ['lognormal'];
-
     /**
      * The capital arithmetic, shared by the ICAAP screen and the four reports.
      *
@@ -49,7 +30,22 @@ class QuantificationController extends Controller
     public function __construct(
         private readonly IcaapService $icaap,
         private readonly QuantificationReportService $reports,
+        private readonly ScenarioService $scenarios,
+        private readonly SimulationService $simulations,
     ) {}
+
+    /**
+     * Every route-model-bound record on this controller is checked against the
+     * tenant by hand; the policies land later in Phase 5.2.
+     */
+    private function authorizeTenant(?int $organizationId, string $message = 'Unauthorized.'): int
+    {
+        $orgId = TenantContext::organizationId();
+
+        abort_unless($organizationId === $orgId, 403, $message);
+
+        return $orgId;
+    }
 
     /**
      * Quantification dashboard.
@@ -211,71 +207,19 @@ class QuantificationController extends Controller
 
     /**
      * Store a new scenario.
-     * Maps blade form field names to actual DB column names.
+     *
+     * The form's Naira-and-moments vocabulary is mapped to the table's columns
+     * by ScenarioService, which owns the lognormal conversion both write paths
+     * share.
      */
     public function storeScenario(Request $request)
     {
-        $orgId = TenantContext::organizationId();
-
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'required|string|max:5000',
-            'risk_category' => 'required|string|max:100',
-            'linked_risk_id' => 'nullable|exists:risks,id',
-            'distribution_type' => 'required|in:'.implode(',', self::SUPPORTED_SEVERITY_DISTRIBUTIONS),
-            'frequency_per_year' => 'required|numeric|min:0',
-            'mean' => 'required|numeric|min:0',
-            'std_dev' => 'nullable|numeric|min:0',
-            'min_loss' => 'nullable|numeric|min:0',
-            'max_loss' => 'nullable|numeric|min:0',
-        ]);
-
-        // Auto-generate scenario reference: SCN-YYYY-NNN
-        $year = now()->year;
-        $lastScenario = QuantificationScenario::where('organization_id', $orgId)
-            ->where('scenario_reference', 'like', "SCN-{$year}-%")
-            ->orderByDesc('scenario_reference')
-            ->first();
-
-        $nextNumber = $lastScenario ? ((int) substr($lastScenario->scenario_reference, -3)) + 1 : 1;
-        $scenarioReference = sprintf('SCN-%d-%03d', $year, $nextNumber);
-
-        // Convert form values (Naira) → DB values (kobo + lognormal params)
-        $minKobo = $request->min_loss ? round((float) $request->min_loss * 100) : null;
-        $maxKobo = $request->max_loss ? round((float) $request->max_loss * 100) : null;
-        $freqYear = (float) $request->frequency_per_year;
-
-        [$mu, $sigma, $meanKobo] = Distributions::lognormalFromMoments(
-            (float) $request->mean,
-            (float) ($request->std_dev ?? 0),
+        $scenario = $this->scenarios->create(
+            $request->validate($this->scenarios->rules()),
         );
 
-        $scenario = QuantificationScenario::create([
-            'organization_id' => $orgId,
-            'scenario_reference' => $scenarioReference,
-            // NOT NULL with no default. Until Phase 5.2 this key was absent
-            // and every submission of this form ended in a 500.
-            'scenario_type' => QuantificationScenario::DEFAULT_TYPE,
-            'name' => $request->name,
-            'description' => $request->description,
-            'cbn_risk_category' => $request->risk_category,
-            'risk_register_id' => $request->linked_risk_id,
-            'severity_distribution' => $request->distribution_type,
-            'frequency_distribution' => 'poisson',
-            'frequency_lambda' => $freqYear,
-            'expected_annual_frequency' => $freqYear,
-            'severity_mu' => round($mu, 6),
-            'severity_sigma' => round($sigma, 6),
-            'expected_loss_per_event_kobo' => $meanKobo,
-            'expected_annual_loss_kobo' => round($meanKobo * $freqYear),
-            'severity_min_kobo' => $minKobo,
-            'severity_max_kobo' => $maxKobo,
-            'status' => 'active',
-            'created_by' => auth()->id(),
-        ]);
-
         return redirect()->route('risk.quantification.show-scenario', $scenario)
-            ->with('success', "Scenario {$scenarioReference} has been created.");
+            ->with('success', "Scenario {$scenario->scenario_reference} has been created.");
     }
 
     /**
@@ -283,11 +227,7 @@ class QuantificationController extends Controller
      */
     public function showScenario(QuantificationScenario $scenario)
     {
-        $orgId = TenantContext::organizationId();
-
-        if ($scenario->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this scenario.');
-        }
+        $orgId = $this->authorizeTenant($scenario->organization_id, 'Unauthorized access to this scenario.');
 
         $scenario->load(['riskRegister']);
 
@@ -298,8 +238,7 @@ class QuantificationController extends Controller
             ->limit(10)
             ->get();
 
-        // Build distribution visualization data
-        $distributionVisualization = $this->buildDistributionVisualization($scenario);
+        $distributionVisualization = $this->scenarios->distributionVisualization($scenario);
 
         return view('risk.quantification.show-scenario', compact('scenario', 'simulations', 'distributionVisualization'));
     }
@@ -309,51 +248,12 @@ class QuantificationController extends Controller
      */
     public function updateScenario(Request $request, QuantificationScenario $scenario)
     {
-        $orgId = TenantContext::organizationId();
+        $this->authorizeTenant($scenario->organization_id, 'Unauthorized access to this scenario.');
 
-        if ($scenario->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this scenario.');
-        }
-
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'required|string|max:5000',
-            'risk_category' => 'required|string|max:100',
-            'linked_risk_id' => 'nullable|exists:risks,id',
-            'distribution_type' => 'required|in:'.implode(',', self::SUPPORTED_SEVERITY_DISTRIBUTIONS),
-            'frequency_per_year' => 'required|numeric|min:0',
-            'mean' => 'required|numeric|min:0',
-            'std_dev' => 'nullable|numeric|min:0',
-            'min_loss' => 'nullable|numeric|min:0',
-            'max_loss' => 'nullable|numeric|min:0',
-            'status' => 'nullable|in:draft,active,archived',
-        ]);
-
-        $minKobo = $request->min_loss ? round((float) $request->min_loss * 100) : null;
-        $maxKobo = $request->max_loss ? round((float) $request->max_loss * 100) : null;
-        $freqYear = (float) $request->frequency_per_year;
-
-        [$mu, $sigma, $meanKobo] = Distributions::lognormalFromMoments(
-            (float) $request->mean,
-            (float) ($request->std_dev ?? 0),
+        $this->scenarios->update(
+            $scenario,
+            $request->validate($this->scenarios->rules(forUpdate: true)),
         );
-
-        $scenario->update([
-            'name' => $request->name,
-            'description' => $request->description,
-            'cbn_risk_category' => $request->risk_category,
-            'risk_register_id' => $request->linked_risk_id,
-            'severity_distribution' => $request->distribution_type,
-            'frequency_lambda' => $freqYear,
-            'expected_annual_frequency' => $freqYear,
-            'severity_mu' => round($mu, 6),
-            'severity_sigma' => round($sigma, 6),
-            'expected_loss_per_event_kobo' => $meanKobo,
-            'expected_annual_loss_kobo' => round($meanKobo * $freqYear),
-            'severity_min_kobo' => $minKobo,
-            'severity_max_kobo' => $maxKobo,
-            'status' => $request->status ?? $scenario->status,
-        ]);
 
         return redirect()->route('risk.quantification.show-scenario', $scenario)
             ->with('success', "Scenario {$scenario->scenario_reference} has been updated.");
@@ -376,84 +276,23 @@ class QuantificationController extends Controller
 
     /**
      * Launch a simulation run.
+     *
+     * The seed, the job hand-off and the reference sequence are
+     * SimulationService's; what stays here is the tenant check on the selected
+     * scenarios, which the `exists:` rule cannot make.
      */
     public function runSimulation(Request $request)
     {
-        $orgId = TenantContext::organizationId();
+        $validated = $request->validate($this->simulations->rules());
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'scenario_ids' => 'required|array|min:1',
-            'scenario_ids.*' => 'exists:quantification_scenarios,id',
-            'iterations' => 'required|integer|min:1000|max:1000000',
-            'time_horizon' => 'nullable|integer|min:1|max:10',
-            'confidence_levels' => 'nullable|array',
-            'confidence_levels.*' => 'numeric',
-        ]);
-
-        // Verify all scenarios belong to org
-        $scenarioCount = QuantificationScenario::where('organization_id', $orgId)
-            ->whereIn('id', $validated['scenario_ids'])
-            ->count();
-
-        if ($scenarioCount !== count($validated['scenario_ids'])) {
+        if (! $this->simulations->scenariosBelongToOrganization($validated['scenario_ids'])) {
             return back()->with('error', 'One or more selected scenarios are invalid.');
         }
 
-        // Auto-generate simulation reference: SIM-YYYY-NNN
-        $year = now()->year;
-        $lastSim = SimulationRun::where('organization_id', $orgId)
-            ->where('simulation_reference', 'like', "SIM-{$year}-%")
-            ->orderByDesc('simulation_reference')
-            ->first();
-
-        $nextNumber = $lastSim ? ((int) substr($lastSim->simulation_reference, -3)) + 1 : 1;
-        $simReference = sprintf('SIM-%d-%03d', $year, $nextNumber);
-
-        $simulation = SimulationRun::create([
-            'organization_id' => $orgId,
-            'simulation_reference' => $simReference,
-            'scenario_ids' => $validated['scenario_ids'],
-            'iterations' => $validated['iterations'],
-            'horizon_years' => $validated['time_horizon'] ?? 1,
-            'confidence_levels' => $validated['confidence_levels'] ?? [95, 99, 99.5],
-            'correlation_method' => 'independent',
-            'status' => 'queued',
-            'initiated_by' => auth()->id(),
-        ]);
-
-        // WP-07. This used to run 10,000 iterations x N scenarios inside the
-        // request. On a real scenario set the web server killed it partway,
-        // leaving status stuck on 'running' with no results and nothing on
-        // screen to say why.
-        //
-        // The seed is decided when the run is QUEUED rather than inside the
-        // worker, so the figure is recorded as re-derivable from the moment the
-        // user presses the button, and a replayed job cannot produce a
-        // different capital number from the same request. The draw itself lives
-        // in MonteCarloService — the one file allowed to hold an RNG.
-        $seed = MonteCarloService::drawSeed();
-        $simulation->update(['random_seed' => $seed]);
-
-        $jobRun = RunSimulationJob::track(
-            label: "Simulation {$simReference}",
-            subject: $simulation,
-            organizationId: $orgId,
-            creator: $request->user(),
-            total: $validated['iterations'] * count($validated['scenario_ids']),
-        );
-
-        $simulation->update(['job_run_id' => $jobRun->id]);
-
-        RunSimulationJob::dispatch(
-            $simulation->id,
-            $validated['scenario_ids'],
-            $seed,
-            $jobRun->id,
-        );
+        $simulation = $this->simulations->launch($validated, $request->user());
 
         return redirect()->route('risk.quantification.show-results', $simulation)
-            ->with('success', "Simulation {$simReference} is running. This page updates as it progresses.");
+            ->with('success', "Simulation {$simulation->simulation_reference} is running. This page updates as it progresses.");
     }
 
     /**
@@ -466,20 +305,11 @@ class QuantificationController extends Controller
      */
     public function cancelSimulation(Request $request, SimulationRun $simulation)
     {
-        abort_unless($simulation->organization_id === TenantContext::organizationId(), 403);
+        $this->authorizeTenant($simulation->organization_id);
 
-        if (! in_array($simulation->status, ['queued', 'running'], true)) {
+        if (! $this->simulations->requestCancellation($simulation, $request->user())) {
             return back()->with('error', 'That simulation has already finished.');
         }
-
-        $simulation->update(['cancel_requested_at' => now()]);
-
-        \App\Models\JobRun::withoutGlobalScopes()
-            ->whereKey($simulation->job_run_id)
-            ->update([
-                'cancel_requested_at' => now(),
-                'cancel_requested_by' => $request->user()->id,
-            ]);
 
         return back()->with('success', 'Cancellation requested. The run stops at its next checkpoint.');
     }
@@ -505,55 +335,18 @@ class QuantificationController extends Controller
 
     /**
      * Display results for a specific simulation run.
-     * View expects $result (SimulationRun), plus chart data arrays.
+     *
+     * The three chart series come from SimulationService and read only the
+     * percentiles the run stored.
      */
     public function showResults(SimulationRun $simulation)
     {
-        $orgId = TenantContext::organizationId();
+        $this->authorizeTenant($simulation->organization_id, 'Unauthorized access to this simulation.');
 
-        if ($simulation->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this simulation.');
-        }
-
-        $result = $simulation;
-
-        // Build histogram data from percentile distribution
-        $histogramData = ['labels' => [], 'values' => []];
-        $agg = $result->aggregate_result;
-        if ($agg && is_array($agg->percentile_distribution)) {
-            $dist = $agg->percentile_distribution;
-            $labels = ['p5' => '5%', 'p10' => '10%', 'p25' => '25%', 'p50' => '50%', 'p75' => '75%', 'p90' => '90%', 'p95' => '95%', 'p99' => '99%'];
-            foreach ($labels as $key => $label) {
-                if (isset($dist[$key])) {
-                    $histogramData['labels'][] = $label;
-                    $histogramData['values'][] = round($dist[$key] / 100, 2);
-                }
-            }
-        }
-
-        // Build contribution chart data
-        $contribChartData = ['labels' => [], 'values' => []];
-        $contributions = $result->scenario_contributions;
-        if ($contributions && $contributions->count()) {
-            foreach ($contributions as $c) {
-                $contribChartData['labels'][] = $c->scenario_name;
-                $contribChartData['values'][] = $c->contribution_pct;
-            }
-        }
-
-        // Build CDF data
-        $cdfData = ['labels' => [], 'values' => []];
-        if ($agg && is_array($agg->percentile_distribution)) {
-            $pMap = ['p5' => 0.05, 'p10' => 0.10, 'p25' => 0.25, 'p50' => 0.50, 'p75' => 0.75, 'p90' => 0.90, 'p95' => 0.95, 'p99' => 0.99, 'p99.5' => 0.995, 'p99.9' => 0.999];
-            foreach ($pMap as $key => $prob) {
-                if (isset($agg->percentile_distribution[$key])) {
-                    $cdfData['labels'][] = '₦'.number_format(round($agg->percentile_distribution[$key] / 100, 2));
-                    $cdfData['values'][] = $prob;
-                }
-            }
-        }
-
-        return view('risk.quantification.show-results', compact('result', 'histogramData', 'contribChartData', 'cdfData'));
+        return view('risk.quantification.show-results', array_merge(
+            ['result' => $simulation],
+            $this->simulations->resultCharts($simulation),
+        ));
     }
 
     /**
@@ -688,10 +481,7 @@ class QuantificationController extends Controller
      */
     public function editScenario(QuantificationScenario $scenario)
     {
-        $orgId = TenantContext::organizationId();
-        if ($scenario->organization_id !== $orgId) {
-            abort(403);
-        }
+        $orgId = $this->authorizeTenant($scenario->organization_id);
 
         $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
         $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
@@ -728,51 +518,5 @@ class QuantificationController extends Controller
 
         return redirect()->route('risk.quantification.show-scenario', $scenario)
             ->with('success', "Scenario {$reference} imported from library.");
-    }
-
-    /* ------------------------------------------------------------------ */
-    /*  Private helpers */
-    /* ------------------------------------------------------------------ */
-
-    /**
-     * Build visualization data for a lognormal distribution.
-     *
-     * WP-08 note on the mu fallback below. When a scenario has no stored
-     * severity_mu this uses log(mean) WITHOUT the -sigma^2/2 correction that
-     * Distributions::lognormalFromMoments() applies, so the curve drawn for such a
-     * scenario has a mean of mean * exp(sigma^2/2) rather than mean.
-     *
-     * That is deliberate and it is left alone. MonteCarloService::runSimulation
-     * uses the identical fallback (`log(max($scenario->expected_loss_per_event_kobo ?? 1e8, 1))`,
-     * sigma 1.5) when a scenario has no stored parameters, and this chart's job
-     * is to show the distribution the engine will actually draw from — not a
-     * different, better one. Correcting it here alone would put the picture and
-     * the simulation out of step, which is how the two halves of this screen
-     * disagreed in the first place. The fallback belongs to the engine and has
-     * to be fixed there; the parameters WRITTEN by this controller are already
-     * correct, so any scenario created or edited since WP-08 never reaches it.
-     */
-    private function buildDistributionVisualization(QuantificationScenario $scenario): array
-    {
-        $mu = (float) ($scenario->severity_mu ?? log(max($scenario->expected_loss_per_event_kobo ?? 100000000, 1)));
-        $sigma = (float) ($scenario->severity_sigma ?? 1.5);
-
-        // Generate ~20 buckets for the PDF of a lognormal
-        $meanVal = exp($mu + ($sigma ** 2) / 2);
-        $maxX = $meanVal * 3;
-        $step = $maxX / 20;
-
-        $labels = [];
-        $values = [];
-
-        for ($x = $step; $x <= $maxX; $x += $step) {
-            if ($x > 0) {
-                $pdf = (1 / ($x * $sigma * sqrt(2 * M_PI))) * exp(-(log($x) - $mu) ** 2 / (2 * $sigma ** 2));
-                $labels[] = '₦'.number_format(round($x / 100, 0));
-                $values[] = round($pdf * $step, 6);
-            }
-        }
-
-        return ['labels' => $labels, 'values' => $values];
     }
 }

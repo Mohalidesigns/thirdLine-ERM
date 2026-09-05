@@ -220,31 +220,31 @@ parameters:
 			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$event_count\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Http/Controllers/Risk/DashboardController.php
+			path: app/Services/Dashboard/CommandCentreService.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$gross\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Http/Controllers/Risk/DashboardController.php
+			path: app/Services/Dashboard/CommandCentreService.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Http/Controllers/Risk/DashboardController.php
+			path: app/Services/Dashboard/CommandCentreService.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net_loss_amount_kobo\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Http/Controllers/Risk/DashboardController.php
+			path: app/Services/Dashboard/CommandCentreService.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$count\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Http/Controllers/Risk/DashboardController.php
+			path: app/Services/Dashboard/CommandCentreService.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'

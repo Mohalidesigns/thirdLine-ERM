@@ -258,7 +258,8 @@ class QuantificationController extends Controller
             ->get();
 
         // The settings screen's whole purpose. Until Phase 5.2 this form
-        // hardcoded 10,000 iterations, a one-year horizon and 95/99/99.5, so
+        // hardcoded ten thousand iterations, a one-year horizon and the
+        // 95/99/99.5 levels, so
         // the one setting that did persist reached nothing.
         return Inertia::render('Quantification/Simulate', [
             // Presented, so the picker states each scenario's real calibration.

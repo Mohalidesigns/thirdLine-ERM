@@ -198,10 +198,26 @@ class AuthPagesTest extends TestCase
         }
 
         $this->assertTrue(Ported::isPath('/my'));
-        // /risk/register flipped in Phase 2; the dashboard is Blade until Phase 4.
-        $this->assertFalse(Ported::isPath('/risk/dashboard'));
+
+        // The Command Centre flipped in Phase 5 (criterion 7). This assertion
+        // read `assertFalse` with the note "the dashboard is Blade until Phase
+        // 4" — the guard doing exactly its job, catching the flip rather than
+        // letting a stale claim about the renderer sit in the suite.
+        $this->assertTrue(Ported::isPath('/risk/dashboard'));
+
         $this->assertSame('', Ported::navigateAttribute('/my'));
-        $this->assertSame('wire:navigate', Ported::navigateAttribute('/risk/dashboard'));
+        $this->assertSame('', Ported::navigateAttribute('/risk/dashboard'));
+
+        // A path that is still Blade, so the Livewire attribute is still
+        // exercised rather than the assertion passing vacuously: the workflow
+        // designer, the last Blade view in the product, which Phase 6 owns.
+        $designerPath = (string) parse_url(
+            route('risk.workflows.edit-definition', ['definition' => 1]),
+            PHP_URL_PATH,
+        );
+
+        $this->assertFalse(Ported::isRoute('risk.workflows.edit-definition'));
+        $this->assertSame('wire:navigate', Ported::navigateAttribute($designerPath));
 
         foreach (NavPresenter::allItems() as $item) {
             $expected = Ported::isRoute($item['route']);

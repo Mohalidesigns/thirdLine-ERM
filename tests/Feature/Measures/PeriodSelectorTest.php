@@ -6,6 +6,7 @@ use App\Http\Middleware\ResolvePeriod;
 use App\Models\Period;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\Support\CreatesMeasureFixtures;
@@ -219,10 +220,18 @@ class PeriodSelectorTest extends TestCase
         $q1 = $this->quarter('2026-02-15');
         $this->actingAs($this->actor)->get(route('risk.periods.select', ['period' => $q1->code]));
 
-        $this->actingAs($this->actor)->get('/risk/dashboard')
+        // The Command Centre is Inertia as of Phase 5's criterion 7, so the
+        // banner's text lives in the page component and what the server sends
+        // is the period behind it. Asserting the prop is the contract; the
+        // banner is Dashboard.jsx's rendering of it.
+        $props = $this->actingAs($this->actor)->get('/risk/dashboard')
             ->assertOk()
-            ->assertSee('Risk scores shown as at '.$q1->name, false)
-            ->assertSee('remain current state', false);
+            ->assertInertia(fn (AssertableInertia $page) => $page->component('Dashboard'))
+            ->inertiaProps();
+
+        $this->assertNotNull($props['asOfPeriod'], 'A closed period must be reported as historic.');
+        $this->assertSame($q1->name, $props['asOfPeriod']['name']);
+        $this->assertSame($q1->code, $props['asOfPeriod']['code']);
     }
 
     #[Test]

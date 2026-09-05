@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route as RoutingRoute;
 use Illuminate\Support\Facades\Route;
@@ -128,11 +129,14 @@ class AdminNavigationTest extends TestCase
     {
         $this->actor->givePermissionTo($permission);
 
-        $sidebar = $this->actingAs($this->actor)->get(self::SIDEBAR_PAGE);
+        $nav = $this->navigationFor($this->actor);
 
-        $sidebar->assertOk()
-            ->assertSee('Administration')
-            ->assertSee('href="'.route($routeName).'"', false);
+        $this->assertNotNull($nav['admin'] ?? null, 'The Administration section is absent from the navigation.');
+        $this->assertContains(
+            $this->pathOf($routeName),
+            $this->adminUrls($nav),
+            "The Administration menu does not link {$routeName}.",
+        );
     }
 
     #[Test]
@@ -156,15 +160,81 @@ class AdminNavigationTest extends TestCase
     {
         $this->actor->givePermissionTo($permission);
 
-        $sidebar = $this->actingAs($this->actor)->get(self::SIDEBAR_PAGE);
+        $urls = $this->adminUrls($this->navigationFor($this->actor));
 
         foreach (self::ADMIN_SURFACES as $otherPermission => $otherRoute) {
             if ($otherPermission === $permission) {
                 continue;
             }
 
-            $sidebar->assertDontSee('href="'.route($otherRoute).'"', false);
+            $this->assertNotContains(
+                $this->pathOf($otherRoute),
+                $urls,
+                "Holding {$permission} revealed {$otherRoute}, which it does not grant.",
+            );
         }
+    }
+
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * The navigation as the signed-in user receives it.
+     *
+     * THIS USED TO GREP THE SIDEBAR'S HTML for `href=\"...\"` off
+     * /risk/dashboard. That page is Inertia as of Phase 5's criterion 7, so its
+     * sidebar is React and the links live in the shared `navigation` prop
+     * rather than in the server's HTML — the assertion was reading a document
+     * that no longer contains them. Reading the prop is also the stricter test:
+     * it is the actual contract between NavPresenter and the layout, and it
+     * cannot pass on a link that happens to appear in some unrelated markup.
+     *
+     * @return array<string, mixed>
+     */
+    private function navigationFor(User $user): array
+    {
+        return $this->actingAs($user)
+            ->get(self::SIDEBAR_PAGE)
+            ->assertOk()
+            ->inertiaProps('navigation');
+    }
+
+    /**
+     * Every URL the Administration section links.
+     *
+     * @param  array<string, mixed>  $nav
+     * @return list<string>
+     */
+    private function adminUrls(array $nav): array
+    {
+        // The Administration section nests its links inside labelled groups.
+        return collect($nav['admin']['groups'] ?? [])
+            ->flatMap(fn (array $group) => collect($group['items'] ?? [])->pluck('url'))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Every URL the navigation links, across primary, sections and admin.
+     *
+     * @param  array<string, mixed>  $nav
+     * @return list<string>
+     */
+    private function allNavUrls(array $nav): array
+    {
+        $sectionUrls = collect($nav['sections'] ?? [])
+            ->flatMap(fn (array $section) => collect($section['items'] ?? [])->pluck('url'));
+
+        return collect($nav['primary'] ?? [])->pluck('url')
+            ->merge($sectionUrls)
+            ->merge($this->adminUrls($nav))
+            ->values()
+            ->all();
+    }
+
+    /** A route's path, which is what NavPresenter puts in `url`. */
+    private function pathOf(string $routeName): string
+    {
+        return (string) parse_url(route($routeName), PHP_URL_PATH);
     }
 
     #[Test]
@@ -178,9 +248,11 @@ class AdminNavigationTest extends TestCase
 
         $this->actor->givePermissionTo($permission);
 
-        $this->actingAs($this->actor)->get(self::SIDEBAR_PAGE)
-            ->assertOk()
-            ->assertSee('href="'.route($routeName).'"', false);
+        $this->assertContains(
+            $this->pathOf($routeName),
+            $this->allNavUrls($this->navigationFor($this->actor)),
+            "The navigation does not link {$routeName}.",
+        );
 
         $this->actingAs($this->actor)->get(route($routeName))->assertOk();
     }

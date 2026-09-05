@@ -59,6 +59,8 @@ final class Ported
         'risk.ai.predictive',
         'risk.ai.radar',
         'risk.ai.regulatory-pulse',
+        // Phase 5 criterion 7 — the Command Centre
+        'risk.dashboard',
         'admin.users.index',
         'risk.emerging.index',
         'risk.reports.library',

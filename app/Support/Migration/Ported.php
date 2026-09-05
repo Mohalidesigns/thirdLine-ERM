@@ -152,6 +152,7 @@ final class Ported
         'risk.quantification.icaap',
         'risk.quantification.library',
         'risk.quantification.settings',
+        'risk.quantification.dashboard',
         // Phase 3 — RCSA
         'risk.rcsa.dashboard',
         'risk.rcsa.worksheet',

@@ -67,24 +67,6 @@ parameters:
 			path: app/Grids/Definitions/DataImportsGrid.php
 
 		-
-			message: '#^Relation ''category'' is not found in App\\Models\\EmergingRisk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/EmergingRisksGrid.php
-
-		-
-			message: '#^Relation ''convertedRisk'' is not found in App\\Models\\EmergingRisk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/EmergingRisksGrid.php
-
-		-
-			message: '#^Relation ''owner'' is not found in App\\Models\\EmergingRisk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/EmergingRisksGrid.php
-
-		-
 			message: '#^Parameter \#1 \$apply of method App\\Grids\\Filter\:\:apply\(\) expects Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: void, Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: Illuminate\\Database\\Eloquent\\Builder given\.$#'
 			identifier: argument.type
 			count: 1
@@ -227,18 +209,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Controllers/Api/V1/MeController.php
-
-		-
-			message: '#^Relation ''category'' is not found in App\\Models\\EmergingRisk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/AiIntelligenceController.php
-
-		-
-			message: '#^Relation ''owner'' is not found in App\\Models\\EmergingRisk model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/AiIntelligenceController.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -819,6 +789,18 @@ parameters:
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
 			identifier: method.notFound
+			count: 1
+			path: app/Models/EmergingRisk.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/EmergingRisk.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\EmergingRisk\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
 			count: 1
 			path: app/Models/EmergingRisk.php
 
@@ -2543,4 +2525,3 @@ parameters:
 			identifier: booleanOr.alwaysTrue
 			count: 1
 			path: database/seeders/EnterpriseGapSeeder.php
-

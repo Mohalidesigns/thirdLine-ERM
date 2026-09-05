@@ -8,6 +8,7 @@ use App\Models\BusinessUnit;
 use App\Models\Concerns\HasObjectIdentity;
 use App\Models\Control;
 use App\Models\ControlTest;
+use App\Models\EmergingRisk;
 use App\Models\Entity;
 use App\Models\EntityType;
 use App\Models\GraphObject;
@@ -55,6 +56,12 @@ class ObjectIdentityTest extends TestCase
             LossEvent::class, NearMiss::class, TreatmentPlan::class, RiskAppetite::class,
             AssessmentCampaign::class, ControlTest::class, Entity::class, BusinessUnit::class,
             BusinessProcess::class, RiskCategory::class, QuantificationScenario::class,
+            // Migration Phase 4.6. The registry has declared an EmergingRisk
+            // object type since WP-03 and nothing ever mirrored a row into it,
+            // which is why a builder-added field on the emerging risk form was
+            // accepted and discarded. This test caught the omission the moment
+            // the model joined the source map, which is what it is for.
+            EmergingRisk::class,
         ];
     }
 
@@ -80,6 +87,33 @@ class ObjectIdentityTest extends TestCase
             array_values(array_diff($mapped, $tested)),
             'ObjectSourceMap knows about models this test does not assert on.'
         );
+    }
+
+    /** Phase 4.6 — the horizon is in the graph like everything else. */
+    #[Test]
+    public function saving_an_emerging_risk_creates_a_graph_node_mirroring_it(): void
+    {
+        $entry = EmergingRisk::create([
+            'organization_id' => $this->organization->id,
+            'reference' => 'EMR-2026-0001',
+            'title' => 'Quantum decryption of archived records',
+            'horizon' => '0-3m',
+            'velocity_score' => 4,
+            'proximity_score' => 3,
+            'potential_impact' => 'Critical',
+            'status' => 'monitoring',
+            'owner_id' => $this->actor->id,
+        ]);
+
+        $object = $entry->graphObject();
+
+        $this->assertNotNull($object, 'No objects row was created for the emerging risk');
+        $this->assertSame('EMR-2026-0001', $object->code);
+        $this->assertSame('Quantum decryption of archived records', $object->name);
+        $this->assertSame('monitoring', $object->lifecycle_state);
+        $this->assertSame($this->organization->id, $object->organization_id);
+        $this->assertSame('EmergingRisk', $object->objectType->code);
+        $this->assertSame($this->actor->id, $object->owner_id);
     }
 
     #[Test]

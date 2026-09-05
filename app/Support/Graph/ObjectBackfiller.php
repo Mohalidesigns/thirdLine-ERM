@@ -43,6 +43,9 @@ class ObjectBackfiller
         \App\Models\TreatmentPlan::class,
         \App\Models\ControlTest::class,
         \App\Models\QuantificationScenario::class,
+        // Phase 4.6 — see the note on EmergingRisk. Existing rows are mirrored
+        // by re-running `graph:backfill`, which this class is built for.
+        \App\Models\EmergingRisk::class,
     ];
 
     /**

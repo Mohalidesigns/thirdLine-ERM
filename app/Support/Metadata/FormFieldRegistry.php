@@ -2,6 +2,8 @@
 
 namespace App\Support\Metadata;
 
+use App\Models\EmergingRisk;
+
 /**
  * WP-05 TASK 2 — the column-backed field definitions for the five object types
  * whose create/edit pairs are now rendered from metadata.
@@ -372,27 +374,41 @@ class FormFieldRegistry
                 'validation' => ['rules' => ['max:5000']],
             ]),
             self::lookup('category_id', 'Category', 'risk_categories', ['section' => 'Classification']),
-            self::enum('horizon', 'Horizon', [
-                'near_term' => 'Near term',
-                'medium_term' => 'Medium term',
-                'long_term' => 'Long term',
-            ], [
+            // THESE THREE ARE DERIVED FROM THE MODEL'S CONSTANTS, NOT RETYPED,
+            // and that is the whole point (migration Phase 4.6). Until then they
+            // were hand-written literals and every one of them was wrong:
+            // horizon offered near_term/medium_term/long_term against a column
+            // of 0-3m/3-6m/6-12m/12m+, potential_impact offered
+            // low/moderate/high/severe against Low/Medium/High/Critical, and
+            // status offered escalating/promoted/dismissed against
+            // assessing/escalated/converted/closed. Since horizon and
+            // potential_impact are both required, THE CREATE FORM COULD NOT SAVE
+            // AN ENTRY AT ALL — submitting exactly what it offered came back
+            // with errors on two fields whose only offered values were invalid.
+            // Nothing caught it because the one test that exercises the route
+            // posts the correct values directly, never the form's.
+            //
+            // EmergingRisk::HORIZONS/IMPACTS/STATUSES are what the register
+            // grid's filters, the radar and the controller's rules all read, so
+            // the constants are the authority and these are labels for them. A
+            // value added to a constant without a label here still renders,
+            // under itself.
+            self::enum('horizon', 'Horizon', self::labelled(EmergingRisk::HORIZONS, [
+                '0-3m' => '0–3 months',
+                '3-6m' => '3–6 months',
+                '6-12m' => '6–12 months',
+                '12m+' => 'Beyond 12 months',
+            ]), [
                 'is_required' => true,
                 'section' => 'Classification',
                 'help_text' => 'How far out this is expected to matter.',
             ]),
-            self::enum('potential_impact', 'Potential Impact', [
-                'low' => 'Low',
-                'moderate' => 'Moderate',
-                'high' => 'High',
-                'severe' => 'Severe',
-            ], ['is_required' => true, 'section' => 'Classification']),
-            self::enum('status', 'Status', [
-                'monitoring' => 'Monitoring',
-                'escalating' => 'Escalating',
-                'promoted' => 'Promoted to register',
-                'dismissed' => 'Dismissed',
-            ], ['is_required' => true, 'section' => 'Classification', 'default_value' => 'monitoring']),
+            self::enum('potential_impact', 'Potential Impact', self::labelled(EmergingRisk::IMPACTS), [
+                'is_required' => true, 'section' => 'Classification',
+            ]),
+            self::enum('status', 'Status', self::labelled(EmergingRisk::STATUSES, [
+                'converted' => 'Converted to register',
+            ]), ['is_required' => true, 'section' => 'Classification', 'default_value' => 'monitoring']),
             self::field('velocity_score', 'Velocity', 'int', [
                 'is_required' => true,
                 'section' => 'Assessment',
@@ -450,6 +466,29 @@ class FormFieldRegistry
      * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>
      */
+    /**
+     * Option value => human label, for an enum whose values live on the model.
+     *
+     * Anything without an explicit label is title-cased from its own value, so
+     * a constant that grows a member still renders rather than disappearing
+     * from the form — which is the failure mode this helper exists to make
+     * impossible.
+     *
+     * @param  list<string>  $values
+     * @param  array<string, string>  $labels
+     * @return array<string, string>
+     */
+    private static function labelled(array $values, array $labels = []): array
+    {
+        $options = [];
+
+        foreach ($values as $value) {
+            $options[$value] = $labels[$value] ?? ucfirst(str_replace('_', ' ', $value));
+        }
+
+        return $options;
+    }
+
     private static function enum(string $column, string $label, array $options, array $overrides = []): array
     {
         return self::field($column, $label, 'enum', array_merge([

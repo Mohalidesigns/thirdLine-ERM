@@ -622,6 +622,7 @@ class ObjectTypeRegistry
             \App\Models\RiskAppetite::class => 'RiskAppetite',
             \App\Models\AssessmentCampaign::class => 'AssessmentCampaign',
             \App\Models\ControlTest::class => 'ControlTest',
+            \App\Models\EmergingRisk::class => 'EmergingRisk',
             \App\Models\Entity::class => 'BusinessUnit',
             \App\Models\BusinessUnit::class => 'BusinessUnit',
             \App\Models\BusinessProcess::class => 'Process',

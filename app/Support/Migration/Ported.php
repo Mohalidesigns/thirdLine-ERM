@@ -126,6 +126,10 @@ final class Ported
         'risk.questionnaires.create',
         'risk.questionnaires.show',
         'risk.questionnaires.edit',
+        // Phase 4 — emerging risks ('risk.emerging.index' is above, from
+        // Phase 2's grid work)
+        'risk.emerging.create',
+        'risk.emerging.edit',
         // Phase 3 — RCSA
         'risk.rcsa.dashboard',
         'risk.rcsa.worksheet',

@@ -141,6 +141,17 @@ class ObjectSourceMap
                 'effective_to' => 'end_date',
             ]),
 
+            // Phase 4.6. `emerging_risks` has no entity_id or business_unit_id
+            // column — an emerging risk is on the organisation's horizon, not a
+            // node's, which is why neither is mapped here.
+            \App\Models\EmergingRisk::class => self::spec('emerging_risks', 'EmergingRisk', 'EMR', [
+                'code' => 'reference',
+                'name' => 'title',
+                'owner' => 'owner_id',
+                'lifecycle_state' => 'status',
+                'effective_from' => 'detected_at',
+            ]),
+
             \App\Models\ControlTest::class => self::spec('control_tests', 'ControlTest', 'CT', [
                 'code' => 'test_code',
                 'name' => 'title',

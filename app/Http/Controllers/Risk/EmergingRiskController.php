@@ -5,13 +5,16 @@ namespace App\Http\Controllers\Risk;
 use App\Grids\GridRegistry;
 use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Emerging\StoreEmergingRiskRequest;
+use App\Http\Requests\Emerging\UpdateEmergingRiskRequest;
 use App\Models\EmergingRisk;
-use App\Models\RiskCategory;
-use App\Models\User;
+use App\Presenters\FormSchemaPresenter;
 use App\Presenters\GridPresenter;
 use App\Services\ReferenceCodeService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
 /**
@@ -26,13 +29,21 @@ use Inertia\Inertia;
  * Reuses the risk.* permission set rather than minting emerging.* permissions:
  * an emerging risk is a register object, and anyone trusted to maintain the
  * risk register is trusted to maintain the horizon in front of it.
+ * EmergingRiskPolicy asks for those same permissions — see its docblock.
  */
 class EmergingRiskController extends Controller
 {
     // WP-05 TASK 2 — receives the fields a tenant added through the
-    // builder. Without it, a configured field would render on the form,
-    // accept what was typed, and discard it on submit.
+    // builder. Until Phase 4.6 this was a NO-OP for this model: EmergingRisk
+    // was absent from ObjectTypeRegistry::modelTypeMap(), so the trait could
+    // not resolve a type and returned 0 before validating or storing anything.
+    // A builder-added field rendered, accepted what was typed and was
+    // discarded, which is exactly the failure the trait exists to prevent.
     use PersistsConfiguredAttributes;
+
+    private const OBJECT_TYPE = 'EmergingRisk';
+
+    public function __construct(private readonly FormSchemaPresenter $schemas) {}
 
     /**
      * WP-09: the register is the shared data grid
@@ -42,6 +53,8 @@ class EmergingRiskController extends Controller
      */
     public function index(Request $request, GridPresenter $presenter)
     {
+        Gate::authorize('viewAny', EmergingRisk::class);
+
         return Inertia::render('Emerging/Index', [
             'grid' => fn () => $presenter->present(GridRegistry::resolve('emerging_risks'), $request, $request->user()),
         ]);
@@ -49,8 +62,16 @@ class EmergingRiskController extends Controller
 
     public function create()
     {
-        return view('risk.emerging.create', $this->formOptions() + [
-            'entry' => new EmergingRisk([
+        Gate::authorize('create', EmergingRisk::class);
+
+        return Inertia::render('Emerging/Create', [
+            // The whole form comes from the EmergingRisk object type, as the
+            // Blade page's `<x-dynamic-form type="EmergingRisk">` did. Writing
+            // the fields out here would put a second definition of "what an
+            // emerging risk form contains" beside FormFieldRegistry's, and a
+            // field a tenant added through the builder would render nowhere
+            // while the controller went on saving it — 4.4's trap exactly.
+            'schema' => $this->schemas->form(self::OBJECT_TYPE, defaults: [
                 'horizon' => '6-12m',
                 'velocity_score' => 3,
                 'proximity_score' => 3,
@@ -61,25 +82,27 @@ class EmergingRiskController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StoreEmergingRiskRequest $request)
     {
         $orgId = TenantContext::organizationId();
-        $validated = $this->validated($request);
 
-        $validated['organization_id'] = $orgId;
-        $validated['created_by'] = auth()->id();
-        $validated['reference'] = ReferenceCodeService::generate(
-            'emerging_risks',
-            'reference',
-            'EMR',
-            4,
-            $orgId
-        );
+        // One transaction. The reference is drawn from a per-tenant sequence,
+        // and a half-written entry that keeps its number is worse than none.
+        $entry = DB::transaction(function () use ($request, $orgId) {
+            $entry = EmergingRisk::create([
+                ...$request->columns(),
+                'organization_id' => $orgId,
+                'created_by' => auth()->id(),
+                'reference' => ReferenceCodeService::generate('emerging_risks', 'reference', 'EMR', 4, $orgId),
+            ]);
 
-        $entry = EmergingRisk::create($validated);
+            // Fields the tenant added through the builder, if any. Already
+            // validated by the Form Request, so this cannot fail the save after
+            // the row exists — which is what it used to do.
+            $this->saveConfiguredAttributes($request, $entry);
 
-        // Fields the tenant added through the builder, if any.
-        $this->saveConfiguredAttributes($request, $entry);
+            return $entry;
+        });
 
         return redirect()->route('risk.emerging.index')
             ->with('success', "Emerging risk {$entry->reference} added to the register.");
@@ -87,18 +110,31 @@ class EmergingRiskController extends Controller
 
     public function edit(EmergingRisk $emerging)
     {
-        $this->assertSameTenant($emerging);
+        Gate::authorize('update', $emerging);
 
-        return view('risk.emerging.edit', $this->formOptions() + ['entry' => $emerging]);
+        return Inertia::render('Emerging/Edit', [
+            'entry' => [
+                'id' => $emerging->id,
+                'reference' => $emerging->reference,
+                'title' => $emerging->title,
+                'createdAt' => $emerging->created_at?->format('d M Y'),
+                'createdBy' => $emerging->creator?->name,
+                'radarScore' => $emerging->radar_score,
+                'lastReviewedAt' => $emerging->last_reviewed_at?->format('d M Y'),
+                'reviewUrl' => route('risk.emerging.review', $emerging),
+            ],
+            'schema' => $this->schemas->form(self::OBJECT_TYPE, $emerging),
+            'canDelete' => auth()->user()->can('delete', $emerging),
+        ]);
     }
 
-    public function update(Request $request, EmergingRisk $emerging)
+    public function update(UpdateEmergingRiskRequest $request, EmergingRisk $emerging)
     {
-        $this->assertSameTenant($emerging);
+        DB::transaction(function () use ($request, $emerging) {
+            $emerging->update($request->columns());
 
-        $emerging->update($this->validated($request));
-
-        $this->saveConfiguredAttributes($request, $emerging);
+            $this->saveConfiguredAttributes($request, $emerging);
+        });
 
         return redirect()->route('risk.emerging.index')
             ->with('success', "Emerging risk {$emerging->reference} updated.");
@@ -106,7 +142,7 @@ class EmergingRiskController extends Controller
 
     public function destroy(EmergingRisk $emerging)
     {
-        $this->assertSameTenant($emerging);
+        Gate::authorize('delete', $emerging);
 
         $reference = $emerging->reference;
         $emerging->delete();
@@ -122,81 +158,10 @@ class EmergingRiskController extends Controller
      */
     public function review(EmergingRisk $emerging)
     {
-        $this->assertSameTenant($emerging);
+        Gate::authorize('review', $emerging);
 
         $emerging->update(['last_reviewed_at' => now()->toDateString()]);
 
         return back()->with('success', "{$emerging->reference} marked as reviewed today.");
-    }
-
-    /* ------------------------------------------------------------------ */
-    /*  Helpers */
-    /* ------------------------------------------------------------------ */
-
-    /**
-     * Route-model binding resolves through the tenant global scope, but this
-     * belt-and-braces check keeps the guarantee if that scope is ever bypassed
-     * upstream.
-     */
-    private function assertSameTenant(EmergingRisk $emerging): void
-    {
-        abort_unless(
-            (int) $emerging->organization_id === TenantContext::organizationId(),
-            403
-        );
-    }
-
-    /**
-     * @return array<string,mixed>
-     */
-    private function formOptions(): array
-    {
-        $orgId = TenantContext::organizationId();
-
-        return [
-            'categories' => RiskCategory::where('organization_id', $orgId)->orderBy('name')->get(),
-            'owners' => User::where('organization_id', $orgId)->orderBy('name')->get(['id', 'name']),
-            'statuses' => EmergingRisk::STATUSES,
-            'horizons' => EmergingRisk::HORIZONS,
-            'impacts' => EmergingRisk::IMPACTS,
-        ];
-    }
-
-    /**
-     * @return array<string,mixed>
-     */
-    private function validated(Request $request): array
-    {
-        $orgId = TenantContext::organizationId();
-
-        return $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string|max:5000',
-            // The tenant filter on the exists rule matters: without it a user
-            // could attach their emerging risk to another organisation's
-            // category or user by posting a foreign id.
-            'category_id' => [
-                'nullable',
-                'integer',
-                \Illuminate\Validation\Rule::exists('risk_categories', 'id')
-                    ->where('organization_id', $orgId),
-            ],
-            'horizon' => 'required|in:'.implode(',', EmergingRisk::HORIZONS),
-            'velocity_score' => 'required|integer|min:1|max:5',
-            'proximity_score' => 'required|integer|min:1|max:5',
-            'potential_impact' => 'required|in:'.implode(',', EmergingRisk::IMPACTS),
-            'status' => 'required|in:'.implode(',', EmergingRisk::STATUSES),
-            'source' => 'nullable|string|max:160',
-            'source_reference' => 'nullable|string|max:2000',
-            'detected_at' => 'nullable|date',
-            'last_reviewed_at' => 'nullable|date',
-            'potential_response' => 'nullable|string|max:5000',
-            'owner_id' => [
-                'nullable',
-                'integer',
-                \Illuminate\Validation\Rule::exists('users', 'id')
-                    ->where('organization_id', $orgId),
-            ],
-        ]);
     }
 }

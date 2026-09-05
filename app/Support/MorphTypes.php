@@ -10,6 +10,7 @@ use App\Models\Connector;
 use App\Models\ConnectorRun;
 use App\Models\Control;
 use App\Models\ControlTest;
+use App\Models\EmergingRisk;
 use App\Models\Entity;
 use App\Models\FxRate;
 use App\Models\GraphObject;
@@ -94,6 +95,9 @@ class MorphTypes
             'connector_run' => ConnectorRun::class,
             'control' => Control::class,
             'control_test' => ControlTest::class,
+            // Phase 4.6 — the horizon joined the graph; every mirrored model
+            // needs a canonical alias, which ObjectIdentityTest enforces.
+            'emerging_risk' => EmergingRisk::class,
             'entity' => Entity::class,
             'fx_rate' => FxRate::class,
             // WP-06. A workflow may run over a graph object of a type a

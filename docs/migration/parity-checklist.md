@@ -72,8 +72,8 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `risk.dashboards.edit` | `risk/dashboards/{dashboard}/edit` | `dashboard.manage` | risk/dashboards/edit.blade.php + livewire/widgets/dashboard-builder.blade.php (deleted) | Pages/Dashboards/Edit.jsx (Components/DashboardBuilder.jsx) | inline validate() — see phase-2-notes |  |  | DashboardEditor |  | Widgets/DashboardLayoutRoundTripTest, Widgets/DashboardPublishingTest | 2026-09-03 (Phase 2) |  |
 | `risk.dashboards.index` | `risk/dashboards` | `dashboard.manage` | risk/dashboards/index.blade.php (deleted) | Pages/Dashboards/Index.jsx |  |  |  |  |  | Widgets/DashboardLayoutRoundTripTest | 2026-09-03 (Phase 2) |  |
 | `risk.documents.index` | `risk/documents` | `document.view` |  |  |  |  |  |  |  |  |  |  |
-| `risk.emerging.create` | `risk/emerging-risks/create` | `risk.create` |  |  |  |  |  |  |  |  |  |  |
-| `risk.emerging.edit` | `risk/emerging-risks/{emerging}/edit` | `risk.edit` |  |  |  |  |  |  |  |  |  |  |
+| `risk.emerging.create` | `risk/emerging-risks/create` | `risk.create` | risk/emerging/{create,_form}.blade.php (deleted) | Pages/Emerging/Create.jsx | StoreEmergingRiskRequest | EmergingRiskPolicy |  |  |  | Emerging/*, Metadata/DynamicRendererTest | 2026-09-05 (Phase 4.6) |  |
+| `risk.emerging.edit` | `risk/emerging-risks/{emerging}/edit` | `risk.edit` | risk/emerging/{edit,_form}.blade.php (deleted) | Pages/Emerging/Edit.jsx | UpdateEmergingRiskRequest | EmergingRiskPolicy |  |  |  | Emerging/*, RiskIntelligenceGateTest | 2026-09-05 (Phase 4.6) |  |
 | `risk.emerging.index` | `risk/emerging-risks` | `risk.view` | risk/emerging/index.blade.php (deleted) | Pages/Emerging/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
 | `risk.export.appetite` | `risk/export/appetite` | `report.export` |  |  |  |  |  |  |  |  |  |  |
 | `risk.export.assessments` | `risk/export/assessments` | `report.export` |  |  |  |  |  |  |  |  |  |  |

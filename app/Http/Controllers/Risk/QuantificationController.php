@@ -11,6 +11,9 @@ use App\Models\Risk;
 use App\Models\RiskCategory;
 use App\Models\SimulationRun;
 use App\Services\MonteCarloService;
+use App\Services\Quantification\IcaapService;
+use App\Services\Quantification\ScenarioLibrary;
+use App\Support\Quantification\Distributions;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 
@@ -35,30 +38,15 @@ class QuantificationController extends Controller
     private const SUPPORTED_SEVERITY_DISTRIBUTIONS = ['lognormal'];
 
     /**
-     * Sigma used when a scenario's coefficient of variation cannot be derived
-     * (no standard deviation, or a zero mean). Unchanged from the pre-WP-08
-     * behaviour so that scenarios keep the spread they were created with.
-     */
-    private const DEFAULT_SEVERITY_SIGMA = 1.0;
-
-    /**
-     * The VaR columns MonteCarloService actually writes on a simulation
-     * result, mapped to the confidence level each one represents.
+     * The capital arithmetic, shared by the ICAAP screen and the four reports.
      *
-     * Stress impact is reported off THIS map rather than off the run's
-     * requested `confidence_levels`, because the two disagree: a run defaults
-     * to asking for [95, 99, 99.5] but the engine stores no 99.5 column, and
-     * SimulationRun::getVar995Attribute() answers a request for "99.5" with
-     * the 99.9 figure. Reporting a 99.9 loss under a 99.5 heading is the kind
-     * of mislabel this work package exists to remove, so the screen states the
-     * levels that were genuinely computed.
+     * `naira()`, `capitalRatioPercent()`, the two resolvers and
+     * `stressImpactRows()` all moved here in Phase 5.2. The reports still need
+     * them, which is why the service is injected rather than method-injected on
+     * icaap() alone — PHPStan found four other callers the moment the private
+     * copies were deleted.
      */
-    private const STRESS_VAR_COLUMNS = [
-        'var_90_kobo' => 90.0,
-        'var_95_kobo' => 95.0,
-        'var_99_kobo' => 99.0,
-        'var_99_9_kobo' => 99.9,
-    ];
+    public function __construct(private readonly IcaapService $icaap) {}
 
     /**
      * Quantification dashboard.
@@ -100,9 +88,9 @@ class QuantificationController extends Controller
         // (iii) The `pillar2a_*` columns were summed into "Pillar 1 Capital"
         // and `pillar2b_stress_buffer_kobo` was charted as "Liquidity Risk" —
         // neither is what those columns hold.
-        $minimumCar = $this->resolveMinimumCar($latestIcaap, $orgId);
+        $minimumCar = $this->icaap->resolveMinimumCar($latestIcaap, $orgId);
 
-        $capitalAdequacyRatio = $this->capitalRatioPercent(
+        $capitalAdequacyRatio = $this->icaap->capitalRatioPercent(
             $latestIcaap?->total_qualifying_capital_kobo,
             $latestIcaap?->total_rwa_kobo,
         );
@@ -112,16 +100,16 @@ class QuantificationController extends Controller
         $carBasis = $capitalAdequacyRatio !== null ? 'computed from capital / RWA' : 'as reported';
         $capitalAdequacyRatio ??= $carReported;
 
-        $tier1 = $this->naira($latestIcaap?->tier1_capital_kobo);
-        $tier2 = $this->naira($latestIcaap?->tier2_capital_kobo);
-        $totalCapital = $this->naira($latestIcaap?->total_qualifying_capital_kobo);
+        $tier1 = $this->icaap->naira($latestIcaap?->tier1_capital_kobo);
+        $tier2 = $this->icaap->naira($latestIcaap?->tier2_capital_kobo);
+        $totalCapital = $this->icaap->naira($latestIcaap?->total_qualifying_capital_kobo);
 
         // Pillar 2A add-on (credit + market + operational + other) and the
         // Pillar 2B stress buffer, named for the columns they read.
         $pillar2aCapital = $latestIcaap
             ? round((($latestIcaap->pillar2a_credit_kobo ?? 0) + ($latestIcaap->pillar2a_market_kobo ?? 0) + ($latestIcaap->pillar2a_operational_kobo ?? 0) + ($latestIcaap->pillar2a_other_kobo ?? 0)) / 100, 2)
             : null;
-        $pillar2bCapital = $this->naira($latestIcaap?->pillar2b_stress_buffer_kobo);
+        $pillar2bCapital = $this->icaap->naira($latestIcaap?->pillar2b_stress_buffer_kobo);
 
         $capitalBuffer = ($totalCapital !== null && $pillar2aCapital !== null && $pillar2bCapital !== null)
             ? round($totalCapital - $pillar2aCapital - $pillar2bCapital, 2)
@@ -137,11 +125,11 @@ class QuantificationController extends Controller
         $capitalByTypeData = [
             'labels' => ['Pillar 2A — Credit', 'Pillar 2A — Market', 'Pillar 2A — Operational', 'Pillar 2A — Other', 'Pillar 2B — Stress Buffer'],
             'values' => [
-                $this->naira($latestIcaap?->pillar2a_credit_kobo) ?? 0,
-                $this->naira($latestIcaap?->pillar2a_market_kobo) ?? 0,
-                $this->naira($latestIcaap?->pillar2a_operational_kobo) ?? 0,
-                $this->naira($latestIcaap?->pillar2a_other_kobo) ?? 0,
-                $this->naira($latestIcaap?->pillar2b_stress_buffer_kobo) ?? 0,
+                $this->icaap->naira($latestIcaap?->pillar2a_credit_kobo) ?? 0,
+                $this->icaap->naira($latestIcaap?->pillar2a_market_kobo) ?? 0,
+                $this->icaap->naira($latestIcaap?->pillar2a_operational_kobo) ?? 0,
+                $this->icaap->naira($latestIcaap?->pillar2a_other_kobo) ?? 0,
+                $this->icaap->naira($latestIcaap?->pillar2b_stress_buffer_kobo) ?? 0,
             ],
         ];
 
@@ -254,7 +242,7 @@ class QuantificationController extends Controller
         $maxKobo = $request->max_loss ? round((float) $request->max_loss * 100) : null;
         $freqYear = (float) $request->frequency_per_year;
 
-        [$mu, $sigma, $meanKobo] = $this->lognormalParametersFromMoments(
+        [$mu, $sigma, $meanKobo] = Distributions::lognormalFromMoments(
             (float) $request->mean,
             (float) ($request->std_dev ?? 0),
         );
@@ -262,6 +250,9 @@ class QuantificationController extends Controller
         $scenario = QuantificationScenario::create([
             'organization_id' => $orgId,
             'scenario_reference' => $scenarioReference,
+            // NOT NULL with no default. Until Phase 5.2 this key was absent
+            // and every submission of this form ended in a 500.
+            'scenario_type' => QuantificationScenario::DEFAULT_TYPE,
             'name' => $request->name,
             'description' => $request->description,
             'cbn_risk_category' => $request->risk_category,
@@ -339,7 +330,7 @@ class QuantificationController extends Controller
         $maxKobo = $request->max_loss ? round((float) $request->max_loss * 100) : null;
         $freqYear = (float) $request->frequency_per_year;
 
-        [$mu, $sigma, $meanKobo] = $this->lognormalParametersFromMoments(
+        [$mu, $sigma, $meanKobo] = Distributions::lognormalFromMoments(
             (float) $request->mean,
             (float) ($request->std_dev ?? 0),
         );
@@ -563,260 +554,23 @@ class QuantificationController extends Controller
     }
 
     /**
-     * ICAAP assessment view.
+     * ICAAP — capital adequacy, the pillars and the stress reconciliation.
      *
-     * WP-08 rewrite. What this screen used to show, and why none of it
-     * survived:
-     *
-     * 1. PILLAR 2A WAS LABELLED PILLAR 1. `pillar2a_credit_kobo`,
-     *    `pillar2a_market_kobo` and `pillar2a_operational_kobo` were read into
-     *    $pillar1Credit / $pillar1Market / $pillar1Operational and headed
-     *    "Pillar 1 Capital Requirements". Pillar 1 is the regulatory minimum
-     *    charge against risk-weighted assets; Pillar 2A is the ICAAP add-on
-     *    for risks Pillar 1 does not fully capture. Presenting one as the
-     *    other overstates Pillar 1 and hides the entire ICAAP add-on, which is
-     *    the one thing this screen exists to evidence. The variables now carry
-     *    the names of the columns they read, and a GENUINE Pillar 1 figure is
-     *    computed from stored RWA:
-     *
-     *        Pillar 1 minimum capital requirement = (minimum CAR / 100) x total RWA
-     *
-     *    It is null, not zero, when RWA is absent.
-     *
-     * 2. THE PILLAR 2 DECOMPOSITION WAS INVENTED. `pillar2a_other_kobo` was
-     *    sliced 30 / 25 / 25 / 20 and the four pieces presented as
-     *    concentration, interest-rate, reputational and strategic risk, and
-     *    exactly half of `pillar2b_stress_buffer_kobo` was presented as
-     *    liquidity risk. Nobody computed those splits, no column holds them,
-     *    and the four weights do not even sum to 1. All five are deleted.
-     *    `pillar2a_other_kobo` is now shown as one undecomposed "Other Pillar
-     *    2A" line and `pillar2b_stress_buffer_kobo` as the Pillar 2B stress
-     *    buffer, which is what they are.
-     *
-     * 3. NO RATIO WAS EVER COMPUTED. CAR came straight from `car_actual`, a
-     *    free-typed decimal, and `cet1_capital_kobo` was referenced exactly
-     *    once in the whole codebase — in $fillable. CAR, the CET1 ratio and
-     *    the Tier 1 ratio are now computed from stored capital and RWA, and
-     *    the typed figure is kept alongside as "as reported" so the two can be
-     *    reconciled on screen. A variance beyond
-     *    config('quantification.car_reconciliation_tolerance') is called out
-     *    explicitly rather than one number quietly winning.
-     *
-     * 4. THE CBN MINIMUM WAS HARDCODED. See resolveMinimumCar().
-     *
-     * 5. STRESS RESULTS WERE FABRICATED. See stressImpactRows(). The
-     *    no-simulation fallback that invented three scenarios out of
-     *    `$totalCapital * 0.08` is deleted outright; with no stress run bound,
-     *    the screen now says so.
+     * Every figure comes from IcaapService, pinned by
+     * Characterisation/IcaapCharacterisationTest.
      */
     public function icaap()
     {
-        $orgId = TenantContext::organizationId();
-
-        $assessment = IcaapAssessment::where('organization_id', $orgId)
-            ->orderByDesc('created_at')
-            ->first();
-
-        $minimumCar = $this->resolveMinimumCar($assessment, $orgId);
-        $conservationBuffer = $this->resolveConservationBuffer($assessment, $orgId);
-
-        // `icaap_assessments.cbn_minimum_car` is NOT NULL with a database
-        // default of 10.0, so an assessment saved without an explicit minimum
-        // still resolves to 10.0 and the organisation's standing figure is
-        // never reached. That is the right precedence — an assessment is
-        // reconciled against the minimum it was prepared under — but it is a
-        // trap for a bank that set 15.0 org-wide and expected it to apply
-        // retrospectively. Where the two disagree, the screen says so instead
-        // of quietly preferring one.
-        $organizationMinimumCar = QuantificationSetting::where('organization_id', $orgId)
-            ->value('cbn_minimum_car');
-        $organizationMinimumCar = $organizationMinimumCar === null ? null : (float) $organizationMinimumCar;
-
-        // Stored inputs. Absent stays absent — an unrecorded balance sheet is
-        // not a balance sheet of zeroes.
-        $rwaKobo = $assessment?->total_rwa_kobo;
-        $capitalKobo = $assessment?->total_qualifying_capital_kobo;
-        $cet1Kobo = $assessment?->cet1_capital_kobo;
-        $tier1Kobo = $assessment?->tier1_capital_kobo;
-        $tier2Kobo = $assessment?->tier2_capital_kobo;
-
-        $totalCapital = $this->naira($capitalKobo);
-        $totalRwa = $this->naira($rwaKobo);
-        $cet1Capital = $this->naira($cet1Kobo);
-        $tier1Capital = $this->naira($tier1Kobo);
-        $tier2Capital = $this->naira($tier2Kobo);
-
-        // Ratios: capital / RWA * 100, null whenever RWA is missing or zero.
-        $carComputed = $this->capitalRatioPercent($capitalKobo, $rwaKobo);
-        $cet1Ratio = $this->capitalRatioPercent($cet1Kobo, $rwaKobo);
-        $tier1Ratio = $this->capitalRatioPercent($tier1Kobo, $rwaKobo);
-
-        // The preparer's own figure, kept separate and reconciled against ours.
-        $carReported = ($assessment !== null && $assessment->car_actual !== null)
-            ? round((float) $assessment->car_actual, 2)
-            : null;
-
-        $carVariance = ($carComputed !== null && $carReported !== null)
-            ? round($carComputed - $carReported, 2)
-            : null;
-
-        $carVarianceMaterial = $carVariance !== null
-            && abs($carVariance) > (float) config('quantification.car_reconciliation_tolerance');
-
-        // Pillar 1 — the regulatory minimum charge against RWA. Computable
-        // from stored quantities, so it is computed rather than borrowed from
-        // the Pillar 2A columns as it used to be.
-        $pillar1RequirementKobo = ($rwaKobo !== null && (float) $rwaKobo > 0)
-            ? ($minimumCar / 100) * (float) $rwaKobo
-            : null;
-        $pillar1Requirement = $this->naira($pillar1RequirementKobo);
-
-        // Pillar 2A — the ICAAP add-on, exactly as stored. No decomposition.
-        $pillar2aCredit = $this->naira($assessment?->pillar2a_credit_kobo);
-        $pillar2aMarket = $this->naira($assessment?->pillar2a_market_kobo);
-        $pillar2aOperational = $this->naira($assessment?->pillar2a_operational_kobo);
-        $pillar2aOther = $this->naira($assessment?->pillar2a_other_kobo);
-
-        $pillar2aComponents = array_filter(
-            [$pillar2aCredit, $pillar2aMarket, $pillar2aOperational, $pillar2aOther],
-            fn ($v) => $v !== null,
-        );
-        $totalPillar2a = $pillar2aComponents === [] ? null : round(array_sum($pillar2aComponents), 2);
-
-        // Pillar 2B — the stress buffer, as stored.
-        $pillar2bStressBuffer = $this->naira($assessment?->pillar2b_stress_buffer_kobo);
-
-        // Capital conservation buffer: a percentage of total RWA held in CET1,
-        // not a percentage of qualifying capital as the old waterfall assumed.
-        $conservationBufferAmount = ($rwaKobo !== null && (float) $rwaKobo > 0)
-            ? $this->naira(($conservationBuffer / 100) * (float) $rwaKobo)
-            : null;
-
-        // Stress testing. Only from a bound run, only real arithmetic.
-        $stressSimulation = null;
-        $stressRows = collect();
-        $stressAggregateMissing = false;
-
-        if ($assessment !== null && $assessment->stress_simulation_id) {
-            // Tenancy: the ICAAP row is already org-scoped, and the bound run
-            // is re-scoped here so a mis-set foreign key can never surface
-            // another organisation's loss distribution on this screen.
-            $stressSimulation = SimulationRun::where('organization_id', $orgId)
-                ->whereKey($assessment->stress_simulation_id)
-                ->first();
-
-            if ($stressSimulation !== null) {
-                $stressRows = $this->stressImpactRows($stressSimulation, $assessment, $minimumCar);
-                $stressAggregateMissing = $stressRows->isEmpty();
-            }
-        }
-
-        $stressHeadlineConfidence = (float) config('quantification.headline_stress_confidence');
-        $stressHeadline = $stressRows->firstWhere('confidence', $stressHeadlineConfidence) ?? $stressRows->last();
-
-        // Capital waterfall, rebuilt from the corrected quantities. A missing
-        // component stays null so Chart.js leaves a gap: a zero bar here would
-        // read as "this bank has no Pillar 2A add-on", which is a claim, not
-        // an absence of data.
-        $waterfallComponents = [
-            'Total Qualifying Capital' => $totalCapital,
-            'Pillar 1 Requirement' => $pillar1Requirement === null ? null : -$pillar1Requirement,
-            'Pillar 2A Add-on' => $totalPillar2a === null ? null : -$totalPillar2a,
-            'Pillar 2B Stress Buffer' => $pillar2bStressBuffer === null ? null : -$pillar2bStressBuffer,
-            'Conservation Buffer' => $conservationBufferAmount === null ? null : -$conservationBufferAmount,
-        ];
-
-        $waterfallMissing = array_keys(array_filter($waterfallComponents, fn ($v) => $v === null));
-
-        // Available capital is only meaningful once every deduction is known.
-        $availableCapital = $waterfallMissing === []
-            ? round(array_sum($waterfallComponents), 2)
-            : null;
-
-        $waterfallData = [
-            'labels' => [...array_keys($waterfallComponents), 'Available Capital'],
-            'values' => [...array_values($waterfallComponents), $availableCapital],
-        ];
-
-        return view('risk.quantification.icaap', [
-            'assessment' => $assessment,
-            'hasAssessment' => $assessment !== null,
-            'minimumCar' => $minimumCar,
-            'organizationMinimumCar' => $organizationMinimumCar,
-            'internationalMinimumCar' => (float) config('quantification.international_or_dsib_minimum_car'),
-            'conservationBuffer' => $conservationBuffer,
-            'conservationBufferAmount' => $conservationBufferAmount,
-            'totalCapital' => $totalCapital,
-            'totalRwa' => $totalRwa,
-            'cet1Capital' => $cet1Capital,
-            'tier1Capital' => $tier1Capital,
-            'tier2Capital' => $tier2Capital,
-            'carComputed' => $carComputed,
-            'carReported' => $carReported,
-            'carVariance' => $carVariance,
-            'carVarianceMaterial' => $carVarianceMaterial,
-            'cet1Ratio' => $cet1Ratio,
-            'tier1Ratio' => $tier1Ratio,
-            'pillar1Requirement' => $pillar1Requirement,
-            'pillar2aCredit' => $pillar2aCredit,
-            'pillar2aMarket' => $pillar2aMarket,
-            'pillar2aOperational' => $pillar2aOperational,
-            'pillar2aOther' => $pillar2aOther,
-            'totalPillar2a' => $totalPillar2a,
-            'pillar2bStressBuffer' => $pillar2bStressBuffer,
-            'stressSimulation' => $stressSimulation,
-            'stressRows' => $stressRows,
-            'stressHeadline' => $stressHeadline,
-            'stressAggregateMissing' => $stressAggregateMissing,
-            'availableCapital' => $availableCapital,
-            'waterfallData' => $waterfallData,
-            'waterfallMissing' => $waterfallMissing,
-        ]);
+        return view('risk.quantification.icaap', $this->icaap->report());
     }
 
     /**
      * Pre-built scenario library.
      * View expects $libraryScenarios (collection of objects with name, risk_category, etc.)
      */
-    public function library()
+    public function library(ScenarioLibrary $library)
     {
-        $libraryScenarios = $this->libraryScenarios();
-
-        return view('risk.quantification.library', compact('libraryScenarios'));
-    }
-
-    /**
-     * Pre-built scenario library definitions (industry-benchmark demo data).
-     *
-     * WP-08. 'External Fraud - Cyber Attack' shipped as `pareto`, 'Natural
-     * Disaster - Flooding' as `weibull` and 'FX Volatility Shock' as `normal`.
-     * MonteCarloService has one severity draw — lognormalRandom() — and calls
-     * it unconditionally, so ALL THREE were already being simulated as
-     * lognormals; the stored distribution name was the only thing that said
-     * otherwise. Retyping them `lognormal` changes no simulated number
-     * whatsoever. It makes the record honest about what the engine ran, and
-     * stops the library importing scenarios typed with a distribution the
-     * create/edit form can no longer offer and the validator now rejects.
-     *
-     * A genuine heavy-tail calibration for the cyber-attack scenario has to
-     * wait for a Pareto draw in the engine; every mean, standard deviation and
-     * frequency below is unchanged and remains the calibration to re-fit
-     * against when that lands.
-     */
-    private function libraryScenarios(): \Illuminate\Support\Collection
-    {
-        return collect([
-            (object) ['id' => 'lib-1', 'name' => 'Internal Fraud - Unauthorized Trading', 'risk_category' => 'Operational Risk', 'distribution_type' => 'lognormal', 'description' => 'Losses from unauthorized transactions, mismarking, or rogue trading activities in Nigerian banking sector', 'mean' => 850000000, 'std_dev' => 425000000, 'frequency_per_year' => 1.5, 'source' => 'CBN ORMS Data'],
-            (object) ['id' => 'lib-2', 'name' => 'External Fraud - Cyber Attack', 'risk_category' => 'Operational Risk', 'distribution_type' => 'lognormal', 'description' => 'Losses from cyber intrusion, phishing, BEC, or electronic fraud targeting bank systems', 'mean' => 1200000000, 'std_dev' => 800000000, 'frequency_per_year' => 3.2, 'source' => 'CBN ORMS Data'],
-            (object) ['id' => 'lib-3', 'name' => 'IT System Failure', 'risk_category' => 'Operational Risk', 'distribution_type' => 'lognormal', 'description' => 'Losses from core banking system outages, data center failures, or IT infrastructure disruptions', 'mean' => 500000000, 'std_dev' => 250000000, 'frequency_per_year' => 2.0, 'source' => 'Industry Benchmark'],
-            (object) ['id' => 'lib-4', 'name' => 'Regulatory Fine - CBN Penalty', 'risk_category' => 'Operational Risk', 'distribution_type' => 'lognormal', 'description' => 'Monetary penalties from CBN for regulatory breaches, non-compliance, or AML/KYC failures', 'mean' => 2000000000, 'std_dev' => 1500000000, 'frequency_per_year' => 0.8, 'source' => 'CBN Published Sanctions'],
-            (object) ['id' => 'lib-5', 'name' => 'Credit Default - Corporate Portfolio', 'risk_category' => 'Credit Risk', 'distribution_type' => 'lognormal', 'description' => 'Losses from corporate loan defaults, particularly in oil & gas, manufacturing, and real estate sectors', 'mean' => 5000000000, 'std_dev' => 3000000000, 'frequency_per_year' => 4.5, 'source' => 'CBN Credit Bureau'],
-            (object) ['id' => 'lib-6', 'name' => 'FX Volatility Shock', 'risk_category' => 'Market Risk', 'distribution_type' => 'lognormal', 'description' => 'Losses from sudden Naira devaluation or FX market volatility affecting open positions', 'mean' => 3500000000, 'std_dev' => 2000000000, 'frequency_per_year' => 1.0, 'source' => 'CBN Market Data'],
-            (object) ['id' => 'lib-7', 'name' => 'Natural Disaster - Flooding', 'risk_category' => 'Operational Risk', 'distribution_type' => 'lognormal', 'description' => 'Physical damage to branches and data centers from flooding events in Lagos, Port Harcourt, and other coastal cities', 'mean' => 300000000, 'std_dev' => 200000000, 'frequency_per_year' => 0.5, 'source' => 'NEMA Data'],
-            (object) ['id' => 'lib-8', 'name' => 'Key Person Risk', 'risk_category' => 'Operational Risk', 'distribution_type' => 'lognormal', 'description' => 'Losses from departure or unavailability of critical staff including treasury, IT, and compliance personnel', 'mean' => 200000000, 'std_dev' => 100000000, 'frequency_per_year' => 2.5, 'source' => 'Internal HR Data'],
-            (object) ['id' => 'lib-9', 'name' => 'Third-Party Vendor Failure', 'risk_category' => 'Operational Risk', 'distribution_type' => 'lognormal', 'description' => 'Losses from critical vendor failures including payment processors, cloud providers, and network providers', 'mean' => 600000000, 'std_dev' => 400000000, 'frequency_per_year' => 1.8, 'source' => 'Industry Benchmark'],
-            (object) ['id' => 'lib-10', 'name' => 'Liquidity Stress - Deposit Run', 'risk_category' => 'Liquidity Risk', 'distribution_type' => 'lognormal', 'description' => 'Losses from a bank run scenario triggered by social media rumors or macroeconomic instability', 'mean' => 10000000000, 'std_dev' => 7000000000, 'frequency_per_year' => 0.2, 'source' => 'CBN Stress Test Framework'],
-        ]);
+        return view('risk.quantification.library', ['libraryScenarios' => $library->all()]);
     }
 
     /**
@@ -909,34 +663,34 @@ class QuantificationController extends Controller
         $icaap = IcaapAssessment::where('organization_id', $orgId)
             ->orderByDesc('created_at')->first();
 
-        $minimumCar = $this->resolveMinimumCar($icaap, $orgId);
+        $minimumCar = $this->icaap->resolveMinimumCar($icaap, $orgId);
 
         $rwaKobo = $icaap?->total_rwa_kobo;
         $capitalKobo = $icaap?->total_qualifying_capital_kobo;
 
         $data = (object) [
             'as_of' => $icaap?->created_at,
-            'total_capital' => $this->naira($capitalKobo),
-            'total_rwa' => $this->naira($rwaKobo),
-            'cet1' => $this->naira($icaap?->cet1_capital_kobo),
-            'tier1' => $this->naira($icaap?->tier1_capital_kobo),
-            'tier2' => $this->naira($icaap?->tier2_capital_kobo),
-            'car_computed' => $this->capitalRatioPercent($capitalKobo, $rwaKobo),
+            'total_capital' => $this->icaap->naira($capitalKobo),
+            'total_rwa' => $this->icaap->naira($rwaKobo),
+            'cet1' => $this->icaap->naira($icaap?->cet1_capital_kobo),
+            'tier1' => $this->icaap->naira($icaap?->tier1_capital_kobo),
+            'tier2' => $this->icaap->naira($icaap?->tier2_capital_kobo),
+            'car_computed' => $this->icaap->capitalRatioPercent($capitalKobo, $rwaKobo),
             'car_reported' => ($icaap !== null && $icaap->car_actual !== null) ? round((float) $icaap->car_actual, 2) : null,
-            'cet1_ratio' => $this->capitalRatioPercent($icaap?->cet1_capital_kobo, $rwaKobo),
-            'tier1_ratio' => $this->capitalRatioPercent($icaap?->tier1_capital_kobo, $rwaKobo),
+            'cet1_ratio' => $this->icaap->capitalRatioPercent($icaap?->cet1_capital_kobo, $rwaKobo),
+            'tier1_ratio' => $this->icaap->capitalRatioPercent($icaap?->tier1_capital_kobo, $rwaKobo),
             'car_required' => $minimumCar,
-            'conservation_buffer' => $this->resolveConservationBuffer($icaap, $orgId),
-            'pillar2a_credit' => $this->naira($icaap?->pillar2a_credit_kobo),
-            'pillar2a_market' => $this->naira($icaap?->pillar2a_market_kobo),
-            'pillar2a_operational' => $this->naira($icaap?->pillar2a_operational_kobo),
-            'pillar2a_other' => $this->naira($icaap?->pillar2a_other_kobo),
-            'pillar2b_buffer' => $this->naira($icaap?->pillar2b_stress_buffer_kobo),
+            'conservation_buffer' => $this->icaap->resolveConservationBuffer($icaap, $orgId),
+            'pillar2a_credit' => $this->icaap->naira($icaap?->pillar2a_credit_kobo),
+            'pillar2a_market' => $this->icaap->naira($icaap?->pillar2a_market_kobo),
+            'pillar2a_operational' => $this->icaap->naira($icaap?->pillar2a_operational_kobo),
+            'pillar2a_other' => $this->icaap->naira($icaap?->pillar2a_other_kobo),
+            'pillar2b_buffer' => $this->icaap->naira($icaap?->pillar2b_stress_buffer_kobo),
         ];
 
         // Pillar 1 minimum capital requirement = (minimum CAR / 100) x RWA.
         $data->pillar1_requirement = ($rwaKobo !== null && (float) $rwaKobo > 0)
-            ? $this->naira(($minimumCar / 100) * (float) $rwaKobo)
+            ? $this->icaap->naira(($minimumCar / 100) * (float) $rwaKobo)
             : null;
 
         $pillar2aParts = array_filter(
@@ -1011,12 +765,12 @@ class QuantificationController extends Controller
         $icaap = IcaapAssessment::where('organization_id', $orgId)
             ->orderByDesc('created_at')->first();
 
-        $minimumCar = $this->resolveMinimumCar($icaap, $orgId);
+        $minimumCar = $this->icaap->resolveMinimumCar($icaap, $orgId);
 
-        $totalCapital = $this->naira($icaap?->total_qualifying_capital_kobo);
-        $totalRwa = $this->naira($icaap?->total_rwa_kobo);
+        $totalCapital = $this->icaap->naira($icaap?->total_qualifying_capital_kobo);
+        $totalRwa = $this->icaap->naira($icaap?->total_rwa_kobo);
 
-        $carComputed = $this->capitalRatioPercent(
+        $carComputed = $this->icaap->capitalRatioPercent(
             $icaap?->total_qualifying_capital_kobo,
             $icaap?->total_rwa_kobo,
         );
@@ -1033,7 +787,7 @@ class QuantificationController extends Controller
         }
 
         $rows = ($stressSim !== null && $icaap !== null)
-            ? $this->stressImpactRows($stressSim, $icaap, $minimumCar)
+            ? $this->icaap->stressImpactRows($stressSim, $icaap, $minimumCar)
             : collect();
 
         // The stress scenarios this tenant has defined for itself, so the
@@ -1055,7 +809,7 @@ class QuantificationController extends Controller
             'name' => $scenario->name,
             'category' => $scenario->cbn_risk_category,
             'cbn_stress_scenario' => $scenario->cbn_stress_scenario,
-            'expected_annual_loss' => $this->naira($scenario->expected_annual_loss_kobo),
+            'expected_annual_loss' => $this->icaap->naira($scenario->expected_annual_loss_kobo),
             'in_bound_run' => in_array((int) $scenario->id, $runScenarioIds, true),
         ]);
 
@@ -1201,12 +955,12 @@ class QuantificationController extends Controller
 
         // WP-08. Was `$icaap->car_required ?? 10` against a column that does
         // not exist, so the pack filed to CBN always claimed a 10% minimum.
-        $minimumCar = $this->resolveMinimumCar($icaap, $orgId);
+        $minimumCar = $this->icaap->resolveMinimumCar($icaap, $orgId);
 
         // WP-08. CAR is recomputed from stored capital and RWA; the preparer's
         // typed `car_actual` is only used when RWA is not on file, and the
         // checklist says which basis it used.
-        $carComputed = $this->capitalRatioPercent(
+        $carComputed = $this->icaap->capitalRatioPercent(
             $icaap?->total_qualifying_capital_kobo,
             $icaap?->total_rwa_kobo,
         );
@@ -1220,7 +974,7 @@ class QuantificationController extends Controller
             'car_reported' => $carReported,
             'car_basis' => $carComputed !== null ? 'computed from capital / RWA' : 'as reported on the assessment',
             'car_required' => $minimumCar,
-            'total_capital' => $this->naira($icaap?->total_qualifying_capital_kobo),
+            'total_capital' => $this->icaap->naira($icaap?->total_qualifying_capital_kobo),
             'active_risks' => Risk::where('organization_id', $orgId)->where('status', 'active')->count(),
             'critical_risks' => Risk::where('organization_id', $orgId)->where('residual_rating', 'Critical')->count(),
             'high_risks' => Risk::where('organization_id', $orgId)->where('residual_rating', 'High')->count(),
@@ -1280,66 +1034,34 @@ class QuantificationController extends Controller
     }
 
     /**
-     * Import scenario from library.
+     * Import a library template into this organisation's scenario register.
+     *
+     * The template's provenance is written into the scenario's own description
+     * — see ScenarioLibrary — so a parameter that later feeds a Monte Carlo run
+     * and an ICAAP add-on can still say where it came from.
      */
-    public function importLibrary(Request $request, string $libraryId)
+    public function importLibrary(Request $request, string $libraryId, ScenarioLibrary $library)
     {
-        $orgId = TenantContext::organizationId();
+        $template = $library->find($libraryId);
 
-        $template = $this->libraryScenarios()->firstWhere('id', $libraryId);
-
-        if (! $template) {
+        if ($template === null) {
             return redirect()->route('risk.quantification.library')
                 ->with('error', 'Library scenario not found.');
         }
 
-        // Skip if this template was already imported for the organization
-        $existing = QuantificationScenario::where('organization_id', $orgId)
-            ->where('name', $template->name)
-            ->first();
+        $existing = $library->importedScenario($template);
 
-        if ($existing) {
+        if ($existing !== null) {
             return redirect()->route('risk.quantification.show-scenario', $existing)
                 ->with('success', "Scenario \"{$template->name}\" is already in your register ({$existing->scenario_reference}).");
         }
 
-        // Auto-generate scenario reference: SCN-YYYY-NNN
-        $year = now()->year;
-        $lastScenario = QuantificationScenario::where('organization_id', $orgId)
-            ->where('scenario_reference', 'like', "SCN-{$year}-%")
-            ->orderByDesc('scenario_reference')
-            ->first();
+        $reference = $library->nextReference();
 
-        $nextNumber = $lastScenario ? ((int) substr($lastScenario->scenario_reference, -3)) + 1 : 1;
-        $scenarioReference = sprintf('SCN-%d-%03d', $year, $nextNumber);
-
-        $freqYear = (float) $template->frequency_per_year;
-
-        [$mu, $sigma, $meanKobo] = $this->lognormalParametersFromMoments(
-            (float) $template->mean,
-            (float) $template->std_dev,
-        );
-
-        $scenario = QuantificationScenario::create([
-            'organization_id' => $orgId,
-            'scenario_reference' => $scenarioReference,
-            'name' => $template->name,
-            'description' => $template->description." (Imported from library — source: {$template->source})",
-            'cbn_risk_category' => $template->risk_category,
-            'severity_distribution' => $template->distribution_type,
-            'frequency_distribution' => 'poisson',
-            'frequency_lambda' => $freqYear,
-            'expected_annual_frequency' => $freqYear,
-            'severity_mu' => round($mu, 6),
-            'severity_sigma' => round($sigma, 6),
-            'expected_loss_per_event_kobo' => $meanKobo,
-            'expected_annual_loss_kobo' => round($meanKobo * $freqYear),
-            'status' => 'active',
-            'created_by' => auth()->id(),
-        ]);
+        $scenario = QuantificationScenario::create($library->attributesFor($template, $reference));
 
         return redirect()->route('risk.quantification.show-scenario', $scenario)
-            ->with('success', "Scenario {$scenarioReference} imported from library.");
+            ->with('success', "Scenario {$reference} imported from library.");
     }
 
     /* ------------------------------------------------------------------ */
@@ -1347,232 +1069,11 @@ class QuantificationController extends Controller
     /* ------------------------------------------------------------------ */
 
     /**
-     * Method-of-moments lognormal parameters from a mean and standard
-     * deviation quoted in Naira.
-     *
-     * THE DEFECT (WP-08). Three copies of this arithmetic — storeScenario,
-     * updateScenario and importLibrary — computed
-     *
-     *     $mu = log($meanKobo);
-     *
-     * For a lognormal, E[X] = exp(mu + sigma^2/2). Setting mu = ln(mean)
-     * therefore does not produce a distribution whose mean is `mean`; it
-     * produces one whose mean is mean * exp(sigma^2/2). At sigma = 1.0 — the
-     * fallback used whenever no standard deviation is supplied — every
-     * simulated severity was 1.65x the mean the user typed in, and at the
-     * engine's own sigma = 1.5 fallback it was 3.08x. That error flows
-     * straight through expected loss, VaR and the ICAAP capital number.
-     *
-     * The correct inversion, given a target mean m and standard deviation s:
-     *
-     *     sigma = sqrt( ln( 1 + (s/m)^2 ) )
-     *     mu    = ln(m) - sigma^2 / 2
-     *
-     * sigma was already right; only mu was wrong, and it can only be computed
-     * once sigma is known, which is why sigma is derived first here. The same
-     * file already used the correct relationship in
-     * buildDistributionVisualization() (exp($mu + $sigma^2/2)) — the two sides
-     * of the screen disagreed with each other.
-     *
-     * The ratio s/m is dimensionless, so it is taken in Naira while mu is
-     * taken in kobo; the parameters are stored against a kobo scale because
-     * that is the scale MonteCarloService draws on.
-     *
-     * Existing rows written under the old formula are corrected by migration
-     * 2026_08_19_120003_correct_lognormal_mu_on_scenarios.
-     *
-     * @return array{0: float, 1: float, 2: float} [mu, sigma, mean in kobo]
-     */
-    private function lognormalParametersFromMoments(float $meanNaira, float $stdDevNaira): array
-    {
-        $meanKobo = round($meanNaira * 100);
-
-        $sigma = ($stdDevNaira > 0 && $meanNaira > 0)
-            ? sqrt(log(1 + ($stdDevNaira / $meanNaira) ** 2))
-            : self::DEFAULT_SEVERITY_SIGMA;
-
-        $mu = $meanKobo > 0
-            ? log($meanKobo) - ($sigma ** 2) / 2
-            : 0.0;
-
-        return [$mu, $sigma, $meanKobo];
-    }
-
-    /**
-     * Resolve the minimum Capital Adequacy Ratio, in percent, that this
-     * organisation is to be measured against.
-     *
-     * REGULATORY BASIS. The CBN Guidelines on Regulatory Capital (September
-     * 2021) set the minimum CAR at 10.0% of total risk-weighted assets for
-     * banks on a national or regional authorisation, and 15.0% for banks on an
-     * international authorisation and for Domestic Systemically Important
-     * Banks (D-SIBs). A capital conservation buffer of 1.0% of total RWA is
-     * required on top, to be met with CET1, and a D-SIB carries a further
-     * higher-loss-absorbency surcharge of 1.0%, also met with CET1.
-     *
-     * A bank on international authorisation, or one designated a D-SIB, MUST
-     * configure 15.0 — either on the assessment (`cbn_minimum_car`) or as the
-     * organisation's standing figure in Quantification Settings. Nothing here
-     * infers authorisation class or D-SIB status, and nothing here rewrites a
-     * stored figure; an assessment is always measured against the minimum it
-     * was prepared against, which is what a validator reconciles to.
-     *
-     * THE DEFECT (WP-08). This used to be `$icaap->car_required ?? 10`.
-     * `car_required` is not a column on icaap_assessments and never has been,
-     * so the null coalesce fired on every single row and the screen showed a
-     * hardcoded 10% to every tenant — including the international banks and
-     * D-SIBs for whom the answer is 15%. Meanwhile
-     * `quantification_settings.cbn_minimum_car`, which the settings screen
-     * lets an org edit, was read by nothing at all. Both are now resolved
-     * here, in one place, in a stated order.
-     */
-    private function resolveMinimumCar(?IcaapAssessment $assessment, ?int $organizationId = null): float
-    {
-        if ($assessment !== null && $assessment->cbn_minimum_car !== null && (float) $assessment->cbn_minimum_car > 0) {
-            return (float) $assessment->cbn_minimum_car;
-        }
-
-        $organizationId ??= TenantContext::organizationId();
-
-        $setting = QuantificationSetting::where('organization_id', $organizationId)->first();
-
-        if ($setting !== null && $setting->cbn_minimum_car !== null && (float) $setting->cbn_minimum_car > 0) {
-            return (float) $setting->cbn_minimum_car;
-        }
-
-        return (float) config('quantification.default_minimum_car');
-    }
-
-    /**
-     * Resolve the capital conservation buffer, in percent of total RWA.
-     *
-     * Same resolution order and same rule as the minimum CAR: whatever the
-     * assessment was prepared against wins, then the organisation's standing
-     * figure, then the CBN default of 1.0%. The previous code fell back to a
-     * hardcoded 2.5 — the Basel III figure, not the Nigerian one.
-     */
-    private function resolveConservationBuffer(?IcaapAssessment $assessment, ?int $organizationId = null): float
-    {
-        if ($assessment !== null && $assessment->conservation_buffer !== null && (float) $assessment->conservation_buffer > 0) {
-            return (float) $assessment->conservation_buffer;
-        }
-
-        $organizationId ??= TenantContext::organizationId();
-
-        $setting = QuantificationSetting::where('organization_id', $organizationId)->first();
-
-        if ($setting !== null && $setting->cbn_conservation_buffer !== null && (float) $setting->cbn_conservation_buffer > 0) {
-            return (float) $setting->cbn_conservation_buffer;
-        }
-
-        return (float) config('quantification.default_conservation_buffer');
-    }
-
-    /**
-     * A capital ratio in percent, or null when it cannot be computed.
-     *
-     * NULL, never 0. A bank with no RWA on file has an UNKNOWN CAR, and 0% is
-     * a specific, catastrophic claim about a bank's solvency — it is the one
-     * number the screen must never invent. Every caller passes the null
-     * through to the view so it can say "Not assessed".
-     */
-    private function capitalRatioPercent(int|float|null $capitalKobo, int|float|null $rwaKobo): ?float
-    {
-        if ($capitalKobo === null || $rwaKobo === null || (float) $rwaKobo <= 0.0) {
-            return null;
-        }
-
-        return round(((float) $capitalKobo / (float) $rwaKobo) * 100, 2);
-    }
-
-    /**
-     * Kobo → Naira, preserving null.
-     */
-    private function naira(int|float|null $kobo): ?float
-    {
-        return $kobo === null ? null : round((float) $kobo / 100, 2);
-    }
-
-    /**
-     * The capital a stress run consumes, and what the balance sheet looks like
-     * afterwards, at every confidence level the engine genuinely computed.
-     *
-     * THE DEFECT (WP-08). Both the ICAAP screen and the stress report used to
-     * invent scenario names ('Severe Recession', 'Oil Price Shock', 'Cyber
-     * Attack + Market Crash', ...) and subtract hardcoded CAR drops of 3.5,
-     * 2.1, 2.8, 5.2 and 1.6 percentage points, optionally scaled by an
-     * invented `factor`. Those drops were independent of the bank's capital,
-     * its RWA and its portfolio mix — the same five numbers appeared for every
-     * tenant — and no bank had ever defined those scenarios. They are gone.
-     *
-     * What is reported instead is arithmetic on stored quantities only:
-     *
-     *     capital impact = the run's aggregate VaR at confidence level c
-     *     capital after  = total qualifying capital - capital impact
-     *     CAR after      = capital after / total RWA * 100
-     *     shortfall      = max(0, (minimum CAR / 100) * total RWA - capital after)
-     *     verdict        = CAR after >= minimum CAR
-     *
-     * One row per confidence level the run stored, each labelled with the
-     * level it came from, rather than one row per invented scenario name.
-     * Anything that cannot be computed is null and stays null.
-     *
-     * @return \Illuminate\Support\Collection<int, object>
-     */
-    private function stressImpactRows(SimulationRun $stressRun, IcaapAssessment $assessment, float $minimumCar): \Illuminate\Support\Collection
-    {
-        $aggregate = $stressRun->aggregate_result;
-
-        if (! $aggregate) {
-            return collect();
-        }
-
-        $capitalKobo = $assessment->total_qualifying_capital_kobo;
-        $rwaKobo = $assessment->total_rwa_kobo;
-
-        $requiredCapitalKobo = ($rwaKobo !== null && (float) $rwaKobo > 0)
-            ? ($minimumCar / 100) * (float) $rwaKobo
-            : null;
-
-        $rows = collect();
-
-        foreach (self::STRESS_VAR_COLUMNS as $column => $confidence) {
-            $lossKobo = $aggregate->{$column};
-
-            if ($lossKobo === null) {
-                continue;
-            }
-
-            $capitalAfterKobo = $capitalKobo === null
-                ? null
-                : (float) $capitalKobo - (float) $lossKobo;
-
-            $carAfter = $this->capitalRatioPercent($capitalAfterKobo, $rwaKobo);
-
-            $shortfallKobo = ($requiredCapitalKobo !== null && $capitalAfterKobo !== null)
-                ? max(0.0, $requiredCapitalKobo - $capitalAfterKobo)
-                : null;
-
-            $rows->push((object) [
-                'confidence' => $confidence,
-                'basis' => 'Aggregate VaR at '.rtrim(rtrim(number_format($confidence, 1), '0'), '.').'% confidence',
-                'capital_impact' => $this->naira($lossKobo),
-                'capital_after' => $this->naira($capitalAfterKobo),
-                'car_after' => $carAfter,
-                'shortfall' => $this->naira($shortfallKobo),
-                'meets_minimum' => $carAfter === null ? null : $carAfter >= $minimumCar,
-            ]);
-        }
-
-        return $rows;
-    }
-
-    /**
      * Build visualization data for a lognormal distribution.
      *
      * WP-08 note on the mu fallback below. When a scenario has no stored
      * severity_mu this uses log(mean) WITHOUT the -sigma^2/2 correction that
-     * lognormalParametersFromMoments() applies, so the curve drawn for such a
+     * Distributions::lognormalFromMoments() applies, so the curve drawn for such a
      * scenario has a mean of mean * exp(sigma^2/2) rather than mean.
      *
      * That is deliberate and it is left alone. MonteCarloService::runSimulation

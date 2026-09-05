@@ -13,6 +13,31 @@ class QuantificationScenario extends Model
 {
     use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
 
+    /**
+     * The values `quantification_scenarios.scenario_type` takes.
+     *
+     * The column is `string(50)` NOT NULL WITH NO DEFAULT, and until Phase 5.2
+     * neither the create form nor the library import set it — so every attempt
+     * to create a scenario through the interface, by either route, ended in a
+     * NOT NULL violation and a 500. QuantificationSeeder has used
+     * `single_event` since it was written, and QuantificationController's
+     * stress report finds stress scenarios with
+     * `LOWER(scenario_type) = 'stress'`; those two plus DemoDataSeeder's
+     * `single_risk` are the vocabulary that is actually in the data.
+     *
+     * @var list<string>
+     */
+    public const TYPES = ['single_event', 'single_risk', 'stress', 'aggregate'];
+
+    /**
+     * What a scenario is when nobody said.
+     *
+     * A library template and a hand-entered scenario both describe one loss
+     * event with a frequency and a severity, which is what `single_event`
+     * means and what the seeder has always written.
+     */
+    public const DEFAULT_TYPE = 'single_event';
+
     protected $fillable = [
         'organization_id',
         'scenario_reference',

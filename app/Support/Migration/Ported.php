@@ -55,6 +55,13 @@ final class Ported
         'admin.users.index',
         'risk.emerging.index',
         'risk.reports.library',
+        // Phase 5.4
+        'risk.reports.executive',
+        'risk.reports.board',
+        'risk.reports.regulatory',
+        'risk.reports.custom',
+        'risk.reports.status',
+        'risk.reports.board-pack.sections',
         'risk.approvals.history',
         'risk.regulatory.circulars',
         // Phase 5.3

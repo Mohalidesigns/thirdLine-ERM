@@ -115,6 +115,17 @@ final class Ported
         // Phase 4 — periods and threshold re-baselining
         'risk.periods.index',
         'risk.thresholds.rebaseline',
+        // Phase 4 — campaigns and questionnaires ('risk.campaigns.index',
+        // 'risk.questionnaires.index' and '.library' are above, from Phase 2's
+        // grid work)
+        'risk.campaigns.dashboard',
+        'risk.campaigns.create',
+        'risk.campaigns.show',
+        'risk.campaigns.respond',
+        'risk.campaigns.submission',
+        'risk.questionnaires.create',
+        'risk.questionnaires.show',
+        'risk.questionnaires.edit',
         // Phase 3 — RCSA
         'risk.rcsa.dashboard',
         'risk.rcsa.worksheet',

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/** @property-read QuestionnaireSection|null $section */
 class Question extends Model
 {
     protected $fillable = [

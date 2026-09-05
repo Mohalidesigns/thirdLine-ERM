@@ -315,15 +315,27 @@ class RcsaWorksheetSubmissionTest extends TestCase
         // Everything the respondent typed has to come back out. The respond
         // screen builds itself from register risks and shows none of it, which
         // is what made a filed worksheet look discarded.
-        $this->actingAs($this->user)
+        //
+        // Migration Phase 4.5 — the submission screen is an Inertia page now,
+        // so the read-back is asserted on the props CampaignSubmissionPresenter
+        // produces rather than on Blade markup. Same question, same six values.
+        $props = $this->actingAs($this->user)
             ->get(route('risk.campaigns.submission', $assignment))
             ->assertOk()
-            ->assertSee('Manual reconciliation errors in branch settlement')
-            ->assertSee('Daily four-eye review of settlement file')
-            ->assertSee('Automate the reconciliation by Q4')
-            ->assertSee('Retail Banking')
-            ->assertSee('Critical')   // inherent rating, from questionnaire_data
-            ->assertSee('High');      // residual rating, from the scored columns
+            ->viewData('page')['props'];
+
+        $this->assertCount(1, $props['lines']);
+        $line = $props['lines'][0];
+
+        $this->assertSame('Manual reconciliation errors in branch settlement', $line['title']);
+        $this->assertSame('Daily four-eye review of settlement file', $line['existingControls']);
+        $this->assertSame('Automate the reconciliation by Q4', $line['actionPlan']);
+        $this->assertSame('Retail Banking', $props['assignment']['businessUnit']);
+        $this->assertSame('Critical', $line['inherentRating']);  // from questionnaire_data
+        $this->assertSame('High', $line['residualRating']);      // from the scored columns
+
+        // A worksheet line is not a questionnaire answer sheet.
+        $this->assertNull($props['answerSheet']);
     }
 
     #[Test]
@@ -416,10 +428,17 @@ class RcsaWorksheetSubmissionTest extends TestCase
         $this->assertEqualsWithDelta(100.0, $breakdown['awaiting_review_pct'], 0.01);
         $this->assertEqualsWithDelta(0.0, (float) $campaign->fresh()->completion_pct, 0.01);
 
-        $this->actingAs($this->user)
+        // Migration Phase 4.5 — the campaign screen is an Inertia page now.
+        // The bar's second segment is `awaiting_review` in the props that draw
+        // it; the words "awaiting review" are rendered from them.
+        $shown = $this->actingAs($this->user)
             ->get(route('risk.campaigns.show', $campaign))
             ->assertOk()
-            ->assertSee('awaiting review');
+            ->viewData('page')['props'];
+
+        $this->assertSame(1, $shown['campaign']['progress']['awaiting_review']);
+        $this->assertEqualsWithDelta(100.0, $shown['campaign']['progress']['awaiting_review_pct'], 0.01);
+        $this->assertSame(0, $shown['campaign']['progress']['completed']);
 
         // Approving moves it across to the completed segment.
         $this->actingAs($this->user)->post(

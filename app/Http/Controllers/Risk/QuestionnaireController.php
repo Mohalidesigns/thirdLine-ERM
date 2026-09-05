@@ -21,6 +21,26 @@ use Inertia\Inertia;
 class QuestionnaireController extends Controller
 {
     /**
+     * The question types the builder offers, in the Blade page's order.
+     *
+     * `matrix` and `file_upload` are valid column values and are NOT offered:
+     * neither the old builder nor the respond page has ever been able to render
+     * one, so a questionnaire holding either would put a question in front of a
+     * respondent with no way to answer it. AddQuestionRequest still accepts the
+     * full enum, so a row created before this phase keeps working.
+     *
+     * @var array<string, string>
+     */
+    public const BUILDABLE_QUESTION_TYPES = [
+        'likert' => 'Likert Scale',
+        'rating' => 'Rating (1-5)',
+        'yes_no' => 'Yes/No',
+        'multiple_choice' => 'Multiple Choice',
+        'free_text' => 'Free Text',
+        'numeric' => 'Numeric',
+    ];
+
+    /**
      * WP-09: the register is the shared data grid — see
      * App\Grids\Definitions\QuestionnairesGrid.
      */
@@ -40,7 +60,10 @@ class QuestionnaireController extends Controller
     {
         Gate::authorize('create', Questionnaire::class);
 
-        return view('risk.questionnaires.create');
+        return Inertia::render('Questionnaires/Create', [
+            'types' => StoreQuestionnaireRequest::TYPES,
+            'scoringMethods' => StoreQuestionnaireRequest::SCORING_METHODS,
+        ]);
     }
 
     public function store(StoreQuestionnaireRequest $request)
@@ -60,7 +83,10 @@ class QuestionnaireController extends Controller
 
         $questionnaire->load('sections.questions');
 
-        return view('risk.questionnaires.show', compact('questionnaire'));
+        return Inertia::render('Questionnaires/Show', [
+            'questionnaire' => $this->summary($questionnaire),
+            'sections' => $this->sectionsPayload($questionnaire),
+        ]);
     }
 
     /**
@@ -75,13 +101,21 @@ class QuestionnaireController extends Controller
      * not have, and inventing one is not this phase's job. Recorded in the
      * module notes.
      */
-    public function edit(Questionnaire $questionnaire)
+    public function edit(Request $request, Questionnaire $questionnaire)
     {
         Gate::authorize('update', $questionnaire);
 
         $questionnaire->load('sections.questions');
 
-        return view('risk.questionnaires.edit', compact('questionnaire'));
+        return Inertia::render('Questionnaires/Edit', [
+            'questionnaire' => $this->summary($questionnaire),
+            'sections' => $this->sectionsPayload($questionnaire),
+            // The Blade builder's type select offered six of the eight; the two
+            // it left out — matrix and file_upload — have no renderer on the
+            // respond page either, so the same six are offered here.
+            'questionTypes' => self::BUILDABLE_QUESTION_TYPES,
+            'canPublish' => $request->user()->can('publish', $questionnaire),
+        ]);
     }
 
     public function addSection(AddSectionRequest $request, Questionnaire $questionnaire)
@@ -188,6 +222,47 @@ class QuestionnaireController extends Controller
         ]);
 
         return back()->with('success', 'Question added to library.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function summary(Questionnaire $questionnaire): array
+    {
+        return [
+            'id' => $questionnaire->id,
+            'title' => $questionnaire->title,
+            'description' => $questionnaire->description,
+            'type' => $questionnaire->questionnaire_type,
+            'scoringMethod' => $questionnaire->scoring_method,
+            'version' => (int) $questionnaire->version,
+            'status' => $questionnaire->status,
+            'editUrl' => route('risk.questionnaires.edit', $questionnaire),
+            'publishUrl' => route('risk.questionnaires.publish', $questionnaire),
+            'addSectionUrl' => route('risk.questionnaires.add-section', $questionnaire),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function sectionsPayload(Questionnaire $questionnaire): array
+    {
+        return $questionnaire->sections->map(fn (QuestionnaireSection $section) => [
+            'id' => $section->id,
+            'title' => $section->title,
+            'description' => $section->description,
+            'weight' => (float) $section->weight,
+            'addQuestionUrl' => route('risk.questionnaires.add-question', $section),
+            'questions' => $section->questions->map(fn (Question $question) => [
+                'id' => $question->id,
+                'text' => $question->question_text,
+                'type' => $question->question_type,
+                'isRequired' => (bool) $question->is_required,
+                'helpText' => $question->help_text,
+                'removeUrl' => route('risk.questionnaires.remove-question', $question),
+            ])->all(),
+        ])->all();
     }
 
     /**

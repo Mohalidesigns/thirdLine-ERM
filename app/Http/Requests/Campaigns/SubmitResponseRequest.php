@@ -5,7 +5,9 @@ namespace App\Http\Requests\Campaigns;
 use App\Models\AssessmentCampaign;
 use App\Models\CampaignAssignment;
 use App\Models\CampaignResponse;
+use App\Services\Campaigns\QuestionnaireAnswerSheet;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -24,6 +26,13 @@ use Illuminate\Validation\Rule;
  * `questionnaire_data` was read by the controller and never validated. It is
  * the JSON payload an RCSA worksheet line keeps its free text in, so it stays
  * free-form — but it is now declared, and bounded.
+ *
+ * `questionnaire_answers` is new in 4.5, and so is anything answering a
+ * questionnaire at all — see QuestionnaireAnswerSheet for why the engine had
+ * never reached a respondent's screen. A question the builder marked required
+ * is required here: the respond page renders the asterisk, and a page that
+ * renders a required marker it does not enforce is another screen manufacturing
+ * the appearance of work.
  */
 class SubmitResponseRequest extends FormRequest
 {
@@ -48,7 +57,39 @@ class SubmitResponseRequest extends FormRequest
             'responses.*.control_effectiveness' => ['nullable', Rule::in(CampaignResponse::EFFECTIVENESS)],
             'responses.*.comments' => ['nullable', 'string', 'max:5000'],
             'responses.*.questionnaire_data' => ['nullable', 'array'],
+            // Question id => answer. Scalars only: every renderable question
+            // type produces one value, and `matrix` — which would not — has no
+            // renderer and is refused by the page.
+            'questionnaire_answers' => ['nullable', 'array'],
+            'questionnaire_answers.*' => ['nullable', 'string', 'max:5000'],
         ];
+    }
+
+    /**
+     * Required questions have to be answered.
+     *
+     * The questionnaire comes off the CAMPAIGN, never off the request, so a
+     * respondent cannot choose which questionnaire they are held to.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $questionnaire = $this->tenantCampaign()->questionnaire;
+
+            if ($questionnaire === null) {
+                return;
+            }
+
+            $answers = (array) $this->input('questionnaire_answers', []);
+
+            foreach (app(QuestionnaireAnswerSheet::class)->requiredQuestionIds($questionnaire) as $questionId) {
+                $answer = $answers[$questionId] ?? $answers[(string) $questionId] ?? null;
+
+                if ($answer === null || $answer === '' || $answer === []) {
+                    $validator->errors()->add("questionnaire_answers.{$questionId}", 'This question must be answered.');
+                }
+            }
+        });
     }
 
     /**

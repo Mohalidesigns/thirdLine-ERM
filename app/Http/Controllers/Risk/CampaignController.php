@@ -13,11 +13,14 @@ use App\Models\AssessmentCampaign;
 use App\Models\BusinessUnit;
 use App\Models\CampaignAssignment;
 use App\Models\CampaignResponse;
-use App\Models\Control;
+use App\Models\Question;
 use App\Models\Questionnaire;
+use App\Models\QuestionnaireSection;
 use App\Models\Risk;
+use App\Presenters\CampaignSubmissionPresenter;
 use App\Presenters\GridPresenter;
 use App\Services\Campaigns\CampaignDashboardService;
+use App\Services\Campaigns\QuestionnaireAnswerSheet;
 use App\Services\NotificationService;
 use App\Services\ReferenceCodeService;
 use App\Services\RiskScoringService;
@@ -28,17 +31,37 @@ use Inertia\Inertia;
 
 class CampaignController extends Controller
 {
-    public function dashboard(CampaignDashboardService $dashboard)
+    /** The five values of the `assessment_campaigns.campaign_type` enum. */
+    public const CAMPAIGN_TYPES = [
+        'rcsa' => 'RCSA',
+        'fraud_risk' => 'Fraud Risk Assessment',
+        'compliance' => 'Compliance Assessment',
+        'new_product' => 'New Product/Service Risk',
+        'custom' => 'Custom',
+    ];
+
+    public function dashboard(Request $request, CampaignDashboardService $dashboard)
     {
         Gate::authorize('viewAny', AssessmentCampaign::class);
 
         // The four aggregates used to be four inline queries here; they are one
         // grouped query plus a count in the service, pinned by
         // Characterisation\CampaignDashboardFiguresTest.
-        $stats = $dashboard->stats();
-        $campaigns = $dashboard->recent();
-
-        return view('risk.campaigns.dashboard', [...$stats, 'campaigns' => $campaigns]);
+        return Inertia::render('Campaigns/Dashboard', [
+            'stats' => $dashboard->stats(),
+            'campaigns' => $dashboard->recent()->map(fn (AssessmentCampaign $campaign) => [
+                'id' => $campaign->id,
+                'code' => $campaign->campaign_code,
+                'title' => $campaign->title,
+                'type' => $campaign->campaign_type,
+                'status' => $campaign->status,
+                'assignmentsCount' => (int) $campaign->assignments_count,
+                'progress' => $campaign->progressBreakdown(),
+                'createdAt' => $campaign->created_at?->format('M d, Y'),
+                'url' => route('risk.campaigns.show', $campaign),
+            ])->all(),
+            'canCreate' => $request->user()->can('create', AssessmentCampaign::class),
+        ]);
     }
 
     /**
@@ -63,7 +86,10 @@ class CampaignController extends Controller
     {
         Gate::authorize('create', AssessmentCampaign::class);
 
-        return view('risk.campaigns.create', $this->campaignFormOptions());
+        return Inertia::render('Campaigns/Create', [
+            ...$this->campaignFormOptions(),
+            'campaignTypes' => self::CAMPAIGN_TYPES,
+        ]);
     }
 
     public function store(StoreCampaignRequest $request)
@@ -92,7 +118,49 @@ class CampaignController extends Controller
         // it has something to show, whatever its status.
         $campaign->assignments->loadCount('responses');
 
-        return view('risk.campaigns.show', compact('campaign'));
+        $user = auth()->user();
+
+        return Inertia::render('Campaigns/Show', [
+            'campaign' => [
+                'id' => $campaign->id,
+                'code' => $campaign->campaign_code,
+                'title' => $campaign->title,
+                'description' => $campaign->description,
+                'type' => $campaign->campaign_type,
+                'status' => $campaign->status,
+                'startDate' => $campaign->start_date?->format('M d, Y'),
+                'endDate' => $campaign->end_date?->format('M d, Y'),
+                'dueDateValue' => $campaign->end_date?->format('Y-m-d'),
+                'questionnaire' => $campaign->questionnaire?->title,
+                'createdBy' => $campaign->creator?->name,
+                'progress' => $campaign->progressBreakdown(),
+            ],
+            'assignments' => $campaign->assignments->map(fn (CampaignAssignment $assignment) => [
+                'id' => $assignment->id,
+                'businessUnit' => $assignment->businessUnit?->name,
+                'respondent' => $assignment->respondent?->name,
+                'reviewer' => $assignment->reviewer?->name,
+                'dueDate' => $assignment->due_date?->format('M d, Y'),
+                // The Blade template computed this inline with ->isPast(); a
+                // due date that has passed on work that is neither handed in
+                // nor approved is what the red text means.
+                'overdue' => $assignment->due_date?->isPast()
+                    && ! in_array($assignment->status, ['approved', 'submitted'], true),
+                'status' => $assignment->status,
+                'responsesCount' => (int) $assignment->responses_count,
+                'submissionUrl' => route('risk.campaigns.submission', $assignment),
+                'respondUrl' => route('risk.campaigns.respond', $assignment),
+                'reviewUrl' => route('risk.campaigns.review-assignment', $assignment),
+            ])->all(),
+            // Both lists used to be queried FROM THE BLADE TEMPLATE — a query
+            // the controller could not see, scope or test.
+            ...collect($this->campaignFormOptions())->only(['businessUnits', 'users'])->all(),
+            'can' => [
+                'manage' => $user->can('manage', $campaign),
+                'respond' => $user->can('respond', $campaign),
+                'review' => $user->can('review', $campaign),
+            ],
+        ]);
     }
 
     public function addAssignment(AddAssignmentRequest $request, AssessmentCampaign $campaign)
@@ -190,10 +258,33 @@ class CampaignController extends Controller
 
         Gate::authorize('view', $campaign);
 
-        $assignment->load(['businessUnit', 'respondent', 'reviewer', 'responses.risk', 'responses.control']);
+        $assignment->load(['businessUnit', 'respondent', 'reviewer', 'responses.risk.category', 'responses.control']);
         $assignment->setRelation('campaign', $campaign);
 
-        return view('risk.campaigns.submission', compact('assignment', 'campaign'));
+        $presenter = app(CampaignSubmissionPresenter::class);
+
+        return Inertia::render('Campaigns/Submission', [
+            'campaign' => [
+                'id' => $campaign->id,
+                'code' => $campaign->campaign_code,
+                'title' => $campaign->title,
+                'url' => route('risk.campaigns.show', $campaign),
+            ],
+            'assignment' => [
+                'id' => $assignment->id,
+                'status' => $assignment->status,
+                'businessUnit' => $assignment->businessUnit?->name,
+                'respondent' => $assignment->respondent?->name,
+                'reviewer' => $assignment->reviewer?->name,
+                'submittedAt' => $assignment->submitted_at?->format('d M Y, H:i'),
+                'dueDate' => $assignment->due_date?->format('d M Y'),
+                'reviewerNotes' => $assignment->reviewer_notes,
+                'reviewUrl' => route('risk.campaigns.review-assignment', $assignment),
+            ],
+            'lines' => $presenter->lines($assignment),
+            'answerSheet' => $presenter->answerSheet($assignment),
+            'canReview' => $assignment->status === 'submitted' && auth()->user()->can('review', $campaign),
+        ]);
     }
 
     public function respond(CampaignAssignment $assignment)
@@ -205,14 +296,50 @@ class CampaignController extends Controller
         $assignment->load(['campaign.questionnaire.sections.questions', 'businessUnit', 'responses']);
 
         $orgId = auth()->user()->organization_id;
-        $risks = Risk::where('organization_id', $orgId)->where('business_unit_id', $assignment->business_unit_id)->get();
-        $controls = Control::where('organization_id', $orgId)->where('business_unit_id', $assignment->business_unit_id)->get();
+        $risks = Risk::where('organization_id', $orgId)
+            ->where('business_unit_id', $assignment->business_unit_id)
+            ->orderBy('risk_code')
+            ->get(['id', 'risk_code', 'title', 'description']);
 
+        // WHAT IS NO LONGER HERE: $controls. respond() loaded every control of
+        // the business unit and the Blade page never referenced one — a dead
+        // read on every open of the form, the same family as 3.8's RCSA columns
+        // and the $library this phase removed from the questionnaire builder.
+        // CampaignResponse.control_id exists and nothing has ever set it from
+        // this screen.
         if ($assignment->status === 'pending') {
             $assignment->update(['status' => 'in_progress', 'started_at' => now()]);
         }
 
-        return view('risk.campaigns.respond', compact('assignment', 'risks', 'controls'));
+        return Inertia::render('Campaigns/Respond', [
+            'assignment' => [
+                'id' => $assignment->id,
+                'status' => $assignment->status,
+                'businessUnit' => $assignment->businessUnit?->name,
+                'dueDate' => $assignment->due_date?->format('M d, Y'),
+                'existingLines' => $assignment->responses->count(),
+                'submitUrl' => route('risk.campaigns.submit-response', $assignment),
+                'submissionUrl' => route('risk.campaigns.submission', $assignment),
+            ],
+            'campaign' => [
+                'id' => $campaign->id,
+                'code' => $campaign->campaign_code,
+                'title' => $campaign->title,
+                'url' => route('risk.campaigns.show', $campaign),
+            ],
+            // The questionnaire has been eager-loaded here since the method was
+            // written and no Blade page ever rendered a line of it — see
+            // QuestionnaireAnswerSheet. This is the first time it reaches a
+            // respondent.
+            'questionnaire' => $this->questionnairePayload($campaign),
+            'risks' => $risks->map(fn (Risk $risk) => [
+                'id' => $risk->id,
+                'code' => $risk->risk_code,
+                'title' => $risk->title,
+                'description' => $risk->description,
+            ])->all(),
+            'canViewSubmission' => auth()->user()->can('view', $campaign),
+        ]);
     }
 
     public function submitResponse(SubmitResponseRequest $request, CampaignAssignment $assignment)
@@ -223,6 +350,22 @@ class CampaignController extends Controller
 
         // Clear existing responses
         $assignment->responses()->delete();
+
+        // The questionnaire half of the submission, if the campaign carries
+        // one. One row, risk_id null, the answers in questionnaire_data with
+        // the question text stored beside each value — see
+        // QuestionnaireAnswerSheet for why the text is stored and not resolved.
+        $answerSheet = app(QuestionnaireAnswerSheet::class)->build(
+            $campaign->questionnaire,
+            (array) $request->validated('questionnaire_answers', []),
+        );
+
+        if ($answerSheet !== null) {
+            CampaignResponse::create([
+                'assignment_id' => $assignment->id,
+                'questionnaire_data' => $answerSheet,
+            ]);
+        }
 
         foreach ($responses as $responseData) {
             $likelihood = $responseData['likelihood_score'] ?? null;
@@ -319,6 +462,44 @@ class CampaignController extends Controller
         ]);
 
         return back()->with('success', 'Campaign closed.');
+    }
+
+    /**
+     * The campaign's questionnaire, shaped for the respond page, or null.
+     *
+     * `matrix` and `file_upload` questions are marked unsupported rather than
+     * dropped: a respondent shown a section that silently omits two of its
+     * questions would file a submission everyone believes is complete. The
+     * page renders them as a stated gap, which is the honest failure.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function questionnairePayload(AssessmentCampaign $campaign): ?array
+    {
+        $questionnaire = $campaign->questionnaire;
+
+        if ($questionnaire === null) {
+            return null;
+        }
+
+        return [
+            'id' => $questionnaire->id,
+            'title' => $questionnaire->title,
+            'description' => $questionnaire->description,
+            'sections' => $questionnaire->sections->map(fn (QuestionnaireSection $section) => [
+                'id' => $section->id,
+                'title' => $section->title,
+                'description' => $section->description,
+                'questions' => $section->questions->map(fn (Question $question) => [
+                    'id' => $question->id,
+                    'text' => $question->question_text,
+                    'type' => $question->question_type,
+                    'options' => $question->options ?? [],
+                    'isRequired' => (bool) $question->is_required,
+                    'helpText' => $question->help_text,
+                ])->all(),
+            ])->all(),
+        ];
     }
 
     /**

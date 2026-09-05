@@ -4,6 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @property-read CampaignAssignment|null $assignment
+ * @property-read Risk|null $risk
+ * @property-read Control|null $control
+ */
 class CampaignResponse extends Model
 {
     /**

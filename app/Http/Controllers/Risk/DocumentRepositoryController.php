@@ -8,6 +8,7 @@ use App\Models\IssueAttachment;
 use App\Models\LossEventAttachment;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 /**
  * Unified read-only repository for every file uploaded anywhere in the
@@ -122,7 +123,7 @@ class DocumentRepositoryController extends Controller
             'key' => $key, 'label' => $cfg['label'], 'icon' => $cfg['icon'],
         ])->values();
 
-        return view('risk.documents.index', [
+        return Inertia::render('Documents/Index', [
             'folders' => $folders,
             'summary' => $summary,
             'docTypes' => $docTypes,

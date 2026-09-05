@@ -10,6 +10,7 @@ use App\Models\Connector;
 use App\Models\ConnectorRun;
 use App\Models\Control;
 use App\Models\ControlTest;
+use App\Models\DataImport;
 use App\Models\EmergingRisk;
 use App\Models\Entity;
 use App\Models\FxRate;
@@ -95,6 +96,12 @@ class MorphTypes
             'connector_run' => ConnectorRun::class,
             'control' => Control::class,
             'control_test' => ControlTest::class,
+            // Phase 5.5. A JobRun's subject is stored as a morph, and
+            // ProcessDataImportJob::track() passes the DataImport — so without
+            // an alias here `getMorphClass()` threw ClassMorphViolationException
+            // and the import could not be queued at all. Like `simulation_run`,
+            // this is a job-subject alias; the model is not in the object graph.
+            'data_import' => DataImport::class,
             // Phase 4.6 — the horizon joined the graph; every mirrored model
             // needs a canonical alias, which ObjectIdentityTest enforces.
             'emerging_risk' => EmergingRisk::class,

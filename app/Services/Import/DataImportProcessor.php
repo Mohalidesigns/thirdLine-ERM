@@ -65,6 +65,7 @@ class DataImportProcessor
         $rows = $this->reader->dataRows($filePath);
         $total = count($rows);
         $mapping = (array) $import->column_mapping;
+        $allowedFields = DataImport::fieldsFor($import->import_type);
 
         $import->update(['total_rows' => $total, 'status' => 'processing']);
 
@@ -78,7 +79,7 @@ class DataImportProcessor
             $rowNumber = $index + 2;
 
             try {
-                $data = $this->mapRow($row, $mapping);
+                $data = $this->mapRow($row, $mapping, $allowedFields);
 
                 if ($data === []) {
                     continue;
@@ -135,13 +136,27 @@ class DataImportProcessor
     /**
      * @param  array<int, mixed>  $row
      * @param  array<string, mixed>  $mapping
-     * @return array<string, string>
+     * @param  list<string>  $allowedFields
+     * @return array<string, mixed>
      */
-    private function mapRow(array $row, array $mapping): array
+    private function mapRow(array $row, array $mapping, array $allowedFields): array
     {
         $data = [];
 
         foreach ($mapping as $field => $columnIndex) {
+            // DEFENCE IN DEPTH. ProcessImportRequest refuses a mapping naming
+            // anything outside the import type's fields, but a mapping stored
+            // before Phase 5.5 — when the rule was `required|array` and nothing
+            // more — or written by anything other than the screen must not
+            // reach create() either. The keys become attribute names, and
+            // `parent_risk_id`, `entity_id`, `hierarchy_path` and `created_by`
+            // are all fillable on Risk without being fields an import offers.
+            // (`organization_id` is overwritten below regardless, so it was
+            // never a cross-tenant route — see the note on ProcessImportRequest.)
+            if (! in_array($field, $allowedFields, true)) {
+                continue;
+            }
+
             if ($columnIndex === '' || ! isset($row[(int) $columnIndex])) {
                 continue;
             }

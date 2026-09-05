@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Risk;
 
 use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Imports\ProcessImportRequest;
 use App\Jobs\ProcessDataImportJob;
 use App\Models\DataImport;
 use App\Presenters\GridPresenter;
@@ -11,6 +12,7 @@ use App\Services\FileUploadService;
 use App\Services\SpreadsheetReader;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
 class DataImportController extends Controller
@@ -36,7 +38,12 @@ class DataImportController extends Controller
 
     public function create()
     {
-        return view('risk.imports.create');
+        Gate::authorize('create', DataImport::class);
+
+        return Inertia::render('Imports/Create', [
+            'types' => DataImport::TYPE_LABELS,
+            'accepts' => FileUploadService::PROFILE_DATA_IMPORT,
+        ]);
     }
 
     /**
@@ -108,21 +115,37 @@ class DataImportController extends Controller
                 ->with('error', 'That file could not be read: '.$e->getMessage());
         }
 
-        $systemFields = $this->getFieldsForType($request->import_type);
-
-        return view('risk.imports.mapping', compact('import', 'headers', 'systemFields'));
+        return Inertia::render('Imports/Mapping', [
+            'import' => $import->only(['id', 'import_type', 'file_name', 'total_rows']),
+            'headers' => $headers,
+            // The same list ProcessImportRequest accepts. It used to live on
+            // this controller alone, with nothing checking the mapping against
+            // it on the way back in.
+            'systemFields' => DataImport::fieldsFor($import->import_type),
+            'typeLabel' => DataImport::TYPE_LABELS[$import->import_type] ?? $import->import_type,
+        ]);
     }
 
-    public function processImport(Request $request, DataImport $import)
+    /**
+     * Start the import with the column mapping the user chose.
+     *
+     * TWO THINGS HAD TO BE FIXED BEFORE THIS COULD RUN AT ALL, both introduced
+     * by WP-07 when the row loop moved onto a queue and neither caught because
+     * this route had no test:
+     *
+     *   - `data_imports.status` was an enum of four and this writes `queued`,
+     *     so MySQL answered every call with "Data truncated for column
+     *     'status'" (migration 2026_09_05_140000);
+     *   - `DataImport` had no morph alias, and ProcessDataImportJob::track()
+     *     stores its subject as a morph, so getMorphClass() threw.
+     *
+     * The mapping's KEYS are validated by ProcessImportRequest — see the note
+     * there for what an unvalidated key could reach.
+     */
+    public function processImport(ProcessImportRequest $request, DataImport $import)
     {
-        abort_unless($import->organization_id === \App\Support\Tenancy\TenantContext::organizationId(), 403);
-
-        $request->validate([
-            'column_mapping' => 'required|array',
-        ]);
-
         $import->update([
-            'column_mapping' => $request->column_mapping,
+            'column_mapping' => $request->validated('column_mapping'),
             'status' => 'queued',
         ]);
 
@@ -141,17 +164,5 @@ class DataImportController extends Controller
 
         return redirect()->route('risk.imports.index')
             ->with('success', 'Import queued. Its progress is shown on this page.');
-    }
-
-    private function getFieldsForType(string $type): array
-    {
-        return match ($type) {
-            'risks' => ['title', 'description', 'category_id', 'inherent_likelihood', 'inherent_impact', 'residual_likelihood', 'residual_impact', 'risk_owner_id', 'status'],
-            'controls' => ['name', 'description', 'control_type', 'control_nature', 'frequency', 'automation_level', 'effectiveness_rating', 'status'],
-            'loss_events' => ['title', 'description', 'date_of_loss', 'gross_loss_amount_kobo', 'basel_l1_category', 'event_severity'],
-            'issues' => ['title', 'description', 'issue_source', 'issue_category', 'priority', 'issue_status', 'remediation_due_date'],
-            'kris' => ['name', 'description', 'measurement_frequency', 'baseline_value', 'green_threshold', 'amber_threshold', 'red_threshold'],
-            default => [],
-        };
     }
 }

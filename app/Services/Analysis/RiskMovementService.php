@@ -5,6 +5,7 @@ namespace App\Services\Analysis;
 use App\Models\Period;
 use App\Models\Risk;
 use App\Models\ScoringProfile;
+use App\Models\TreatmentPlan;
 use App\Repositories\RiskRepository;
 use App\Services\PeriodService;
 use App\Services\RiskScoringService;
@@ -155,6 +156,69 @@ class RiskMovementService
             $index >= $lastIndex - 1 => 'high',
             default => 'medium',
         };
+    }
+
+    /**
+     * Treatment plans completed in each month, and plans running late at each
+     * month end.
+     *
+     * WHAT THIS REPLACES. `buildTreatmentTrendData()` drew a chart titled
+     * "Treatment Progress" out of the RISKS table and touched no treatment plan
+     * at all. Its `completed` series counted risks whose status was
+     * closed/retired and whose `updated_at` fell in the month — so a risk
+     * closed in January and edited in June counted as completed in June, and
+     * closing a risk is not completing a treatment. Its `overdue` series
+     * counted active risks rated High or Critical created more than six months
+     * ago; the code's own comment called that "simplified". Nothing in it was
+     * a treatment, and nothing in it was progress.
+     *
+     * `treatment_plans` carries `completion_date`, `target_date` and a status
+     * list, and `treatments:check-overdue` already maintains the overdue state
+     * nightly. Both series are read from it now.
+     *
+     * @return array{labels: list<string>, completed: list<int>, overdue: list<int>}
+     */
+    public function monthlyTreatmentProgress(CarbonInterface $from, ?CarbonInterface $to = null, ?int $organizationId = null): array
+    {
+        $organizationId = $organizationId ?? TenantContext::organizationId();
+
+        $plans = TreatmentPlan::withoutGlobalScopes()
+            ->where('organization_id', $organizationId)
+            ->whereNull('deleted_at')
+            ->get(['id', 'status', 'target_date', 'completion_date', 'created_at']);
+
+        $labels = [];
+        $completed = [];
+        $overdue = [];
+
+        foreach ($this->months($from, $to) as $bucket) {
+            $monthStart = $bucket['boundary']->copy()->startOfMonth();
+            $monthEnd = $bucket['boundary'];
+
+            $labels[] = $bucket['label'];
+
+            // Completed IN the month, by the date the completion was recorded.
+            $completed[] = $plans->filter(fn (TreatmentPlan $plan) => $plan->completion_date !== null
+                && $plan->completion_date >= $monthStart
+                && $plan->completion_date <= $monthEnd)->count();
+
+            // Running late AT the month end: past its target, and not finished
+            // by then. A plan nobody has started is not late — the same rule
+            // RUNNING_STATUSES states for the nightly sweep.
+            $overdue[] = $plans->filter(function (TreatmentPlan $plan) use ($monthEnd) {
+                if ($plan->target_date === null || $plan->target_date >= $monthEnd) {
+                    return false;
+                }
+
+                if ($plan->completion_date !== null && $plan->completion_date <= $monthEnd) {
+                    return false;
+                }
+
+                return in_array($plan->status, [...TreatmentPlan::RUNNING_STATUSES, 'overdue'], true);
+            })->count();
+        }
+
+        return compact('labels', 'completed', 'overdue');
     }
 
     /* ------------------------------------------------------------------ */

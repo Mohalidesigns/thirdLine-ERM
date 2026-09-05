@@ -130,6 +130,11 @@ final class Ported
         // Phase 2's grid work)
         'risk.emerging.create',
         'risk.emerging.edit',
+        // Phase 5 — analysis
+        'risk.analysis.heatmap',
+        'risk.analysis.bowtie',
+        'risk.analysis.trends',
+        'risk.analysis.correlation',
         // Phase 3 — RCSA
         'risk.rcsa.dashboard',
         'risk.rcsa.worksheet',

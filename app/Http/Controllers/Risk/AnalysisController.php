@@ -13,6 +13,7 @@ use App\Services\Analysis\RiskMovementService;
 use App\Services\RiskScoringService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 /**
  * Heat map, bow-tie, correlation and trend analysis.
@@ -27,12 +28,11 @@ use Illuminate\Http\Request;
  * caller-supplied id, reachable by URL exactly like a show() route — the
  * correlation scatter, and the movers list.
  *
- * NOT scoped, deliberately: buildRiskMovementData, buildRatingTrendData,
- * buildScoreTrendData, buildCategoryTrendData and buildTreatmentTrendData.
- * Those return counts and averages per month or quarter — roll-up calculations
- * with no record in them to disclose, and the kind of aggregate node scoping
- * is opt-in to avoid narrowing. Full-org roles are unaffected either way;
- * visibleTo() is a no-op for them.
+ * NOT scoped, deliberately: everything RiskMovementService computes, and
+ * buildCategoryTrendData. Those return counts and averages per month or quarter
+ * — roll-up calculations with no record in them to disclose, and the kind of
+ * aggregate node scoping is opt-in to avoid narrowing. Full-org roles are
+ * unaffected either way; visibleTo() is a no-op for them.
  */
 class AnalysisController extends Controller
 {
@@ -170,11 +170,26 @@ class AnalysisController extends Controller
             'url' => route('risk.register.show', $r->id),
         ])->values();
 
-        return view('risk.analysis.heatmap', compact(
-            'risks', 'risksForJs', 'heatmapData', 'viewType', 'businessUnits', 'categories',
-            'criticalCount', 'highCount', 'mediumCount', 'lowCount', 'movementData',
-            'profile', 'bandCounts'
-        ));
+        return Inertia::render('Analysis/Heatmap', [
+            'cells' => $this->heatmapCells($heatmapData, $rows, $cols),
+            'grid' => [
+                'rows' => $rows,
+                'cols' => $cols,
+                'likelihoodLabels' => $profile->axisLabels('likelihood'),
+                'impactLabels' => $profile->axisLabels('impact'),
+                'bands' => array_values($profile->rating_bands ?? []),
+            ],
+            'bandCounts' => $bandCounts,
+            'movement' => $movementData,
+            'viewType' => $viewType,
+            'total' => $risks->count(),
+            'filters' => [
+                'business_unit_id' => $request->integer('business_unit_id') ?: null,
+                'category_id' => $request->integer('category_id') ?: null,
+            ],
+            'businessUnits' => $businessUnits->map(fn ($u) => ['id' => $u->id, 'name' => $u->name])->values(),
+            'categories' => $categories->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values(),
+        ]);
     }
 
     /**
@@ -262,10 +277,34 @@ class AnalysisController extends Controller
             ->orderBy('risk_code')
             ->get();
 
-        return view('risk.analysis.bowtie', compact(
-            'selectedRisk', 'risks', 'causes', 'consequences',
-            'preventiveControls', 'mitigatingControls', 'controlEffData'
-        ));
+        return Inertia::render('Analysis/Bowtie', [
+            'risks' => $risks->map(fn (Risk $r) => [
+                'id' => $r->id,
+                'code' => $r->risk_code,
+                'title' => $r->title,
+            ])->values(),
+            'selected' => $selectedRisk === null ? null : [
+                'id' => $selectedRisk->id,
+                'code' => $selectedRisk->risk_code,
+                'title' => $selectedRisk->title,
+                'description' => $selectedRisk->description,
+                'category' => $selectedRisk->category?->name,
+                'inherentScore' => $selectedRisk->inherent_score,
+                'inherentRating' => $selectedRisk->inherent_rating,
+                'residualScore' => $selectedRisk->residual_score,
+                'residualRating' => $selectedRisk->residual_rating,
+                'url' => route('risk.register.show', $selectedRisk->id),
+            ],
+            'causes' => collect($causes)->map(fn ($c) => (array) $c)->values(),
+            'consequences' => collect($consequences)->map(fn ($c) => (array) $c)->values(),
+            // Already flat stdClass with name/type/effectiveness/gaps — built
+            // a few lines up. Re-mapping them through a "row" helper reading
+            // control_code and effectiveness_rating would have invented two
+            // dead columns, which is the defect 4.5 and 3.8 both found.
+            'preventiveControls' => collect($preventiveControls)->map(fn ($c) => (array) $c)->values(),
+            'mitigatingControls' => collect($mitigatingControls)->map(fn ($c) => (array) $c)->values(),
+            'controlEffData' => $controlEffData,
+        ]);
     }
 
     /**
@@ -332,7 +371,7 @@ class AnalysisController extends Controller
         $ratingTrendData = $this->movement->monthlyRatings($startDate, $endDate, $orgId);
         $scoreTrendData = $this->movement->monthlyAverageScore($startDate, $endDate, $orgId);
         $categoryTrendData = $this->buildCategoryTrendData($orgId, $startDate, $endDate);
-        $treatmentTrendData = $this->buildTreatmentTrendData($orgId, $startDate, $endDate);
+        $treatmentTrendData = $this->movement->monthlyTreatmentProgress($startDate, $endDate, $orgId);
 
         // Risk movers
         $riskIncreasers = $this->buildRiskMovers($orgId, 'up');
@@ -343,14 +382,25 @@ class AnalysisController extends Controller
         $fromValue = $startDate->format('Y-m-d');
         $toValue = $endDate->format('Y-m-d');
 
-        return view('risk.analysis.trends', compact(
-            'totalActiveRisks', 'activeRisksChange', 'activeRisksDirection',
-            'avgRiskScore', 'avgScoreChange', 'avgScoreDirection',
-            'newRisks', 'closedRisks',
-            'ratingTrendData', 'scoreTrendData', 'categoryTrendData', 'treatmentTrendData',
-            'riskIncreasers', 'riskDecreasers',
-            'fromValue', 'toValue'
-        ));
+        return Inertia::render('Analysis/Trends', [
+            'stats' => [
+                'totalActiveRisks' => $totalActiveRisks,
+                'activeRisksChange' => $activeRisksChange,
+                'activeRisksDirection' => $activeRisksDirection,
+                'avgRiskScore' => round((float) $avgRiskScore, 1),
+                'avgScoreChange' => $avgScoreChange,
+                'avgScoreDirection' => $avgScoreDirection,
+                'newRisks' => $newRisks,
+                'closedRisks' => $closedRisks,
+            ],
+            'ratingTrend' => $ratingTrendData,
+            'scoreTrend' => $scoreTrendData,
+            'categoryTrend' => $categoryTrendData,
+            'treatmentTrend' => $treatmentTrendData,
+            'increasers' => collect($riskIncreasers)->map(fn ($m) => (array) $m)->values(),
+            'decreasers' => collect($riskDecreasers)->map(fn ($m) => (array) $m)->values(),
+            'window' => ['from' => $fromValue, 'to' => $toValue],
+        ]);
     }
 
     /**
@@ -451,10 +501,13 @@ class AnalysisController extends Controller
 
         $overlapMatrix = $this->buildControlOverlapMatrix($risks, $riskControls);
 
-        return view('risk.analysis.correlation', compact(
-            'risks', 'categories', 'selectedCategoryId',
-            'sharedControlPairs', 'overlapMatrix'
-        ));
+        return Inertia::render('Analysis/SharedControls', [
+            'pairs' => $sharedControlPairs->map(fn ($p) => (array) $p)->values(),
+            'matrix' => $overlapMatrix,
+            'categories' => $categories->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values(),
+            'selectedCategoryId' => $selectedCategoryId,
+            'riskCount' => $risks->count(),
+        ]);
     }
 
     /* ------------------------------------------------------------------ */
@@ -464,6 +517,44 @@ class AnalysisController extends Controller
     /**
      * Classify control effectiveness based on testing results.
      */
+    /**
+     * The heat map grid as a flat list of cells.
+     *
+     * The Blade template walked a nested `[likelihood][impact]` array and
+     * rendered the risks inside each cell; the page needs the same content in
+     * a shape JSON can carry, so each cell names its coordinates and the risks
+     * that sit in it. Empty cells are included: the grid is the profile's
+     * shape, and a missing cell would collapse the row.
+     *
+     * @param  array<int, array<int, list<Risk>>>  $heatmapData
+     * @return list<array<string, mixed>>
+     */
+    private function heatmapCells(array $heatmapData, int $rows, int $cols): array
+    {
+        $cells = [];
+
+        for ($likelihood = $rows; $likelihood >= 1; $likelihood--) {
+            for ($impact = 1; $impact <= $cols; $impact++) {
+                $inCell = $heatmapData[$likelihood][$impact] ?? [];
+
+                $cells[] = [
+                    'likelihood' => $likelihood,
+                    'impact' => $impact,
+                    'score' => $likelihood * $impact,
+                    'count' => count($inCell),
+                    'risks' => collect($inCell)->take(8)->map(fn (Risk $r) => [
+                        'id' => $r->id,
+                        'code' => $r->risk_code,
+                        'title' => $r->title,
+                        'url' => route('risk.register.show', $r->id),
+                    ])->values()->all(),
+                ];
+            }
+        }
+
+        return $cells;
+    }
+
     private function classifyControlEffectiveness($control): string
     {
         $effectiveness = $control->effectiveness_rating ?? $control->operating_effectiveness ?? null;
@@ -606,44 +697,6 @@ class AnalysisController extends Controller
         }
 
         return compact('labels', 'datasets');
-    }
-
-    /**
-     * Build treatment trend data.
-     */
-    private function buildTreatmentTrendData(int $orgId, $startDate, $endDate = null): array
-    {
-        $labels = [];
-        $completed = [];
-        $overdue = [];
-
-        $current = $startDate->copy()->startOfMonth();
-        $end = ($endDate ?? now())->copy()->endOfMonth();
-
-        while ($current <= $end) {
-            $labels[] = $current->format('M Y');
-            $monthEnd = $current->copy()->endOfMonth();
-
-            // Count risks with treatment actions completed in this month
-            $closedInMonth = Risk::where('organization_id', $orgId)
-                ->whereIn('status', ['closed', 'retired'])
-                ->whereBetween('updated_at', [$current->copy()->startOfMonth(), $monthEnd])
-                ->count();
-            $completed[] = $closedInMonth;
-
-            // Count risks overdue (simplified: active risks older than 6 months with high/critical rating)
-            $overdueCount = Risk::where('organization_id', $orgId)
-                ->where('status', 'active')
-                ->whereIn('inherent_rating', ['Critical', 'High'])
-                ->where('created_at', '<', $current->copy()->subMonths(6))
-                ->where('created_at', '<=', $monthEnd)
-                ->count();
-            $overdue[] = $overdueCount;
-
-            $current->addMonth();
-        }
-
-        return compact('labels', 'completed', 'overdue');
     }
 
     /**

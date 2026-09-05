@@ -17,7 +17,8 @@ use Tests\TestCase;
  * Written against the RUNNING BLADE SCREENS before `RiskMovementService`
  * existed: a throwaway test hit risk.analysis.heatmap and risk.analysis.trends
  * and dumped `$response->original->getData()`, and the numbers asserted here
- * are the numbers that came back. 3.5 spent a day on a figure that "should"
+ * are the numbers that came back. Both screens are Inertia pages now, so the
+ * assertions read the props that render them — same questions, same values. 3.5 spent a day on a figure that "should"
  * have been 50 and had always been 38; this file is what stops that.
  *
  * THE FIXTURE IS A FIXED REGISTER ON A FROZEN CLOCK. Every one of these
@@ -86,7 +87,7 @@ class RiskMovementCharacterisationTest extends TestCase
     #[Test]
     public function the_movement_chart_counts_the_register_as_it_stood_each_quarter(): void
     {
-        $data = $this->heatmapData()['movementData'];
+        $data = $this->heatmapData()['movement'];
 
         $this->assertSame(['Q4 2025', 'Q1 2026', 'Q2 2026', 'Q3 2026'], $data['labels']);
 
@@ -117,7 +118,7 @@ class RiskMovementCharacterisationTest extends TestCase
     #[Test]
     public function the_bands_are_the_default_five_by_five_edges(): void
     {
-        $data = $this->heatmapData()['movementData'];
+        $data = $this->heatmapData()['movement'];
         $last = count($data['labels']) - 1;
 
         // Scores in the register: 25, 20 critical; 16 high; 6 medium; 4, 3 low.
@@ -132,15 +133,18 @@ class RiskMovementCharacterisationTest extends TestCase
     {
         $data = $this->trendsData();
 
-        $this->assertSame(6, $data['totalActiveRisks']);
-        $this->assertEqualsWithDelta(12.333, (float) $data['avgRiskScore'], 0.001, '(25+16+6+4+20+3)/6');
+        $this->assertSame(6, $data['stats']['totalActiveRisks']);
+        // (25+16+6+4+20+3)/6 = 12.333…, rounded to one place where the Blade
+        // template used to call number_format($avgRiskScore, 1) — the page
+        // shows the same figure it always did, decided on the server now.
+        $this->assertSame(12.3, (float) $data['stats']['avgRiskScore']);
 
         // The window defaults to the last twelve months, so the 2025-11-10
         // risk is inside it and all six are counted as new.
-        $this->assertSame('2025-08-15', $data['fromValue']);
-        $this->assertSame('2026-08-15', $data['toValue']);
-        $this->assertSame(6, $data['newRisks']);
-        $this->assertSame(0, $data['closedRisks']);
+        $this->assertSame('2025-08-15', $data['window']['from']);
+        $this->assertSame('2026-08-15', $data['window']['to']);
+        $this->assertSame(6, $data['stats']['newRisks']);
+        $this->assertSame(0, $data['stats']['closedRisks']);
     }
 
     /**
@@ -150,7 +154,7 @@ class RiskMovementCharacterisationTest extends TestCase
     #[Test]
     public function the_rating_trend_is_cumulative_over_the_window(): void
     {
-        $series = $this->trendsData()['ratingTrendData'];
+        $series = $this->trendsData()['ratingTrend'];
 
         $this->assertSame('Aug 2025', $series['labels'][0]);
         $this->assertSame('Aug 2026', $series['labels'][count($series['labels']) - 1]);
@@ -190,13 +194,13 @@ class RiskMovementCharacterisationTest extends TestCase
 
         $data = $this->trendsData();
 
-        $this->assertCount(1, $data['riskIncreasers']);
-        $this->assertSame($risk->risk_code, $data['riskIncreasers'][0]->risk_code);
-        $this->assertSame(12, $data['riskIncreasers'][0]->score_change, '16 inherent − 4 residual.');
+        $this->assertCount(1, $data['increasers']);
+        $this->assertSame($risk->risk_code, $data['increasers'][0]['risk_code']);
+        $this->assertSame(12, $data['increasers'][0]['score_change'], '16 inherent − 4 residual.');
 
         // A risk with no residual assessment is not a gap of zero, so it is
         // absent from both lists.
-        $this->assertSame([], $data['riskDecreasers']);
+        $this->assertSame([], $data['decreasers']);
     }
 
     /**
@@ -226,7 +230,7 @@ class RiskMovementCharacterisationTest extends TestCase
         $this->approveAssessment($mover, '2026-01-10', ['inherent_likelihood' => 1, 'inherent_impact' => 2]);
         $this->approveAssessment($mover, '2026-07-10', ['inherent_likelihood' => 5, 'inherent_impact' => 5]);
 
-        $data = $this->heatmapData()['movementData'];
+        $data = $this->heatmapData()['movement'];
 
         $q1 = array_search('Q1 2026', $data['labels'], true);
         $q3 = array_search('Q3 2026', $data['labels'], true);
@@ -257,7 +261,7 @@ class RiskMovementCharacterisationTest extends TestCase
         return $this->actingAs($this->actor)
             ->get(route('risk.analysis.heatmap'))
             ->assertOk()
-            ->original->getData();
+            ->viewData('page')['props'];
     }
 
     /** @return array<string, mixed> */
@@ -266,7 +270,7 @@ class RiskMovementCharacterisationTest extends TestCase
         return $this->actingAs($this->actor)
             ->get(route('risk.analysis.trends'))
             ->assertOk()
-            ->original->getData();
+            ->viewData('page')['props'];
     }
 
     private function risk(string $createdAt, int $likelihood, int $impact): Risk

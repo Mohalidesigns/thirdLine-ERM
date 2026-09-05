@@ -9,6 +9,7 @@ use App\Models\Risk;
 use App\Models\RiskCategory;
 use App\Models\RiskCause;
 use App\Models\RiskControlMapping;
+use App\Services\Analysis\RiskMovementService;
 use App\Services\RiskScoringService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
@@ -35,7 +36,10 @@ use Illuminate\Http\Request;
  */
 class AnalysisController extends Controller
 {
-    public function __construct(private RiskScoringService $scoring) {}
+    public function __construct(
+        private RiskScoringService $scoring,
+        private RiskMovementService $movement,
+    ) {}
 
     /**
      * Risk heatmap view.
@@ -138,7 +142,7 @@ class AnalysisController extends Controller
         $lowCount = $bandCounts['low']['count'] ?? 0;
 
         // Movement data for chart (quarterly trend)
-        $movementData = $this->buildRiskMovementData($orgId);
+        $movementData = $this->movement->quarterly($orgId);
 
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
 
@@ -325,8 +329,8 @@ class AnalysisController extends Controller
         $avgScoreDirection = $scoreChange >= 0 ? 'up' : 'down';
 
         // Build trend charts over the selected window.
-        $ratingTrendData = $this->buildRatingTrendData($orgId, $startDate, $endDate);
-        $scoreTrendData = $this->buildScoreTrendData($orgId, $startDate, $endDate);
+        $ratingTrendData = $this->movement->monthlyRatings($startDate, $endDate, $orgId);
+        $scoreTrendData = $this->movement->monthlyAverageScore($startDate, $endDate, $orgId);
         $categoryTrendData = $this->buildCategoryTrendData($orgId, $startDate, $endDate);
         $treatmentTrendData = $this->buildTreatmentTrendData($orgId, $startDate, $endDate);
 
@@ -567,96 +571,6 @@ class AnalysisController extends Controller
         }
 
         return $consequences;
-    }
-
-    /**
-     * Build quarterly risk movement data for heatmap chart.
-     */
-    private function buildRiskMovementData(int $orgId): array
-    {
-        $labels = [];
-        $critical = [];
-        $high = [];
-        $medium = [];
-        $low = [];
-
-        for ($q = 3; $q >= 0; $q--) {
-            $start = now()->subQuarters($q)->startOfQuarter();
-            $end = now()->subQuarters($q)->endOfQuarter();
-            $label = 'Q'.$start->quarter.' '.$start->format('Y');
-            $labels[] = $label;
-
-            $risksInQuarter = Risk::where('organization_id', $orgId)
-                ->where('status', 'active')
-                ->where('created_at', '<=', $end)
-                ->get();
-
-            $critical[] = $risksInQuarter->filter(fn ($r) => ($r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) >= 20)->count();
-            $high[] = $risksInQuarter->filter(fn ($r) => ($s = $r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) >= 12 && $s < 20)->count();
-            $medium[] = $risksInQuarter->filter(fn ($r) => ($s = $r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) >= 5 && $s < 12)->count();
-            $low[] = $risksInQuarter->filter(fn ($r) => ($r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) < 5)->count();
-        }
-
-        return compact('labels', 'critical', 'high', 'medium', 'low');
-    }
-
-    /**
-     * Build rating trend data (monthly counts by rating).
-     */
-    private function buildRatingTrendData(int $orgId, $startDate, $endDate = null): array
-    {
-        $labels = [];
-        $critical = [];
-        $high = [];
-        $medium = [];
-        $low = [];
-
-        $current = $startDate->copy()->startOfMonth();
-        $end = ($endDate ?? now())->copy()->endOfMonth();
-
-        while ($current <= $end) {
-            $labels[] = $current->format('M Y');
-
-            $risksAtMonth = Risk::where('organization_id', $orgId)
-                ->where('status', 'active')
-                ->where('created_at', '<=', $current->copy()->endOfMonth())
-                ->get();
-
-            $critical[] = $risksAtMonth->filter(fn ($r) => strtolower($r->inherent_rating ?? '') === 'critical')->count();
-            $high[] = $risksAtMonth->filter(fn ($r) => strtolower($r->inherent_rating ?? '') === 'high')->count();
-            $medium[] = $risksAtMonth->filter(fn ($r) => strtolower($r->inherent_rating ?? '') === 'medium')->count();
-            $low[] = $risksAtMonth->filter(fn ($r) => strtolower($r->inherent_rating ?? '') === 'low')->count();
-
-            $current->addMonth();
-        }
-
-        return compact('labels', 'critical', 'high', 'medium', 'low');
-    }
-
-    /**
-     * Build avg score trend data (monthly).
-     */
-    private function buildScoreTrendData(int $orgId, $startDate, $endDate = null): array
-    {
-        $labels = [];
-        $values = [];
-
-        $current = $startDate->copy()->startOfMonth();
-        $end = ($endDate ?? now())->copy()->endOfMonth();
-
-        while ($current <= $end) {
-            $labels[] = $current->format('M Y');
-
-            $avg = Risk::where('organization_id', $orgId)
-                ->where('status', 'active')
-                ->where('created_at', '<=', $current->copy()->endOfMonth())
-                ->avg('inherent_score') ?? 0;
-
-            $values[] = round($avg, 1);
-            $current->addMonth();
-        }
-
-        return compact('labels', 'values');
     }
 
     /**

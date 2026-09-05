@@ -16,6 +16,7 @@ use App\Services\Quantification\ScenarioService;
 use App\Services\Quantification\SimulationService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class QuantificationController extends Controller
 {
@@ -36,16 +37,20 @@ class QuantificationController extends Controller
     ) {}
 
     /**
-     * Every route-model-bound record on this controller is checked against the
-     * tenant by hand; the policies land later in Phase 5.2.
+     * Authorise against the record's own policy and answer with the tenant id
+     * the rest of the method needs.
+     *
+     * QuantificationScenarioPolicy, SimulationRunPolicy and
+     * IcaapAssessmentPolicy all carry the tenant check that used to be written
+     * out here by hand, so the permission and the boundary are asked about in
+     * one place and the answer is the same from a screen, a form request or a
+     * console command.
      */
-    private function authorizeTenant(?int $organizationId, string $message = 'Unauthorized.'): int
+    private function allow(string $ability, mixed $subject): int
     {
-        $orgId = TenantContext::organizationId();
+        Gate::authorize($ability, $subject);
 
-        abort_unless($organizationId === $orgId, 403, $message);
-
-        return $orgId;
+        return TenantContext::organizationId();
     }
 
     /**
@@ -198,6 +203,8 @@ class QuantificationController extends Controller
      */
     public function createScenario()
     {
+        Gate::authorize('create', QuantificationScenario::class);
+
         $orgId = TenantContext::organizationId();
 
         $risks = Risk::where('organization_id', $orgId)->where('status', 'active')->orderBy('risk_code')->get();
@@ -215,6 +222,8 @@ class QuantificationController extends Controller
      */
     public function storeScenario(Request $request)
     {
+        Gate::authorize('create', QuantificationScenario::class);
+
         $scenario = $this->scenarios->create(
             $request->validate($this->scenarios->rules()),
         );
@@ -228,7 +237,7 @@ class QuantificationController extends Controller
      */
     public function showScenario(QuantificationScenario $scenario)
     {
-        $orgId = $this->authorizeTenant($scenario->organization_id, 'Unauthorized access to this scenario.');
+        $orgId = $this->allow('view', $scenario);
 
         $scenario->load(['riskRegister']);
 
@@ -249,7 +258,7 @@ class QuantificationController extends Controller
      */
     public function updateScenario(Request $request, QuantificationScenario $scenario)
     {
-        $this->authorizeTenant($scenario->organization_id, 'Unauthorized access to this scenario.');
+        $this->allow('update', $scenario);
 
         $this->scenarios->update(
             $scenario,
@@ -295,6 +304,8 @@ class QuantificationController extends Controller
      */
     public function runSimulation(Request $request)
     {
+        Gate::authorize('create', SimulationRun::class);
+
         $validated = $request->validate($this->simulations->rules());
 
         if (! $this->simulations->scenariosBelongToOrganization($validated['scenario_ids'])) {
@@ -317,7 +328,7 @@ class QuantificationController extends Controller
      */
     public function cancelSimulation(Request $request, SimulationRun $simulation)
     {
-        $this->authorizeTenant($simulation->organization_id);
+        $this->allow('cancel', $simulation);
 
         if (! $this->simulations->requestCancellation($simulation, $request->user())) {
             return back()->with('error', 'That simulation has already finished.');
@@ -353,7 +364,7 @@ class QuantificationController extends Controller
      */
     public function showResults(SimulationRun $simulation)
     {
-        $this->authorizeTenant($simulation->organization_id, 'Unauthorized access to this simulation.');
+        $this->allow('view', $simulation);
 
         return view('risk.quantification.show-results', array_merge(
             ['result' => $simulation],
@@ -466,7 +477,7 @@ class QuantificationController extends Controller
      */
     public function editScenario(QuantificationScenario $scenario)
     {
-        $orgId = $this->authorizeTenant($scenario->organization_id);
+        $orgId = $this->allow('update', $scenario);
 
         $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
         $categories = RiskCategory::where('organization_id', $orgId)->orderBy('name')->get();
@@ -483,6 +494,8 @@ class QuantificationController extends Controller
      */
     public function importLibrary(Request $request, string $libraryId, ScenarioLibrary $library)
     {
+        Gate::authorize('import', QuantificationScenario::class);
+
         $template = $library->find($libraryId);
 
         if ($template === null) {

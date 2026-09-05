@@ -196,7 +196,31 @@ generalised — *a test that POSTs a route is not a test of the form in front of
 it* — and it means a field that saves nothing cannot be added to this screen
 without turning it red.
 
+## The three policies
+
+`QuantificationScenarioPolicy`, `SimulationRunPolicy` and
+`IcaapAssessmentPolicy`, each named for its model so Laravel discovers it, each
+carrying the tenant check the controller used to write out by hand.
+
+Two separations they exist to make, both of which had been unenforceable:
+
+- **Running is not calibrating.** `quantification.run_simulation` has always
+  been a separate seeded permission from `quantification.create`, and no route
+  distinguished them beyond the middleware. A run over a real scenario set is
+  tens of thousands of iterations per scenario, and its number is presented to
+  a board and filed with the CBN — somebody trusted to calibrate a scenario is
+  not automatically trusted to publish a capital figure from it. Cancelling
+  asks for the RUN ability rather than an edit one: whoever may start the work
+  may stop it.
+- **Signing off is not preparing.** `quantification.approve_icaap` was seeded
+  with the rest of the set and, until `IcaapAssessmentPolicy`, was read by
+  nothing at all — `approved_by_board`, `board_approval_date`,
+  `cbn_submission_date` and `cbn_submission_ref` sit on the assessment and no
+  screen had ever guarded writing them. The policy does NOT hardcode
+  preparer ≠ approver: segregation of duties is the tenant's role assignment to
+  make, and the abilities are separate so it CAN be made.
+
 ## Numbers
 
-`QuantificationController` 1,611 → 507 lines. Criterion 3 wants under 300 with
+`QuantificationController` 1,611 → 520 lines. Criterion 3 wants under 300 with
 no method over 40; the pages are the rest of the distance.

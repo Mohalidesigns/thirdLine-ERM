@@ -1,18 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$cbn_report_deadline\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Console/Commands/CheckRegulatoryDeadlines.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$nfiu_report_deadline\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Console/Commands/CheckRegulatoryDeadlines.php
-
-		-
 			message: '#^Relation ''bundle'' is not found in App\\Models\\ConfigBundleApplication model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -143,12 +131,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Grids/Definitions/NearMissesGrid.php
-
-		-
-			message: '#^Relation ''assignee'' is not found in App\\Models\\RegulatoryCircular model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Grids/Definitions/RegulatoryCircularsGrid.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$previous_overall_score\.$#'
@@ -401,36 +383,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/Risk/PeriodController.php
-
-		-
-			message: '#^Relation ''assignee'' is not found in App\\Models\\RegulatoryCircular model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/RegulatoryComplianceController.php
-
-		-
-			message: '#^Relation ''children'' is not found in App\\Models\\RiskTaxonomy model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/RegulatoryComplianceController.php
-
-		-
-			message: '#^Relation ''responsible'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Risk/RegulatoryComplianceController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RegulatoryDeadline\:\:\$filings\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/ReportController.php
-
-		-
-			message: '#^Relation ''filings'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/ReportController.php
 
 		-
 			message: '#^Using nullsafe method call on non\-nullable type mixed\. Use \-\> instead\.$#'
@@ -1381,19 +1333,7 @@ parameters:
 			path: app/Services/BoardPackAssembler.php
 
 		-
-			message: '#^Relation ''filings'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/BoardPackAssembler.php
-
-		-
 			message: '#^Relation ''owner'' is not found in App\\Models\\Issue model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/BoardPackAssembler.php
-
-		-
-			message: '#^Relation ''responsible'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Services/BoardPackAssembler.php
@@ -1501,36 +1441,6 @@ parameters:
 			path: app/Services/PeriodService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\RegulatoryCircular\:\:\$assignee\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RegulatoryPulseService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RegulatoryDeadline\:\:\$responsible\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RegulatoryPulseService.php
-
-		-
-			message: '#^Relation ''assignee'' is not found in App\\Models\\RegulatoryCircular model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/RegulatoryPulseService.php
-
-		-
-			message: '#^Relation ''filings'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/RegulatoryPulseService.php
-
-		-
-			message: '#^Relation ''responsible'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/RegulatoryPulseService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Control\:\:\$coverage_scope\.$#'
 			identifier: property.notFound
 			count: 1
@@ -1577,18 +1487,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Services/RegulatoryReportService.php
-
-		-
-			message: '#^Relation ''filings'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/ReportDataService.php
-
-		-
-			message: '#^Relation ''responsible'' is not found in App\\Models\\RegulatoryDeadline model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/ReportDataService.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'

@@ -4,116 +4,126 @@ namespace App\Http\Controllers\Risk;
 
 use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Regulatory\StoreCircularRequest;
+use App\Http\Requests\Regulatory\StoreDeadlineRequest;
+use App\Http\Requests\Regulatory\StoreTaxonomyRequest;
+use App\Http\Requests\Regulatory\SubmitFilingRequest;
+use App\Http\Requests\Regulatory\UpdateComplianceRequest;
 use App\Models\RegulatoryCircular;
 use App\Models\RegulatoryDeadline;
 use App\Models\RegulatoryFiling;
+use App\Models\Risk;
+use App\Models\RiskTaxonomy;
+use App\Models\User;
 use App\Presenters\GridPresenter;
+use App\Services\Regulatory\RegulatoryDashboardService;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
+/**
+ * Regulatory compliance — the circular register, the filing calendar and the
+ * risk taxonomy (migration Phase 5.3).
+ *
+ * Authorisation is by policy per model (RegulatoryCircularPolicy,
+ * RegulatoryDeadlinePolicy, RiskTaxonomyPolicy) and every foreign key goes
+ * through a Form Request carrying a tenant-bound Rule::exists — neither of
+ * which this controller had. The figures are RegulatoryDashboardService's.
+ */
 class RegulatoryComplianceController extends Controller
 {
+    public function __construct(private readonly RegulatoryDashboardService $dashboards) {}
+
     public function dashboard()
     {
-        $orgId = auth()->user()->organization_id;
+        Gate::authorize('viewAny', RegulatoryCircular::class);
 
-        $upcomingDeadlines = RegulatoryDeadline::where('organization_id', $orgId)
-            ->where('deadline_date', '>=', now())
-            ->where('status', '!=', 'submitted')
-            ->orderBy('deadline_date')
-            ->take(10)
-            ->get();
-
-        $overdueCount = RegulatoryDeadline::where('organization_id', $orgId)
-            ->where('deadline_date', '<', now())
-            ->whereNotIn('status', ['submitted', 'not_applicable'])
-            ->count();
-
-        $totalCirculars = RegulatoryCircular::where('organization_id', $orgId)->count();
-        $pendingCompliance = RegulatoryCircular::where('organization_id', $orgId)->whereIn('compliance_status', ['not_assessed', 'partially_compliant', 'non_compliant'])->count();
-        $compliantCirculars = RegulatoryCircular::where('organization_id', $orgId)->where('compliance_status', 'compliant')->count();
-        $complianceRate = $totalCirculars > 0 ? round($compliantCirculars / $totalCirculars * 100, 1) : 0;
-
-        $recentCirculars = RegulatoryCircular::where('organization_id', $orgId)
-            ->with('assignee')
-            ->latest('date_issued')
-            ->take(10)
-            ->get();
-
-        $regulatorStats = RegulatoryCircular::where('organization_id', $orgId)
-            ->selectRaw('regulator, COUNT(*) as total, SUM(CASE WHEN compliance_status = \'compliant\' THEN 1 ELSE 0 END) as compliant_count')
-            ->groupBy('regulator')
-            ->get();
-
-        return view('risk.regulatory.dashboard', compact(
-            'upcomingDeadlines', 'overdueCount', 'totalCirculars', 'pendingCompliance',
-            'complianceRate', 'recentCirculars', 'regulatorStats'
-        ));
+        return Inertia::render('Regulatory/Dashboard', $this->dashboards->figures());
     }
 
+    /**
+     * A month of the filing calendar.
+     *
+     * The month and year are validated rather than taken raw: they reach
+     * whereMonth/whereYear, and the page's own prev/next links are built from
+     * them.
+     */
     public function calendar(Request $request)
     {
-        $orgId = auth()->user()->organization_id;
-        $month = $request->get('month', now()->month);
-        $year = $request->get('year', now()->year);
+        Gate::authorize('viewAny', RegulatoryDeadline::class);
 
-        $deadlines = RegulatoryDeadline::where('organization_id', $orgId)
+        $validated = $request->validate([
+            'month' => ['nullable', 'integer', 'min:1', 'max:12'],
+            'year' => ['nullable', 'integer', 'min:2000', 'max:2100'],
+        ]);
+
+        $month = (int) ($validated['month'] ?? now()->month);
+        $year = (int) ($validated['year'] ?? now()->year);
+
+        $deadlines = RegulatoryDeadline::where('organization_id', TenantContext::organizationId())
             ->whereMonth('deadline_date', $month)
             ->whereYear('deadline_date', $year)
             ->with('responsible')
             ->orderBy('deadline_date')
-            ->get();
+            ->get()
+            ->map(fn (RegulatoryDeadline $deadline) => $this->presentDeadline($deadline))
+            ->values();
 
-        return view('risk.regulatory.calendar', compact('deadlines', 'month', 'year'));
+        return Inertia::render('Regulatory/Calendar', [
+            'deadlines' => $deadlines,
+            'month' => $month,
+            'year' => $year,
+        ]);
     }
 
     public function deadlines(Request $request)
     {
-        $orgId = auth()->user()->organization_id;
-        $query = RegulatoryDeadline::where('organization_id', $orgId)->with('responsible');
+        Gate::authorize('viewAny', RegulatoryDeadline::class);
+
+        $query = RegulatoryDeadline::where('organization_id', TenantContext::organizationId())
+            ->with('responsible');
 
         if ($request->filled('regulator')) {
-            $query->where('regulator', $request->regulator);
+            $query->where('regulator', $request->string('regulator'));
         }
+
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->where('status', $request->string('status'));
         }
 
-        $deadlines = $query->orderBy('deadline_date')->paginate(20);
+        $deadlines = $query->orderBy('deadline_date')->paginate(20)->withQueryString();
 
-        return view('risk.regulatory.deadlines', compact('deadlines'));
+        $deadlines->through(fn (RegulatoryDeadline $deadline) => $this->presentDeadline($deadline));
+
+        return Inertia::render('Regulatory/Deadlines/Index', [
+            'deadlines' => $deadlines,
+            'filters' => $request->only(['regulator', 'status']),
+            'regulators' => $this->regulators(),
+            'statuses' => RegulatoryDeadline::STATUSES,
+            'canFile' => Gate::allows('create', RegulatoryDeadline::class),
+        ]);
     }
 
     public function createDeadline()
     {
-        $users = \App\Models\User::where('organization_id', auth()->user()->organization_id)->where('is_active', true)->orderBy('name')->get();
+        Gate::authorize('create', RegulatoryDeadline::class);
 
-        return view('risk.regulatory.create-deadline', compact('users'));
+        return Inertia::render('Regulatory/Deadlines/Create', [
+            'users' => $this->assignableUsers(),
+            'frequencies' => StoreDeadlineRequest::FREQUENCIES,
+        ]);
     }
 
-    public function storeDeadline(Request $request)
+    public function storeDeadline(StoreDeadlineRequest $request)
     {
-        $request->validate([
-            'regulator' => 'required|string|max:50',
-            'report_type' => 'required|string|max:255',
-            'title' => 'required|string|max:255',
-            'deadline_date' => 'required|date',
-            'frequency' => 'required',
-        ]);
-
-        RegulatoryDeadline::create([
-            'organization_id' => auth()->user()->organization_id,
-            'regulator' => $request->regulator,
-            'report_type' => $request->report_type,
-            'title' => $request->title,
-            'description' => $request->description,
-            'deadline_date' => $request->deadline_date,
-            'frequency' => $request->frequency,
-            'responsible_id' => $request->responsible_id,
+        $deadline = RegulatoryDeadline::create(array_merge($request->validated(), [
+            'organization_id' => TenantContext::organizationId(),
             'status' => 'upcoming',
-        ]);
+        ]));
 
-        return redirect()->route('risk.regulatory.deadlines')->with('success', 'Regulatory deadline created.');
+        return redirect()->route('risk.regulatory.deadlines')
+            ->with('success', "Deadline \"{$deadline->title}\" added to the calendar.");
     }
 
     /**
@@ -124,6 +134,8 @@ class RegulatoryComplianceController extends Controller
      */
     public function circulars(Request $request, GridPresenter $presenter)
     {
+        Gate::authorize('viewAny', RegulatoryCircular::class);
+
         return Inertia::render('Regulatory/Circulars', [
             'grid' => fn () => $presenter->present(GridRegistry::resolve('circulars'), $request, $request->user()),
         ]);
@@ -131,114 +143,199 @@ class RegulatoryComplianceController extends Controller
 
     public function createCircular()
     {
-        $orgId = auth()->user()->organization_id;
-        $users = \App\Models\User::where('organization_id', $orgId)->where('is_active', true)->orderBy('name')->get();
-        $risks = \App\Models\Risk::where('organization_id', $orgId)->orderBy('title')->get();
+        Gate::authorize('create', RegulatoryCircular::class);
 
-        return view('risk.regulatory.create-circular', compact('users', 'risks'));
+        return Inertia::render('Regulatory/Circulars/Create', [
+            'users' => $this->assignableUsers(),
+            // The form now RENDERS these. createCircular() has always loaded
+            // every risk in the organisation and the Blade form showed none of
+            // them, so the query ran on every page load and
+            // `affected_risk_ids` — a column the store path writes and the
+            // model casts — could never be set through the interface.
+            'risks' => Risk::where('organization_id', TenantContext::organizationId())
+                ->where('status', 'active')
+                ->orderBy('risk_code')
+                ->get(['id', 'risk_code', 'title'])
+                ->values()
+                ->all(),
+            'impactLevels' => StoreCircularRequest::IMPACT_LEVELS,
+        ]);
     }
 
-    public function storeCircular(Request $request)
+    public function storeCircular(StoreCircularRequest $request)
     {
-        $request->validate([
-            'regulator' => 'required|string|max:50',
-            'circular_ref' => 'required|string|max:100',
-            'title' => 'required|string|max:255',
-            'date_issued' => 'required|date',
-        ]);
-
-        RegulatoryCircular::create([
-            'organization_id' => auth()->user()->organization_id,
-            'regulator' => $request->regulator,
-            'circular_ref' => $request->circular_ref,
-            'title' => $request->title,
-            'date_issued' => $request->date_issued,
-            'effective_date' => $request->effective_date,
-            'summary' => $request->summary,
-            'impact_level' => $request->impact_level ?? 'medium',
+        $circular = RegulatoryCircular::create(array_merge($request->validated(), [
+            'organization_id' => TenantContext::organizationId(),
+            'impact_level' => $request->validated('impact_level') ?? 'medium',
             'compliance_status' => 'not_assessed',
-            'action_required' => $request->action_required,
-            'assigned_to' => $request->assigned_to,
-            'affected_risk_ids' => $request->affected_risk_ids,
-        ]);
+        ]));
 
-        return redirect()->route('risk.regulatory.circulars')->with('success', 'Regulatory circular recorded.');
+        return redirect()->route('risk.regulatory.show-circular', $circular)
+            ->with('success', "Circular {$circular->circular_ref} recorded.");
     }
 
     public function showCircular(RegulatoryCircular $circular)
     {
+        Gate::authorize('view', $circular);
+
         $circular->load('assignee');
 
-        return view('risk.regulatory.show-circular', compact('circular'));
+        return Inertia::render('Regulatory/Circulars/Show', [
+            'circular' => array_merge($circular->only([
+                'id', 'regulator', 'circular_ref', 'title', 'date_issued', 'effective_date',
+                'summary', 'impact_level', 'compliance_status', 'compliance_pct', 'action_required',
+            ]), [
+                'assignee' => $circular->assignee?->only(['id', 'name', 'email']),
+            ]),
+            'affectedRisks' => $this->affectedRisks($circular),
+            'statuses' => UpdateComplianceRequest::STATUSES,
+            'canAssess' => Gate::allows('assessCompliance', $circular),
+        ]);
     }
 
-    public function updateCompliance(Request $request, RegulatoryCircular $circular)
+    public function updateCompliance(UpdateComplianceRequest $request, RegulatoryCircular $circular)
     {
-        $request->validate([
-            'compliance_status' => 'required|in:not_assessed,compliant,partially_compliant,non_compliant,not_applicable',
-            'compliance_pct' => 'nullable|numeric|min:0|max:100',
-        ]);
-
-        $circular->update($request->only(['compliance_status', 'compliance_pct', 'action_required']));
+        $circular->update($request->validated());
 
         return back()->with('success', 'Compliance status updated.');
     }
 
-    public function submitFiling(Request $request, RegulatoryDeadline $deadline)
+    public function submitFiling(SubmitFilingRequest $request, RegulatoryDeadline $deadline)
     {
-        $request->validate([
-            'filing_date' => 'required|date',
-            'document_ref' => 'nullable|string',
-        ]);
-
-        RegulatoryFiling::create([
+        RegulatoryFiling::create(array_merge($request->validated(), [
             'deadline_id' => $deadline->id,
-            'filing_date' => $request->filing_date,
-            'filed_by' => auth()->id(),
+            'filed_by' => $request->user()->id,
             'status' => 'submitted',
-            'document_ref' => $request->document_ref,
-            'notes' => $request->notes,
-        ]);
+        ]));
 
         $deadline->update(['status' => 'submitted']);
 
-        return back()->with('success', 'Filing submitted.');
+        return back()->with('success', "Filing recorded against \"{$deadline->title}\".");
     }
 
     public function taxonomyIndex()
     {
-        $orgId = auth()->user()->organization_id;
-        $taxonomies = \App\Models\RiskTaxonomy::where('organization_id', $orgId)
-            ->whereNull('parent_id')
-            ->with('children.children')
-            ->orderBy('sort_order')
-            ->get();
+        Gate::authorize('viewAny', RiskTaxonomy::class);
 
-        return view('risk.regulatory.taxonomy', compact('taxonomies'));
+        $orgId = TenantContext::organizationId();
+
+        // The whole tree in one query, assembled in memory. The Blade version
+        // eager-loaded `children.children` while its partial recursed to any
+        // depth, so every node below the second level cost its own query.
+        $nodes = RiskTaxonomy::where('organization_id', $orgId)
+            ->orderBy('sort_order')->orderBy('name')
+            ->get(['id', 'name', 'description', 'framework', 'parent_id', 'depth']);
+
+        return Inertia::render('Regulatory/Taxonomy', [
+            'tree' => $this->taxonomyTree($nodes),
+            // The parent picker. The Blade template ran this query inside the
+            // view itself.
+            'parentOptions' => $nodes->map(fn ($node) => [
+                'id' => $node->id,
+                'name' => $node->name,
+                'depth' => (int) $node->depth,
+            ])->values(),
+            'frameworks' => RiskTaxonomy::FRAMEWORKS,
+            'canManage' => Gate::allows('create', RiskTaxonomy::class),
+        ]);
     }
 
-    public function storeTaxonomy(Request $request)
+    public function storeTaxonomy(StoreTaxonomyRequest $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'framework' => 'nullable|string|max:50',
-        ]);
+        $validated = $request->validated();
 
-        $parentDepth = 0;
-        if ($request->parent_id) {
-            $parent = \App\Models\RiskTaxonomy::find($request->parent_id);
-            $parentDepth = $parent ? $parent->depth + 1 : 0;
-        }
+        $parent = isset($validated['parent_id'])
+            ? RiskTaxonomy::find($validated['parent_id'])
+            : null;
 
-        \App\Models\RiskTaxonomy::create([
-            'organization_id' => auth()->user()->organization_id,
-            'name' => $request->name,
-            'description' => $request->description,
-            'framework' => $request->framework,
-            'parent_id' => $request->parent_id,
-            'depth' => $parentDepth,
-        ]);
+        RiskTaxonomy::create(array_merge($validated, [
+            'organization_id' => TenantContext::organizationId(),
+            'depth' => $parent ? $parent->depth + 1 : 0,
+        ]));
 
         return back()->with('success', 'Taxonomy node added.');
+    }
+
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * A deadline as every screen in this module lists it.
+     *
+     * @return array<string, mixed>
+     */
+    private function presentDeadline(RegulatoryDeadline $deadline): array
+    {
+        return array_merge($deadline->only([
+            'id', 'regulator', 'report_type', 'title', 'description', 'deadline_date', 'frequency', 'status',
+        ]), [
+            'is_overdue' => $deadline->isOverdue(),
+            'responsible' => $deadline->responsible?->only(['id', 'name']),
+        ]);
+    }
+
+    /**
+     * The risks a circular names, resolved for display.
+     *
+     * `affected_risk_ids` is a json array of ids; the show page listed nothing
+     * from it.
+     *
+     * @return list<mixed>
+     */
+    private function affectedRisks(RegulatoryCircular $circular): array
+    {
+        $ids = array_filter((array) ($circular->affected_risk_ids ?? []));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return Risk::where('organization_id', $circular->organization_id)
+            ->whereIn('id', $ids)
+            ->orderBy('risk_code')
+            ->get(['id', 'risk_code', 'title'])
+            ->values()
+            ->all();
+    }
+
+    /** @return list<mixed> */
+    private function assignableUsers(): array
+    {
+        return User::where('organization_id', TenantContext::organizationId())
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->values()
+            ->all();
+    }
+
+    /** The regulators this organisation's own calendar names. @return list<string> */
+    private function regulators(): array
+    {
+        return RegulatoryDeadline::where('organization_id', TenantContext::organizationId())
+            ->distinct()->orderBy('regulator')->pluck('regulator')->all();
+    }
+
+    /**
+     * Nest a flat node list into a tree.
+     *
+     * @param  \Illuminate\Support\Collection<int, RiskTaxonomy>  $nodes
+     * @return list<array<string, mixed>>
+     */
+    private function taxonomyTree(\Illuminate\Support\Collection $nodes): array
+    {
+        $byParent = $nodes->groupBy(fn ($node) => $node->parent_id ?? 0);
+
+        $build = function (int $parentId) use (&$build, $byParent): array {
+            return $byParent->get($parentId, collect())
+                ->map(fn ($node) => [
+                    'id' => $node->id,
+                    'name' => $node->name,
+                    'description' => $node->description,
+                    'framework' => $node->framework,
+                    'children' => $build($node->id),
+                ])->values()->all();
+        };
+
+        return $build(0);
     }
 }

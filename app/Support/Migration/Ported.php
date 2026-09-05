@@ -57,6 +57,14 @@ final class Ported
         'risk.reports.library',
         'risk.approvals.history',
         'risk.regulatory.circulars',
+        // Phase 5.3
+        'risk.regulatory.dashboard',
+        'risk.regulatory.calendar',
+        'risk.regulatory.deadlines',
+        'risk.regulatory.create-deadline',
+        'risk.regulatory.create-circular',
+        'risk.regulatory.show-circular',
+        'risk.regulatory.taxonomy',
         // Phase 3 — appetite
         'risk.appetite.index',
         // Phase 3 — scoping

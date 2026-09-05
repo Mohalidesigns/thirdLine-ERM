@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class RegulatoryCircular extends Model
@@ -25,12 +26,14 @@ class RegulatoryCircular extends Model
         'compliance_pct' => 'decimal:2',
     ];
 
-    public function organization()
+    /** @return BelongsTo<Organization, $this> */
+    public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }
 
-    public function assignee()
+    /** @return BelongsTo<User, $this> */
+    public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
     }

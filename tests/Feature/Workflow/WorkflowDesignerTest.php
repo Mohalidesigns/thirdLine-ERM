@@ -2,12 +2,10 @@
 
 namespace Tests\Feature\Workflow;
 
-use App\Livewire\Admin\WorkflowDesigner;
 use App\Models\WorkflowDefinition;
 use App\Services\Workflow\WorkflowDefinitionValidator;
 use App\Services\Workflow\WorkflowPublisher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Tests\Support\CreatesDomainFixtures;
@@ -22,6 +20,12 @@ use Tests\TestCase;
  * running instance nobody can clear — a task on a queue with no way to close it
  * and a record stuck in review. That is why publish is where correctness is
  * demanded rather than merely encouraged.
+ *
+ * Migration Phase 6.5 replaced the Livewire designer with a page that posts the
+ * whole graph. The three tests that drove the component now drive the routes,
+ * and one of them asserts something stronger than it used to: a rename that
+ * leaves an edge pointing at the old code was a UI concern before, and is a
+ * server-side refusal now.
  */
 class WorkflowDesignerTest extends TestCase
 {
@@ -244,23 +248,57 @@ class WorkflowDesignerTest extends TestCase
     }
 
     /* ================================================================== */
-    /*  The Livewire designer */
+    /*  The designer */
     /* ================================================================== */
+
+    /**
+     * The skeleton the designer opens with, with the review step assigned.
+     *
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function design(array $overrides = []): array
+    {
+        return array_merge([
+            'code' => 'designer_made',
+            'name' => 'Designer made',
+            'entity_type' => 'risk_assessment',
+            'trigger' => 'manual',
+            'definition' => [
+                'nodes' => [
+                    ['code' => 'start', 'type' => 'start', 'name' => 'Submitted', 'x' => 40, 'y' => 120],
+                    ['code' => 'review', 'type' => 'approval', 'name' => 'Review',
+                        'assignee_rule' => 'role', 'assignee_config' => ['roles' => ['risk-manager']],
+                        'sla_hours' => 72, 'on_timeout' => 'escalate',
+                        'allow_delegate' => true, 'allow_return' => true, 'x' => 280, 'y' => 120],
+                    ['code' => 'approved', 'type' => 'end', 'name' => 'Approved',
+                        'outcome' => 'approved', 'x' => 540, 'y' => 60],
+                    ['code' => 'rejected', 'type' => 'end', 'name' => 'Rejected',
+                        'outcome' => 'rejected', 'x' => 540, 'y' => 200],
+                ],
+                'edges' => [
+                    ['from' => 'start', 'to' => 'review'],
+                    ['from' => 'review', 'to' => 'rejected', 'when' => "outcome == 'reject'", 'label' => 'Rejected'],
+                    ['from' => 'review', 'to' => 'approved', 'label' => 'Approved'],
+                ],
+            ],
+        ], $overrides);
+    }
 
     #[Test]
     public function the_designer_saves_a_draft_and_publishes_it(): void
     {
-        Livewire::test(WorkflowDesigner::class)
-            ->set('code', 'designer_made')
-            ->set('name', 'Designer made')
-            ->set('entityType', 'risk_assessment')
-            ->set('nodes.1.assignee_config.roles', ['risk-manager'])
-            ->call('publish')
-            ->assertHasNoErrors();
+        $this->post(route('risk.workflows.create-design'), $this->design())
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
 
-        $definition = WorkflowDefinition::withoutGlobalScopes()->where('code', 'designer_made')->first();
+        $definition = WorkflowDefinition::withoutGlobalScopes()->where('code', 'designer_made')->firstOrFail();
 
-        $this->assertNotNull($definition);
+        $this->post(route('risk.workflows.publish-definition', $definition->id))
+            ->assertSessionHasNoErrors();
+
+        $definition->refresh();
+
         $this->assertTrue($definition->is_published);
         $this->assertSame(1, $definition->version);
         $this->assertTrue($definition->isGraphBased());
@@ -269,37 +307,53 @@ class WorkflowDesignerTest extends TestCase
     #[Test]
     public function the_designer_refuses_to_publish_a_broken_graph(): void
     {
-        $component = Livewire::test(WorkflowDesigner::class)
-            ->set('code', 'still_broken')
-            ->set('name', 'Still broken')
-            ->set('entityType', 'risk_assessment')
-            ->set('nodes.1.assignee_config.roles', ['risk-manager'])
-            // Delete both ends, leaving the review step with nowhere to go.
-            ->call('deleteNode', 'approved')
-            ->call('deleteNode', 'rejected')
-            ->call('publish');
+        // Both ends removed, leaving the review step with nowhere to go. The
+        // DRAFT still saves — a half-drawn process is a normal thing to have —
+        // and publishing is what refuses.
+        $design = $this->design(['code' => 'still_broken', 'name' => 'Still broken']);
+        $design['definition']['nodes'] = array_slice($design['definition']['nodes'], 0, 2);
+        $design['definition']['edges'] = [['from' => 'start', 'to' => 'review']];
 
-        $errors = $component->get('publishErrors');
+        $this->post(route('risk.workflows.create-design'), $design)
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
 
-        $this->assertNotEmpty($errors);
-        $this->assertFalse(
-            WorkflowDefinition::withoutGlobalScopes()->where('code', 'still_broken')->value('is_published') ?? false
-        );
+        $definition = WorkflowDefinition::withoutGlobalScopes()->where('code', 'still_broken')->firstOrFail();
+
+        $this->post(route('risk.workflows.publish-definition', $definition->id))
+            ->assertSessionHas('error');
+
+        $this->assertFalse((bool) $definition->fresh()->is_published);
     }
 
     #[Test]
-    public function renaming_a_step_rewires_its_connections(): void
+    public function an_edge_pointing_at_a_step_that_is_not_on_the_canvas_is_refused(): void
     {
-        $component = Livewire::test(WorkflowDesigner::class)
-            ->call('renameNode', 'review', 'risk manager review');
+        // Renaming a step without rewiring is the mistake this refusal exists
+        // to prevent: it leaves edges pointing at a step that no longer exists,
+        // and the failure surfaces as a workflow that silently stops. The
+        // designer rewires on rename; this is the backstop, and it names the
+        // exact edge so the page can point at it.
+        $design = $this->design();
+        $design['definition']['nodes'][1]['code'] = 'risk_manager_review';
 
-        $edges = collect($component->get('edges'));
+        $this->post(route('risk.workflows.create-design'), $design)
+            ->assertSessionHasErrors(['definition.edges.0.to', 'definition.edges.1.from']);
 
-        $this->assertTrue(
-            $edges->contains(fn (array $e) => $e['from'] === 'risk_manager_review' || $e['to'] === 'risk_manager_review'),
-            'A rename that leaves edges pointing at the old code produces a workflow that silently stops.'
-        );
-        $this->assertFalse($edges->contains(fn (array $e) => $e['from'] === 'review' || $e['to'] === 'review'));
+        $this->assertDatabaseMissing('workflow_definitions', ['code' => 'designer_made']);
+    }
+
+    #[Test]
+    public function an_escalation_rule_cannot_name_a_step_that_does_not_exist(): void
+    {
+        // A deadline that passes in silence is the one thing an escalation rule
+        // exists to prevent, and LifecycleBuilder's sibling defect — a rule
+        // validated by nothing at all — was the same shape.
+        $this->post(route('risk.workflows.create-design'), $this->design([
+            'escalation_rules' => [
+                ['node' => 'no_such_step', 'after_hours' => 24, 'action' => 'escalate'],
+            ],
+        ]))->assertSessionHasErrors('escalation_rules.0.node');
     }
 
     #[Test]

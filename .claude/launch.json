@@ -1,11 +1,11 @@
 {
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "laravel-dev",
-      "runtimeExecutable": "php",
-      "runtimeArgs": ["artisan", "serve", "--host=127.0.0.1", "--port=8765", "--no-reload"],
-      "port": 8765
-    }
-  ]
+    "version": "0.0.1",
+    "configurations": [
+        {
+            "name": "riskerm",
+            "runtimeExecutable": "php",
+            "runtimeArgs": ["artisan", "serve", "--port=8123"],
+            "port": 8123
+        }
+    ]
 }

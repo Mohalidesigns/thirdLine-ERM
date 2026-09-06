@@ -4,11 +4,16 @@ namespace App\Http\Controllers\Admin;
 
 use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\StoreUserRequest;
+use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Models\BusinessUnit;
 use App\Models\User;
 use App\Presenters\GridPresenter;
+use App\Support\AssignableRoles;
 use App\Support\Tenancy\TenantContext;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -38,31 +43,39 @@ class UserManagementController extends Controller
     }
 
     /**
+     * The lists both user forms offer.
+     *
+     * The roles list is `Role::all()` filtered to what this actor may hand out,
+     * which removes the last hard-coded role list in the product and is the
+     * same list StoreUserRequest validates against — 4.6's rule: what a form
+     * OFFERS must be what the validator ACCEPTS.
+     *
+     * @return array<string, mixed>
+     */
+    private function formOptions(): array
+    {
+        return [
+            'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name'])->values(),
+            'roles' => AssignableRoles::for(request()->user()),
+        ];
+    }
+
+    /**
      * Show the form for creating a new user
      */
     public function create()
     {
-        $businessUnits = BusinessUnit::orderBy('name')->get();
-        $roles = Role::orderBy('name')->get();
+        Gate::authorize('create', User::class);
 
-        return view('admin.users.create', compact('businessUnits', 'roles'));
+        return Inertia::render('Admin/Users/Create', $this->formOptions());
     }
 
     /**
      * Store a newly created user in storage
      */
-    public function store(Request $request)
+    public function store(StoreUserRequest $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users',
-            'staff_id' => 'required|string|unique:users',
-            'job_title' => 'required|string',
-            'department' => 'required|string',
-            'phone' => 'required|string',
-            'roles' => 'required|array|min:1',
-            'business_unit_id' => 'required|exists:business_units,id',
-        ]);
+        $validated = $request->validated();
 
         // Create user with temporary password
         $tempPassword = Str::random(12);
@@ -94,10 +107,40 @@ class UserManagementController extends Controller
      */
     public function show(User $user)
     {
+        Gate::authorize('view', $user);
+
         $user->load(['roles.permissions', 'businessUnit', 'organization']);
 
-        return view('admin.users.show', [
-            'user' => $user,
+        // getAllPermissions(), not roles.permissions: a user may hold a
+        // permission directly as well as through a role, and the Blade profile
+        // grouped the effective set. Grouping stays on the server because the
+        // "action module" convention in a permission name is the server's.
+        $permissions = $user->getAllPermissions()
+            ->groupBy(fn ($permission) => explode(' ', $permission->name)[1] ?? $permission->name)
+            ->map(fn ($group) => $group->map(fn ($permission) => explode(' ', $permission->name)[0])->values())
+            ->sortKeys();
+
+        return Inertia::render('Admin/Users/Show', [
+            'subject' => array_merge($user->only([
+                'id', 'name', 'email', 'staff_id', 'job_title', 'department', 'phone',
+                'is_active', 'must_change_password', 'mfa_enabled', 'last_login_at',
+                'password_changed_at', 'last_activity_at', 'locked_until', 'created_at',
+            ]), [
+                'business_unit' => $user->getRelationValue('businessUnit')?->name,
+                'organization' => $user->getRelationValue('organization')?->name,
+                // Carbon::parse rather than the cast: the same shape
+                // AuthenticatedSessionController uses to read this column.
+                'is_locked' => $user->locked_until !== null && Carbon::parse($user->locked_until)->isFuture(),
+                'roles' => $user->roles->map(fn (Role $role) => [
+                    'name' => $role->name,
+                    'permission_count' => $role->permissions->count(),
+                ])->values(),
+                'permissions' => $permissions,
+            ]),
+            'isSelf' => $user->id === request()->user()?->id,
+            'canManage' => Gate::allows('update', $user),
+            'canDeactivate' => Gate::allows('deactivate', $user),
+            'canResetPassword' => Gate::allows('resetPassword', $user),
         ]);
     }
 
@@ -106,31 +149,24 @@ class UserManagementController extends Controller
      */
     public function edit(User $user)
     {
-        $businessUnits = BusinessUnit::orderBy('name')->get();
-        $roles = Role::orderBy('name')->get();
+        Gate::authorize('update', $user);
 
-        return view('admin.users.edit', [
-            'user' => $user,
-            'businessUnits' => $businessUnits,
-            'roles' => $roles,
-        ]);
+        return Inertia::render('Admin/Users/Edit', array_merge($this->formOptions(), [
+            'subject' => array_merge($user->only([
+                'id', 'name', 'email', 'staff_id', 'job_title', 'department', 'phone', 'business_unit_id',
+            ]), ['roles' => $user->roles->pluck('name')->values()]),
+            // The roles field is disabled when an administrator is editing
+            // their own account; UpdateUserRequest refuses the change server-side.
+            'isSelf' => $user->id === request()->user()?->id,
+        ]));
     }
 
     /**
      * Update the specified user in storage
      */
-    public function update(Request $request, User $user)
+    public function update(UpdateUserRequest $request, User $user)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,'.$user->id,
-            'staff_id' => 'required|string|unique:users,staff_id,'.$user->id,
-            'job_title' => 'required|string',
-            'department' => 'required|string',
-            'phone' => 'required|string',
-            'roles' => 'required|array|min:1',
-            'business_unit_id' => 'required|exists:business_units,id',
-        ]);
+        $validated = $request->validated();
 
         $user->update([
             'name' => $validated['name'],
@@ -154,11 +190,10 @@ class UserManagementController extends Controller
      */
     public function destroy(User $user)
     {
-        // Prevent deactivating yourself
-        if ($user->id === auth()->id()) {
-            return redirect()->route('admin.users.index')
-                ->with('error', 'You cannot deactivate your own account.');
-        }
+        // "Never yourself" is UserPolicy::deactivate's rule now, so the same
+        // answer comes back whether it is asked from here, a form request or a
+        // console command.
+        Gate::authorize('deactivate', $user);
 
         $user->update(['is_active' => false]);
 
@@ -171,10 +206,7 @@ class UserManagementController extends Controller
      */
     public function toggleActive(User $user)
     {
-        // Prevent toggling yourself
-        if ($user->id === auth()->id()) {
-            return back()->with('error', 'You cannot change your own account status.');
-        }
+        Gate::authorize('deactivate', $user);
 
         $user->update(['is_active' => ! $user->is_active]);
 
@@ -189,6 +221,8 @@ class UserManagementController extends Controller
      */
     public function resetPassword(Request $request, User $user)
     {
+        Gate::authorize('resetPassword', $user);
+
         $tempPassword = Str::random(12);
 
         $user->update([

@@ -6,11 +6,10 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
     plugins: [
         laravel({
-            // Two JavaScript entries until Phase 6 of the migration programme:
-            // app.js boots Livewire + Alpine for the Blade screens that have not
-            // been ported yet, app.jsx boots Inertia + React for the ones that
-            // have. Both share one stylesheet.
-            input: ['resources/css/app.css', 'resources/js/app.js', 'resources/js/app.jsx'],
+            // One JavaScript entry since Phase 6.8 of the migration programme:
+            // app.jsx boots Inertia + React. The second entry, app.js, booted
+            // Livewire and Alpine for the Blade screens, and went with them.
+            input: ['resources/css/app.css', 'resources/js/app.jsx'],
             refresh: true,
         }),
         react(),

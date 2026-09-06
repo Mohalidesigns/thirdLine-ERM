@@ -2,10 +2,6 @@
 
 namespace Tests\Feature\Metadata;
 
-use App\Livewire\Admin\AttributeBuilder;
-use App\Livewire\Admin\LifecycleBuilder;
-use App\Livewire\Admin\ObjectTypeBuilder;
-use App\Livewire\Admin\RelationshipTypeBuilder;
 use App\Models\GraphObject;
 use App\Models\ObjectAttribute;
 use App\Models\ObjectRelationship;
@@ -15,7 +11,6 @@ use App\Services\Metadata\MetadataGuard;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
-use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
@@ -27,6 +22,17 @@ use Tests\TestCase;
  * The acceptance criterion is the first test: a new object type with five
  * custom fields, a relationship and a lifecycle, created entirely through the
  * UI with no code change. Everything after it is a way that could go wrong.
+ *
+ * Migration Phase 6.3 replaced the four Livewire components with pages and
+ * ordinary write routes. Every assertion below is the one it was; what changed
+ * is that the tests now post to the routes a browser posts to, which is a
+ * stricter thing to assert than a component's public properties — the Form
+ * Requests and the policies are in the path now, and they were not before.
+ *
+ * Every write asserts a REDIRECT as well as an empty error bag. On its own,
+ * `assertSessionHasNoErrors()` passes on a 500 — an exception puts nothing in
+ * the error bag — and during this port it did exactly that, twice, while the
+ * write silently never happened.
  */
 class ObjectTypeBuilderTest extends TestCase
 {
@@ -58,15 +64,13 @@ class ObjectTypeBuilderTest extends TestCase
     {
         /* ---- 1. the type ---- */
 
-        Livewire::test(ObjectTypeBuilder::class)
-            ->call('create')
-            ->set('name', 'Third Party')
-            ->set('code', 'ThirdParty')
-            ->set('category', 'governance')
-            ->set('icon', 'handshake')
-            ->set('code_prefix', 'TP')
-            ->call('save')
-            ->assertHasNoErrors();
+        $this->post(route('admin.builder.object-types.store'), [
+            'name' => 'Third Party',
+            'code' => 'ThirdParty',
+            'category' => 'governance',
+            'icon' => 'handshake',
+            'code_prefix' => 'TP',
+        ])->assertSessionHasNoErrors()->assertRedirect();
 
         $type = ObjectType::where('code', 'ThirdParty')->first();
 
@@ -81,19 +85,14 @@ class ObjectTypeBuilderTest extends TestCase
             ['code' => 'legal_name', 'label' => 'Legal name', 'data_type' => 'string', 'is_required' => true],
             ['code' => 'rc_number', 'label' => 'RC number', 'data_type' => 'string', 'is_unique' => true],
             ['code' => 'criticality', 'label' => 'Criticality', 'data_type' => 'enum',
-                'enum_options' => "Low\nMedium\nHigh"],
+                'enum_options' => ['Low', 'Medium', 'High']],
             ['code' => 'annual_spend', 'label' => 'Annual spend', 'data_type' => 'money'],
             ['code' => 'holds_customer_data', 'label' => 'Holds customer data', 'data_type' => 'bool', 'is_pii' => true],
         ];
 
         foreach ($fields as $field) {
-            $component = Livewire::test(AttributeBuilder::class, ['objectTypeId' => $type->id])->call('create');
-
-            foreach ($field as $property => $value) {
-                $component->set($property, $value);
-            }
-
-            $component->call('save')->assertHasNoErrors();
+            $this->post(route('admin.builder.attributes.store', $type->id), $field)
+                ->assertSessionHasNoErrors()->assertRedirect();
         }
 
         $this->assertCount(5, $type->fresh()->attributeDefinitions);
@@ -103,16 +102,15 @@ class ObjectTypeBuilderTest extends TestCase
 
         /* ---- 3. a relationship type, constrained to it ---- */
 
-        Livewire::test(RelationshipTypeBuilder::class)
-            ->call('create')
-            ->set('name', 'Supplied by')
-            ->set('code', 'supplied_by')
-            ->set('inverse_code', 'supplies')
-            ->set('from_type_ids', [ObjectType::resolve('Risk')->id])
-            ->set('to_type_ids', [$type->id])
-            ->set('has_weight', true)
-            ->call('save')
-            ->assertHasNoErrors();
+        $this->post(route('admin.builder.relationship-types.store'), [
+            'name' => 'Supplied by',
+            'code' => 'supplied_by',
+            'inverse_code' => 'supplies',
+            'cardinality' => 'many_to_many',
+            'from_type_ids' => [ObjectType::resolve('Risk')->id],
+            'to_type_ids' => [$type->id],
+            'has_weight' => true,
+        ])->assertSessionHasNoErrors()->assertRedirect();
 
         $relationship = ObjectRelationshipType::where('code', 'supplied_by')->first();
 
@@ -123,12 +121,11 @@ class ObjectTypeBuilderTest extends TestCase
 
         /* ---- 4. a lifecycle ---- */
 
-        Livewire::test(LifecycleBuilder::class)
-            ->call('create')
-            ->set('objectTypeId', $type->id)
-            ->set('name', 'Third party onboarding')
-            ->set('code', 'third-party-onboarding')
-            ->set('states', [
+        $this->post(route('admin.builder.lifecycles.store'), [
+            'object_type_id' => $type->id,
+            'name' => 'Third party onboarding',
+            'code' => 'third-party-onboarding',
+            'states' => [
                 ['code' => 'proposed', 'name' => 'Proposed', 'color' => '#3b82f6', 'is_initial' => true,
                     'is_terminal' => false, 'allowed_transitions' => ['due_diligence'],
                     'required_permission' => null, 'required_workflow_id' => null],
@@ -141,9 +138,8 @@ class ObjectTypeBuilderTest extends TestCase
                 ['code' => 'rejected', 'name' => 'Rejected', 'color' => '#ef4444', 'is_initial' => false,
                     'is_terminal' => true, 'allowed_transitions' => [],
                     'required_permission' => null, 'required_workflow_id' => null],
-            ])
-            ->call('save')
-            ->assertHasNoErrors();
+            ],
+        ])->assertSessionHasNoErrors()->assertRedirect();
 
         $lifecycle = $type->fresh()->lifecycles()->first();
 
@@ -179,10 +175,8 @@ class ObjectTypeBuilderTest extends TestCase
 
         $this->makeGraphObject($type, 'A record of that type');
 
-        Livewire::test(ObjectTypeBuilder::class)
-            ->call('confirmDelete', $type->id)
-            ->call('delete')
-            ->assertHasErrors('type');
+        $this->delete(route('admin.builder.object-types.destroy', $type->id))
+            ->assertSessionHasErrors('type');
 
         $this->assertNotNull($type->fresh(), 'the type should still be there');
     }
@@ -206,11 +200,12 @@ class ObjectTypeBuilderTest extends TestCase
 
         // Pointing A at B closes the loop A → B → A, which would spin every
         // attribute resolution in the product.
-        Livewire::test(ObjectTypeBuilder::class)
-            ->call('edit', $a->id)
-            ->set('parent_type_id', $b->id)
-            ->call('save')
-            ->assertHasErrors('parent_type_id');
+        $this->put(route('admin.builder.object-types.update', $a->id), [
+            'name' => $a->name,
+            'code' => $a->code,
+            'category' => $a->category,
+            'parent_type_id' => $b->id,
+        ])->assertSessionHasErrors('parent_type_id');
 
         $this->assertNull($a->fresh()->parent_type_id);
     }
@@ -220,17 +215,21 @@ class ObjectTypeBuilderTest extends TestCase
     {
         $risk = ObjectType::resolve('Risk');
 
-        Livewire::test(ObjectTypeBuilder::class)
-            ->call('edit', $risk->id)
-            ->set('code', 'RENAMED')
-            ->set('color', '#123456')
-            ->set('icon', 'shield')
-            ->call('save')
-            ->assertHasNoErrors();
+        // The code is posted anyway — a locked field is not a field an
+        // attacker cannot type — and the request drops it rather than trusting
+        // the form to have disabled the input.
+        $this->put(route('admin.builder.object-types.update', $risk->id), [
+            'name' => $risk->name,
+            'code' => 'RENAMED',
+            'category' => 'reference',
+            'color' => '#123456',
+            'icon' => 'shield',
+        ])->assertSessionHasNoErrors()->assertRedirect();
 
         $fresh = $risk->fresh();
 
         $this->assertSame('Risk', $fresh->code, 'the platform resolves system types by code from a dozen places');
+        $this->assertSame('governance', $fresh->category, 'nor is its category the tenant\'s to move');
         $this->assertSame('#123456', $fresh->color, 'presentation is the tenant\'s to change');
         $this->assertSame('shield', $fresh->icon);
     }
@@ -303,16 +302,29 @@ class ObjectTypeBuilderTest extends TestCase
     {
         $attribute = $this->fieldWithStoredValue('text', 'approximately ₦4m');
 
-        $component = Livewire::test(AttributeBuilder::class, ['objectTypeId' => $attribute->object_type_id])
-            ->call('edit', $attribute->id)
-            ->set('data_type', 'int');
+        // The warning is available as soon as the type is changed, not at
+        // save, when the rest of the form's state would already be lost.
+        $impact = $this->getJson(route('admin.builder.attributes.impact', [
+            $attribute->object_type_id, $attribute->id,
+        ]).'?data_type=int')->assertOk()->json();
 
-        // The warning appears as soon as the type is changed, not at save,
-        // when the rest of the form's state would already be lost.
-        $component->assertSet('needsMigrationPath', true);
-        $component->assertSet('affectedRecordCount', 1);
+        $this->assertTrue($impact['needs_migration_path']);
+        $this->assertSame(1, $impact['affected_records']);
 
-        $component->set('migrationStrategy', 'preserve_as_text')->call('save')->assertHasNoErrors();
+        // Saving without choosing a path is still refused.
+        $this->put(route('admin.builder.attributes.update', [$attribute->object_type_id, $attribute->id]),
+            $this->attributePayload($attribute, ['data_type' => 'int'])
+        )->assertSessionHasErrors();
+
+        $this->assertSame('text', $attribute->fresh()->data_type);
+
+        $this->put(route('admin.builder.attributes.update', [$attribute->object_type_id, $attribute->id]),
+            $this->attributePayload($attribute, [
+                'data_type' => 'int',
+                'confirm_lossy_change' => true,
+                'migration_strategy' => 'preserve_as_text',
+            ])
+        )->assertSessionHasNoErrors()->assertRedirect();
 
         $this->assertSame('int', $attribute->fresh()->data_type);
     }
@@ -322,12 +334,13 @@ class ObjectTypeBuilderTest extends TestCase
     {
         $attribute = $this->fieldWithStoredValue('text', 'approximately ₦4m');
 
-        Livewire::test(AttributeBuilder::class, ['objectTypeId' => $attribute->object_type_id])
-            ->call('edit', $attribute->id)
-            ->set('data_type', 'int')
-            ->set('migrationStrategy', 'clear')
-            ->call('save')
-            ->assertHasNoErrors();
+        $this->put(route('admin.builder.attributes.update', [$attribute->object_type_id, $attribute->id]),
+            $this->attributePayload($attribute, [
+                'data_type' => 'int',
+                'confirm_lossy_change' => true,
+                'migration_strategy' => 'clear',
+            ])
+        )->assertSessionHasNoErrors()->assertRedirect();
 
         $object = GraphObject::withoutGlobalScopes()
             ->where('object_type_id', $attribute->object_type_id)->first();
@@ -464,19 +477,19 @@ class ObjectTypeBuilderTest extends TestCase
         $system = \App\Models\ObjectLifecycle::where('is_system', true)->firstOrFail();
         $originalStates = $system->states;
 
-        Livewire::test(LifecycleBuilder::class)
-            ->call('edit', $system->id)
-            ->set('name', 'My own version')
-            ->set('states', [
+        $this->put(route('admin.builder.lifecycles.update', $system->id), [
+            'object_type_id' => $system->object_type_id,
+            'code' => $system->code,
+            'name' => 'My own version',
+            'states' => [
                 ['code' => 'open', 'name' => 'Open', 'color' => '#3b82f6', 'is_initial' => true,
                     'is_terminal' => false, 'allowed_transitions' => ['shut'],
                     'required_permission' => null, 'required_workflow_id' => null],
                 ['code' => 'shut', 'name' => 'Shut', 'color' => '#6b7280', 'is_initial' => false,
                     'is_terminal' => true, 'allowed_transitions' => [],
                     'required_permission' => null, 'required_workflow_id' => null],
-            ])
-            ->call('save')
-            ->assertHasNoErrors();
+            ],
+        ])->assertSessionHasNoErrors()->assertRedirect();
 
         $this->assertSame($originalStates, $system->fresh()->states, 'the seeded lifecycle must be untouched');
         $this->assertTrue($system->fresh()->is_system);
@@ -536,6 +549,25 @@ class ObjectTypeBuilderTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
+
+    /**
+     * A complete attribute payload, since the update route validates the whole
+     * field rather than the one property a Livewire `set()` used to touch.
+     *
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function attributePayload(ObjectAttribute $attribute, array $overrides = []): array
+    {
+        return array_merge([
+            'code' => $attribute->code,
+            'label' => $attribute->label,
+            'data_type' => $attribute->data_type,
+            'section' => $attribute->section ?: 'Details',
+            'sort_order' => (int) $attribute->sort_order,
+            'width' => $attribute->width ?: 'half',
+        ], $overrides);
+    }
 
     private function makeGraphObject(ObjectType $type, string $name): GraphObject
     {

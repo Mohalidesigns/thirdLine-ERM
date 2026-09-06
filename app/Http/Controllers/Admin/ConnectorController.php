@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Integrations\StoreConnectorRequest;
+use App\Http\Requests\Admin\Integrations\UpdateConnectorRequest;
 use App\Jobs\RunConnectorJob;
 use App\Models\Connector;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
 
 /**
  * WP-07 TASK 4 — configuring connectors and reading their run history.
@@ -20,35 +23,48 @@ class ConnectorController extends Controller
 {
     public function index()
     {
-        return view('admin.connectors.index', [
-            'connectors' => Connector::withCount('runs')->with('creator')->latest()->get(),
+        Gate::authorize('viewAny', Connector::class);
+
+        return Inertia::render('Admin/Connectors/Index', [
+            'connectors' => Connector::withCount('runs')->with('creator:id,name')->latest()->get()
+                ->map(fn (Connector $connector) => $this->present($connector))
+                ->values()->all(),
             'drivers' => $this->drivers(),
-            'schedules' => config('connectors.schedules'),
+            'schedules' => (array) config('connectors.schedules'),
+            'canManage' => Gate::allows('create', Connector::class),
         ]);
     }
 
     public function show(Connector $connector)
     {
-        $this->authorizeTenant($connector);
+        Gate::authorize('view', $connector);
 
-        return view('admin.connectors.show', [
-            'connector' => $connector,
+        $runs = $connector->runs()->with('triggerer:id,name')->latest()->paginate(25);
+
+        return Inertia::render('Admin/Connectors/Show', [
+            'connector' => $this->present($connector),
             'driver' => $this->drivers()[$connector->type] ?? null,
-            'runs' => $connector->runs()->with('triggerer')->paginate(25),
+            'schedules' => (array) config('connectors.schedules'),
+            'runs' => $runs->through(fn ($run) => array_merge($run->only([
+                'id', 'status', 'trigger', 'dry_run', 'records_read', 'records_written', 'records_skipped',
+            ]), [
+                'started_at' => $run->started_at?->toIso8601String(),
+                'finished_at' => $run->finished_at?->toIso8601String(),
+                // "Read 412, wrote 0" is the message an operator needs: a green
+                // tick over a sync that imported nothing is how a KRI quietly
+                // stops being measured.
+                'errors' => array_values((array) ($run->errors ?? [])),
+                'reconciliation' => (array) ($run->reconciliation ?? []),
+                'triggered_by' => $run->getRelationValue('triggerer')?->name,
+            ])),
+            'canManage' => Gate::allows('update', $connector),
+            'canRun' => Gate::allows('run', $connector),
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StoreConnectorRequest $request)
     {
-        $validated = $request->validate([
-            'type' => 'required|string|in:'.implode(',', array_keys((array) config('connectors.drivers'))),
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:1000',
-            'config' => 'nullable|array',
-            'credentials' => 'nullable|array',
-            'field_map' => 'nullable|array',
-            'schedule' => 'nullable|string|in:'.implode(',', array_keys((array) config('connectors.schedules'))),
-        ]);
+        $validated = $request->validated();
 
         $connector = Connector::create($validated + [
             'is_active' => true,
@@ -61,18 +77,10 @@ class ConnectorController extends Controller
                 .'dry run and produces a reconciliation rather than writing anything.');
     }
 
-    public function update(Request $request, Connector $connector)
+    public function update(UpdateConnectorRequest $request, Connector $connector)
     {
-        $this->authorizeTenant($connector);
-
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:1000',
-            'config' => 'nullable|array',
-            'field_map' => 'nullable|array',
-            'schedule' => 'nullable|string|in:'.implode(',', array_keys((array) config('connectors.schedules'))),
-            'is_active' => 'nullable|boolean',
-        ]);
+        $validated = $request->validated();
+        unset($validated['credentials']);
 
         // Credentials are only overwritten when something was actually typed:
         // the form renders them blank (they are never sent to the browser), so
@@ -97,7 +105,7 @@ class ConnectorController extends Controller
 
     public function destroy(Connector $connector)
     {
-        $this->authorizeTenant($connector);
+        Gate::authorize('delete', $connector);
 
         $connector->delete();
 
@@ -110,7 +118,7 @@ class ConnectorController extends Controller
      */
     public function test(Connector $connector)
     {
-        $this->authorizeTenant($connector);
+        Gate::authorize('test', $connector);
 
         $class = config('connectors.drivers.'.$connector->type);
 
@@ -125,7 +133,7 @@ class ConnectorController extends Controller
 
     public function run(Request $request, Connector $connector)
     {
-        $this->authorizeTenant($connector);
+        Gate::authorize('run', $connector);
 
         $dryRun = $request->boolean('dry_run')
             || ($connector->last_run_at === null && config('connectors.dry_run_first', true));
@@ -146,9 +154,26 @@ class ConnectorController extends Controller
 
     /* ------------------------------------------------------------------ */
 
-    private function authorizeTenant(Connector $connector): void
+    /**
+     * A connector as the screen may see it.
+     *
+     * CREDENTIALS ARE NEVER SENT. The form renders them blank and only
+     * overwrites what was typed, so a save cannot wipe what it was never shown.
+     *
+     * @return array<string, mixed>
+     */
+    private function present(Connector $connector): array
     {
-        abort_unless($connector->organization_id === TenantContext::organizationId(), 403);
+        return array_merge($connector->only([
+            'id', 'type', 'name', 'description', 'schedule', 'is_active',
+            'consecutive_failures', 'disabled_reason', 'runs_count',
+        ]), [
+            'config' => (array) ($connector->config ?? []),
+            'field_map' => (array) ($connector->field_map ?? []),
+            'has_credentials' => ! empty($connector->credentials),
+            'last_run_at' => $connector->last_run_at?->toIso8601String(),
+            'creator' => $connector->getRelationValue('creator')?->name,
+        ]);
     }
 
     /**

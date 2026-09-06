@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Enums\WorkflowNodeType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Workflow\ActOnInstanceRequest;
+use App\Http\Requests\Workflow\SaveWorkflowDesignRequest;
 use App\Http\Requests\Workflow\StartWorkflowRequest;
 use App\Http\Requests\Workflow\StoreWorkflowDefinitionRequest;
+use App\Models\ObjectType;
 use App\Models\User;
 use App\Models\WorkflowAction;
 use App\Models\WorkflowDefinition;
@@ -13,7 +16,9 @@ use App\Models\WorkflowInstance;
 use App\Models\WorkflowTask;
 use App\Presenters\WorkflowPresenter;
 use App\Services\Workflow\StartableSubjects;
+use App\Services\Workflow\SubjectRegistry;
 use App\Services\Workflow\WorkflowDashboardService;
+use App\Services\Workflow\WorkflowDefinitionValidator;
 use App\Services\Workflow\WorkflowEngine;
 use App\Services\Workflow\WorkflowPublisher;
 use App\Support\MorphTypes;
@@ -23,11 +28,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use RuntimeException;
+use Spatie\Permission\Models\Role;
 
 /**
- * Workflow dashboard, definitions and instances (migration Phase 3.7).
- * The designer (createDefinition / editDefinition) stays a Livewire screen
- * until Phase 6.
+ * Workflow dashboard, definitions and instances (migration Phase 3.7; the
+ * designer followed in Phase 6.5).
  */
 class WorkflowController extends Controller
 {
@@ -90,9 +95,13 @@ class WorkflowController extends Controller
      */
     public function createDefinition(Request $request)
     {
-        return view('risk.workflows.designer', [
-            'definitionId' => $request->integer('definition') ?: null,
-        ]);
+        Gate::authorize('create', WorkflowDefinition::class);
+
+        $existing = $request->integer('definition')
+            ? WorkflowDefinition::find($request->integer('definition'))
+            : null;
+
+        return Inertia::render('Workflows/Designer', $this->designerProps($existing));
     }
 
     public function editDefinition(WorkflowDefinition $definition)
@@ -105,8 +114,97 @@ class WorkflowController extends Controller
             ? $this->publisher->draftNewVersion($definition, auth()->user())
             : $definition;
 
-        return view('risk.workflows.designer', ['definitionId' => $draft->id]);
+        return Inertia::render('Workflows/Designer', $this->designerProps($draft));
     }
+
+    /**
+     * Save the whole design as a draft (migration Phase 6.5).
+     *
+     * VALIDATION IS ON PUBLISH, NOT HERE. A half-drawn process is a normal
+     * thing to have saved; what must never happen is a half-drawn process
+     * being the one new instances start on. So this accepts anything that
+     * could become a workflow and `liveErrors` reports what still stands
+     * between it and publishing, while publishDefinition() refuses.
+     */
+    public function updateDefinition(SaveWorkflowDesignRequest $request, ?WorkflowDefinition $definition = null)
+    {
+        $saved = $this->publisher->saveDraft($definition, $request->payload(), $request->user());
+
+        return redirect()
+            ->route('risk.workflows.edit-definition', $saved)
+            ->with('success', "Draft saved as version {$saved->version}.");
+    }
+
+    /**
+     * Everything the designer needs, for a new canvas or an existing draft.
+     *
+     * @return array<string, mixed>
+     */
+    private function designerProps(?WorkflowDefinition $definition): array
+    {
+        $graph = [
+            'nodes' => array_values((array) data_get($definition?->definition, 'nodes', [])),
+            'edges' => array_values((array) data_get($definition?->definition, 'edges', [])),
+        ];
+
+        return [
+            'definition' => $definition === null ? null : array_merge($definition->only([
+                'id', 'code', 'name', 'description', 'entity_type', 'object_type_id',
+                'trigger', 'version', 'is_published',
+            ]), [
+                'graph' => $graph,
+                'escalation_rules' => array_values((array) ($definition->escalation_rules ?? [])),
+                'can_publish' => Gate::allows('publish', $definition),
+            ]),
+            // What "New workflow" starts from. A blank canvas is not a useful
+            // starting point for a process: every approval begins somewhere and
+            // ends two ways, so the designer opens with that skeleton drawn.
+            'skeleton' => self::SKELETON,
+            'options' => [
+                'nodeTypes' => collect(WorkflowNodeType::cases())->map(fn (WorkflowNodeType $type) => [
+                    'value' => $type->value,
+                    'label' => $type->label(),
+                    'waits_for_human' => $type->waitsForHuman(),
+                ])->values(),
+                'roles' => Role::query()->orderBy('name')->pluck('name')->values(),
+                'users' => User::query()
+                    ->where('organization_id', TenantContext::organizationId())
+                    ->where('is_active', true)
+                    ->orderBy('name')
+                    ->get(['id', 'name'])
+                    ->values(),
+                'subjectTypes' => app(SubjectRegistry::class)->boundTypes(),
+                'objectTypes' => ObjectType::query()->orderBy('name')->get(['id', 'name', 'code'])->values(),
+                'triggers' => SaveWorkflowDesignRequest::TRIGGERS,
+            ],
+            // What stands between this draft and publishing, reported the way
+            // publish will report it.
+            'liveErrors' => app(WorkflowDefinitionValidator::class)->errors($graph),
+        ];
+    }
+
+    /**
+     * @var array{nodes: list<array<string, mixed>>, edges: list<array<string, mixed>>}
+     */
+    private const SKELETON = [
+        'nodes' => [
+            ['code' => 'start', 'type' => 'start', 'name' => 'Submitted', 'x' => 40, 'y' => 120],
+            [
+                'code' => 'review', 'type' => 'approval', 'name' => 'Review',
+                'assignee_rule' => 'role', 'assignee_config' => ['roles' => []],
+                'sla_hours' => 72, 'on_timeout' => 'escalate',
+                'allow_delegate' => true, 'allow_return' => true,
+                'x' => 280, 'y' => 120,
+            ],
+            ['code' => 'approved', 'type' => 'end', 'name' => 'Approved', 'outcome' => 'approved', 'x' => 540, 'y' => 60],
+            ['code' => 'rejected', 'type' => 'end', 'name' => 'Rejected', 'outcome' => 'rejected', 'x' => 540, 'y' => 200],
+        ],
+        'edges' => [
+            ['from' => 'start', 'to' => 'review'],
+            ['from' => 'review', 'to' => 'rejected', 'when' => "outcome == 'reject'", 'label' => 'Rejected'],
+            ['from' => 'review', 'to' => 'approved', 'label' => 'Approved'],
+        ],
+    ];
 
     /**
      * Kept for the legacy linear form and for API-shaped posts. The designer

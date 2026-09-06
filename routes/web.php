@@ -5,7 +5,12 @@ use App\Http\Controllers\Admin\ConfigurationBuilderController;
 use App\Http\Controllers\Admin\ConfigurationBundleController;
 use App\Http\Controllers\Admin\ConnectorController;
 use App\Http\Controllers\Admin\JobRunController;
+use App\Http\Controllers\Admin\Metadata\LifecycleController;
+use App\Http\Controllers\Admin\Metadata\ObjectAttributeController;
+use App\Http\Controllers\Admin\Metadata\ObjectTypeController;
+use App\Http\Controllers\Admin\Metadata\RelationshipTypeController;
 use App\Http\Controllers\Admin\OrganizationSettingsController;
+use App\Http\Controllers\Admin\ScoringProfileController;
 use App\Http\Controllers\Admin\SsoSettingsController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WebhookController;
@@ -399,9 +404,11 @@ Route::prefix('admin')->middleware(['auth'])->group(function () {
     Route::middleware('permission:admin.settings')->group(function () {
         Route::get('settings', [OrganizationSettingsController::class, 'index'])->name('admin.settings');
         Route::put('settings/profile', [OrganizationSettingsController::class, 'updateProfile'])->name('admin.settings.profile');
-        Route::put('settings/thresholds', [OrganizationSettingsController::class, 'updateThresholds'])->name('admin.settings.thresholds');
         Route::put('settings/risk', [OrganizationSettingsController::class, 'updateRiskSettings'])->name('admin.settings.risk');
-        Route::put('settings/notifications', [OrganizationSettingsController::class, 'updateNotificationPreferences'])->name('admin.settings.notifications');
+        // Phase 6.2 replaces `settings/thresholds` and `settings/notifications`.
+        // Between them those two wrote ten keys that nothing on the platform
+        // ever read; this one writes the settings that have consumers.
+        Route::put('settings/organization', [OrganizationSettingsController::class, 'updateSettings'])->name('admin.settings.organization');
     });
 
     // Single sign-on: the client configures their own identity provider here.
@@ -437,16 +444,46 @@ Route::prefix('admin')->middleware(['auth'])->group(function () {
     // shape of every record in the tenant, not a preference.
     Route::middleware('permission:admin.metadata')->group(function () {
         Route::get('builder', [ConfigurationBuilderController::class, 'index'])->name('admin.builder');
-        Route::get('builder/object-types', [ConfigurationBuilderController::class, 'objectTypes'])->name('admin.builder.object-types');
-        Route::get('builder/object-types/{objectType}/attributes', [ConfigurationBuilderController::class, 'attributes'])->name('admin.builder.attributes');
-        Route::get('builder/relationship-types', [ConfigurationBuilderController::class, 'relationshipTypes'])->name('admin.builder.relationship-types');
-        Route::get('builder/lifecycles', [ConfigurationBuilderController::class, 'lifecycles'])->name('admin.builder.lifecycles');
+
+        // Phase 6.3 — the four Livewire builders became pages with ordinary
+        // write routes. The GET names are unchanged, because the sidebar, the
+        // parity checklist and AdminNavigationTest all name them.
+        Route::get('builder/object-types', [ObjectTypeController::class, 'index'])->name('admin.builder.object-types');
+        Route::post('builder/object-types', [ObjectTypeController::class, 'store'])->name('admin.builder.object-types.store');
+        Route::put('builder/object-types/{objectType}', [ObjectTypeController::class, 'update'])->name('admin.builder.object-types.update');
+        Route::delete('builder/object-types/{objectType}', [ObjectTypeController::class, 'destroy'])->name('admin.builder.object-types.destroy');
+
+        Route::get('builder/object-types/{objectType}/attributes', [ObjectAttributeController::class, 'index'])->name('admin.builder.attributes');
+        Route::get('builder/object-types/{objectType}/attributes/{attribute}/impact', [ObjectAttributeController::class, 'impact'])->name('admin.builder.attributes.impact');
+        Route::post('builder/object-types/{objectType}/attributes', [ObjectAttributeController::class, 'store'])->name('admin.builder.attributes.store');
+        Route::put('builder/object-types/{objectType}/attributes/{attribute}', [ObjectAttributeController::class, 'update'])->name('admin.builder.attributes.update');
+        Route::delete('builder/object-types/{objectType}/attributes/{attribute}', [ObjectAttributeController::class, 'destroy'])->name('admin.builder.attributes.destroy');
+
+        Route::get('builder/relationship-types', [RelationshipTypeController::class, 'index'])->name('admin.builder.relationship-types');
+        Route::post('builder/relationship-types', [RelationshipTypeController::class, 'store'])->name('admin.builder.relationship-types.store');
+        Route::put('builder/relationship-types/{relationshipType}', [RelationshipTypeController::class, 'update'])->name('admin.builder.relationship-types.update');
+        Route::delete('builder/relationship-types/{relationshipType}', [RelationshipTypeController::class, 'destroy'])->name('admin.builder.relationship-types.destroy');
+
+        Route::get('builder/lifecycles', [LifecycleController::class, 'index'])->name('admin.builder.lifecycles');
+        Route::post('builder/lifecycles', [LifecycleController::class, 'store'])->name('admin.builder.lifecycles.store');
+        Route::put('builder/lifecycles/{lifecycle}', [LifecycleController::class, 'update'])->name('admin.builder.lifecycles.update');
+        Route::delete('builder/lifecycles/{lifecycle}', [LifecycleController::class, 'destroy'])->name('admin.builder.lifecycles.destroy');
     });
 
     // Redefining what Critical means re-rates the whole register, so it is
     // grantable separately from the rest of the builder.
     Route::middleware('permission:admin.scoring')->group(function () {
-        Route::get('builder/scoring-profiles', [ConfigurationBuilderController::class, 'scoringProfiles'])->name('admin.builder.scoring-profiles');
+        Route::get('builder/scoring-profiles', [ScoringProfileController::class, 'index'])->name('admin.builder.scoring-profiles');
+        Route::get('builder/scoring-profiles/create', [ScoringProfileController::class, 'create'])->name('admin.scoring-profiles.create');
+        Route::get('builder/scoring-profiles/{scoringProfile}/edit', [ScoringProfileController::class, 'edit'])->name('admin.scoring-profiles.edit');
+        Route::post('builder/scoring-profiles', [ScoringProfileController::class, 'store'])->name('admin.scoring-profiles.store');
+        Route::put('builder/scoring-profiles/{scoringProfile}', [ScoringProfileController::class, 'update'])->name('admin.scoring-profiles.update');
+        Route::delete('builder/scoring-profiles/{scoringProfile}', [ScoringProfileController::class, 'destroy'])->name('admin.scoring-profiles.destroy');
+
+        // Asked while the operator is still typing: whether the residual
+        // formula evaluates, and how many risks the bands would move.
+        Route::post('builder/scoring-profiles/validate-formula', [ScoringProfileController::class, 'validateFormula'])->name('admin.scoring-profiles.validate-formula');
+        Route::post('builder/scoring-profiles/preview', [ScoringProfileController::class, 'preview'])->name('admin.scoring-profiles.preview');
     });
 
     // Configuration bundles: export, diff, import, rollback. The narrowest
@@ -1120,6 +1157,13 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     // next version rather than mutating the one running instances are pinned to.
     Route::get('workflows/definitions/{definition}/design', [WorkflowController::class, 'editDefinition'])
         ->middleware('permission:workflow.manage')->name('risk.workflows.edit-definition');
+    // Phase 6.5: the designer posts the whole graph here. Two routes rather
+    // than one because a design saved for the first time has no definition to
+    // address yet.
+    Route::post('workflows/definitions/design', [WorkflowController::class, 'updateDefinition'])
+        ->middleware('permission:workflow.manage')->name('risk.workflows.create-design');
+    Route::put('workflows/definitions/{definition}/design', [WorkflowController::class, 'updateDefinition'])
+        ->middleware('permission:workflow.manage')->name('risk.workflows.save-design');
     Route::post('workflows/definitions/{definition}/publish', [WorkflowController::class, 'publishDefinition'])
         ->middleware('permission:workflow.manage')->name('risk.workflows.publish-definition');
     Route::post('workflows/definitions/{definition}/unpublish', [WorkflowController::class, 'unpublishDefinition'])

@@ -282,18 +282,23 @@ class DynamicDetailIntegrationTest extends TestCase
     #[Test]
     public function a_record_with_no_object_identity_renders_nothing_rather_than_throwing(): void
     {
-        // A User has no entry in the type registry, so the component cannot
-        // resolve an ObjectType for it. Nothing to render is the right answer;
+        // A User has no entry in the type registry, so the schema cannot
+        // resolve an ObjectType for it. Nothing to show is the right answer;
         // a fatal on a detail page is not.
-        $component = new \App\View\Components\DynamicDetail(record: $this->actor);
+        $schema = new \App\Services\Metadata\ObjectDetailSchema(record: $this->actor);
 
-        $this->assertNull($component->objectType);
-        $this->assertTrue($component->fields->isEmpty());
-        $this->assertTrue($component->sectioned()->isEmpty());
+        $this->assertNull($schema->objectType);
+        $this->assertTrue($schema->fields->isEmpty());
+        $this->assertTrue($schema->sectioned()->isEmpty());
 
-        $rendered = view('components.dynamic-detail', $component->data())->render();
-
-        $this->assertStringContainsString('Nothing recorded', $rendered);
+        // And it degrades the same way through the presenter, which is what a
+        // page actually receives. The Blade partial printed "Nothing recorded"
+        // here until migration Phase 6.8 deleted it; the React detail component
+        // renders its own empty state from an empty section list.
+        $this->assertSame(
+            [],
+            app(\App\Presenters\FormSchemaPresenter::class)->detail($this->actor)['sections']
+        );
     }
 
     /* ------------------------------------------------------------------ */

@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Integrations\StoreWebhookRequest;
+use App\Http\Requests\Admin\Integrations\UpdateWebhookRequest;
 use App\Models\WebhookDelivery;
 use App\Models\WebhookSubscription;
 use App\Services\Webhooks\WebhookDispatcher;
-use App\Support\Http\OutboundUrlGuard;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use RuntimeException;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
+use Inertia\Inertia;
 
 /**
  * WP-07 TASK 3 — managing subscriptions and reading the delivery log.
@@ -25,35 +28,44 @@ class WebhookController extends Controller
 
     public function index()
     {
-        return view('admin.webhooks.index', [
+        Gate::authorize('viewAny', WebhookSubscription::class);
+
+        return Inertia::render('Admin/Webhooks/Index', [
             'subscriptions' => WebhookSubscription::withCount([
                 'deliveries as delivered_count' => fn ($q) => $q->where('status', WebhookDelivery::STATUS_DELIVERED),
                 'deliveries as failed_count' => fn ($q) => $q->whereIn('status', [
                     WebhookDelivery::STATUS_FAILED, WebhookDelivery::STATUS_ABANDONED,
                 ]),
-            ])->latest()->get(),
-            'events' => $this->availableEvents(),
+            ])->latest()->get()->map(fn (WebhookSubscription $webhook) => array_merge($webhook->only([
+                'id', 'name', 'description', 'url', 'is_active', 'consecutive_failures',
+                'disabled_reason', 'delivered_count', 'failed_count',
+            ]), [
+                // The secret is NEVER here. It is shown once, when it is
+                // created or rotated, and only its encrypted form is kept.
+                'events' => array_values((array) ($webhook->events ?? [])),
+                'last_delivered_at' => $webhook->last_delivered_at?->toIso8601String(),
+                'last_failed_at' => $webhook->last_failed_at?->toIso8601String(),
+                'disabled_at' => $webhook->disabled_at?->toIso8601String(),
+                'deliveries_url' => route('admin.webhooks.deliveries', $webhook),
+                'can_manage' => Gate::allows('update', $webhook),
+            ]))->values()->all(),
+            'events' => StoreWebhookRequest::eventsByResource(),
+
+            // Read here rather than from the shared flash props. A secret is
+            // shown once, on this screen, on the one request that follows
+            // creating or rotating it — putting a secret-shaped key in the
+            // props every page receives would be a worse habit than the one
+            // saving of a line it buys.
+            'revealedSecret' => fn () => session('revealed_secret'),
+            'revealedSecretFor' => fn () => session('revealed_secret_for'),
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StoreWebhookRequest $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:1000',
-            'url' => 'required|url|max:2000',
-            'events' => 'required|array|min:1',
-            'events.*' => 'string|max:100',
-            'filters' => 'nullable|array',
-        ]);
-
-        try {
-            // Checked before it is stored, so the person who typed it finds out
-            // now rather than from a failed delivery in an hour.
-            OutboundUrlGuard::assertSafe($validated['url']);
-        } catch (RuntimeException $e) {
-            return back()->withInput()->with('error', $e->getMessage());
-        }
+        // The URL is checked by the request now, so the person who typed it
+        // finds out at the field rather than from a flash message.
+        $validated = $request->validated();
 
         $subscription = WebhookSubscription::create($validated + [
             'created_by' => $request->user()->id,
@@ -66,23 +78,9 @@ class WebhookController extends Controller
             ->with('revealed_secret_for', $subscription->name);
     }
 
-    public function update(Request $request, WebhookSubscription $webhook)
+    public function update(UpdateWebhookRequest $request, WebhookSubscription $webhook)
     {
-        $this->authorizeTenant($webhook);
-
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:1000',
-            'url' => 'required|url|max:2000',
-            'events' => 'required|array|min:1',
-            'is_active' => 'nullable|boolean',
-        ]);
-
-        try {
-            OutboundUrlGuard::assertSafe($validated['url']);
-        } catch (RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
-        }
+        $validated = $request->validated();
 
         $webhook->update($validated + [
             'is_active' => $request->boolean('is_active'),
@@ -102,7 +100,7 @@ class WebhookController extends Controller
 
     public function destroy(WebhookSubscription $webhook)
     {
-        $this->authorizeTenant($webhook);
+        Gate::authorize('delete', $webhook);
 
         $webhook->delete();
         $this->forgetSubscriptionCache();
@@ -119,7 +117,7 @@ class WebhookController extends Controller
      */
     public function rotateSecret(WebhookSubscription $webhook)
     {
-        $this->authorizeTenant($webhook);
+        Gate::authorize('rotateSecret', $webhook);
 
         $secret = \Illuminate\Support\Str::random(48);
         $webhook->update(['secret' => $secret]);
@@ -132,16 +130,40 @@ class WebhookController extends Controller
 
     public function deliveries(Request $request, WebhookSubscription $webhook)
     {
-        $this->authorizeTenant($webhook);
+        Gate::authorize('view', $webhook);
 
-        return view('admin.webhooks.deliveries', [
-            'subscription' => $webhook,
-            'deliveries' => $webhook->deliveries()
-                ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
-                ->when($request->filled('event'), fn ($q) => $q->where('event', $request->input('event')))
-                ->with('replayer')
-                ->paginate(50)
-                ->withQueryString(),
+        $deliveries = $webhook->deliveries()
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
+            ->when($request->filled('event'), fn ($q) => $q->where('event', $request->input('event')))
+            ->with('replayer:id,name')
+            ->latest()
+            ->paginate(50)
+            ->withQueryString();
+
+        return Inertia::render('Admin/Webhooks/Deliveries', [
+            'subscription' => $webhook->only(['id', 'name', 'url', 'is_active']),
+            'deliveries' => $deliveries->through(fn (WebhookDelivery $delivery) => array_merge($delivery->only([
+                'id', 'event', 'status', 'attempt', 'response_status', 'error',
+            ]), [
+                'created_at' => $delivery->created_at?->toIso8601String(),
+                'delivered_at' => $delivery->delivered_at?->toIso8601String(),
+                // Truncated: a delivery log is read to answer "did you send it,
+                // and what came back" — a megabyte of response body in the page
+                // props answers that no better than the first kilobyte.
+                'response_body' => Str::limit((string) $delivery->response_body, 1000),
+                'replayer' => $delivery->getRelationValue('replayer')?->name,
+                'can_replay' => Gate::allows('update', $webhook),
+            ])),
+            'filters' => [
+                'status' => (string) $request->query('status', ''),
+                'event' => (string) $request->query('event', ''),
+            ],
+            'statuses' => [
+                WebhookDelivery::STATUS_PENDING,
+                WebhookDelivery::STATUS_DELIVERED,
+                WebhookDelivery::STATUS_FAILED,
+                WebhookDelivery::STATUS_ABANDONED,
+            ],
         ]);
     }
 
@@ -160,7 +182,7 @@ class WebhookController extends Controller
      */
     public function test(WebhookSubscription $webhook)
     {
-        $this->authorizeTenant($webhook);
+        Gate::authorize('update', $webhook);
 
         $delivery = WebhookDelivery::create([
             'organization_id' => $webhook->organization_id,
@@ -183,43 +205,11 @@ class WebhookController extends Controller
 
     /* ------------------------------------------------------------------ */
 
-    private function authorizeTenant(WebhookSubscription $webhook): void
-    {
-        abort_unless($webhook->organization_id === TenantContext::organizationId(), 403);
-    }
-
     private function forgetSubscriptionCache(): void
     {
         // The observer caches "does this organization have any subscriptions"
         // for a minute. Without this a new webhook would silently receive
         // nothing for up to sixty seconds, which reads as "it does not work".
         Cache::forget('webhooks:any:'.TenantContext::organizationId());
-    }
-
-    /**
-     * The events a subscription may name.
-     *
-     * Derived from the API registry, so the webhook vocabulary and the API
-     * resource names stay the same words for the same things.
-     *
-     * @return array<string, list<string>>
-     */
-    private function availableEvents(): array
-    {
-        $events = [];
-
-        foreach (\App\Http\Api\ApiResourceRegistry::all() as $definition) {
-            $alias = (new $definition['model'])->getMorphClass();
-
-            $events[$alias] = [
-                $alias.'.created',
-                $alias.'.updated',
-                $alias.'.state_changed',
-                $alias.'.deleted',
-                $alias.'.*',
-            ];
-        }
-
-        return $events;
     }
 }

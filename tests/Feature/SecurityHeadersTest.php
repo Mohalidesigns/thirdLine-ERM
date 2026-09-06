@@ -46,28 +46,90 @@ class SecurityHeadersTest extends TestCase
     }
 
     /**
-     * TODO(phase-6): the Blade + Livewire screens need inline and eval'd
-     * script until they are retired. The moment livewire/livewire is
-     * uninstalled this test flips: the allowances must be gone.
+     * THE TEST THAT SHOULD HAVE EXISTED IN PHASE 6.8.
+     *
+     * That phase dropped 'unsafe-inline' from script-src and asserted the
+     * header no longer contained it. The assertion passed and the application
+     * was unusable: Ziggy's @routes is an INLINE script that defines the global
+     * route(), the browser refused to execute it, and every page threw
+     * "route is not defined" before React mounted. A blank screen on every
+     * route, shipped, because the suite checks the policy string and never
+     * asks whether the page it protects can still run.
+     *
+     * No test here executes JavaScript, so this asks the question statically
+     * and it is enough: every inline script in the shell must carry a nonce the
+     * header actually allows.
      */
     #[Test]
-    public function inline_and_eval_script_survive_only_while_livewire_is_installed(): void
+    public function every_inline_script_in_the_shell_carries_a_nonce_the_policy_allows(): void
+    {
+        $response = $this->get('/login');
+        $response->assertOk();
+
+        $policy = (string) $response->headers->get('Content-Security-Policy');
+        preg_match('/script-src ([^;]+)/', $policy, $m);
+        $scriptSrc = $m[1] ?? '';
+
+        preg_match_all("/'nonce-([A-Za-z0-9+\/=_-]+)'/", $scriptSrc, $allowed);
+        $allowedNonces = $allowed[1];
+
+        $this->assertNotEmpty(
+            $allowedNonces,
+            'script-src allows no nonce, so any inline script the shell emits is dead on arrival.'
+        );
+
+        preg_match_all('/<script\b([^>]*)>/i', $response->getContent(), $tags);
+
+        $offenders = [];
+
+        foreach ($tags[1] as $attributes) {
+            // A script with a src is covered by 'self'; only inline needs the nonce.
+            if (preg_match('/\bsrc\s*=/i', $attributes)) {
+                continue;
+            }
+
+            if (! preg_match('/\bnonce\s*=\s*["\']([^"\']+)["\']/i', $attributes, $found)
+                || ! in_array($found[1], $allowedNonces, true)) {
+                $offenders[] = trim($attributes) ?: '(no attributes)';
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $offenders,
+            "An inline <script> in the shell carries no nonce the policy allows, so the browser will\n"
+            ."refuse to run it. If this is Ziggy's @routes, the page loses route() and every screen\n"
+            ."throws before it mounts:\n  ".implode("\n  ", $offenders)
+        );
+    }
+
+    /**
+     * The Phase 0 TODO, closed in Phase 6.8: the Blade + Livewire screens
+     * needed inline and eval'd script, and they are gone.
+     */
+    #[Test]
+    public function script_src_carries_no_unsafe_source(): void
     {
         $policy = $this->get('/login')->headers->get('Content-Security-Policy');
         preg_match('/script-src ([^;]+)/', $policy, $m);
         $scriptSrc = $m[1] ?? '';
 
-        if (class_exists(\Livewire\Livewire::class)) {
-            $this->assertStringContainsString("'unsafe-eval'", $scriptSrc, 'Alpine needs unsafe-eval until Phase 6.');
-            $this->assertStringContainsString("'unsafe-inline'", $scriptSrc, 'The Blade inline scripts need unsafe-inline until Phase 6.');
-            $this->assertSame(["'unsafe-inline'", "'unsafe-eval'"], SetSecurityHeaders::legacyScriptSources());
+        $this->assertStringNotContainsString("'unsafe-eval'", $scriptSrc);
+        $this->assertStringNotContainsString("'unsafe-inline'", $scriptSrc);
 
-            return;
-        }
+        // Not merely absent today — unreachable. This assertion was conditional
+        // on livewire/livewire being installed between Phase 0 and Phase 6.8,
+        // which was right while the removal was pending and wrong afterwards: a
+        // policy that reopens itself when a package reappears is not a policy.
+        preg_match('/script-src ([^;]+)/', (new SetSecurityHeaders)->policy(), $direct);
 
-        $this->assertStringNotContainsString("'unsafe-eval'", $scriptSrc, 'Livewire is gone: drop unsafe-eval from script-src (Phase 6 TODO).');
-        $this->assertStringNotContainsString("'unsafe-inline'", $scriptSrc, 'Livewire is gone: drop unsafe-inline from script-src (Phase 6 TODO).');
-        $this->assertSame([], SetSecurityHeaders::legacyScriptSources());
+        $this->assertStringNotContainsString(
+            'unsafe',
+            $direct[1] ?? '',
+            "script-src must carry no 'unsafe-*' source under any condition. style-src "
+            .'keeps unsafe-inline, which is asserted separately: Tailwind and the tenant '
+            .'branding block are inline styles.'
+        );
     }
 
     #[Test]

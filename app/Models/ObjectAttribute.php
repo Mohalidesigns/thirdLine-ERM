@@ -65,6 +65,46 @@ class ObjectAttribute extends Model
     }
 
     /**
+     * Whether the signed-in user may see — and therefore set — this field.
+     *
+     * `validation.roles` and `validation.permission` are the only two rules in
+     * the attribute definition that are about WHO rather than about the value,
+     * which is why they are answered here rather than in validationRules().
+     *
+     * Three callers must agree, because a rule enforced in one place and not
+     * the others is not enforced: FormSchemaPresenter (what the form offers),
+     * ValidatesConfiguredAttributes (what the validator accepts) and
+     * PersistsConfiguredAttributes (what is written). The renderer omits a
+     * field the user may not see, but the renderer ran in their browser's past
+     * and the request arrives from their browser's present — so the write path
+     * re-asks rather than trusting what came back.
+     *
+     * This lived on the <x-dynamic-form> View Component until migration Phase
+     * 6.8 deleted it. It was never a rendering concern; it is a property of the
+     * attribute and the current user, and the Blade renderer was only its first
+     * caller.
+     */
+    public function visibleToCurrentUser(): bool
+    {
+        $rules = $this->validation ?? [];
+        $user = auth()->user();
+
+        if (! empty($rules['roles'])) {
+            if ($user === null || ! $user->hasAnyRole((array) $rules['roles'])) {
+                return false;
+            }
+        }
+
+        if (isset($rules['permission'])) {
+            if ($user === null || ! $user->can($rules['permission'])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * The Alpine expression that decides whether this field is on screen, or
      * null when it is always visible.
      *
@@ -106,7 +146,8 @@ class ObjectAttribute extends Model
         return null;
     }
 
-    public function objectType()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<ObjectType, $this> */
+    public function objectType(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(ObjectType::class, 'object_type_id');
     }

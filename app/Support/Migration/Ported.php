@@ -5,16 +5,26 @@ namespace App\Support\Migration;
 use Illuminate\Support\Facades\Route;
 
 /**
- * Which routes render through Inertia today.
+ * Which routes render through Inertia today. Since Phase 6.8: all of them.
  *
- * Until Phase 6 the application has two renderers, and a link has to know
- * which one is on the other end: an Inertia <Link> to a Blade page gets a
- * non-Inertia HTML response and shows it in an error modal, and a Blade
- * `wire:navigate` to an Inertia page swaps in a document whose React bundle
- * never boots. Both sidebars (NavPresenter for React, sidebar.blade.php for
- * Blade) consult this list so that a link crossing the boundary is a plain
- * full-page navigation. Grows by one entry per ported route, and shrinks to
- * nothing worth keeping when the Blade side is gone.
+ * While the application had two renderers, a link had to know which one was on
+ * the other end — an Inertia <Link> to a Blade page got a non-Inertia HTML
+ * response and showed it in an error modal, and a Blade `wire:navigate` to an
+ * Inertia page swapped in a document whose React bundle never booted. Both
+ * sidebars consulted this list so a link crossing the boundary was a plain
+ * full-page navigation.
+ *
+ * THE BOUNDARY IS GONE. Phase 6.8 deleted the Blade side, so
+ * `NavPresenter`'s `inertia` flag is now true for every navigable route and
+ * the React layout's `<Link>`-or-`<a>` branch has one live arm.
+ *
+ * IT IS KEPT FOR PHASE 7, NOT FOR RUNTIME. The list is still the migration's
+ * own record of what was ported and when, and it is what
+ * `AuthPagesTest::every_ported_route_exists_and_the_nav_marks_exactly_those_as_inertia`
+ * checks the navigation against. Retiring it means deleting the prop, the
+ * layout branch and the assertions in ten test files together — a coherent
+ * change, and not one to bury in the commit that removes Livewire. Listed in
+ * docs/migration/phase-6-notes/decommission.md as Phase 7 work.
  */
 final class Ported
 {
@@ -62,6 +72,35 @@ final class Ported
         // Phase 5 criterion 7 — the Command Centre
         'risk.dashboard',
         'admin.users.index',
+        // Phase 6.1 — users and roles
+        'admin.users.create',
+        'admin.users.show',
+        'admin.users.edit',
+        // Phase 6.2 — organisation and single sign-on settings
+        'admin.settings',
+        'admin.settings.sso',
+        // Phase 6.3 — metadata builders
+        'admin.builder',
+        'admin.builder.object-types',
+        'admin.builder.attributes',
+        'admin.builder.relationship-types',
+        'admin.builder.lifecycles',
+        // Phase 6.4 — scoring profiles
+        'admin.builder.scoring-profiles',
+        'admin.scoring-profiles.create',
+        'admin.scoring-profiles.edit',
+        // Phase 6.5 — the workflow designer, and the last Livewire screen
+        'risk.workflows.create-definition',
+        'risk.workflows.edit-definition',
+        // Phase 6.6 — configuration bundles
+        'admin.configuration',
+        // Phase 6.7 — integrations
+        'admin.webhooks.index',
+        'admin.webhooks.deliveries',
+        'admin.api-tokens.index',
+        'admin.connectors.index',
+        'admin.connectors.show',
+        'admin.jobs.index',
         'risk.emerging.index',
         'risk.reports.library',
         // Phase 5.4

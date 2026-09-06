@@ -3,13 +3,17 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Configuration\ApplyBundleRequest;
+use App\Http\Requests\Admin\Configuration\DiffBundleRequest;
+use App\Http\Requests\Admin\Configuration\ExportBundleRequest;
 use App\Models\ConfigBundle;
 use App\Models\ConfigBundleApplication;
 use App\Services\Configuration\ConfigurationExporter;
 use App\Services\Configuration\ConfigurationImporter;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 /**
  * WP-05 TASK 4 — the browser half of the bundle workflow.
@@ -28,22 +32,43 @@ class ConfigurationBundleController extends Controller
 
     public function index()
     {
-        return view('admin.configuration.index', [
-            'bundles' => ConfigBundle::exported()->latest('exported_at')->limit(50)->get(),
-            'applications' => ConfigBundleApplication::with(['bundle', 'actor'])
-                ->latest('applied_at')->limit(50)->get(),
-            'diff' => session('configuration-diff'),
-            'diffBundleId' => session('configuration-diff-bundle'),
+        Gate::authorize('viewAny', ConfigBundle::class);
+
+        return Inertia::render('Admin/ConfigBundles/Index', [
+            'bundles' => ConfigBundle::exported()
+                ->latest('exported_at')
+                ->limit(50)
+                ->get()
+                ->map(fn (ConfigBundle $bundle) => array_merge($bundle->only([
+                    'id', 'code', 'name', 'description', 'version', 'checksum', 'source_environment',
+                ]), [
+                    'label' => $bundle->label(),
+                    'exported_at' => $bundle->exported_at?->toIso8601String(),
+                    'total_rows' => $bundle->totalRows(),
+                    'section_counts' => $bundle->sectionCounts(),
+                    'download_url' => route('admin.configuration.download', $bundle),
+                ]))->values()->all(),
+            'applications' => ConfigBundleApplication::with(['bundle:id,code,name,version', 'actor:id,name'])
+                ->latest('applied_at')
+                ->limit(50)
+                ->get()
+                ->map(fn (ConfigBundleApplication $application) => array_merge($application->only([
+                    'id', 'mode', 'outcome',
+                ]), [
+                    'applied_at' => $application->applied_at?->toIso8601String(),
+                    'summary' => $application->summary(),
+                    'bundle' => $application->getRelationValue('bundle')?->only(['id', 'code', 'name', 'version']),
+                    'actor' => $application->getRelationValue('actor')?->name,
+                    'can_rollback' => $application->mode !== 'dry_run'
+                        && $application->outcome !== 'no_changes'
+                        && Gate::allows('rollback', $application),
+                ]))->values()->all(),
         ]);
     }
 
-    public function export(Request $request)
+    public function export(ExportBundleRequest $request)
     {
-        $validated = $request->validate([
-            'code' => 'required|string|max:100|regex:/^[a-z0-9][a-z0-9_\-]*$/',
-            'name' => 'required|string|max:200',
-            'description' => 'nullable|string|max:2000',
-        ]);
+        $validated = $request->validated();
 
         $bundle = $this->exporter->export(
             code: $validated['code'],
@@ -61,7 +86,7 @@ class ConfigurationBundleController extends Controller
      */
     public function download(ConfigBundle $bundle)
     {
-        $this->assertOwned($bundle);
+        Gate::authorize('view', $bundle);
 
         $filename = "{$bundle->code}-v{$bundle->version}.json";
 
@@ -81,13 +106,9 @@ class ConfigurationBundleController extends Controller
     /**
      * The dry run. Always available, never writes configuration.
      */
-    public function diff(Request $request)
+    public function diff(DiffBundleRequest $request)
     {
-        $validated = $request->validate([
-            'bundle_id' => 'nullable|integer|exists:config_bundles,id',
-            'file' => 'nullable|file|mimetypes:application/json,text/plain|max:10240',
-        ]);
-
+        $validated = $request->validated();
         $payload = $this->payloadFrom($validated, $request);
 
         if ($payload === null) {
@@ -95,21 +116,22 @@ class ConfigurationBundleController extends Controller
         }
 
         $result = $this->importer->plan($payload);
+        $bundle = ! empty($validated['bundle_id']) ? ConfigBundle::find($validated['bundle_id']) : null;
 
-        return back()
-            ->with('configuration-diff', $result['diff'])
-            ->with('configuration-diff-bundle', $validated['bundle_id'] ?? null);
+        // Rendered rather than flashed. The Blade screen put the whole diff
+        // through the session and read it back on the next request, which is a
+        // configuration-sized document in the session store for the sake of one
+        // redirect. It is the response now.
+        return Inertia::render('Admin/ConfigBundles/Diff', [
+            'diff' => $result['diff'],
+            'bundle' => $bundle?->only(['id', 'code', 'name', 'version']),
+            'uploaded' => $bundle === null,
+        ]);
     }
 
-    public function apply(Request $request, ConfigBundle $bundle)
+    public function apply(ApplyBundleRequest $request, ConfigBundle $bundle)
     {
-        $this->assertOwned($bundle);
-
-        $options = $request->validate([
-            'force' => 'sometimes|boolean',
-            'prune' => 'sometimes|boolean',
-            'confirm' => 'accepted',
-        ]);
+        $options = $request->validated();
 
         try {
             $result = $this->importer->apply(
@@ -133,7 +155,7 @@ class ConfigurationBundleController extends Controller
 
     public function rollback(ConfigBundleApplication $application)
     {
-        $this->assertOwned($application);
+        Gate::authorize('rollback', $application);
 
         try {
             $rollback = $this->importer->rollback($application);
@@ -155,7 +177,7 @@ class ConfigurationBundleController extends Controller
     {
         if (! empty($validated['bundle_id'])) {
             $bundle = ConfigBundle::findOrFail($validated['bundle_id']);
-            $this->assertOwned($bundle);
+            Gate::authorize('view', $bundle);
 
             return $bundle->payload;
         }
@@ -169,15 +191,5 @@ class ConfigurationBundleController extends Controller
         return is_array($decoded) && isset($decoded['payload']) && is_array($decoded['payload'])
             ? $decoded['payload']
             : null;
-    }
-
-    /**
-     * The tenancy scope already filters reads, but route-model binding on an
-     * explicit id is the one place it is worth checking twice: a bundle is a
-     * complete statement of another organisation's configuration.
-     */
-    private function assertOwned(ConfigBundle|ConfigBundleApplication $model): void
-    {
-        abort_unless($model->organization_id === TenantContext::organizationId(), 403);
     }
 }

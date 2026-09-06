@@ -4,7 +4,8 @@ namespace App\Http\Requests\Concerns;
 
 use App\Models\ObjectAttribute;
 use App\Models\ObjectType;
-use App\View\Components\DynamicForm;
+use App\Rules\UniqueConfiguredAttribute;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
 /**
@@ -40,14 +41,35 @@ use Illuminate\Support\Collection;
 trait ValidatesConfiguredAttributes
 {
     /**
-     * @return array<string, list<string>> configured_attributes.<code> => rules
+     * @param  Model|null  $editing  the record being edited, so its own value
+     *                               is not reported as a duplicate of itself.
+     *                               Null on a create, which has no record yet.
+     * @return array<string, array<int, mixed>> configured_attributes.<code> => rules
      */
-    protected function configuredAttributeRules(ObjectType|string $type): array
+    protected function configuredAttributeRules(ObjectType|string $type, ?Model $editing = null): array
     {
         $rules = [];
+        $ignoreObjectId = $this->graphObjectIdOf($editing);
+        $objectType = $type instanceof ObjectType ? $type : ObjectType::resolve($type);
 
         foreach ($this->writableConfiguredAttributes($type) as $attribute) {
-            $rules["configured_attributes.{$attribute->code}"] = $attribute->validationRules();
+            $attributeRules = $attribute->validationRules();
+
+            // is_unique cannot be expressed as a rule string: the values share
+            // one JSON column, so it takes a scan. See UniqueConfiguredAttribute.
+            //
+            // Scoped to the type being EDITED, not to $attribute->object_type_id
+            // — an inherited attribute belongs to the parent type, and a value
+            // on an Opportunity does not collide with one on a Risk.
+            if ($attribute->is_unique && $objectType !== null) {
+                $attributeRules[] = new UniqueConfiguredAttribute(
+                    $attribute,
+                    $objectType->id,
+                    $ignoreObjectId,
+                );
+            }
+
+            $rules["configured_attributes.{$attribute->code}"] = $attributeRules;
 
             if (($elementRules = $attribute->elementValidationRules()) !== null) {
                 $rules["configured_attributes.{$attribute->code}.*"] = $elementRules;
@@ -55,6 +77,15 @@ trait ValidatesConfiguredAttributes
         }
 
         return $rules;
+    }
+
+    private function graphObjectIdOf(?Model $editing): ?int
+    {
+        if ($editing === null || ! method_exists($editing, 'graphObject')) {
+            return null;
+        }
+
+        return $editing->graphObject()?->id;
     }
 
     /**
@@ -88,7 +119,7 @@ trait ValidatesConfiguredAttributes
         return $objectType->resolvedAttributes()
             ->reject(fn (ObjectAttribute $attribute) => $attribute->isMapped())
             ->reject(fn (ObjectAttribute $attribute) => $attribute->data_type === 'formula')
-            ->filter(fn (ObjectAttribute $attribute) => DynamicForm::visibleToUser($attribute))
+            ->filter(fn (ObjectAttribute $attribute) => $attribute->visibleToCurrentUser())
             ->values();
     }
 }

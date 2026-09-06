@@ -10,6 +10,13 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use Spatie\Permission\Traits\HasRoles;
 
+/**
+ * Spatie's HasRoles declares roles() as BelongsToMany with no generic, so
+ * static analysis sees a collection of bare Models and every $role->name is an
+ * undefined property. The relation does return the configured role model.
+ *
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Spatie\Permission\Models\Role> $roles
+ */
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
@@ -87,7 +94,8 @@ class User extends Authenticatable
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function organization()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Organization, $this> */
+    public function organization(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }

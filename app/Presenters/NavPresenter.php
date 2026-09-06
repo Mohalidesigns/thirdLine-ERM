@@ -436,9 +436,10 @@ class NavPresenter
             'route' => $item['route'],
             'url' => (string) parse_url(route($item['route']), PHP_URL_PATH),
             'permission' => $item['permission'],
-            // Until Phase 6, a link to a Blade page has to be a full-page
-            // navigation; an Inertia <Link> would show the Blade HTML in an
-            // error modal. The layout renders <Link> only when this is true.
+            // True for every route since Phase 6.8 — there is no Blade page
+            // left to need a full-page navigation. The layout still branches on
+            // it; see App\Support\Migration\Ported for why both survive into
+            // Phase 7 rather than being unpicked here.
             'inertia' => Ported::isRoute($item['route']),
         ];
     }

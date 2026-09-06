@@ -208,16 +208,14 @@ class AuthPagesTest extends TestCase
         $this->assertSame('', Ported::navigateAttribute('/my'));
         $this->assertSame('', Ported::navigateAttribute('/risk/dashboard'));
 
-        // A path that is still Blade, so the Livewire attribute is still
-        // exercised rather than the assertion passing vacuously: the workflow
-        // designer, the last Blade view in the product, which Phase 6 owns.
-        $designerPath = (string) parse_url(
-            route('risk.workflows.edit-definition', ['definition' => 1]),
-            PHP_URL_PATH,
-        );
-
-        $this->assertFalse(Ported::isRoute('risk.workflows.edit-definition'));
-        $this->assertSame('wire:navigate', Ported::navigateAttribute($designerPath));
+        // There used to be a check here against a path Blade still served, so
+        // the `wire:navigate` branch of navigateAttribute() was exercised
+        // rather than the assertion passing vacuously. Its subject moved with
+        // every module of Phase 6 — the workflow designer, configuration
+        // bundles, the integrations group — and after 6.7 there is no Blade
+        // PAGE left in the product to point it at. The branch itself goes in
+        // Phase 6.8 along with Livewire.
+        $this->assertSame([], $this->bladePageViews(), 'A Blade page view has come back.');
 
         foreach (NavPresenter::allItems() as $item) {
             $expected = Ported::isRoute($item['route']);
@@ -228,5 +226,49 @@ class AuthPagesTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('navigation.primary', fn ($primary) => collect($primary)
                     ->every(fn ($item) => $item['inertia'] === Ported::isRoute($item['route']))));
+    }
+
+    /**
+     * Blade view files that are PAGES.
+     *
+     * What survives the migration is the app shell, the layout it uses, the
+     * shared view components, the PDF templates, the mailable and the vendor
+     * pagination views — none of which is a page a user navigates to. Anything
+     * else under resources/views is a screen that should have been ported.
+     *
+     * Phase 6.8 narrows this further: layouts/, components/ and livewire/ go
+     * when Livewire does, leaving app.blade.php, reports/pdf/**, emails/** and
+     * vendor/pagination/**.
+     *
+     * @return list<string>
+     */
+    private function bladePageViews(): array
+    {
+        $allowed = ['app.blade.php', 'layouts/', 'components/', 'livewire/', 'reports/pdf/', 'emails/', 'vendor/'];
+        $root = resource_path('views');
+        $pages = [];
+
+        $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS));
+
+        foreach ($files as $file) {
+            if (! str_ends_with($file->getFilename(), '.blade.php')) {
+                continue;
+            }
+
+            $relative = str_replace($root.DIRECTORY_SEPARATOR, '', $file->getPathname());
+            $relative = str_replace(DIRECTORY_SEPARATOR, '/', $relative);
+
+            foreach ($allowed as $prefix) {
+                if ($relative === $prefix || str_starts_with($relative, $prefix)) {
+                    continue 2;
+                }
+            }
+
+            $pages[] = $relative;
+        }
+
+        sort($pages);
+
+        return $pages;
     }
 }

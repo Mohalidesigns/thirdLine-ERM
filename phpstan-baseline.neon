@@ -19,12 +19,6 @@ parameters:
 			path: app/Console/Commands/SweepWorkflowSlas.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Grids/Definitions/AdminUsersGrid.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:role\(\)\.$#'
 			identifier: method.notFound
 			count: 1
@@ -179,12 +173,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Admin/JobRunController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$organization\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Admin/SsoSettingsController.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\ApiToken\:\:\$organization\.$#'
@@ -403,24 +391,6 @@ parameters:
 			path: app/Http/Controllers/Risk/WorkflowController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Scim/ScimUserController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Scim/ScimUserController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/Scim/ScimUserController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>type" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -497,24 +467,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Listeners/FlagRiskForReview.php
-
-		-
-			message: '#^Relation ''objectType'' is not found in App\\Models\\ObjectLifecycle model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Livewire/Admin/LifecycleBuilder.php
-
-		-
-			message: '#^Relation ''parentType'' is not found in App\\Models\\ObjectType model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Livewire/Admin/ObjectTypeBuilder.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>settings" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Livewire/Admin/ScoringProfileBuilder.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
@@ -999,12 +951,6 @@ parameters:
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
 			identifier: method.notFound
-			count: 1
-			path: app/Models/ObjectType.php
-
-		-
-			message: '#^Method App\\Models\\ObjectType\:\:resolvedAttributes\(\) should return Illuminate\\Support\\Collection\<string, App\\Models\\ObjectAttribute\> but returns Illuminate\\Support\\Collection\<\(int\|string\), Illuminate\\Database\\Eloquent\\Model\>\.$#'
-			identifier: return.type
 			count: 1
 			path: app/Models/ObjectType.php
 
@@ -2327,12 +2273,6 @@ parameters:
 			identifier: method.notFound
 			count: 1
 			path: app/Support/Tenancy/OrganizationScope.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$organization\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/View/Components/DynamicDetail.php
 
 		-
 			message: '#^Match expression does not handle remaining value\: mixed$#'

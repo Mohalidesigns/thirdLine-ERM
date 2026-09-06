@@ -32,7 +32,7 @@ class UpdateRiskAttributesRequest extends FormRequest
     {
         return [
             'configured_attributes' => ['nullable', 'array'],
-            ...$this->configuredAttributeRules('Risk'),
+            ...$this->configuredAttributeRules('Risk', $this->route('register')),
         ];
     }
 

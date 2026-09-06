@@ -280,34 +280,30 @@ class AdminNavigationTest extends TestCase
     /* ------------------------------------------------------------------ */
 
     /**
-     * admin/settings is a prefix of admin/settings/sso, and admin/builder of
-     * admin/builder/scoring-profiles. A naive str_starts_with lights both the
-     * parent and the child at once; the highlight has to name one entry.
+     * Every Administration surface is served by Inertia.
+     *
+     * This replaces `nested_admin_paths_highlight_exactly_one_entry`, which
+     * asserted that a prefix like /admin/builder did not light both the parent
+     * entry and its child in the BLADE sidebar. That test could only cover
+     * routes Blade still served, and the migration kept taking them away —
+     * settings in Phase 6.2, the builder in 6.3, scoring profiles in 6.4, the
+     * integrations group in 6.7 — until its last subject was gone.
+     *
+     * The bug it guarded is now impossible rather than merely absent: the React
+     * sidebar's SectionItem matches on the EXACT path (AuthenticatedLayout's
+     * isExact), so a parent and a child can never both be active. What is worth
+     * asserting instead is the fact that made it impossible.
      */
     #[Test]
-    public function nested_admin_paths_highlight_exactly_one_entry(): void
+    public function every_admin_surface_is_served_by_inertia(): void
     {
-        $this->actor->givePermissionTo(array_keys(self::ADMIN_SURFACES));
+        $stillBlade = array_values(array_filter(
+            self::ADMIN_SURFACES,
+            fn (string $route) => ! \App\Support\Migration\Ported::isRoute($route),
+        ));
 
-        $activeClass = 'font-semibold bg-[#D4AF37] text-[#1A365D]';
-
-        $nested = [
-            'admin.settings' => 'Settings',
-            'admin.settings.sso' => 'SSO',
-            'admin.builder' => 'Metadata Builder',
-            'admin.builder.scoring-profiles' => 'Scoring Profiles',
-        ];
-
-        foreach ($nested as $routeName => $label) {
-            $html = $this->actingAs($this->actor)->get(route($routeName))->assertOk()->getContent();
-
-            $this->assertSame(
-                1,
-                substr_count($html, $activeClass),
-                "Route [{$routeName}] highlights ".substr_count($html, $activeClass)
-                .' sidebar entries; exactly one — '.$label.' — is correct.'
-            );
-        }
+        $this->assertSame([], $stillBlade, 'These Administration routes are still rendered by Blade: '
+            .implode(', ', $stillBlade));
     }
 
     /* ------------------------------------------------------------------ */

@@ -6,8 +6,10 @@ use App\Models\Control;
 use App\Models\ObjectAttribute;
 use App\Models\ObjectType;
 use App\Models\ScoringProfile;
+use App\Presenters\FormSchemaPresenter;
 use App\Services\Scoring\ScoringProfileProvisioner;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -476,13 +478,10 @@ class DynamicRendererTest extends TestCase
             'control_nature' => 'semi_automated',
         ]);
 
-        $rendered = view('components.dynamic-detail', (new \App\View\Components\DynamicDetail(
-            record: $control,
-            type: 'Control',
-        ))->data())->render();
+        $displayed = $this->detailValues($control, 'Control');
 
-        $this->assertStringContainsString('Semi-automated', $rendered);
-        $this->assertStringNotContainsString('semi_automated', $rendered,
+        $this->assertContains('Semi-automated', $displayed);
+        $this->assertNotContains('semi_automated', $displayed,
             'a detail view showing the stored code is technically accurate and useless');
     }
 
@@ -499,12 +498,53 @@ class DynamicRendererTest extends TestCase
 
         $control = $this->makeControl();
 
-        $rendered = view('components.dynamic-detail', (new \App\View\Components\DynamicDetail(
-            record: $control,
-            type: 'Control',
-        ))->data())->render();
+        $field = $this->detailField($control, 'Control', 'reviewer_email');
 
-        $this->assertStringContainsString('Reviewer Email', $rendered);
-        $this->assertStringContainsString('PII', $rendered);
+        $this->assertNotNull($field);
+        $this->assertSame('Reviewer Email', $field['label']);
+        $this->assertTrue($field['pii'], 'the detail schema must mark personal data as such');
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Helpers */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * The displayed values of every field on a record's detail schema.
+     *
+     * Was an assertion against the rendered Blade partial until migration
+     * Phase 6.8 deleted it. The rule under test was never about the markup —
+     * it is that a value reaches the page through its DEFINITION rather than
+     * raw — so it is asserted where that decision is made.
+     *
+     * @return list<string|null>
+     */
+    private function detailValues(Model $record, string $type): array
+    {
+        $values = [];
+
+        foreach (app(FormSchemaPresenter::class)->detail($record, $type)['sections'] as $section) {
+            foreach ($section['fields'] as $field) {
+                $values[] = $field['value'];
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function detailField(Model $record, string $type, string $code): ?array
+    {
+        foreach (app(FormSchemaPresenter::class)->detail($record, $type)['sections'] as $section) {
+            foreach ($section['fields'] as $field) {
+                if ($field['code'] === $code) {
+                    return $field;
+                }
+            }
+        }
+
+        return null;
     }
 }

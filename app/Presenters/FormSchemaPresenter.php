@@ -5,8 +5,8 @@ namespace App\Presenters;
 use App\Models\ObjectAttribute;
 use App\Models\ObjectType;
 use App\Services\Metadata\FormOptionResolver;
-use App\View\Components\DynamicDetail;
-use App\View\Components\DynamicForm;
+use App\Services\Metadata\ObjectDetailSchema;
+use App\Services\Metadata\ObjectFormSchema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
@@ -47,7 +47,7 @@ class FormSchemaPresenter
         array $defaults = [],
         bool $mobile = false,
     ): array {
-        $component = new DynamicForm(
+        $component = new ObjectFormSchema(
             type: $type,
             record: $record,
             sections: $sections,
@@ -131,7 +131,7 @@ class FormSchemaPresenter
         bool $hideEmpty = false,
         bool $mobile = false,
     ): array {
-        $component = new DynamicDetail(
+        $component = new ObjectDetailSchema(
             record: $record,
             type: $type,
             sections: $sections,
@@ -210,7 +210,7 @@ class FormSchemaPresenter
     /**
      * @return list<array{value: int|string, label: string}>|null
      */
-    private function optionsFor(ObjectAttribute $field, DynamicForm $component, FormOptionResolver $resolver): ?array
+    private function optionsFor(ObjectAttribute $field, ObjectFormSchema $component, FormOptionResolver $resolver): ?array
     {
         // A `user` field with no explicit source is still a choice of a
         // person; the users lookup is the only sensible list for it.
@@ -241,7 +241,7 @@ class FormSchemaPresenter
      * @param  list<string>  $omit
      * @return Collection<int, ObjectAttribute>
      */
-    private function formulaFields(DynamicForm $component, array $omit, bool $mobile): Collection
+    private function formulaFields(ObjectFormSchema $component, array $omit, bool $mobile): Collection
     {
         if ($component->objectType === null) {
             return collect();
@@ -251,7 +251,7 @@ class FormSchemaPresenter
             ->filter(fn (ObjectAttribute $field) => $field->data_type === 'formula')
             ->reject(fn (ObjectAttribute $field) => in_array($field->code, $omit, true))
             ->reject(fn (ObjectAttribute $field) => $mobile && ! $field->show_on_mobile)
-            ->filter(fn (ObjectAttribute $field) => DynamicForm::visibleToUser($field))
+            ->filter(fn (ObjectAttribute $field) => $field->visibleToCurrentUser())
             ->values();
     }
 

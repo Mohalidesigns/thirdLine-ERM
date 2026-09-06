@@ -67,7 +67,8 @@ class ObjectType extends Model
             ->first();
     }
 
-    public function parentType()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<self, $this> */
+    public function parentType(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_type_id');
     }
@@ -82,12 +83,14 @@ class ObjectType extends Model
      * relation of that name shadows the model's own attribute bag in ways that
      * only show up at serialisation time.
      */
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<ObjectAttribute, $this> */
     public function attributeDefinitions(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(ObjectAttribute::class, 'object_type_id')->orderBy('sort_order');
     }
 
-    public function lifecycles()
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<ObjectLifecycle, $this> */
+    public function lifecycles(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(ObjectLifecycle::class, 'object_type_id');
     }

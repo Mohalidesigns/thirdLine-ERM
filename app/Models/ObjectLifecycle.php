@@ -36,7 +36,8 @@ class ObjectLifecycle extends Model
         'is_system' => 'boolean',
     ];
 
-    public function objectType()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<ObjectType, $this> */
+    public function objectType(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(ObjectType::class, 'object_type_id');
     }

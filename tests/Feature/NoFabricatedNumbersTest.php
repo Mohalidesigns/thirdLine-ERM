@@ -54,7 +54,7 @@ class NoFabricatedNumbersTest extends TestCase
         'app/Http/Controllers',
         'app/Services',
         'app/Jobs',
-        'app/Livewire',
+        'app/Presenters',
         'app/Grids',
         'resources/views',
     ];
@@ -94,14 +94,44 @@ class NoFabricatedNumbersTest extends TestCase
     /**
      * Blade lines permitted to carry a non-zero numeric fallback, and why.
      *
-     * Every entry here is a LAYOUT COORDINATE, not a metric — a default canvas
-     * position or grid cell size for an element the user has not placed yet.
-     * Nothing on these lines is presented to anyone as a measurement.
+     * EMPTY SINCE MIGRATION PHASE 6.8. Both entries were the workflow
+     * designer's default node coordinates, and the Blade designer was deleted
+     * with the rest of the Livewire tree. The remaining Blade files are the PDF
+     * templates and one mailable, and none of them carries a numeric fallback.
+     *
+     * The bar, if this list is ever refilled: a LAYOUT COORDINATE, not a metric
+     * — a default canvas position or grid cell size for an element the user has
+     * not placed yet. Nothing on such a line is presented to anyone as a
+     * measurement.
      */
-    private const NUMERIC_FALLBACK_ALLOWLIST = [
-        // Workflow designer: default x/y for a node dropped without coordinates.
-        'resources/views/livewire/admin/workflow-designer.blade.php:256',
-        'resources/views/livewire/admin/workflow-designer.blade.php:258',
+    private const NUMERIC_FALLBACK_ALLOWLIST = [];
+
+    /**
+     * The same rule for the React tree, keyed by line CONTENT rather than line
+     * number — as FINANCIAL_CONSTANT_ALLOWLIST is, and for the same reason: a
+     * number-keyed entry silently stops matching when the file above it grows,
+     * which turns an allowlist into a hole nobody notices.
+     *
+     * Every entry is a layout coordinate or a default in an EDITABLE input,
+     * which is the JSX equivalent of the `old(` exclusion the Blade rule makes:
+     * a form offering a suggested starting value is offering an INPUT, not
+     * asserting a RESULT.
+     */
+    private const JSX_NUMERIC_FALLBACK_ALLOWLIST = [
+        // Dashboard grid: cell size for a widget the user has not placed yet.
+        'resources/js/Components/WidgetGrid.jsx:const w = Math.max(2, Math.min(12 - x, parseInt(placement.w ?? 4, 10) || 4));',
+        'resources/js/Components/WidgetGrid.jsx:const h = Math.max(2, parseInt(placement.h ?? 3, 10) || 3);',
+        'resources/js/Components/DashboardBuilder.jsx:gs-min-w={placement.widget?.min_w ?? 2} gs-min-h={placement.widget?.min_h ?? 2}>',
+        // Radar chart: the plotted radius of a point, in SVG units.
+        'resources/js/Pages/Ai/Radar.jsx:const radius = (impact) => ({ Critical: 11, High: 9, Medium: 7, Low: 5 })[impact] ?? 6;',
+        // Band lookup: the lower bound of an unbounded band, paired with
+        // `?? Infinity` for its upper bound. Not a score, a boundary.
+        'resources/js/Pages/Analysis/format.js:return bands.find((band) => score >= (band.min ?? 1) && score <= (band.max ?? Infinity)) ?? null;',
+        // Editable inputs: a new scoring profile's matrix size, and the hours
+        // an escalation waits. Both are fields the user is about to change.
+        'resources/js/Pages/Admin/ScoringProfiles/Edit.jsx:matrix_rows: profile?.matrix_rows ?? 5,',
+        'resources/js/Pages/Admin/ScoringProfiles/Edit.jsx:matrix_cols: profile?.matrix_cols ?? 5,',
+        'resources/js/Pages/Workflows/Designer.jsx:value={rule.after_hours ?? 24}',
     ];
 
     /**
@@ -313,7 +343,7 @@ class NoFabricatedNumbersTest extends TestCase
             "A capital or ratio figure is derived from a hardcoded multiplier.\n\n"
             .implode("\n", $offenders)
             ."\n\nThe ICAAP screen shipped `pillar2a_other_kobo / 100 * 0.3` presented as "
-            ."concentration risk, and `max(\$capitalAdequacyRatio - 3.5, 0)` as a stress "
+            .'concentration risk, and `max($capitalAdequacyRatio - 3.5, 0)` as a stress '
             ."result. Nobody computed those constants and nothing in the schema held them.\n\n"
             .'A capital figure must come from stored capital and RWA, from a bound simulation '
             .'run, or from tenant configuration — never from a literal in a controller.'
@@ -369,6 +399,57 @@ class NoFabricatedNumbersTest extends TestCase
     }
 
     /**
+     * RULE 1, for the tree that now renders almost every screen.
+     *
+     * MIGRATION PHASE 6.8. The phase prompt said this test's scope "now covers
+     * resources/js/** instead of Blade". It covers BOTH, deliberately: the PDF
+     * templates are still Blade, and the board pack is exactly where the
+     * original audit found `?? 15.2` rendered as a green capital-adequacy tile.
+     * Dropping the Blade scan would have retired the rule from the one surface
+     * that has actually shipped the defect.
+     *
+     * The JSX pattern is looser than the Blade one, because JSX has no
+     * equivalent of `{{ }}` to mark "this value is being displayed" — a value
+     * is interpolated the same way whether it lands in text or in a variable.
+     * So this matches any non-zero numeric fallback in the tree and leans on
+     * the allowlist to carry the exceptions, which is affordable only because
+     * there are eight of them in the whole application.
+     */
+    #[Test]
+    public function no_metric_falls_back_to_a_hardcoded_number_in_the_react_tree(): void
+    {
+        $offenders = [];
+
+        foreach ($this->reactFiles() as $file) {
+            $relative = $this->relativePath($file);
+
+            foreach ($this->codeLines($file) as $number => $line) {
+                // `?? 0` is a true statement about an empty set, not a fabrication.
+                if (! preg_match('/\?\?\s*-?(?!0(?![\d.]))\d+(\.\d+)?/', $line)) {
+                    continue;
+                }
+
+                if (in_array($relative.':'.trim($line), self::JSX_NUMERIC_FALLBACK_ALLOWLIST, true)) {
+                    continue;
+                }
+
+                $offenders[] = sprintf('%s:%d — %s', $relative, $number, trim($line));
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $offenders,
+            "A non-zero numeric fallback reached a React page.\n\n"
+            .implode("\n", $offenders)
+            ."\n\nA metric with no reading behind it must render its absence, not a number: "
+            .'the tile says "not assessed" rather than showing a figure nobody computed. '
+            .'If the value is a layout coordinate or a default in an editable input, add it '
+            .'to JSX_NUMERIC_FALLBACK_ALLOWLIST with the reason and raise the meta-test count.'
+        );
+    }
+
+    /**
      * Meta-test, mirroring RouteAuthorizationTest.
      *
      * The failure mode for a guard like this is not that someone disables it —
@@ -388,11 +469,21 @@ class NoFabricatedNumbersTest extends TestCase
         );
 
         $this->assertCount(
-            2,
+            0,
             self::NUMERIC_FALLBACK_ALLOWLIST,
-            'A line was added to the numeric-fallback allowlist. Every current entry is a '
-            .'layout coordinate, not a metric. If a genuine metric needs a non-zero default, '
-            .'it almost certainly needs an explicit not-assessed state instead.'
+            'A line was added to the Blade numeric-fallback allowlist. It has been empty since '
+            .'migration Phase 6.8, and the only Blade left is the PDF templates and one '
+            .'mailable — the board pack being the exact surface that shipped  as a '
+            .'capital-adequacy tile. A metric there needs a not-assessed state, not a default.'
+        );
+
+        $this->assertCount(
+            8,
+            self::JSX_NUMERIC_FALLBACK_ALLOWLIST,
+            'A line was added to the React numeric-fallback allowlist. Every current entry is '
+            .'a layout coordinate or a default in an editable input. If a genuine metric needs '
+            .'a non-zero default, it almost certainly needs an explicit not-assessed state '
+            .'instead.'
         );
 
         $this->assertCount(
@@ -449,10 +540,30 @@ class NoFabricatedNumbersTest extends TestCase
     }
 
     /**
+     * Every page, component and helper in the React tree.
+     *
+     * @return list<string>
+     */
+    private function reactFiles(): array
+    {
+        return $this->filesUnder(['resources/js'], ['jsx', 'js']);
+    }
+
+    /**
      * @param  list<string>  $paths
      * @return list<string>
      */
     private function phpFilesUnder(array $paths): array
+    {
+        return $this->filesUnder($paths, ['php']);
+    }
+
+    /**
+     * @param  list<string>  $paths
+     * @param  list<string>  $extensions
+     * @return list<string>
+     */
+    private function filesUnder(array $paths, array $extensions): array
     {
         $files = [];
 
@@ -468,7 +579,7 @@ class NoFabricatedNumbersTest extends TestCase
             );
 
             foreach ($iterator as $file) {
-                if ($file->isFile() && $file->getExtension() === 'php') {
+                if ($file->isFile() && in_array($file->getExtension(), $extensions, true)) {
                     $files[] = $file->getPathname();
                 }
             }

@@ -55,7 +55,7 @@ class UpdateTreatmentPlanRequest extends FormRequest
             'milestones.*.responsible' => ['nullable', 'string', 'max:255'],
             'success_criteria' => ['nullable', 'string', 'max:2000'],
             'implementation_notes' => ['nullable', 'string', 'max:5000'],
-            ...$this->configuredAttributeRules('TreatmentPlan'),
+            ...$this->configuredAttributeRules('TreatmentPlan', $this->route('treatment')),
         ];
     }
 

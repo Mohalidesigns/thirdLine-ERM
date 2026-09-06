@@ -7,17 +7,22 @@
 
     <title inertia>{{ config('app.name', 'Atheris ERM') }}</title>
 
-    {{-- The Inertia root view. Every React page mounts here; the Blade layout
-         (layouts/app.blade.php) keeps serving the screens that have not been
-         ported yet. No font or script is fetched from a CDN: Inter and Material
-         Symbols are self-hosted through resources/css/fonts.css, which app.css
-         imports — a deployment inside a bank must not tell a third party who is
-         using it and when. --}}
-    {{-- Tenant branding overrides (--color-primary / --color-accent), the
-         same partial the Blade layout includes. --}}
-    @include('layouts.partials.branding')
+    {{-- The Inertia root view, and since migration Phase 6.8 the only page view
+         in the application. No font or script is fetched from a CDN: Inter and
+         Material Symbols are self-hosted through resources/css/fonts.css, which
+         app.css imports — a deployment inside a bank must not tell a third
+         party who is using it and when. --}}
+    {{-- Tenant branding overrides (--color-primary / --color-accent). The
+         allowlist that makes interpolating a tenant value into a <style> block
+         safe lives in the class, where it is testable. --}}
+    {!! \App\Support\Branding::styleTag() !!}
 
-    @routes
+    {{-- Ziggy's route table. It is an INLINE script, and script-src is 'self'
+         with no 'unsafe-inline' since Phase 6.8, so it must carry the nonce
+         SetSecurityHeaders put in the header — without it the browser blocks
+         the script, route() is never defined, and every page throws before it
+         mounts. --}}
+    @routes(nonce: Illuminate\Support\Facades\Vite::cspNonce())
     @viteReactRefresh
     @vite(['resources/js/app.jsx'])
     @inertiaHead

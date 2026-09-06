@@ -55,6 +55,62 @@ that was never written. **An `authorize()` must assert what actually guards the
 route** — check `ls app/Policies` before naming an ability, because the failure
 is silent unless a test happens to exercise the endpoint.
 
+## PHPStan: app/Http from 37 baseline entries to 15, app/Policies already zero
+
+The criterion asks for zero in both. `app/Policies/**` was already there. For
+`app/Http/**` the honest answer is **15, not 0**, and the fifteen are the point.
+
+Cleared (22 entries), all of them genuine gaps:
+
+- **8 `larastan.relationExistence`** — `with('creator')`, `with('actor')`,
+  `with('bundle')`, `with('objectType')`. Every relation existed; they were
+  untyped, so larastan could not see them. Typing the seven `belongsTo` returns
+  fixed all eight.
+- **9 `property.notFound`** — `LossEvent::$net_loss_amount_kobo` reads through
+  an `Attribute` accessor larastan cannot see (documented with `@property-read`),
+  and `DocumentRepositoryController` reads four different document tables
+  through one shape, so `$row` is a generic `Model` by design. Those became
+  `getAttribute('file_name')`: saying "dynamic attribute" out loud is more
+  honest than a property access that only looks static.
+- **`Issue::$age_days` / `$age_bucket`** were stapled onto the model in a map
+  before being read back. That is worse than a type error — an undeclared
+  attribute enters the attribute bag and a later `save()` would try to write a
+  column that does not exist. The ageing is computed in the report now.
+- **`PeriodController`'s `match`** had no default arm. The rule restricts
+  `direction` to three values, so it could not be reached — but an unmatched
+  `match()` throws `UnhandledMatchError`, which is a 500 rather than the
+  "nothing to move to" the caller should get.
+
+**Kept, and this is the part worth reading. 11 of the 15 are
+`nullsafe.neverNull`, and PHPStan is wrong about every one.** Each is
+`$model->relation?->column ?? $fallback` on a `belongsTo` whose foreign key is
+**nullable** — a document with no loss event, a task with no assignee, a
+dashboard bound to no object type. larastan types a `belongsTo` as
+non-nullable and therefore calls the `?->` unnecessary; the database disagrees.
+
+Deleting the null-safety to satisfy the analyser would turn a rendered "—" into
+a fatal on real rows. A `@property-read X|null` docblock does not override it
+either. The established workaround in this codebase is to extract a helper per
+read doing `getRelationValue()` plus an explicit null check — eleven new private
+methods that make the code worse to satisfy a tool that is mistaken. They stay
+baselined, with that reason written at the top of the baseline file rather than
+left for someone to rediscover.
+
+The other four: three scopes resolved off a generic `Builder` (correct at
+runtime; typing them means naming a concrete class the code is deliberately
+generic over) and one `Collection` template-invariance false positive that
+prints two identical types as different.
+
+**Level was not raised to 6.** The criterion says "if green", and at level 5
+there are still fifteen baselined entries in `app/Http` alone; raising the level
+would add findings across the whole tree while these are open. It is a separate
+piece of work with its own commit.
+
+One incidental win: annotating `LossEvent` made **four baseline entries
+elsewhere stale**, in `CommandCentreService`, `EvaluateRegulatoryThresholds`,
+`ConfigRollback` and the model itself. The whole file went from 386 blocks to
+364.
+
 ## Repository hygiene
 
 `/risk` (a 916K SQLite database), `/plans/` and `/erm-update/` were **already in

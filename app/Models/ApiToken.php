@@ -215,11 +215,13 @@ class ApiToken extends PersonalAccessToken
 
     /* ------------------------------------------------------------------ */
 
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Organization, $this> */
     public function organization()
     {
         return $this->belongsTo(Organization::class);
     }
 
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');

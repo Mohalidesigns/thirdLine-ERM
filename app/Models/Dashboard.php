@@ -31,7 +31,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * Read the live layout through publishedTabList(), never through tabList().
  *
  * @property-read ObjectType|null $objectType
- * @property-read string $role_names
+ * @property string $role_names roles named for a screen; assigned by the controller, never a column
  */
 class Dashboard extends Model
 {
@@ -64,6 +64,7 @@ class Dashboard extends Model
         'version' => 'integer',
     ];
 
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<ObjectType, $this> */
     public function objectType()
     {
         return $this->belongsTo(ObjectType::class, 'object_type_id');

@@ -218,19 +218,7 @@ class ExportController extends Controller
             ->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])
             ->with(['issueOwner', 'businessUnit'])
             ->orderBy('created_at')
-            ->get()
-            ->map(function ($issue) {
-                $ageDays = $issue->created_at ? now()->diffInDays($issue->created_at) : 0;
-                $issue->age_days = $ageDays;
-                $issue->age_bucket = match (true) {
-                    $ageDays <= 30 => '0-30 days',
-                    $ageDays <= 60 => '31-60 days',
-                    $ageDays <= 90 => '61-90 days',
-                    default => '90+ days',
-                };
-
-                return $issue;
-            });
+            ->get();
 
         $headers = [
             'Reference', 'Title', 'Priority', 'Status', 'Owner',
@@ -238,18 +226,38 @@ class ExportController extends Controller
             'Target Resolution Date', 'Created At',
         ];
 
-        $rows = $issues->map(fn ($i) => [
-            $i->issue_reference,
-            $i->title ?? '',
-            $i->priority ?? '',
-            $i->issue_status ?? '',
-            $i->issueOwner->name ?? '',
-            $i->businessUnit->name ?? '',
-            $i->age_days,
-            $i->age_bucket,
-            $i->remediation_due_date ?? '',
-            $i->created_at?->format('Y-m-d'),
-        ]);
+        // Ageing is computed HERE rather than stapled onto the model as
+        // $issue->age_days. Assigning an undeclared attribute to an Eloquent
+        // model makes it look like a column to everything downstream — it
+        // enters the attribute bag, and a later save() would try to write a
+        // column that does not exist. The figures belong to this report.
+        $ageOf = fn (Issue $issue): int => $issue->created_at
+            ? (int) now()->diffInDays($issue->created_at)
+            : 0;
+
+        $bucketOf = fn (int $days): string => match (true) {
+            $days <= 30 => '0-30 days',
+            $days <= 60 => '31-60 days',
+            $days <= 90 => '61-90 days',
+            default => '90+ days',
+        };
+
+        $rows = $issues->map(function (Issue $i) use ($ageOf, $bucketOf) {
+            $ageDays = $ageOf($i);
+
+            return [
+                $i->issue_reference,
+                $i->title ?? '',
+                $i->priority ?? '',
+                $i->issue_status ?? '',
+                $i->issueOwner->name ?? '',
+                $i->businessUnit->name ?? '',
+                $ageDays,
+                $bucketOf($ageDays),
+                $i->remediation_due_date ?? '',
+                $i->created_at?->format('Y-m-d'),
+            ];
+        });
 
         return $this->streamCsv('issues_ageing_export.csv', $headers, $rows);
     }
@@ -357,7 +365,7 @@ class ExportController extends Controller
             $m->control->control_code ?? '',
             $m->control->name ?? '',
             $m->control_weight ?? '',
-            $m->is_key_control ? 'Yes' : 'No',
+            $m->getAttribute('is_key_control') ? 'Yes' : 'No',
             $m->mapping_rationale ?? '',
         ]);
 

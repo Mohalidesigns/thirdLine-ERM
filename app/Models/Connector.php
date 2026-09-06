@@ -53,6 +53,7 @@ class Connector extends Model
         return $this->hasMany(ConnectorRun::class)->latest();
     }
 
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');

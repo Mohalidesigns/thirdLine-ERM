@@ -61,6 +61,7 @@ class JobRun extends Model
 
     /* ------------------------------------------------------------------ */
 
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');

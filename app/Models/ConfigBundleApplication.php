@@ -45,6 +45,7 @@ class ConfigBundleApplication extends Model
         'conflict_count' => 'integer',
     ];
 
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<ConfigBundle, $this> */
     public function bundle()
     {
         return $this->belongsTo(ConfigBundle::class, 'config_bundle_id');
@@ -55,6 +56,7 @@ class ConfigBundleApplication extends Model
         return $this->belongsTo(ConfigBundle::class, 'snapshot_bundle_id');
     }
 
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
     public function actor()
     {
         return $this->belongsTo(User::class, 'applied_by');

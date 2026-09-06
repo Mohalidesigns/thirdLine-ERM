@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ControlTestEvidence;
 use App\Models\IssueAttachment;
 use App\Models\LossEventAttachment;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use ThirdLine\Platform\Tenancy\TenantContext;
@@ -169,21 +170,26 @@ class DocumentRepositoryController extends Controller
             return collect();
         }
 
-        return $query->with('uploadedBy')->orderByDesc('created_at')->get()->map(function ($row) use ($key, $cfg) {
+        // getAttribute() rather than ->property throughout, because $row is
+        // genuinely heterogeneous: this method reads four different document
+        // tables through one shape, and no single model declares these columns.
+        // Saying "dynamic attribute" out loud is more honest than a property
+        // access that only looks static.
+        return $query->with('uploadedBy')->orderByDesc('created_at')->get()->map(function (Model $row) use ($key, $cfg) {
             return (object) [
                 'source' => $key,
                 'source_label' => $cfg['label'],
                 'source_icon' => $cfg['icon'],
-                'id' => $row->id,
-                'file_name' => $row->file_name,
-                'file_type' => $row->file_type,
+                'id' => $row->getAttribute('id'),
+                'file_name' => $row->getAttribute('file_name'),
+                'file_type' => $row->getAttribute('file_type'),
                 'size_bytes' => (int) ($row->file_size_bytes ?? $row->file_size ?? 0),
                 'document_type' => $cfg['has_document_type'] ? ($row->document_type ?? null) : null,
                 'is_regulatory' => $cfg['has_regulatory'] ? (bool) ($row->is_regulatory ?? false) : false,
                 'description' => $row->description ?? null,
                 'uploaded_by' => $row->uploadedBy?->name ?? '—',
-                'uploaded_by_id' => $row->uploaded_by,
-                'uploaded_at' => $row->created_at,
+                'uploaded_by_id' => $row->getAttribute('uploaded_by'),
+                'uploaded_at' => $row->getAttribute('created_at'),
                 'parent_label' => ($cfg['parent_label'])($row),
                 'parent_link' => ($cfg['parent_link'])($row),
                 'download_link' => ($cfg['download_link'])($row),

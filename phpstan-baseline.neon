@@ -1,11 +1,36 @@
+# PHPStan baseline.
+#
+# MIGRATION PHASE 7.3 drove app/Http/** from 37 entries to 15 and app/Policies/**
+# to zero. What is left is there on purpose, and the reasons matter more than the
+# count:
+#
+#   11  nullsafe.neverNull — PHPStan IS WRONG, AND OBEYING IT WOULD BREAK THE APP.
+#       Every one is `$model->relation?->column ?? $fallback` on a belongsTo whose
+#       FOREIGN KEY IS NULLABLE: a document with no loss event, a task with no
+#       assignee, a dashboard bound to no object type. larastan types a belongsTo
+#       as non-nullable, so it calls the `?->` unnecessary; the database says
+#       otherwise. Deleting the null-safety to satisfy the analyser would turn a
+#       rendered "—" into a fatal on real rows. A @property-read X|null docblock
+#       does not override it either. They stay.
+#
+#    3  method.notFound — a scope resolved off a generic Builder. EnforcesNodeScope
+#       calls ->visibleTo() on $record->newQuery() for any model using
+#       ScopedToGraph, and MyTaskController calls ->getCollection() on the
+#       paginator CONTRACT rather than the concrete class. Both are correct at
+#       runtime; typing them means naming a concrete class the code is
+#       deliberately generic over.
+#
+#    1  return.type — Collection's TValue is invariant, so PHPStan reports the
+#       declared and actual array shapes as different while printing two
+#       identical types. Annotating it more precisely does not help; it was tried.
+#
+# NOT baselined, and deliberately still red: the six long-standing errors in
+# WorkflowPresenter, ApprovalController and MyTaskController. Regenerating this
+# file swept them in and they were stripped back out — they have been the
+# programme's known-red marker since Phase 3 and hiding them here would lose it.
+#
 parameters:
 	ignoreErrors:
-		-
-			message: '#^Relation ''bundle'' is not found in App\\Models\\ConfigBundleApplication model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Console/Commands/ConfigRollback.php
-
 		-
 			message: '#^Argument of an invalid type Illuminate\\Routing\\RouteCollectionInterface supplied for foreach, only iterables are supported\.$#'
 			identifier: foreach.nonIterable
@@ -145,42 +170,6 @@ parameters:
 			path: app/Grids/GridDefinition.php
 
 		-
-			message: '#^Relation ''creator'' is not found in App\\Models\\ApiToken model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Admin/ApiTokenController.php
-
-		-
-			message: '#^Relation ''actor'' is not found in App\\Models\\ConfigBundleApplication model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Admin/ConfigurationBundleController.php
-
-		-
-			message: '#^Relation ''bundle'' is not found in App\\Models\\ConfigBundleApplication model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Admin/ConfigurationBundleController.php
-
-		-
-			message: '#^Relation ''creator'' is not found in App\\Models\\Connector model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Admin/ConnectorController.php
-
-		-
-			message: '#^Relation ''creator'' is not found in App\\Models\\JobRun model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Admin/JobRunController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\ApiToken\:\:\$organization\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/V1/MeController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -193,82 +182,10 @@ parameters:
 			path: app/Http/Controllers/Risk/ControlController.php
 
 		-
-			message: '#^Relation ''objectType'' is not found in App\\Models\\Dashboard model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/DashboardBuilderController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/Risk/DashboardBuilderController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$event_count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Dashboard/CommandCentreService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$gross\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Dashboard/CommandCentreService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Dashboard/CommandCentreService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net_loss_amount_kobo\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Dashboard/CommandCentreService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$count\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Dashboard/CommandCentreService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_type\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$uploaded_by\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>event_reference" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -295,58 +212,16 @@ parameters:
 			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$age_bucket\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$age_days\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net_loss_amount_kobo\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_key_control\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/ExportController.php
-
-		-
 			message: '#^Method App\\Http\\Controllers\\Risk\\GlobalSearchController\:\:search\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, code\: string, type\: string\|null, icon\: string\|null, description\: string, url\: string\}\>\.$#'
 			identifier: return.type
 			count: 1
 			path: app/Http/Controllers/Risk/GlobalSearchController.php
 
 		-
-			message: '#^Property App\\Models\\Dashboard\:\:\$role_names is not writable\.$#'
-			identifier: assign.propertyReadOnly
-			count: 1
-			path: app/Http/Controllers/Risk/HqController.php
-
-		-
-			message: '#^Relation ''objectType'' is not found in App\\Models\\Dashboard model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/HqController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 3
 			path: app/Http/Controllers/Risk/HqController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Risk/LossEventController.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>node_code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -359,12 +234,6 @@ parameters:
 			identifier: method.notFound
 			count: 1
 			path: app/Http/Controllers/Risk/MyTaskController.php
-
-		-
-			message: '#^Match expression does not handle remaining value\: mixed$#'
-			identifier: match.unhandled
-			count: 1
-			path: app/Http/Controllers/Risk/PeriodController.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>start_date" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -383,12 +252,6 @@ parameters:
 			identifier: method.notFound
 			count: 1
 			path: app/Http/Controllers/Risk/RiskAssessmentController.php
-
-		-
-			message: '#^Relation ''creator'' is not found in App\\Models\\WorkflowDefinition model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Risk/WorkflowController.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>type" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -455,12 +318,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Listeners/EscalateRiskOnKriBreach.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net_loss_amount_kobo\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Listeners/EvaluateRegulatoryThresholds.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$risk_id\.$#'
@@ -818,12 +675,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$event_date\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/LossEvent.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net_loss_amount_kobo\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Models/LossEvent.php
@@ -1279,10 +1130,28 @@ parameters:
 			path: app/Services/BoardPackAssembler.php
 
 		-
-			message: '#^Match expression does not handle remaining value\: string$#'
-			identifier: match.unhandled
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$event_count\.$#'
+			identifier: property.notFound
 			count: 1
-			path: packages/reporting/src/DocumentRenderer.php
+			path: app/Services/Dashboard/CommandCentreService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$gross\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Dashboard/CommandCentreService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Dashboard/CommandCentreService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Dashboard/CommandCentreService.php
 
 		-
 			message: '#^Method App\\Services\\Graph\\GraphQueryService\:\:ancestors\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\GraphObject\> but returns Illuminate\\Support\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
@@ -2257,18 +2126,6 @@ parameters:
 			path: app/Support/Graph/OrganisationGraphUnifier.php
 
 		-
-			message: '#^Call to an undefined method TModel of Illuminate\\Database\\Eloquent\\Model\:\:getQualifiedOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: packages/platform/src/Tenancy/OrganizationScope.php
-
-		-
-			message: '#^Call to an undefined method TModel of Illuminate\\Database\\Eloquent\\Model\:\:tenantIncludesGlobalRecords\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: packages/platform/src/Tenancy/OrganizationScope.php
-
-		-
 			message: '#^Match expression does not handle remaining value\: mixed$#'
 			identifier: match.unhandled
 			count: 1
@@ -2315,3 +2172,21 @@ parameters:
 			identifier: booleanOr.alwaysTrue
 			count: 1
 			path: database/seeders/EnterpriseGapSeeder.php
+
+		-
+			message: '#^Call to an undefined method TModel of Illuminate\\Database\\Eloquent\\Model\:\:getQualifiedOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: packages/platform/src/Tenancy/OrganizationScope.php
+
+		-
+			message: '#^Call to an undefined method TModel of Illuminate\\Database\\Eloquent\\Model\:\:tenantIncludesGlobalRecords\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: packages/platform/src/Tenancy/OrganizationScope.php
+
+		-
+			message: '#^Match expression does not handle remaining value\: string$#'
+			identifier: match.unhandled
+			count: 1
+			path: packages/reporting/src/DocumentRenderer.php

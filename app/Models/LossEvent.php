@@ -30,6 +30,8 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property int|null $status_changed_by
  * @property \Illuminate\Support\Carbon|null $status_changed_at
  * @property int|null $approved_by
+ * @property-read int $net_loss_amount_kobo net loss in kobo, from the netLossAmountKobo() accessor
+ * @property string|null $status deprecated duplicate of current_status; see schema:audit-deprecated
  * @property \Illuminate\Support\Carbon|null $approved_at
  */
 class LossEvent extends Model

@@ -56,10 +56,15 @@ class PeriodController extends Controller
                 $organizationId
             );
         } elseif (! empty($validated['direction']) && $current !== null) {
-            $target = match ($validated['direction']) {
+            // The rule restricts direction to these three, but the validated
+            // array is mixed as far as static analysis is concerned, and an
+            // unmatched match() throws \UnhandledMatchError — a 500 rather
+            // than the "nothing to move to" the caller should get.
+            $target = match ((string) $validated['direction']) {
                 'previous' => $this->periods->previous($current),
                 'next' => $this->periods->next($current),
                 'current' => $this->periods->current($current->type, $organizationId),
+                default => null,
             };
         }
 

@@ -62,6 +62,10 @@ final class Ported
         // Phase 5 criterion 7 — the Command Centre
         'risk.dashboard',
         'admin.users.index',
+        // Phase 6.1 — users and roles
+        'admin.users.create',
+        'admin.users.show',
+        'admin.users.edit',
         'risk.emerging.index',
         'risk.reports.library',
         // Phase 5.4

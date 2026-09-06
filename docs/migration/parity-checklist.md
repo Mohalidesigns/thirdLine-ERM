@@ -19,10 +19,10 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | `admin.license` | `admin/settings/license` | `license.manage` | — (new) | Pages/Settings/License.jsx |  |  |  |  |  | Licensing/*, AdminNavigationTest | 2026-09-03 (Phase 0) |  |
 | `admin.settings` | `admin/settings` | `admin.settings` |  |  |  |  |  |  |  |  |  |  |
 | `admin.settings.sso` | `admin/settings/sso` | `admin.sso` |  |  |  |  |  |  |  |  |  |  |
-| `admin.users.create` | `admin/users/create` | `admin.users` |  |  |  |  |  |  |  |  |  |  |
-| `admin.users.edit` | `admin/users/{user}/edit` | `admin.users` |  |  |  |  |  |  |  |  |  |  |
+| `admin.users.create` | `admin/users/create` | `admin.users` | admin/users/create.blade.php (deleted) | Pages/Admin/Users/Create.jsx (+ UserForm.jsx) | Admin/StoreUserRequest | UserPolicy |  |  |  | Admin/UserManagementTest, AdminNavigationTest | 2026-09-06 (Phase 6.1) |  |
+| `admin.users.edit` | `admin/users/{user}/edit` | `admin.users` | admin/users/edit.blade.php (deleted) | Pages/Admin/Users/Edit.jsx (+ UserForm.jsx) | Admin/UpdateUserRequest | UserPolicy |  |  |  | Admin/UserManagementTest | 2026-09-06 (Phase 6.1) |  |
 | `admin.users.index` | `admin/users` | `admin.users` | admin/users/index.blade.php (deleted) | Pages/Admin/Users/Index.jsx |  |  | GridPresenter |  | risk.grids.export | Grid/* | 2026-09-03 (Phase 2) |  |
-| `admin.users.show` | `admin/users/{user}` | `admin.users` |  |  |  |  |  |  |  |  |  |  |
+| `admin.users.show` | `admin/users/{user}` | `admin.users` | admin/users/show.blade.php (deleted) | Pages/Admin/Users/Show.jsx | n/a | UserPolicy |  |  |  | Admin/UserManagementTest | 2026-09-06 (Phase 6.1) |  |
 | `admin.webhooks.deliveries` | `admin/webhooks/{webhook}/deliveries` | `webhook.view` |  |  |  |  |  |  |  |  |  |  |
 | `admin.webhooks.index` | `admin/webhooks` | `webhook.view` |  |  |  |  |  |  |  |  |  |  |
 | `hq.index` | `hq` | `hq.view` | — (redirect) | n/a (redirects to hq.show) |  |  |  |  |  | Inertia/HqPagesTest | 2026-09-03 (Phase 2) |  |

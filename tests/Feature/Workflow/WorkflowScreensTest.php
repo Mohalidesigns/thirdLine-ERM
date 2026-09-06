@@ -128,7 +128,16 @@ class WorkflowScreensTest extends TestCase
         $this->actingAs($this->actor)
             ->get(route('risk.workflows.create-definition'))
             ->assertOk()
-            ->assertSee('Workflow designer');
+            ->assertInertia(fn ($page) => $page
+                ->component('Workflows/Designer')
+                ->where('definition', null)
+                // A blank canvas is not a useful starting point for a process:
+                // every approval begins somewhere and ends two ways.
+                ->has('skeleton.nodes', 4)
+                ->has('skeleton.edges', 3)
+                ->has('options.nodeTypes')
+                ->has('liveErrors')
+            );
     }
 
     #[Test]

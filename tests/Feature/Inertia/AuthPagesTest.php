@@ -209,15 +209,14 @@ class AuthPagesTest extends TestCase
         $this->assertSame('', Ported::navigateAttribute('/risk/dashboard'));
 
         // A path that is still Blade, so the Livewire attribute is still
-        // exercised rather than the assertion passing vacuously: the workflow
-        // designer, the last Blade view in the product, which Phase 6 owns.
-        $designerPath = (string) parse_url(
-            route('risk.workflows.edit-definition', ['definition' => 1]),
-            PHP_URL_PATH,
-        );
+        // exercised rather than the assertion passing vacuously. This was the
+        // workflow designer until migration Phase 6.5 flipped it; configuration
+        // bundles are next, and when Phase 6.6 takes them this moves again —
+        // until 6.8 removes Livewire and `navigateAttribute` with it.
+        $bladePath = (string) parse_url(route('admin.configuration'), PHP_URL_PATH);
 
-        $this->assertFalse(Ported::isRoute('risk.workflows.edit-definition'));
-        $this->assertSame('wire:navigate', Ported::navigateAttribute($designerPath));
+        $this->assertFalse(Ported::isRoute('admin.configuration'));
+        $this->assertSame('wire:navigate', Ported::navigateAttribute($bladePath));
 
         foreach (NavPresenter::allItems() as $item) {
             $expected = Ported::isRoute($item['route']);

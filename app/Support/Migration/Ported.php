@@ -79,6 +79,9 @@ final class Ported
         'admin.builder.scoring-profiles',
         'admin.scoring-profiles.create',
         'admin.scoring-profiles.edit',
+        // Phase 6.5 — the workflow designer, and the last Livewire screen
+        'risk.workflows.create-definition',
+        'risk.workflows.edit-definition',
         'risk.emerging.index',
         'risk.reports.library',
         // Phase 5.4

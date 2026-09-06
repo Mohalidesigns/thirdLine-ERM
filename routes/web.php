@@ -1157,6 +1157,13 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     // next version rather than mutating the one running instances are pinned to.
     Route::get('workflows/definitions/{definition}/design', [WorkflowController::class, 'editDefinition'])
         ->middleware('permission:workflow.manage')->name('risk.workflows.edit-definition');
+    // Phase 6.5: the designer posts the whole graph here. Two routes rather
+    // than one because a design saved for the first time has no definition to
+    // address yet.
+    Route::post('workflows/definitions/design', [WorkflowController::class, 'updateDefinition'])
+        ->middleware('permission:workflow.manage')->name('risk.workflows.create-design');
+    Route::put('workflows/definitions/{definition}/design', [WorkflowController::class, 'updateDefinition'])
+        ->middleware('permission:workflow.manage')->name('risk.workflows.save-design');
     Route::post('workflows/definitions/{definition}/publish', [WorkflowController::class, 'publishDefinition'])
         ->middleware('permission:workflow.manage')->name('risk.workflows.publish-definition');
     Route::post('workflows/definitions/{definition}/unpublish', [WorkflowController::class, 'unpublishDefinition'])

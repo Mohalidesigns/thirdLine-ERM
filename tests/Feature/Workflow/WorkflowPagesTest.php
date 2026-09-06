@@ -207,13 +207,18 @@ class WorkflowPagesTest extends TestCase
     }
 
     #[Test]
-    public function the_old_blade_views_are_gone_and_the_designer_stays(): void
+    public function every_workflow_blade_view_is_gone(): void
     {
-        foreach (['risk/approvals/dashboard', 'risk/my-tasks/index', 'risk/my-tasks/show', 'risk/workflows/dashboard', 'risk/workflows/definitions', 'risk/workflows/show-instance'] as $view) {
+        // The designer was the exception here until migration Phase 6.5: it
+        // stayed on Blade because it was a Livewire screen, and it was the last
+        // one in the product.
+        foreach ([
+            'risk/approvals/dashboard', 'risk/my-tasks/index', 'risk/my-tasks/show',
+            'risk/workflows/dashboard', 'risk/workflows/definitions', 'risk/workflows/show-instance',
+            'risk/workflows/designer',
+        ] as $view) {
             $this->assertFileDoesNotExist(resource_path("views/{$view}.blade.php"));
         }
-
-        $this->assertFileExists(resource_path('views/risk/workflows/designer.blade.php'));
     }
 
     private function assessment(): RiskAssessment

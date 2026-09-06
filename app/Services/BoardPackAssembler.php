@@ -16,6 +16,7 @@ use App\Models\TreatmentPlan;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Reporting\DocumentRenderer;
 
 /**
  * Assembles a board pack: one PDF built from an ordered set of sections.

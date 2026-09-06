@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5933ff7c8c675ea0052b326a0e57d1ca",
+    "content-hash": "4a0807eeda0598c0410b4cc68c9d3485",
     "packages": [
         {
             "name": "barryvdh/laravel-dompdf",
@@ -8583,6 +8583,57 @@
             }
         },
         {
+            "name": "thirdline/reporting",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/reporting",
+                "reference": "006c7240a2b5726433b3f4723a63d9e0e187067d"
+            },
+            "require": {
+                "barryvdh/laravel-dompdf": "^3.0",
+                "illuminate/contracts": "^11.0|^12.0",
+                "illuminate/support": "^11.0|^12.0",
+                "php": "^8.2",
+                "phpoffice/phpspreadsheet": "^1.29|^2.0|^3.0|^4.0"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^9.0|^10.0",
+                "phpunit/phpunit": "^11.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "ThirdLine\\Reporting\\ReportingServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "ThirdLine\\Reporting\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "ThirdLine\\Reporting\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "phpunit"
+                ]
+            },
+            "license": [
+                "proprietary"
+            ],
+            "description": "Document rendering shared by the ThirdLine GRC products: branded PDF and XLSX output from one renderer.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
             "name": "tightenco/ziggy",
             "version": "v2.6.4",
             "source": {
@@ -11378,7 +11429,8 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
-        "thirdline/platform": 20
+        "thirdline/platform": 20,
+        "thirdline/reporting": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,

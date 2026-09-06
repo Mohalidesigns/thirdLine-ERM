@@ -24,7 +24,8 @@
         "spatie/laravel-permission": "^7.2",
         "symfony/expression-language": "^8.1",
         "tightenco/ziggy": "^2.0",
-        "thirdline/platform": "@dev"
+        "thirdline/platform": "@dev",
+        "thirdline/reporting": "@dev"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
@@ -104,6 +105,13 @@
         {
             "type": "path",
             "url": "packages/platform",
+            "options": {
+                "symlink": true
+            }
+        },
+        {
+            "type": "path",
+            "url": "packages/reporting",
             "options": {
                 "symlink": true
             }

@@ -6,7 +6,6 @@ use App\Models\GeneratedReport;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\BoardPackAssembler;
-use App\Services\DocumentRenderer;
 use App\Services\ReportDataService;
 use Carbon\CarbonImmutable;
 use Illuminate\Bus\Queueable;
@@ -18,6 +17,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use ThirdLine\Platform\Tenancy\TenantContext;
+use ThirdLine\Reporting\DocumentRenderer;
 use Throwable;
 
 /**

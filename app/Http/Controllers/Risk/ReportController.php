@@ -17,7 +17,6 @@ use App\Models\Risk;
 use App\Models\RiskCategory;
 use App\Presenters\GridPresenter;
 use App\Services\BoardPackAssembler;
-use App\Services\DocumentRenderer;
 use App\Services\RegulatoryReportService;
 use App\Services\ReportDataService;
 use App\Services\Reporting\BoardReportService;
@@ -30,6 +29,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use ThirdLine\Platform\Tenancy\TenantContext;
+use ThirdLine\Reporting\DocumentRenderer;
 
 class ReportController extends Controller
 {

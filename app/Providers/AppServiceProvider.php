@@ -29,6 +29,15 @@ class AppServiceProvider extends ServiceProvider
         // same lifetime as the tenant. Stays here: a reporting period is this
         // product's idea, not a platform primitive.
         $this->app->singleton(\App\Support\Periods\PeriodContext::class);
+
+        // How this product names the owner of a rendered document. The
+        // renderer lives in thirdline/reporting and deliberately does not know
+        // what an organisation is — see OrganizationBranding for why a Central
+        // Bank of Nigeria code has no place in a shared PDF renderer.
+        $this->app->bind(
+            \ThirdLine\Reporting\Contracts\ResolvesDocumentBranding::class,
+            \App\Services\Reporting\OrganizationBranding::class,
+        );
     }
 
     /**

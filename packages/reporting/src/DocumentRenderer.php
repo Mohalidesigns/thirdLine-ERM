@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Services;
+namespace ThirdLine\Reporting;
 
-use App\Models\Organization;
+use ThirdLine\Reporting\Contracts\ResolvesDocumentBranding;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonImmutable;
 use InvalidArgumentException;
@@ -34,6 +34,15 @@ class DocumentRenderer
     public const FORMAT_XLSX = 'xlsx';
 
     public const FORMAT_CSV = 'csv';
+
+    /**
+     * @param  ResolvesDocumentBranding|null  $branding  how this product names
+     *         the owner of a document. Null is legitimate: a consumer that has
+     *         no branding of its own renders unbranded rather than wrong.
+     */
+    public function __construct(
+        private readonly ?ResolvesDocumentBranding $branding = null,
+    ) {}
 
     /**
      * Formats this renderer actually produces.
@@ -144,45 +153,21 @@ class DocumentRenderer
     }
 
     /**
-     * Branding for the cover page and running header.
+     * Branding for the cover page and running header, or an empty array.
      *
-     * Reads organizations.settings->org_profile, written by the admin settings
-     * screen. Falls back to the organisation's own name — never to a
-     * placeholder logo or an invented institution code.
+     * The renderer does not know what an organisation is. It asks whatever the
+     * application bound to ResolvesDocumentBranding; a consumer that binds
+     * nothing gets no branding rather than another product's.
      *
      * @return array<string,mixed>
      */
-    public function branding(?Organization $organization): array
+    public function branding(mixed $organization): array
     {
-        $profile = (array) ($organization?->settings['org_profile'] ?? []);
-
-        $logoPath = $profile['logo_path'] ?? null;
-        $logoData = null;
-
-        // Inline the logo as a data URI. dompdf runs with isRemoteEnabled off
-        // and a chroot, so a stored path is the only thing that reliably
-        // resolves — and inlining means a moved file cannot break an already
-        // generated document.
-        if ($logoPath) {
-            $absolute = storage_path('app/public/'.ltrim($logoPath, '/'));
-            if (is_readable($absolute) && filesize($absolute) < 2_000_000) {
-                $mime = mime_content_type($absolute) ?: 'image/png';
-                $logoData = 'data:'.$mime.';base64,'.base64_encode(file_get_contents($absolute));
-            }
+        if ($organization === null || $this->branding === null) {
+            return [];
         }
 
-        return [
-            'organization_name' => $organization?->name ?? config('app.name'),
-            'short_name' => $organization?->short_name,
-            'institution_type' => $organization?->institution_type,
-            'cbn_institution_code' => $organization?->cbn_institution_code,
-            'rc_number' => $organization?->rc_number,
-            'address' => $profile['address'] ?? null,
-            'logo' => $logoData,
-            // Brand navy and gold, overridable per tenant.
-            'primary_colour' => $profile['primary_colour'] ?? '#1A365D',
-            'accent_colour' => $profile['accent_colour'] ?? '#D4AF37',
-        ];
+        return $this->branding->for($organization);
     }
 
     /* ------------------------------------------------------------------ */

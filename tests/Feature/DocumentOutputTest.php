@@ -9,7 +9,6 @@ use App\Models\Risk;
 use App\Models\RiskCategory;
 use App\Models\User;
 use App\Services\BoardPackAssembler;
-use App\Services\DocumentRenderer;
 use App\Services\SpreadsheetReader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -19,6 +18,7 @@ use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 use ThirdLine\Platform\Tenancy\TenantContext;
+use ThirdLine\Reporting\DocumentRenderer;
 
 /**
  * The report pipeline: a real PDF, a real workbook, a stored artifact and a

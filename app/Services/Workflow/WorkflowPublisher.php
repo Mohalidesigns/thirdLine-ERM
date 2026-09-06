@@ -40,7 +40,7 @@ class WorkflowPublisher
 
         $organizationId = $attributes['organization_id']
             ?? $definition?->organization_id
-            ?? \App\Support\Tenancy\TenantContext::organizationId();
+            ?? \ThirdLine\Platform\Tenancy\TenantContext::organizationId();
 
         $code = $attributes['code'] ?? $definition?->code;
 

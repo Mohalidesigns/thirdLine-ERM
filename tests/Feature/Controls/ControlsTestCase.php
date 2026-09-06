@@ -9,13 +9,13 @@ use App\Models\Organization;
 use App\Models\Risk;
 use App\Models\RiskCategory;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Shared fixtures for the Phase 3.4 control tests: one tenant with a control,

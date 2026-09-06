@@ -3,8 +3,8 @@
 namespace App\Http\Requests\Admin;
 
 use App\Models\Organization;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The institution's identifying details (migration Phase 6.2).

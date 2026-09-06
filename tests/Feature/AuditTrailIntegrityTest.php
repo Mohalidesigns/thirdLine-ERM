@@ -7,7 +7,6 @@ use App\Models\Organization;
 use App\Models\RiskAuditTrail;
 use App\Models\User;
 use App\Services\AuditTrailService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +14,7 @@ use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\TenantFixture;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class AuditTrailIntegrityTest extends TestCase
 {

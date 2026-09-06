@@ -11,10 +11,10 @@ use App\Models\MeasureValue;
 use App\Models\Period;
 use App\Models\User;
 use App\Services\PeriodService;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use ThirdLine\Platform\Tenancy\TenantContext;
 use Throwable;
 
 /**

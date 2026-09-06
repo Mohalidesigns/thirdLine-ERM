@@ -6,7 +6,6 @@ use App\Models\BusinessUnit;
 use App\Models\LossEvent;
 use App\Models\User;
 use App\Support\Migration\Ported;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -15,6 +14,7 @@ use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /** The eight ported loss-event screens (migration Phase 4.3). */
 class LossEventPagesTest extends TestCase

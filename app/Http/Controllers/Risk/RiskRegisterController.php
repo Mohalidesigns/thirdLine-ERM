@@ -17,11 +17,11 @@ use App\Repositories\RiskRepository;
 use App\Services\Register\RiskRegisterService;
 use App\Support\Authorization\GraphScope;
 use App\Support\Periods\PeriodContext;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The risk register (migration Phase 3.2). Each action authorises through

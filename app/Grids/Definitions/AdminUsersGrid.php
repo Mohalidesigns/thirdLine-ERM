@@ -8,9 +8,9 @@ use App\Grids\GridDefinition;
 use App\Grids\RowAction;
 use App\Models\BusinessUnit;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Spatie\Permission\Models\Role;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * User administration (WP-09 migration of

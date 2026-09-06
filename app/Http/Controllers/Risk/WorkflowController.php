@@ -22,13 +22,13 @@ use App\Services\Workflow\WorkflowDefinitionValidator;
 use App\Services\Workflow\WorkflowEngine;
 use App\Services\Workflow\WorkflowPublisher;
 use App\Support\MorphTypes;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Workflow dashboard, definitions and instances (migration Phase 3.7; the

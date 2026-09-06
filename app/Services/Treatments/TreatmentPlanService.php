@@ -11,10 +11,10 @@ use App\Services\AuditTrailService;
 use App\Services\NotificationService;
 use App\Services\ReferenceCodeService;
 use App\Services\Workflow\ModuleApprovals;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Treatment plans (migration Phase 3.5).

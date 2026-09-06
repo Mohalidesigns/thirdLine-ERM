@@ -6,7 +6,6 @@ use App\Models\Issue;
 use App\Models\IssueEscalationLog;
 use App\Models\IssueEscalationRule;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -14,6 +13,7 @@ use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The issue escalation ladder, driven the way production drives it: through

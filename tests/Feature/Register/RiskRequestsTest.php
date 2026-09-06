@@ -75,7 +75,7 @@ class RiskRequestsTest extends RegisterTestCase
     #[Test]
     public function mapping_rejects_a_control_from_another_organisation(): void
     {
-        $foreignControl = \App\Support\Tenancy\TenantContext::bypass(
+        $foreignControl = \ThirdLine\Platform\Tenancy\TenantContext::bypass(
             fn () => \App\Models\Control::create([
                 'organization_id' => $this->otherOrg->id,
                 'control_code' => 'CTL-FOREIGN',

@@ -145,7 +145,7 @@ class WorkflowScreensTest extends TestCase
     {
         $instance = $this->startReview();
 
-        $otherOrg = \App\Support\Tenancy\TenantContext::bypass(fn () => \App\Models\Organization::create([
+        $otherOrg = \ThirdLine\Platform\Tenancy\TenantContext::bypass(fn () => \App\Models\Organization::create([
             'name' => 'Other Bank PLC',
             'short_name' => 'OTHR',
             'institution_type' => 'commercial_bank',
@@ -153,7 +153,7 @@ class WorkflowScreensTest extends TestCase
             'is_active' => true,
         ]), 'test fixture');
 
-        $stranger = \App\Support\Tenancy\TenantContext::bypass(fn () => User::create([
+        $stranger = \ThirdLine\Platform\Tenancy\TenantContext::bypass(fn () => User::create([
             'name' => 'Stranger',
             'email' => 'stranger@example.test',
             'password' => Hash::make('password'),

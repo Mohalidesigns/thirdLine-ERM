@@ -3,9 +3,9 @@
 namespace App\Services\Workflow;
 
 use App\Models\WorkflowDefinition;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Makes workflow_definitions.trigger a column something reads.

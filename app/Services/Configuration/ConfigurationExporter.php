@@ -3,8 +3,8 @@
 namespace App\Services\Configuration;
 
 use App\Models\ConfigBundle;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-05 TASK 4 — turn an organisation's configuration into a portable artefact.

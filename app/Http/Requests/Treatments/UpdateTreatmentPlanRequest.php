@@ -4,9 +4,9 @@ namespace App\Http\Requests\Treatments;
 
 use App\Http\Requests\Concerns\ValidatesConfiguredAttributes;
 use App\Models\TreatmentPlan;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Update a treatment plan (migration Phase 3.5).

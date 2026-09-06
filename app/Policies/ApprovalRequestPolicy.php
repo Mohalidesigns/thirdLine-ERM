@@ -4,7 +4,7 @@ namespace App\Policies;
 
 use App\Models\ApprovalRequest;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class ApprovalRequestPolicy
 {

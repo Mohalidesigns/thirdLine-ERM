@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Regulatory;
 
 use App\Models\RegulatoryDeadline;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Add a filing deadline to the calendar (migration Phase 5.3).

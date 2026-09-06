@@ -6,12 +6,12 @@ use App\Models\BusinessUnit;
 use App\Models\Issue;
 use App\Models\LossEvent;
 use App\Models\TreatmentPlan;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-01 TASK 1 acceptance.

@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Campaigns;
 
 use App\Models\AssessmentCampaign;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Open an assessment campaign (migration Phase 4.5).

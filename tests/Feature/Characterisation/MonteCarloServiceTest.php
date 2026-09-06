@@ -6,12 +6,12 @@ use App\Models\QuantificationScenario;
 use App\Models\SimulationResult;
 use App\Models\SimulationRun;
 use App\Services\MonteCarloService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * CHARACTERISATION — crown jewel.

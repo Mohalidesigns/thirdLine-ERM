@@ -6,12 +6,12 @@ use App\Models\Organization;
 use App\Models\OrganizationSsoSetting;
 use App\Models\User;
 use App\Support\Sso\SamlDriver;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Single sign-on is configured by each client in the admin UI after purchase,

@@ -4,9 +4,9 @@ namespace App\Console\Commands;
 
 use App\Models\ConfigBundleApplication;
 use App\Services\Configuration\ConfigurationImporter;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
 use Illuminate\Validation\ValidationException;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-05 TASK 4 — config:rollback

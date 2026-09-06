@@ -1,8 +1,7 @@
 <?php
 
-namespace App\Http\Middleware;
+namespace ThirdLine\Platform\Tenancy;
 
-use App\Support\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

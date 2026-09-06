@@ -14,10 +14,10 @@ use App\Models\Risk;
 use App\Presenters\FormSchemaPresenter;
 use App\Presenters\GridPresenter;
 use App\Services\Controls\ControlService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The control library (migration Phase 3.4). Each action authorises through

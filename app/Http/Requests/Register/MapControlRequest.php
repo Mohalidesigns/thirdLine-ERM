@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Register;
 
 use App\Models\Risk;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * POST risk/register/{register}/map-control — the inline "Map Existing

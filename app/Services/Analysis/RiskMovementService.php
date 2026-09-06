@@ -10,9 +10,9 @@ use App\Repositories\RiskRepository;
 use App\Services\PeriodService;
 use App\Services\RiskScoringService;
 use App\Support\Measures\MeasureCatalog;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The register's shape over time, for the analysis charts (Phase 5.1).

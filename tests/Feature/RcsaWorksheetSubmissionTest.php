@@ -9,12 +9,12 @@ use App\Models\CampaignAssignment;
 use App\Models\CampaignResponse;
 use App\Models\Organization;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The RCSA worksheet used to accept a submission, discard it, and report

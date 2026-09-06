@@ -12,7 +12,6 @@ use App\Services\RiskScoringService;
 use App\Services\Workflow\ModuleApprovals;
 use App\Services\Workflow\WorkflowEngine;
 use App\Support\RiskCalculationSettings;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -22,6 +21,7 @@ use RecursiveIteratorIterator;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\Support\CreatesWorkflowFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Completing a treatment plan raises a reassessment; it does not move the risk.

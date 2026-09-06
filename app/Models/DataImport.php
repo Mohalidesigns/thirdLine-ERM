@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Model;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 class DataImport extends Model
 {

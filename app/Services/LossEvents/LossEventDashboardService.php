@@ -5,9 +5,9 @@ namespace App\Services\LossEvents;
 use App\Models\LossEvent;
 use App\Models\LossEventRca;
 use App\Models\NearMiss;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The figures behind the loss-event dashboard and the RCA overview

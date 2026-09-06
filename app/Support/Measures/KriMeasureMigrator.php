@@ -12,9 +12,9 @@ use App\Models\Period;
 use App\Models\Unit;
 use App\Services\MeasureService;
 use App\Services\PeriodService;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-04 TASK 3 — moves KRIs onto the measure engine.

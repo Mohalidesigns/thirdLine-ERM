@@ -3,8 +3,8 @@
 namespace App\Services\Issues;
 
 use App\Models\Issue;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The issues dashboard's figures (migration Phase 4.4).

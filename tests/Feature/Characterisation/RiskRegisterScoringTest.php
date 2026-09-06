@@ -7,12 +7,12 @@ use App\Models\Risk;
 use App\Models\RiskAssessment;
 use App\Models\ScoringProfile;
 use App\Support\Scoring\ScoringProfileTemplates;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * CHARACTERISATION — Phase 3.2, written against the Blade risk register

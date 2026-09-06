@@ -4,11 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Organization;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * MFA is enforced by the `auth` middleware group rather than route by route,

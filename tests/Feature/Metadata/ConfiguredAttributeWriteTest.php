@@ -6,7 +6,6 @@ use App\Models\ObjectAttribute;
 use App\Models\ObjectType;
 use App\Models\Risk;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\Test;
@@ -14,6 +13,7 @@ use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-03 TASK 7 — a custom attribute added via object_attributes renders,

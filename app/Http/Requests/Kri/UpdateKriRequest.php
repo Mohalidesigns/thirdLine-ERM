@@ -4,9 +4,9 @@ namespace App\Http\Requests\Kri;
 
 use App\Http\Requests\Concerns\ValidatesConfiguredAttributes;
 use App\Models\KeyRiskIndicator;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Update a KRI (migration Phase 4.1).

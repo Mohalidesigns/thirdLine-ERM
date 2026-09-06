@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Policies\IcaapAssessmentPolicy;
 use App\Policies\QuantificationScenarioPolicy;
 use App\Policies\SimulationRunPolicy;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
@@ -18,6 +17,7 @@ use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The three quantification policies (migration Phase 5.2).

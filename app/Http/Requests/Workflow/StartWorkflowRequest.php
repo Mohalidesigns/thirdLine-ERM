@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Workflow;
 
 use App\Models\WorkflowDefinition;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class StartWorkflowRequest extends FormRequest
 {

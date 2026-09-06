@@ -6,12 +6,12 @@ use App\Models\User;
 use App\Observers\WebhookEventObserver;
 use App\Observers\WorkflowTriggerObserver;
 use App\Support\MorphTypes;
-use App\Support\Tenancy\TenantContext;
 use Dedoc\Scramble\Scramble;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,14 +20,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // One tenant per request / job / command. Everything that needs the
-        // current organization_id resolves this same instance.
-        $this->app->singleton(TenantContext::class);
+        // TenantContext's singleton binding moved to the platform package's
+        // TenancyServiceProvider in Phase 7.1 — bound in one place, so an
+        // application that opts into tenancy cannot get a second instance and
+        // a request that resolves one tenant while a job resolves another.
 
-        // One selected reporting period per request / job / command, for the
-        // same reason and with the same lifetime as the tenant above.
+        // One selected reporting period per request / job / command, with the
+        // same lifetime as the tenant. Stays here: a reporting period is this
+        // product's idea, not a platform primitive.
         $this->app->singleton(\App\Support\Periods\PeriodContext::class);
-
     }
 
     /**

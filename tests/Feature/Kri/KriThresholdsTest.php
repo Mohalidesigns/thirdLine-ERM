@@ -125,7 +125,7 @@ class KriThresholdsTest extends KriTestCase
     {
         $foreign = null;
 
-        \App\Support\Tenancy\TenantContext::bypass(function () use (&$foreign) {
+        \ThirdLine\Platform\Tenancy\TenantContext::bypass(function () use (&$foreign) {
             $foreign = KeyRiskIndicator::create([
                 'organization_id' => $this->otherOrg->id,
                 'risk_id' => $this->foreignRisk->id,

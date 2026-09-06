@@ -6,10 +6,10 @@ use App\Models\ApprovalRequest;
 use App\Models\MeasureThreshold;
 use App\Models\Period;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-04 TASK 5 — keeps formula-valued limits honest as their inputs move.

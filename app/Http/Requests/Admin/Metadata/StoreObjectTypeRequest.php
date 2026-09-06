@@ -4,9 +4,9 @@ namespace App\Http\Requests\Admin\Metadata;
 
 use App\Models\ObjectType;
 use App\Support\Metadata\MetadataRules;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Define a governed kind of thing (migration Phase 6.3).

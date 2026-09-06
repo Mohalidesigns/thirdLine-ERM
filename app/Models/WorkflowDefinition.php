@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use App\Services\Workflow\WorkflowGraph;
 use App\Support\MorphTypes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * A workflow process, at one version.

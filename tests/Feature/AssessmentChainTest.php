@@ -10,11 +10,11 @@ use App\Models\ScoringProfile;
 use App\Services\AssessmentChainService;
 use App\Services\RiskScoringService;
 use App\Support\RiskCalculationSettings;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-10a — the assessment chain.

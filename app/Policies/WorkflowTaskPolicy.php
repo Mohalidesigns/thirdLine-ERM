@@ -5,7 +5,7 @@ namespace App\Policies;
 use App\Models\User;
 use App\Models\WorkflowTask;
 use App\Services\Workflow\WorkflowEngine;
-use App\Support\Tenancy\TenantContext;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Migration Phase 3.7. Permission first, tenancy second, then the engine's

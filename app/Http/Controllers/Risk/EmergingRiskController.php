@@ -11,11 +11,11 @@ use App\Models\EmergingRisk;
 use App\Presenters\FormSchemaPresenter;
 use App\Presenters\GridPresenter;
 use App\Services\ReferenceCodeService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * CRUD for the emerging risk register.

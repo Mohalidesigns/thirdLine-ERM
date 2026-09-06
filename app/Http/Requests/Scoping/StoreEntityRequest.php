@@ -6,9 +6,9 @@ use App\Http\Requests\Concerns\ValidatesConfiguredAttributes;
 use App\Models\Entity;
 use App\Models\EntityType;
 use App\Support\Graph\ObjectTypeRegistry;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class StoreEntityRequest extends FormRequest
 {

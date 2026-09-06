@@ -6,10 +6,10 @@ use App\Mail\MyResponsibilitiesDigest;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\MyResponsibilitiesService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-08 TASK 5 — my:digest, the daily nudge behind /my.

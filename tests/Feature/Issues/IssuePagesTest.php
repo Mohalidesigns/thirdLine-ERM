@@ -8,7 +8,6 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Policies\IssuePolicy;
 use App\Support\Migration\Ported;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
@@ -18,6 +17,7 @@ use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /** The six ported issue screens and their policy (migration Phase 4.4). */
 class IssuePagesTest extends TestCase

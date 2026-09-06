@@ -5,9 +5,9 @@ namespace App\Services;
 use App\Models\FxRate;
 use App\Models\Organization;
 use App\Support\Periods\DateBounds;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use RuntimeException;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Converts money between currencies at a rate that is recorded, dated and

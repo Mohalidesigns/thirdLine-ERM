@@ -12,9 +12,9 @@ use App\Models\RiskAssessment;
 use App\Models\TreatmentPlan;
 use App\Services\Quantification\IcaapService;
 use App\Services\RiskAppetiteService;
-use App\Support\Tenancy\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The Command Centre's figures (migration Phase 5, criterion 7).

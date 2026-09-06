@@ -4,8 +4,8 @@ namespace App\Services\Quantification;
 
 use App\Models\QuantificationScenario;
 use App\Support\Quantification\Distributions;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Collection;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The operational-risk scenario library (migration Phase 5.2).

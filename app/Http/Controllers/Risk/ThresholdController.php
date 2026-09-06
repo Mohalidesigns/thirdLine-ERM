@@ -8,9 +8,9 @@ use App\Http\Requests\Thresholds\RejectRebaselineRequest;
 use App\Models\ApprovalRequest;
 use App\Models\MeasureThreshold;
 use App\Services\ThresholdRebaselineService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The re-baselining approval queue.

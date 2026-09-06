@@ -3,13 +3,13 @@
 namespace Tests\Feature\Console;
 
 use App\Models\RegulatoryDeadline;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * `regulatory:check-deadlines` (migration Phase 5.3).

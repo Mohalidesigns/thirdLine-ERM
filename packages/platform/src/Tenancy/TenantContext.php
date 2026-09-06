@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Support\Tenancy;
+namespace ThirdLine\Platform\Tenancy;
 
 use RuntimeException;
 

@@ -15,10 +15,10 @@ use App\Presenters\FormSchemaPresenter;
 use App\Presenters\GridPresenter;
 use App\Services\Treatments\TreatmentPlanService;
 use App\Support\Authorization\GraphScope;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Treatment plans (migration Phase 3.5).

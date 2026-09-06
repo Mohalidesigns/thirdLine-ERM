@@ -3,8 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Models\ObjectMergeCandidate;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Print the org-model unification review queue.

@@ -9,9 +9,9 @@ use App\Grids\RowAction;
 use App\Models\Risk;
 use App\Models\RiskAssessment;
 use App\Support\Authorization\GraphScope;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The risk assessment register (WP-09 migration of

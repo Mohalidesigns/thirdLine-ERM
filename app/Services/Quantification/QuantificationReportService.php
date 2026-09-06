@@ -9,8 +9,8 @@ use App\Models\LossEvent;
 use App\Models\QuantificationScenario;
 use App\Models\Risk;
 use App\Models\SimulationRun;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Collection;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The four quantification reports (migration Phase 5.2).

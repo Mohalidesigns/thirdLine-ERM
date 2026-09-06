@@ -4,10 +4,10 @@ namespace App\Http\Requests\Admin;
 
 use App\Models\Organization;
 use App\Services\CurrencyService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The settings the platform actually reads (migration Phase 6.2).

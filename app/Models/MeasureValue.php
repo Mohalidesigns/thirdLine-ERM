@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use RuntimeException;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * One number, for one measure, on one object, in one period, under one

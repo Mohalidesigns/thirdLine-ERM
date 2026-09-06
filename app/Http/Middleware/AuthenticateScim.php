@@ -3,10 +3,10 @@
 namespace App\Http\Middleware;
 
 use App\Models\ScimToken;
-use App\Support\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Bearer-token authentication for the SCIM 2.0 endpoints, and the thing that

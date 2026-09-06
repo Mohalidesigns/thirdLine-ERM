@@ -4,9 +4,9 @@ namespace App\Http\Requests\Issues;
 
 use App\Http\Requests\Concerns\ValidatesConfiguredAttributes;
 use App\Models\Issue;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Raise an issue (migration Phase 4.4).

@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\Organization;
 use App\Models\ScimToken;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class IssueScimToken extends Command
 {

@@ -4,10 +4,10 @@ namespace App\Support\Graph;
 
 use App\Services\Graph\ObjectSyncService;
 use App\Support\MorphTypes;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Gives every pre-existing row the graph identity the trait would have given it

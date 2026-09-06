@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests\Kri;
 
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Bulk edit of the traffic-light bands (migration Phase 4.1).

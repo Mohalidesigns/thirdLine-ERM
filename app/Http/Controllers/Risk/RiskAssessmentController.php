@@ -16,11 +16,11 @@ use App\Services\Assessments\AssessmentService;
 use App\Services\NotificationService;
 use App\Services\Workflow\ModuleApprovals;
 use App\Support\Authorization\GraphScope;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The risk assessment journey (migration Phase 3.3).

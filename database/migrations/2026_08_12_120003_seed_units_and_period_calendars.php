@@ -3,9 +3,9 @@
 use App\Models\Organization;
 use App\Services\PeriodService;
 use App\Support\Measures\UnitRegistry;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-04 — install the unit registry and give every existing organisation a

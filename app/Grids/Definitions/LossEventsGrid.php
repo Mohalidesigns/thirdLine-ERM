@@ -8,9 +8,9 @@ use App\Grids\GridDefinition;
 use App\Grids\RowAction;
 use App\Models\BusinessUnit;
 use App\Models\LossEvent;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The loss event register (WP-09 migration of

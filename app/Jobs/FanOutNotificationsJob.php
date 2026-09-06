@@ -3,12 +3,12 @@
 namespace App\Jobs;
 
 use App\Services\NotificationService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-07 TASK 1 — one message to many people, off the request cycle.

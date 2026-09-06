@@ -4,11 +4,11 @@ namespace App\Console\Commands;
 
 use App\Models\FxRate;
 use App\Services\AuditTrailService;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Records the CBN official exchange rates for a date.

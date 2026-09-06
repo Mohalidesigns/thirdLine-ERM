@@ -9,12 +9,12 @@ use App\Models\RiskCategory;
 use App\Models\TreatmentPlan;
 use App\Models\User;
 use App\Support\MorphTypes;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The audit trail must be readable across every historic spelling of

@@ -10,8 +10,8 @@ use App\Services\KriMeasureBridge;
 use App\Services\MeasureService;
 use App\Services\PeriodService;
 use App\Support\Periods\PeriodContext;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Re-checks every KRI's latest reading against its bands and maintains the

@@ -5,9 +5,9 @@ namespace App\Http\Requests\Assessments;
 use App\Models\Risk;
 use App\Models\RiskAssessment;
 use App\Models\RiskAssessmentControl;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * POST risk/assessments/preview — score the chain as it currently stands

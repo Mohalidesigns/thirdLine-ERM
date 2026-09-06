@@ -4,9 +4,9 @@ namespace App\Jobs\Concerns;
 
 use App\Models\JobRun;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
+use ThirdLine\Platform\Tenancy\TenantContext;
 use Throwable;
 
 /**

@@ -13,9 +13,9 @@ use App\Models\User;
 use App\Services\AssessmentChainService;
 use App\Services\ReferenceCodeService;
 use App\Services\RiskScoringService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The risk assessment journey (migration Phase 3.3).

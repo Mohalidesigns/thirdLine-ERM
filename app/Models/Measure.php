@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * The definition of a number: what it is, what it is measured in, which way is

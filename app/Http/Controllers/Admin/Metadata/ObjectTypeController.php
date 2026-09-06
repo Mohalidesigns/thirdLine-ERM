@@ -9,10 +9,10 @@ use App\Models\GraphObject;
 use App\Models\ObjectLifecycle;
 use App\Models\ObjectType;
 use App\Services\Metadata\MetadataGuard;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The object type registry (migration Phase 6.3, from Livewire ObjectTypeBuilder).

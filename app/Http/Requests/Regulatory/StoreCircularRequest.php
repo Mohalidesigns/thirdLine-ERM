@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Regulatory;
 
 use App\Models\RegulatoryCircular;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Record a regulator's circular (migration Phase 5.3).

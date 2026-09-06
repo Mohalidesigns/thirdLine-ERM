@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * WP-08 TASK 3 — a composition of widgets: tabs, each a 12-column grid of

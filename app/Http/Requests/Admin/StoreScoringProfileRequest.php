@@ -6,9 +6,9 @@ use App\Models\ScoringProfile;
 use App\Services\FormulaEvaluator;
 use App\Support\Metadata\MetadataRules;
 use App\Support\Scoring\ScoringProfileTemplates;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Define what a score means (migration Phase 6.4).

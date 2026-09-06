@@ -7,9 +7,9 @@ use App\Models\Period;
 use App\Models\Risk;
 use App\Support\Measures\MeasureCatalog;
 use App\Support\Periods\DateBounds;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The risk register, read at a point in time.

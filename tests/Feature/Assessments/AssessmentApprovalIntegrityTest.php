@@ -10,11 +10,11 @@ use App\Services\ControlEffectivenessService;
 use App\Services\RiskScoringService;
 use App\Services\Workflow\Subjects\RiskAssessmentBinding;
 use App\Support\RiskCalculationSettings;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * What approving an assessment is allowed to do to the risk it assesses.

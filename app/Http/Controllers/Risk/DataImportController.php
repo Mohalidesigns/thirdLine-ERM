@@ -10,10 +10,10 @@ use App\Models\DataImport;
 use App\Presenters\GridPresenter;
 use App\Services\FileUploadService;
 use App\Services\SpreadsheetReader;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class DataImportController extends Controller
 {

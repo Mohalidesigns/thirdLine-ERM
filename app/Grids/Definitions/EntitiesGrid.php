@@ -8,8 +8,8 @@ use App\Grids\GridDefinition;
 use App\Grids\RowAction;
 use App\Models\Entity;
 use App\Models\EntityType;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The entity register (WP-09 migration of

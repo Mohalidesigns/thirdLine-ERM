@@ -10,9 +10,9 @@ use App\Models\Risk;
 use App\Models\User;
 use App\Policies\EntityPolicy;
 use App\Services\AuditTrailService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection as BaseCollection;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * What ScopingController used to do inline (migration Phase 3.1): the

@@ -7,7 +7,6 @@ use App\Models\Period;
 use App\Models\PeriodCalendar;
 use App\Models\User;
 use App\Support\Periods\PeriodGenerator;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -17,6 +16,7 @@ use RuntimeException;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\Support\CreatesMeasureFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class PeriodServiceTest extends TestCase
 {

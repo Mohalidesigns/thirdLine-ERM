@@ -6,11 +6,11 @@ use App\Models\ObjectLifecycle;
 use App\Models\ObjectType;
 use App\Models\Organization;
 use App\Models\WorkflowDefinition;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The metadata registry belongs to somebody.

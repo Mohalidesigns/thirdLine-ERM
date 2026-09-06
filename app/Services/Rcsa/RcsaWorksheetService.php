@@ -9,10 +9,10 @@ use App\Models\CampaignResponse;
 use App\Models\User;
 use App\Services\ReferenceCodeService;
 use App\Services\RiskScoringService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Filing an RCSA worksheet (migration Phase 3.8).

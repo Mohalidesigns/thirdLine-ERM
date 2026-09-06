@@ -8,7 +8,6 @@ use App\Models\Organization;
 use App\Models\Risk;
 use App\Models\User;
 use App\Services\Import\DataImportProcessor;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Queue;
@@ -17,6 +16,7 @@ use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * What a column mapping is allowed to name (migration Phase 5.5).

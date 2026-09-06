@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Reports;
 
 use App\Models\GeneratedReport;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Build a report to a chosen shape (migration Phase 5.4).

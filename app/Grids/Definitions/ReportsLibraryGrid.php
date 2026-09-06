@@ -8,8 +8,8 @@ use App\Grids\GridDefinition;
 use App\Grids\RowAction;
 use App\Jobs\GenerateReportJob;
 use App\Models\GeneratedReport;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The report library (WP-09 migration of

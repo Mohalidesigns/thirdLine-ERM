@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Models\RiskAuditTrail;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class AuditTrailService
 {

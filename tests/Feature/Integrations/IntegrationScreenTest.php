@@ -8,12 +8,12 @@ use App\Models\JobRun;
 use App\Models\Organization;
 use App\Models\User;
 use App\Models\WebhookSubscription;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The four integration screens (migration Phase 6.7).

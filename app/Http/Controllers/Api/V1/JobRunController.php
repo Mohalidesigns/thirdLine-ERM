@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\JobRun;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The progress of a queued job, for a client that started one.

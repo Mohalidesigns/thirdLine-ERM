@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class ReferenceCodeService
 {

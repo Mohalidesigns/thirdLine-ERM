@@ -4,13 +4,13 @@ namespace Tests\Feature\Characterisation;
 
 use App\Models\BusinessUnit;
 use App\Models\Issue;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The issues dashboard and ageing report (migration Phase 4.4).

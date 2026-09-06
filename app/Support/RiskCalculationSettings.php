@@ -3,7 +3,7 @@
 namespace App\Support;
 
 use App\Models\Organization;
-use App\Support\Tenancy\TenantContext;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Resolves the tunable inputs to the risk calculations: the control

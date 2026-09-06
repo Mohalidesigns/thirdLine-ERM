@@ -9,7 +9,6 @@ use App\Policies\MeasureThresholdPolicy;
 use App\Policies\PeriodPolicy;
 use App\Services\PeriodService;
 use App\Support\Migration\Ported;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
@@ -19,6 +18,7 @@ use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The reporting calendar and the re-baselining queue on Inertia

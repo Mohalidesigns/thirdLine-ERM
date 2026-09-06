@@ -7,13 +7,13 @@ use App\Models\Organization;
 use App\Models\Period;
 use App\Services\ThresholdRebaselineService;
 use App\Support\Measures\MeasureCatalog;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\Support\CreatesMeasureFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * `measures:rebaseline-thresholds` — the scheduled entry point (Phase 4).

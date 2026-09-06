@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use App\Support\Periods\DateBounds;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * A bounded stretch of time that values can be recorded against.

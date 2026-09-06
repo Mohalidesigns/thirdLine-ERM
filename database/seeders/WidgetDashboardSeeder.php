@@ -9,8 +9,8 @@ use App\Models\ObjectType;
 use App\Models\Organization;
 use App\Models\RiskCategory;
 use App\Models\WidgetDefinition;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-08 — the system widget library and the seeded Corporater dashboards.

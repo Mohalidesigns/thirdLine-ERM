@@ -8,13 +8,13 @@ use App\Models\RiskAssessment;
 use App\Models\ScoringProfile;
 use App\Support\RiskCalculationSettings;
 use App\Support\Scoring\ScoringProfileTemplates;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Phase 3.3, Decision 5b — the live preview on the assessment form.

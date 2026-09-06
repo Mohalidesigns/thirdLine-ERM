@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use App\Support\RiskCalculationSettings;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * Steps 6 and 7 of the assessment chain: Existing Controls → Control

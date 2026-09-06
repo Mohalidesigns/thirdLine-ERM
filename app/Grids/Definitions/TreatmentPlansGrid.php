@@ -9,8 +9,8 @@ use App\Grids\GridDefinition;
 use App\Grids\RowAction;
 use App\Models\TreatmentPlan;
 use App\Support\Authorization\GraphScope;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Treatment plans register (WP-09 migration of

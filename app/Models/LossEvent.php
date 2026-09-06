@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasObjectIdentity;
 use App\Models\Concerns\ScopedToGraph;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -13,6 +12,7 @@ use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * The columns 2026_02_22_200038_align_schema_with_controllers adds through its

@@ -7,8 +7,8 @@ use App\Grids\Filter;
 use App\Grids\GridDefinition;
 use App\Grids\RowAction;
 use App\Models\Questionnaire;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The questionnaire library (WP-09 migration of

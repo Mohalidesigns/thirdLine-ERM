@@ -11,11 +11,11 @@ use App\Models\ScoringProfile;
 use App\Services\Configuration\ConfigurationExporter;
 use App\Services\Configuration\ConfigurationImporter;
 use App\Support\Scoring\ScoringProfileTemplates;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-05 TASK 4 acceptance — export, diff, import, rollback.

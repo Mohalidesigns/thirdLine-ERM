@@ -8,8 +8,8 @@ use App\Models\Organization;
 use App\Models\Risk;
 use App\Models\RiskCategory;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Hash;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Hand-written, semantically meaningful fixtures for the calculation-service

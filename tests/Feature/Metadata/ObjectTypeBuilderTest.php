@@ -8,12 +8,12 @@ use App\Models\ObjectRelationship;
 use App\Models\ObjectRelationshipType;
 use App\Models\ObjectType;
 use App\Services\Metadata\MetadataGuard;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-05 TASK 1 acceptance — the object type builder, and the guardrails that

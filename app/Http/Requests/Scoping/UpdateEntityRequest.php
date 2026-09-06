@@ -3,8 +3,8 @@
 namespace App\Http\Requests\Scoping;
 
 use App\Models\Entity;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class UpdateEntityRequest extends StoreEntityRequest
 {

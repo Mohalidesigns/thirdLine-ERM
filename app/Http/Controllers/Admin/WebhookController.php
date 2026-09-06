@@ -8,12 +8,12 @@ use App\Http\Requests\Admin\Integrations\UpdateWebhookRequest;
 use App\Models\WebhookDelivery;
 use App\Models\WebhookSubscription;
 use App\Services\Webhooks\WebhookDispatcher;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-07 TASK 3 — managing subscriptions and reading the delivery log.

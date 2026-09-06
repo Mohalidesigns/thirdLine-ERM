@@ -11,11 +11,11 @@ use App\Models\ScoringProfile;
 use App\Services\CurrencyService;
 use App\Services\FormulaEvaluator;
 use App\Support\Scoring\ScoringProfileTemplates;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Scoring profiles (migration Phase 6.4, from Livewire ScoringProfileBuilder).

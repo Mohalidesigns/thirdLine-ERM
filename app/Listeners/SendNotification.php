@@ -4,10 +4,10 @@ namespace App\Listeners;
 
 use App\Models\User;
 use App\Services\NotificationService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 use Spatie\Permission\Models\Role;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-13 — turn a domain event into notifications for the people it concerns.

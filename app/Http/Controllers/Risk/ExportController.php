@@ -12,9 +12,9 @@ use App\Models\RiskAppetite;
 use App\Models\RiskControlMapping;
 use App\Models\SimulationRun;
 use App\Support\Authorization\GraphScope;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * CSV exports for the risk modules.

@@ -24,10 +24,10 @@ use App\Services\Campaigns\QuestionnaireAnswerSheet;
 use App\Services\NotificationService;
 use App\Services\ReferenceCodeService;
 use App\Services\RiskScoringService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class CampaignController extends Controller
 {

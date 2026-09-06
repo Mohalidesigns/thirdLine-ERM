@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Controls;
 
 use App\Models\ControlTest;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class StoreControlTestRequest extends FormRequest
 {

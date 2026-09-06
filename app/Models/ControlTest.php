@@ -3,10 +3,10 @@
 namespace App\Models;
 
 use App\Enums\ControlTestStatus;
-use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasObjectIdentity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 class ControlTest extends Model
 {

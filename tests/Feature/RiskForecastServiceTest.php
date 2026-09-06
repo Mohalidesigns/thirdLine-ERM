@@ -11,13 +11,13 @@ use App\Models\RiskAssessment;
 use App\Models\TreatmentPlan;
 use App\Models\User;
 use App\Services\RiskForecastService;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The forecast produces user-facing numbers, so it is pinned by tests.

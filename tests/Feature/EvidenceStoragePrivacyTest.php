@@ -8,7 +8,6 @@ use App\Models\DataImport;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\FileUploadService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -18,6 +17,7 @@ use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\Support\TenantFixture;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-11 — control-test evidence and bulk imports must not be web-reachable.

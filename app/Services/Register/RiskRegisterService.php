@@ -15,8 +15,8 @@ use App\Models\TreatmentPlan;
 use App\Models\User;
 use App\Services\ReferenceCodeService;
 use App\Services\RiskScoringService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The risk register (migration Phase 3.2).

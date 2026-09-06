@@ -4,12 +4,12 @@ namespace Tests\Feature\Characterisation;
 
 use App\Models\BusinessUnit;
 use App\Models\LossEvent;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * CHARACTERISATION — the FULL STORED ROW a loss event create writes, pinned

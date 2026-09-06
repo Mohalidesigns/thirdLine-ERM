@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * The record of one background job: what it is, how far it has got, and how it

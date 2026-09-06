@@ -7,9 +7,9 @@ use App\Models\Control;
 use App\Models\Risk;
 use App\Models\RiskControlMapping;
 use App\Support\Authorization\GraphScope;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The figures behind the four RCSA screens (migration Phase 3.8).

@@ -4,8 +4,8 @@ namespace App\Services\Metadata;
 
 use App\Models\ObjectAttribute;
 use App\Services\RiskScoringService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-05 TASK 2 — turns a field definition into the options a select renders.

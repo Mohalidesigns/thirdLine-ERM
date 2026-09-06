@@ -4,9 +4,9 @@ namespace App\Observers;
 
 use App\Models\WebhookSubscription;
 use App\Services\Webhooks\WebhookDispatcher;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-07 TASK 3 — publishes `<type>.created`, `.updated` and `.deleted`.

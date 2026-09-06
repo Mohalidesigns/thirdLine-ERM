@@ -8,8 +8,8 @@ use App\Grids\GridDefinition;
 use App\Grids\RowAction;
 use App\Models\KeyRiskIndicator;
 use App\Models\Risk;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The KRI library (WP-09 migration of resources/views/risk/kri/index.blade.php).

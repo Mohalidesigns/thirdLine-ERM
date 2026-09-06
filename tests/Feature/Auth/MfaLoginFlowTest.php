@@ -5,7 +5,6 @@ namespace Tests\Feature\Auth;
 use App\Models\Organization;
 use App\Models\User;
 use App\Support\Auth\Totp;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
@@ -13,6 +12,7 @@ use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Migration Phase 1 — sign-in with a second factor completes.

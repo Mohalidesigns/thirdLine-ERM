@@ -9,12 +9,12 @@ use App\Models\ApiToken;
 use App\Models\Concerns\ScopedToGraph;
 use App\Services\ReferenceCodeService;
 use App\Support\Authorization\GraphScope;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-07 TASK 2 — one controller over the whole object model.

@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasObjectIdentity;
 use App\Models\Concerns\ScopedToGraph;
 use App\Services\RiskScoringService;
@@ -12,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * @property int|null $inherent_score never null in practice: the accessor

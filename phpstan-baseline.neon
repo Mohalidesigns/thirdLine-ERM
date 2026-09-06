@@ -2266,13 +2266,13 @@ parameters:
 			message: '#^Call to an undefined method TModel of Illuminate\\Database\\Eloquent\\Model\:\:getQualifiedOrganizationIdColumn\(\)\.$#'
 			identifier: method.notFound
 			count: 1
-			path: app/Support/Tenancy/OrganizationScope.php
+			path: packages/platform/src/Tenancy/OrganizationScope.php
 
 		-
 			message: '#^Call to an undefined method TModel of Illuminate\\Database\\Eloquent\\Model\:\:tenantIncludesGlobalRecords\(\)\.$#'
 			identifier: method.notFound
 			count: 1
-			path: app/Support/Tenancy/OrganizationScope.php
+			path: packages/platform/src/Tenancy/OrganizationScope.php
 
 		-
 			message: '#^Match expression does not handle remaining value\: mixed$#'

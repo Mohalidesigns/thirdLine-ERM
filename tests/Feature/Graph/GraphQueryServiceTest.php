@@ -10,12 +10,12 @@ use App\Models\GraphObject;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Graph\GraphQueryService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-03 TASK 6 — reading the graph, and not reading what you may not.

@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Measure;
 use App\Models\Period;
 use App\Services\MeasureService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-07 TASK 2 — a measure over time, in the shape a reporting client wants.

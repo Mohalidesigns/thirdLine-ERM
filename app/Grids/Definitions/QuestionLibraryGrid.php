@@ -6,8 +6,8 @@ use App\Grids\Column;
 use App\Grids\Filter;
 use App\Grids\GridDefinition;
 use App\Models\QuestionLibrary;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The shared question library (WP-09 migration of

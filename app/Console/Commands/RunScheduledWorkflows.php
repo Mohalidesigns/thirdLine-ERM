@@ -5,9 +5,9 @@ namespace App\Console\Commands;
 use App\Models\Organization;
 use App\Models\WorkflowDefinition;
 use App\Services\Workflow\WorkflowEngine;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Start the workflows whose trigger is a schedule.

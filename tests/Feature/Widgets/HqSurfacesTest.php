@@ -59,7 +59,7 @@ class HqSurfacesTest extends TestCase
      */
     private function makeSystemDashboard(array $attributes): Dashboard
     {
-        return \App\Support\Tenancy\TenantContext::bypass(
+        return \ThirdLine\Platform\Tenancy\TenantContext::bypass(
             fn () => Dashboard::withoutGlobalScopes()->create($attributes),
             'test fixture: system dashboard',
         );

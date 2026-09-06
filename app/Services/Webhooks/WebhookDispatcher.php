@@ -6,9 +6,9 @@ use App\Jobs\DeliverWebhookJob;
 use App\Models\User;
 use App\Models\WebhookDelivery;
 use App\Models\WebhookSubscription;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-07 TASK 3 — turns something happening into a queued delivery.

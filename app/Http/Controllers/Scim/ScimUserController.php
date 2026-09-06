@@ -4,12 +4,12 @@ namespace App\Http\Controllers\Scim;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * SCIM 2.0 /Users (RFC 7644).

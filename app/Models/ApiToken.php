@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Builder;
 use InvalidArgumentException;
 use Laravel\Sanctum\PersonalAccessToken;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * A Sanctum token that knows which organization it belongs to.

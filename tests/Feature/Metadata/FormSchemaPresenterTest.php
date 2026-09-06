@@ -10,13 +10,13 @@ use App\Models\ObjectVersion;
 use App\Models\ScoringProfile;
 use App\Presenters\FormSchemaPresenter;
 use App\Services\RiskScoringService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Migration Phase 2, 2.4 — the metadata form and detail renderers as props

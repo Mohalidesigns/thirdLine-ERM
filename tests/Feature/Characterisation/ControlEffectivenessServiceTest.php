@@ -3,12 +3,12 @@
 namespace Tests\Feature\Characterisation;
 
 use App\Services\ControlEffectivenessService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * CHARACTERISATION — crown jewel.

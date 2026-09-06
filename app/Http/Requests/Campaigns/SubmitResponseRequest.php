@@ -6,10 +6,10 @@ use App\Models\AssessmentCampaign;
 use App\Models\CampaignAssignment;
 use App\Models\CampaignResponse;
 use App\Services\Campaigns\QuestionnaireAnswerSheet;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * File a submission against an assignment (migration Phase 4.5).

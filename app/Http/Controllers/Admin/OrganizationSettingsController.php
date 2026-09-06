@@ -11,10 +11,10 @@ use App\Models\ScoringProfile;
 use App\Services\CurrencyService;
 use App\Services\Scoring\ScoringProfileProvisioner;
 use App\Support\RiskCalculationSettings;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class OrganizationSettingsController extends Controller
 {

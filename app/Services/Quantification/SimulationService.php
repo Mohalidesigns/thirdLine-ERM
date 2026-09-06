@@ -8,7 +8,7 @@ use App\Models\QuantificationScenario;
 use App\Models\SimulationRun;
 use App\Models\User;
 use App\Services\MonteCarloService;
-use App\Support\Tenancy\TenantContext;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Launching, cancelling and charting a Monte Carlo run (migration Phase 5.2).

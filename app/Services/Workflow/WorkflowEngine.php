@@ -12,12 +12,12 @@ use App\Models\WorkflowInstance;
 use App\Models\WorkflowTask;
 use App\Services\AuditTrailService;
 use App\Services\NotificationService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-06 TASK 2 — the single approval engine.

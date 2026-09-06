@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Controls;
 
 use App\Models\Control;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /** Map a control onto a risk (risk.controls.link-risk). */
 class LinkControlRiskRequest extends FormRequest

@@ -10,8 +10,8 @@ use App\Models\BusinessUnit;
 use App\Models\Risk;
 use App\Models\RiskCategory;
 use App\Support\Scoring\ScoringProfileTemplates;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The risk register (WP-09 migration of resources/views/risk/register/index.blade.php).

@@ -20,10 +20,10 @@ use App\Presenters\FormSchemaPresenter;
 use App\Presenters\GridPresenter;
 use App\Services\AuditTrailService;
 use App\Services\Kri\KriService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Key risk indicators (migration Phase 4.1).

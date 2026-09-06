@@ -8,7 +8,6 @@ use App\Models\Entity;
 use App\Models\EntityType;
 use App\Models\Organization;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -18,6 +17,7 @@ use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\Support\TenantFixture;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Node scoping, ENFORCED — as distinct from GraphScopeTest, which proves the

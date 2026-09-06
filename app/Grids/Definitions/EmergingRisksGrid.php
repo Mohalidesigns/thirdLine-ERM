@@ -8,8 +8,8 @@ use App\Grids\Filter;
 use App\Grids\GridDefinition;
 use App\Grids\RowAction;
 use App\Models\EmergingRisk;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The emerging risk register (WP-09 migration of

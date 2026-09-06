@@ -10,7 +10,6 @@ use App\Models\BusinessUnit;
 use App\Models\User;
 use App\Presenters\GridPresenter;
 use App\Support\AssignableRoles;
-use App\Support\Tenancy\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -18,6 +17,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class UserManagementController extends Controller
 {

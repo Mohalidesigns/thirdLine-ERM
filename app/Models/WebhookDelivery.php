@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * One attempt to deliver one event to one endpoint.

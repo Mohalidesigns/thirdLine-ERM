@@ -10,10 +10,10 @@ use App\Models\ApprovalRequest;
 use App\Presenters\GridPresenter;
 use App\Presenters\WorkflowPresenter;
 use App\Services\ApprovalService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class ApprovalController extends Controller
 {

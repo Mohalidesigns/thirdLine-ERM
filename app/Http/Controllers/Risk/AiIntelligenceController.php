@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\EmergingRisk;
 use App\Services\RegulatoryPulseService;
 use App\Services\RiskForecastService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Risk Intelligence screens.

@@ -8,7 +8,6 @@ use App\Models\ObjectType;
 use App\Models\ScoringProfile;
 use App\Presenters\FormSchemaPresenter;
 use App\Services\Scoring\ScoringProfileProvisioner;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -17,6 +16,7 @@ use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-05 TASK 2 acceptance — the five create/edit pairs render from metadata,

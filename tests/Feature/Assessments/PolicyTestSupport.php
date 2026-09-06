@@ -3,7 +3,7 @@
 namespace Tests\Feature\Assessments;
 
 use App\Models\RiskAssessment;
-use App\Support\Tenancy\TenantContext;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The cross-tenant assessment fixture, separated so the policy test reads as

@@ -8,9 +8,9 @@ use App\Models\Period;
 use App\Models\Risk;
 use App\Models\RiskAssessment;
 use App\Support\Measures\MeasureCatalog;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Log;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-04 TASK 4 — puts a date on a risk score.

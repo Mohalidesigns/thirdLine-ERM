@@ -4,9 +4,9 @@ namespace App\Http\Requests\Emerging;
 
 use App\Http\Requests\Concerns\ValidatesConfiguredAttributes;
 use App\Models\EmergingRisk;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Add an entry to the horizon (migration Phase 4.6).

@@ -10,9 +10,9 @@ use App\Models\MeasureValue;
 use App\Models\ObjectType;
 use App\Models\Period;
 use App\Support\Measures\KriMeasureMigrator;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The seam between the KRI screens and the measure engine.

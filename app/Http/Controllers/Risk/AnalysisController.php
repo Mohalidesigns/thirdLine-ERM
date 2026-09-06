@@ -11,9 +11,9 @@ use App\Models\RiskCause;
 use App\Models\RiskControlMapping;
 use App\Services\Analysis\RiskMovementService;
 use App\Services\RiskScoringService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Heat map, bow-tie, correlation and trend analysis.

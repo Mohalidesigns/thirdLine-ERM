@@ -6,8 +6,8 @@ use App\Models\KeyRiskIndicator;
 use App\Models\LossEvent;
 use App\Models\Risk;
 use App\Services\RiskAppetiteService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Carbon;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The Executive report's figures (migration Phase 5.4).

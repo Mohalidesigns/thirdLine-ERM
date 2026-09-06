@@ -12,8 +12,8 @@ use App\Models\WorkflowTask;
 use App\Services\Graph\GraphQueryService;
 use App\Services\MeasureService;
 use App\Services\Workflow\TaskQueryService;
-use App\Support\Tenancy\TenantContext;
 use RuntimeException;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-07 TASK 5 — the tools an AI agent may call against this platform.

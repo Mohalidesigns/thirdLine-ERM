@@ -14,10 +14,10 @@ use App\Services\Quantification\QuantificationSettingsService;
 use App\Services\Quantification\ScenarioLibrary;
 use App\Services\Quantification\ScenarioService;
 use App\Services\Quantification\SimulationService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class QuantificationController extends Controller
 {

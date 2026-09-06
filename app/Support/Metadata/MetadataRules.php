@@ -2,9 +2,9 @@
 
 namespace App\Support\Metadata;
 
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Validation\Rules\Exists;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Tenant-bound existence rules for the metadata registry (migration Phase 6.3).

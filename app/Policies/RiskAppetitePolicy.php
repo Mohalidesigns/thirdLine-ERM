@@ -4,7 +4,7 @@ namespace App\Policies;
 
 use App\Models\RiskAppetite;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Migration Phase 3.6. Permission first, then tenancy: a statement from

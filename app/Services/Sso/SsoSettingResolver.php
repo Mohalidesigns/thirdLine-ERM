@@ -3,8 +3,8 @@
 namespace App\Services\Sso;
 
 use App\Models\OrganizationSsoSetting;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The current tenant's single sign-on configuration row (migration Phase 6.2).

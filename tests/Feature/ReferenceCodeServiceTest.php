@@ -4,13 +4,13 @@ namespace Tests\Feature;
 
 use App\Services\ReferenceCodeService;
 use App\Support\ReferenceCodeAudit;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-01 TASK 3 acceptance.

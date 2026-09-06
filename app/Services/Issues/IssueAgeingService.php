@@ -3,10 +3,10 @@
 namespace App\Services\Issues;
 
 use App\Models\Issue;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The ageing report (migration Phase 4.4).

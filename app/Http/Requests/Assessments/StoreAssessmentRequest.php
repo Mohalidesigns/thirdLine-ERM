@@ -6,11 +6,11 @@ use App\Models\Risk;
 use App\Models\RiskAssessment;
 use App\Models\RiskAssessmentControl;
 use App\Models\RiskCause;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * POST risk/assessments — the whole thirteen-step chain, validated in one

@@ -2,13 +2,13 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasObjectIdentity;
 use App\Models\Concerns\ScopedToGraph;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * The columns 2026_02_22_200038_align_schema_with_controllers adds through its

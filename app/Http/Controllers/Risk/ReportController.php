@@ -22,7 +22,6 @@ use App\Services\RegulatoryReportService;
 use App\Services\ReportDataService;
 use App\Services\Reporting\BoardReportService;
 use App\Services\Reporting\ExecutiveReportService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
@@ -30,6 +29,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class ReportController extends Controller
 {

@@ -5,8 +5,8 @@ namespace App\Services\Widgets;
 use App\Models\Dashboard;
 use App\Models\User;
 use App\Models\WidgetDefinition;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Validation\ValidationException;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Everything the dashboard builder does to a dashboard (migration Phase 2:

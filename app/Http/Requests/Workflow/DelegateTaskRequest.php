@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests\Workflow;
 
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class DelegateTaskRequest extends FormRequest
 {

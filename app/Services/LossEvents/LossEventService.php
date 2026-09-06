@@ -8,8 +8,8 @@ use App\Models\LossEvent;
 use App\Services\AuditTrailService;
 use App\Services\ReferenceCodeService;
 use App\Support\RiskCalculationSettings;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Reporting and amending a loss event (migration Phase 4.3).

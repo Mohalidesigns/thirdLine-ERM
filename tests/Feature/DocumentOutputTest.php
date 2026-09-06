@@ -11,7 +11,6 @@ use App\Models\User;
 use App\Services\BoardPackAssembler;
 use App\Services\DocumentRenderer;
 use App\Services\SpreadsheetReader;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Queue;
@@ -19,6 +18,7 @@ use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The report pipeline: a real PDF, a real workbook, a stored artifact and a

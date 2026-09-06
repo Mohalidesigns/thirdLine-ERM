@@ -4,9 +4,9 @@ namespace App\Services\Configuration;
 
 use App\Models\ConfigBundle;
 use App\Models\ConfigBundleApplication;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-05 TASK 4 — apply a bundle, or say what applying it would do.

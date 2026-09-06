@@ -9,13 +9,13 @@ use App\Models\Risk;
 use App\Models\RiskCategory;
 use App\Models\RiskTaxonomy;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Every foreign key on the regulatory module (migration Phase 5.3).

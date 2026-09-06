@@ -4,9 +4,9 @@ namespace App\Http\Requests\Controls;
 
 use App\Http\Requests\Concerns\ValidatesConfiguredAttributes;
 use App\Models\Control;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class StoreControlRequest extends FormRequest
 {

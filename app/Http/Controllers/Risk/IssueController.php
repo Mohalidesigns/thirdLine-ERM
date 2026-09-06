@@ -23,12 +23,12 @@ use App\Presenters\FormSchemaPresenter;
 use App\Presenters\GridPresenter;
 use App\Services\Issues\IssueAgeingService;
 use App\Services\Issues\IssueDashboardService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class IssueController extends Controller
 {

@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Regulatory;
 
 use App\Models\RiskTaxonomy;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Add a node to the risk taxonomy (migration Phase 5.3).

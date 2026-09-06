@@ -10,8 +10,8 @@ use App\Services\FileUploadService;
 use App\Services\NotificationService;
 use App\Services\ReferenceCodeService;
 use App\Services\Workflow\ModuleApprovals;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\UploadedFile;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Control testing (migration Phase 3.4).

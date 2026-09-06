@@ -5,13 +5,13 @@ namespace Tests\Feature\Graph;
 use App\Models\GraphObject;
 use App\Models\ObjectMergeCandidate;
 use App\Support\Graph\OrganisationGraphUnifier;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-03 TASK 4 — the two organisational models become one graph.

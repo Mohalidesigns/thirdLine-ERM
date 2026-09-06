@@ -3,9 +3,9 @@
 namespace App\Http\Requests\LossEvents;
 
 use App\Models\LossEvent;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Amend a reported loss event (migration Phase 4.3).

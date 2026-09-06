@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Controls;
 
 use App\Models\ControlTest;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The control a test belongs to is fixed at scheduling: the old edit form

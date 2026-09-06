@@ -12,10 +12,10 @@ use App\Models\EntityType;
 use App\Presenters\FormSchemaPresenter;
 use App\Presenters\GridPresenter;
 use App\Services\Scoping\EntityService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Scoping / entities (migration Phase 3.1). Each action authorises through

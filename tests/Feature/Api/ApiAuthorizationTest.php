@@ -173,7 +173,7 @@ class ApiAuthorizationTest extends TestCase
     {
         $mine = $this->makeRisk(['title' => 'My tenant risk']);
 
-        $otherOrg = \App\Support\Tenancy\TenantContext::bypass(fn () => Organization::create([
+        $otherOrg = \ThirdLine\Platform\Tenancy\TenantContext::bypass(fn () => Organization::create([
             'name' => 'Other Bank PLC',
             'short_name' => 'OTHR',
             'institution_type' => 'commercial_bank',
@@ -181,7 +181,7 @@ class ApiAuthorizationTest extends TestCase
             'is_active' => true,
         ]), 'test fixture');
 
-        $theirs = \App\Support\Tenancy\TenantContext::actingAs($otherOrg->id, function () use ($otherOrg) {
+        $theirs = \ThirdLine\Platform\Tenancy\TenantContext::actingAs($otherOrg->id, function () use ($otherOrg) {
             $category = \App\Models\RiskCategory::create([
                 'organization_id' => $otherOrg->id,
                 'code' => 'OPS',

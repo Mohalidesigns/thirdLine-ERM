@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Rcsa;
 
 use App\Support\Rcsa\RcsaProgramme;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * File an RCSA worksheet, as a draft or as a submission

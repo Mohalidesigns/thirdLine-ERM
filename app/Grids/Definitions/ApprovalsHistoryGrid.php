@@ -6,8 +6,8 @@ use App\Grids\Column;
 use App\Grids\Filter;
 use App\Grids\GridDefinition;
 use App\Models\ApprovalRequest;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The approval history register (WP-09 migration of

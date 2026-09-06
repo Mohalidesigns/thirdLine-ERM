@@ -3,9 +3,9 @@
 namespace App\Http\Requests\LossEvents;
 
 use App\Models\NearMiss;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Report a near miss (migration Phase 4.3).

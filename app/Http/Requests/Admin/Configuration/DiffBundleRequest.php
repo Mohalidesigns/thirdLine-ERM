@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Admin\Configuration;
 
 use App\Models\ConfigBundle;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The dry run (migration Phase 6.6).

@@ -6,8 +6,8 @@ use App\Grids\Column;
 use App\Grids\Filter;
 use App\Grids\GridDefinition;
 use App\Models\DataImport;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The data import history (WP-09 migration of

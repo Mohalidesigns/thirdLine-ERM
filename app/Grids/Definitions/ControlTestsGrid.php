@@ -10,8 +10,8 @@ use App\Grids\RowAction;
 use App\Models\Control;
 use App\Models\ControlTest;
 use App\Support\Authorization\GraphScope;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The control testing register (WP-09 migration of

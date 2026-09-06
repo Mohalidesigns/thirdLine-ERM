@@ -8,10 +8,10 @@ use App\Models\MeasureBreach;
 use App\Models\MeasureThreshold;
 use App\Models\MeasureValue;
 use App\Models\Period;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Reads and writes the measure fact table.

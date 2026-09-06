@@ -3,11 +3,11 @@
 namespace App\Http\Middleware;
 
 use App\Models\ApiToken;
-use App\Support\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-07 TASK 2 — the API's front door.

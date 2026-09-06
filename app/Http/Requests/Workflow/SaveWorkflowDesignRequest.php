@@ -6,9 +6,9 @@ use App\Enums\WorkflowNodeType;
 use App\Models\WorkflowDefinition;
 use App\Services\Workflow\SubjectRegistry;
 use App\Support\Metadata\MetadataRules;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Save a workflow design (migration Phase 6.5).

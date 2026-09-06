@@ -12,7 +12,7 @@ use App\Services\MeasureService;
 use App\Services\PeriodService;
 use App\Support\Measures\MeasureCatalog;
 use App\Support\Measures\UnitRegistry;
-use App\Support\Tenancy\TenantContext;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Builders for the WP-04 measure engine.

@@ -5,8 +5,8 @@ namespace Tests\Feature\Assessments;
 use App\Models\RiskCauseCategory;
 use App\Models\ScoringProfile;
 use App\Support\Scoring\ScoringProfileTemplates;
-use App\Support\Tenancy\TenantContext;
 use PHPUnit\Framework\Attributes\Test;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Phase 3.3: the assessment Form Requests.

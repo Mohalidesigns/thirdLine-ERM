@@ -8,13 +8,13 @@ use App\Models\ObjectType;
 use App\Models\User;
 use App\Models\WidgetDefinition;
 use App\Services\Widgets\DashboardResolver;
-use App\Support\Tenancy\TenantContext;
 use Database\Seeders\WidgetDashboardSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-12 — the seeder is the fix, so the seeder is what gets pinned.

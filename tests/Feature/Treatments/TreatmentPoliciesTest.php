@@ -110,7 +110,7 @@ class TreatmentPoliciesTest extends TreatmentsTestCase
     {
         $foreignPlan = null;
 
-        \App\Support\Tenancy\TenantContext::bypass(function () use (&$foreignPlan) {
+        \ThirdLine\Platform\Tenancy\TenantContext::bypass(function () use (&$foreignPlan) {
             $foreignPlan = TreatmentPlan::create([
                 'organization_id' => $this->otherOrg->id,
                 'risk_id' => $this->foreignRisk->id,

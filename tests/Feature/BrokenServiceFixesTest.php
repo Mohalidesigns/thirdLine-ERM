@@ -12,12 +12,12 @@ use App\Services\RiskAppetiteService;
 use App\Services\RiskScoringService;
 use App\Support\RiskCalculationSettings;
 use App\Support\Scoring\ScoringProfileTemplates;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-01 TASK 2 acceptance — the services that read columns which do not

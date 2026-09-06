@@ -5,10 +5,10 @@ namespace Tests\Feature\Kri;
 use App\Models\KeyRiskIndicator;
 use App\Models\MeasureBreach;
 use App\Policies\KeyRiskIndicatorPolicy;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Gate;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\TenantFixture;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /** KeyRiskIndicatorPolicy (migration Phase 4.1). */
 class KriPolicyTest extends KriTestCase

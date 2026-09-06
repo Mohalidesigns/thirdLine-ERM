@@ -6,11 +6,11 @@ use App\Models\ObjectType;
 use App\Models\Organization;
 use App\Models\ScoringProfile;
 use App\Support\Scoring\ScoringProfileTemplates;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Scoring profiles — the screen where an organisation decides what a score

@@ -9,7 +9,6 @@ use App\Models\RiskAssessment;
 use App\Models\User;
 use App\Models\WorkflowTask;
 use App\Services\Workflow\WorkflowEngine;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\Test;
@@ -17,6 +16,7 @@ use RuntimeException;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\Support\CreatesWorkflowFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-06 acceptance.

@@ -9,13 +9,13 @@ use App\Models\Organization;
 use App\Models\RiskCategory;
 use App\Models\User;
 use App\Policies\EmergingRiskPolicy;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The emerging risk register's create and edit pages (migration Phase 4.6),

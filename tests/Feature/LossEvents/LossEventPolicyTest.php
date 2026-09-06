@@ -9,7 +9,6 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Policies\LossEventPolicy;
 use App\Policies\NearMissPolicy;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
@@ -18,6 +17,7 @@ use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * LossEventPolicy and NearMissPolicy (migration Phase 4.3), including the

@@ -1,9 +1,7 @@
 <?php
 
-namespace App\Models\Concerns;
+namespace ThirdLine\Platform\Tenancy;
 
-use App\Support\Tenancy\OrganizationScope;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -76,8 +74,17 @@ trait BelongsToOrganization
         return property_exists($this, 'tenantIncludesGlobal') && $this->tenantIncludesGlobal === true;
     }
 
+    /**
+     * The tenant this record belongs to.
+     *
+     * The model class is configuration, not a constant: this trait was
+     * `App\Models\Concerns\BelongsToOrganization` and named `App\Models\
+     * Organization` outright, which is the one line that stopped it being
+     * shareable. Each application names its own through
+     * `config('platform.tenancy.organization_model')`.
+     */
     public function organization(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Organization::class);
+        return $this->belongsTo(TenancyConfig::organizationModel());
     }
 }

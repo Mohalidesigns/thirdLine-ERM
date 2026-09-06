@@ -11,7 +11,7 @@ use App\Models\Risk;
 use App\Models\TreatmentPlan;
 use App\Services\Quantification\IcaapService;
 use App\Services\RiskAppetiteService;
-use App\Support\Tenancy\TenantContext;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The Board report's figures (migration Phase 5.4).

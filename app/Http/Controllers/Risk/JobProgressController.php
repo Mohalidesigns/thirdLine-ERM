@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
 use App\Models\JobRun;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The session-authenticated twin of GET api/v1/jobs/{jobRun}, for the SPA's

@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\Organization;
 use App\Services\Configuration\ConfigurationExporter;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-05 TASK 4 — config:export

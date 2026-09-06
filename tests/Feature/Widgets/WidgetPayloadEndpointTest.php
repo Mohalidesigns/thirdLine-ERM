@@ -104,7 +104,7 @@ class WidgetPayloadEndpointTest extends TestCase
 
         // Build the foreign unit AS the other tenant so it projects into that
         // tenant's graph, then come back.
-        \App\Support\Tenancy\TenantContext::set($other->id);
+        \ThirdLine\Platform\Tenancy\TenantContext::set($other->id);
         $foreign = BusinessUnit::create([
             'organization_id' => $other->id,
             'code' => 'BU-X',
@@ -112,7 +112,7 @@ class WidgetPayloadEndpointTest extends TestCase
             'is_active' => true,
         ]);
         $foreignNodeId = (int) $foreign->graphObject()->id;
-        \App\Support\Tenancy\TenantContext::set($this->organization->id);
+        \ThirdLine\Platform\Tenancy\TenantContext::set($this->organization->id);
 
         $this->actingAs($this->actor)
             ->getJson(route('risk.widgets.payload', [$this->widget, 'node' => $foreignNodeId]))

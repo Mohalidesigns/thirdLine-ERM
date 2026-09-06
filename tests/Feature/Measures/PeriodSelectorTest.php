@@ -104,7 +104,7 @@ class PeriodSelectorTest extends TestCase
             'is_active' => true,
         ]);
 
-        $foreignPeriodId = \App\Support\Tenancy\TenantContext::actingAs(
+        $foreignPeriodId = \ThirdLine\Platform\Tenancy\TenantContext::actingAs(
             $other->id,
             fn () => $this->periods()->current('quarter', $other->id)->id
         );

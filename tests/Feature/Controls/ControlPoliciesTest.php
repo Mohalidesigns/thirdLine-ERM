@@ -108,7 +108,7 @@ class ControlPoliciesTest extends ControlsTestCase
 
     private function foreignTest(): ControlTest
     {
-        return \App\Support\Tenancy\TenantContext::bypass(fn () => ControlTest::create([
+        return \ThirdLine\Platform\Tenancy\TenantContext::bypass(fn () => ControlTest::create([
             'organization_id' => $this->otherOrg->id,
             'control_id' => $this->foreignControl->id,
             'test_code' => 'CT-FOREIGN',

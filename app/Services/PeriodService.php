@@ -7,10 +7,10 @@ use App\Models\Period;
 use App\Models\PeriodCalendar;
 use App\Models\User;
 use App\Support\Periods\PeriodGenerator;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Everything the platform knows about "when".

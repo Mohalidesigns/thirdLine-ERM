@@ -5,11 +5,11 @@ namespace Tests\Feature\Configuration;
 use App\Models\ConfigBundle;
 use App\Models\Organization;
 use App\Services\Configuration\ConfigurationExporter;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The bundle screen (migration Phase 6.6).

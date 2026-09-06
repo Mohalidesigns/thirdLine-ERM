@@ -22,12 +22,12 @@ use App\Presenters\GridPresenter;
 use App\Services\FileUploadService;
 use App\Services\LossEvents\LossEventDashboardService;
 use App\Services\LossEvents\LossEventService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class LossEventController extends Controller
 {

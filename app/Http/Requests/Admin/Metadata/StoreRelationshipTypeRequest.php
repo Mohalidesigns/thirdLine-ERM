@@ -4,8 +4,8 @@ namespace App\Http\Requests\Admin\Metadata;
 
 use App\Models\ObjectRelationshipType;
 use App\Support\Metadata\MetadataRules;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Define a typed edge (migration Phase 6.3).

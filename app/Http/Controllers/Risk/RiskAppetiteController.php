@@ -9,9 +9,9 @@ use App\Models\RiskAppetite;
 use App\Models\RiskCategory;
 use App\Services\Appetite\AppetiteFrameworkService;
 use App\Services\AuditTrailService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The risk appetite framework (migration Phase 3.6): one page, with the

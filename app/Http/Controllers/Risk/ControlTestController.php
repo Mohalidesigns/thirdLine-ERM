@@ -16,11 +16,11 @@ use App\Services\Controls\ControlTestService;
 use App\Services\FileUploadService;
 use App\Services\Workflow\ModuleApprovals;
 use App\Support\Authorization\GraphScope;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Control testing (migration Phase 3.4). Each action authorises through

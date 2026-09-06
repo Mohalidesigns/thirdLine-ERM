@@ -10,7 +10,7 @@ use App\Models\RiskControlMapping;
 use App\Models\User;
 use App\Services\AuditTrailService;
 use App\Services\ControlEffectivenessService;
-use App\Support\Tenancy\TenantContext;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The control library (migration Phase 3.4).

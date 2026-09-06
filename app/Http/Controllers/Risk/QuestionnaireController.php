@@ -13,10 +13,10 @@ use App\Models\QuestionLibrary;
 use App\Models\Questionnaire;
 use App\Models\QuestionnaireSection;
 use App\Presenters\GridPresenter;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class QuestionnaireController extends Controller
 {

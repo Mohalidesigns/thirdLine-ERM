@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\ProjectsGraphEdge;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\Pivot;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * risk_control_mapping — "this control mitigates that risk".

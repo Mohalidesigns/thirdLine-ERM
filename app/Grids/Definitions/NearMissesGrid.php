@@ -9,8 +9,8 @@ use App\Grids\GridDefinition;
 use App\Models\BusinessUnit;
 use App\Models\LossEvent;
 use App\Models\NearMiss;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The near-miss register (WP-09 migration of

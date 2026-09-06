@@ -4,9 +4,9 @@ namespace App\Http\Requests\Appetite;
 
 use App\Models\RiskAppetite;
 use App\Services\Appetite\AppetiteFrameworkService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class StoreRiskAppetiteRequest extends FormRequest
 {

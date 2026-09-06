@@ -5,8 +5,8 @@ use App\Models\Risk;
 use App\Models\RiskAssessment;
 use App\Services\RiskMeasureRecorder;
 use App\Support\Measures\MeasureCatalog;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Migrations\Migration;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-04 TASK 4 — register the risk measures and give the register a history.

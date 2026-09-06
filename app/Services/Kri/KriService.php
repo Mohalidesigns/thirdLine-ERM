@@ -11,10 +11,10 @@ use App\Services\MeasureService;
 use App\Services\PeriodService;
 use App\Services\ReferenceCodeService;
 use App\Support\Periods\PeriodContext;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * KRI monitoring (migration Phase 4.1).

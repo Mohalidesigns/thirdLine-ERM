@@ -4,10 +4,10 @@ namespace App\Models;
 
 use App\Enums\WorkflowInstanceStatus;
 use App\Enums\WorkflowTaskStatus;
-use App\Models\Concerns\BelongsToOrganization;
 use App\Services\Workflow\WorkflowGraph;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * One run of one workflow definition over one subject.

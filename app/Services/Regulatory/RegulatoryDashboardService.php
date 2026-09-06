@@ -4,8 +4,8 @@ namespace App\Services\Regulatory;
 
 use App\Models\RegulatoryCircular;
 use App\Models\RegulatoryDeadline;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Collection;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The regulatory compliance dashboard's figures (migration Phase 5.3).

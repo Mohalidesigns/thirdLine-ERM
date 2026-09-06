@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
 use App\Services\LlmService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Live AI tools backed by the locally hosted LLM.

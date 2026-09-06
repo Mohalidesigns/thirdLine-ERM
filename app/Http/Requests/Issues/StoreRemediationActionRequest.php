@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Issues;
 
 use App\Models\Issue;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /** Add a remediation action to an issue (migration Phase 4.4). */
 class StoreRemediationActionRequest extends FormRequest

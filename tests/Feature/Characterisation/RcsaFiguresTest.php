@@ -5,12 +5,12 @@ namespace Tests\Feature\Characterisation;
 use App\Models\BusinessUnit;
 use App\Models\Control;
 use App\Models\Risk;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * CHARACTERISATION — the figures the RCSA screens compute, pinned before

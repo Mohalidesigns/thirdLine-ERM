@@ -4,10 +4,10 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Support\Sso\SsoAuthenticationException;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Turns an authenticated IdP identity into a local user, or refuses to.

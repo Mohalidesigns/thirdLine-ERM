@@ -5,11 +5,11 @@ namespace App\Http\Middleware;
 use App\Models\Period;
 use App\Services\PeriodService;
 use App\Support\Periods\PeriodContext;
-use App\Support\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
 use Symfony\Component\HttpFoundation\Response;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Binds the selected reporting period for the request and exposes it to every

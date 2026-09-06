@@ -2,11 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Organization;
 use App\Models\Risk;
 use App\Models\User;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +15,8 @@ use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
 use Tests\Support\TenantFixture;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class TenancyIsolationTest extends TestCase
 {

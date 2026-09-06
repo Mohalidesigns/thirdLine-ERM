@@ -8,9 +8,9 @@ use App\Grids\Filter;
 use App\Grids\GridDefinition;
 use App\Grids\RowAction;
 use App\Models\Control;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The control library register (WP-09 exemplar migration — this replaced

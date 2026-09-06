@@ -3,7 +3,7 @@
 namespace App\Services\Quantification;
 
 use App\Models\QuantificationSetting;
-use App\Support\Tenancy\TenantContext;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Quantification settings (migration Phase 5.2).

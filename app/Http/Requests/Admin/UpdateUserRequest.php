@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests\Admin;
 
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Amend a user account (migration Phase 6.1).

@@ -6,11 +6,11 @@ use App\Models\Organization;
 use App\Presenters\NavPresenter;
 use App\Services\Licensing\LicenseManager;
 use App\Support\Periods\PeriodContext;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Middleware;
 use Spatie\Permission\Models\Permission;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The props every Inertia page receives.

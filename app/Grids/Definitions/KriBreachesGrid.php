@@ -10,9 +10,9 @@ use App\Grids\RowAction;
 use App\Models\KeyRiskIndicator;
 use App\Models\MeasureBreach;
 use App\Support\Authorization\GraphScope;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The KRI breach register (WP-09 migration of

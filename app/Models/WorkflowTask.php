@@ -3,9 +3,9 @@
 namespace App\Models;
 
 use App\Enums\WorkflowTaskStatus;
-use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * A decision somebody owes, at a named node of a running instance.

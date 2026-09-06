@@ -17,10 +17,10 @@ use App\Models\RiskTaxonomy;
 use App\Models\User;
 use App\Presenters\GridPresenter;
 use App\Services\Regulatory\RegulatoryDashboardService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Regulatory compliance — the circular register, the filing calendar and the

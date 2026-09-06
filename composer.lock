@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "65e612406e4a6cb54577607378347fdf",
+    "content-hash": "5933ff7c8c675ea0052b326a0e57d1ca",
     "packages": [
         {
             "name": "barryvdh/laravel-dompdf",
@@ -8533,6 +8533,56 @@
             "time": "2026-02-04T18:08:13+00:00"
         },
         {
+            "name": "thirdline/platform",
+            "version": "0.1.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/platform",
+                "reference": "c833525b9f247f984f2bd32a0e2b549b10e87d0f"
+            },
+            "require": {
+                "illuminate/contracts": "^11.0|^12.0",
+                "illuminate/database": "^11.0|^12.0",
+                "illuminate/support": "^11.0|^12.0",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^9.0|^10.0",
+                "phpunit/phpunit": "^11.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "ThirdLine\\Platform\\PlatformServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "ThirdLine\\Platform\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "ThirdLine\\Platform\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "phpunit"
+                ]
+            },
+            "license": [
+                "proprietary"
+            ],
+            "description": "Platform primitives shared by the ThirdLine GRC products: tenancy, licensing, activity logging, rich text, authorization and the middleware that enforces them.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
             "name": "tightenco/ziggy",
             "version": "v2.6.4",
             "source": {
@@ -11327,7 +11377,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "thirdline/platform": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

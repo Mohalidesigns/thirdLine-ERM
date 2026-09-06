@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * One organization's federation settings, configured by that client through

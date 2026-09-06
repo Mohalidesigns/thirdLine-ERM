@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests\Campaigns;
 
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Give a business unit's respondent a piece of the campaign (Phase 4.5).

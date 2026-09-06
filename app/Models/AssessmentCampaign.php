@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasObjectIdentity;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 class AssessmentCampaign extends Model
 {

@@ -10,10 +10,10 @@ use App\Models\Period;
 use App\Services\PeriodService;
 use App\Services\ThresholdRebaselineService;
 use App\Support\Periods\PeriodContext;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The reporting calendar: selecting a period, and closing one.

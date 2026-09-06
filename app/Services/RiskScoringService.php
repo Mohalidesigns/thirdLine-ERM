@@ -6,7 +6,7 @@ use App\Models\Risk;
 use App\Models\RiskAssessment;
 use App\Models\ScoringProfile;
 use App\Support\Scoring\ScoringProfileTemplates;
-use App\Support\Tenancy\TenantContext;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Turns likelihood and impact into a score and a rating.

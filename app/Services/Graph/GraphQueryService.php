@@ -7,10 +7,10 @@ use App\Models\ObjectRelationshipType;
 use App\Models\ObjectType;
 use App\Models\User;
 use App\Support\Authorization\GraphScope;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Reading the object graph.

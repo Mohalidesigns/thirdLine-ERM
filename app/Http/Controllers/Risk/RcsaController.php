@@ -11,10 +11,10 @@ use App\Models\RiskCategory;
 use App\Services\Rcsa\RcsaService;
 use App\Services\Rcsa\RcsaWorksheetService;
 use App\Support\Rcsa\RcsaProgramme;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Risk and Control Self-Assessment (migration Phase 3.8).

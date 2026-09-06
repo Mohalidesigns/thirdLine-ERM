@@ -165,7 +165,7 @@ class EnterpriseGapSeeder extends Seeder
             return;
         }
 
-        \App\Support\Tenancy\TenantContext::actingAs($organizationId, function () use ($organizationId, $now) {
+        \ThirdLine\Platform\Tenancy\TenantContext::actingAs($organizationId, function () use ($organizationId, $now) {
             $engine = app(\App\Services\Workflow\WorkflowEngine::class);
             $initiator = \App\Models\User::where('organization_id', $organizationId)->orderBy('id')->first();
 

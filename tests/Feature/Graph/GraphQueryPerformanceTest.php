@@ -5,13 +5,13 @@ namespace Tests\Feature\Graph;
 use App\Models\GraphObject;
 use App\Models\ObjectType;
 use App\Services\Graph\GraphQueryService;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-03 TASK 6 acceptance: descendants() under 200 ms on a 50,000-node tree.

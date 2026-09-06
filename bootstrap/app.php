@@ -21,7 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth' => \App\Http\Middleware\EnsureAuthenticated::class,
             'permission' => \App\Http\Middleware\CheckPermission::class,
             'mfa' => \App\Http\Middleware\EnsureMfaVerified::class,
-            'tenant' => \App\Http\Middleware\ResolveTenant::class,
+            'tenant' => \ThirdLine\Platform\Tenancy\ResolveTenant::class,
             'scim.auth' => \App\Http\Middleware\AuthenticateScim::class,
             'feature' => \App\Http\Middleware\EnsureFeatureEnabled::class,
 
@@ -55,7 +55,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(
             remove: [SubstituteBindings::class],
             append: [
-                \App\Http\Middleware\ResolveTenant::class,
+                \ThirdLine\Platform\Tenancy\ResolveTenant::class,
                 \App\Http\Middleware\ResolvePeriod::class,
                 SubstituteBindings::class,
 

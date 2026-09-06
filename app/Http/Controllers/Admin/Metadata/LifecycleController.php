@@ -9,12 +9,12 @@ use App\Models\ObjectLifecycle;
 use App\Models\ObjectType;
 use App\Models\WorkflowDefinition;
 use App\Services\Metadata\MetadataGuard;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Permission;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * State machines (migration Phase 6.3, from Livewire LifecycleBuilder).

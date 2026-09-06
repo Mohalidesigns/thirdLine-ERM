@@ -6,12 +6,12 @@ use App\Models\BusinessUnit;
 use App\Models\LossEvent;
 use App\Services\RegulatoryThresholdService;
 use App\Support\RiskCalculationSettings;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Phase 4's acceptance criterion 2: the regulatory thresholds are evaluated

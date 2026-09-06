@@ -4,9 +4,9 @@ namespace App\Http\Requests\Admin;
 
 use App\Models\User;
 use App\Support\AssignableRoles;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Create a user account (migration Phase 6.1).

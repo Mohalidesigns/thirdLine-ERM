@@ -4,11 +4,11 @@ namespace App\Jobs;
 
 use App\Models\GraphObject;
 use App\Support\Graph\OrganisationGraphUnifier;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Re-materialise hierarchy_path and hierarchy_depth across the object graph.

@@ -5,7 +5,7 @@ namespace App\Services\Quantification;
 use App\Models\IcaapAssessment;
 use App\Models\QuantificationSetting;
 use App\Models\SimulationRun;
-use App\Support\Tenancy\TenantContext;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The ICAAP screen's capital figures (migration Phase 5.2).

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Integrations\StoreApiTokenRequest;
 use App\Models\ApiToken;
-use App\Support\Tenancy\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -13,6 +12,7 @@ use Illuminate\Support\Str;
 use Inertia\Inertia;
 use InvalidArgumentException;
 use Spatie\Permission\Models\Permission;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-07 TASK 2 — issuing and revoking API tokens.

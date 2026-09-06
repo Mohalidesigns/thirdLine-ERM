@@ -7,7 +7,6 @@ use App\Models\MeasureValue;
 use App\Models\Organization;
 use App\Services\CurrencyService;
 use App\Support\Measures\MeasureCatalog;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
@@ -15,6 +14,7 @@ use RuntimeException;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\Support\CreatesMeasureFixtures;
 use Tests\TestCase;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-04 TASK 6 acceptance: a loss event in USD rolls up into an NGN group

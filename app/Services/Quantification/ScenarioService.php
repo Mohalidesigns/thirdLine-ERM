@@ -4,7 +4,7 @@ namespace App\Services\Quantification;
 
 use App\Models\QuantificationScenario;
 use App\Support\Quantification\Distributions;
-use App\Support\Tenancy\TenantContext;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Scenario register rules (migration Phase 5.2).

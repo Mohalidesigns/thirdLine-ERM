@@ -5,11 +5,11 @@ namespace App\Services;
 use App\Models\Measure;
 use App\Models\MeasureValue;
 use App\Models\Period;
-use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Symfony\Component\ExpressionLanguage\ExpressionFunction;
 use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
 use Symfony\Component\ExpressionLanguage\SyntaxError;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Evaluates a threshold expression against the measure engine.

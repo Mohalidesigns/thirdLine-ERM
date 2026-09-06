@@ -50,6 +50,12 @@ carried in the schema as configuration rather than being guessed at:
 
 The remaining seven (Q2, Q5–Q10) do not block P0, P1 or P2.
 
+## Fixes found in use
+
+| Reported | Note |
+|---|---|
+| "CRO gets 403 Unauthorized action on RCSA" (during P2) | It was `super-admin`, not the CRO, and the cause predates RCSA v2 — [super-admin-403.md](super-admin-403.md) |
+
 ## Carried forward
 
 | From | Item |

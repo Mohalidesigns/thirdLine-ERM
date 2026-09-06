@@ -2,12 +2,12 @@
 
 namespace Tests\Feature\Licensing;
 
-use App\Services\Licensing\LicenseManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
 use Illuminate\Support\Facades\Route;
 use Mockery;
 use Tests\TestCase;
+use ThirdLine\Platform\Licensing\LicenseManager;
 
 class LicenseMiddlewareTest extends TestCase
 {

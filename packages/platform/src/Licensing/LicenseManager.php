@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Services\Licensing;
+namespace ThirdLine\Platform\Licensing;
 
-use App\Exceptions\LicenseExpiredException;
+use ThirdLine\Platform\Licensing\Exceptions\LicenseExpiredException;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 

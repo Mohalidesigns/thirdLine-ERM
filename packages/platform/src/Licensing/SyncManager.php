@@ -1,9 +1,8 @@
 <?php
 
-namespace App\Services\Licensing;
+namespace ThirdLine\Platform\Licensing;
 
-use App\Models\LicenseAuditLog;
-use App\Models\User;
+use ThirdLine\Platform\Licensing\Models\LicenseAuditLog;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -434,9 +433,17 @@ class SyncManager
         return Cache::get('license.last_validate');
     }
 
+    /**
+     * Seats in use, for the entitlement the licence server checks against.
+     *
+     * The user class is configuration: this read was `App\Models\User::count()`,
+     * the one line in the licensing cluster that named the application. A seat
+     * is whatever the consuming product calls a user, and both current
+     * consumers spell it differently in every other respect.
+     */
     private function getActiveUserCount(): int
     {
-        return Cache::get('active_users_count', User::count());
+        return Cache::get('active_users_count', fn () => LicensingConfig::userModel()::count());
     }
 
     /**

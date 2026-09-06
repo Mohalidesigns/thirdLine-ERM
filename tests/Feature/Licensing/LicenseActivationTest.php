@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\Licensing;
 
-use App\Services\Licensing\LicenseLoader;
-use App\Services\Licensing\LicenseManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use ThirdLine\Platform\Licensing\LicenseLoader;
+use ThirdLine\Platform\Licensing\LicenseManager;
 
 class LicenseActivationTest extends TestCase
 {

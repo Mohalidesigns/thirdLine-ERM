@@ -18,6 +18,10 @@ parameters:
     excludePaths:
         analyse:
             - packages/*/tests/*
+            # A package ships its own config, and config files are where env()
+            # belongs. larastan scopes that rule to the application config/
+            # directory, which a package config is not.
+            - packages/*/config/*
 
     # Phase 7 of the migration programme drives the baseline to zero for
     # app/Http/** and app/Policies/** and raises the level; until then the

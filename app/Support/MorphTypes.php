@@ -21,8 +21,6 @@ use App\Models\IssueRemediationAction;
 use App\Models\JobRun;
 use App\Models\KeyRiskIndicator;
 use App\Models\KriMeasurement;
-use App\Models\LicenseAuditLog;
-use App\Models\LicenseStore;
 use App\Models\LossEvent;
 use App\Models\LossEventRca;
 use App\Models\Measure;
@@ -47,6 +45,8 @@ use App\Models\WebhookSubscription;
 use App\Models\WorkflowDefinition;
 use App\Models\WorkflowInstance;
 use App\Models\WorkflowTask;
+use ThirdLine\Platform\Licensing\Models\LicenseAuditLog;
+use ThirdLine\Platform\Licensing\Models\LicenseStore;
 
 /**
  * The single naming authority for polymorphic entity types.

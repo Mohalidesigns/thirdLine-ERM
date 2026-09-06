@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Middleware;
+namespace ThirdLine\Platform\Http\Middleware;
 
 use Closure;
 use Illuminate\Foundation\Vite;

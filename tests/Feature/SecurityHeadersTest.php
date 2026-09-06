@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Http\Middleware\SetSecurityHeaders;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
+use ThirdLine\Platform\Http\Middleware\SetSecurityHeaders;
 
 /**
  * Every web response must carry the baseline security headers, and the

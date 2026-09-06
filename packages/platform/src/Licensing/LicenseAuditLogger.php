@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Services\Licensing;
+namespace ThirdLine\Platform\Licensing;
 
-use App\Models\LicenseAuditLog;
+use ThirdLine\Platform\Licensing\Models\LicenseAuditLog;
 use Illuminate\Database\Eloquent\Collection;
 
 class LicenseAuditLogger

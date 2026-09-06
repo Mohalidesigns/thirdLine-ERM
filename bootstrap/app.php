@@ -19,7 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'auth' => \App\Http\Middleware\EnsureAuthenticated::class,
-            'permission' => \App\Http\Middleware\CheckPermission::class,
+            'permission' => \ThirdLine\Platform\Http\Middleware\CheckPermission::class,
             'mfa' => \App\Http\Middleware\EnsureMfaVerified::class,
             'tenant' => \ThirdLine\Platform\Tenancy\ResolveTenant::class,
             'scim.auth' => \App\Http\Middleware\AuthenticateScim::class,
@@ -38,8 +38,6 @@ return Application::configure(basePath: dirname(__DIR__))
             // Migration Phase 0: the ThirdLine licensing client. Neither alias is
             // applied to a route group yet — LICENSE_ENFORCE_VALID ships false —
             // so a deployment cannot lock itself out on a validation hiccup.
-            'ensure.license.valid' => \App\Http\Middleware\EnsureLicenseValid::class,
-            'ensure.license.feature' => \App\Http\Middleware\EnsureLicenseFeature::class,
         ]);
 
         // ResolveTenant must run after StartSession (so the user is known) but
@@ -65,8 +63,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 // every web response; LicenseHeartbeat is a terminate-time
                 // check-in that does nothing until a licence is activated.
                 \App\Http\Middleware\HandleInertiaRequests::class,
-                \App\Http\Middleware\SetSecurityHeaders::class,
-                \App\Http\Middleware\LicenseHeartbeat::class,
+                \ThirdLine\Platform\Http\Middleware\SetSecurityHeaders::class,
+                \ThirdLine\Platform\Licensing\Middleware\LicenseHeartbeat::class,
             ],
         );
 

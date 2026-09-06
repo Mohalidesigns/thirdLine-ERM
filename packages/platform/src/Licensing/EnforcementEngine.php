@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Services\Licensing;
+namespace ThirdLine\Platform\Licensing;
 
-use App\Exceptions\FeatureNotLicensedException;
+use ThirdLine\Platform\Licensing\Exceptions\FeatureNotLicensedException;
 
 class EnforcementEngine
 {

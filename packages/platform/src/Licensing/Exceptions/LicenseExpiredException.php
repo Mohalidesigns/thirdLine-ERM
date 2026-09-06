@@ -1,5 +1,5 @@
 <?php
 
-namespace App\Exceptions;
+namespace ThirdLine\Platform\Licensing\Exceptions;
 
 class LicenseExpiredException extends LicenseException {}

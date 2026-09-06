@@ -302,7 +302,7 @@ class Preflight extends Command
      * @var list<class-string>
      */
     private const AUTHORIZING_MIDDLEWARE = [
-        \App\Http\Middleware\CheckPermission::class,
+        \ThirdLine\Platform\Http\Middleware\CheckPermission::class,
         \App\Http\Middleware\EnsureTokenScope::class,
         \App\Http\Middleware\EnsureResourceScope::class,
         \App\Http\Middleware\AuthenticateScim::class,

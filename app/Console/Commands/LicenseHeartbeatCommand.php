@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Services\Licensing\DeviceFingerprint;
-use App\Services\Licensing\LicenseManager;
-use App\Services\Licensing\SyncManager;
 use Illuminate\Console\Command;
+use ThirdLine\Platform\Licensing\DeviceFingerprint;
+use ThirdLine\Platform\Licensing\LicenseManager;
+use ThirdLine\Platform\Licensing\SyncManager;
 
 /**
  * Scheduled licensing heartbeat.

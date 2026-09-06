@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Exceptions;
+namespace ThirdLine\Platform\Licensing\Exceptions;
 
 use RuntimeException;
 

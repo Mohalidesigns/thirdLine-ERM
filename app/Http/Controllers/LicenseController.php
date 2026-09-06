@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\LicenseAuditLog;
 use App\Models\User;
-use App\Services\Licensing\DeviceFingerprint;
-use App\Services\Licensing\LicenseManager;
-use App\Services\Licensing\SyncManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
+use ThirdLine\Platform\Licensing\DeviceFingerprint;
+use ThirdLine\Platform\Licensing\LicenseManager;
+use ThirdLine\Platform\Licensing\Models\LicenseAuditLog;
+use ThirdLine\Platform\Licensing\SyncManager;
 
 class LicenseController extends Controller
 {

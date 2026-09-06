@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Services\Licensing;
+namespace ThirdLine\Platform\Licensing;
 
-use App\Exceptions\LicenseException;
+use ThirdLine\Platform\Licensing\Exceptions\LicenseException;
 use Illuminate\Support\Facades\Crypt;
 
 class LicenseLoader

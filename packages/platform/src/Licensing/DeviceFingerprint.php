@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Licensing;
+namespace ThirdLine\Platform\Licensing;
 
 class DeviceFingerprint
 {

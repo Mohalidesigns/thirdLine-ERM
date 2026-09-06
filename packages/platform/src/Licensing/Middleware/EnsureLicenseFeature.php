@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Http\Middleware;
+namespace ThirdLine\Platform\Licensing\Middleware;
 
-use App\Services\Licensing\LicenseManager;
+use ThirdLine\Platform\Licensing\LicenseManager;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;

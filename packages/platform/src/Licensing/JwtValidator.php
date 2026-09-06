@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Services\Licensing;
+namespace ThirdLine\Platform\Licensing;
 
-use App\Exceptions\LicenseException;
-use App\Exceptions\LicenseExpiredException;
+use ThirdLine\Platform\Licensing\Exceptions\LicenseException;
+use ThirdLine\Platform\Licensing\Exceptions\LicenseExpiredException;
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;

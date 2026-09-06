@@ -1,6 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import GuestLayout from '@/Layouts/GuestLayout';
-import InputError from '@/Components/InputError';
+import GuestLayout from '@thirdline/ui/Layouts/GuestLayout';
+import InputError from '@thirdline/ui/Components/InputError';
 
 const inputClass = 'w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] transition';
 

@@ -1,9 +1,9 @@
 import { useRef } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import InputError from '@/Components/InputError';
-import PageHeader from '@/Components/PageHeader';
-import StatusBadge from '@/Components/StatusBadge';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import InputError from '@thirdline/ui/Components/InputError';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import RcsaWorksheetTable, { EMPTY_LINE } from './RcsaWorksheetTable';
 
 /** Migration Phase 3.8: risk/rcsa/worksheet.blade.php. */

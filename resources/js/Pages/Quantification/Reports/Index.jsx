@@ -1,9 +1,9 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import EmptyState from '@/Components/EmptyState';
-import Pagination from '@/Components/Pagination';
-import tryRoute from '@/lib/tryRoute';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
+import Pagination from '@thirdline/ui/Components/Pagination';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 import { number } from '@/Components/Quantification/figures';
 
 /**

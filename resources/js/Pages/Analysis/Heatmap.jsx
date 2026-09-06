@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import TrendChart from '@/Components/TrendChart';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import TrendChart from '@thirdline/ui/Components/TrendChart';
 import { BAND_SERIES, SELECT, bandFor, bandSeriesData } from './format';
 
 /**

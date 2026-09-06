@@ -1,10 +1,10 @@
 import { Head, usePage } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DataGrid from '@/Components/DataGrid/DataGrid';
-import InputError from '@/Components/InputError';
-import PageHeader from '@/Components/PageHeader';
-import { CsrfField } from '@/lib/nativeForm';
-import tryRoute from '@/lib/tryRoute';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
+import InputError from '@thirdline/ui/Components/InputError';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import { CsrfField } from '@thirdline/ui/lib/nativeForm';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 const humanise = (type) => type.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 

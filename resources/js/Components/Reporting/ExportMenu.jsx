@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { usePage } from '@inertiajs/react';
-import tryRoute from '@/lib/tryRoute';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
  * The CSV exports, in one menu (migration Phase 5.5).

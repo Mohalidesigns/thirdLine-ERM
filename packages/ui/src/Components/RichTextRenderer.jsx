@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
-import { parseEditorJs } from '@/lib/richtext';
-import { formatReportSection } from '@/utils';
+import { parseEditorJs } from '../lib/richtext';
+import { formatReportSection } from '../utils';
 
 // Inline marks Editor.js may embed inside block text. Everything else is
 // unwrapped to its text content — no HTML ever reaches the DOM unparsed.

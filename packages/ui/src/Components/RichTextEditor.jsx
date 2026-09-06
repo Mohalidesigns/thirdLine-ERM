@@ -8,7 +8,7 @@ import CodeTool from '@editorjs/code';
 import InlineCode from '@editorjs/inline-code';
 import Underline from '@editorjs/underline';
 import Delimiter from '@editorjs/delimiter';
-import { toEditorJsData } from '@/lib/richtext';
+import { toEditorJsData } from '../lib/richtext';
 
 /**
  * Shared WYSIWYG editor wrapping Editor.js. The single rich-text entry point

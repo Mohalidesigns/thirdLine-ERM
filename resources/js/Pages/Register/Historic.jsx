@@ -1,12 +1,12 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import EmptyState from '@/Components/EmptyState';
-import PageHeader from '@/Components/PageHeader';
-import Pagination from '@/Components/Pagination';
-import RatingBadge from '@/Components/RatingBadge';
-import StatusBadge from '@/Components/StatusBadge';
-import tryRoute from '@/lib/tryRoute';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import Pagination from '@thirdline/ui/Components/Pagination';
+import RatingBadge from '@thirdline/ui/Components/RatingBadge';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
  * The register as at the close of a period that has ended (migration Phase

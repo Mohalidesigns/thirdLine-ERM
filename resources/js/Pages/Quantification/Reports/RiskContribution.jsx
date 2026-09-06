@@ -1,8 +1,8 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
 import ReportShell from '@/Components/Quantification/ReportShell';
 import { naira, number, percent } from '@/Components/Quantification/figures';
-import tryRoute from '@/lib/tryRoute';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
  * A row is either Naira or an ordinal total, and the two must never be

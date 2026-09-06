@@ -1,5 +1,5 @@
-import DynamicForm, { formDataFor, initialValues } from '@/Components/DynamicForm';
-import InputError from '@/Components/InputError';
+import DynamicForm, { formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm';
+import InputError from '@thirdline/ui/Components/InputError';
 
 /**
  * The four sections shared by risk/register/create.blade.php and edit.blade.php

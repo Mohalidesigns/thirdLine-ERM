@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import tryRoute from '@/lib/tryRoute';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
  * The frame the four quantification reports share (migration Phase 5.2).

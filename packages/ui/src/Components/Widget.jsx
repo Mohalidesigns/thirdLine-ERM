@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import Menu from '@/Components/DataGrid/Menu';
-import { rendererFor } from '@/widgets/renderers';
+import Menu from './DataGrid/Menu';
+import { rendererFor } from '../widgets/renderers';
 
 function toQuery(request) {
     const params = new URLSearchParams();

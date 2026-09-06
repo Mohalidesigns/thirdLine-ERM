@@ -1,9 +1,9 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import KpiCard from '@/Components/KpiCard';
-import EmptyState from '@/Components/EmptyState';
-import tryRoute from '@/lib/tryRoute';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 const IMPACT_CLASSES = {
     critical: 'bg-red-100 text-red-700',

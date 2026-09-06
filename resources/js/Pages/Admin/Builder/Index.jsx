@@ -1,6 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 
 /**
  * The configuration builder landing page (migration Phase 6.3).

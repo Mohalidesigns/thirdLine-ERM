@@ -1,8 +1,8 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import AiDraftButton from '@/Components/AiDraftButton';
-import PageHeader from '@/Components/PageHeader';
-import { formDataFor, initialValues } from '@/Components/DynamicForm';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import AiDraftButton from '@thirdline/ui/Components/AiDraftButton';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import { formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm';
 import TreatmentForm, { EMPTY_MILESTONE } from './TreatmentForm';
 
 /** Migration Phase 3.5: risk/treatments/create.blade.php. */

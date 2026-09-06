@@ -32,6 +32,11 @@
     "dependencies": {
         "chart.js": "^4.5.1",
         "gridstack": "^13.2.0",
-        "qrcode": "^1.5.4"
-    }
+        "qrcode": "^1.5.4",
+        "@thirdline/ui": "*"
+    },
+    "name": "thirdline-erm",
+    "workspaces": [
+        "packages/ui"
+    ]
 }

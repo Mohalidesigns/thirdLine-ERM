@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import PrimaryButton from '@/Components/PrimaryButton';
-import SecondaryButton from '@/Components/SecondaryButton';
-import Modal from '@/Components/Modal';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import PrimaryButton from '@thirdline/ui/Components/PrimaryButton';
+import SecondaryButton from '@thirdline/ui/Components/SecondaryButton';
+import Modal from '@thirdline/ui/Components/Modal';
 
 /**
  * Scoring profiles (migration Phase 6.4).

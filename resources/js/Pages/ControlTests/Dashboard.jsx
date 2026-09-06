@@ -1,9 +1,9 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import EmptyState from '@/Components/EmptyState';
-import KpiCard from '@/Components/KpiCard';
-import PageHeader from '@/Components/PageHeader';
-import StatusBadge from '@/Components/StatusBadge';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 
 const shortDate = (value) =>
     value ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';

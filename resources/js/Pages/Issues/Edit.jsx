@@ -1,7 +1,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DynamicForm, { formDataFor, initialValues } from '@/Components/DynamicForm';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import DynamicForm, { formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 
 /**
  * Migration Phase 4.4: risk/issues/edit.blade.php.

@@ -1,6 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DashboardBuilder from '@/Components/DashboardBuilder';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import DashboardBuilder from '@thirdline/ui/Components/DashboardBuilder';
 
 export default function Edit(props) {
     const { dashboard, urls } = props;

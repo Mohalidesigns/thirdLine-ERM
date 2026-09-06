@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import ConfirmDialog from '@/Components/ConfirmDialog';
-import DynamicForm, { formDataFor, initialValues } from '@/Components/DynamicForm';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import ConfirmDialog from '@thirdline/ui/Components/ConfirmDialog';
+import DynamicForm, { formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 
 /**
  * Migration Phase 4.6: risk/emerging/edit.blade.php (+ _form.blade.php).

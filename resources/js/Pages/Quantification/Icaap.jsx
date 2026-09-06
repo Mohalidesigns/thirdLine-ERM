@@ -1,10 +1,10 @@
 import { Head } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import KpiCard from '@/Components/KpiCard';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
 import Figure from '@/Components/Quantification/Figure';
 import { NOT_ASSESSED, NOT_RECORDED, naira, percent, trimmedPercent } from '@/Components/Quantification/figures';
-import tryRoute from '@/lib/tryRoute';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 import { Link } from '@inertiajs/react';
 
 /**

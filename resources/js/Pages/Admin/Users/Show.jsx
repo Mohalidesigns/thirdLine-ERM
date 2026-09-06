@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
 
 const ROLE_COLOURS = {
     'super-admin': 'bg-red-50 border-red-200 text-red-900',

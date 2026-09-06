@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import EmptyState from '@/Components/EmptyState';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
 
 /**
  * /my — the personal work queue (WP-08 TASK 5), the first page ported to

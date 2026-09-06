@@ -1,10 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import KpiCard from '@/Components/KpiCard';
-import EmptyState from '@/Components/EmptyState';
-import FilterBar from '@/Components/FilterBar';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
+import FilterBar from '@thirdline/ui/Components/FilterBar';
 import { number } from '@/Components/Quantification/figures';
 
 /** Bytes, in the units a person reads. */

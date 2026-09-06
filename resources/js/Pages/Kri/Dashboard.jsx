@@ -1,9 +1,9 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DonutChart from '@/Components/DonutChart';
-import KpiCard from '@/Components/KpiCard';
-import PageHeader from '@/Components/PageHeader';
-import TrendChart from '@/Components/TrendChart';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import DonutChart from '@thirdline/ui/Components/DonutChart';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import TrendChart from '@thirdline/ui/Components/TrendChart';
 
 const STATUS = {
     red: { dot: 'bg-red-500', tile: 'border-red-300 bg-red-50', text: 'text-red-700' },

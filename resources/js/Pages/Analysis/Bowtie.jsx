@@ -1,9 +1,9 @@
 import { Head, Link, router } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DonutChart from '@/Components/DonutChart';
-import EmptyState from '@/Components/EmptyState';
-import PageHeader from '@/Components/PageHeader';
-import RatingBadge from '@/Components/RatingBadge';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import DonutChart from '@thirdline/ui/Components/DonutChart';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import { SELECT, effectivenessTone, titleCase } from './format';
 
 /**

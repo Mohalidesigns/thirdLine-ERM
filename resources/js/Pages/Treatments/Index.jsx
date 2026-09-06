@@ -1,9 +1,9 @@
 import { Head, usePage } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DataGrid from '@/Components/DataGrid/DataGrid';
-import PageHeader from '@/Components/PageHeader';
-import { useGridState } from '@/Components/DataGrid/useGridState';
-import tryRoute from '@/lib/tryRoute';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import { useGridState } from '@thirdline/ui/Components/DataGrid/useGridState';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 const STATUS_TABS = [
     ['in_progress', 'In Progress'],

@@ -1,5 +1,5 @@
-import DynamicForm from '@/Components/DynamicForm';
-import InputError from '@/Components/InputError';
+import DynamicForm from '@thirdline/ui/Components/DynamicForm';
+import InputError from '@thirdline/ui/Components/InputError';
 
 /**
  * The create and edit form for a treatment plan (migration Phase 3.5).

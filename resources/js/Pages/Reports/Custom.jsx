@@ -1,11 +1,11 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import InputLabel from '@/Components/InputLabel';
-import TextInput from '@/Components/TextInput';
-import InputError from '@/Components/InputError';
-import PrimaryButton from '@/Components/PrimaryButton';
-import { LibraryLink } from '@/Components/Reporting/ReportShell';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import InputLabel from '@thirdline/ui/Components/InputLabel';
+import TextInput from '@thirdline/ui/Components/TextInput';
+import InputError from '@thirdline/ui/Components/InputError';
+import PrimaryButton from '@thirdline/ui/Components/PrimaryButton';
+import { LibraryLink } from '@thirdline/ui/Components/ReportShell';
 
 /**
  * Custom report builder (migration Phase 5.4).

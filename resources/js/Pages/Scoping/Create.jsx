@@ -1,7 +1,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 import EntityForm, { seedConfigured, toPayload } from './EntityForm';
 
 /** Migration Phase 3.1: risk/scoping/create.blade.php. */

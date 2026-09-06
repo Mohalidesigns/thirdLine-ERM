@@ -1,9 +1,9 @@
 import { Head, Link } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import EmptyState from '@/Components/EmptyState';
-import PageHeader from '@/Components/PageHeader';
-import RatingBadge from '@/Components/RatingBadge';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 
 /**
  * Step 1 of the chain (migration Phase 3.3, from

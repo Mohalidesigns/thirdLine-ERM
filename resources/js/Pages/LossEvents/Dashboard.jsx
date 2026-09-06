@@ -1,9 +1,9 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import HBarChart from '@/Components/HBarChart';
-import KpiCard from '@/Components/KpiCard';
-import PageHeader from '@/Components/PageHeader';
-import TrendChart from '@/Components/TrendChart';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import HBarChart from '@thirdline/ui/Components/HBarChart';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import TrendChart from '@thirdline/ui/Components/TrendChart';
 import { compactNaira, naira, severityTone, statusTone, titleCase } from './format';
 
 /**

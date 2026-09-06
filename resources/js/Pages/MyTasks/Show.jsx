@@ -1,6 +1,6 @@
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import InputError from '@/Components/InputError';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import InputError from '@thirdline/ui/Components/InputError';
 
 function DecisionForm({ task, urls }) {
     const form = useForm({ outcome: '', comments: '' });

@@ -1,4 +1,4 @@
-import { editorJsToText, isEditorJsData } from '@/lib/richtext';
+import { editorJsToText, isEditorJsData } from './lib/richtext';
 
 export function formatDate(dateStr) {
     if (!dateStr) return '-';

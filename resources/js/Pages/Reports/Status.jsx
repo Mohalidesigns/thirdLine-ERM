@@ -1,9 +1,9 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import StatusBadge from '@/Components/StatusBadge';
-import useReportStatus from '@/hooks/useReportStatus';
-import tryRoute from '@/lib/tryRoute';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
+import useReportStatus from '@thirdline/ui/hooks/useReportStatus';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 const humanise = (value) => (value ? String(value).replaceAll('_', ' ') : '—');
 

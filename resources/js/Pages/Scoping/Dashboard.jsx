@@ -1,10 +1,10 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import KpiCard from '@/Components/KpiCard';
-import DonutChart from '@/Components/DonutChart';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import DonutChart from '@thirdline/ui/Components/DonutChart';
 import EntityTree from '@/Components/EntityTree';
-import StatusBadge from '@/Components/StatusBadge';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 
 const PALETTE = ['#1A365D', '#2D7D46', '#DD6B20', '#3182CE', '#D4AF37', '#ED8936', '#48BB78', '#9F7AEA'];
 

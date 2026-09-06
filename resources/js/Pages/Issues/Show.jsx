@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import InputError from '@/Components/InputError';
-import KpiCard from '@/Components/KpiCard';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import InputError from '@thirdline/ui/Components/InputError';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { priorityTone, statusTone, titleCase } from './format';
 
 const TABS = [

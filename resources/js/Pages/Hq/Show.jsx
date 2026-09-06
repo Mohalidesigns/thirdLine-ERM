@@ -1,8 +1,8 @@
 import { Head, Link } from '@inertiajs/react';
 import { useState } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import OrgTree from '@/Components/OrgTree';
-import WidgetGrid from '@/Components/WidgetGrid';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import OrgTree from '@thirdline/ui/Components/OrgTree';
+import WidgetGrid from '@thirdline/ui/Components/WidgetGrid';
 
 const article = (name) => (/^[aeiou]/i.test(name || '') ? 'an' : 'a');
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;

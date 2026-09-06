@@ -1,9 +1,9 @@
 import { Head, Link, router } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import EmptyState from '@/Components/EmptyState';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
 import { naira, number } from '@/Components/Quantification/figures';
-import tryRoute from '@/lib/tryRoute';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
  * The shipped scenario library (migration Phase 5.2).

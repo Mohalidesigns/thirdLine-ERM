@@ -1,9 +1,9 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import InputError from '@/Components/InputError';
-import PageHeader from '@/Components/PageHeader';
-import RatingBadge from '@/Components/RatingBadge';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import InputError from '@thirdline/ui/Components/InputError';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import useAssessmentPreview from '@/hooks/useAssessmentPreview';
 
 const INPUT =

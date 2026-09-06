@@ -1,6 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 import TestForm from './TestForm';
 
 /** Migration Phase 3.4: risk/controls/tests/create.blade.php. */

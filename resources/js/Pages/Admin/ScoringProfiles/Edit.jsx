@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import InputLabel from '@/Components/InputLabel';
-import TextInput from '@/Components/TextInput';
-import InputError from '@/Components/InputError';
-import PrimaryButton from '@/Components/PrimaryButton';
-import SecondaryButton from '@/Components/SecondaryButton';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import InputLabel from '@thirdline/ui/Components/InputLabel';
+import TextInput from '@thirdline/ui/Components/TextInput';
+import InputError from '@thirdline/ui/Components/InputError';
+import PrimaryButton from '@thirdline/ui/Components/PrimaryButton';
+import SecondaryButton from '@thirdline/ui/Components/SecondaryButton';
 
 const DIMENSION_LABELS = {
     financial: 'Financial',

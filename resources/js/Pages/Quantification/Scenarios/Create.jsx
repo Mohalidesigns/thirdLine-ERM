@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 import ScenarioForm from './ScenarioForm';
 
 export default function Create({ initial, risks, categories, distributions }) {

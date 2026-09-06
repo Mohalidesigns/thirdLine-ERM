@@ -1,8 +1,8 @@
 import { Head } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DataGrid from '@/Components/DataGrid/DataGrid';
-import KpiCard from '@/Components/KpiCard';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 
 /**
  * The KRI breach register (migration Phase 2) — see

@@ -1,7 +1,7 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
-import InputError from '@/Components/InputError';
-import { CsrfField } from '@/lib/nativeForm';
+import InputError from '@thirdline/ui/Components/InputError';
+import { CsrfField } from '@thirdline/ui/lib/nativeForm';
 
 const FEATURES = ['COSO ERM informed', 'Designed for CBN ORMS', 'ISO 31000 informed', 'Basel III-aligned taxonomy'];
 

@@ -1,6 +1,6 @@
-import InputError from '@/Components/InputError';
-import RichTextEditor from '@/Components/RichTextEditor';
-import DynamicForm, { fieldsOf, formDataFor, initialValues } from '@/Components/DynamicForm';
+import InputError from '@thirdline/ui/Components/InputError';
+import RichTextEditor from '@thirdline/ui/Components/RichTextEditor';
+import DynamicForm, { fieldsOf, formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm';
 
 function Section({ number, title, children, hint }) {
     return (

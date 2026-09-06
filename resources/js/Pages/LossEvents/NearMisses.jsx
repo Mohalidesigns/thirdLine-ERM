@@ -1,9 +1,9 @@
 import { Head, usePage } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DataGrid from '@/Components/DataGrid/DataGrid';
-import KpiCard from '@/Components/KpiCard';
-import PageHeader from '@/Components/PageHeader';
-import tryRoute from '@/lib/tryRoute';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /** The near-miss register (migration Phase 2) — see App\Grids\Definitions\NearMissesGrid. */
 export default function NearMisses({ totalNearMisses, openNearMisses, underReviewNearMisses, potentialLossAvoided, grid }) {

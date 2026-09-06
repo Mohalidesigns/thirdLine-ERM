@@ -1,11 +1,11 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DonutChart from '@/Components/DonutChart';
-import HBarChart from '@/Components/HBarChart';
-import KpiCard from '@/Components/KpiCard';
-import PageHeader from '@/Components/PageHeader';
-import RatingBadge from '@/Components/RatingBadge';
-import StatusBadge from '@/Components/StatusBadge';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import DonutChart from '@thirdline/ui/Components/DonutChart';
+import HBarChart from '@thirdline/ui/Components/HBarChart';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import RatingBadge from '@thirdline/ui/Components/RatingBadge';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 
 const RATING_COLORS = { Critical: '#C53030', High: '#DD6B20', Medium: '#D4AF37', Low: '#2D7D46' };
 const EFFECTIVENESS_COLORS = ['#2D7D46', '#D4AF37', '#C53030', '#6B7280'];

@@ -1,4 +1,4 @@
-import Widget from '@/Components/Widget';
+import Widget from './Widget';
 
 /**
  * The 12-column dashboard grid (migration Phase 2: hq/show.blade.php).

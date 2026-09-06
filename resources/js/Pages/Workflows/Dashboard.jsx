@@ -1,7 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import KpiCard from '@/Components/KpiCard';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { badgeClass } from '@/Pages/MyTasks/Index';
 
 /** Workflow dashboard (migration Phase 3.7: risk/workflows/dashboard.blade.php). */

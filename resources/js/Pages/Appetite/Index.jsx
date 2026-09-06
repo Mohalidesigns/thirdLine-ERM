@@ -1,15 +1,15 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import KpiCard from '@/Components/KpiCard';
-import Modal from '@/Components/Modal';
-import PageHeader from '@/Components/PageHeader';
-import PrimaryButton from '@/Components/PrimaryButton';
-import SecondaryButton from '@/Components/SecondaryButton';
-import TextInput from '@/Components/TextInput';
-import Widget from '@/Components/Widget';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import InputError from '@thirdline/ui/Components/InputError';
+import InputLabel from '@thirdline/ui/Components/InputLabel';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import Modal from '@thirdline/ui/Components/Modal';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import PrimaryButton from '@thirdline/ui/Components/PrimaryButton';
+import SecondaryButton from '@thirdline/ui/Components/SecondaryButton';
+import TextInput from '@thirdline/ui/Components/TextInput';
+import Widget from '@thirdline/ui/Components/Widget';
 
 const fmt = (v, digits = 1) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('en', { minimumFractionDigits: digits, maximumFractionDigits: digits }));
 const title = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ') : '');

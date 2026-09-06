@@ -1,9 +1,9 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DonutChart from '@/Components/DonutChart';
-import HBarChart from '@/Components/HBarChart';
-import KpiCard from '@/Components/KpiCard';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import DonutChart from '@thirdline/ui/Components/DonutChart';
+import HBarChart from '@thirdline/ui/Components/HBarChart';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { BAND_COLORS, priorityTone, titleCase } from './format';
 
 /**

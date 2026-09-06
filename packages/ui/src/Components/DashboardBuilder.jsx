@@ -1,6 +1,6 @@
 import { Link, router } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Menu from '@/Components/DataGrid/Menu';
+import Menu from './DataGrid/Menu';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 

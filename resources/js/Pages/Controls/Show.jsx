@@ -1,14 +1,14 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DynamicDetail from '@/Components/DynamicDetail';
-import EmptyState from '@/Components/EmptyState';
-import InputError from '@/Components/InputError';
-import KpiCard from '@/Components/KpiCard';
-import PageHeader from '@/Components/PageHeader';
-import RatingBadge from '@/Components/RatingBadge';
-import StatusBadge from '@/Components/StatusBadge';
-import tryRoute from '@/lib/tryRoute';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import DynamicDetail from '@thirdline/ui/Components/DynamicDetail';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
+import InputError from '@thirdline/ui/Components/InputError';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import RatingBadge from '@thirdline/ui/Components/RatingBadge';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 import { humanise } from './ControlForm';
 
 const shortDate = (value) =>

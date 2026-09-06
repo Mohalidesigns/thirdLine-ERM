@@ -23,6 +23,20 @@
 @source '../**/*.jsx';
 
 /*
+| The shared interface layer moved to packages/ui in migration Phase 7.1e.
+|
+| These two globs are BELT AND BRACES, not a fix: Tailwind 4's automatic source
+| detection already walks the project root, so the stylesheet built without them
+| is byte-identical (measured — same 119,267 bytes, same content hash). They are
+| here because the alternative failure is silent. Tailwind only generates a class
+| it can see, so a source it stops finding produces a page whose class attributes
+| have no rules behind them — a visual regression that builds cleanly and passes
+| every test in this repository, none of which render CSS.
+*/
+@source '../../packages/ui/src/**/*.jsx';
+@source '../../packages/ui/src/**/*.js';
+
+/*
 | Brand theme
 |--------------------------------------------------------------------------
 |

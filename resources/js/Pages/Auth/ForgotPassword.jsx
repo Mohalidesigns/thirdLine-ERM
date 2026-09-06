@@ -1,6 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import GuestLayout from '@/Layouts/GuestLayout';
-import InputError from '@/Components/InputError';
+import GuestLayout from '@thirdline/ui/Layouts/GuestLayout';
+import InputError from '@thirdline/ui/Components/InputError';
 
 export default function ForgotPassword({ status }) {
     const { data, setData, post, processing, errors } = useForm({ email: '' });

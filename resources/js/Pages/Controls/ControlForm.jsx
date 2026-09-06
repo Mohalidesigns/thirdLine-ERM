@@ -1,5 +1,5 @@
-import DynamicForm from '@/Components/DynamicForm';
-import InputError from '@/Components/InputError';
+import DynamicForm from '@thirdline/ui/Components/DynamicForm';
+import InputError from '@thirdline/ui/Components/InputError';
 
 const INPUT =
     'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]';

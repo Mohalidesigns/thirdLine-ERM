@@ -1,10 +1,10 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import KpiCard from '@/Components/KpiCard';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
 import Figure from '@/Components/Quantification/Figure';
 import ReportShell from '@/Components/Quantification/ReportShell';
 import { NOT_ASSESSED, NOT_RECORDED, naira, number, percent, trimmedPercent } from '@/Components/Quantification/figures';
-import tryRoute from '@/lib/tryRoute';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /** A verdict cell: pass, breach, or honestly not assessable. */
 function Verdict({ meets }) {

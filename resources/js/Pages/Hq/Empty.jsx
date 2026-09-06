@@ -1,5 +1,5 @@
 import { Head } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
 
 export default function Empty() {
     return (

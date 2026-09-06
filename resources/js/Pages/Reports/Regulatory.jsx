@@ -1,9 +1,9 @@
 import { Head } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import KpiCard from '@/Components/KpiCard';
-import StatusBadge from '@/Components/StatusBadge';
-import RatingBadge from '@/Components/RatingBadge';
-import ReportShell, { LibraryLink } from '@/Components/Reporting/ReportShell';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
+import RatingBadge from '@thirdline/ui/Components/RatingBadge';
+import ReportShell, { LibraryLink } from '@thirdline/ui/Components/ReportShell';
 import { number, percent } from '@/Components/Quantification/figures';
 
 /**

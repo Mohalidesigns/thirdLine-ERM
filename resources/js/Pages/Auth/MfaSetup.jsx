@@ -1,8 +1,8 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import InputError from '@/Components/InputError';
-import QrCode from '@/Components/QrCode';
-import { CsrfField } from '@/lib/nativeForm';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import InputError from '@thirdline/ui/Components/InputError';
+import QrCode from '@thirdline/ui/Components/QrCode';
+import { CsrfField } from '@thirdline/ui/lib/nativeForm';
 
 const STEPS = [
     'Download an authenticator app such as Google Authenticator, Microsoft Authenticator or Authy.',

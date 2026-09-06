@@ -1,7 +1,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import { formDataFor, initialValues } from '@/Components/DynamicForm';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import { formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm';
 import KriForm from './KriForm';
 
 /** Migration Phase 4.1: risk/kri/create.blade.php. */

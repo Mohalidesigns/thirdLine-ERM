@@ -1,9 +1,9 @@
 import { Transition } from '@headlessui/react';
 import { useForm } from '@inertiajs/react';
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import PrimaryButton from '@/Components/PrimaryButton';
-import TextInput from '@/Components/TextInput';
+import InputError from '@thirdline/ui/Components/InputError';
+import InputLabel from '@thirdline/ui/Components/InputLabel';
+import PrimaryButton from '@thirdline/ui/Components/PrimaryButton';
+import TextInput from '@thirdline/ui/Components/TextInput';
 
 export default function UpdateProfileInformationForm({ profile, className = '' }) {
     const { data, setData, patch, errors, processing, recentlySuccessful } = useForm({

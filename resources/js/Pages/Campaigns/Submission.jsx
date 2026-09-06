@@ -1,11 +1,11 @@
 import { useRef } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import PageHeader from '@/Components/PageHeader';
-import RatingBadge from '@/Components/RatingBadge';
-import StatusBadge from '@/Components/StatusBadge';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import InputError from '@thirdline/ui/Components/InputError';
+import InputLabel from '@thirdline/ui/Components/InputLabel';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import RatingBadge from '@thirdline/ui/Components/RatingBadge';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import { INPUT, effectivenessLabel } from './format';
 
 /**

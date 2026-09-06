@@ -1,18 +1,18 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import EmptyState from '@/Components/EmptyState';
-import Pagination from '@/Components/Pagination';
-import StatusBadge from '@/Components/StatusBadge';
-import FilterBar from '@/Components/FilterBar';
-import Modal from '@/Components/Modal';
-import InputLabel from '@/Components/InputLabel';
-import TextInput from '@/Components/TextInput';
-import InputError from '@/Components/InputError';
-import PrimaryButton from '@/Components/PrimaryButton';
-import SecondaryButton from '@/Components/SecondaryButton';
-import tryRoute from '@/lib/tryRoute';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
+import Pagination from '@thirdline/ui/Components/Pagination';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
+import FilterBar from '@thirdline/ui/Components/FilterBar';
+import Modal from '@thirdline/ui/Components/Modal';
+import InputLabel from '@thirdline/ui/Components/InputLabel';
+import TextInput from '@thirdline/ui/Components/TextInput';
+import InputError from '@thirdline/ui/Components/InputError';
+import PrimaryButton from '@thirdline/ui/Components/PrimaryButton';
+import SecondaryButton from '@thirdline/ui/Components/SecondaryButton';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 const shortDate = (value) =>
     value ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';

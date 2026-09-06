@@ -1,9 +1,9 @@
 import { useForm } from '@inertiajs/react';
-import InputLabel from '@/Components/InputLabel';
-import TextInput from '@/Components/TextInput';
-import InputError from '@/Components/InputError';
-import PrimaryButton from '@/Components/PrimaryButton';
-import SecondaryButton from '@/Components/SecondaryButton';
+import InputLabel from '@thirdline/ui/Components/InputLabel';
+import TextInput from '@thirdline/ui/Components/TextInput';
+import InputError from '@thirdline/ui/Components/InputError';
+import PrimaryButton from '@thirdline/ui/Components/PrimaryButton';
+import SecondaryButton from '@thirdline/ui/Components/SecondaryButton';
 import { Link } from '@inertiajs/react';
 
 /**

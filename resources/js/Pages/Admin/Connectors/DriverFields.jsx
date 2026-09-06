@@ -1,6 +1,6 @@
-import InputLabel from '@/Components/InputLabel';
-import TextInput from '@/Components/TextInput';
-import InputError from '@/Components/InputError';
+import InputLabel from '@thirdline/ui/Components/InputLabel';
+import TextInput from '@thirdline/ui/Components/TextInput';
+import InputError from '@thirdline/ui/Components/InputError';
 
 /**
  * The fields a connector driver declares for itself (migration Phase 6.7).

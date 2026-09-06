@@ -1,9 +1,7 @@
 import { Link, usePage, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import Dropdown from '@/Components/Dropdown';
-import FlashNotification from '@/Components/FlashNotification';
-import PeriodSelector from '@/Components/PeriodSelector';
-import SearchBox from '@/Components/SearchBox';
+import Dropdown from '../Components/Dropdown';
+import FlashNotification from '../Components/FlashNotification';
 
 /**
  * The authenticated shell: sidebar, top bar, page header slot.
@@ -147,7 +145,20 @@ function Section({ section, current, collapsed, children }) {
     );
 }
 
-export default function AuthenticatedLayout({ header, title, children }) {
+/**
+ * The application shell.
+ *
+ * `search` and `periodSelector` are SLOTS rather than imports. Both were
+ * components this layout reached for directly, and both hardcode one product's
+ * route names — `search.suggest`, `risk.periods.select` — which a shared shell
+ * cannot name: the route does not exist in the other product and Ziggy throws
+ * on a name it has never heard of.
+ *
+ * The layout keeps the decision that matters (WHERE they sit in the topbar, and
+ * that search appears only with `search.view`, and the period chip only when a
+ * period is resolved). The application supplies what goes in them.
+ */
+export default function AuthenticatedLayout({ header, title, children, search = null, periodSelector = null }) {
     const page = usePage();
     const { auth, navigation, tenant, period, unreadNotifications, features } = page.props;
     const permissions = auth?.permissions ?? [];
@@ -309,9 +320,9 @@ export default function AuthenticatedLayout({ header, title, children }) {
 
                         <div className="flex items-center gap-3">
                             {/* Global search — type-ahead over the object graph, permission-filtered server-side. */}
-                            {permissions.includes('search.view') && (
+                            {search && permissions.includes('search.view') && (
                                 <div className="hidden md:block">
-                                    <SearchBox />
+                                    {search}
                                 </div>
                             )}
 
@@ -330,7 +341,7 @@ export default function AuthenticatedLayout({ header, title, children }) {
                             {/* Reporting period: everything on the page is "as at" this. */}
                             {period && (
                                 <div className="hidden sm:block">
-                                    <PeriodSelector />
+                                    {periodSelector}
                                 </div>
                             )}
 

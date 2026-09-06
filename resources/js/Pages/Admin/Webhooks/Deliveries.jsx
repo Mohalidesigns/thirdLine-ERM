@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import SecondaryButton from '@/Components/SecondaryButton';
-import Pagination from '@/Components/Pagination';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import SecondaryButton from '@thirdline/ui/Components/SecondaryButton';
+import Pagination from '@thirdline/ui/Components/Pagination';
 
 const dateTime = (value) =>
     value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' }) : '—';

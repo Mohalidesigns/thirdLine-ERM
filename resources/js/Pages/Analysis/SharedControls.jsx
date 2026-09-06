@@ -1,7 +1,7 @@
 import { Head, router } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import EmptyState from '@/Components/EmptyState';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { SELECT } from './format';
 
 /**

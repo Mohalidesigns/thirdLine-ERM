@@ -1,7 +1,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import AiDraftButton from '@/Components/AiDraftButton';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import AiDraftButton from '@thirdline/ui/Components/AiDraftButton';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 import RiskForm, { seedConfigured, toPayload } from './RiskForm';
 
 /** Migration Phase 3.2: risk/register/create.blade.php. */

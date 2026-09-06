@@ -1,11 +1,11 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import InputLabel from '@/Components/InputLabel';
-import InputError from '@/Components/InputError';
-import PrimaryButton from '@/Components/PrimaryButton';
-import SecondaryButton from '@/Components/SecondaryButton';
-import tryRoute from '@/lib/tryRoute';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import InputLabel from '@thirdline/ui/Components/InputLabel';
+import InputError from '@thirdline/ui/Components/InputError';
+import PrimaryButton from '@thirdline/ui/Components/PrimaryButton';
+import SecondaryButton from '@thirdline/ui/Components/SecondaryButton';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
  * Stage a spreadsheet for bulk import (migration Phase 5.5).

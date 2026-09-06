@@ -1,14 +1,14 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import KpiCard from '@/Components/KpiCard';
-import WidgetGrid from '@/Components/WidgetGrid';
-import RatingBadge from '@/Components/RatingBadge';
-import EmptyState from '@/Components/EmptyState';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import WidgetGrid from '@thirdline/ui/Components/WidgetGrid';
+import RatingBadge from '@thirdline/ui/Components/RatingBadge';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
 import SeriesChart from '@/Components/Quantification/SeriesChart';
-import GroupedBarChart from '@/Components/GroupedBarChart';
+import GroupedBarChart from '@thirdline/ui/Components/GroupedBarChart';
 import ExportMenu from '@/Components/Reporting/ExportMenu';
 import { NOT_ASSESSED, naira, number, percent } from '@/Components/Quantification/figures';
-import tryRoute from '@/lib/tryRoute';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 const shortDate = (value) =>
     value ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '—';

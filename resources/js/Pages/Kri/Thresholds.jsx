@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import InputError from '@/Components/InputError';
-import PageHeader from '@/Components/PageHeader';
-import Pagination from '@/Components/Pagination';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import InputError from '@thirdline/ui/Components/InputError';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import Pagination from '@thirdline/ui/Components/Pagination';
 
 const STATUS_DOT = {
     red: 'bg-red-500',

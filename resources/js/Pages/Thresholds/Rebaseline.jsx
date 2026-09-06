@@ -1,7 +1,7 @@
 import { Head, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import InputError from '@/Components/InputError';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import InputError from '@thirdline/ui/Components/InputError';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 
 function titleCase(value) {
     return value ? value.charAt(0).toUpperCase() + value.slice(1) : '—';

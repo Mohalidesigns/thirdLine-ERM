@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import KpiCard from '@/Components/KpiCard';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
 import Figure from '@/Components/Quantification/Figure';
 import ReportShell from '@/Components/Quantification/ReportShell';
 import { NOT_ASSESSED, NOT_RECORDED, naira, percent, trimmedPercent } from '@/Components/Quantification/figures';

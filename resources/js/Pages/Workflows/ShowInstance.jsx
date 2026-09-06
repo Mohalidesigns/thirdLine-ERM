@@ -1,6 +1,6 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import InputError from '@/Components/InputError';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import InputError from '@thirdline/ui/Components/InputError';
 import { badgeClass } from '@/Pages/MyTasks/Index';
 
 const ICON = { approve: ['bg-green-100', 'text-green-600', 'check'], reject: ['bg-red-100', 'text-red-600', 'close'] };

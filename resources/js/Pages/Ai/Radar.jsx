@@ -1,10 +1,10 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import KpiCard from '@/Components/KpiCard';
-import EmptyState from '@/Components/EmptyState';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
 import SeriesChart from '@/Components/Quantification/SeriesChart';
 import { number } from '@/Components/Quantification/figures';
-import tryRoute from '@/lib/tryRoute';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 const IMPACT_CLASSES = {
     Critical: 'bg-red-100 text-red-700',

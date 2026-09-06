@@ -1,8 +1,8 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DataGrid from '@/Components/DataGrid/DataGrid';
-import InputError from '@/Components/InputError';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
+import InputError from '@thirdline/ui/Components/InputError';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 
 const QUESTION_TYPES = [
     ['likert', 'Likert'],

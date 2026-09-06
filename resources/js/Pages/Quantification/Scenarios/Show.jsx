@@ -1,11 +1,11 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import KpiCard from '@/Components/KpiCard';
-import StatusBadge from '@/Components/StatusBadge';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import SeriesChart from '@/Components/Quantification/SeriesChart';
 import { NOT_RECORDED, naira, number } from '@/Components/Quantification/figures';
-import tryRoute from '@/lib/tryRoute';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
  * One scenario (migration Phase 5.2).

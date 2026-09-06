@@ -1,4 +1,4 @@
-import InputError from '@/Components/InputError';
+import InputError from '@thirdline/ui/Components/InputError';
 import { naira, titleCase } from './format';
 
 /**

@@ -1,7 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import Pagination from '@/Components/Pagination';
-import { formatDateTime } from '@/utils';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import Pagination from '@thirdline/ui/Components/Pagination';
+import { formatDateTime } from '@thirdline/ui/utils';
 
 const ICONS = {
     approval_request: ['rate_review', 'bg-blue-100 text-blue-600'],

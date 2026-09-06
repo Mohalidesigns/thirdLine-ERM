@@ -1,9 +1,9 @@
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import InputError from '@/Components/InputError';
-import Modal from '@/Components/Modal';
-import PageHeader from '@/Components/PageHeader';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import InputError from '@thirdline/ui/Components/InputError';
+import Modal from '@thirdline/ui/Components/Modal';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 
 function Stat({ label, value, tone, icon }) {
     return (

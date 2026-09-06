@@ -1,14 +1,14 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import KpiCard from '@/Components/KpiCard';
-import DonutChart from '@/Components/DonutChart';
-import DynamicDetail from '@/Components/DynamicDetail';
-import RichTextRenderer from '@/Components/RichTextRenderer';
-import StatusBadge from '@/Components/StatusBadge';
-import RatingBadge from '@/Components/RatingBadge';
-import { formatDate } from '@/utils';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import DonutChart from '@thirdline/ui/Components/DonutChart';
+import DynamicDetail from '@thirdline/ui/Components/DynamicDetail';
+import RichTextRenderer from '@thirdline/ui/Components/RichTextRenderer';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
+import RatingBadge from '@thirdline/ui/Components/RatingBadge';
+import { formatDate } from '@thirdline/ui/utils';
 
 const PALETTE = ['#1A365D', '#2D7D46', '#DD6B20', '#3182CE', '#D4AF37', '#ED8936', '#48BB78', '#9F7AEA'];
 

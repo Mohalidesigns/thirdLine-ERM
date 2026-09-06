@@ -1,9 +1,9 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import KpiCard from '@/Components/KpiCard';
-import PageHeader from '@/Components/PageHeader';
-import RatingBadge from '@/Components/RatingBadge';
-import TrendChart from '@/Components/TrendChart';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import RatingBadge from '@thirdline/ui/Components/RatingBadge';
+import TrendChart from '@thirdline/ui/Components/TrendChart';
 import { BAND_SERIES, INPUT, bandSeriesData, singleSeriesData } from './format';
 
 /**

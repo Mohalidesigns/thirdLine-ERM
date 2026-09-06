@@ -1,11 +1,11 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import DonutChart from '@/Components/DonutChart';
-import HBarChart from '@/Components/HBarChart';
-import KpiCard from '@/Components/KpiCard';
-import PageHeader from '@/Components/PageHeader';
-import StatusBadge from '@/Components/StatusBadge';
-import TrendChart from '@/Components/TrendChart';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import DonutChart from '@thirdline/ui/Components/DonutChart';
+import HBarChart from '@thirdline/ui/Components/HBarChart';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
+import TrendChart from '@thirdline/ui/Components/TrendChart';
 import { compactNaira, naira, progressTone, strategyTone, titleCase } from './format';
 
 const STRATEGY_COLORS = ['#1A365D', '#553C9A', '#2D7D46', '#C53030'];

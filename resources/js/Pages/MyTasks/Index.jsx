@@ -1,7 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import PageHeader from '@/Components/PageHeader';
-import Pagination from '@/Components/Pagination';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import Pagination from '@thirdline/ui/Components/Pagination';
 
 // Written out rather than composed: Tailwind scans source for literal class names.
 export const BADGE = {

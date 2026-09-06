@@ -1,8 +1,8 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import EmptyState from '@/Components/EmptyState';
-import PageHeader from '@/Components/PageHeader';
-import StatusBadge from '@/Components/StatusBadge';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import EmptyState from '@thirdline/ui/Components/EmptyState';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import { titleCase } from '../Campaigns/format';
 
 /**

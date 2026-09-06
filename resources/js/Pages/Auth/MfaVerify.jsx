@@ -1,7 +1,7 @@
 import { Head, usePage } from '@inertiajs/react';
-import GuestLayout from '@/Layouts/GuestLayout';
-import InputError from '@/Components/InputError';
-import { CsrfField } from '@/lib/nativeForm';
+import GuestLayout from '@thirdline/ui/Layouts/GuestLayout';
+import InputError from '@thirdline/ui/Components/InputError';
+import { CsrfField } from '@thirdline/ui/lib/nativeForm';
 
 /**
  * The second factor. Posts natively: on success the server signs the user in

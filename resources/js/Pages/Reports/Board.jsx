@@ -1,12 +1,12 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import KpiCard from '@/Components/KpiCard';
-import StatusBadge from '@/Components/StatusBadge';
-import RatingBadge from '@/Components/RatingBadge';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
+import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import Figure from '@/Components/Quantification/Figure';
-import ReportShell, { LibraryLink } from '@/Components/Reporting/ReportShell';
+import ReportShell, { LibraryLink } from '@thirdline/ui/Components/ReportShell';
 import { NOT_ASSESSED, naira, number, percent, trimmedPercent } from '@/Components/Quantification/figures';
-import tryRoute from '@/lib/tryRoute';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
  * Board risk report (migration Phase 5.4).

@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import tryRoute from '@/lib/tryRoute';
+import tryRoute from '../lib/tryRoute';
 
 /**
  * The frame the on-screen reports share (migration Phase 5.4).

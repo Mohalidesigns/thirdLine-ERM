@@ -1,9 +1,9 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import InputError from '@/Components/InputError';
-import PageHeader from '@/Components/PageHeader';
-import Pagination from '@/Components/Pagination';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import InputError from '@thirdline/ui/Components/InputError';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
+import Pagination from '@thirdline/ui/Components/Pagination';
 
 function StartForm({ definition, url, onClose }) {
     const form = useForm({ definition_id: definition.id, entity_type: definition.entity_type, entity_id: definition.start_options[0]?.id ?? '' });

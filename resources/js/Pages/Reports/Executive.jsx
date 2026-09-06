@@ -1,12 +1,12 @@
 import { Head, Link, router } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import KpiCard from '@/Components/KpiCard';
-import StatusBadge from '@/Components/StatusBadge';
-import RatingBadge from '@/Components/RatingBadge';
+import AuthenticatedLayout from '@/Layouts/AppLayout';
+import KpiCard from '@thirdline/ui/Components/KpiCard';
+import StatusBadge from '@thirdline/ui/Components/StatusBadge';
+import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import SeriesChart from '@/Components/Quantification/SeriesChart';
-import ReportShell, { LibraryLink } from '@/Components/Reporting/ReportShell';
+import ReportShell, { LibraryLink } from '@thirdline/ui/Components/ReportShell';
 import { naira, number, percent } from '@/Components/Quantification/figures';
-import tryRoute from '@/lib/tryRoute';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 const PERIODS = [
     { value: 'month', label: 'This month' },

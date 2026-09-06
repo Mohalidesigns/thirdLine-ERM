@@ -148,7 +148,7 @@ return new class extends Migration
             $table->unsignedSmallInteger('sort_order')->default(0);
             $table->timestamps();
 
-            $table->unique(['methodology_id', 'impact_value', 'dimension']);
+            $table->unique(['methodology_id', 'impact_value', 'dimension'], 'rcsa_impact_criteria_unique');
             $table->index(['methodology_id', 'impact_value']);
         });
 

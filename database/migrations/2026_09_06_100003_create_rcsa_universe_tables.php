@@ -150,7 +150,10 @@ return new class extends Migration
 
             $table->unique(['business_unit_id', 'risk_no']);
             $table->index(['organization_id', 'status']);
-            $table->index(['organization_id', 'business_unit_id', 'status']);
+            // Named explicitly: the generated name would be 65 characters and
+            // MySQL's identifier limit is 64. SQLite, which the suite runs on,
+            // has no such limit, so this fails only in production.
+            $table->index(['organization_id', 'business_unit_id', 'status'], 'rcsa_register_risks_org_bu_status_index');
             $table->index(['organization_id', 'risk_category']);
             $table->index('row_hash');
         });

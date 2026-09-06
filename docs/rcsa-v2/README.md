@@ -55,6 +55,7 @@ The remaining seven (Q2, Q5–Q10) do not block P0, P1 or P2.
 | Reported | Note |
 |---|---|
 | "CRO gets 403 Unauthorized action on RCSA" (during P2) | It was `super-admin`, not the CRO, and the cause predates RCSA v2 — [super-admin-403.md](super-admin-403.md) |
+| "admin@risk.test can't log in" — 419 PAGE EXPIRED | The accounts were fine; all six seeded demo logins verified. An expired token on the login page was a dead end, and now recovers — [login-419.md](login-419.md) |
 
 ## Carried forward
 

@@ -234,6 +234,7 @@ final class Ported
         // <Link>, and this page is Inertia. It reaches the navigation only when
         // `features.rcsa_v2` is on.)
         'rcsa.universe.index',
+        'rcsa.imports.show',
     ];
 
     public static function isRoute(string $name): bool

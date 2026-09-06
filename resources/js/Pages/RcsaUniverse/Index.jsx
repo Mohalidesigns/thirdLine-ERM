@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from 'react';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import FilterBar from '@thirdline/ui/Components/FilterBar';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
@@ -36,6 +36,7 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
     const [bulk, setBulk] = useState({ owner_id: '', risk_category: '', status: '' });
     const [duplicating, setDuplicating] = useState(null);
     const [duplicateUnit, setDuplicateUnit] = useState('');
+    const [uploadOpen, setUploadOpen] = useState(false);
 
     const rows = risks?.data ?? [];
 
@@ -164,36 +165,34 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                     actions={
                         <div className="flex items-center gap-2">
                             {/*
-                              * Download Template and Bulk Upload are the P2
-                              * deliverable — a generated workbook and a staged,
-                              * previewed import. They are rendered here, in the
-                              * order §6.1 fixes, and disabled: the alternative
-                              * was to leave the header two buttons short and
-                              * change its shape again next phase.
+                              * A plain <a>, not an Inertia <Link>: the response
+                              * is a streamed .xlsx, and Inertia would try to
+                              * parse it as a page payload and show nothing.
                               */}
-                            <button
-                                type="button"
-                                disabled
-                                title="Available with bulk upload, in the next phase"
-                                className="btn-secondary inline-flex cursor-not-allowed items-center gap-2 text-sm opacity-50"
+                            <a
+                                href={route('rcsa.imports.template')}
+                                className="btn-secondary inline-flex items-center gap-2 text-sm"
+                                title="An Excel template listing your business units, processes and users"
                             >
                                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                                 </svg>
                                 Download Template
-                            </button>
+                            </a>
 
-                            <button
-                                type="button"
-                                disabled
-                                title="Available with bulk upload, in the next phase"
-                                className="btn-secondary inline-flex cursor-not-allowed items-center gap-2 text-sm opacity-50"
-                            >
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                                </svg>
-                                Bulk Upload
-                            </button>
+                            {can.import && (
+                                <button
+                                    type="button"
+                                    onClick={() => setUploadOpen(!uploadOpen)}
+                                    className={`inline-flex items-center gap-2 text-sm ${uploadOpen ? 'btn-primary' : 'btn-secondary'}`}
+                                    title="Upload a filled template"
+                                >
+                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                                    </svg>
+                                    Bulk Upload
+                                </button>
+                            )}
 
                             {can.create && (
                                 <button
@@ -227,6 +226,8 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                     {flash.error}
                 </div>
             )}
+
+            {uploadOpen && <UploadCard onClose={() => setUploadOpen(false)} />}
 
             <FilterBar
                 filters={filterConfig}
@@ -603,5 +604,98 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                 editing={editing}
             />
         </AppLayout>
+    );
+}
+
+/**
+ * Upload a filled template.
+ *
+ * The copy is doing real work here: the single most common reason a bank will
+ * not touch a bulk upload is not knowing what it is about to do to their data,
+ * so the card says plainly that nothing is written until they have seen the
+ * preview. That is also true — see RcsaImportProcessor.
+ */
+function UploadCard({ onClose }) {
+    const form = useForm({ file: null });
+    const [dragOver, setDragOver] = useState(false);
+
+    const submit = (e) => {
+        e.preventDefault();
+
+        if (!form.data.file) return;
+
+        form.post(route('rcsa.imports.store'), { forceFormData: true });
+    };
+
+    return (
+        <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
+            <div className="mb-3 flex items-start justify-between">
+                <div>
+                    <h3 className="text-sm font-semibold text-gray-800">Bulk upload</h3>
+                    <p className="text-sm text-gray-500">
+                        Nothing is added to the universe when you upload. The file is checked first and you are shown
+                        exactly which rows are ready, which are duplicates and which have errors.
+                    </p>
+                </div>
+                <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close">
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <form onSubmit={submit}>
+                <label
+                    onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOver(true);
+                    }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOver(false);
+                        const file = e.dataTransfer.files[0];
+                        if (file) form.setData('file', file);
+                    }}
+                    className={`block cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
+                        dragOver
+                            ? 'border-[var(--color-primary)] bg-blue-50'
+                            : form.data.file
+                              ? 'border-green-300 bg-green-50'
+                              : 'border-gray-300 bg-gray-50 hover:border-gray-400'
+                    }`}
+                >
+                    <input
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        className="sr-only"
+                        onChange={(e) => form.setData('file', e.target.files[0] ?? null)}
+                    />
+                    {form.data.file ? (
+                        <p className="text-sm font-medium text-gray-800">{form.data.file.name}</p>
+                    ) : (
+                        <>
+                            <p className="text-sm text-gray-600">Choose a file or drag it here</p>
+                            <p className="mt-1 text-xs text-gray-500">Excel or CSV, up to 10 MB</p>
+                        </>
+                    )}
+                </label>
+
+                {form.errors.file && <p className="mt-2 text-sm text-red-600">{form.errors.file}</p>}
+
+                <div className="mt-3 flex items-center justify-end gap-2">
+                    <button type="button" onClick={onClose} className="btn-secondary text-sm">
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={!form.data.file || form.processing}
+                        className="btn-primary text-sm disabled:opacity-50"
+                    >
+                        {form.processing ? 'Uploading…' : 'Upload and check'}
+                    </button>
+                </div>
+            </form>
+        </div>
     );
 }

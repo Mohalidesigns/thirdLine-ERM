@@ -10,7 +10,7 @@ deviated from and why, and what the phase found that the plan did not know.
 |---|---|---|
 | P0 | Foundations: schema, methodology, calculation engine | **Done** — [p0-foundations.md](p0-foundations.md) |
 | P1 | RCSA Universe screen | **Done** — [p1-universe.md](p1-universe.md) |
-| P2 | Template generator and bulk upload | Not started |
+| P2 | Template generator and bulk upload | **Done** — [p2-template-and-import.md](p2-template-and-import.md) |
 | P3 | Cycles and assessment workspace | Not started |
 | P4 | Appetite, action plans, submission gate | Not started |
 | P5 | ORM review workflow | Not started |
@@ -48,4 +48,11 @@ carried in the schema as configuration rather than being guessed at:
 | Q3 | Should Fully Achieved really drive residual to zero? | `rcsa_methodologies.residual_floor` — `0` seeded, which is template parity |
 | Q4 | Is appetite a single ceiling, or a statement per risk category? | `rcsa_methodologies.appetite_ceiling_level` — `low` seeded |
 
-The remaining seven (Q2, Q5–Q10) do not block P0 or P1.
+The remaining seven (Q2, Q5–Q10) do not block P0, P1 or P2.
+
+## Carried forward
+
+| From | Item |
+|---|---|
+| P2 | Reject an upload whose `tenant_id` marker names another organisation. Both markers are written and asserted; the refusal rule is not wired, because it must not refuse the CSVs and hand-built files the pipeline is meant to accept. See p2's deviation 1. |
+| P0 | Diff `resources/js/lib/rcsa-truth-table.json` against the `SB_RCSA Template 2026` workbook. Still the one input to this build that has not been checked against its source. |

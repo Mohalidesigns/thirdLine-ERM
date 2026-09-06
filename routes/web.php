@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\WebhookController;
 use App\Http\Controllers\Auth\SsoController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Rcsa\ImportController as RcsaImportController;
 use App\Http\Controllers\Rcsa\UniverseController as RcsaUniverseController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
 use App\Http\Controllers\Risk\AiToolsController;
@@ -979,6 +980,38 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         // Inline process creation from the Add Risk panel (§6.2).
         Route::post('processes', [RcsaUniverseController::class, 'storeProcess'])
             ->middleware('permission:rcsa_universe.create')->name('processes.store');
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA v2 — template download and bulk upload (plan §7) */
+    /* ------------------------------------------------------------------ */
+    /*
+     * The upload routes are gated on `rcsa_universe.import`; PUBLISH is gated
+     * on `rcsa_universe.publish`, because preparing a spreadsheet and approving
+     * what it does to the master data are different acts. Everything staged by
+     * an upload is inert until that second permission is exercised.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/imports')->name('rcsa.imports.')->group(function () {
+        Route::get('template', [RcsaImportController::class, 'template'])
+            ->middleware('permission:rcsa_universe.view')->name('template');
+
+        Route::post('/', [RcsaImportController::class, 'store'])
+            ->middleware('permission:rcsa_universe.import')->name('store');
+
+        Route::get('{batch}', [RcsaImportController::class, 'show'])
+            ->middleware('permission:rcsa_universe.import')->name('show');
+
+        Route::patch('{batch}/rows/{row}', [RcsaImportController::class, 'updateRow'])
+            ->middleware('permission:rcsa_universe.import')->name('rows.update');
+
+        Route::get('{batch}/errors', [RcsaImportController::class, 'errorWorkbook'])
+            ->middleware('permission:rcsa_universe.import')->name('errors');
+
+        Route::post('{batch}/publish', [RcsaImportController::class, 'publish'])
+            ->middleware('permission:rcsa_universe.publish')->name('publish');
+
+        Route::delete('{batch}', [RcsaImportController::class, 'destroy'])
+            ->middleware('permission:rcsa_universe.import')->name('destroy');
     });
 
     /* ------------------------------------------------------------------ */

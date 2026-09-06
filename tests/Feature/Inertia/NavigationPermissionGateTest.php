@@ -98,7 +98,7 @@ class NavigationPermissionGateTest extends TestCase
         $duplicates = array_filter($counts, fn (int $n) => $n > 1);
 
         $this->assertSame([], $duplicates, 'Routes linked from more than one section: '.json_encode($duplicates));
-        $this->assertCount(78, $counts, 'The 22 sections link 78 distinct routes; the count moved, so a section changed shape.');
+        $this->assertCount(79, $counts, 'The 22 sections link 79 distinct routes; the count moved, so a section changed shape.');
     }
 
     #[Test]

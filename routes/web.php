@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\WebhookController;
 use App\Http\Controllers\Auth\SsoController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Rcsa\UniverseController as RcsaUniverseController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
 use App\Http\Controllers\Risk\AiToolsController;
 use App\Http\Controllers\Risk\AnalysisController;
@@ -937,6 +938,48 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         ->middleware('permission:rcsa.view')->name('risk.rcsa.controls');
     Route::get('rcsa/matrix', [RcsaController::class, 'matrix'])
         ->middleware('permission:rcsa.view')->name('risk.rcsa.matrix');
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA v2 — the rewritten module (plan §6), behind `rcsa_v2` */
+    /* ------------------------------------------------------------------ */
+    /*
+     * A SECOND, SEPARATE RCSA. The four routes above belong to the module this
+     * one replaces; both are live during the parallel run and neither knows
+     * about the other. `feature:rcsa_v2` 404s when the flag is off, so on a
+     * default install these URLs do not exist — which is why they can sit here
+     * beside the legacy ones without confusing anybody.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/universe')->name('rcsa.universe.')->group(function () {
+        Route::get('/', [RcsaUniverseController::class, 'index'])
+            ->middleware('permission:rcsa_universe.view')->name('index');
+
+        Route::post('/', [RcsaUniverseController::class, 'store'])
+            ->middleware('permission:rcsa_universe.create')->name('store');
+
+        Route::put('{risk}', [RcsaUniverseController::class, 'update'])
+            ->middleware('permission:rcsa_universe.update')->name('update');
+
+        Route::delete('{risk}', [RcsaUniverseController::class, 'destroy'])
+            ->middleware('permission:rcsa_universe.delete')->name('destroy');
+
+        Route::post('{risk}/duplicate', [RcsaUniverseController::class, 'duplicate'])
+            ->middleware('permission:rcsa_universe.create')->name('duplicate');
+
+        // Publish and retire are the same authority — letting a row into future
+        // cycles, and taking it out again.
+        Route::post('publish', [RcsaUniverseController::class, 'publish'])
+            ->middleware('permission:rcsa_universe.publish')->name('publish');
+
+        Route::post('retire', [RcsaUniverseController::class, 'retire'])
+            ->middleware('permission:rcsa_universe.publish')->name('retire');
+
+        Route::post('bulk-update', [RcsaUniverseController::class, 'bulkUpdate'])
+            ->middleware('permission:rcsa_universe.update')->name('bulk-update');
+
+        // Inline process creation from the Add Risk panel (§6.2).
+        Route::post('processes', [RcsaUniverseController::class, 'storeProcess'])
+            ->middleware('permission:rcsa_universe.create')->name('processes.store');
+    });
 
     /* ------------------------------------------------------------------ */
     /*  Analysis */

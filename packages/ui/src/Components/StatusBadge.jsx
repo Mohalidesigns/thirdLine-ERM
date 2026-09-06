@@ -50,6 +50,12 @@ export default function StatusBadge({ status }) {
         culpable: 'badge-status-overdue',
         partially_culpable: 'badge-medium',
         inconclusive: 'badge-status-draft',
+        // Master-data lifecycles (RCSA Universe and anything else that governs
+        // a reference list). Without these, `published` fell through to the
+        // draft styling and a published row was indistinguishable from an
+        // unapproved one — on a screen whose entire point is that distinction.
+        published: 'badge-status-active',
+        retired: 'badge-status-draft',
     };
     const formatted = status ? status.replace(/_/g, ' ') : 'unknown';
     return (

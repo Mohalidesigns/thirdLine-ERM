@@ -82,6 +82,10 @@ class NavPresenter
                     ['label' => 'Dashboard', 'route' => 'risk.rcsa.dashboard', 'permission' => 'rcsa.view'],
                     ['label' => 'Worksheet', 'route' => 'risk.rcsa.worksheet', 'permission' => 'rcsa.view'],
                     ['label' => 'Risk Matrix', 'route' => 'risk.rcsa.matrix', 'permission' => 'rcsa.view'],
+                    // RCSA v2. Sits beside the module it will replace for the
+                    // duration of the parallel run; the flag is what keeps it
+                    // out of every install that has not opted in.
+                    ['label' => 'Universe', 'route' => 'rcsa.universe.index', 'permission' => 'rcsa_universe.view', 'feature' => 'rcsa_v2'],
                 ],
             ],
             [

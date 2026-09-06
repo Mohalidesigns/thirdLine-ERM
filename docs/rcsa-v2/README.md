@@ -9,7 +9,7 @@ deviated from and why, and what the phase found that the plan did not know.
 | Phase | Scope | Status |
 |---|---|---|
 | P0 | Foundations: schema, methodology, calculation engine | **Done** — [p0-foundations.md](p0-foundations.md) |
-| P1 | RCSA Universe screen | Not started |
+| P1 | RCSA Universe screen | **Done** — [p1-universe.md](p1-universe.md) |
 | P2 | Template generator and bulk upload | Not started |
 | P3 | Cycles and assessment workspace | Not started |
 | P4 | Appetite, action plans, submission gate | Not started |

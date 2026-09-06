@@ -166,6 +166,23 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'rcsa.submit' => 'Submit an RCSA worksheet.',
             ],
 
+            // The rewritten RCSA module, behind the `rcsa_v2` flag. Separate
+            // from the two above, which belong to the module it will replace:
+            // during the parallel run both are live and a role may hold one
+            // without the other. Named `rcsa_universe.*` rather than the plan's
+            // `rcsa.universe.*` because permission naming here is
+            // `resource.verb` in two segments (migration Decision 2) — see
+            // `control_test.view` for the same compound resource.
+            'RCSA Universe' => [
+                'rcsa_universe.view' => 'See the RCSA Universe: processes, risks and their controls.',
+                'rcsa_universe.create' => 'Add a risk to the RCSA Universe.',
+                'rcsa_universe.update' => 'Change a universe risk or its controls.',
+                'rcsa_universe.delete' => 'Remove a universe risk that was never assessed.',
+                'rcsa_universe.publish' => 'Approve a universe risk into future assessments, or retire it. '
+                    .'Separate from editing: this is what makes the master data authoritative.',
+                'rcsa_universe.import' => 'Bulk-upload universe rows from the RCSA template.',
+            ],
+
             'Campaigns' => [
                 'campaign.view' => 'See assessment campaigns.',
                 'campaign.create' => 'Create a campaign.',
@@ -318,6 +335,8 @@ class RiskPermissionCatalog extends PermissionCatalog
             'report.view', 'report.generate', 'report.export',
             'entity.view', 'entity.create', 'entity.edit', 'entity.delete',
             'rcsa.view', 'rcsa.submit',
+            'rcsa_universe.view', 'rcsa_universe.create', 'rcsa_universe.update',
+            'rcsa_universe.delete', 'rcsa_universe.publish', 'rcsa_universe.import',
             'analysis.view',
             'ai.view', 'ai.use',
             'control_test.view', 'control_test.create', 'control_test.edit', 'control_test.execute', 'control_test.review',
@@ -347,6 +366,7 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'assessment.create',
                 'treatment.view', 'treatment.create',
                 'rcsa.view', 'rcsa.submit',
+                'rcsa_universe.view', 'rcsa_universe.create', 'rcsa_universe.update',
                 'analysis.view',
                 'campaign.view', 'campaign.respond',
                 'control_test.view',
@@ -359,6 +379,7 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'kri.view', 'kri.record_measurement',
                 'report.view', 'report.generate',
                 'rcsa.view',
+                'rcsa_universe.view',
                 'analysis.view',
                 'ai.view',
                 'control_test.view',
@@ -386,6 +407,7 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'report.view',
                 'analysis.view',
                 'rcsa.view',
+                'rcsa_universe.view',
                 'control_test.view', 'control_test.review',
                 'regulatory.view', 'regulatory.manage', 'regulatory.file',
                 'period.view',

@@ -69,13 +69,21 @@ jobs:
       - name: Lint — Pint
         run: ./vendor/bin/pint --test
 
-      # Migration Phase 0: the React bundle must build, and both entries
-      # (Livewire app.js, Inertia app.jsx) must land in the manifest.
+      # The React bundle must build and its entry must land in the manifest.
+      #
+      # Phase 0 asserted TWO entries here — app.js for Livewire and app.jsx for
+      # Inertia. Phase 6.8 deleted app.js with the rest of the Livewire tree and
+      # did not update this line, so the check has been asserting the presence
+      # of a file the same commit removed. Caught in 7.4 while adding the parity
+      # guard below it.
       - name: Build front-end
         run: |
           npm ci
           npm run build
-          node -e "const m=require('./public/build/manifest.json'); for (const k of ['resources/js/app.js','resources/js/app.jsx','resources/css/app.css']) { if (!m[k]) { console.error('manifest missing '+k); process.exit(1); } }"
+          node -e "const m=require('./public/build/manifest.json'); for (const k of ['resources/js/app.jsx','resources/css/app.css']) { if (!m[k]) { console.error('manifest missing '+k); process.exit(1); } } if (m['resources/js/app.js']) { console.error('resources/js/app.js is back in the manifest; Livewire was removed in Phase 6.8'); process.exit(1); }"
+
+      - name: Guard — migration parity
+        run: php scripts/parity-check.php
 
       - name: Static analysis — PHPStan (Larastan, level 5, baseline)
         if: matrix.database == 'sqlite'

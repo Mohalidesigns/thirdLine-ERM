@@ -464,7 +464,16 @@ class ExportController extends Controller
         $events = LossEvent::where('organization_id', $orgId)
             ->visibleTo()
             ->whereYear('date_of_loss', $year)
-            ->whereIn(\DB::raw('MONTH(date_of_loss)'), $months)
+            // whereMonth(), not DB::raw('MONTH(date_of_loss)'). MONTH() is
+            // MySQL's; SQLite has no such function, so the raw version made
+            // this export a 500 on every driver but one — which is why no test
+            // had ever requested it, and why nobody noticed. Phase 7.4's smoke
+            // test is what found it.
+            ->where(function ($query) use ($months) {
+                foreach ($months as $month) {
+                    $query->orWhereMonth('date_of_loss', $month);
+                }
+            })
             ->orderBy('date_of_loss')
             ->get();
 

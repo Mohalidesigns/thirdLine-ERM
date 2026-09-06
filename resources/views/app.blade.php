@@ -17,7 +17,12 @@
          safe lives in the class, where it is testable. --}}
     {!! \App\Support\Branding::styleTag() !!}
 
-    @routes
+    {{-- Ziggy's route table. It is an INLINE script, and script-src is 'self'
+         with no 'unsafe-inline' since Phase 6.8, so it must carry the nonce
+         SetSecurityHeaders put in the header — without it the browser blocks
+         the script, route() is never defined, and every page throws before it
+         mounts. --}}
+    @routes(nonce: Illuminate\Support\Facades\Vite::cspNonce())
     @viteReactRefresh
     @vite(['resources/js/app.jsx'])
     @inertiaHead

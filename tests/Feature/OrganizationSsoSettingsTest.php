@@ -239,14 +239,69 @@ class OrganizationSsoSettingsTest extends TestCase
     {
         // The map is an allowlist — a client must not be able to invent an
         // authorization principal by typing its name.
+        //
+        // Until migration Phase 6.2 the invented role was dropped silently and
+        // the rest of the save went through. SsoSettingsRequest refuses the
+        // request instead, which says the same thing out loud; the guarantee
+        // asserted here is unchanged — no such mapping is ever stored.
         $admin = $this->admin($this->orgA);
 
         $this->actingAs($admin)->put('/admin/settings/sso', $this->validPayload([
             'slug' => 'alpha',
             'role_map' => [['group' => 'GRC-Ghosts', 'role' => 'not-a-real-role']],
-        ]));
+        ]))->assertSessionHasErrors('role_map.0.role');
 
-        $this->assertSame([], $this->stored('alpha')->role_map);
+        $this->assertEmpty($this->stored('alpha')->role_map ?? []);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Roles a directory may confer */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function admin_sso_alone_could_have_a_directory_group_grant_super_admin(): void
+    {
+        // `role_map` and `default_roles` were filtered against Role::all(),
+        // which is an allowlist against roles that do not exist and no defence
+        // at all against a real one. Whoever held admin.sso could map a group
+        // they belong to — or set default_roles — and SsoProvisioningService
+        // would hand out `super-admin` on their next sign-in. Gate::before
+        // answers every ability true for a super-admin, so that is the whole
+        // platform, granted by a directory the platform does not control.
+        $operator = $this->userFor($this->orgA, 'risk-manager');
+        $operator->givePermissionTo(\Spatie\Permission\Models\Permission::findOrCreate('admin.sso'));
+
+        $this->actingAs($operator)->put('/admin/settings/sso', $this->validPayload([
+            'slug' => 'alpha',
+            'role_map' => [['group' => 'GRC-Admins', 'role' => 'super-admin']],
+        ]))->assertSessionHasErrors('role_map.0.role');
+
+        $this->actingAs($operator)->put('/admin/settings/sso', $this->validPayload([
+            'slug' => 'alpha',
+            'default_roles' => ['super-admin'],
+        ]))->assertSessionHasErrors('default_roles.0');
+
+        $setting = OrganizationSsoSetting::query()->withoutGlobalScopes()
+            ->where('organization_id', $this->orgA->id)->first();
+
+        $this->assertEmpty($setting?->role_map ?? []);
+        $this->assertEmpty($setting?->default_roles ?? []);
+    }
+
+    #[Test]
+    public function the_form_offers_exactly_the_roles_the_validator_accepts(): void
+    {
+        $operator = $this->userFor($this->orgA, 'risk-manager');
+        $operator->givePermissionTo(\Spatie\Permission\Models\Permission::findOrCreate('admin.sso'));
+
+        $this->actingAs($operator)->get('/admin/settings/sso')->assertInertia(fn ($page) => $page
+            ->component('Admin/Settings/Sso')
+            ->where('roles', fn ($roles) => ! collect($roles)->contains('super-admin'))
+        );
+
+        $this->actingAs($this->admin($this->orgA))->get('/admin/settings/sso')->assertInertia(fn ($page) => $page
+            ->where('roles', fn ($roles) => collect($roles)->contains('super-admin'))
+        );
     }
 
     /**

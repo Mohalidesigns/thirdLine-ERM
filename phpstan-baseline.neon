@@ -175,12 +175,6 @@ parameters:
 			path: app/Http/Controllers/Admin/JobRunController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$organization\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Admin/SsoSettingsController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\ApiToken\:\:\$organization\.$#'
 			identifier: property.notFound
 			count: 1
@@ -2303,12 +2297,6 @@ parameters:
 			identifier: method.notFound
 			count: 1
 			path: app/Support/Tenancy/OrganizationScope.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$organization\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/View/Components/DynamicDetail.php
 
 		-
 			message: '#^Match expression does not handle remaining value\: mixed$#'

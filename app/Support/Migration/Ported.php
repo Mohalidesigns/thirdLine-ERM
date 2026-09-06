@@ -66,6 +66,9 @@ final class Ported
         'admin.users.create',
         'admin.users.show',
         'admin.users.edit',
+        // Phase 6.2 — organisation and single sign-on settings
+        'admin.settings',
+        'admin.settings.sso',
         'risk.emerging.index',
         'risk.reports.library',
         // Phase 5.4

@@ -399,9 +399,11 @@ Route::prefix('admin')->middleware(['auth'])->group(function () {
     Route::middleware('permission:admin.settings')->group(function () {
         Route::get('settings', [OrganizationSettingsController::class, 'index'])->name('admin.settings');
         Route::put('settings/profile', [OrganizationSettingsController::class, 'updateProfile'])->name('admin.settings.profile');
-        Route::put('settings/thresholds', [OrganizationSettingsController::class, 'updateThresholds'])->name('admin.settings.thresholds');
         Route::put('settings/risk', [OrganizationSettingsController::class, 'updateRiskSettings'])->name('admin.settings.risk');
-        Route::put('settings/notifications', [OrganizationSettingsController::class, 'updateNotificationPreferences'])->name('admin.settings.notifications');
+        // Phase 6.2 replaces `settings/thresholds` and `settings/notifications`.
+        // Between them those two wrote ten keys that nothing on the platform
+        // ever read; this one writes the settings that have consumers.
+        Route::put('settings/organization', [OrganizationSettingsController::class, 'updateSettings'])->name('admin.settings.organization');
     });
 
     // Single sign-on: the client configures their own identity provider here.

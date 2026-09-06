@@ -8,8 +8,8 @@ use App\Http\Requests\Admin\StoreUserRequest;
 use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Models\BusinessUnit;
 use App\Models\User;
-use App\Policies\UserPolicy;
 use App\Presenters\GridPresenter;
+use App\Support\AssignableRoles;
 use App\Support\Tenancy\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -54,15 +54,9 @@ class UserManagementController extends Controller
      */
     private function formOptions(): array
     {
-        $roles = Role::query()->orderBy('name')->pluck('name');
-
-        if (! Gate::allows('grantSuperAdmin', User::class)) {
-            $roles = $roles->reject(fn (string $name) => $name === UserPolicy::SUPER_ADMIN);
-        }
-
         return [
             'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name'])->values(),
-            'roles' => $roles->values(),
+            'roles' => AssignableRoles::for(request()->user()),
         ];
     }
 

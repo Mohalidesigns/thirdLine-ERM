@@ -94,7 +94,8 @@ class User extends Authenticatable
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function organization()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Organization, $this> */
+    public function organization(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }

@@ -3,11 +3,10 @@
 namespace App\Http\Requests\Admin;
 
 use App\Models\User;
-use App\Policies\UserPolicy;
+use App\Support\AssignableRoles;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Spatie\Permission\Models\Role;
 
 /**
  * Create a user account (migration Phase 6.1).
@@ -66,22 +65,14 @@ class StoreUserRequest extends FormRequest
     }
 
     /**
-     * The roles this actor may hand out.
-     *
-     * Every role that exists, less `super-admin` unless the actor holds it —
-     * see UserPolicy::grantSuperAdmin() for why that one is different.
+     * The roles this actor may hand out — see App\Support\AssignableRoles for
+     * why `super-admin` is not one of them unless the actor holds it.
      *
      * @return list<string>
      */
     protected function assignableRoles(): array
     {
-        $roles = Role::query()->orderBy('name')->pluck('name');
-
-        if (! $this->user()->can('grantSuperAdmin', User::class)) {
-            $roles = $roles->reject(fn (string $name) => $name === UserPolicy::SUPER_ADMIN);
-        }
-
-        return $roles->values()->all();
+        return AssignableRoles::for($this->user());
     }
 
     /** @return array<string, string> */

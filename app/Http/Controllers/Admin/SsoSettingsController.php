@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\SsoSettingsRequest;
 use App\Models\OrganizationSsoSetting;
-use App\Support\Tenancy\TenantContext;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
-use Spatie\Permission\Models\Role;
+use App\Services\Sso\SsoSettingResolver;
+use App\Support\AssignableRoles;
+use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
 
 /**
  * Lets a client configure their own identity provider after purchase.
@@ -20,56 +20,99 @@ use Spatie\Permission\Models\Role;
  */
 class SsoSettingsController extends Controller
 {
+    public function __construct(private readonly SsoSettingResolver $resolver) {}
+
     public function edit()
     {
-        return view('admin.settings.sso', [
-            'sso' => $this->setting(),
-            'roles' => Role::query()->orderBy('name')->pluck('name'),
+        $setting = $this->setting();
+        Gate::authorize('view', $setting);
+
+        return Inertia::render('Admin/Settings/Sso', [
+            'sso' => $this->present($setting),
+            // The roles this actor may have a directory hand out — the same
+            // list SsoSettingsRequest validates against, so the form offers
+            // exactly what the validator accepts.
+            'roles' => AssignableRoles::for(request()->user()),
+            'drivers' => [OrganizationSsoSetting::DRIVER_OIDC, OrganizationSsoSetting::DRIVER_SAML],
+            // What the client hands their directory administrator. Derived
+            // from the model's own accessors, as the Blade screen was, so the
+            // page cannot drift from what the sign-in routes actually serve.
+            'endpoints' => $this->endpoints($setting),
+            'missingRequirements' => $setting->missingRequirements(),
         ]);
     }
 
-    public function update(Request $request)
+    /**
+     * The stored map as the form's repeating rows.
+     *
+     * @return list<array{group: string, role: string}>
+     */
+    private function roleMapRows(OrganizationSsoSetting $setting): array
+    {
+        $rows = [];
+
+        foreach ((array) ($setting->role_map ?? []) as $group => $role) {
+            $rows[] = ['group' => (string) $group, 'role' => (string) $role];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function endpoints(OrganizationSsoSetting $setting): array
+    {
+        $endpoints = [
+            'Sign-in URL' => $setting->signInUrl(),
+            'Redirect / Reply URL' => $setting->isSaml() ? $setting->acsUrl() : $setting->callbackUrl(),
+        ];
+
+        if ($setting->isSaml()) {
+            $endpoints['Service Provider entity ID'] = $setting->spEntityId();
+            $endpoints['SP metadata (XML)'] = $setting->metadataUrl();
+        }
+
+        return $endpoints;
+    }
+
+    /**
+     * The row as the form may see it.
+     *
+     * SECRETS ARE NEVER SENT. The stored client secret and SP private key are
+     * reported as booleans — whether one is on file — because a value the page
+     * receives is a value in the Inertia payload, in the browser's memory and
+     * in any error reporter that captures it. `the_settings_form_never_renders
+     * _a_stored_secret` has pinned this since the Blade screen; the assertion
+     * is the same and so is the rule.
+     *
+     * @return array<string, mixed>
+     */
+    private function present(OrganizationSsoSetting $setting): array
+    {
+        return array_merge($setting->only([
+            'id', 'enabled', 'driver', 'label', 'slug',
+            'oidc_client_id', 'oidc_auth_url', 'oidc_token_url', 'oidc_userinfo_url',
+            'saml_idp_entity_id', 'saml_idp_sso_url', 'saml_idp_slo_url',
+            'saml_idp_x509_cert', 'saml_sp_x509_cert',
+            'saml_email_attribute', 'saml_name_attribute',
+            'groups_claim', 'auto_provision', 'sync_roles_on_login',
+        ]), [
+            'oidc_scopes' => implode(' ', (array) ($setting->oidc_scopes ?? [])),
+            'allowed_domains' => implode(', ', (array) ($setting->allowed_domains ?? [])),
+            'role_map' => $this->roleMapRows($setting),
+            'default_roles' => array_values((array) ($setting->default_roles ?? [])),
+            'has_oidc_client_secret' => filled($setting->oidc_client_secret),
+            'has_saml_sp_private_key' => filled($setting->saml_sp_private_key),
+        ]);
+    }
+
+    public function update(SsoSettingsRequest $request)
     {
         $setting = $this->setting();
 
-        $validated = $request->validate([
-            'enabled' => 'nullable|boolean',
-            'driver' => ['required', Rule::in([OrganizationSsoSetting::DRIVER_OIDC, OrganizationSsoSetting::DRIVER_SAML])],
-            'label' => 'required|string|max:120',
-            'slug' => [
-                'required', 'string', 'max:64', 'regex:/^[a-z0-9][a-z0-9-]*$/',
-                Rule::unique('organization_sso_settings', 'slug')->ignore($setting->id),
-            ],
-
-            // OIDC — https only: an http endpoint would put the authorization
-            // code and the client secret exchange on the wire in clear text.
-            'oidc_client_id' => 'nullable|string|max:255',
-            'oidc_client_secret' => 'nullable|string|max:2000',
-            'oidc_auth_url' => 'nullable|url|starts_with:https://|max:500',
-            'oidc_token_url' => 'nullable|url|starts_with:https://|max:500',
-            'oidc_userinfo_url' => 'nullable|url|starts_with:https://|max:500',
-            'oidc_scopes' => 'nullable|string|max:500',
-
-            // SAML
-            'saml_idp_entity_id' => 'nullable|string|max:500',
-            'saml_idp_sso_url' => 'nullable|url|starts_with:https://|max:500',
-            'saml_idp_slo_url' => 'nullable|url|starts_with:https://|max:500',
-            'saml_idp_x509_cert' => 'nullable|string|max:20000',
-            'saml_sp_x509_cert' => 'nullable|string|max:20000',
-            'saml_sp_private_key' => 'nullable|string|max:20000',
-            'saml_email_attribute' => 'nullable|string|max:190',
-            'saml_name_attribute' => 'nullable|string|max:190',
-
-            'groups_claim' => 'nullable|string|max:190',
-            'allowed_domains' => 'nullable|string|max:2000',
-            'role_map' => 'nullable|array',
-            'role_map.*.group' => 'nullable|string|max:190',
-            'role_map.*.role' => 'nullable|string|max:190',
-            'default_roles' => 'nullable|array',
-            'default_roles.*' => 'string|max:190',
-            'auto_provision' => 'nullable|boolean',
-            'sync_roles_on_login' => 'nullable|boolean',
-        ]);
+        $validated = $request->validated();
+        $assignable = $request->assignableRoles();
 
         $attributes = [
             'enabled' => $request->boolean('enabled'),
@@ -90,8 +133,8 @@ class SsoSettingsController extends Controller
             'saml_name_attribute' => $validated['saml_name_attribute'] ?? null,
             'groups_claim' => ($validated['groups_claim'] ?? null) ?: 'groups',
             'allowed_domains' => $this->splitList($validated['allowed_domains'] ?? ''),
-            'role_map' => $this->roleMap($validated['role_map'] ?? []),
-            'default_roles' => $this->knownRoles($validated['default_roles'] ?? []),
+            'role_map' => $this->roleMap($validated['role_map'] ?? [], $assignable),
+            'default_roles' => $this->knownRoles($validated['default_roles'] ?? [], $assignable),
             'auto_provision' => $request->boolean('auto_provision'),
             'sync_roles_on_login' => $request->boolean('sync_roles_on_login'),
             'updated_by' => auth()->id(),
@@ -124,41 +167,15 @@ class SsoSettingsController extends Controller
     }
 
     /**
-     * The client's configuration row, created on first visit so the form has
-     * something to bind to.
+     * The organisation's configuration row.
+     *
+     * Resolved by SsoSettingResolver so the Form Request and the controller
+     * see the same row — the request needs it to ignore its own slug in the
+     * uniqueness rule and to ask the policy.
      */
     private function setting(): OrganizationSsoSetting
     {
-        $organizationId = TenantContext::organizationId();
-
-        return OrganizationSsoSetting::firstOrCreate(
-            ['organization_id' => $organizationId],
-            [
-                'slug' => $this->defaultSlug($organizationId),
-                'enabled' => false,
-                'driver' => OrganizationSsoSetting::DRIVER_OIDC,
-                'label' => 'Single sign-on',
-                'groups_claim' => 'groups',
-                'sync_roles_on_login' => true,
-            ]
-        );
-    }
-
-    private function defaultSlug(int $organizationId): string
-    {
-        $base = Str::slug((string) (auth()->user()?->organization?->short_name
-            ?: auth()->user()?->organization?->name
-            ?: "org-{$organizationId}"));
-
-        $base = $base !== '' ? $base : "org-{$organizationId}";
-        $slug = $base;
-        $suffix = 2;
-
-        while (OrganizationSsoSetting::query()->withoutGlobalScopes()->where('slug', $slug)->exists()) {
-            $slug = $base.'-'.$suffix++;
-        }
-
-        return $slug;
+        return $this->resolver->forCurrentTenant();
     }
 
     /**
@@ -175,16 +192,20 @@ class SsoSettingsController extends Controller
     }
 
     /**
-     * Only map to roles this application actually defines — the map is an
-     * allowlist, and a client must not be able to invent an authorization
-     * principal by typing its name.
+     * Only map to roles this actor may have a directory hand out.
+     *
+     * The map was always an allowlist against roles that do not exist. Since
+     * Phase 6.2 it is also an allowlist against `super-admin`, which does —
+     * see SsoSettingsRequest. The request rejects the save; this filter is the
+     * belt to that brace, so a row that arrives some other way is dropped
+     * rather than stored.
      *
      * @param  array<int, array{group?: string, role?: string}>  $rows
+     * @param  list<string>  $known
      * @return array<string, string>
      */
-    private function roleMap(array $rows): array
+    private function roleMap(array $rows, array $known): array
     {
-        $known = Role::query()->pluck('name')->all();
         $map = [];
 
         foreach ($rows as $row) {
@@ -201,12 +222,11 @@ class SsoSettingsController extends Controller
 
     /**
      * @param  array<int, string>  $roles
+     * @param  list<string>  $known
      * @return list<string>
      */
-    private function knownRoles(array $roles): array
+    private function knownRoles(array $roles, array $known): array
     {
-        $known = Role::query()->pluck('name')->all();
-
         return collect($roles)->filter(fn ($role) => in_array($role, $known, true))->unique()->values()->all();
     }
 }

@@ -280,9 +280,16 @@ class AdminNavigationTest extends TestCase
     /* ------------------------------------------------------------------ */
 
     /**
-     * admin/settings is a prefix of admin/settings/sso, and admin/builder of
-     * admin/builder/scoring-profiles. A naive str_starts_with lights both the
-     * parent and the child at once; the highlight has to name one entry.
+     * admin/builder is a prefix of admin/builder/scoring-profiles. A naive
+     * str_starts_with lights both the parent and the child at once; the
+     * highlight has to name one entry.
+     *
+     * This asserts against the BLADE sidebar, so it can only cover routes
+     * Blade still serves. admin/settings and admin/settings/sso were here
+     * until migration Phase 6.2 flipped them; the React sidebar cannot have
+     * this bug, because SectionItem matches on the exact path
+     * (AuthenticatedLayout's isExact) rather than on a prefix. The builder
+     * routes leave when Phases 6.3 and 6.4 flip them, and this test with them.
      */
     #[Test]
     public function nested_admin_paths_highlight_exactly_one_entry(): void
@@ -292,8 +299,6 @@ class AdminNavigationTest extends TestCase
         $activeClass = 'font-semibold bg-[#D4AF37] text-[#1A365D]';
 
         $nested = [
-            'admin.settings' => 'Settings',
-            'admin.settings.sso' => 'SSO',
             'admin.builder' => 'Metadata Builder',
             'admin.builder.scoring-profiles' => 'Scoring Profiles',
         ];

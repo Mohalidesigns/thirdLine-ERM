@@ -5,6 +5,7 @@ namespace ThirdLine\Platform\Http\Middleware;
 use Closure;
 use Illuminate\Foundation\Vite;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Vite as ViteFacade;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -19,11 +20,24 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * from bunny.net; this product serves every asset from its own origin
  * (AssetResidencyTest), so there is nothing a strict policy would break.
  *
- * SCRIPT-SRC IS 'self' ALONE, since migration Phase 6.8 — the Phase 0 TODO,
- * now closed. 'unsafe-inline' and 'unsafe-eval' were there only for the
- * Blade + Livewire screens: 47 Blade views carried inline <script> blocks, and
- * Alpine evaluated its x-data expressions with `new Function`. The Inertia
- * shell needs neither.
+ * SCRIPT-SRC IS 'self' PLUS A PER-REQUEST NONCE, since migration Phase 6.8 —
+ * the Phase 0 TODO, now closed. 'unsafe-inline' and 'unsafe-eval' were there
+ * only for the Blade + Livewire screens: 47 Blade views carried inline <script>
+ * blocks, and Alpine evaluated its x-data expressions with `new Function`.
+ *
+ * THE NONCE IS NOT OPTIONAL, and 6.8 shipped without it. The Inertia shell has
+ * one inline script it cannot do without — Ziggy's @routes, which defines the
+ * global route() every page calls. Dropping 'unsafe-inline' without giving that
+ * script a nonce blocked it, so route() was undefined and every page threw
+ * before React mounted: a blank screen on every route, with the whole suite
+ * green, because no test in this repository executes JavaScript.
+ * SecurityHeadersTest::every_inline_script_in_the_shell_carries_a_nonce_the_policy_allows
+ * asks the question statically now.
+ *
+ * A nonce is how a strict policy permits a KNOWN inline script without
+ * permitting an injected one, which is the whole difference from
+ * 'unsafe-inline'. It is regenerated per request by Vite::useCspNonce(), and
+ * the shell stamps it with `@routes(nonce: Vite::cspNonce())`.
  *
  * It is UNCONDITIONAL rather than keyed on whether livewire/livewire happens to
  * be installed, which is what it was between Phase 0 and 6.8. A conditional was
@@ -37,6 +51,10 @@ class SetSecurityHeaders
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // BEFORE the response is built, because the view renders inside
+        // $next() and has to be able to stamp this on its inline scripts.
+        ViteFacade::useCspNonce();
+
         $response = $next($request);
 
         // Only decorate full HTTP responses (skip streamed downloads, which
@@ -69,6 +87,16 @@ class SetSecurityHeaders
     {
         $self = ["'self'"];
         $connect = ["'self'"];
+        $scriptSrc = $self;
+
+        // The application shell has exactly one inline script it cannot do
+        // without: Ziggy's @routes, which defines the global route() every page
+        // calls. A nonce is how a strict policy permits a known script without
+        // permitting all of them — unlike 'unsafe-inline', which permits an
+        // injected one too.
+        if (($nonce = ViteFacade::cspNonce()) !== null) {
+            $scriptSrc[] = "'nonce-{$nonce}'";
+        }
 
         // The Vite dev server serves the bundles from its own origin during
         // `npm run dev` and keeps a websocket open for HMR. Allowing it is a
@@ -87,7 +115,7 @@ class SetSecurityHeaders
             "img-src 'self' data: blob:",
             "font-src 'self' data:",
             'style-src '.implode(' ', array_merge($self, ["'unsafe-inline'"])),
-            'script-src '.implode(' ', $self),
+            'script-src '.implode(' ', $scriptSrc),
             'connect-src '.implode(' ', $connect),
             "form-action 'self'",
         ]);

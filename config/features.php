@@ -76,4 +76,21 @@ return [
      */
     'rcsa_v2' => env('FEATURE_RCSA_V2', false),
 
+    /*
+     * Third-Party Risk Management (TPRM).
+     *
+     * A new module, built on its own `tp_` tables alongside the register
+     * rather than inside it — the same rule RCSA v2 follows: build alongside,
+     * not on top. Nothing in the existing risk register, control library or
+     * issue register changes shape for it; TPRM reaches them through the
+     * bridge described in the plan's TRD §15, and every one of those writes is
+     * one-way (TPRM → ERM) except the issue close-sync.
+     *
+     * OFF BY DEFAULT UNTIL THE MODULE IS COMPLETE. The schema and reference
+     * libraries land first (Phase 0) and there is no screen behind the flag
+     * until Phase 1, so turning it on before then exposes navigation to routes
+     * that do not exist yet.
+     */
+    'tprm' => env('FEATURE_TPRM', false),
+
 ];

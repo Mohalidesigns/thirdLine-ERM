@@ -343,6 +343,69 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'admin.queues' => 'See the job queue dashboard, whose payloads contain the records being processed.',
             ],
 
+            'Third-party risk (TPRM)' => [
+                'tprm.view' => 'See the third-party register, engagements and their risk scores.',
+                'tprm.create' => 'Register a third party and raise an engagement intake.',
+                'tprm.edit' => 'Change a third party or an engagement that already exists.',
+                'tprm.delete' => 'Remove a third party or an engagement from the register.',
+
+                // Approving an intake is what admits a vendor to the estate.
+                // It is separate from `edit` because the person who prepares
+                // an intake must not be the person who approves it.
+                'tprm.intake.approve' => 'Approve or reject a third-party intake request.',
+
+                // Tier drives assessment cadence, clause set, exit-plan
+                // requirement and board reportability. Overriding it is
+                // deciding a vendor needs less scrutiny than the model says.
+                'tprm.tier.override' => 'Override a computed risk tier, which reduces the scrutiny a vendor receives.',
+
+                // Editing the ruleset redefines what Critical MEANS for every
+                // vendor at once — the TPRM equivalent of `admin.scoring`.
+                'tprm.ruleset.manage' => 'Edit the tiering factors, weights and knockout rules that decide every vendor\'s tier.',
+
+                'tprm.assessment.view' => 'See third-party assessments and their responses.',
+                'tprm.assessment.issue' => 'Issue an assessment to a vendor.',
+                'tprm.assessment.review' => 'Review a submitted assessment and accept, reject or query each answer.',
+                'tprm.assessment.validate' => 'Validate a reviewed assessment, fixing the assurance score it carries.',
+                'tprm.questionnaire.manage' => 'Author and publish questionnaire templates and their control mappings.',
+
+                'tprm.evidence.view' => 'See third-party evidence and its extractions.',
+                'tprm.evidence.upload' => 'Upload third-party evidence.',
+                'tprm.evidence.confirm' => 'Confirm a machine-read extraction, which applies it to answers, findings and obligations.',
+
+                'tprm.contract.view' => 'See third-party contracts, clauses and obligations.',
+                'tprm.contract.manage' => 'Record and amend contracts and their clause analysis.',
+
+                // Waiving a blocking clause admits a vendor the regulator's
+                // required terms do not cover. It is the single most
+                // consequential grant in the module and belongs with the risk
+                // function, not with whoever manages the contract.
+                'tprm.waiver.approve' => 'Waive a blocking contract clause or another control gate, admitting a vendor a required term does not cover.',
+
+                'tprm.finding.view' => 'See third-party findings and their remediation.',
+                'tprm.finding.manage' => 'Raise, assign and progress third-party findings.',
+                'tprm.finding.accept_risk' => 'Accept a third-party risk rather than remediating it.',
+
+                'tprm.screening.view' => 'See sanctions, PEP and adverse-media screening results.',
+                'tprm.screening.decide' => 'Decide a screening match, which can suspend every engagement with a vendor.',
+
+                'tprm.monitoring.view' => 'See the monitoring signal stream and alerts.',
+                'tprm.monitoring.manage' => 'Configure monitoring sources and alert rules.',
+
+                'tprm.incident.view' => 'See third-party incidents and their regulatory clocks.',
+                'tprm.incident.manage' => 'Record and progress a third-party incident.',
+
+                // Nothing in this module submits to a regulator automatically.
+                // A named officer holding this permission approves each draft
+                // before it is marked submitted.
+                'tprm.incident.notify' => 'Approve a regulatory notification draft and record it as submitted. Nothing is ever submitted automatically.',
+
+                'tprm.portal.manage' => 'Invite, suspend and remove vendor portal users.',
+                'tprm.report.view' => 'See TPRM reports, registers and regulatory returns.',
+                'tprm.report.export' => 'Export the CBN, DORA, NDPA and PCI registers and returns.',
+                'tprm.admin' => 'Administer the TPRM programme: tier policies, clause library, document types and the category taxonomy.',
+            ],
+
             'Licensing' => [
                 // A licence binds the whole deployment, not one organisation's
                 // settings, so both go to super-admin only.
@@ -430,6 +493,26 @@ class RiskPermissionCatalog extends PermissionCatalog
             'fx_rate.view', 'fx_rate.manage',
             'approval.view', 'approval.act',
             'dashboard.manage',
+
+            // TPRM: the risk function runs the programme day to day. Two
+            // grants are deliberately NOT here — `tprm.waiver.approve` and
+            // `tprm.finding.accept_risk` — because both are decisions to carry
+            // a risk rather than to manage one, and they sit with the CRO.
+            // `tprm.tier.override` is likewise withheld: overriding a computed
+            // tier downwards is the same kind of decision.
+            'tprm.view', 'tprm.create', 'tprm.edit', 'tprm.delete',
+            'tprm.intake.approve',
+            'tprm.assessment.view', 'tprm.assessment.issue', 'tprm.assessment.review', 'tprm.assessment.validate',
+            'tprm.questionnaire.manage',
+            'tprm.evidence.view', 'tprm.evidence.upload', 'tprm.evidence.confirm',
+            'tprm.contract.view', 'tprm.contract.manage',
+            'tprm.finding.view', 'tprm.finding.manage',
+            'tprm.screening.view',
+            'tprm.monitoring.view', 'tprm.monitoring.manage',
+            'tprm.incident.view', 'tprm.incident.manage',
+            'tprm.portal.manage',
+            'tprm.report.view', 'tprm.report.export',
+            'tprm.admin',
         ];
 
         return [
@@ -498,6 +581,17 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'issue.view', 'issue.create', 'issue.edit', 'issue.escalate', 'issue.close', 'issue.delete',
                 'quantification.view', 'quantification.create', 'quantification.run_simulation', 'quantification.approve_icaap',
                 'regulatory.file',
+
+                // The four TPRM grants that are decisions to CARRY a risk
+                // rather than to manage one. Each one lets a vendor into the
+                // estate on terms the model says are insufficient, so each
+                // needs an owner senior enough to answer for it.
+                'tprm.tier.override',
+                'tprm.waiver.approve',
+                'tprm.finding.accept_risk',
+                'tprm.screening.decide',
+                'tprm.ruleset.manage',
+                'tprm.incident.notify',
             ],
 
             'compliance-officer' => [
@@ -515,6 +609,19 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'rcsa_scope.all_units',
                 'control_test.view', 'control_test.review',
                 'regulatory.view', 'regulatory.manage', 'regulatory.file',
+
+                // Compliance reads the third-party estate and decides
+                // screening matches — sanctions and PEP resolution is an AML
+                // function, not a vendor-management one — but does not run the
+                // programme.
+                'tprm.view',
+                'tprm.assessment.view',
+                'tprm.evidence.view',
+                'tprm.contract.view',
+                'tprm.finding.view',
+                'tprm.screening.view', 'tprm.screening.decide',
+                'tprm.incident.view',
+                'tprm.report.view', 'tprm.report.export',
                 'period.view',
                 'threshold.view',
                 'measure.view',
@@ -525,6 +632,11 @@ class RiskPermissionCatalog extends PermissionCatalog
             'board-member' => [
                 'risk.view',
                 'report.view',
+                // Read-only. TRD §6.16 makes the third-party programme board
+                // reportable at the top two tiers, so the board needs the
+                // register and the reports and nothing else.
+                'tprm.view',
+                'tprm.report.view',
                 'period.view',
                 'threshold.view',
                 'measure.view',

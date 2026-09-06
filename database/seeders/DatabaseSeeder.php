@@ -97,5 +97,19 @@ class DatabaseSeeder extends Seeder
         /* ------------------------------------------------------------------ */
 
         $this->call(WidgetDashboardSeeder::class);
+
+        /* ------------------------------------------------------------------ */
+        /*  12. TPRM reference libraries (idempotent).                         */
+        /*                                                                     */
+        /*      After RiskCategorySeeder, and the dependency is real rather    */
+        /*      than incidental: the seeder hangs a "Third-Party and           */
+        /*      Outsourcing Risk" area beneath the tenant's Operational Risk   */
+        /*      node so third-party exposure rolls up into the ERM key risk    */
+        /*      areas. Without a taxonomy it degrades — categories seed        */
+        /*      unmapped rather than the run failing — but the mapping is the  */
+        /*      point, so it runs where the taxonomy exists.                   */
+        /* ------------------------------------------------------------------ */
+
+        $this->call(\Database\Seeders\Tprm\TprmReferenceSeeder::class);
     }
 }

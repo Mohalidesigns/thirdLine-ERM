@@ -41,27 +41,41 @@ class PreflightRouteGuardTest extends TestCase
     }
 
     /**
-     * The Livewire upload endpoint is on preflight's allowlist because
-     * something else authorizes it. Pin what that something is, or the
-     * allowlist entry becomes a permanent excuse.
+     * This pinned what authorized Livewire's two framework endpoints, which sat
+     * on preflight's allowlist without permissions of their own — `upload-file`
+     * being an anonymous write into livewire-tmp behind nothing but a URL
+     * signature until WP-12 put `auth` on top of it.
+     *
+     * Migration Phase 6.8 uninstalled livewire/livewire. The endpoints are not
+     * merely guarded now, they are not registered, so the assertion moves from
+     * "this route is authorized" to "there is no such route, and nothing is
+     * being excused on its behalf" — the allowlist entries went with them.
+     * Deleting this test instead would have left the entries unexamined.
      */
     #[Test]
-    public function the_livewire_upload_endpoint_requires_a_session(): void
+    public function no_livewire_endpoint_survives_and_nothing_is_allowlisted_for_one(): void
     {
-        $route = collect(Route::getRoutes())
-            ->first(fn ($r) => $r->uri() === 'livewire/upload-file');
+        $livewireRoutes = collect(Route::getRoutes())
+            ->filter(fn ($r) => str_starts_with($r->uri(), 'livewire/'))
+            ->map(fn ($r) => $r->uri())
+            ->values()
+            ->all();
 
-        $this->assertNotNull($route, 'Livewire is no longer registering its upload route.');
+        $this->assertSame([], $livewireRoutes, 'A livewire/* route is registered after the package was removed.');
 
-        $this->assertContains(
-            'auth',
-            $route->gatherMiddleware(),
-            "POST livewire/upload-file has lost its auth middleware. Livewire's default for "
-            .'temporary_file_upload.middleware is throttle only, which leaves an anonymous '
-            .'write into livewire-tmp behind nothing but a URL signature.'
+        $this->post('/livewire/upload-file')->assertNotFound();
+
+        // And preflight no longer carries an excuse for a route that cannot
+        // exist — a stale allowlist name would silently start excusing whatever
+        // later claimed that URI.
+        $source = file_get_contents(base_path('app/Console/Commands/Preflight.php'));
+
+        $this->assertStringNotContainsString(
+            "'livewire/upload-file'",
+            $source,
+            "preflight still allowlists a route that no longer exists. An allowlist entry's "
+            .'whole value is that it names something real.'
         );
-
-        $this->post('/livewire/upload-file')->assertRedirect('/login');
     }
 
     /**

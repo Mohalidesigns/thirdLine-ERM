@@ -1,34 +1,31 @@
 <?php
 
-namespace App\View\Components;
+namespace App\Services\Metadata;
 
 use App\Models\ObjectAttribute;
 use App\Models\ObjectType;
-use App\Services\Metadata\FormOptionResolver;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
-use Illuminate\View\Component;
 
 /**
- * WP-05 TASK 2 — <x-dynamic-form>
+ * WP-05 TASK 2 — which fields a create/edit form has, and what is in them.
  *
- * Renders the fields of an object type into an enclosing <form>, from
- * object_attributes. It replaces the hand-written field markup of a create or
- * edit pair; it does not replace the controller that receives the post.
+ * Resolves an object type's configured attributes into the field list a form
+ * is built from: which fields exist, which of them the signed-in user may see,
+ * what each posts under, and what its current value is.
  *
- * WHY IT IS NOT LIVEWIRE. The five controllers this feeds already own
- * validation, reference-code generation, tenant checks and transactions —
- * including paths adjacent to the loss-event and quantification work. Moving
- * persistence into a Livewire component to render a form differently would be
- * a rewrite of the write path disguised as a rendering change. The fields post
- * under the same names as before, so the controllers are untouched. (The
- * Livewire DynamicForm still exists for the objects.attributes bag on detail
- * pages; it is reachable as <x-dynamic-attributes>.)
+ * WHY IT IS NOT A VIEW COMPONENT ANY MORE. It was `<x-dynamic-form>` until
+ * migration Phase 6.8 deleted the Blade renderer. Only its render() method was
+ * ever about Blade; everything else answers questions React asks through
+ * FormSchemaPresenter, which has been its main caller since Phase 2. Deleting
+ * the Blade layer without moving this would have taken the schema engine with
+ * it — the presenter instantiated the component and read the answers out
+ * rather than re-deriving them, precisely so the two could not disagree.
  *
  * TWO KINDS OF FIELD COME OUT OF THIS.
  *
- *   A MAPPED field posts under its column name — `name`, `owner_id` — exactly
- *   as the hand-written input did.
+ *   A MAPPED field posts under its column name — `name`, `owner_id` — and is
+ *   validated by the controller's own rule for that column.
  *
  *   An UNMAPPED field, which is what a tenant adds through the builder, posts
  *   under configured_attributes[code] and is persisted by
@@ -36,11 +33,13 @@ use Illuminate\View\Component;
  *   the builder would show it on the form and silently discard what was typed
  *   into it, which is worse than not showing it.
  *
- * ROLE GATING IS SERVER-SIDE. A field the user may not see is not rendered,
- * and PersistsConfiguredAttributes will not accept it on submit either.
- * Conditional visibility, which is a display concern, is Alpine's job.
+ * ROLE GATING IS SERVER-SIDE. A field the user may not see is not in the
+ * schema at all, so the browser never learns it exists, and neither the Form
+ * Request nor PersistsConfiguredAttributes will accept it on submit — all
+ * three ask ObjectAttribute::visibleToCurrentUser(). Conditional visibility
+ * (`visible_when`) is a display rule the client evaluates, and nothing more.
  */
-class DynamicForm extends Component
+class ObjectFormSchema
 {
     public ?ObjectType $objectType;
 
@@ -59,8 +58,9 @@ class DynamicForm extends Component
          * Skip these field codes — for a form that supplies one itself,
          * or for a field the receiving controller does not accept.
          *
-         * Not named `except`: Illuminate\View\Component already owns
-         * that property and a typed redeclaration is a fatal error.
+         * Named `omit` rather than `except` because Illuminate\View\Component
+         * owned that property while this was a view component, and callers
+         * still pass it by name.
          */
         public array $omit = [],
         /** Prefill for a field the caller knows about, e.g. a preselected risk. */
@@ -120,11 +120,6 @@ class DynamicForm extends Component
         return app(FormOptionResolver::class)->isChoice($field);
     }
 
-    public function render()
-    {
-        return view('components.dynamic-form');
-    }
-
     /* ------------------------------------------------------------------ */
     /*  Resolution */
     /* ------------------------------------------------------------------ */
@@ -169,36 +164,9 @@ class DynamicForm extends Component
             // invite a value the server rejects outright.
             ->reject(fn (ObjectAttribute $field) => $field->data_type === 'formula')
             ->reject(fn (ObjectAttribute $field) => $this->mobile && ! $field->show_on_mobile)
-            ->filter(fn (ObjectAttribute $field) => self::visibleToUser($field))
+            ->filter(fn (ObjectAttribute $field) => $field->visibleToCurrentUser())
             ->sortBy([['section', 'asc'], ['sort_order', 'asc']])
             ->values();
-    }
-
-    /**
-     * Whether the signed-in user may see — and therefore set — this field.
-     *
-     * Shared with the Livewire renderer and with
-     * PersistsConfiguredAttributes, because a rule enforced in one of the
-     * three places and not the others is not enforced.
-     */
-    public static function visibleToUser(ObjectAttribute $field): bool
-    {
-        $rules = $field->validation ?? [];
-        $user = auth()->user();
-
-        if (! empty($rules['roles'])) {
-            if ($user === null || ! $user->hasAnyRole((array) $rules['roles'])) {
-                return false;
-            }
-        }
-
-        if (isset($rules['permission'])) {
-            if ($user === null || ! $user->can($rules['permission'])) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /**

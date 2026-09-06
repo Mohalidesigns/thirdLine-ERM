@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Concerns;
 use App\Models\ObjectAttribute;
 use App\Models\ObjectType;
 use App\Models\ObjectVersion;
-use App\View\Components\DynamicForm;
+use App\Rules\UniqueConfiguredAttribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
@@ -63,7 +63,7 @@ trait PersistsConfiguredAttributes
         $writable = $objectType->resolvedAttributes()
             ->reject(fn (ObjectAttribute $attribute) => $attribute->isMapped())
             ->reject(fn (ObjectAttribute $attribute) => $attribute->data_type === 'formula')
-            ->filter(fn (ObjectAttribute $attribute) => DynamicForm::visibleToUser($attribute))
+            ->filter(fn (ObjectAttribute $attribute) => $attribute->visibleToCurrentUser())
             ->filter(fn (ObjectAttribute $attribute) => array_key_exists($attribute->code, $posted));
 
         if ($writable->isEmpty()) {
@@ -72,9 +72,23 @@ trait PersistsConfiguredAttributes
 
         $rules = [];
         $labels = [];
+        $ignoreObjectId = method_exists($record, 'graphObject') ? $record->graphObject()?->id : null;
 
         foreach ($writable as $attribute) {
-            $rules["configured_attributes.{$attribute->code}"] = $attribute->validationRules();
+            $attributeRules = $attribute->validationRules();
+
+            // The same uniqueness rule the Form Request applies. Both passes
+            // must agree: a rule enforced in one of them and not the other is
+            // not enforced, since a controller may reach here without one.
+            if ($attribute->is_unique) {
+                $attributeRules[] = new UniqueConfiguredAttribute(
+                    $attribute,
+                    $objectType->id,
+                    $ignoreObjectId,
+                );
+            }
+
+            $rules["configured_attributes.{$attribute->code}"] = $attributeRules;
             $labels["configured_attributes.{$attribute->code}"] = $attribute->label;
 
             if (($elementRules = $attribute->elementValidationRules()) !== null) {

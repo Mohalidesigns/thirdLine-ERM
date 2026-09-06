@@ -9,12 +9,8 @@ use App\Support\MorphTypes;
 use App\Support\Tenancy\TenantContext;
 use Dedoc\Scramble\Scramble;
 use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
-use Livewire\Livewire;
 use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
@@ -32,13 +28,6 @@ class AppServiceProvider extends ServiceProvider
         // same reason and with the same lifetime as the tenant above.
         $this->app->singleton(\App\Support\Periods\PeriodContext::class);
 
-        // Livewire's runtime is compiled into resources/js/app.js so that the
-        // application has exactly one Alpine (see the comment in that file).
-        // Auto-injection would put a SECOND copy on the page, and the two fight
-        // over Alpine's magics — the visible symptom is
-        // "Cannot redefine property: $persist" and every x-data block on the
-        // page going dead. The layout emits @livewireScriptConfig instead.
-        config(['livewire.inject_assets' => false]);
     }
 
     /**
@@ -73,39 +62,6 @@ class AppServiceProvider extends ServiceProvider
             \App\Http\Middleware\EnsureMfaVerified::class,
         ]);
 
-        // Livewire's component RPC endpoint ships unguarded: `POST
-        // livewire/update` is registered in the `web` group with nothing else.
-        // That is a hole in WP-00 TASK 2's invariant — every web route carries
-        // an authorization guard — because a Livewire component can read and
-        // write anything the component's own code allows.
-        //
-        // dashboard.view is the platform's "may use this application"
-        // permission: RolesAndPermissionsSeeder grants it to every role in its
-        // $baseline, for exactly this reason. Object-level rules stay inside
-        // the components, where they belong; this is the front door.
-        Livewire::setUpdateRoute(fn ($handle) => Route::post('/livewire/update', $handle)
-            ->middleware(['web', 'auth', 'permission:dashboard.view'])
-            ->name('livewire.update'));
-
-        // Share notification bell data with the topbar on every request.
-        View::composer('layouts.partials.topbar', function ($view) {
-            $userId = auth()->id();
-            $recent = $userId
-                ? DB::table('notifications_log')
-                    ->where('user_id', $userId)
-                    ->orderByDesc('created_at')
-                    ->limit(8)
-                    ->get()
-                : collect();
-            $unreadCount = $userId
-                ? DB::table('notifications_log')
-                    ->where('user_id', $userId)
-                    ->whereNull('read_at')
-                    ->count()
-                : 0;
-            $view->with(compact('recent', 'unreadCount'));
-        });
-
         // Super-admin bypass: any `can()` check short-circuits true.
         Gate::before(fn (?User $user, string $ability) => $user?->hasRole('super-admin') ? true : null);
 
@@ -118,8 +74,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Migration Phase 2: the data grid endpoints are guarded per grid.
         // `can:view-grid,grid` on the route hands the {grid} name here, and
-        // the definition's own permission decides — the same check the
-        // Livewire component made on every update.
+        // the definition's own permission decides.
         Gate::define('view-grid', function (User $user, string $grid) {
             try {
                 return $user->can(\App\Grids\GridRegistry::resolve($grid)->permission());

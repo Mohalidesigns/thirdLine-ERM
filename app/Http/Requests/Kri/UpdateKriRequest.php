@@ -43,7 +43,7 @@ class UpdateKriRequest extends FormRequest
             'target_value' => ['nullable', 'numeric'],
             'is_active' => ['nullable', 'boolean'],
             'formula' => ['nullable', 'string', 'max:1000'],
-            ...$this->configuredAttributeRules('KeyRiskIndicator'),
+            ...$this->configuredAttributeRules('KeyRiskIndicator', $this->route('kri')),
         ];
     }
 

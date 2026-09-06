@@ -34,7 +34,7 @@ class UpdateControlRequest extends FormRequest
             'business_unit_id' => ['nullable', Rule::exists('business_units', 'id')->where('organization_id', $orgId)],
             'effectiveness_rating' => ['nullable', Rule::in(Control::EFFECTIVENESS_RATINGS)],
             'status' => ['nullable', Rule::in(Control::STATUSES)],
-            ...$this->configuredAttributeRules('Control'),
+            ...$this->configuredAttributeRules('Control', $this->route('control')),
         ];
     }
 

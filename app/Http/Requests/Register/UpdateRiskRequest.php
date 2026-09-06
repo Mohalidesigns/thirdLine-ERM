@@ -57,7 +57,7 @@ class UpdateRiskRequest extends FormRequest
             'regulatory_tags.*' => ['string', 'max:100'],
             'appetite_category' => ['nullable', 'string', 'max:50'],
             'notes' => ['nullable', 'string', 'max:5000'],
-            ...$this->configuredAttributeRules('Risk'),
+            ...$this->configuredAttributeRules('Risk', $this->route('register')),
         ];
     }
 

@@ -19,13 +19,19 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * from bunny.net; this product serves every asset from its own origin
  * (AssetResidencyTest), so there is nothing a strict policy would break.
  *
- * TODO(phase-6): drop 'unsafe-inline' and 'unsafe-eval' from script-src.
- * Both exist only for the Blade + Livewire screens that the migration
- * programme has not ported yet: 47 Blade views carry inline <script> blocks,
- * and Alpine evaluates its x-data expressions with `new Function`. Once
- * livewire/livewire is gone the Inertia shell needs neither — Ziggy's @routes
- * takes a nonce. SecurityHeadersTest fails the build if either survives the
- * package's removal.
+ * SCRIPT-SRC IS 'self' ALONE, since migration Phase 6.8 — the Phase 0 TODO,
+ * now closed. 'unsafe-inline' and 'unsafe-eval' were there only for the
+ * Blade + Livewire screens: 47 Blade views carried inline <script> blocks, and
+ * Alpine evaluated its x-data expressions with `new Function`. The Inertia
+ * shell needs neither.
+ *
+ * It is UNCONDITIONAL rather than keyed on whether livewire/livewire happens to
+ * be installed, which is what it was between Phase 0 and 6.8. A conditional was
+ * right while the removal was pending — it let the CSP tighten itself the
+ * moment the package left — but keeping it would mean anything that pulled
+ * Livewire back in, a transitive dependency included, silently reopened
+ * script-src on a live deployment. A control that switches itself off when the
+ * conditions change is not a control.
  */
 class SetSecurityHeaders
 {
@@ -73,8 +79,6 @@ class SetSecurityHeaders
             $connect[] = preg_replace('#^http#', 'ws', $hot);
         }
 
-        $scriptSrc = array_merge($self, self::legacyScriptSources());
-
         return implode('; ', [
             "default-src 'self'",
             "base-uri 'self'",
@@ -83,25 +87,10 @@ class SetSecurityHeaders
             "img-src 'self' data: blob:",
             "font-src 'self' data:",
             'style-src '.implode(' ', array_merge($self, ["'unsafe-inline'"])),
-            'script-src '.implode(' ', $scriptSrc),
+            'script-src '.implode(' ', $self),
             'connect-src '.implode(' ', $connect),
             "form-action 'self'",
         ]);
-    }
-
-    /**
-     * The two script-src allowances the Blade + Livewire screens need. Empty
-     * once livewire/livewire is uninstalled — see the class comment.
-     *
-     * @return list<string>
-     */
-    public static function legacyScriptSources(): array
-    {
-        if (! class_exists(\Livewire\Livewire::class)) {
-            return [];
-        }
-
-        return ["'unsafe-inline'", "'unsafe-eval'"];
     }
 
     private function viteDevOrigin(): ?string

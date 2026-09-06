@@ -1,21 +1,22 @@
 <?php
 
-namespace App\View\Components;
+namespace App\Services\Metadata;
 
 use App\Models\ObjectAttribute;
 use App\Models\ObjectType;
-use App\Services\Metadata\FormOptionResolver;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
-use Illuminate\View\Component;
 
 /**
- * WP-05 TASK 2 — <x-dynamic-detail>
+ * WP-05 TASK 2 — how a configured attribute is DISPLAYED on a detail page.
  *
- * The read view of the same metadata that <x-dynamic-form> writes. One
- * definition, so a field added in the builder appears on both without anybody
- * remembering to add it twice — which is how a detail page comes to be missing
- * the field somebody added last quarter.
+ * The read side of the same metadata ObjectFormSchema writes. One definition,
+ * so a field added in the builder appears on both without anybody remembering
+ * to add it twice — which is how a detail page comes to be missing the field
+ * somebody added last quarter.
+ *
+ * Was `<x-dynamic-detail>` until migration Phase 6.8 deleted the Blade
+ * renderer; see ObjectFormSchema for why the class outlived the tag.
  *
  * VALUES ARE DISPLAYED THROUGH THEIR DEFINITION, not raw. An enum shows its
  * human label rather than `semi_automated`; a lookup shows the name of what it
@@ -27,7 +28,7 @@ use Illuminate\View\Component;
  * redaction; a user entitled to open the record is entitled to read it. What
  * the flag does here is tell them what they are looking at.
  */
-class DynamicDetail extends Component
+class ObjectDetailSchema
 {
     public ?ObjectType $objectType;
 
@@ -110,11 +111,6 @@ class DynamicDetail extends Component
         return in_array($field->data_type, ['text', 'json'], true) || $field->width === 'full';
     }
 
-    public function render()
-    {
-        return view('components.dynamic-detail');
-    }
-
     /* ------------------------------------------------------------------ */
 
     private function isBlank(ObjectAttribute $field): bool
@@ -195,7 +191,7 @@ class DynamicDetail extends Component
             ->reject(fn (ObjectAttribute $field) => in_array($field->code, $this->omit, true))
             ->reject(fn (ObjectAttribute $field) => ! $field->show_in_detail)
             ->reject(fn (ObjectAttribute $field) => $this->mobile && ! $field->show_on_mobile)
-            ->filter(fn (ObjectAttribute $field) => DynamicForm::visibleToUser($field))
+            ->filter(fn (ObjectAttribute $field) => $field->visibleToCurrentUser())
             ->sortBy([['section', 'asc'], ['sort_order', 'asc']])
             ->values();
     }

@@ -227,16 +227,13 @@ class Preflight extends Command
             'auth/sso/discover', 'auth/sso/{slug}', 'auth/sso/{slug}/callback',
             'auth/sso/{slug}/acs', 'auth/sso/{slug}/metadata',
 
-            // Livewire's own framework endpoints. Neither takes a permission
-            // because neither maps to a feature: they are the transport under
-            // every screen, and each screen's own route is guarded.
-            //   upload-file  — signature-checked by Livewire, and WP-12 added
-            //                  'auth' on top (config/livewire.php).
-            //   preview-file — signature-checked, read-only, and restricted to
-            //                  temporary_file_upload.preview_mimes. Livewire
-            //                  exposes no middleware hook for this one.
-            'livewire/upload-file',
-            'livewire/preview-file/{filename}',
+            // Livewire's two framework endpoints were here — upload-file and
+            // preview-file/{filename}, neither mapping to a feature and so
+            // neither taking a permission. Migration Phase 6.8 uninstalled
+            // livewire/livewire, so the routes no longer exist and the entries
+            // excused nothing. An allowlist entry for a route that is not
+            // registered is worse than useless: it is a name that would silently
+            // start excusing a real route if one ever claimed that URI.
         ];
 
         $unguarded = [];

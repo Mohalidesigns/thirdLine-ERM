@@ -63,7 +63,7 @@ class UpdateIssueRequest extends FormRequest
             'cbn_response_deadline' => ['nullable', 'date'],
             'regulatory_reportable' => ['nullable', 'boolean'],
             'ndpa_breach_type' => ['nullable', 'string', 'max:100'],
-            ...$this->configuredAttributeRules('Issue'),
+            ...$this->configuredAttributeRules('Issue', $this->route('issue')),
         ];
     }
 

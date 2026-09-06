@@ -469,18 +469,6 @@ parameters:
 			path: app/Listeners/FlagRiskForReview.php
 
 		-
-			message: '#^Relation ''objectType'' is not found in App\\Models\\ObjectLifecycle model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Livewire/Admin/LifecycleBuilder.php
-
-		-
-			message: '#^Relation ''parentType'' is not found in App\\Models\\ObjectType model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Livewire/Admin/ObjectTypeBuilder.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>settings" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -969,12 +957,6 @@ parameters:
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
 			identifier: method.notFound
-			count: 1
-			path: app/Models/ObjectType.php
-
-		-
-			message: '#^Method App\\Models\\ObjectType\:\:resolvedAttributes\(\) should return Illuminate\\Support\\Collection\<string, App\\Models\\ObjectAttribute\> but returns Illuminate\\Support\\Collection\<\(int\|string\), Illuminate\\Database\\Eloquent\\Model\>\.$#'
-			identifier: return.type
 			count: 1
 			path: app/Models/ObjectType.php
 

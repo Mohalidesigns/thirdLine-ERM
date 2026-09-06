@@ -5,6 +5,10 @@ use App\Http\Controllers\Admin\ConfigurationBuilderController;
 use App\Http\Controllers\Admin\ConfigurationBundleController;
 use App\Http\Controllers\Admin\ConnectorController;
 use App\Http\Controllers\Admin\JobRunController;
+use App\Http\Controllers\Admin\Metadata\LifecycleController;
+use App\Http\Controllers\Admin\Metadata\ObjectAttributeController;
+use App\Http\Controllers\Admin\Metadata\ObjectTypeController;
+use App\Http\Controllers\Admin\Metadata\RelationshipTypeController;
 use App\Http\Controllers\Admin\OrganizationSettingsController;
 use App\Http\Controllers\Admin\SsoSettingsController;
 use App\Http\Controllers\Admin\UserManagementController;
@@ -439,10 +443,30 @@ Route::prefix('admin')->middleware(['auth'])->group(function () {
     // shape of every record in the tenant, not a preference.
     Route::middleware('permission:admin.metadata')->group(function () {
         Route::get('builder', [ConfigurationBuilderController::class, 'index'])->name('admin.builder');
-        Route::get('builder/object-types', [ConfigurationBuilderController::class, 'objectTypes'])->name('admin.builder.object-types');
-        Route::get('builder/object-types/{objectType}/attributes', [ConfigurationBuilderController::class, 'attributes'])->name('admin.builder.attributes');
-        Route::get('builder/relationship-types', [ConfigurationBuilderController::class, 'relationshipTypes'])->name('admin.builder.relationship-types');
-        Route::get('builder/lifecycles', [ConfigurationBuilderController::class, 'lifecycles'])->name('admin.builder.lifecycles');
+
+        // Phase 6.3 — the four Livewire builders became pages with ordinary
+        // write routes. The GET names are unchanged, because the sidebar, the
+        // parity checklist and AdminNavigationTest all name them.
+        Route::get('builder/object-types', [ObjectTypeController::class, 'index'])->name('admin.builder.object-types');
+        Route::post('builder/object-types', [ObjectTypeController::class, 'store'])->name('admin.builder.object-types.store');
+        Route::put('builder/object-types/{objectType}', [ObjectTypeController::class, 'update'])->name('admin.builder.object-types.update');
+        Route::delete('builder/object-types/{objectType}', [ObjectTypeController::class, 'destroy'])->name('admin.builder.object-types.destroy');
+
+        Route::get('builder/object-types/{objectType}/attributes', [ObjectAttributeController::class, 'index'])->name('admin.builder.attributes');
+        Route::get('builder/object-types/{objectType}/attributes/{attribute}/impact', [ObjectAttributeController::class, 'impact'])->name('admin.builder.attributes.impact');
+        Route::post('builder/object-types/{objectType}/attributes', [ObjectAttributeController::class, 'store'])->name('admin.builder.attributes.store');
+        Route::put('builder/object-types/{objectType}/attributes/{attribute}', [ObjectAttributeController::class, 'update'])->name('admin.builder.attributes.update');
+        Route::delete('builder/object-types/{objectType}/attributes/{attribute}', [ObjectAttributeController::class, 'destroy'])->name('admin.builder.attributes.destroy');
+
+        Route::get('builder/relationship-types', [RelationshipTypeController::class, 'index'])->name('admin.builder.relationship-types');
+        Route::post('builder/relationship-types', [RelationshipTypeController::class, 'store'])->name('admin.builder.relationship-types.store');
+        Route::put('builder/relationship-types/{relationshipType}', [RelationshipTypeController::class, 'update'])->name('admin.builder.relationship-types.update');
+        Route::delete('builder/relationship-types/{relationshipType}', [RelationshipTypeController::class, 'destroy'])->name('admin.builder.relationship-types.destroy');
+
+        Route::get('builder/lifecycles', [LifecycleController::class, 'index'])->name('admin.builder.lifecycles');
+        Route::post('builder/lifecycles', [LifecycleController::class, 'store'])->name('admin.builder.lifecycles.store');
+        Route::put('builder/lifecycles/{lifecycle}', [LifecycleController::class, 'update'])->name('admin.builder.lifecycles.update');
+        Route::delete('builder/lifecycles/{lifecycle}', [LifecycleController::class, 'destroy'])->name('admin.builder.lifecycles.destroy');
     });
 
     // Redefining what Critical means re-rates the whole register, so it is

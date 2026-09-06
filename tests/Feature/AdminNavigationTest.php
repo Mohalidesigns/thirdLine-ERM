@@ -285,11 +285,16 @@ class AdminNavigationTest extends TestCase
      * highlight has to name one entry.
      *
      * This asserts against the BLADE sidebar, so it can only cover routes
-     * Blade still serves. admin/settings and admin/settings/sso were here
-     * until migration Phase 6.2 flipped them; the React sidebar cannot have
-     * this bug, because SectionItem matches on the exact path
-     * (AuthenticatedLayout's isExact) rather than on a prefix. The builder
-     * routes leave when Phases 6.3 and 6.4 flip them, and this test with them.
+     * Blade still serves. admin/settings and admin/settings/sso left when
+     * migration Phase 6.2 flipped them, and admin/builder when 6.3 did; the
+     * React sidebar cannot have this bug, because SectionItem matches on the
+     * exact path (AuthenticatedLayout's isExact) rather than on a prefix.
+     *
+     * The collision is still worth asserting on the one route left: the
+     * Metadata Builder entry is still IN the Blade sidebar even though its
+     * page is Inertia now, so a naive prefix match on /admin/builder would
+     * still light two entries here. Phase 6.4 flips this route, and this test
+     * goes with it.
      */
     #[Test]
     public function nested_admin_paths_highlight_exactly_one_entry(): void
@@ -299,7 +304,6 @@ class AdminNavigationTest extends TestCase
         $activeClass = 'font-semibold bg-[#D4AF37] text-[#1A365D]';
 
         $nested = [
-            'admin.builder' => 'Metadata Builder',
             'admin.builder.scoring-profiles' => 'Scoring Profiles',
         ];
 

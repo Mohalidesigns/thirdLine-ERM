@@ -5,11 +5,11 @@ Seeded in Phase 0 from `php artisan route:list --json` (188 named GET web routes
 | Route | URI | Permission | Old view | New page | Form Request | Policy | Grid | Widgets | Exports | Tests | Flipped on | Signed off by |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `admin.api-tokens.index` | `admin/api-tokens` | `api.tokens` |  |  |  |  |  |  |  |  |  |  |
-| `admin.builder` | `admin/builder` | `admin.metadata` |  |  |  |  |  |  |  |  |  |  |
-| `admin.builder.attributes` | `admin/builder/object-types/{objectType}/attributes` | `admin.metadata` |  |  |  |  |  |  |  |  |  |  |
-| `admin.builder.lifecycles` | `admin/builder/lifecycles` | `admin.metadata` |  |  |  |  |  |  |  |  |  |  |
-| `admin.builder.object-types` | `admin/builder/object-types` | `admin.metadata` |  |  |  |  |  |  |  |  |  |  |
-| `admin.builder.relationship-types` | `admin/builder/relationship-types` | `admin.metadata` |  |  |  |  |  |  |  |  |  |  |
+| `admin.builder` | `admin/builder` | `admin.metadata` | admin/builder/index.blade.php (deleted) | Pages/Admin/Builder/Index.jsx | n/a | n/a |  |  |  | ObjectTypeBuilderTest, MetadataTenancyTest | 2026-09-06 (Phase 6.3) |  |
+| `admin.builder.attributes` | `admin/builder/object-types/{objectType}/attributes` | `admin.metadata` | admin/builder/attributes.blade.php, livewire/admin/attribute-builder.blade.php (deleted) | Pages/Admin/Builder/Attributes/Edit.jsx | Admin/Metadata/{Store,Update}ObjectAttributeRequest | ObjectAttributePolicy |  |  |  | ObjectTypeBuilderTest, MetadataTenancyTest | 2026-09-06 (Phase 6.3) |  |
+| `admin.builder.lifecycles` | `admin/builder/lifecycles` | `admin.metadata` | admin/builder/lifecycles.blade.php, livewire/admin/lifecycle-builder.blade.php (deleted) | Pages/Admin/Builder/Lifecycles/Edit.jsx | Admin/Metadata/{Store,Update}LifecycleRequest | ObjectLifecyclePolicy |  |  |  | ObjectTypeBuilderTest, MetadataTenancyTest | 2026-09-06 (Phase 6.3) |  |
+| `admin.builder.object-types` | `admin/builder/object-types` | `admin.metadata` | admin/builder/object-types.blade.php, livewire/admin/object-type-builder.blade.php (deleted) | Pages/Admin/Builder/ObjectTypes/Index.jsx | Admin/Metadata/{Store,Update}ObjectTypeRequest | ObjectTypePolicy |  |  |  | ObjectTypeBuilderTest, MetadataTenancyTest | 2026-09-06 (Phase 6.3) |  |
+| `admin.builder.relationship-types` | `admin/builder/relationship-types` | `admin.metadata` | admin/builder/relationship-types.blade.php, livewire/admin/relationship-type-builder.blade.php (deleted) | Pages/Admin/Builder/RelationshipTypes/Index.jsx | Admin/Metadata/{Store,Update}RelationshipTypeRequest | ObjectRelationshipTypePolicy |  |  |  | ObjectTypeBuilderTest, MetadataTenancyTest | 2026-09-06 (Phase 6.3) |  |
 | `admin.builder.scoring-profiles` | `admin/builder/scoring-profiles` | `admin.scoring` |  |  |  |  |  |  |  |  |  |  |
 | `admin.configuration` | `admin/configuration` | `admin.configuration` |  |  |  |  |  |  |  |  |  |  |
 | `admin.configuration.download` | `admin/configuration/{bundle}/download` | `admin.configuration` |  |  |  |  |  |  |  |  |  |  |

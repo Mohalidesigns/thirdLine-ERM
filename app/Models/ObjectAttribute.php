@@ -106,7 +106,8 @@ class ObjectAttribute extends Model
         return null;
     }
 
-    public function objectType()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<ObjectType, $this> */
+    public function objectType(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(ObjectType::class, 'object_type_id');
     }

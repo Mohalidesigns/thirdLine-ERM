@@ -69,6 +69,12 @@ final class Ported
         // Phase 6.2 — organisation and single sign-on settings
         'admin.settings',
         'admin.settings.sso',
+        // Phase 6.3 — metadata builders
+        'admin.builder',
+        'admin.builder.object-types',
+        'admin.builder.attributes',
+        'admin.builder.relationship-types',
+        'admin.builder.lifecycles',
         'risk.emerging.index',
         'risk.reports.library',
         // Phase 5.4

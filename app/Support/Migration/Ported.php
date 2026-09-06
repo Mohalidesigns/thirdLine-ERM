@@ -82,6 +82,8 @@ final class Ported
         // Phase 6.5 — the workflow designer, and the last Livewire screen
         'risk.workflows.create-definition',
         'risk.workflows.edit-definition',
+        // Phase 6.6 — configuration bundles
+        'admin.configuration',
         'risk.emerging.index',
         'risk.reports.library',
         // Phase 5.4

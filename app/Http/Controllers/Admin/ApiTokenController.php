@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Integrations\StoreApiTokenRequest;
 use App\Models\ApiToken;
 use App\Support\Tenancy\TenantContext;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 use InvalidArgumentException;
 use Spatie\Permission\Models\Permission;
 
@@ -29,35 +33,58 @@ class ApiTokenController extends Controller
     {
         $canManage = $request->user()->can('api.tokens.manage');
 
-        return view('admin.api-tokens.index', [
+        Gate::authorize('viewAny', ApiToken::class);
+
+        return Inertia::render('Admin/ApiTokens/Index', [
             // Without api.tokens.manage a user sees only their own tokens.
             // Listing everyone's would show which integrations exist and when
             // they last ran, which is reconnaissance in itself.
             'tokens' => ApiToken::query()
                 ->when(! $canManage, fn ($q) => $q->where('tokenable_id', $request->user()->id))
-                ->with('creator', 'revoker')
+                ->with('creator:id,name', 'revoker:id,name')
                 ->latest()
-                ->get(),
+                ->get()
+                ->map(fn (ApiToken $token) => array_merge($token->only([
+                    'id', 'name', 'description', 'token_type', 'client_id', 'rate_limit_per_minute',
+                ]), [
+                    // Only the hash is stored, so there is nothing to leak here
+                    // even by accident.
+                    'abilities' => array_values((array) ($token->abilities ?? [])),
+                    'expires_at' => $token->expires_at?->toIso8601String(),
+                    'last_used_at' => $token->last_used_at?->toIso8601String(),
+                    // Carbon::parse rather than the cast: larastan reads this
+                    // column as a string (it is declared in casts() on a
+                    // Sanctum parent it cannot see through), and this is the
+                    // shape AuthenticatedSessionController already uses for the
+                    // same reason.
+                    'revoked_at' => $token->revoked_at ? Carbon::parse($token->revoked_at)->toIso8601String() : null,
+                    'created_at' => $token->created_at?->toIso8601String(),
+                    'creator' => $token->getRelationValue('creator')?->name,
+                    'revoker' => $token->getRelationValue('revoker')?->name,
+                    'can_revoke' => Gate::allows('revoke', $token),
+                ]))->values()->all(),
             'canManage' => $canManage,
-            'scopes' => Permission::orderBy('name')->pluck('name'),
+            'scopes' => Permission::orderBy('name')->pluck('name')->values(),
+            'machineLifetime' => [
+                'default_days' => ApiToken::MACHINE_DEFAULT_LIFETIME_DAYS,
+                'max_days' => ApiToken::MACHINE_MAX_LIFETIME_DAYS,
+            ],
+
+            // THE PLAINTEXT IS SHOWN ONCE, on the one request that follows
+            // issuing it, and only on this screen. Only its hash is stored, so
+            // a lost token is reissued rather than recovered.
+            'revealedToken' => fn () => session('revealed_token'),
+            'revealedTokenFor' => fn () => session('revealed_token_for'),
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StoreApiTokenRequest $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:1000',
-            'scopes' => 'required|array|min:1',
-            'scopes.*' => 'string|max:100',
-            'expires_in_days' => 'nullable|integer|min:1|max:3650',
-            'token_type' => 'nullable|in:personal,client_credentials',
-            'rate_limit_per_minute' => 'nullable|integer|min:1|max:10000',
-        ]);
+        $validated = $request->validated();
 
         $isMachine = ($validated['token_type'] ?? 'personal') === ApiToken::TYPE_CLIENT;
 
-        if ($isMachine && ! $request->user()->can('api.tokens.manage')) {
+        if ($isMachine && ! Gate::allows('createMachine', ApiToken::class)) {
             return back()->with('error',
                 'A machine token acts as no user, so its scopes are its whole authority. '
                 .'Issuing one needs the api.tokens.manage permission.');
@@ -153,14 +180,8 @@ class ApiTokenController extends Controller
 
     public function destroy(Request $request, ApiToken $token)
     {
-        abort_unless($token->organization_id === TenantContext::organizationId(), 403);
-
-        // Your own, or anybody's with api.tokens.manage.
-        abort_unless(
-            $token->tokenable_id === $request->user()->id || $request->user()->can('api.tokens.manage'),
-            403,
-            'That token belongs to somebody else.',
-        );
+        // Your own, or anybody's with api.tokens.manage — ApiTokenPolicy.
+        Gate::authorize('revoke', $token);
 
         // Revoked, not deleted. The row is the record that the token existed,
         // what it could do and when it was last used — which is the first thing

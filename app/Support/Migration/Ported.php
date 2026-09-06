@@ -84,6 +84,13 @@ final class Ported
         'risk.workflows.edit-definition',
         // Phase 6.6 — configuration bundles
         'admin.configuration',
+        // Phase 6.7 — integrations
+        'admin.webhooks.index',
+        'admin.webhooks.deliveries',
+        'admin.api-tokens.index',
+        'admin.connectors.index',
+        'admin.connectors.show',
+        'admin.jobs.index',
         'risk.emerging.index',
         'risk.reports.library',
         // Phase 5.4

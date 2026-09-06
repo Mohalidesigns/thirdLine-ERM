@@ -4,8 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\JobRun;
-use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
 
 /**
  * WP-07 TASK 1 — the background jobs screen.
@@ -21,17 +22,32 @@ class JobRunController extends Controller
     {
         $canSeeAll = $request->user()->can('admin.queues');
 
-        return view('admin.jobs.index', [
-            'runs' => JobRun::query()
+        Gate::authorize('viewAny', JobRun::class);
+
+        $runs = JobRun::query()
                 // Without admin.queues you see the jobs you started. A job label
                 // names the record it is about — "Board pack, Q2 2026" — so a
                 // full list would be a list of what everybody is working on.
-                ->when(! $canSeeAll, fn ($q) => $q->where('created_by', $request->user()->id))
-                ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
-                ->with('creator')
-                ->latest()
-                ->paginate(30)
-                ->withQueryString(),
+            ->when(! $canSeeAll, fn ($q) => $q->where('created_by', $request->user()->id))
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
+            ->with('creator:id,name')
+            ->latest()
+            ->paginate(30)
+            ->withQueryString();
+
+        return Inertia::render('Admin/Jobs/Index', [
+            'runs' => $runs->through(fn (JobRun $run) => array_merge($run->only([
+                'id', 'label', 'status', 'progress', 'subject_type', 'subject_id', 'error',
+            ]), [
+                'started_at' => $run->started_at?->toIso8601String(),
+                'finished_at' => $run->finished_at?->toIso8601String(),
+                'created_at' => $run->created_at?->toIso8601String(),
+                'cancel_requested_at' => $run->cancel_requested_at?->toIso8601String(),
+                'creator' => $run->getRelationValue('creator')?->name,
+                'is_finished' => $run->isFinished(),
+                'can_cancel' => ! $run->isFinished() && Gate::allows('cancel', $run),
+            ])),
+            'filters' => ['status' => (string) $request->query('status', '')],
             'canSeeAll' => $canSeeAll,
             'active' => JobRun::query()
                 ->when(! $canSeeAll, fn ($q) => $q->where('created_by', $request->user()->id))
@@ -49,13 +65,8 @@ class JobRunController extends Controller
      */
     public function cancel(Request $request, JobRun $jobRun)
     {
-        abort_unless($jobRun->organization_id === TenantContext::organizationId(), 404);
-
-        abort_unless(
-            $jobRun->created_by === $request->user()->id || $request->user()->can('admin.queues'),
-            403,
-            'That job was started by somebody else.',
-        );
+        // Your own, or anybody's with admin.queues — JobRunPolicy.
+        Gate::authorize('cancel', $jobRun);
 
         if ($jobRun->isFinished()) {
             return back()->with('error', 'That job has already finished.');

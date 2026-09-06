@@ -3,6 +3,12 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Dashboards\StoreDashboardTabRequest;
+use App\Http\Requests\Dashboards\StoreDashboardWidgetRequest;
+use App\Http\Requests\Dashboards\UpdateDashboardLayoutRequest;
+use App\Http\Requests\Dashboards\UpdateDashboardRequest;
+use App\Http\Requests\Dashboards\UpdateDashboardTabRequest;
+use App\Http\Requests\Dashboards\UpdateDashboardWidgetRequest;
 use App\Models\Dashboard;
 use App\Models\ObjectType;
 use App\Models\WidgetDefinition;
@@ -119,15 +125,9 @@ class DashboardBuilderController extends Controller
     /*  Editor actions — each returns to the editor with a flash */
     /* ------------------------------------------------------------------ */
 
-    public function update(Request $request, Dashboard $dashboard)
+    public function update(UpdateDashboardRequest $request, Dashboard $dashboard)
     {
-        $validated = $request->validate([
-            'name' => ['sometimes', 'string', 'max:120'],
-            'object_type_id' => ['sometimes', 'nullable', 'integer'],
-            'role_ids' => ['sometimes', 'nullable', 'array'],
-            'role_ids.*' => ['integer'],
-            'is_default_for_role' => ['sometimes', 'boolean'],
-        ]);
+        $validated = $request->validated();
 
         if (array_key_exists('object_type_id', $validated) && $validated['object_type_id'] !== null
             && ! ObjectType::query()->whereKey($validated['object_type_id'])->exists()) {
@@ -139,18 +139,18 @@ class DashboardBuilderController extends Controller
         return back();
     }
 
-    public function storeTab(Request $request, Dashboard $dashboard)
+    public function storeTab(StoreDashboardTabRequest $request, Dashboard $dashboard)
     {
-        $validated = $request->validate(['label' => ['nullable', 'string', 'max:60']]);
+        $validated = $request->validated();
 
         $code = $this->editor->addTab($dashboard, (string) ($validated['label'] ?? 'New tab'));
 
         return redirect()->route('risk.dashboards.edit', [$dashboard, 'tab' => $code]);
     }
 
-    public function updateTab(Request $request, Dashboard $dashboard, string $tab)
+    public function updateTab(UpdateDashboardTabRequest $request, Dashboard $dashboard, string $tab)
     {
-        $validated = $request->validate(['label' => ['required', 'string', 'max:60']]);
+        $validated = $request->validated();
 
         $this->editor->renameTab($dashboard, $tab, $validated['label']);
 
@@ -164,9 +164,9 @@ class DashboardBuilderController extends Controller
         return redirect()->route('risk.dashboards.edit', $dashboard);
     }
 
-    public function storeWidget(Request $request, Dashboard $dashboard, string $tab)
+    public function storeWidget(StoreDashboardWidgetRequest $request, Dashboard $dashboard, string $tab)
     {
-        $validated = $request->validate(['widget_id' => ['required', 'integer']]);
+        $validated = $request->validated();
 
         $this->editor->addWidget($dashboard, $tab, (int) $validated['widget_id']);
 
@@ -180,9 +180,9 @@ class DashboardBuilderController extends Controller
         return back();
     }
 
-    public function updateWidget(Request $request, Dashboard $dashboard, string $tab, int $position)
+    public function updateWidget(UpdateDashboardWidgetRequest $request, Dashboard $dashboard, string $tab, int $position)
     {
-        $validated = $request->validate(['title' => ['nullable', 'string', 'max:120']]);
+        $validated = $request->validated();
 
         $this->editor->overrideTitle($dashboard, $tab, $position, (string) ($validated['title'] ?? ''));
 
@@ -193,17 +193,9 @@ class DashboardBuilderController extends Controller
      * GridStack's serialisation of one tab: {tab, items: [{position,x,y,w,h}]}
      * — the same shape resources/js/widgets/builder.js always posted.
      */
-    public function updateLayout(Request $request, Dashboard $dashboard)
+    public function updateLayout(UpdateDashboardLayoutRequest $request, Dashboard $dashboard)
     {
-        $validated = $request->validate([
-            'tab' => ['required', 'string'],
-            'items' => ['present', 'array'],
-            'items.*.position' => ['required', 'integer', 'min:0'],
-            'items.*.x' => ['required', 'integer'],
-            'items.*.y' => ['required', 'integer'],
-            'items.*.w' => ['required', 'integer'],
-            'items.*.h' => ['required', 'integer'],
-        ]);
+        $validated = $request->validated();
 
         $this->editor->updateLayout($dashboard, $validated['tab'], $validated['items']);
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Risk;
 
 use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Regulatory\RegulatoryCalendarRequest;
 use App\Http\Requests\Regulatory\StoreCircularRequest;
 use App\Http\Requests\Regulatory\StoreDeadlineRequest;
 use App\Http\Requests\Regulatory\StoreTaxonomyRequest;
@@ -49,14 +50,11 @@ class RegulatoryComplianceController extends Controller
      * whereMonth/whereYear, and the page's own prev/next links are built from
      * them.
      */
-    public function calendar(Request $request)
+    public function calendar(RegulatoryCalendarRequest $request)
     {
         Gate::authorize('viewAny', RegulatoryDeadline::class);
 
-        $validated = $request->validate([
-            'month' => ['nullable', 'integer', 'min:1', 'max:12'],
-            'year' => ['nullable', 'integer', 'min:2000', 'max:2100'],
-        ]);
+        $validated = $request->validated();
 
         $month = (int) ($validated['month'] ?? now()->month);
         $year = (int) ($validated['year'] ?? now()->year);

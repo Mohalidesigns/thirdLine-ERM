@@ -3,6 +3,12 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Ai\DraftControlDescriptionRequest;
+use App\Http\Requests\Ai\DraftKriDescriptionRequest;
+use App\Http\Requests\Ai\DraftRiskStatementRequest;
+use App\Http\Requests\Ai\DraftTreatmentDescriptionRequest;
+use App\Http\Requests\Ai\SuggestControlsRequest;
+use App\Http\Requests\Ai\SuggestKrisRequest;
 use App\Services\LlmService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -49,17 +55,13 @@ class AiToolsController extends Controller
      * POST /risk/ai/tools/risk-statement
      * Body: { scenario: "phishing on tellers" }
      */
-    public function riskStatement(Request $request): JsonResponse
+    public function riskStatement(DraftRiskStatementRequest $request): JsonResponse
     {
         // Local LLM inference on a 3.4B model can exceed PHP's default 30s
         // execution cap. Grant extra budget for this endpoint only.
         @set_time_limit(120);
 
-        $validated = $request->validate([
-            'scenario' => 'required|string|min:3|max:2000',
-            'category' => 'nullable|string|max:100',
-            'business_unit' => 'nullable|string|max:100',
-        ]);
+        $validated = $request->validated();
 
         if (! $this->llm->available()) {
             return response()->json([
@@ -131,16 +133,11 @@ PROMPT;
      *
      * POST /risk/ai/tools/control-recommendations
      */
-    public function controlRecommendations(Request $request): JsonResponse
+    public function controlRecommendations(SuggestControlsRequest $request): JsonResponse
     {
         @set_time_limit(120);
 
-        $validated = $request->validate([
-            'risk_id' => 'nullable|exists:risks,id',
-            'title' => 'required_without:risk_id|string|max:500',
-            'description' => 'required_without:risk_id|string|max:3000',
-            'category' => 'nullable|string|max:100',
-        ]);
+        $validated = $request->validated();
 
         if (! $this->llm->available()) {
             return response()->json(['ok' => false, 'fallback' => true, 'error' => $this->llm->lastError()]);
@@ -239,16 +236,11 @@ PROMPT;
      *
      * POST /risk/ai/tools/kri-suggestions
      */
-    public function kriSuggestions(Request $request): JsonResponse
+    public function kriSuggestions(SuggestKrisRequest $request): JsonResponse
     {
         @set_time_limit(120);
 
-        $validated = $request->validate([
-            'risk_id' => 'nullable|exists:risks,id',
-            'title' => 'required_without:risk_id|string|max:500',
-            'description' => 'required_without:risk_id|string|max:3000',
-            'category' => 'nullable|string|max:100',
-        ]);
+        $validated = $request->validated();
 
         if (! $this->llm->available()) {
             return response()->json(['ok' => false, 'fallback' => true, 'error' => $this->llm->lastError()]);
@@ -453,17 +445,11 @@ PROMPT;
      *
      * POST /risk/ai/tools/control-description
      */
-    public function controlDescription(Request $request): JsonResponse
+    public function controlDescription(DraftControlDescriptionRequest $request): JsonResponse
     {
         @set_time_limit(120);
 
-        $validated = $request->validate([
-            'name' => 'nullable|string|max:200',
-            'scenario' => 'required|string|min:3|max:2000',
-            'control_type' => 'nullable|string|max:50',
-            'control_nature' => 'nullable|string|max:50',
-            'frequency' => 'nullable|string|max:50',
-        ]);
+        $validated = $request->validated();
 
         if (! $this->llm->available()) {
             return response()->json(['ok' => false, 'fallback' => true, 'error' => $this->llm->lastError()]);
@@ -527,16 +513,11 @@ PROMPT;
      *
      * POST /risk/ai/tools/treatment-description
      */
-    public function treatmentDescription(Request $request): JsonResponse
+    public function treatmentDescription(DraftTreatmentDescriptionRequest $request): JsonResponse
     {
         @set_time_limit(120);
 
-        $validated = $request->validate([
-            'scenario' => 'required|string|min:3|max:2000',
-            'title' => 'nullable|string|max:200',
-            'treatment_type' => 'nullable|string|max:50',
-            'risk_id' => 'nullable|exists:risks,id',
-        ]);
+        $validated = $request->validated();
 
         if (! $this->llm->available()) {
             return response()->json(['ok' => false, 'fallback' => true, 'error' => $this->llm->lastError()]);
@@ -609,16 +590,11 @@ PROMPT;
      *
      * POST /risk/ai/tools/kri-description
      */
-    public function kriDescription(Request $request): JsonResponse
+    public function kriDescription(DraftKriDescriptionRequest $request): JsonResponse
     {
         @set_time_limit(120);
 
-        $validated = $request->validate([
-            'scenario' => 'required|string|min:3|max:2000',
-            'name' => 'nullable|string|max:200',
-            'category' => 'nullable|string|max:100',
-            'measurement_unit' => 'nullable|string|max:50',
-        ]);
+        $validated = $request->validated();
 
         if (! $this->llm->available()) {
             return response()->json(['ok' => false, 'fallback' => true, 'error' => $this->llm->lastError()]);

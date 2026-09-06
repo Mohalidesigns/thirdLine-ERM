@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Risk;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\ResolvePeriod;
 use App\Http\Requests\Periods\ReopenPeriodRequest;
+use App\Http\Requests\Periods\SelectPeriodRequest;
 use App\Models\MeasureValue;
 use App\Models\Period;
 use App\Services\PeriodService;
@@ -33,14 +34,9 @@ class PeriodController extends Controller
      * bar are a single link each rather than needing to know what the
      * neighbouring period is.
      */
-    public function select(Request $request)
+    public function select(SelectPeriodRequest $request)
     {
-        $validated = $request->validate([
-            'period' => 'nullable|string|max:64',
-            'type' => 'nullable|in:day,week,month,quarter,half,year,custom',
-            'direction' => 'nullable|in:previous,next,current',
-            'redirect' => 'nullable|string|max:2048',
-        ]);
+        $validated = $request->validated();
 
         $organizationId = TenantContext::organizationId();
         $current = PeriodContext::current();

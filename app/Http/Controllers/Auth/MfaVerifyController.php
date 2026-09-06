@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\VerifyMfaCodeRequest;
 use App\Models\User;
 use App\Support\Auth\Totp;
 use Illuminate\Http\RedirectResponse;
@@ -43,11 +44,9 @@ class MfaVerifyController extends Controller
         ]);
     }
 
-    public function verify(Request $request): RedirectResponse
+    public function verify(VerifyMfaCodeRequest $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'code' => ['required', 'digits:6'],
-        ]);
+        $validated = $request->validated();
 
         $user = $this->subject($request);
 

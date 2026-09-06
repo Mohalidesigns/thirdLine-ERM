@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnsureMfaVerified;
+use App\Http\Requests\Auth\DiscoverSsoRequest;
 use App\Models\OrganizationSsoSetting;
 use App\Services\SsoProvisioningService;
 use App\Support\Sso\OidcProvider;
@@ -141,9 +142,9 @@ class SsoController extends Controller
      * Home-realm discovery: turn an email address into the right sign-in URL
      * so users do not have to know their organization's slug.
      */
-    public function discover(Request $request)
+    public function discover(DiscoverSsoRequest $request)
     {
-        $validated = $request->validate(['email' => 'required|string|max:255']);
+        $validated = $request->validated();
 
         $setting = OrganizationSsoSetting::resolveByEmailDomain($validated['email']);
 
@@ -182,7 +183,7 @@ class SsoController extends Controller
          * (MfaVerifyController completes an already-authenticated session), an
          * unenrolled one is sent to enrol. With the flag off the session is
          * marked verified and they proceed.
-         */        if (EnsureMfaVerified::featureEnabled() && $this->mfaRequiredFor($user)) {
+         */ if (EnsureMfaVerified::featureEnabled() && $this->mfaRequiredFor($user)) {
             $request->session()->forget('mfa_verified');
 
             return redirect()->route($user->mfa_enabled ? 'mfa.verify' : 'mfa.setup');

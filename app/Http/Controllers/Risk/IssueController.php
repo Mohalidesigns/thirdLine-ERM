@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Risk;
 use App\Grids\GridRegistry;
 use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Issues\CompleteRemediationActionRequest;
 use App\Http\Requests\Issues\RejectIssueClosureRequest;
 use App\Http\Requests\Issues\RequestIssueClosureRequest;
 use App\Http\Requests\Issues\StoreIssueRequest;
@@ -12,6 +13,7 @@ use App\Http\Requests\Issues\StoreProgressUpdateRequest;
 use App\Http\Requests\Issues\StoreRemediationActionRequest;
 use App\Http\Requests\Issues\UpdateIssueRequest;
 use App\Http\Requests\Issues\UpdateIssueStatusRequest;
+use App\Http\Requests\Issues\UploadIssueAttachmentRequest;
 use App\Models\BusinessUnit;
 use App\Models\Issue;
 use App\Models\IssueAttachment;
@@ -318,7 +320,7 @@ class IssueController extends Controller
     /**
      * Mark a remediation action as complete.
      */
-    public function completeAction(Request $request, Issue $issue, IssueRemediationAction $action)
+    public function completeAction(CompleteRemediationActionRequest $request, Issue $issue, IssueRemediationAction $action)
     {
         Gate::authorize('recordProgress', $issue);
 
@@ -326,9 +328,7 @@ class IssueController extends Controller
         // or the two ids address different things.
         abort_unless($action->issue_id === $issue->id, 404);
 
-        $validated = $request->validate([
-            'completion_notes' => 'nullable|string|max:2000',
-        ]);
+        $validated = $request->validated();
 
         // `completed_at` and `completed_by` are NOT columns on
         // issue_remediation_actions and are not in its $fillable, so Eloquent
@@ -555,15 +555,11 @@ class IssueController extends Controller
     /**
      * Upload an attachment to an issue.
      */
-    public function uploadAttachment(Request $request, Issue $issue)
+    public function uploadAttachment(UploadIssueAttachmentRequest $request, Issue $issue)
     {
         Gate::authorize('recordProgress', $issue);
 
-        $validated = $request->validate([
-            'file' => 'required|file|max:10240|mimes:pdf,doc,docx,xls,xlsx,csv,png,jpg,jpeg,txt,msg,eml,zip',
-            'document_type' => 'nullable|string|max:50',
-            'is_regulatory' => 'nullable|boolean',
-        ]);
+        $validated = $request->validated();
 
         $file = $request->file('file');
         $path = $file->store("issue-attachments/{$issue->id}", 'local');

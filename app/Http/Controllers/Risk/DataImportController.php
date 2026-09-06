@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Risk;
 use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Imports\ProcessImportRequest;
+use App\Http\Requests\Imports\UploadImportFileRequest;
 use App\Jobs\ProcessDataImportJob;
 use App\Models\DataImport;
 use App\Presenters\GridPresenter;
@@ -69,12 +70,8 @@ class DataImportController extends Controller
      * now live in FileUploadService::PROFILE_DATA_IMPORT so that the request
      * rules and the storage-time check come from one definition.
      */
-    public function upload(Request $request)
+    public function upload(UploadImportFileRequest $request)
     {
-        $request->validate([
-            'file' => $this->uploads->rules(FileUploadService::PROFILE_DATA_IMPORT),
-            'import_type' => 'required|in:risks,controls,loss_events,issues,kris',
-        ]);
 
         $file = $request->file('file');
 

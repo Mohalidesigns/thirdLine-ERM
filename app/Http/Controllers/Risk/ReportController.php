@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Risk;
 use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Reports\GenerateCustomReportRequest;
+use App\Http\Requests\Reports\QueueReportRequest;
+use App\Http\Requests\Reports\UpdateBoardPackSectionsRequest;
 use App\Jobs\GenerateReportJob;
 use App\Models\BusinessUnit;
 use App\Models\Control;
@@ -490,18 +492,11 @@ class ReportController extends Controller
      * On a real register that exceeds a web request's execution limit, and the
      * user gets a blank page rather than a document.
      */
-    public function queue(Request $request, BoardPackAssembler $assembler)
+    public function queue(QueueReportRequest $request, BoardPackAssembler $assembler)
     {
         $orgId = TenantContext::organizationId();
 
-        $validated = $request->validate([
-            'report_type' => 'required|in:'.implode(',', GenerateReportJob::TYPES),
-            'name' => 'nullable|string|max:200',
-            // Only formats the renderer actually produces. The old validation
-            // accepted pdf, excel, html and pptx and wrote a CSV for all four.
-            'format' => 'nullable|in:'.implode(',', DocumentRenderer::SUPPORTED).',excel',
-            'as_at' => 'nullable|date',
-        ]);
+        $validated = $request->validated();
 
         $type = $validated['report_type'];
         $asAt = isset($validated['as_at']) ? Carbon::parse($validated['as_at']) : now();
@@ -619,12 +614,9 @@ class ReportController extends Controller
         ]);
     }
 
-    public function updateBoardPackSections(Request $request, BoardPackAssembler $assembler)
+    public function updateBoardPackSections(UpdateBoardPackSectionsRequest $request, BoardPackAssembler $assembler)
     {
-        $validated = $request->validate([
-            'sections' => 'required|array|min:1',
-            'sections.*' => 'string|in:'.implode(',', array_keys(BoardPackAssembler::SECTIONS)),
-        ]);
+        $validated = $request->validated();
 
         $organization = Organization::findOrFail(TenantContext::organizationId());
 

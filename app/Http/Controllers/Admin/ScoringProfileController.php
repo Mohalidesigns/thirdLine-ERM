@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Scoring\PreviewBandsRequest;
+use App\Http\Requests\Admin\Scoring\ValidateFormulaRequest;
 use App\Http\Requests\Admin\StoreScoringProfileRequest;
 use App\Http\Requests\Admin\UpdateScoringProfileRequest;
 use App\Models\ObjectType;
@@ -11,7 +13,6 @@ use App\Models\ScoringProfile;
 use App\Services\CurrencyService;
 use App\Services\FormulaEvaluator;
 use App\Support\Scoring\ScoringProfileTemplates;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -168,15 +169,9 @@ class ScoringProfileController extends Controller
      * Whether a residual formula can be evaluated, asked while the operator is
      * still typing it.
      */
-    public function validateFormula(Request $request)
+    public function validateFormula(ValidateFormulaRequest $request)
     {
-        Gate::authorize('create', ScoringProfile::class);
-
-        $validated = $request->validate([
-            'formula' => ['required', 'string', 'max:500'],
-            'matrix_rows' => ['nullable', 'integer', 'min:3', 'max:10'],
-            'matrix_cols' => ['nullable', 'integer', 'min:3', 'max:10'],
-        ]);
+        $validated = $request->validated();
 
         $maxScore = (int) ($validated['matrix_rows'] ?? 5) * (int) ($validated['matrix_cols'] ?? 5);
 
@@ -201,18 +196,9 @@ class ScoringProfileController extends Controller
     /**
      * How many risks move band if these bands are saved as they stand.
      */
-    public function preview(Request $request)
+    public function preview(PreviewBandsRequest $request)
     {
-        Gate::authorize('create', ScoringProfile::class);
-
-        $validated = $request->validate([
-            'matrix_rows' => ['required', 'integer', 'min:3', 'max:10'],
-            'matrix_cols' => ['required', 'integer', 'min:3', 'max:10'],
-            'rating_bands' => ['required', 'array', 'min:1'],
-            'rating_bands.*.label' => ['required', 'string', 'max:60'],
-            'rating_bands.*.min' => ['required', 'integer', 'min:0'],
-            'rating_bands.*.max' => ['required', 'integer', 'min:0'],
-        ]);
+        $validated = $request->validated();
 
         $bands = collect($validated['rating_bands'])->sortBy('min')->values()->all();
 

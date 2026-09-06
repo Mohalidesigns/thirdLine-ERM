@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\SendPasswordResetLinkRequest;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -30,9 +30,8 @@ class PasswordResetLinkController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(SendPasswordResetLinkRequest $request): RedirectResponse
     {
-        $request->validate(['email' => ['required', 'email']]);
 
         // The answer never reveals whether the address exists.
         $status = 'If that email exists, a reset link has been sent.';

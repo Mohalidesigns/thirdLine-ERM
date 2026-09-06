@@ -10,6 +10,7 @@ use App\Http\Requests\LossEvents\StoreNearMissRequest;
 use App\Http\Requests\LossEvents\SubmitLossEventApprovalRequest;
 use App\Http\Requests\LossEvents\UpdateLossEventRequest;
 use App\Http\Requests\LossEvents\UpdateLossEventStatusRequest;
+use App\Http\Requests\LossEvents\UploadLossEventAttachmentRequest;
 use App\Models\BusinessUnit;
 use App\Models\LossEvent;
 use App\Models\LossEventApproval;
@@ -277,7 +278,7 @@ class LossEventController extends Controller
     /**
      * Upload an attachment for a loss event.
      */
-    public function uploadAttachment(Request $request, LossEvent $lossEvent)
+    public function uploadAttachment(UploadLossEventAttachmentRequest $request, LossEvent $lossEvent)
     {
         Gate::authorize('recordRca', $lossEvent);
 
@@ -300,11 +301,7 @@ class LossEventController extends Controller
         //
         // The 20 MB cap is unchanged; see the profile for why it is wider than
         // the other endpoints' 10 MB.
-        $validated = $request->validate([
-            'file' => $this->uploads->rules(FileUploadService::PROFILE_LOSS_EVENT_ATTACHMENT),
-            'document_type' => 'nullable|string|max:50',
-            'is_regulatory' => 'nullable|boolean',
-        ]);
+        $validated = $request->validated();
 
         $stored = $this->uploads->store(
             $validated['file'],

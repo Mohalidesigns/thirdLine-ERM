@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Widgets\WidgetContextRequest;
 use App\Models\GraphObject;
 use App\Models\WidgetDefinition;
 use App\Presenters\WidgetPayloadPresenter;
 use App\Services\Widgets\WidgetContext;
 use App\Services\Widgets\WidgetDataService;
-use Illuminate\Http\Request;
 
 /**
  * One widget's payload, on demand (migration Phase 2 — what the Livewire
@@ -26,7 +26,7 @@ class WidgetController extends Controller
         private readonly WidgetPayloadPresenter $payloads,
     ) {}
 
-    public function payload(Request $request, WidgetDefinition $widget)
+    public function payload(WidgetContextRequest $request, WidgetDefinition $widget)
     {
         return response()->json($this->payloads->present($this->render($request, $widget), $widget, [
             'node' => $request->integer('node') ?: null,
@@ -35,7 +35,7 @@ class WidgetController extends Controller
         ]));
     }
 
-    public function export(Request $request, WidgetDefinition $widget)
+    public function export(WidgetContextRequest $request, WidgetDefinition $widget)
     {
         $payload = $this->render($request, $widget);
         $rows = $this->flatten($payload['data'] ?? []);
@@ -55,13 +55,9 @@ class WidgetController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function render(Request $request, WidgetDefinition $widget): array
+    private function render(WidgetContextRequest $request, WidgetDefinition $widget): array
     {
-        $validated = $request->validate([
-            'node' => ['nullable', 'integer'],
-            'filters' => ['nullable', 'array'],
-            'overrides' => ['nullable', 'array'],
-        ]);
+        $validated = $request->validated();
 
         // The tenant global scope makes a foreign node id resolve to nothing,
         // which the engine renders as "no node" rather than another tenant's.

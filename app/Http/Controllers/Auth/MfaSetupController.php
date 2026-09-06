@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\ConfirmMfaEnrolmentRequest;
 use App\Support\Auth\Totp;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -42,11 +43,9 @@ class MfaSetupController extends Controller
         ]);
     }
 
-    public function enable(Request $request): RedirectResponse
+    public function enable(ConfirmMfaEnrolmentRequest $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'code' => ['required', 'digits:6'],
-        ]);
+        $validated = $request->validated();
 
         $secret = $request->session()->get(self::SESSION_SECRET);
 

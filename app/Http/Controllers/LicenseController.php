@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\License\ActivateLicenseRequest;
+use App\Http\Requests\License\OfflineActivateLicenseRequest;
 use App\Models\User;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use ThirdLine\Platform\Licensing\DeviceFingerprint;
@@ -125,11 +126,8 @@ class LicenseController extends Controller
     /**
      * Activate license with a license key (online activation).
      */
-    public function activate(Request $request)
+    public function activate(ActivateLicenseRequest $request)
     {
-        $request->validate([
-            'license_key' => 'required|string|min:10',
-        ]);
 
         $result = $this->licenseManager->activate($request->license_key);
 
@@ -145,11 +143,8 @@ class LicenseController extends Controller
     /**
      * Offline activation — upload a signed license file.
      */
-    public function offlineActivate(Request $request)
+    public function offlineActivate(OfflineActivateLicenseRequest $request)
     {
-        $request->validate([
-            'license_file' => 'required|file|max:1024',
-        ]);
 
         $content = file_get_contents($request->file('license_file')->getRealPath());
 

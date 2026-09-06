@@ -35,3 +35,19 @@ Thumbs.db
 *.zip
 /storage/licensing/*
 !/storage/licensing/.gitignore
+
+# ─────────────────────────────────────────────────────────────────
+# Migration Phase 7.3 — untracked, kept on disk.
+#
+# /risk, /plans/ and /erm-update/ were ALREADY listed above and still tracked:
+# .gitignore does not untrack what is already in the index, so a 916K SQLite
+# database, a 3.4M competitor marketing PDF and eleven product screenshots sat
+# in every clone regardless. `git rm --cached` is what actually removed them.
+#
+# The PROSE from both folders moved to docs/history/ and is tracked there — the
+# ERM remodel master plan and the WP-00..WP-08 execution pack are why the code
+# is shaped the way it is, and that is worth keeping.
+# ─────────────────────────────────────────────────────────────────
+/Atheris_ERM_Demo_Guide_IT_Risk.docx
+/Competitive_Analysis_Risk_ERM.xlsx.py
+.~lock.*#

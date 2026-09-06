@@ -8,6 +8,9 @@ use App\Grids\GridQuery;
 use App\Grids\GridRegistry;
 use App\Grids\GridState;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Grid\BulkGridActionRequest;
+use App\Http\Requests\Grid\StoreGridViewRequest;
+use App\Http\Requests\Grid\UpdateGridCellRequest;
 use App\Models\DataGridView;
 use App\Presenters\GridPresenter;
 use Illuminate\Http\Request;
@@ -35,15 +38,11 @@ class GridController extends Controller
     }
 
     /** Inline edit: one declared-editable cell, one declared value. */
-    public function cell(Request $request, string $grid)
+    public function cell(UpdateGridCellRequest $request, string $grid)
     {
         $definition = GridRegistry::resolve($grid);
 
-        $validated = $request->validate([
-            'id' => ['required'],
-            'key' => ['required', 'string'],
-            'value' => ['nullable', 'string', 'max:5000'],
-        ]);
+        $validated = $request->validated();
 
         $column = $definition->column($validated['key']);
 
@@ -70,7 +69,7 @@ class GridController extends Controller
     }
 
     /** Run a bulk action over the selection (or over every matching row). */
-    public function bulk(Request $request, string $grid, string $action)
+    public function bulk(BulkGridActionRequest $request, string $grid, string $action)
     {
         $definition = GridRegistry::resolve($grid);
 
@@ -79,11 +78,7 @@ class GridController extends Controller
         abort_if($bulk === null, 404);
         abort_if($bulk->permission && ! $request->user()->can($bulk->permission), 403);
 
-        $validated = $request->validate([
-            'ids' => ['array'],
-            'ids.*' => ['string'],
-            'all' => ['nullable', 'boolean'],
-        ]);
+        $validated = $request->validated();
 
         $query = $definition->query();
 
@@ -108,14 +103,11 @@ class GridController extends Controller
     }
 
     /** Save the current state as a named personal view. */
-    public function storeView(Request $request, string $grid)
+    public function storeView(StoreGridViewRequest $request, string $grid)
     {
         $definition = GridRegistry::resolve($grid);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:120'],
-            'as_default' => ['nullable', 'boolean'],
-        ]);
+        $validated = $request->validated();
 
         $state = GridState::fromRequest($definition, $request, $request->user()->id);
 

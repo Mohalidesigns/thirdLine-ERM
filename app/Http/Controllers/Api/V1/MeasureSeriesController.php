@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\MeasureSeriesRequest;
 use App\Models\Measure;
 use App\Models\Period;
 use App\Services\MeasureService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
@@ -22,17 +22,11 @@ class MeasureSeriesController extends Controller
 {
     public function __construct(private MeasureService $measures) {}
 
-    public function show(Request $request, Measure $measure): JsonResponse
+    public function show(MeasureSeriesRequest $request, Measure $measure): JsonResponse
     {
         abort_unless($measure->organization_id === TenantContext::organizationId(), 404, 'Not found.');
 
-        $validated = $request->validate([
-            'object_id' => 'required|integer',
-            'scenario' => 'nullable|string|max:20',
-            'from' => 'nullable|date',
-            'to' => 'nullable|date',
-            'period_type' => 'nullable|string|max:20',
-        ]);
+        $validated = $request->validated();
 
         $periods = Period::query()
             ->when($validated['period_type'] ?? null, fn ($q, $type) => $q->where('type', $type))

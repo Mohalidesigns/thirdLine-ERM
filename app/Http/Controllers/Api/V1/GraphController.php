@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\RelatedObjectsRequest;
 use App\Models\GraphObject;
 use App\Services\Graph\GraphQueryService;
 use Illuminate\Database\Eloquent\Collection;
@@ -54,15 +55,11 @@ class GraphController extends Controller
      * Objects reached by following a typed relationship — 'mitigates',
      * 'assures', 'depends_on'.
      */
-    public function related(Request $request, GraphObject $object): JsonResponse
+    public function related(RelatedObjectsRequest $request, GraphObject $object): JsonResponse
     {
         $this->assertSameTenant($object);
 
-        $validated = $request->validate([
-            'relationship' => 'required|string|max:60',
-            'direction' => 'nullable|in:out,in',
-            'depth' => 'nullable|integer|min:1|max:5',
-        ]);
+        $validated = $request->validated();
 
         return $this->collection(
             $this->graph->related(

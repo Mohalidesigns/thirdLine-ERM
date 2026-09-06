@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Risk;
 use App\Grids\GridRegistry;
 use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Assessments\ApproveRiskAssessmentRequest;
 use App\Http\Requests\Assessments\PreviewAssessmentRequest;
+use App\Http\Requests\Assessments\RejectRiskAssessmentRequest;
 use App\Http\Requests\Assessments\StoreAssessmentRequest;
 use App\Http\Requests\Assessments\UpdateAssessmentRequest;
 use App\Models\RiskAssessment;
@@ -254,7 +256,7 @@ class RiskAssessmentController extends Controller
             ->with('success', 'Assessment submitted for review.');
     }
 
-    public function approve(Request $request, RiskAssessment $assessment, ModuleApprovals $approvals)
+    public function approve(ApproveRiskAssessmentRequest $request, RiskAssessment $assessment, ModuleApprovals $approvals)
     {
         $this->abortUnlessNodeVisibleThrough($assessment, 'risk');
         Gate::authorize('approve', $assessment);
@@ -263,7 +265,7 @@ class RiskAssessmentController extends Controller
             return back()->with('error', 'Only in-review assessments can be approved.');
         }
 
-        $validated = $request->validate(['comments' => 'nullable|string|max:1000']);
+        $validated = $request->validated();
 
         // WP-06. Pushing the approved scores onto the parent risk and firing
         // AssessmentApproved now lives in RiskAssessmentBinding, so it happens
@@ -279,7 +281,7 @@ class RiskAssessmentController extends Controller
             ->with('success', 'Assessment approved and risk scores updated.');
     }
 
-    public function reject(Request $request, RiskAssessment $assessment, ModuleApprovals $approvals)
+    public function reject(RejectRiskAssessmentRequest $request, RiskAssessment $assessment, ModuleApprovals $approvals)
     {
         $this->abortUnlessNodeVisibleThrough($assessment, 'risk');
         Gate::authorize('reject', $assessment);
@@ -288,7 +290,7 @@ class RiskAssessmentController extends Controller
             return back()->with('error', 'Only in-review assessments can be rejected.');
         }
 
-        $validated = $request->validate(['rejection_reason' => 'required|string|max:2000']);
+        $validated = $request->validated();
 
         // The reason lands on review_comments either way — the binding writes
         // it — and the decision timeline now lives on the workflow instance

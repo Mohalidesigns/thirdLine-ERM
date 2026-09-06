@@ -285,16 +285,14 @@ class AdminNavigationTest extends TestCase
      * highlight has to name one entry.
      *
      * This asserts against the BLADE sidebar, so it can only cover routes
-     * Blade still serves. admin/settings and admin/settings/sso left when
-     * migration Phase 6.2 flipped them, and admin/builder when 6.3 did; the
-     * React sidebar cannot have this bug, because SectionItem matches on the
-     * exact path (AuthenticatedLayout's isExact) rather than on a prefix.
+     * Blade still serves, and the migration keeps taking them away:
+     * admin/settings and admin/settings/sso left in Phase 6.2, admin/builder
+     * in 6.3, admin/builder/scoring-profiles in 6.4. The React sidebar cannot
+     * have this bug at all, because SectionItem matches on the exact path
+     * (AuthenticatedLayout's isExact) rather than on a prefix.
      *
-     * The collision is still worth asserting on the one route left: the
-     * Metadata Builder entry is still IN the Blade sidebar even though its
-     * page is Inertia now, so a naive prefix match on /admin/builder would
-     * still light two entries here. Phase 6.4 flips this route, and this test
-     * goes with it.
+     * What is left is the integrations group, whose deliveries page sits under
+     * its index. Phase 6.7 flips those, and this test goes with them.
      */
     #[Test]
     public function nested_admin_paths_highlight_exactly_one_entry(): void
@@ -303,12 +301,21 @@ class AdminNavigationTest extends TestCase
 
         $activeClass = 'font-semibold bg-[#D4AF37] text-[#1A365D]';
 
+        $webhook = \App\Models\WebhookSubscription::create([
+            'organization_id' => $this->organization->id,
+            'name' => 'Nav fixture',
+            'url' => 'https://example.test/hook',
+            'secret' => 'shhh',
+            'events' => ['risk.created'],
+            'is_active' => true,
+        ]);
+
         $nested = [
-            'admin.builder.scoring-profiles' => 'Scoring Profiles',
+            'admin.webhooks.deliveries' => ['Webhooks', [$webhook]],
         ];
 
-        foreach ($nested as $routeName => $label) {
-            $html = $this->actingAs($this->actor)->get(route($routeName))->assertOk()->getContent();
+        foreach ($nested as $routeName => [$label, $parameters]) {
+            $html = $this->actingAs($this->actor)->get(route($routeName, $parameters))->assertOk()->getContent();
 
             $this->assertSame(
                 1,

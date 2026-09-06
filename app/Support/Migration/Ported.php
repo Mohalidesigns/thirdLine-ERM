@@ -75,6 +75,10 @@ final class Ported
         'admin.builder.attributes',
         'admin.builder.relationship-types',
         'admin.builder.lifecycles',
+        // Phase 6.4 — scoring profiles
+        'admin.builder.scoring-profiles',
+        'admin.scoring-profiles.create',
+        'admin.scoring-profiles.edit',
         'risk.emerging.index',
         'risk.reports.library',
         // Phase 5.4

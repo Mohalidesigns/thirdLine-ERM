@@ -36,18 +36,6 @@ class ConfigurationBuilderController extends Controller
     }
 
     /**
-     * The scoring profile builder, which is still Livewire.
-     *
-     * Phase 6.4 flips it; until then this shell keeps the route, the
-     * permission and the layout, which is what every builder action here did
-     * before Phase 6.3.
-     */
-    public function scoringProfiles()
-    {
-        return view('admin.builder.scoring-profiles');
-    }
-
-    /**
      * @return list<array<string, mixed>>
      */
     private function cards(): array

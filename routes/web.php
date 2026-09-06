@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\Metadata\ObjectAttributeController;
 use App\Http\Controllers\Admin\Metadata\ObjectTypeController;
 use App\Http\Controllers\Admin\Metadata\RelationshipTypeController;
 use App\Http\Controllers\Admin\OrganizationSettingsController;
+use App\Http\Controllers\Admin\ScoringProfileController;
 use App\Http\Controllers\Admin\SsoSettingsController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WebhookController;
@@ -472,7 +473,17 @@ Route::prefix('admin')->middleware(['auth'])->group(function () {
     // Redefining what Critical means re-rates the whole register, so it is
     // grantable separately from the rest of the builder.
     Route::middleware('permission:admin.scoring')->group(function () {
-        Route::get('builder/scoring-profiles', [ConfigurationBuilderController::class, 'scoringProfiles'])->name('admin.builder.scoring-profiles');
+        Route::get('builder/scoring-profiles', [ScoringProfileController::class, 'index'])->name('admin.builder.scoring-profiles');
+        Route::get('builder/scoring-profiles/create', [ScoringProfileController::class, 'create'])->name('admin.scoring-profiles.create');
+        Route::get('builder/scoring-profiles/{scoringProfile}/edit', [ScoringProfileController::class, 'edit'])->name('admin.scoring-profiles.edit');
+        Route::post('builder/scoring-profiles', [ScoringProfileController::class, 'store'])->name('admin.scoring-profiles.store');
+        Route::put('builder/scoring-profiles/{scoringProfile}', [ScoringProfileController::class, 'update'])->name('admin.scoring-profiles.update');
+        Route::delete('builder/scoring-profiles/{scoringProfile}', [ScoringProfileController::class, 'destroy'])->name('admin.scoring-profiles.destroy');
+
+        // Asked while the operator is still typing: whether the residual
+        // formula evaluates, and how many risks the bands would move.
+        Route::post('builder/scoring-profiles/validate-formula', [ScoringProfileController::class, 'validateFormula'])->name('admin.scoring-profiles.validate-formula');
+        Route::post('builder/scoring-profiles/preview', [ScoringProfileController::class, 'preview'])->name('admin.scoring-profiles.preview');
     });
 
     // Configuration bundles: export, diff, import, rollback. The narrowest

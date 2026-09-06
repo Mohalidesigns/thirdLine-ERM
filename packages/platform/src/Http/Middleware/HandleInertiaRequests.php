@@ -3,6 +3,7 @@
 namespace ThirdLine\Platform\Http\Middleware;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
 use Spatie\Permission\Models\Permission;
@@ -53,6 +54,22 @@ abstract class HandleInertiaRequests extends Middleware
     }
 
     /**
+     * Extra keys for the `auth` bag, for a product that needs them.
+     *
+     * A hook rather than letting a subclass replace `auth` outright, which is
+     * what the first consumer would otherwise have had to do: ThirdLine adds
+     * `navScope` and `landingRoute`, and overriding the whole bag to get them
+     * means re-specifying `user` — the one shape this class exists to keep
+     * safe. Adding to it is allowed; widening what `user` contains is not.
+     *
+     * @return array<string, mixed>
+     */
+    protected function additionalAuthProps(Request $request): array
+    {
+        return [];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     protected function platformProps(Request $request): array
@@ -69,6 +86,12 @@ abstract class HandleInertiaRequests extends Middleware
                 ] : null,
                 'roles' => $user ? $user->getRoleNames()->values()->all() : [],
                 'permissions' => $user ? $this->permissionsFor($user) : [],
+                // `user` is stripped from the hook's return deliberately. The
+                // spread happens last, so without this a subclass could hand
+                // back ['user' => $model] and quietly undo the one guarantee
+                // this class makes. A hook that can be used to defeat the rule
+                // it is attached to is not a hook, it is a loophole.
+                ...Arr::except($this->additionalAuthProps($request), ['user']),
             ],
 
             // Flashed input, for forms that post natively rather than through

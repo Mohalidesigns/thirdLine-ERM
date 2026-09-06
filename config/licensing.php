@@ -18,4 +18,10 @@ return [
     // under-report seat usage to the licence server rather than fail.
     'user_model' => App\Models\User::class,
 
+    // The licence screen an unlicensed user is redirected to. This product
+    // calls it admin.license; ThirdLine calls the same screen `license`, which
+    // is why the package no longer names either.
+    'recovery_route' => 'admin.license',
+    'home_route' => 'risk.dashboard',
+
 ];

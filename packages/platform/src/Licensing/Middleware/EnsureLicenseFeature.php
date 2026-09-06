@@ -2,10 +2,11 @@
 
 namespace ThirdLine\Platform\Licensing\Middleware;
 
-use ThirdLine\Platform\Licensing\LicenseManager;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use ThirdLine\Platform\Licensing\LicenseManager;
+use ThirdLine\Platform\Licensing\LicensingConfig;
 
 class EnsureLicenseFeature
 {
@@ -32,8 +33,9 @@ class EnsureLicenseFeature
                 ], 403);
             }
 
-            return redirect()->route('risk.dashboard')
-                ->with('error', "The '{$feature}' module is not included in your current license plan. Please upgrade your license.");
+            return LicensingConfig::redirectHome(
+                "The '{$feature}' module is not included in your current license plan. Please upgrade your license."
+            );
         }
 
         return $next($request);

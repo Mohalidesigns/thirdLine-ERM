@@ -16,6 +16,19 @@ return [
     'user_model' => null,
 
     /*
+    | The route name serving this application's licence screen. An unlicensed
+    | user is redirected here and routes under this prefix stay reachable, so
+    | they are not trapped. No default: the risk product calls it
+    | `admin.license` and ThirdLine calls it `license`.
+    */
+
+    'recovery_route' => null,
+
+    // Where a user lands when a MODULE is not licensed: they still have a
+    // working deployment, just not that feature.
+    'home_route' => null,
+
+    /*
     |--------------------------------------------------------------------------
     | Licensing Server Connection
     |--------------------------------------------------------------------------

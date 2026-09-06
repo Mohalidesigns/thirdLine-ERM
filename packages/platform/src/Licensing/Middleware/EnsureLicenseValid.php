@@ -2,10 +2,11 @@
 
 namespace ThirdLine\Platform\Licensing\Middleware;
 
-use ThirdLine\Platform\Licensing\LicenseManager;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use ThirdLine\Platform\Licensing\LicenseManager;
+use ThirdLine\Platform\Licensing\LicensingConfig;
 
 class EnsureLicenseValid
 {
@@ -23,7 +24,7 @@ class EnsureLicenseValid
         // must stay reachable while unlicensed/locked. This also prevents a redirect
         // loop when the gate is applied to the same group that serves settings.license.
         $name = $request->route()?->getName() ?? '';
-        if (str_starts_with($name, 'admin.license')
+        if (str_starts_with($name, LicensingConfig::recoveryRoute())
             || str_starts_with($name, 'profile.')
             || $name === 'logout') {
             return $next($request);
@@ -40,8 +41,7 @@ class EnsureLicenseValid
                 ], 403);
             }
 
-            return redirect()->route('admin.license')
-                ->with('error', 'Please activate your license to continue.');
+            return LicensingConfig::redirectToRecovery('Please activate your license to continue.');
         }
 
         // If locked mode (tampered, revoked, grace expired), block everything
@@ -53,8 +53,9 @@ class EnsureLicenseValid
                 ], 403);
             }
 
-            return redirect()->route('admin.license')
-                ->with('error', $status['message'] ?? 'Your license is locked. Please contact support.');
+            return LicensingConfig::redirectToRecovery(
+                $status['message'] ?? 'Your license is locked. Please contact support.'
+            );
         }
 
         // If requiredMode is 'write' and we're in read_only, block writes

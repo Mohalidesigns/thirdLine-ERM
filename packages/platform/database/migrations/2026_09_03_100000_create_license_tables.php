@@ -6,7 +6,29 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Both tables are guarded by hasTable(), which a migration inside an
+     * APPLICATION would never need.
+     *
+     * A package migration lands in consumers that may already have these tables
+     * from their own history — ThirdLine created them in March 2026, months
+     * before this package existed, and its rows are live. Without the guard,
+     * opting into LicensingServiceProvider would fail that install on
+     * "table license_stores already exists" and there would be nothing the
+     * operator could do about it short of editing a vendor file.
+     */
     public function up(): void
+    {
+        if (! Schema::hasTable('license_stores')) {
+            $this->createLicenseStores();
+        }
+
+        if (! Schema::hasTable('license_audit_logs')) {
+            $this->createLicenseAuditLogs();
+        }
+    }
+
+    private function createLicenseStores(): void
     {
         Schema::create('license_stores', function (Blueprint $table) {
             $table->uuid('id')->primary();
@@ -21,7 +43,10 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
         });
+    }
 
+    private function createLicenseAuditLogs(): void
+    {
         Schema::create('license_audit_logs', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('action');

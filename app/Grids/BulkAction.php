@@ -13,18 +13,21 @@ use Illuminate\Support\Collection;
 class BulkAction
 {
     public string $key;
+
     public string $label;
+
     public string $icon;
 
     /** @var Closure(Collection): ?string handler; may return a flash message */
     public Closure $handle;
 
     public ?string $permission = null;
+
     public ?string $confirm = null;
 
     public static function make(string $key, string $label, string $icon, Closure $handle): self
     {
-        $action = new self();
+        $action = new self;
         $action->key = $key;
         $action->label = $label;
         $action->icon = $icon;

@@ -151,9 +151,14 @@ class TenantFixture
         return match (true) {
             $name === 'uuid' || str_contains($fullType, 'char(36)') => (string) Str::uuid(),
             // MariaDB reports a JSON column as longtext, so the json arm below
-            // never matches there and a plain string lands in a column with a
-            // JSON check constraint. Match on the column name as well.
-            str_ends_with($name, '_json') || in_array($name, self::JSON_COLUMNS, true) => '[]',
+            // never matches there and a plain string lands in a column carrying
+            // a json_valid() CHECK constraint. ASK THE DATABASE which columns
+            // those are rather than keeping a list by hand — the list drifted,
+            // and five columns added since it was written (connectors.config,
+            // webhook_subscriptions.events, scoring_profiles.likelihood_scale,
+            // object_lifecycles.states, measure_thresholds.bands) produced 26
+            // errors the moment the suite was pointed at a real MariaDB.
+            str_ends_with($name, '_json') || $this->isJsonChecked($table, $name) => '[]',
             in_array($type, ['tinyint', 'bool', 'boolean'], true) && str_contains($fullType, '(1)') => 0,
             in_array($type, ['int', 'integer', 'bigint', 'smallint', 'mediumint', 'tinyint'], true) => 1,
             in_array($type, ['decimal', 'numeric', 'float', 'double', 'real'], true) => 1,
@@ -168,17 +173,60 @@ class TenantFixture
     }
 
     /**
-     * Columns that hold JSON but are not reported as a json type by every
-     * driver. Keep this list short — it exists only for MariaDB's longtext.
+     * Columns MariaDB guards with a `json_valid()` CHECK constraint.
      *
-     * @var list<string>
+     * This replaces a hand-maintained allowlist of column names. The list was
+     * correct when written and wrong by the time anybody ran the suite against
+     * MariaDB, which is what a hand-maintained list of schema facts always
+     * becomes. `information_schema` already knows the answer.
+     *
+     * Empty on MySQL and SQLite: MySQL reports a native `json` type that the
+     * type arm matches, and SQLite has no such constraint. Cached per table.
+     *
+     * @var array<string, list<string>>
      */
-    private const JSON_COLUMNS = [
-        'stages', 'metadata', 'tags', 'settings', 'payload', 'evidence_refs',
-        'confidence_levels', 'scenario_ids', 'stress_config', 'regulatory_mapping',
-        'contributory_factors', 'expected_risk_reduction', 'actual_risk_reduction',
-        'percentile_distribution', 'risk_contributions', 'assessment_criteria',
-    ];
+    private array $jsonChecked = [];
+
+    private function isJsonChecked(string $table, string $column): bool
+    {
+        if (! array_key_exists($table, $this->jsonChecked)) {
+            $this->jsonChecked[$table] = $this->jsonCheckedColumns($table);
+        }
+
+        return in_array($column, $this->jsonChecked[$table], true);
+    }
+
+    /** @return list<string> */
+    private function jsonCheckedColumns(string $table): array
+    {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return [];
+        }
+
+        try {
+            $rows = DB::select(
+                'SELECT CONSTRAINT_NAME AS name, CHECK_CLAUSE AS clause
+                   FROM information_schema.CHECK_CONSTRAINTS
+                  WHERE CONSTRAINT_SCHEMA = ? AND TABLE_NAME = ?',
+                [DB::connection()->getDatabaseName(), $table],
+            );
+        } catch (\Throwable) {
+            // MySQL 8 has CHECK_CONSTRAINTS but no TABLE_NAME column before
+            // 8.0.16, and other builds may not expose it at all. A driver that
+            // cannot answer is a driver that does not need the answer.
+            return [];
+        }
+
+        $columns = [];
+
+        foreach ($rows as $row) {
+            if (preg_match('/json_valid\s*\(\s*`?([A-Za-z0-9_]+)`?\s*\)/i', (string) $row->clause, $m)) {
+                $columns[] = $m[1];
+            }
+        }
+
+        return $columns;
+    }
 
     private function boundedString(string $fullType, int $n): string
     {

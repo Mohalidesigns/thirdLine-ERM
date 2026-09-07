@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Builder;
 class Filter
 {
     public string $key;
+
     public string $label;
 
     /** @var array<string, string>|Closure value => label, or a closure resolving that lazily */
@@ -25,7 +26,7 @@ class Filter
 
     public static function make(string $key, string $label): self
     {
-        $filter = new self();
+        $filter = new self;
         $filter->key = $key;
         $filter->label = $label;
 

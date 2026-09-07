@@ -2,8 +2,8 @@
 
 namespace ThirdLine\Platform\Licensing;
 
-use ThirdLine\Platform\Licensing\Exceptions\LicenseException;
 use Illuminate\Support\Facades\Crypt;
+use ThirdLine\Platform\Licensing\Exceptions\LicenseException;
 
 class LicenseLoader
 {

@@ -14,8 +14,7 @@ class GridExport implements FromArray, WithHeadings
     public function __construct(
         protected array $headings,
         protected array $rows,
-    ) {
-    }
+    ) {}
 
     public function headings(): array
     {

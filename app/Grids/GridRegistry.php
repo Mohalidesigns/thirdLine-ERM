@@ -33,6 +33,8 @@ class GridRegistry
         'reports_library' => Definitions\ReportsLibraryGrid::class,
         'approvals_history' => Definitions\ApprovalsHistoryGrid::class,
         'circulars' => Definitions\RegulatoryCircularsGrid::class,
+        'tprm_third_parties' => Definitions\TprmThirdPartiesGrid::class,
+        'tprm_engagements' => Definitions\TprmEngagementsGrid::class,
     ];
 
     public static function resolve(string $name): GridDefinition

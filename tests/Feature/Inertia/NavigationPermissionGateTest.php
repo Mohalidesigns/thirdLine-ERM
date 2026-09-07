@@ -25,15 +25,15 @@ class NavigationPermissionGateTest extends TestCase
 {
     use CreatesDomainFixtures, RefreshDatabase;
 
-    /** The 22 module sections transcribed from the Blade sidebar. */
+    /** The 23 module sections transcribed from the Blade sidebar. */
     private const SECTIONS = [
-        'scoping', 'risk_register', 'rcsa', 'assessments', 'controls', 'treatment_plans', 'risk_appetite',
+        'scoping', 'risk_register', 'rcsa', 'tprm', 'assessments', 'controls', 'treatment_plans', 'risk_appetite',
         'approvals', 'kri_monitoring', 'reporting_periods', 'loss_events', 'issues', 'campaigns', 'workflows',
         'analysis', 'quantification', 'regulatory', 'imports', 'documents', 'reports', 'emerging', 'ai_intelligence',
     ];
 
     #[Test]
-    public function the_presenter_declares_exactly_the_22_sections(): void
+    public function the_presenter_declares_exactly_the_23_sections(): void
     {
         $this->assertSame(self::SECTIONS, array_column(NavPresenter::sections(), 'key'));
     }
@@ -98,7 +98,7 @@ class NavigationPermissionGateTest extends TestCase
         $duplicates = array_filter($counts, fn (int $n) => $n > 1);
 
         $this->assertSame([], $duplicates, 'Routes linked from more than one section: '.json_encode($duplicates));
-        $this->assertCount(85, $counts, 'The 22 sections link 85 distinct routes; the count moved, so a section changed shape.');
+        $this->assertCount(89, $counts, 'The 23 sections link 89 distinct routes; the count moved, so a section changed shape.');
     }
 
     #[Test]

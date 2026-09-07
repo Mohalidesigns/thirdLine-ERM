@@ -27,6 +27,9 @@ use App\Http\Controllers\Rcsa\ImportController as RcsaImportController;
 use App\Http\Controllers\Rcsa\ReviewController as RcsaReviewController;
 use App\Http\Controllers\Rcsa\RoundTripController as RcsaRoundTripController;
 use App\Http\Controllers\Rcsa\UniverseController as RcsaUniverseController;
+use App\Http\Controllers\Tprm\EngagementController as TprmEngagementController;
+use App\Http\Controllers\Tprm\IntakeController as TprmIntakeController;
+use App\Http\Controllers\Tprm\ThirdPartyController as TprmThirdPartyController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
 use App\Http\Controllers\Risk\AiToolsController;
 use App\Http\Controllers\Risk\AnalysisController;
@@ -1573,4 +1576,64 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         ->middleware('permission:import.create')->name('risk.imports.upload');
     Route::post('imports/{import}/process', [DataImportController::class, 'processImport'])
         ->middleware('permission:import.process')->name('risk.imports.process');
+
+    /* ------------------------------------------------------------------ */
+    /*  Third-Party Risk Management (TPRM), behind `tprm` */
+    /* ------------------------------------------------------------------ */
+    /*
+     * `feature:tprm` 404s when the flag is off, so on a default install these
+     * URLs do not exist. Every route carries a permission, per standard §2 and
+     * RouteAuthorizationTest.
+     *
+     * The three that are not plain `tprm.view` are the ones that matter:
+     * raising an intake is `tprm.create`, deciding one is
+     * `tprm.intake.approve`, and they are deliberately different permissions
+     * because the person who prepares an intake must not be the person who
+     * approves it.
+     */
+    Route::middleware('feature:tprm')->prefix('tprm')->name('tprm.')->group(function () {
+
+        /* --- Third-party register (the CBN App. II §1.4 artefact) ------ */
+        Route::get('third-parties', [TprmThirdPartyController::class, 'index'])
+            ->middleware('permission:tprm.view')->name('third-parties.index');
+        Route::get('third-parties/create', [TprmThirdPartyController::class, 'create'])
+            ->middleware('permission:tprm.create')->name('third-parties.create');
+        // Ahead of the {third_party} routes, or "create" and "duplicate-check"
+        // bind as a slug and 404.
+        Route::post('third-parties/duplicate-check', [TprmThirdPartyController::class, 'duplicateCheck'])
+            ->middleware('permission:tprm.create')->name('third-parties.duplicate-check');
+        Route::post('third-parties', [TprmThirdPartyController::class, 'store'])
+            ->middleware('permission:tprm.create')->name('third-parties.store');
+        Route::get('third-parties/{third_party}', [TprmThirdPartyController::class, 'show'])
+            ->middleware('permission:tprm.view')->name('third-parties.show');
+        Route::get('third-parties/{third_party}/edit', [TprmThirdPartyController::class, 'edit'])
+            ->middleware('permission:tprm.edit')->name('third-parties.edit');
+        Route::put('third-parties/{third_party}', [TprmThirdPartyController::class, 'update'])
+            ->middleware('permission:tprm.edit')->name('third-parties.update');
+        Route::post('third-parties/{third_party}/status', [TprmThirdPartyController::class, 'changeStatus'])
+            ->middleware('permission:tprm.edit')->name('third-parties.status');
+
+        /* --- Engagement register and workspace ------------------------ */
+        Route::get('engagements', [TprmEngagementController::class, 'index'])
+            ->middleware('permission:tprm.view')->name('engagements.index');
+        Route::get('engagements/{engagement}', [TprmEngagementController::class, 'show'])
+            ->middleware('permission:tprm.view')->name('engagements.show');
+
+        /* --- Intake --------------------------------------------------- */
+        Route::get('intake', [TprmIntakeController::class, 'index'])
+            ->middleware('permission:tprm.view')->name('intake.index');
+        Route::get('intake/new', [TprmIntakeController::class, 'create'])
+            ->middleware('permission:tprm.create')->name('intake.create');
+        // The live tier preview. `tprm.create` rather than `tprm.view`: it
+        // runs the scoring engine over arbitrary posted answers, which is a
+        // capability, not a read.
+        Route::post('intake/preview', [TprmIntakeController::class, 'preview'])
+            ->middleware('permission:tprm.create')->name('intake.preview');
+        Route::post('intake', [TprmIntakeController::class, 'store'])
+            ->middleware('permission:tprm.create')->name('intake.store');
+        Route::post('intake/{engagement}/approve', [TprmIntakeController::class, 'approve'])
+            ->middleware('permission:tprm.intake.approve')->name('intake.approve');
+        Route::post('intake/{engagement}/reject', [TprmIntakeController::class, 'reject'])
+            ->middleware('permission:tprm.intake.approve')->name('intake.reject');
+    });
 });

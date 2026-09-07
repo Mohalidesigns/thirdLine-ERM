@@ -94,6 +94,20 @@ class NavPresenter
                     ['label' => 'Export', 'route' => 'rcsa.exports.index', 'permission' => 'rcsa_export.bulk', 'feature' => 'rcsa_v2'],
                 ],
             ],
+            // Third-Party Risk Management. Its own section rather than an
+            // entry under the register: TRD §5.1 assesses risk at the
+            // engagement, and folding vendor engagements into the risk
+            // register's navigation would suggest they are the same objects.
+            [
+                'key' => 'tprm', 'label' => 'Third-Party Risk', 'icon' => 'handshake', 'prefixes' => ['/risk/tprm'],
+                'items' => [
+                    ['label' => 'Third-Party Register', 'route' => 'tprm.third-parties.index', 'permission' => 'tprm.view', 'feature' => 'tprm'],
+                    ['label' => 'Engagements', 'route' => 'tprm.engagements.index', 'permission' => 'tprm.view', 'feature' => 'tprm'],
+                    ['label' => 'Raise an Intake', 'route' => 'tprm.intake.create', 'permission' => 'tprm.create', 'feature' => 'tprm'],
+                    ['label' => 'Intake Queue', 'route' => 'tprm.intake.index', 'permission' => 'tprm.view', 'feature' => 'tprm'],
+                ],
+            ],
+
             [
                 'key' => 'assessments', 'label' => 'Risk Assessments', 'icon' => 'rate_review', 'prefixes' => ['/risk/assessments'],
                 'items' => [

@@ -54,7 +54,14 @@ class LegacyMigrationTest extends CycleTestCase
             'inherent_likelihood' => 4,
             'inherent_impact' => 3,
             'residual_rating' => 'medium',
-            'risk_source' => 'Manual process with no maker-checker.',
+
+            // `risks.risk_source` is string(20) — a short classifier, not a
+            // description. This fixture held 'Manual process with no
+            // maker-checker.' (38 characters), which SQLite stored happily and
+            // MariaDB refuses outright: "Data too long for column
+            // 'risk_source'". It took sixteen of this file's tests down the
+            // first time the suite met a real database.
+            'risk_source' => 'Self-Identified',
         ], $overrides));
     }
 
@@ -65,7 +72,13 @@ class LegacyMigrationTest extends CycleTestCase
             'campaign_code' => 'RCSA-LEG-'.uniqid(),
             'title' => 'RCSA 2025 H2',
             'campaign_type' => RcsaLegacyInventory::LEGACY_CAMPAIGN_TYPE,
-            'status' => 'completed',
+
+            // 'completed' IS NOT IN THE ENUM. `assessment_campaigns.status` is
+            // enum(draft, active, in_progress, under_review, closed,
+            // cancelled). SQLite keeps an enum as free text and took it; MariaDB
+            // truncates it to '' and errors. A finished legacy campaign is
+            // 'closed' — which is also what the migrator reads it as.
+            'status' => 'closed',
             'start_date' => '2025-07-01',
             'end_date' => '2025-12-31',
             'created_by' => $this->actor->id,
@@ -78,7 +91,11 @@ class LegacyMigrationTest extends CycleTestCase
             'campaign_id' => $campaign->id,
             'business_unit_id' => $this->retail->id,
             'respondent_id' => $this->actor->id,
-            'status' => 'completed',
+
+            // Same again: `campaign_assignments.status` is enum(pending,
+            // in_progress, submitted, under_review, approved, rejected).
+            // A response that was filed and accepted is 'approved'.
+            'status' => 'approved',
             'due_date' => '2025-12-31',
         ]);
 

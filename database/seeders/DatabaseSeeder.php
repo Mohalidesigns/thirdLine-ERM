@@ -111,5 +111,16 @@ class DatabaseSeeder extends Seeder
         /* ------------------------------------------------------------------ */
 
         $this->call(\Database\Seeders\Tprm\TprmReferenceSeeder::class);
+
+        /* ------------------------------------------------------------------ */
+        /*  13. TPRM questionnaire packs (idempotent).                         */
+        /*                                                                     */
+        /*      After the reference seeder, because the packs map their        */
+        /*      questions to framework controls it seeds. Publishing runs      */
+        /*      through the model, so FR-ASM-05's gate is exercised by the     */
+        /*      seeder before any author ever meets it.                        */
+        /* ------------------------------------------------------------------ */
+
+        $this->call(\Database\Seeders\Tprm\TprmQuestionnairePackSeeder::class);
     }
 }

@@ -50,6 +50,13 @@ class TprmServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // FR-ASM-05's publish gate. Registered as an observer rather than
+        // enforced in a Form Request so that the seeder shipping the packs,
+        // any clone-and-publish, and the API all meet the same rule.
+        \App\Models\Tprm\QuestionnaireTemplate::observe(
+            \App\Observers\Tprm\QuestionnaireTemplateObserver::class
+        );
+
         foreach (self::POLICIES as $model => $policy) {
             if (class_exists($policy)) {
                 \Illuminate\Support\Facades\Gate::policy($model, $policy);

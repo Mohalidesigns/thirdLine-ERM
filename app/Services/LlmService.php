@@ -168,6 +168,85 @@ class LlmService
         }
     }
 
+    /**
+     * A JSON completion WITH the backend's own token counts.
+     *
+     * Added for TPRM's extraction pipeline, which must "log model, prompt
+     * version, tokens and cost per call" (TRD §12.1). {@see self::json()}
+     * discards the usage numbers the backend returns, and a cost log built on
+     * an estimate of its own is a cost log nobody can reconcile against a
+     * bill — so the counts come from the response or they are null, never
+     * guessed.
+     *
+     * Deliberately a separate method rather than a change to `json()`: every
+     * existing caller expects that method to return the decoded object itself,
+     * and widening its return type would break each of them.
+     *
+     * @param  array<string, mixed>  $opts
+     * @return array{data: array<mixed>, model: string, prompt_tokens: int|null, completion_tokens: int|null, duration_ms: int, error: string|null}
+     */
+    public function jsonWithUsage(string $prompt, string $system = '', array $opts = []): array
+    {
+        $model = (string) ($opts['model'] ?? $this->model);
+        $startedAt = microtime(true);
+
+        $empty = fn (?string $error) => [
+            'data' => [],
+            'model' => $model,
+            'prompt_tokens' => null,
+            'completion_tokens' => null,
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            'error' => $error,
+        ];
+
+        if (! $this->enabled) {
+            $this->lastError = 'LLM disabled.';
+
+            return $empty($this->lastError);
+        }
+
+        try {
+            $res = Http::timeout($opts['timeout'] ?? $this->timeout)
+                ->post($this->endpoint.'/api/generate', [
+                    'model' => $model,
+                    'prompt' => $prompt,
+                    'system' => $system,
+                    'stream' => false,
+                    'format' => 'json',
+                    'options' => [
+                        'temperature' => $opts['temperature'] ?? $this->temperature,
+                        'num_predict' => $opts['max_tokens'] ?? 768,
+                    ],
+                ]);
+
+            if (! $res->successful()) {
+                $this->lastError = 'LLM HTTP '.$res->status();
+                Log::warning('LlmService jsonWithUsage failed: '.$this->lastError);
+
+                return $empty($this->lastError);
+            }
+
+            $parsed = $this->parseJson((string) ($res->json('response') ?? ''));
+
+            return [
+                'data' => $parsed,
+                'model' => $model,
+                // Ollama's own counters. Absent on a backend that does not
+                // report them, and null rather than zero in that case: zero
+                // tokens is a claim, and "we were not told" is the truth.
+                'prompt_tokens' => $res->json('prompt_eval_count'),
+                'completion_tokens' => $res->json('eval_count'),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'error' => $parsed === [] ? $this->lastError : null,
+            ];
+        } catch (Throwable $e) {
+            $this->lastError = $e->getMessage();
+            Log::warning('LlmService jsonWithUsage exception: '.$this->lastError);
+
+            return $empty($this->lastError);
+        }
+    }
+
     protected function parseJson(string $raw): array
     {
         $raw = trim($raw);

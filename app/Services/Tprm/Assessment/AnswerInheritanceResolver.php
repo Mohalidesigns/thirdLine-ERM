@@ -4,9 +4,12 @@ namespace App\Services\Tprm\Assessment;
 
 use App\Enums\Tprm\ComplianceLevel;
 use App\Models\Tprm\AssessmentResponse;
+use App\Models\Tprm\Document;
+use App\Models\Tprm\DocumentExtraction;
 use App\Models\Tprm\Engagement;
 use App\Models\Tprm\Question;
-use Illuminate\Support\Facades\DB;
+use App\Models\Tprm\Soc2Detail;
+use App\Services\Tprm\Evidence\Soc2Cascade;
 
 /**
  * Answer inheritance — FR-ASM-06.
@@ -22,16 +25,20 @@ use Illuminate\Support\Facades\DB;
  * the carry-forward decay exists in TRD §7.4 — inheritance makes answering
  * cheap, and the decay stops cheapness from being free.
  *
- * TWO SOURCES, and only one is built here.
+ * TWO SOURCES, tried in that order.
  *
- *   PRIOR RESPONSE — implemented. The most recent validated answer to the same
- *   question on the same engagement, within the carry-forward window.
+ *   PRIOR RESPONSE — the most recent validated answer to the same question on
+ *   the same engagement, within the carry-forward window. Tried first because
+ *   a vendor's own previous answer is the one they can most easily confirm or
+ *   correct; a document citation is stronger evidence but a less natural thing
+ *   to put in front of them cold.
  *
- *   CONFIRMED DOCUMENT EXTRACTION — Phase 3. `fromExtraction()` is the seam,
- *   and it returns null until the extractor exists rather than pretending. A
- *   stub that silently returned nothing would be indistinguishable from a
- *   working resolver that found nothing, which is the kind of thing that ships
- *   and is discovered a year later.
+ *   CONFIRMED DOCUMENT EXTRACTION — wired in Phase 3. A SOC 2 confirmed
+ *   against this engagement pre-answers every question mapped to a trust
+ *   services criterion the report covers without exception, and the rule is
+ *   `Soc2Cascade::preAnswerFor()` rather than a second copy of it living here.
+ *   Two implementations of "does this report cover this question" would drift,
+ *   and the direction they would drift in is the dangerous one.
  */
 class AnswerInheritanceResolver
 {
@@ -107,56 +114,58 @@ class AnswerInheritanceResolver
     /**
      * A confirmed document extraction answering this question.
      *
-     * PHASE 3 FILLS THIS IN. It returns null now, and the interface exists so
-     * that the assessment engine can be built and tested against it without
-     * waiting — but it is a real query against a real table rather than a
-     * `return null;`, so the day the extractor starts confirming rows this
-     * begins working without another change here.
+     * Only CONFIRMED extractions, and only through the SOC 2 record they
+     * produced — never through the raw extracted JSON. A person has agreed
+     * that the report says what the extractor claimed, and the structured row
+     * is the artefact of that agreement; reading the JSON directly would let a
+     * pending extraction pre-answer a questionnaire.
+     *
+     * The most recent report wins, and only one is consulted: two overlapping
+     * SOC 2s citing the same criterion would produce two citations for one
+     * answer, and the vendor would be shown the older one half the time.
      *
      * @return array<string, mixed>|null
      */
     public function fromExtraction(Question $question, Engagement $engagement): ?array
     {
-        $extraction = DB::table('tp_document_extractions')
-            ->join('tp_documents', 'tp_document_extractions.document_id', '=', 'tp_documents.id')
-            ->where('tp_document_extractions.status', 'confirmed')
-            ->where('tp_documents.owner_type', 'engagement')
-            ->where('tp_documents.owner_id', $engagement->getKey())
-            ->whereNull('tp_documents.deleted_at')
-            ->orderByDesc('tp_document_extractions.confirmed_at')
-            ->select([
-                'tp_document_extractions.id',
-                'tp_document_extractions.extracted',
-                'tp_document_extractions.citations',
-                'tp_documents.title',
-            ])
-            ->get();
+        $question->loadMissing('controlMaps');
 
-        foreach ($extraction as $row) {
-            $extracted = json_decode((string) $row->extracted, true) ?: [];
+        $soc2 = Soc2Detail::query()
+            ->whereIn('document_id', Document::query()
+                ->forOwner(Document::OWNER_ENGAGEMENT, $engagement->getKey())
+                ->select('id'))
+            ->whereIn('document_id', DocumentExtraction::query()
+                ->confirmed()
+                ->select('document_id'))
+            ->with(['exceptions', 'document:id,title'])
+            ->orderByDesc('period_end')
+            ->first();
 
-            // The extractor keys its answers by question code. Nothing writes
-            // this shape yet; Phase 3's cascade does.
-            $answer = $extracted['answers'][$question->code] ?? null;
-
-            if ($answer === null) {
-                continue;
-            }
-
-            return [
-                'value' => $answer['value'] ?? null,
-                'assurance_level' => $answer['assurance_level'] ?? null,
-                'compliance' => $answer['compliance'] ?? ComplianceLevel::Unanswered->value,
-                'is_auto_answered' => true,
-                'auto_answer_source' => [
-                    'kind' => 'document_extraction',
-                    'extraction_id' => $row->id,
-                    'document' => $row->title,
-                    'citation' => $answer['citation'] ?? ('Read from '.$row->title.'.'),
-                ],
-            ];
+        if ($soc2 === null) {
+            return null;
         }
 
-        return null;
+        $answer = app(Soc2Cascade::class)->preAnswerFor($question, $soc2);
+
+        if ($answer === null) {
+            return null;
+        }
+
+        return [
+            // No `value`: the report evidences the CONTROL, not the vendor's
+            // wording about it. The vendor is shown a pre-answered compliance
+            // position with its citation and asked to confirm or correct,
+            // which is FR-ASM-06's own phrasing.
+            'assurance_level' => $answer['proposed_assurance_level'],
+            'compliance' => $answer['proposed_compliance'],
+            'is_auto_answered' => true,
+            'auto_answer_source' => [
+                'kind' => 'document_extraction',
+                'document_id' => $soc2->document_id,
+                'document' => $soc2->document?->title,
+                'tsc_criterion' => $answer['tsc_criterion'],
+                'citation' => $answer['citation'],
+            ],
+        ];
     }
 }

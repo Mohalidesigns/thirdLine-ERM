@@ -65,3 +65,9 @@ Schedule::command('measures:rebaseline-thresholds')->monthlyOn(2, '05:00');
 // when the app receives no traffic. The command itself defers to the
 // server-driven heartbeat / revocation cadence, so hourly is a ceiling.
 Schedule::command('license:heartbeat')->hourly()->withoutOverlapping();
+
+// TPRM Phase 3 (FR-EVD-02). Before the morning digest, so a relationship owner
+// who has a certificate expiring in seven days reads it in the same sweep as
+// the rest of their day. The command no-ops when the module's feature flag is
+// off, so an installation without TPRM schedules nothing that does anything.
+Schedule::command('tprm:check-evidence-expiry')->dailyAt('07:15');

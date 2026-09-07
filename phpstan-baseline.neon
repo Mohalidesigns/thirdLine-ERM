@@ -2322,3 +2322,38 @@ parameters:
 			identifier: method.notFound
 			count: 1
 			path: app/Models/Tprm/Waiver.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Document.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/DocumentExtraction.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/DocumentType.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Soc2Cuec.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Soc2Detail.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Soc2Exception.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Soc2SubserviceOrg.php

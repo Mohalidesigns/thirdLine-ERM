@@ -18,6 +18,20 @@ namespace Database\Seeders\Tprm\Reference;
  * asked. Writing these packs against that rule is what keeps them at forty
  * questions rather than two hundred.
  *
+ * THE TSC MAPS ARE WHAT THE SOC 2 CASCADE RUNS ON. `Soc2Cascade` proposes a
+ * pre-answer for a question mapped to a trust services criterion the report
+ * covers without exception, so a question with no `tsc` map can never be
+ * pre-answered from a SOC 2 however well the report evidences it. They are
+ * recorded at the granularity the TSC library is catalogued to — the common
+ * criteria at series level (`CC6`), availability and confidentiality at
+ * criterion level (`A1.3`, `C1.1`) — because that is the level a report's
+ * scope statement and its exceptions are both expressed at.
+ *
+ * Twenty-one of the forty-one questions carry one. The rest are contractual or
+ * jurisdictional — audit rights, transfer bases, whether a signed contract
+ * exists — and no SOC 2 opines on them, so an absent map here is the correct
+ * answer rather than an outstanding one.
+ *
  * Five packs ship in this phase, in the priority order the phase prompt sets.
  * The remaining nine in Appendix B are later work; the module reports which
  * packs it holds rather than implying it holds all fourteen.
@@ -91,17 +105,17 @@ class QuestionnairePacks
                         [
                             'code' => 'CBN-GOV-01', 'text' => 'Do you maintain a documented information security policy approved by your board or an equivalent governing body, and reviewed at least annually?',
                             'risk_weight' => 3, 'evidence_required' => true, 'evidence_types' => ['security_policy'],
-                            'maps' => [['iso27002', '2022', '5.1'], ['cbn_cyber_2024', '2024', '2.3(iii)']],
+                            'maps' => [['iso27002', '2022', '5.1'], ['cbn_cyber_2024', '2024', '2.3(iii)'], ['tsc', '2017 (rev. 2022)', 'CC1']],
                         ],
                         [
                             'code' => 'CBN-GOV-02', 'text' => 'Is a named individual accountable for information security in your organisation, with a direct reporting line to executive management?',
                             'risk_weight' => 2,
-                            'maps' => [['iso27002', '2022', '5.2']],
+                            'maps' => [['iso27002', '2022', '5.2'], ['tsc', '2017 (rev. 2022)', 'CC1']],
                         ],
                         [
                             'code' => 'CBN-GOV-03', 'text' => 'Do your personnel complete information security awareness training at least annually, and can you evidence completion for the staff assigned to our account?',
                             'risk_weight' => 2, 'evidence_required' => true,
-                            'maps' => [['iso27002', '2022', '6.3'], ['cbn_cyber_2024', '2024', '2.3(ii)']],
+                            'maps' => [['iso27002', '2022', '6.3'], ['cbn_cyber_2024', '2024', '2.3(ii)'], ['tsc', '2017 (rev. 2022)', 'CC1']],
                         ],
                     ],
                 ],
@@ -111,22 +125,22 @@ class QuestionnairePacks
                         [
                             'code' => 'CBN-ACC-01', 'text' => 'Is all access to our systems and data granted on a least-privilege basis, approved by a named individual, and reviewed at least quarterly?',
                             'risk_weight' => 5, 'is_critical' => true, 'evidence_required' => true,
-                            'maps' => [['iso27002', '2022', '5.18'], ['cbn_cyber_2024', '2024', 'App.III §1.3']],
+                            'maps' => [['iso27002', '2022', '5.18'], ['cbn_cyber_2024', '2024', 'App.III §1.3'], ['tsc', '2017 (rev. 2022)', 'CC6']],
                         ],
                         [
                             'code' => 'CBN-ACC-02', 'text' => 'Is multi-factor authentication enforced for every account of yours that can reach our environment, including administrative and emergency accounts?',
                             'risk_weight' => 5, 'is_critical' => true,
-                            'maps' => [['iso27002', '2022', '8.5'], ['csf20', '2.0', 'GV.SC-05']],
+                            'maps' => [['iso27002', '2022', '8.5'], ['csf20', '2.0', 'GV.SC-05'], ['tsc', '2017 (rev. 2022)', 'CC6']],
                         ],
                         [
                             'code' => 'CBN-ACC-03', 'text' => 'Are privileged actions taken in our environment logged, retained for at least twelve months, and available to us on request?',
                             'risk_weight' => 4, 'evidence_required' => true,
-                            'maps' => [['iso27002', '2022', '8.15'], ['iso27002', '2022', '8.2']],
+                            'maps' => [['iso27002', '2022', '8.15'], ['iso27002', '2022', '8.2'], ['tsc', '2017 (rev. 2022)', 'CC7']],
                         ],
                         [
                             'code' => 'CBN-ACC-04', 'text' => 'Is access for a departing member of your staff revoked within one business day of their departure?',
                             'risk_weight' => 4,
-                            'maps' => [['iso27002', '2022', '6.5'], ['iso27002', '2022', '5.18']],
+                            'maps' => [['iso27002', '2022', '6.5'], ['iso27002', '2022', '5.18'], ['tsc', '2017 (rev. 2022)', 'CC6']],
                         ],
                     ],
                 ],
@@ -147,7 +161,7 @@ class QuestionnairePacks
                         [
                             'code' => 'CBN-ASR-03', 'text' => 'Is an independent penetration test of the systems supporting our service carried out at least annually, with remediation tracked to closure?',
                             'risk_weight' => 4, 'evidence_required' => true, 'evidence_types' => ['pentest_report'],
-                            'maps' => [['iso27002', '2022', '8.8'], ['iso27002', '2022', '8.29']],
+                            'maps' => [['iso27002', '2022', '8.8'], ['iso27002', '2022', '8.29'], ['tsc', '2017 (rev. 2022)', 'CC4']],
                         ],
                     ],
                 ],
@@ -157,17 +171,17 @@ class QuestionnairePacks
                         [
                             'code' => 'CBN-RES-01', 'text' => 'Do you maintain and test a business continuity and disaster recovery plan covering our service at least annually, and will you include us in that testing?',
                             'risk_weight' => 4, 'evidence_required' => true, 'evidence_types' => ['bcp_test_report'],
-                            'maps' => [['iso27002', '2022', '5.30'], ['cbn_cyber_2024', '2024', '2.3(vii)']],
+                            'maps' => [['iso27002', '2022', '5.30'], ['cbn_cyber_2024', '2024', '2.3(vii)'], ['tsc', '2017 (rev. 2022)', 'A1.3']],
                         ],
                         [
                             'code' => 'CBN-RES-02', 'text' => 'Will you notify us of any security incident affecting our data or service within twenty-four hours of becoming aware of it?',
                             'risk_weight' => 5, 'is_critical' => true,
-                            'maps' => [['iso27002', '2022', '5.24'], ['csf20', '2.0', 'GV.SC-08']],
+                            'maps' => [['iso27002', '2022', '5.24'], ['csf20', '2.0', 'GV.SC-08'], ['tsc', '2017 (rev. 2022)', 'CC7']],
                         ],
                         [
                             'code' => 'CBN-RES-03', 'text' => 'What recovery time objective do you commit to for the service you provide to us, and has it been demonstrated in a test rather than only stated?',
                             'type' => 'free_text', 'risk_weight' => 3,
-                            'maps' => [['iso27002', '2022', '5.29']],
+                            'maps' => [['iso27002', '2022', '5.29'], ['tsc', '2017 (rev. 2022)', 'A1.3']],
                         ],
                     ],
                 ],
@@ -177,12 +191,12 @@ class QuestionnairePacks
                         [
                             'code' => 'CBN-SUP-01', 'text' => 'Do you maintain a current inventory of the sub-contractors and sub-processors involved in delivering our service, and will you notify us before it changes?',
                             'risk_weight' => 4,
-                            'maps' => [['iso27002', '2022', '5.21'], ['csf20', '2.0', 'GV.SC-07']],
+                            'maps' => [['iso27002', '2022', '5.21'], ['csf20', '2.0', 'GV.SC-07'], ['tsc', '2017 (rev. 2022)', 'CC9']],
                         ],
                         [
                             'code' => 'CBN-SUP-02', 'text' => 'Are the security obligations you accept in your contract with us flowed down to those sub-contractors?',
                             'risk_weight' => 4,
-                            'maps' => [['iso27002', '2022', '5.20'], ['nist80053r5', 'r5', 'SR-3']],
+                            'maps' => [['iso27002', '2022', '5.20'], ['nist80053r5', 'r5', 'SR-3'], ['tsc', '2017 (rev. 2022)', 'CC9']],
                         ],
                         [
                             'code' => 'CBN-SUP-03', 'text' => 'Do you carry insurance covering technology and cyber risks arising from the service provided to us?',
@@ -230,12 +244,12 @@ class QuestionnairePacks
                         [
                             'code' => 'NDPA-SEC-01', 'text' => 'Is personal data encrypted in transit and at rest, and are the keys managed separately from the data?',
                             'risk_weight' => 5, 'evidence_required' => true,
-                            'maps' => [['ndpa_gaid', '2023/2025', 'NDPA §39'], ['iso27002', '2022', '8.24']],
+                            'maps' => [['ndpa_gaid', '2023/2025', 'NDPA §39'], ['iso27002', '2022', '8.24'], ['tsc', '2017 (rev. 2022)', 'C1.1']],
                         ],
                         [
                             'code' => 'NDPA-SEC-02', 'text' => 'Are your personnel who access personal data bound by a written confidentiality obligation?',
                             'risk_weight' => 3,
-                            'maps' => [['iso27002', '2022', '6.6'], ['ndpa_gaid', '2023/2025', 'NDPA §39']],
+                            'maps' => [['iso27002', '2022', '6.6'], ['ndpa_gaid', '2023/2025', 'NDPA §39'], ['tsc', '2017 (rev. 2022)', 'C1.1']],
                         ],
                     ],
                 ],
@@ -245,7 +259,7 @@ class QuestionnairePacks
                         [
                             'code' => 'NDPA-BR-01', 'text' => 'Will you notify us of a personal data breach without undue delay and in any case within twenty-four hours of becoming aware, so that we can meet our own seventy-two hour obligation to the Commission?',
                             'risk_weight' => 5, 'is_critical' => true,
-                            'maps' => [['ndpa_gaid', '2023/2025', 'NDPA §40']],
+                            'maps' => [['ndpa_gaid', '2023/2025', 'NDPA §40'], ['tsc', '2017 (rev. 2022)', 'CC7']],
                         ],
                     ],
                 ],
@@ -266,12 +280,12 @@ class QuestionnairePacks
                         [
                             'code' => 'NDPA-SP-01', 'text' => 'Do you obtain our written authorisation before engaging a new sub-processor for our personal data?',
                             'risk_weight' => 4,
-                            'maps' => [['ndpa_gaid', '2023/2025', 'GAID Art. 34'], ['iso27002', '2022', '5.21']],
+                            'maps' => [['ndpa_gaid', '2023/2025', 'GAID Art. 34'], ['iso27002', '2022', '5.21'], ['tsc', '2017 (rev. 2022)', 'CC9']],
                         ],
                         [
                             'code' => 'NDPA-SP-02', 'text' => 'Do you impose the same data protection obligations on your sub-processors as you accept from us?',
                             'risk_weight' => 4,
-                            'maps' => [['ndpa_gaid', '2023/2025', 'NDPA §44'], ['iso27002', '2022', '5.20']],
+                            'maps' => [['ndpa_gaid', '2023/2025', 'NDPA §44'], ['iso27002', '2022', '5.20'], ['tsc', '2017 (rev. 2022)', 'CC9']],
                         ],
                     ],
                 ],
@@ -286,7 +300,7 @@ class QuestionnairePacks
                         [
                             'code' => 'NDPA-DEL-01', 'text' => 'On termination, will you return or securely delete all personal data and provide written certification of deletion?',
                             'risk_weight' => 5, 'is_critical' => true,
-                            'maps' => [['iso27002', '2022', '8.10'], ['ndpa_gaid', '2023/2025', 'GAID Art. 34']],
+                            'maps' => [['iso27002', '2022', '8.10'], ['ndpa_gaid', '2023/2025', 'GAID Art. 34'], ['tsc', '2017 (rev. 2022)', 'C1.2']],
                         ],
                     ],
                 ],
@@ -329,12 +343,12 @@ class QuestionnairePacks
                         [
                             'code' => 'PCI-CHD-01', 'text' => 'Is the primary account number rendered unreadable wherever it is stored, and is it never stored after authorisation where storage is not required?',
                             'risk_weight' => 5, 'evidence_required' => true,
-                            'maps' => [['pci_dss_401', '4.0.1', '3']],
+                            'maps' => [['pci_dss_401', '4.0.1', '3'], ['tsc', '2017 (rev. 2022)', 'C1.1']],
                         ],
                         [
                             'code' => 'PCI-CHD-02', 'text' => 'Is cardholder data encrypted with strong cryptography whenever it is transmitted across open or public networks?',
                             'risk_weight' => 5,
-                            'maps' => [['pci_dss_401', '4.0.1', '4']],
+                            'maps' => [['pci_dss_401', '4.0.1', '4'], ['tsc', '2017 (rev. 2022)', 'C1.1']],
                         ],
                     ],
                 ],

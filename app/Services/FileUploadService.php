@@ -78,6 +78,8 @@ class FileUploadService
 
     public const PROFILE_LOSS_EVENT_ATTACHMENT = 'loss_event_attachment';
 
+    public const PROFILE_TPRM_EVIDENCE = 'tprm_evidence';
+
     /**
      * profile => [extensions, max_kilobytes]
      *
@@ -124,6 +126,23 @@ class FileUploadService
                 'png', 'jpg', 'jpeg', 'gif', 'msg', 'eml',
             ],
             'max_kilobytes' => 20480,
+        ],
+
+        // TPRM evidence: a vendor's SOC 2, ISO certificate, PCI AOC,
+        // penetration test report, insurance schedule, audited financials or
+        // signed DPA. Documents, not screenshots — the extraction pipeline
+        // reads text out of these, and an image of a certificate is a thing a
+        // reviewer looks at rather than a thing an extractor can parse, so
+        // images stay out of the profile rather than arriving and silently
+        // failing extraction.
+        //
+        // 25 MB because a SOC 2 Type II with its Section 4 testing matrices
+        // and appendices genuinely runs past 10, and a report truncated at the
+        // upload boundary is worse than no report: the exceptions are at the
+        // back.
+        self::PROFILE_TPRM_EVIDENCE => [
+            'extensions' => ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt'],
+            'max_kilobytes' => 25600,
         ],
     ];
 

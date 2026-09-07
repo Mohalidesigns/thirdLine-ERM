@@ -334,9 +334,12 @@ class SubmissionTest extends CycleTestCase
         $assessment = RcsaAssessment::sole();
         $this->scoreAll($assessment, aboveAppetite: false);
 
-        // Whoever may close a cycle is the ORM function in every role map this
-        // product ships; the actor is not notified about their own submission.
-        $reviewer = $this->userWith(['rcsa_cycle.view', 'rcsa_cycle.close']);
+        // Whoever holds `rcsa_assessment.review` — P5's permission for exactly
+        // this function. P4 shipped this pointed at `rcsa_cycle.close`, which
+        // was the closest thing that existed at the time and is a different
+        // authority: a cycle coordinator is not necessarily a reviewer. The
+        // actor is not notified about their own submission.
+        $reviewer = $this->userWith(['rcsa_assessment.view', 'rcsa_assessment.review']);
 
         $this->actingAs($this->actor)->post(route('rcsa.assessments.submit', $assessment));
 

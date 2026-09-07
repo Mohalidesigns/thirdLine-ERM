@@ -197,6 +197,40 @@ class RiskPermissionCatalog extends PermissionCatalog
                     .'and record the action plans for risks above appetite.',
                 'rcsa_assessment.submit' => 'Submit a completed assessment for ORM review. Separate from completing '
                     .'it: submission locks every line and is what hands the work to the second line.',
+                // The optional BU-head step of §9.1. NOT in the plan's §11
+                // list, which names only review|validate|return — because the
+                // plan treats BU approval as a switch rather than a role. A
+                // switch still needs somebody authorised to flick it, and
+                // reusing `submit` would let the person who filed the
+                // assessment approve their own.
+                'rcsa_assessment.approve' => 'Approve your business unit\'s assessment so it reaches ORM. '
+                    .'Only used where the tenant has enabled the BU-head step.',
+            ],
+
+            // §9.2 — the second line's work on somebody else's assessment.
+            // Three permissions, not one, because they are three different
+            // authorities: an analyst may challenge every line without being
+            // the person who accepts the assessment or sends it back.
+            'RCSA Review' => [
+                'rcsa_assessment.review' => 'Open the ORM review queue, take an assessment for review, and '
+                    .'challenge or accept individual risks. Includes escalating one without deciding it.',
+                'rcsa_assessment.validate' => 'Validate a reviewed assessment — the second line accepting what '
+                    .'the business filed.',
+                'rcsa_assessment.return' => 'Return an assessment for rework, which reopens the flagged risks '
+                    .'and only those.',
+            ],
+
+            // §9.3 — the remediation register, which outlives the cycle that
+            // produced it. `close` and `verify` are separate on purpose: the
+            // owner claims the control is in place, the second line accepts
+            // that it is, and one person doing both is how a remediation
+            // register comes to be 100% complete and empty of controls.
+            'RCSA Action Plans' => [
+                'rcsa_actionplan.view' => 'See the RCSA action-plan register and its ageing.',
+                'rcsa_actionplan.update' => 'Record progress on an action plan you own, and ask for an extension.',
+                'rcsa_actionplan.close' => 'Mark an action plan complete with evidence, and approve extension requests.',
+                'rcsa_actionplan.verify' => 'Verify that a completed action plan really is in place, which is what '
+                    .'closes it.',
             ],
 
             'Campaigns' => [
@@ -355,6 +389,8 @@ class RiskPermissionCatalog extends PermissionCatalog
             'rcsa_universe.delete', 'rcsa_universe.publish', 'rcsa_universe.import',
             'rcsa_cycle.view', 'rcsa_cycle.manage', 'rcsa_cycle.open', 'rcsa_cycle.close',
             'rcsa_assessment.view', 'rcsa_assessment.complete', 'rcsa_assessment.submit',
+            'rcsa_assessment.review', 'rcsa_assessment.validate', 'rcsa_assessment.return',
+            'rcsa_actionplan.view', 'rcsa_actionplan.update', 'rcsa_actionplan.close', 'rcsa_actionplan.verify',
             'analysis.view',
             'ai.view', 'ai.use',
             'control_test.view', 'control_test.create', 'control_test.edit', 'control_test.execute', 'control_test.review',
@@ -387,6 +423,12 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'rcsa_universe.view', 'rcsa_universe.create', 'rcsa_universe.update',
                 'rcsa_cycle.view',
                 'rcsa_assessment.view', 'rcsa_assessment.complete', 'rcsa_assessment.submit',
+                // The BU head is a risk owner in this product's role map, and
+                // the approval step is theirs. Review, validate and return are
+                // NOT here: a unit reviewing its own assessment is not a second
+                // line, and the whole of §9 rests on that separation.
+                'rcsa_assessment.approve',
+                'rcsa_actionplan.view', 'rcsa_actionplan.update',
                 'analysis.view',
                 'campaign.view', 'campaign.respond',
                 'control_test.view',
@@ -401,6 +443,11 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'rcsa.view',
                 'rcsa_universe.view',
                 'rcsa_cycle.view', 'rcsa_assessment.view',
+                // The ORM Analyst of §11's role list: challenges every line,
+                // decides nothing. Validate and return belong to the Head of
+                // ORM, who is `risk-manager` here.
+                'rcsa_assessment.review',
+                'rcsa_actionplan.view',
                 'analysis.view',
                 'ai.view',
                 'control_test.view',
@@ -430,6 +477,7 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'rcsa.view',
                 'rcsa_universe.view',
                 'rcsa_cycle.view', 'rcsa_assessment.view',
+                'rcsa_actionplan.view',
                 'control_test.view', 'control_test.review',
                 'regulatory.view', 'regulatory.manage', 'regulatory.file',
                 'period.view',

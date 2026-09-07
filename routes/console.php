@@ -14,6 +14,12 @@ Schedule::command('kri:check-breaches')->dailyAt('07:00');
 Schedule::command('treatments:check-overdue')->dailyAt('08:30');
 Schedule::command('regulatory:check-deadlines')->twiceDaily(8, 16);
 
+// RCSA v2 P5 (§9.3). After the other overdue sweeps, so a morning's digest
+// reports one consistent picture. Reminders fire at exactly T-14, T-7 and T-0,
+// which is what makes a second run in one day a duplicate rather than a wrong
+// answer — see CheckRcsaActionPlans for why there is no "last reminded" column.
+Schedule::command('rcsa:check-action-plans')->dailyAt('08:45');
+
 // WP-04. The CBN publishes rates on business days; the fetcher runs before the
 // KRI check so a monetary limit is evaluated against that morning's rate.
 Schedule::command('fx:fetch-cbn-rates')->weekdays()->dailyAt('06:30');

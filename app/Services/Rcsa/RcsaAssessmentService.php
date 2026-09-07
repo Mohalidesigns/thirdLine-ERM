@@ -41,6 +41,17 @@ class RcsaAssessmentService
      */
     public const CONFLICT = 'conflict';
 
+    /**
+     * The line is frozen — submitted, or returned without having been flagged.
+     *
+     * Checked HERE as well as in the controller, and that redundancy is the
+     * point: P5's rule is that a return reopens only the flagged lines, and a
+     * rule enforced in exactly one controller method is one an import path, a
+     * queued job or a future API route walks straight past. The controller
+     * turns this into a 423 with the line attached.
+     */
+    public const LOCKED = 'locked';
+
     public function __construct(private readonly RcsaCalculationService $calculator) {}
 
     /**
@@ -62,6 +73,10 @@ class RcsaAssessmentService
         // must be refused loudly rather than quietly overwriting the first.
         if ($expectedVersion !== null && (int) $line->version !== $expectedVersion) {
             return ['status' => self::CONFLICT, 'line' => $line->fresh() ?? $line];
+        }
+
+        if ($line->isLocked()) {
+            return ['status' => self::LOCKED, 'line' => $line];
         }
 
         $methodology = $this->methodologyFor($line);
@@ -141,7 +156,7 @@ class RcsaAssessmentService
             // makes that recoverable.
             $result = $this->apply($line, $input, $actor, expectedVersion: null, request: $request);
 
-            if ($result['status'] !== self::CONFLICT) {
+            if (! in_array($result['status'], [self::CONFLICT, self::LOCKED], true)) {
                 $changed++;
             }
         }

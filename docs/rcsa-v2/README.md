@@ -13,7 +13,7 @@ deviated from and why, and what the phase found that the plan did not know.
 | P2 | Template generator and bulk upload | **Done** — [p2-template-and-import.md](p2-template-and-import.md) |
 | P3 | Cycles and assessment workspace | **Done** — [p3-cycles-and-workspace.md](p3-cycles-and-workspace.md) |
 | P4 | Appetite, action plans, submission gate | **Done** — [p4-appetite-and-submission.md](p4-appetite-and-submission.md) |
-| P5 | ORM review workflow | Not started |
+| P5 | ORM review workflow, action-plan register | **Done** — [p5-orm-review.md](p5-orm-review.md) |
 | P6 | Bulk download, dashboards, offline round-trip | Not started |
 | P7 | RBAC, audit and notifications | Not started |
 | P8 | Migration and cutover off the legacy module | Not started |
@@ -48,7 +48,15 @@ carried in the schema as configuration rather than being guessed at:
 | Q3 | Should Fully Achieved really drive residual to zero? | `rcsa_methodologies.residual_floor` — `0` seeded, which is template parity |
 | Q4 | Is appetite a single ceiling, or a statement per risk category? | `rcsa_methodologies.appetite_ceiling_level` — `low` seeded |
 
-Q1 is now visible in the product: `residual_mode` is `calculated`, so the workspace offers no residual likelihood/impact pair and the line endpoint refuses one. Switching the seeded methodology to `assessed` turns both on. The remaining questions (Q2, Q5–Q10) do not block P0–P3; Q6 and Q8 become live decisions in P5.
+Q1 is now visible in the product: `residual_mode` is `calculated`, so the workspace offers no residual likelihood/impact pair and the line endpoint refuses one. Switching the seeded methodology to `assessed` turns both on. The remaining questions (Q2, Q5–Q10) do not block P0–P3.
+
+**Q6 is now answered in configuration.** The BU-head approval step is
+`organizations.settings['rcsa']['bu_approval_required']`, default off — a bank
+that wants it turns it on and takes `rcsa_assessment.submit` off `risk-owner`
+if it wants the champion unable to file directly. **Q8 (who assigns assessors)
+is still open**: `reviewer_id` is written when a reviewer claims an assessment,
+but `assigned_to` is still null and assignment belongs with P7's business-unit
+scoping.
 
 ## Fixes found in use
 

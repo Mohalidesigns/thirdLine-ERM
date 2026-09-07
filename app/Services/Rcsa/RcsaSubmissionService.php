@@ -4,9 +4,10 @@ namespace App\Services\Rcsa;
 
 use App\Models\Rcsa\RcsaAssessment;
 use App\Models\Rcsa\RcsaAssessmentLine;
+use App\Models\Rcsa\RcsaAssessmentTransition;
 use App\Models\User;
 use App\Services\NotificationService;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use ThirdLine\Reporting\DocumentRenderer;
@@ -35,6 +36,7 @@ class RcsaSubmissionService
 {
     public function __construct(
         private readonly RcsaAssessmentService $assessments,
+        private readonly RcsaWorkflowService $workflow,
         private readonly DocumentRenderer $renderer,
     ) {}
 
@@ -79,9 +81,16 @@ class RcsaSubmissionService
     /**
      * Submit an assessment for ORM review.
      *
-     * @return array{lines: int, snapshot: string|null, notified: int}
+     * WHERE IT LANDS IS THE TENANT'S CHOICE. With the BU-head step enabled it
+     * goes to `bu_approval` and the head is told; without it, straight to
+     * `submitted` and the ORM is told. Either way the lines lock and the
+     * snapshot is written here, at the act of FILING — the head reviews the
+     * same frozen document the ORM will, and the PDF records what the unit
+     * signed off rather than what it looked like after an approval step.
+     *
+     * @return array{lines: int, snapshot: string|null, notified: int, status: string}
      */
-    public function submit(RcsaAssessment $assessment, User $actor): array
+    public function submit(RcsaAssessment $assessment, User $actor, ?Request $request = null): array
     {
         if (! in_array($assessment->status, RcsaAssessment::EDITABLE, true)) {
             throw new RuntimeException('This assessment has already been submitted.');
@@ -106,33 +115,87 @@ class RcsaSubmissionService
         // block every other save in the unit for its duration.
         $snapshot = $this->writeSnapshot($assessment);
 
-        DB::transaction(function () use ($assessment, $actor, $snapshot) {
-            $assessment->lines()->update([
-                'locked_at' => now(),
-                'locked_by' => null,
-                'lock_expires_at' => null,
-            ]);
-
-            $assessment->forceFill([
-                'status' => RcsaAssessment::SUBMITTED,
+        // Through the state machine, not a forceFill of its own: §9.1 wants
+        // user, timestamp, from, to and reason on EVERY transition, and a
+        // submit that wrote its own status would be the one movement in the
+        // module with no history behind it.
+        $assessment = $this->workflow->transition(
+            assessment: $assessment,
+            to: $this->workflow->submissionTarget($assessment),
+            actor: $actor,
+            event: RcsaAssessmentTransition::SUBMIT,
+            reason: null,
+            request: $request,
+            attributes: [
                 'submitted_by' => $actor->id,
                 'submitted_at' => now(),
                 'snapshot_path' => $snapshot,
                 // A resubmission after a return must not still show the reason
                 // it was returned for.
                 'returned_reason' => null,
-            ])->save();
-        });
+            ],
+            inside: function (RcsaAssessment $assessment) {
+                // Every line, including ones the ORM never flagged: submission
+                // freezes the whole assessment, and a return is what reopens
+                // the part of it that has to change.
+                $assessment->lines()->update([
+                    'locked_at' => now(),
+                    'locked_by' => null,
+                    'lock_expires_at' => null,
+                ]);
+            },
+        );
 
         $assessment->loadMissing(['cycle', 'businessUnit']);
 
-        $notified = $this->notifyReviewers($assessment, $actor);
+        $notified = $assessment->status === RcsaAssessment::BU_APPROVAL
+            ? $this->notifyBusinessUnitHead($assessment, $actor)
+            : $this->notifyReviewers($assessment, $actor);
 
         return [
             'lines' => $assessment->lines()->count(),
             'snapshot' => $snapshot,
             'notified' => $notified,
+            'status' => (string) $assessment->status,
         ];
+    }
+
+    /**
+     * Tell the head of the business unit their unit has filed.
+     *
+     * `business_units.head_id`, and nothing else — an approval step with no
+     * named approver is not an approval step, so a unit with no head set
+     * notifies nobody and the assessment waits visibly in `bu_approval` rather
+     * than being quietly forwarded to the ORM as though it had been approved.
+     */
+    private function notifyBusinessUnitHead(RcsaAssessment $assessment, User $actor): int
+    {
+        $head = $assessment->getRelationValue('businessUnit')?->head_id;
+
+        if ($head === null || (int) $head === $actor->id) {
+            return 0;
+        }
+
+        NotificationService::send(
+            organizationId: (int) $assessment->organization_id,
+            userId: (int) $head,
+            type: 'rcsa.assessment.awaiting_approval',
+            subject: sprintf('%s needs your approval', $this->unitName($assessment)),
+            body: sprintf(
+                '%s completed the %s assessment for %s: %d risks, %d above appetite. It reaches ORM once you approve it.',
+                $actor->name,
+                $this->cycleName($assessment),
+                $this->unitName($assessment),
+                $assessment->lines()->count(),
+                $this->aboveAppetiteCount($assessment),
+            ),
+            metadata: ['assessment_id' => $assessment->id, 'cycle_id' => $assessment->cycle_id],
+            actionUrl: route('rcsa.assessments.show', $assessment, absolute: false),
+            priority: 'high',
+            category: 'workflow',
+        );
+
+        return 1;
     }
 
     /* ------------------------------------------------------------------ */
@@ -198,10 +261,11 @@ class RcsaSubmissionService
      * Tell the ORM there is something to review.
      *
      * WHO IS "THE ORM"? The assessment's own `reviewer_id` when one is set —
-     * P5 assigns them. Until then, everyone who may close a cycle, which is
-     * the operational-risk function in every role map this product ships. That
-     * is a deliberate over-notification rather than an under-one: an
-     * assessment submitted into silence is the failure mode that matters.
+     * a reviewer who claimed it in an earlier round, or the Head of ORM having
+     * assigned it. Until then, everyone holding `rcsa_assessment.review`, which
+     * is P5's permission for exactly this function. That is a deliberate
+     * over-notification rather than an under-one: an assessment submitted into
+     * silence is the failure mode that matters.
      */
     private function notifyReviewers(RcsaAssessment $assessment, User $actor): int
     {
@@ -212,7 +276,7 @@ class RcsaSubmissionService
                 ->where('is_active', true)
                 ->whereKeyNot($actor->id)
                 ->get()
-                ->filter(fn (User $user) => $user->can('rcsa_cycle.close'))
+                ->filter(fn (User $user) => $user->can('rcsa_assessment.review'))
                 ->pluck('id')
                 ->all();
 

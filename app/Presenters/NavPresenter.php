@@ -88,6 +88,8 @@ class NavPresenter
                     ['label' => 'Universe', 'route' => 'rcsa.universe.index', 'permission' => 'rcsa_universe.view', 'feature' => 'rcsa_v2'],
                     ['label' => 'Cycles', 'route' => 'rcsa.cycles.index', 'permission' => 'rcsa_cycle.view', 'feature' => 'rcsa_v2'],
                     ['label' => 'My Assessments', 'route' => 'rcsa.assessments.index', 'permission' => 'rcsa_assessment.view', 'feature' => 'rcsa_v2'],
+                    ['label' => 'ORM Review', 'route' => 'rcsa.review.index', 'permission' => 'rcsa_assessment.review', 'feature' => 'rcsa_v2'],
+                    ['label' => 'Action Plans', 'route' => 'rcsa.action-plans.index', 'permission' => 'rcsa_actionplan.view', 'feature' => 'rcsa_v2'],
                 ],
             ],
             [

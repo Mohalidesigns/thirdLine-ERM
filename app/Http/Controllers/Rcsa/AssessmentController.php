@@ -11,7 +11,9 @@ use App\Models\Rcsa\RcsaAssessmentLine;
 use App\Models\Rcsa\RcsaMethodology;
 use App\Models\Rcsa\RcsaScaleItem;
 use App\Services\Rcsa\RcsaAssessmentService;
+use App\Services\Rcsa\RcsaReviewService;
 use App\Services\Rcsa\RcsaSubmissionService;
+use App\Services\Rcsa\RcsaWorkflowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -36,6 +38,8 @@ class AssessmentController extends Controller
     public function __construct(
         private readonly RcsaAssessmentService $assessments,
         private readonly RcsaSubmissionService $submissions,
+        private readonly RcsaWorkflowService $workflow,
+        private readonly RcsaReviewService $reviews,
     ) {}
 
     /**
@@ -87,7 +91,15 @@ class AssessmentController extends Controller
             ->findOrFail($assessment->cycle->methodology_id);
 
         $lines = $assessment->lines()
-            ->with(['priorLine:id,inherent_score,inherent_level,residual_score,residual_level,control_effectiveness', 'actionPlans.owner:id,name'])
+            ->with([
+                'priorLine:id,inherent_score,inherent_level,residual_score,residual_level,control_effectiveness',
+                'actionPlans.owner:id,name',
+                // The ORM's challenges. Loaded on the WORKSPACE, not only on
+                // the review screen: a returned assessment whose reopened lines
+                // do not show what was asked of them is a screen that sends the
+                // assessor back to their email.
+                'comments.author:id,name',
+            ])
             ->get();
 
         $outstanding = $this->submissions->blockers($assessment, $request->user()->id);
@@ -99,6 +111,13 @@ class AssessmentController extends Controller
                 'completion_pct' => $assessment->completion_pct,
                 'business_unit' => $assessment->getRelationValue('businessUnit')?->name,
                 'editable' => $assessment->acceptsEdits(),
+                // Why it is not editable, when it is not. "Read-only" with no
+                // reason beside it is the state people file a bug about.
+                'awaiting' => in_array($assessment->status, RcsaAssessment::AWAITING_DECISION, true),
+                'returned_reason' => $assessment->returned_reason,
+                'reopened_count' => $assessment->status === RcsaAssessment::RETURNED
+                    ? $assessment->lines()->whereNull('locked_at')->count()
+                    : 0,
                 'cycle' => [
                     'id' => $assessment->cycle->id,
                     'name' => $assessment->cycle->name,
@@ -129,8 +148,71 @@ class AssessmentController extends Controller
             'can' => [
                 'complete' => $request->user()->can('complete', $assessment),
                 'submit' => $request->user()->can('submit', $assessment),
+                'approve' => $request->user()->can('approve', $assessment),
             ],
         ]);
+    }
+
+    /**
+     * The optional BU-head step of §9.1.
+     *
+     * Approving forwards the assessment to the ORM unchanged — the head does
+     * not edit it, and the snapshot was taken when the unit filed it. A head
+     * who wants something changed returns it, which reopens every line, because
+     * they have no per-line challenge to have flagged with.
+     */
+    public function approve(Request $request, RcsaAssessment $assessment)
+    {
+        Gate::authorize('approve', $assessment);
+
+        try {
+            $this->workflow->approve($assessment, $request->user(), $request->input('reason'), $request);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Approved and sent to ORM review.');
+    }
+
+    /**
+     * The BU head sends it back to their own unit.
+     */
+    public function reject(Request $request, RcsaAssessment $assessment)
+    {
+        Gate::authorize('approve', $assessment);
+
+        $reason = $request->validate([
+            'reason' => ['required', 'string', 'min:10', 'max:2000'],
+        ])['reason'];
+
+        try {
+            // requireFlags: false — the head has no per-line challenge, so
+            // there is nothing flagged and a wholesale reopen is the only
+            // return they can make. The ORM's return never takes this branch.
+            $this->workflow->returnForRework($assessment, $request->user(), $reason, $request, requireFlags: false);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Sent back to the assessor.');
+    }
+
+    /**
+     * The assessor answers a challenge on a line the ORM reopened.
+     */
+    public function respond(Request $request, RcsaAssessment $assessment, RcsaAssessmentLine $line)
+    {
+        Gate::authorize('complete', $assessment);
+        abort_unless($line->assessment_id === $assessment->id, 404);
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'min:5', 'max:2000'],
+            'parent_id' => ['nullable', 'integer'],
+        ]);
+
+        $this->reviews->respond($line, $request->user(), $validated['body'], $validated['parent_id'] ?? null);
+
+        return back()->with('success', 'Reply sent to the reviewer.');
     }
 
     /* ------------------------------------------------------------------ */
@@ -140,6 +222,7 @@ class AssessmentController extends Controller
     public function storePlan(StoreActionPlanRequest $request, RcsaAssessment $assessment, RcsaAssessmentLine $line)
     {
         abort_unless($line->assessment_id === $assessment->id, 404);
+        abort_if($line->isLocked(), 423, 'This risk is locked. Only the risks the ORM flagged can be changed.');
 
         $line->actionPlans()->create($request->validated() + [
             'organization_id' => $assessment->organization_id,
@@ -152,6 +235,7 @@ class AssessmentController extends Controller
     public function updatePlan(StoreActionPlanRequest $request, RcsaAssessment $assessment, RcsaAssessmentLine $line, RcsaActionPlan $plan)
     {
         abort_unless($line->assessment_id === $assessment->id && $plan->line_id === $line->id, 404);
+        abort_if($line->isLocked(), 423, 'This risk is locked. Only the risks the ORM flagged can be changed.');
 
         $plan->update($request->validated());
 
@@ -162,6 +246,7 @@ class AssessmentController extends Controller
     {
         Gate::authorize('complete', $assessment);
         abort_unless($line->assessment_id === $assessment->id && $plan->line_id === $line->id, 404);
+        abort_if($line->isLocked(), 423, 'This risk is locked. Only the risks the ORM flagged can be changed.');
 
         $plan->delete();
 
@@ -177,7 +262,7 @@ class AssessmentController extends Controller
         Gate::authorize('submit', $assessment);
 
         try {
-            $result = $this->submissions->submit($assessment, $request->user());
+            $result = $this->submissions->submit($assessment, $request->user(), $request);
         } catch (\RuntimeException $e) {
             // The blockers are already on the page and each carries a jump
             // link, so the flash says how many rather than repeating them into
@@ -187,12 +272,17 @@ class AssessmentController extends Controller
 
         return redirect()
             ->route('rcsa.cycles.show', $assessment->cycle_id)
-            ->with('success', sprintf(
-                'Submitted for ORM review. %d risks are locked, and %d %s been notified.',
-                $result['lines'],
-                $result['notified'],
-                $result['notified'] === 1 ? 'person has' : 'people have',
-            ));
+            ->with('success', $result['status'] === RcsaAssessment::BU_APPROVAL
+                ? sprintf(
+                    'Sent to your business-unit head for approval. %d risks are locked until they decide.',
+                    $result['lines'],
+                )
+                : sprintf(
+                    'Submitted for ORM review. %d risks are locked, and %d %s been notified.',
+                    $result['lines'],
+                    $result['notified'],
+                    $result['notified'] === 1 ? 'person has' : 'people have',
+                ));
     }
 
     /**
@@ -205,6 +295,21 @@ class AssessmentController extends Controller
     public function updateLine(UpdateAssessmentLineRequest $request, RcsaAssessment $assessment, RcsaAssessmentLine $line)
     {
         abort_unless($line->assessment_id === $assessment->id, 404);
+
+        // THE PER-LINE LOCK, which is P5's acceptance criterion arriving at the
+        // one endpoint that could break it. A returned assessment accepts
+        // edits, so the policy on `complete` says yes for all 200 of its rows;
+        // only the four the ORM flagged were actually reopened. Without this,
+        // an assessor could PATCH any row of a returned assessment and the
+        // return would have reopened everything after all.
+        if ($line->isLocked()) {
+            return response()->json([
+                'message' => $assessment->status === RcsaAssessment::RETURNED
+                    ? 'The ORM did not flag this risk, so it stays as it was filed.'
+                    : 'This risk was locked when the assessment was submitted.',
+                'line' => $this->toRow($line),
+            ], 423);
+        }
 
         // The advisory lock: someone else has this row open in guided mode.
         // Distinct from the version check, which catches a genuine collision;
@@ -223,6 +328,13 @@ class AssessmentController extends Controller
             expectedVersion: $request->validated('version'),
             request: $request,
         );
+
+        if ($result['status'] === RcsaAssessmentService::LOCKED) {
+            return response()->json([
+                'message' => 'This risk is locked and cannot be changed.',
+                'line' => $this->toRow($result['line']),
+            ], 423);
+        }
 
         if ($result['status'] === RcsaAssessmentService::CONFLICT) {
             return response()->json([
@@ -263,7 +375,18 @@ class AssessmentController extends Controller
 
         // Scoped to THIS assessment: a line id from another assessment simply
         // does not come back, so a crafted request cannot reach across.
-        $lines = $assessment->lines()->whereIn('id', $validated['line_ids'])->get();
+        //
+        // `whereNull('locked_at')` for the same reason updateLine() checks the
+        // lock: a bulk apply over a returned assessment must not be the way
+        // round the rule that only flagged lines reopened.
+        $lines = $assessment->lines()
+            ->whereIn('id', $validated['line_ids'])
+            ->whereNull('locked_at')
+            ->get();
+
+        if ($lines->isEmpty()) {
+            return back()->with('error', 'None of those risks are open for editing.');
+        }
 
         $changed = $this->assessments->applyToMany($lines, $answers, $request->user(), $request);
 
@@ -363,6 +486,22 @@ class AssessmentController extends Controller
             'assessment_rationale' => $line->assessment_rationale,
             'assessed_at' => $line->assessed_at?->toDateTimeString(),
             'is_scored' => $line->isScored(),
+
+            /* --- The ORM's verdict on this row (§9.2) --------------------- */
+            'orm_status' => $line->orm_status,
+            // Per LINE, not per assessment: on a returned assessment these
+            // differ, and the grid greys the ones the ORM did not flag.
+            'is_locked' => $line->isLocked(),
+            'comments' => $line->relationLoaded('comments')
+                ? $line->comments->map(fn ($comment) => [
+                    'id' => $comment->id,
+                    'type' => $comment->type,
+                    'body' => $comment->body,
+                    'suggested' => $comment->suggested_values,
+                    'by' => $comment->getRelationValue('author')?->name,
+                    'at' => $comment->created_at?->toDateTimeString(),
+                ])->all()
+                : [],
             'action_plans_count' => $line->relationLoaded('actionPlans') ? $line->actionPlans->count() : 0,
             'action_plans' => $line->relationLoaded('actionPlans')
                 ? $line->actionPlans->map(fn (RcsaActionPlan $plan) => [

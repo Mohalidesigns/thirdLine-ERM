@@ -17,9 +17,11 @@ use App\Http\Controllers\Admin\WebhookController;
 use App\Http\Controllers\Auth\SsoController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Rcsa\ActionPlanController as RcsaActionPlanController;
 use App\Http\Controllers\Rcsa\AssessmentController as RcsaAssessmentController;
 use App\Http\Controllers\Rcsa\CycleController as RcsaCycleController;
 use App\Http\Controllers\Rcsa\ImportController as RcsaImportController;
+use App\Http\Controllers\Rcsa\ReviewController as RcsaReviewController;
 use App\Http\Controllers\Rcsa\UniverseController as RcsaUniverseController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
 use App\Http\Controllers\Risk\AiToolsController;
@@ -1094,6 +1096,99 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         // so it is its own permission — see the catalog for why.
         Route::post('{assessment}/submit', [RcsaAssessmentController::class, 'submit'])
             ->middleware('permission:rcsa_assessment.submit')->name('submit');
+
+        /*
+         * The optional BU-head step of §9.1, enabled per tenant in
+         * `organizations.settings['rcsa']['bu_approval_required']`. The
+         * permission exists whether or not a tenant uses the step; the policy
+         * refuses it outside `bu_approval`, and refuses it to the person who
+         * submitted, because an approval you give yourself is not one.
+         */
+        Route::post('{assessment}/approve', [RcsaAssessmentController::class, 'approve'])
+            ->middleware('permission:rcsa_assessment.approve')->name('approve');
+
+        Route::post('{assessment}/reject', [RcsaAssessmentController::class, 'reject'])
+            ->middleware('permission:rcsa_assessment.approve')->name('reject');
+
+        // The assessor answering an ORM challenge on a reopened line. Gated on
+        // `complete`, because replying to a challenge is part of doing the
+        // assessment rather than of reviewing it.
+        Route::post('{assessment}/lines/{line}/respond', [RcsaAssessmentController::class, 'respond'])
+            ->middleware('permission:rcsa_assessment.complete')->name('lines.respond');
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA v2 — ORM review (plan §9.1, §9.2) */
+    /* ------------------------------------------------------------------ */
+    /*
+     * THREE PERMISSIONS, NOT ONE. `review` opens the queue, claims an
+     * assessment, challenges a line and escalates — the ORM Analyst's work.
+     * `validate` and `return` are the decisions, and they are the Head of
+     * ORM's. Handing an analyst all three collapses §9's two-person control
+     * into one person, and the policy adds the other half of it: whoever
+     * submitted an assessment cannot review it, whatever they hold.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/review')->name('rcsa.review.')->group(function () {
+        Route::get('/', [RcsaReviewController::class, 'index'])
+            ->middleware('permission:rcsa_assessment.review')->name('index');
+
+        Route::get('{assessment}', [RcsaReviewController::class, 'show'])
+            ->middleware('permission:rcsa_assessment.review')->name('show');
+
+        // The PDF filed at submission — streamed from storage, never
+        // re-rendered. P4 wrote it and this is the first thing that reads it.
+        Route::get('{assessment}/snapshot', [RcsaReviewController::class, 'snapshot'])
+            ->middleware('permission:rcsa_assessment.view')->name('snapshot');
+
+        Route::post('{assessment}/claim', [RcsaReviewController::class, 'claim'])
+            ->middleware('permission:rcsa_assessment.review')->name('claim');
+
+        Route::post('{assessment}/lines/{line}/challenge', [RcsaReviewController::class, 'challenge'])
+            ->middleware('permission:rcsa_assessment.review')->name('lines.challenge');
+
+        Route::post('{assessment}/lines/{line}/mark', [RcsaReviewController::class, 'mark'])
+            ->middleware('permission:rcsa_assessment.review')->name('lines.mark');
+
+        Route::post('{assessment}/validate', [RcsaReviewController::class, 'validateAssessment'])
+            ->middleware('permission:rcsa_assessment.validate')->name('validate');
+
+        Route::post('{assessment}/return', [RcsaReviewController::class, 'returnForRework'])
+            ->middleware('permission:rcsa_assessment.return')->name('return');
+
+        Route::post('{assessment}/escalate', [RcsaReviewController::class, 'escalate'])
+            ->middleware('permission:rcsa_assessment.review')->name('escalate');
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA v2 — the action-plan register (plan §9.3) */
+    /* ------------------------------------------------------------------ */
+    /*
+     * IT OUTLIVES THE CYCLE, so it is not nested under one. A plan raised in
+     * 2026 H1 and due in October is still the ORM's business in H2, and the
+     * register is the screen that says so.
+     *
+     * `close` (the owner's claim) and `verify` (the second line accepting it)
+     * are separate permissions, and the policy stops one person doing both on
+     * the same plan even where they hold both.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/action-plans')->name('rcsa.action-plans.')->group(function () {
+        Route::get('/', [RcsaActionPlanController::class, 'index'])
+            ->middleware('permission:rcsa_actionplan.view')->name('index');
+
+        Route::patch('{plan}/progress', [RcsaActionPlanController::class, 'progress'])
+            ->middleware('permission:rcsa_actionplan.update')->name('progress');
+
+        Route::post('{plan}/complete', [RcsaActionPlanController::class, 'complete'])
+            ->middleware('permission:rcsa_actionplan.update')->name('complete');
+
+        Route::post('{plan}/extension', [RcsaActionPlanController::class, 'requestExtension'])
+            ->middleware('permission:rcsa_actionplan.update')->name('extension');
+
+        Route::post('{plan}/extension/decide', [RcsaActionPlanController::class, 'decideExtension'])
+            ->middleware('permission:rcsa_actionplan.close')->name('extension.decide');
+
+        Route::post('{plan}/verify', [RcsaActionPlanController::class, 'verify'])
+            ->middleware('permission:rcsa_actionplan.verify')->name('verify');
     });
 
     /* ------------------------------------------------------------------ */

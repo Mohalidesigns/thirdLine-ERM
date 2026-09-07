@@ -56,6 +56,27 @@ class RcsaAssessment extends Model
      */
     public const EDITABLE = [self::DRAFT, self::IN_PROGRESS, self::RETURNED];
 
+    /**
+     * The states an ORM reviewer acts on — the review queue's contents.
+     *
+     * `bu_approval` is NOT here. An assessment waiting on its business-unit
+     * head has not reached the second line yet, and putting it in the ORM
+     * queue would have reviewers open work the business has not finished
+     * signing off.
+     *
+     * @var list<string>
+     */
+    public const REVIEWABLE = [self::SUBMITTED, self::UNDER_REVIEW];
+
+    /**
+     * The states in which the assessment is out of the assessor's hands and
+     * into somebody else's — used by the workspace to explain why a screen it
+     * just let somebody fill in is now read-only.
+     *
+     * @var list<string>
+     */
+    public const AWAITING_DECISION = [self::BU_APPROVAL, self::SUBMITTED, self::UNDER_REVIEW];
+
     protected $table = 'rcsa_assessments';
 
     protected $fillable = [
@@ -71,6 +92,9 @@ class RcsaAssessment extends Model
         'reviewed_by',
         'reviewed_at',
         'returned_reason',
+        'escalated_at',
+        'escalated_by',
+        'escalation_reason',
         'snapshot_path',
     ];
 
@@ -78,6 +102,7 @@ class RcsaAssessment extends Model
         'completion_pct' => 'integer',
         'submitted_at' => 'datetime',
         'reviewed_at' => 'datetime',
+        'escalated_at' => 'datetime',
     ];
 
     protected static function boot(): void
@@ -128,6 +153,28 @@ class RcsaAssessment extends Model
         return $this->belongsTo(User::class, 'assigned_to');
     }
 
+    /** @return BelongsTo<User, $this> */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewer_id');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function submitter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'submitted_by');
+    }
+
+    /**
+     * The workflow history of §9.1, newest first.
+     *
+     * @return HasMany<RcsaAssessmentTransition, $this>
+     */
+    public function transitions(): HasMany
+    {
+        return $this->hasMany(RcsaAssessmentTransition::class, 'assessment_id')->latest('created_at');
+    }
+
     /**
      * Whether a line in this assessment may be changed right now.
      *
@@ -141,5 +188,24 @@ class RcsaAssessment extends Model
     {
         return in_array($this->status, self::EDITABLE, true)
             && ($this->relationLoaded('cycle') ? $this->cycle : $this->cycle()->first())?->acceptsEdits() === true;
+    }
+
+    /**
+     * Whether a reviewer may act on it — the queue's filter and the review
+     * screen's guard.
+     *
+     * The CYCLE has to be open here too, for the same reason edits do: a
+     * closed cycle has already reported its figures, and validating an
+     * assessment inside one would change what a closed period says.
+     */
+    public function acceptsReview(): bool
+    {
+        return in_array($this->status, self::REVIEWABLE, true)
+            && ($this->relationLoaded('cycle') ? $this->cycle : $this->cycle()->first())?->acceptsEdits() === true;
+    }
+
+    public function isEscalated(): bool
+    {
+        return $this->escalated_at !== null;
     }
 }

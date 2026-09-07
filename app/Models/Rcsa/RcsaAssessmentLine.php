@@ -73,6 +73,27 @@ class RcsaAssessmentLine extends Model
      */
     public const LOCK_MINUTES = 10;
 
+    /* --- ORM review states (column `orm_status`) ---------------------- */
+
+    public const ORM_PENDING = 'pending';
+
+    public const ORM_ACCEPTED = 'accepted';
+
+    public const ORM_FLAGGED = 'flagged';
+
+    public const ORM_CHALLENGED = 'challenged';
+
+    /**
+     * The ORM verdicts that send a line back to the assessor.
+     *
+     * Both of them do. A challenge is a flag with a question attached — the
+     * reviewer wants the rating changed or defended, and neither is possible
+     * while the line is locked.
+     *
+     * @var list<string>
+     */
+    public const ORM_REOPENS = [self::ORM_FLAGGED, self::ORM_CHALLENGED];
+
     protected $table = 'rcsa_assessment_lines';
 
     protected $fillable = [
@@ -200,6 +221,12 @@ class RcsaAssessmentLine extends Model
         return $this->hasMany(RcsaActionPlan::class, 'line_id');
     }
 
+    /** @return HasMany<RcsaLineComment, $this> */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(RcsaLineComment::class, 'line_id')->oldest('created_at');
+    }
+
     /** @return HasMany<RcsaLineRevision, $this> */
     public function revisions(): HasMany
     {
@@ -231,6 +258,37 @@ class RcsaAssessmentLine extends Model
     public function isLocked(): bool
     {
         return $this->locked_at !== null;
+    }
+
+    /**
+     * Whether this particular line may be changed right now.
+     *
+     * THIS IS WHERE "RETURNING REOPENS ONLY THE FLAGGED LINES" IS ENFORCED —
+     * P5's acceptance criterion, and it lives on the line rather than in a
+     * controller because the assessment cannot express it. A returned
+     * assessment accepts edits, so every route that consults only
+     * `RcsaAssessment::acceptsEdits()` would hand back all 200 rows; what the
+     * ORM actually asked for was the four they flagged. `locked_at` is set on
+     * every line at submission and cleared, on return, only on the flagged
+     * ones — so the lock the assessor meets is per-row.
+     */
+    public function acceptsEdits(): bool
+    {
+        if ($this->locked_at !== null) {
+            return false;
+        }
+
+        $assessment = $this->relationLoaded('assessment') ? $this->assessment : $this->assessment()->first();
+
+        return $assessment?->acceptsEdits() === true;
+    }
+
+    /**
+     * Whether the ORM has sent this line back — flagged or challenged.
+     */
+    public function isFlaggedByOrm(): bool
+    {
+        return in_array((string) $this->orm_status, self::ORM_REOPENS, true);
     }
 
     /**

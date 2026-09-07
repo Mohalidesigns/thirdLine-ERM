@@ -57,6 +57,71 @@ class RcsaAssessmentPolicy
             && $assessment->acceptsEdits();
     }
 
+    /**
+     * May this user approve it on behalf of the business unit?
+     *
+     * THE APPROVER CANNOT BE THE SUBMITTER. The BU-head step exists so that
+     * somebody other than the person who filled the assessment in signs it off;
+     * a head who also happens to be the unit's risk champion approves nothing
+     * by pressing two buttons in a row. Where that leaves a one-person unit
+     * unable to proceed, the answer is to turn the step off for the tenant, not
+     * to let it be self-approved.
+     */
+    public function approve(User $user, RcsaAssessment $assessment): bool
+    {
+        return $user->can('rcsa_assessment.approve')
+            && $this->reachable($user, $assessment)
+            && $assessment->status === RcsaAssessment::BU_APPROVAL
+            && (int) $assessment->submitted_by !== (int) $user->id;
+    }
+
+    /**
+     * May this user open it in the review queue and challenge its lines?
+     *
+     * THE REVIEWER CANNOT BE THE SUBMITTER, for the same reason and more
+     * strongly: §9 is a two-person control between the first line and the
+     * second, and an assessment reviewed by the person who filed it has not
+     * been reviewed. This is the check that makes the separation real rather
+     * than a matter of which permissions an administrator happened to hand out.
+     */
+    public function review(User $user, RcsaAssessment $assessment): bool
+    {
+        return $user->can('rcsa_assessment.review')
+            && $this->reachable($user, $assessment)
+            && $assessment->acceptsReview()
+            && (int) $assessment->submitted_by !== (int) $user->id;
+    }
+
+    /**
+     * May this user accept it?
+     *
+     * Validating requires being able to review it in the first place — a
+     * permission to decide is not a permission to decide something you may not
+     * look at — plus the authority to make the decision.
+     */
+    public function validate(User $user, RcsaAssessment $assessment): bool
+    {
+        return $user->can('rcsa_assessment.validate') && $this->review($user, $assessment);
+    }
+
+    /**
+     * May this user send it back?
+     */
+    public function returnForRework(User $user, RcsaAssessment $assessment): bool
+    {
+        return $user->can('rcsa_assessment.return') && $this->review($user, $assessment);
+    }
+
+    /**
+     * Escalating is part of reviewing: raising a hand is not a decision, and a
+     * reviewer who can see something wrong but cannot say so to anybody senior
+     * is the reason escalation paths go unused.
+     */
+    public function escalate(User $user, RcsaAssessment $assessment): bool
+    {
+        return $this->review($user, $assessment);
+    }
+
     private function reachable(User $user, RcsaAssessment $assessment): bool
     {
         return $user->organization_id === $assessment->organization_id;

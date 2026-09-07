@@ -16,7 +16,7 @@ deviated from and why, and what the phase found that the plan did not know.
 | P5 | ORM review workflow, action-plan register | **Done** — [p5-orm-review.md](p5-orm-review.md) |
 | P6 | Bulk download, dashboards, offline round-trip | **Done** — [p6-export-dashboards-roundtrip.md](p6-export-dashboards-roundtrip.md) |
 | P7 | RBAC, audit, business-unit scoping | **Done** — [p7-rbac-audit.md](p7-rbac-audit.md) |
-| P8 | Migration and cutover off the legacy module | Not started |
+| P8 | Migration and cutover off the legacy module | **Done** — [p8-migration-and-cutover.md](p8-migration-and-cutover.md) · [runbook](cutover-runbook.md) |
 | P9 | Hardening and UAT | Not started |
 
 ## The two RCSA modules
@@ -36,6 +36,13 @@ Until cutover there are two, and they are unrelated in the code:
 The plan's §13 is the rule: build alongside, not on top. No legacy table is
 dropped and no legacy route redirects until a tenant has completed a parallel
 run and signed off the reconciliation.
+
+**P8 established that the legacy module has no tables of its own**, which
+changes what §13's "legacy tables become read-only" can mean: `risks` and
+`controls` are the ENTERPRISE register that half the product reads, and locking
+them would take the Risk Register, KRI, the control library and the board pack
+down with it. What closes at cutover is the one legacy WRITE PATH —
+`risk.rcsa.worksheet.store`. See [the runbook](cutover-runbook.md).
 
 ## Open decisions
 

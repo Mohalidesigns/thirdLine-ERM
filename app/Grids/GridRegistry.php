@@ -37,6 +37,8 @@ class GridRegistry
         'tprm_engagements' => Definitions\TprmEngagementsGrid::class,
         'tprm_assessments' => Definitions\TprmAssessmentsGrid::class,
         'tprm_documents' => Definitions\TprmDocumentsGrid::class,
+        'tprm_contracts' => Definitions\TprmContractsGrid::class,
+        'tprm_obligations' => Definitions\TprmObligationsGrid::class,
     ];
 
     public static function resolve(string $name): GridDefinition

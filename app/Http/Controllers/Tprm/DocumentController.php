@@ -265,10 +265,12 @@ class DocumentController extends Controller
         );
 
         return back()->with('success', sprintf(
-            '%d answer(s) pre-answered and %d complementary control(s) assigned. %d finding(s) and %d '
-            .'sub-processor edge(s) remain proposals until their modules arrive.',
+            '%d answer(s) pre-answered, %d complementary control(s) assigned and %d obligation(s) added to the '
+            .'register as duties owed by us. %d finding(s) and %d sub-processor edge(s) remain proposals until '
+            .'their modules arrive.',
             $applied['answers_applied'],
             $applied['cuecs_assigned'],
+            $applied['obligations_created'],
             $applied['findings_pending'],
             $applied['edges_pending'],
         ));

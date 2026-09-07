@@ -71,3 +71,14 @@ Schedule::command('license:heartbeat')->hourly()->withoutOverlapping();
 // the rest of their day. The command no-ops when the module's feature flag is
 // off, so an installation without TPRM schedules nothing that does anything.
 Schedule::command('tprm:check-evidence-expiry')->dailyAt('07:15');
+
+// TPRM Phase 4. Renewals run BEFORE the obligation sweep: a contract whose
+// notice window closes today is a bigger fact than a duty falling due, and a
+// reader working down a morning's notifications should meet it first.
+//
+// FR-CTR-02 keys these to the NOTICE deadline, not the expiry date. A contract
+// expiring in ninety days with a hundred-and-twenty-day notice period has
+// already renewed, and an expiry-based reminder tells somebody about a
+// decision that is no longer theirs to make.
+Schedule::command('tprm:check-contract-renewals')->dailyAt('07:20');
+Schedule::command('tprm:check-obligations')->dailyAt('07:25');

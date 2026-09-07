@@ -28,7 +28,12 @@ use App\Http\Controllers\Rcsa\ReviewController as RcsaReviewController;
 use App\Http\Controllers\Rcsa\RoundTripController as RcsaRoundTripController;
 use App\Http\Controllers\Rcsa\UniverseController as RcsaUniverseController;
 use App\Http\Controllers\Tprm\AssessmentController as TprmAssessmentController;
+use App\Http\Controllers\Tprm\ClauseLibraryController as TprmClauseLibraryController;
+use App\Http\Controllers\Tprm\ContractController as TprmContractController;
 use App\Http\Controllers\Tprm\DocumentController as TprmDocumentController;
+use App\Http\Controllers\Tprm\ObligationController as TprmObligationController;
+use App\Http\Controllers\Tprm\PciMatrixController as TprmPciMatrixController;
+use App\Http\Controllers\Tprm\SlaController as TprmSlaController;
 use App\Http\Controllers\Tprm\EngagementController as TprmEngagementController;
 use App\Http\Controllers\Tprm\ImportController as TprmImportController;
 use App\Http\Controllers\Tprm\IntakeController as TprmIntakeController;
@@ -1748,6 +1753,75 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.questionnaire.manage')->name('templates.clone');
         Route::post('templates/{template}/publish', [TprmQuestionnaireController::class, 'publish'])
             ->middleware('permission:tprm.questionnaire.manage')->name('templates.publish');
+
+        /* --- Contracts, clauses and obligations (Phase 4) --------------- */
+        /*
+         * `tprm.contract.view` is wide — a relationship owner needs to see
+         * what the agreement commits them to. `tprm.contract.manage` records
+         * and amends it. Waiving a blocking clause is neither: it is
+         * `tprm.waiver.approve`, held by the risk function, because it admits
+         * a vendor a required term does not cover and lands on the override
+         * register the risk committee reads.
+         */
+        Route::get('contracts', [TprmContractController::class, 'index'])
+            ->middleware('permission:tprm.contract.view')->name('contracts.index');
+        Route::get('contracts/{contract}', [TprmContractController::class, 'show'])
+            ->middleware('permission:tprm.contract.view')->name('contracts.show');
+        Route::get('contracts/{contract}/gap-report', [TprmContractController::class, 'gapReport'])
+            ->middleware('permission:tprm.contract.view')->name('contracts.gap-report');
+        Route::post('engagements/{engagement}/contracts', [TprmContractController::class, 'store'])
+            ->middleware('permission:tprm.contract.manage')->name('contracts.store');
+        Route::put('contracts/{contract}', [TprmContractController::class, 'update'])
+            ->middleware('permission:tprm.contract.manage')->name('contracts.update');
+        Route::post('contracts/{contract}/analyse', [TprmContractController::class, 'analyse'])
+            ->middleware('permission:tprm.contract.manage')->name('contracts.analyse');
+        Route::post('contracts/{contract}/clauses/{clause}/determine', [TprmContractController::class, 'determineClause'])
+            ->middleware('permission:tprm.contract.manage')->name('contracts.clauses.determine');
+        Route::post('contracts/{contract}/clause-rows/{contractClause}/review', [TprmContractController::class, 'reviewClause'])
+            ->middleware('permission:tprm.contract.manage')->name('contracts.clauses.review');
+        Route::post('contracts/{contract}/clause-rows/{contractClause}/waive', [TprmContractController::class, 'waiveClause'])
+            ->middleware('permission:tprm.waiver.approve')->name('contracts.clauses.waive');
+        Route::post('contracts/{contract}/obligations', [TprmContractController::class, 'generateObligations'])
+            ->middleware('permission:tprm.contract.manage')->name('contracts.obligations.generate');
+
+        Route::get('obligations', [TprmObligationController::class, 'index'])
+            ->middleware('permission:tprm.contract.view')->name('obligations.index');
+        Route::post('obligations/{obligation}/satisfy', [TprmObligationController::class, 'satisfy'])
+            ->middleware('permission:tprm.contract.manage')->name('obligations.satisfy');
+        Route::post('obligations/{obligation}/assign', [TprmObligationController::class, 'assign'])
+            ->middleware('permission:tprm.contract.manage')->name('obligations.assign');
+        Route::post('obligations/{obligation}/breach', [TprmObligationController::class, 'breach'])
+            ->middleware('permission:tprm.contract.manage')->name('obligations.breach');
+
+        /* --- Service levels (FR-CTR-07) -------------------------------- */
+        Route::get('engagements/{engagement}/slas', [TprmSlaController::class, 'index'])
+            ->middleware('permission:tprm.contract.view')->name('slas.index');
+        Route::post('engagements/{engagement}/slas', [TprmSlaController::class, 'store'])
+            ->middleware('permission:tprm.contract.manage')->name('slas.store');
+        Route::post('engagements/{engagement}/slas/import', [TprmSlaController::class, 'import'])
+            ->middleware('permission:tprm.contract.manage')->name('slas.import');
+        Route::post('slas/{sla}/measurements', [TprmSlaController::class, 'recordMeasurement'])
+            ->middleware('permission:tprm.contract.manage')->name('slas.measurements.store');
+
+        /* --- PCI DSS 12.8.5 responsibility matrix (FR-CTR-08) ---------- */
+        Route::get('engagements/{engagement}/pci-matrix', [TprmPciMatrixController::class, 'show'])
+            ->middleware('permission:tprm.contract.view')->name('pci-matrix.show');
+        Route::get('engagements/{engagement}/pci-matrix/export', [TprmPciMatrixController::class, 'export'])
+            ->middleware('permission:tprm.contract.view')->name('pci-matrix.export');
+        Route::post('engagements/{engagement}/pci-matrix/prepopulate', [TprmPciMatrixController::class, 'prepopulate'])
+            ->middleware('permission:tprm.contract.manage')->name('pci-matrix.prepopulate');
+        Route::post('engagements/{engagement}/pci-matrix/{row}/confirm', [TprmPciMatrixController::class, 'confirm'])
+            ->middleware('permission:tprm.contract.manage')->name('pci-matrix.confirm');
+
+        /* --- Clause library settings ----------------------------------- */
+        Route::get('settings/clauses', [TprmClauseLibraryController::class, 'index'])
+            ->middleware('permission:tprm.contract.view')->name('clauses.index');
+        Route::post('settings/clauses', [TprmClauseLibraryController::class, 'store'])
+            ->middleware('permission:tprm.contract.manage')->name('clauses.store');
+        Route::put('settings/clauses/{clause}', [TprmClauseLibraryController::class, 'update'])
+            ->middleware('permission:tprm.contract.manage')->name('clauses.update');
+        Route::delete('settings/clauses/{clause}', [TprmClauseLibraryController::class, 'destroy'])
+            ->middleware('permission:tprm.contract.manage')->name('clauses.destroy');
 
         /* --- Ruleset editor and sandbox (FR-TIER-09) ------------------- */
         /*

@@ -163,6 +163,17 @@ class EvidencePipelineTest extends TestCase
 
         $this->assertGreaterThan(0, $applied['answers_applied']);
         $this->assertSame(1, $applied['cuecs_assigned']);
+        // Phase 4 completes the cascade's third leg: the CUEC is now a real
+        // duty on the obligation register, owed by us, with an owner and a
+        // date. Until it was, it was an assumption an auditor made on our
+        // behalf that nobody here had agreed to.
+        $this->assertSame(1, $applied['obligations_created']);
+        $this->assertDatabaseHas('tp_obligations', [
+            'engagement_id' => $this->engagement->id,
+            'source' => 'assessment',
+            'obligor' => 'entity',
+            'owner_id' => $this->user->id,
+        ]);
         // Named as waiting rather than silently dropped.
         $this->assertSame(1, $applied['findings_pending']);
         $this->assertSame(1, $applied['edges_pending']);

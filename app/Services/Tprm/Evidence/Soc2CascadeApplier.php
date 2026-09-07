@@ -3,6 +3,8 @@
 namespace App\Services\Tprm\Evidence;
 
 use App\Models\Tprm\AssessmentResponse;
+use App\Models\Tprm\Document;
+use App\Models\Tprm\Obligation;
 use App\Models\Tprm\Soc2Cuec;
 use App\Models\Tprm\Soc2Detail;
 use Illuminate\Support\Facades\DB;
@@ -21,8 +23,12 @@ use Illuminate\Support\Facades\DB;
  *   Pre-answers are applied: `tp_assessment_responses` exists and the answers
  *   are written with their citation and assurance level.
  *
- *   CUEC ownership is applied: `tp_soc2_cuecs` rows already exist and this
- *   assigns the internal owner and the attestation cadence.
+ *   CUEC ownership is applied, and as of Phase 4 the CUEC also becomes a real
+ *   `tp_obligations` row owed by US. That is the whole point of reading a
+ *   report's complementary user entity controls: the auditor assumed we
+ *   perform these, nobody here agreed to them, and until they are on a
+ *   register with an owner and a date they are duties the institution does not
+ *   know it has.
  *
  *   Findings and nth-party edges are NOT applied here, and that is the phase
  *   prompt's own instruction: the edge object arrives in Phase 7 and the
@@ -45,13 +51,15 @@ class Soc2CascadeApplier
     {
         $proposals = $this->cascade->propose($soc2);
 
-        return DB::transaction(function () use ($proposals, $selected, $userId) {
+        return DB::transaction(function () use ($soc2, $proposals, $selected, $userId) {
             $answers = $this->applyAnswers($proposals, $selected['answers'] ?? [], $userId);
-            $cuecs = $this->applyCuecOwners($selected['cuecs'] ?? []);
+            $soc2->loadMissing('document');
+            $cuecs = $this->applyCuecOwners($selected['cuecs'] ?? [], $soc2);
 
             return [
                 'answers_applied' => $answers,
-                'cuecs_assigned' => $cuecs,
+                'cuecs_assigned' => $cuecs['assigned'],
+                'obligations_created' => $cuecs['obligations'],
                 // Not applied, and named rather than dropped.
                 'findings_pending' => count($proposals->findings),
                 'edges_pending' => count($proposals->nthPartyEdges),
@@ -112,19 +120,25 @@ class Soc2CascadeApplier
     }
 
     /**
-     * Assign owners to the complementary user entity controls.
+     * Assign owners to the complementary user entity controls, and put each on
+     * the obligation register as a duty owed by us.
      *
-     * `next_due_at` is set a year out because a CUEC is attested each time a
-     * new SOC 2 is relied upon, and these reports are annual. An unassigned
-     * CUEC keeps no due date at all: a deadline nobody owns produces an
-     * overdue item nobody can action, which is how a register loses its
-     * credibility.
+     * `next_due_at` is a year out because a CUEC is attested each time a new
+     * SOC 2 is relied upon, and these reports are annual. An unassigned CUEC
+     * keeps no due date at all: a deadline nobody owns produces an overdue
+     * item nobody can action, which is how a register loses its credibility.
      *
      * @param  array<int, array{owner_id?: int|null, control_id?: int|null}>  $assignments
+     * @return array{assigned: int, obligations: int}
      */
-    private function applyCuecOwners(array $assignments): int
+    private function applyCuecOwners(array $assignments, Soc2Detail $soc2): array
     {
         $assigned = 0;
+        $obligations = 0;
+
+        $engagementId = $soc2->document?->owner_type === Document::OWNER_ENGAGEMENT
+            ? (int) $soc2->document->owner_id
+            : null;
 
         foreach ($assignments as $cuecId => $assignment) {
             $cuec = Soc2Cuec::query()->find($cuecId);
@@ -142,8 +156,55 @@ class Soc2CascadeApplier
             ], fn ($value) => $value !== null))->save();
 
             $assigned++;
+
+            if ($engagementId !== null && $this->recordObligation($cuec, $soc2, $engagementId, $ownerId)) {
+                $obligations++;
+            }
         }
 
-        return $assigned;
+        return ['assigned' => $assigned, 'obligations' => $obligations];
+    }
+
+    /**
+     * A CUEC as an obligation on the register.
+     *
+     * `source` is `assessment` rather than `contract`, because nobody
+     * negotiated this: it is a duty an auditor assumed the customer performs.
+     * Matched on the CUEC reference so re-confirming a corrected extraction
+     * does not duplicate the duty or reset the evidence behind it.
+     */
+    private function recordObligation(Soc2Cuec $cuec, Soc2Detail $soc2, int $engagementId, ?int $ownerId): bool
+    {
+        $reference = 'SOC 2 '.($cuec->cuec_reference ?? 'CUEC');
+
+        $exists = Obligation::query()
+            ->where('engagement_id', $engagementId)
+            ->where('source', 'assessment')
+            ->where('source_reference', $reference)
+            ->exists();
+
+        if ($exists) {
+            return false;
+        }
+
+        Obligation::create([
+            'organization_id' => $cuec->organization_id,
+            'engagement_id' => $engagementId,
+            'source' => 'assessment',
+            'source_reference' => $reference,
+            'title' => 'CUEC: '.\Illuminate\Support\Str::limit($cuec->description, 180),
+            'description' => $cuec->description,
+            // Owed by US. That is the entire reason this table is read.
+            'obligor' => Obligation::OBLIGOR_ENTITY,
+            'owner_id' => $ownerId,
+            'frequency' => 'annual',
+            'due_date' => now()->addYear()->toDateString(),
+            'next_due_date' => now()->addYear()->toDateString(),
+            'evidence_required' => true,
+            'citation' => 'Complementary user entity controls, SOC 2 report '
+                .($soc2->period_end?->toDateString() ?? ''),
+        ]);
+
+        return true;
     }
 }

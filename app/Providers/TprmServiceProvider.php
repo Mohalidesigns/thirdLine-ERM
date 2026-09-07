@@ -40,6 +40,8 @@ class TprmServiceProvider extends ServiceProvider
         BusinessFunction::class => \App\Policies\Tprm\BusinessFunctionPolicy::class,
         \App\Models\Tprm\Assessment::class => \App\Policies\Tprm\AssessmentPolicy::class,
         \App\Models\Tprm\QuestionnaireTemplate::class => \App\Policies\Tprm\QuestionnaireTemplatePolicy::class,
+        \App\Models\Tprm\Contract::class => \App\Policies\Tprm\ContractPolicy::class,
+        \App\Models\Tprm\Obligation::class => \App\Policies\Tprm\ObligationPolicy::class,
     ];
 
     public function register(): void

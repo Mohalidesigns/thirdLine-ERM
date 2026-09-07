@@ -4,7 +4,9 @@ namespace App\Services\Tprm;
 
 use App\Enums\Tprm\EngagementStatus;
 use App\Events\Tprm\ProhibitedOutsourcingAttempted;
+use App\Exceptions\Tprm\BlockingClauseException;
 use App\Exceptions\Tprm\ProhibitedOutsourcingException;
+use App\Services\Tprm\Contracts\ActivationGuard;
 use App\Models\Tprm\AuditLog;
 use App\Models\Tprm\BusinessFunction;
 use App\Models\Tprm\Engagement;
@@ -168,6 +170,19 @@ class IntakeService
     /**
      * Move an engagement to a new status, refusing a transition the lifecycle
      * does not allow.
+     *
+     * THE BLOCKING-CLAUSE GATE SITS HERE (FR-CTR-05, AC-06), not in a Form
+     * Request, for the reason the prohibited-outsourcing guard sits in this
+     * file: a validator guards one HTTP route, and the importer, the API and
+     * any future "duplicate this engagement" button all reach the transition
+     * without passing it.
+     *
+     * It is a THROW rather than a `false`, because `false` here already means
+     * "the lifecycle does not allow that move" — a caller that treated the two
+     * alike would tell a user their engagement was in the wrong status when
+     * the truth is that their contract has no audit-rights clause.
+     *
+     * @throws \App\Exceptions\Tprm\BlockingClauseException
      */
     public function transition(Engagement $engagement, EngagementStatus $target, ?int $userId = null): bool
     {
@@ -175,6 +190,14 @@ class IntakeService
 
         if (! $current->canTransitionTo($target)) {
             return false;
+        }
+
+        if ($target === EngagementStatus::Active) {
+            $verdict = app(ActivationGuard::class)->check($engagement);
+
+            if (! $verdict->allowed) {
+                throw new BlockingClauseException($verdict);
+            }
         }
 
         $engagement->forceFill(['status' => $target->value, 'updated_by' => $userId])->save();

@@ -112,14 +112,32 @@ class RcsaWorkbookWriter
      * column into COLUMNS moves the merge with it instead of silently
      * mis-spanning the one after.
      *
+     * TAKEN FROM THE WORKBOOK, NOT FROM THE PLAN. P6 built these by reading
+     * §10.1's list of five group names against §4's column table, because the
+     * `.xlsx` was not available; three of the five spans were wrong. The file's
+     * actual merges are `A1:I1`, `J1:M1`, `N1:O1` and `S1:W1`, with `R1`
+     * carrying "Residual Risk" as a single unmerged cell.
+     *
+     * Two consequences are worth stating because they look like mistakes:
+     *
+     *   - **P and Q sit under no banner at all.** `C.E modifier` and
+     *     `Residual risk` are the two derived columns the workbook leaves
+     *     ungrouped, and reproducing that is the point — the document is
+     *     supposed to look like the one the bank already uses.
+     *   - **RISK TREATMENT PLAN starts at S, not U.** The workbook groups
+     *     `Risk Treatment` and `Risk appetite alignment` into the treatment
+     *     block rather than leaving them with the residual figures, which reads
+     *     as the more sensible arrangement of the two.
+     *
      * @var list<array{0: string, 1: string, 2: string}>
      */
     public const GROUPS = [
-        ['Process', 'risk_no', 'secondary_categories'],
-        ['INHERENT RISK', 'inherent_likelihood', 'inherent_level'],
-        ['Control assessment', 'existing_control', 'ce_modifier'],
-        ['Residual Risk', 'residual_score', 'appetite_status'],
-        ['RISK TREATMENT PLAN', 'control_to_implement', 'action_target_date'],
+        ['Process', 'risk_no', 'secondary_categories'],                 // A1:I1
+        ['INHERENT RISK', 'inherent_likelihood', 'inherent_level'],     // J1:M1
+        ['Control assessment', 'existing_control', 'control_effectiveness'], // N1:O1
+        ['Residual Risk', 'residual_level', 'residual_level'],          // R1, unmerged
+        ['RISK TREATMENT PLAN', 'risk_treatment', 'action_target_date'], // S1:W1
+        // Ours, over the eight columns §10.1 appends after W.
         ['ASSESSMENT RECORD', 'cycle', 'last_review_date'],
     ];
 
@@ -399,7 +417,13 @@ class RcsaWorkbookWriter
             $first = $this->letter($positions[$from] + 1);
             $last = $this->letter($positions[$to] + 1);
 
-            $sheet->mergeCells(sprintf('%s%d:%s%d', $first, self::GROUP_ROW, $last, self::GROUP_ROW));
+            // A one-column group is NOT merged. The workbook's "Residual Risk"
+            // sits alone over R, and PhpSpreadsheet treats a same-cell merge as
+            // an error rather than a no-op.
+            if ($first !== $last) {
+                $sheet->mergeCells(sprintf('%s%d:%s%d', $first, self::GROUP_ROW, $last, self::GROUP_ROW));
+            }
+
             $sheet->setCellValue($first.self::GROUP_ROW, $label);
 
             $sheet->getStyle(sprintf('%s%d:%s%d', $first, self::GROUP_ROW, $last, self::GROUP_ROW))

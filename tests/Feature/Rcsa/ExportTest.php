@@ -60,11 +60,27 @@ class ExportTest extends ReviewTestCase
         $group = $rows[0];
         $header = $rows[1];
 
-        $this->assertSame('Process', $group[0]);
-        $this->assertContains('INHERENT RISK', $group);
-        $this->assertContains('Control assessment', $group);
-        $this->assertContains('Residual Risk', $group);
-        $this->assertContains('RISK TREATMENT PLAN', $group);
+        // THE COLUMN EACH BANNER STARTS AT, not merely that it appears
+        // somewhere. This assertion used to be `assertContains`, which passed
+        // happily while three of the five spans were wrong — P6 derived them
+        // from the plan's prose because the workbook was unavailable, and only
+        // opening the file showed that `Control assessment` ends at O rather
+        // than P, that `Residual Risk` is a single unmerged cell over R, and
+        // that `RISK TREATMENT PLAN` starts at S rather than U.
+        //
+        // Verified against plans/SB _RCSA Template 2026 - Template.xlsx, whose
+        // own merges are A1:I1, J1:M1, N1:O1 and S1:W1.
+        $this->assertSame('Process', $group[0]);                    // A
+        $this->assertSame('INHERENT RISK', $group[9]);              // J
+        $this->assertSame('Control assessment', $group[13]);        // N
+        $this->assertSame('Residual Risk', $group[17]);             // R
+        $this->assertSame('RISK TREATMENT PLAN', $group[18]);       // S
+        $this->assertSame('ASSESSMENT RECORD', $group[23]);         // X — ours
+
+        // P and Q carry no banner in the workbook, and reproducing that is the
+        // point: the document is meant to look like the one the bank uses.
+        $this->assertEmpty($group[15] ?? null, 'C.E modifier (P) must sit under no group header.');
+        $this->assertEmpty($group[16] ?? null, 'Residual risk (Q) must sit under no group header.');
 
         // 23 workbook columns + 8 system columns.
         $this->assertCount(31, array_filter($header, fn ($cell) => filled($cell)));

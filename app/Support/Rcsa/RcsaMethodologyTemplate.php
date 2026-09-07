@@ -434,6 +434,45 @@ final class RcsaMethodologyTemplate
         'vendor' => 'Third-Party/Outsourcing',
         'reputation' => 'Reputational',
         'other' => 'Others',
+
+        /*
+         * THE WORKBOOK'S OWN SPELLINGS, verified against
+         * `plans/SB _RCSA Template 2026 - Template.xlsx`, sheet `Sheet1`.
+         *
+         * Every category there carries a " Risk" suffix that this module drops
+         * — "Operational Risk" against "Operational" — and until P9 nobody had
+         * opened the file to notice. The consequence was not cosmetic: twelve
+         * of the thirteen values in the bank's OWN dropdown were rejected by
+         * the importer, so a completed `SB_RCSA Template 2026` uploaded as-is
+         * failed validation on every row. The one document the module exists to
+         * be compatible with was the one document it would not accept.
+         *
+         * Aliased rather than adopted. The stored vocabulary stays unsuffixed,
+         * because "Operational Risk" reads as a tautology in a column headed
+         * Risk Category and the suffix would be carried into every filter,
+         * dashboard grouping and export from here on. What matters is that the
+         * file's spelling is UNDERSTOOD.
+         *
+         * `financial  risk` has two spaces in the workbook. Kept exactly,
+         * because the normaliser lower-cases but does not collapse whitespace,
+         * and a typo in the source is still what a user will paste.
+         */
+        'strategic risk' => 'Strategic',
+        'operational risk' => 'Operational',
+        'compliance / regulatory risk' => 'Compliance/Regulatory',
+        'compliance/regulatory risk' => 'Compliance/Regulatory',
+        'financial risk' => 'Financial',
+        'financial  risk' => 'Financial',
+        'credit risk' => 'Credit',
+        'market risk' => 'Market',
+        'liquidity risk' => 'Liquidity',
+        'it / cybersecurity risk' => 'IT/Cybersecurity',
+        'it/cybersecurity risk' => 'IT/Cybersecurity',
+        'third-party / outsourcing risk' => 'Third-Party/Outsourcing',
+        'third-party/outsourcing risk' => 'Third-Party/Outsourcing',
+        'reputational risk' => 'Reputational',
+        'model risk' => 'Model',
+        'legal risk' => 'Legal',
     ];
 
     /* ------------------------------------------------------------------ */

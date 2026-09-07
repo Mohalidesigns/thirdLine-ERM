@@ -2,7 +2,7 @@
     "_meta": {
         "title": "RCSA calculation truth table — SB_RCSA Template 2026",
         "purpose": "The shared fixture for App\\Services\\Rcsa\\RcsaCalculationService (PHP) and resources/js/lib/rcsa-calc.js (browser). Both are run over every case by tests/Unit/Rcsa/RcsaCalculationTest, so the client mirror cannot drift from the server engine.",
-        "derivation": "Written from section 3.3 of the RCSA Module Implementation Plan, independently of either implementation, so that the test compares two readings of the spec rather than one implementation with itself. Review these numbers against the workbook before sign-off.",
+        "derivation": "Written from section 3.3 of the RCSA Module Implementation Plan, independently of either implementation, so that the test compares two readings of the spec rather than one implementation with itself. VERIFIED against the workbook itself on 2026-09-07: all 100 cases (5 likelihood x 5 impact x 4 control effectiveness) reproduce the formulas in 'plans/SB _RCSA Template 2026 - Template.xlsx', RCSA Sheet row 3, exactly. tests/Unit/Rcsa/RcsaWorkbookParityTest re-derives them from the transcribed formulas on every run.",
         "methodology": {
             "code": "sb-rcsa-2026",
             "residualMode": "calculated",
@@ -17,7 +17,18 @@
             "riskTreatment": "{very_high, high} treat; medium mitigate; {low, very_low} accept",
             "actionPlanRequired": "appetiteStatus starts with \"Above risk appetite\""
         },
-        "caseCount": 100
+        "caseCount": 100,
+        "workbookFormulas": {
+            "source": "plans/SB _RCSA Template 2026 - Template.xlsx, sheet 'RCSA Sheet', row 3",
+            "L_riskScore": "=CHOOSE(MATCH(J3,{\"Rare\",\"Unlikely\",\"Possible\",\"Likely\",\"Almost certain\"},0),1,2,3,4,5) * CHOOSE(MATCH(K3,{\"Very Low\",\"Low\",\"Medium\",\"High\",\"Very High\"},0),1,2,3,4,5)",
+            "M_inherentLevel": "=IF(L3<=2,\"VERY LOW\",IF(L3<=4,\"LOW\",IF(L3<=9,\"MEDIUM\",IF(L3<=16,\"HIGH\",\"VERY HIGH\"))))",
+            "P_ceModifier": "=CHOOSE(MATCH(O3,{\"Fully Achieved\",\"Mostly Achieved\",\"Partially Achieved\",\"Not Achieved\"},0),100,75,50,25)",
+            "Q_residual": "=L3*(1-P3/100)",
+            "R_residualLevel": "same bands as M, applied to Q",
+            "S_treatment": "=IF(R3=\"VERY HIGH\",\"TREAT\",IF(R3=\"HIGH\",\"TREAT\",IF(R3=\"MEDIUM\",\"MITIGATE\",IF(R3=\"LOW\",\"ACCEPT\",IF(R3=\"VERY LOW\",\"ACCEPT\")))))",
+            "T_appetite": "=IF(S3=\"ACCEPT\",\"Within risk appetite: Continue routine monitoring\",IF(S3=\"MITIGATE\",\"Above risk appetite:mitigate\",IF(S3=\"TREAT\",\"Above risk appetite:Treat\")))",
+            "note": "The workbook contradicts itself in two places and the FORMULA wins, because the formula is what calculates. Its Risk Matrix sheet calls impact level 3 'Moderate' while the L formula matches on 'Medium'; its Control effectiveness grid spells the ratings lower-case ('Fully achieved') while the P formula matches on 'Fully Achieved'."
+        }
     },
     "cases": [
         {

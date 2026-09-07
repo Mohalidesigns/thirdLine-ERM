@@ -44,6 +44,15 @@ them would take the Risk Register, KRI, the control library and the board pack
 down with it. What closes at cutover is the one legacy WRITE PATH —
 `risk.rcsa.worksheet.store`. See [the runbook](cutover-runbook.md).
 
+## The workbook
+
+`plans/SB _RCSA Template 2026 - Template.xlsx` arrived at the end of P9, having
+been unavailable for the whole build. Checking against it found the engine
+correct on all 100 cases, three of five export group-header spans wrong, and —
+the serious one — **the importer rejecting twelve of the workbook's own thirteen
+risk categories**. All fixed and pinned. See
+[workbook-verification.md](workbook-verification.md).
+
 ## Open decisions
 
 §14 of the plan lists ten questions for the bank. Three of them block P3 and are

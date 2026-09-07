@@ -8,6 +8,7 @@ use App\Models\Rcsa\RcsaCycle;
 use App\Models\Rcsa\RcsaRegisterRisk;
 use App\Models\Rcsa\RcsaSystem;
 use App\Services\Rcsa\RcsaCycleService;
+use ThirdLine\Platform\Tenancy\TenantContext;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
@@ -267,4 +268,61 @@ class CycleProvisioningTest extends CycleTestCase
         $this->assertSame(RcsaAssessment::IN_PROGRESS, $assessment->status);
         $this->assertFalse($assessment->acceptsEdits());
     }
+    /**
+     * The scope endpoint the cycle form calls before you open anything.
+     *
+     * The parity guard caught that no test named this route. It is what tells
+     * a user how many risks each unit will receive — the number they decide on
+     * — and it had never been requested by anything but a person.
+     *
+     * JSON, not Inertia: it is fetched by the form rather than rendered.
+     */
+    #[Test]
+    public function the_scope_endpoint_counts_the_risks_each_unit_would_receive(): void
+    {
+        $this->publishedRisk(['risk_no' => 'RETAIL-R1']);
+        $this->publishedRisk(['risk_no' => 'RETAIL-R2']);
+
+        $cycle = $this->makeCycle();
+
+        $response = $this->actingAs($this->actor)
+            ->getJson(route('rcsa.cycles.scope', $cycle))
+            ->assertOk();
+
+        $units = $response->json('units');
+
+        $this->assertNotSame([], $units, 'The scope call must name the units a cycle would provision.');
+
+        $retail = collect($units)->firstWhere('id', $this->retail->id);
+
+        $this->assertNotNull($retail, 'Retail holds the published risks, so it must appear.');
+        $this->assertSame(2, $retail['risks']);
+    }
+
+    /**
+     * A cycle in another tenant is not scopeable.
+     *
+     * NOT FOUND rather than forbidden: OrganizationScope hides the row, so
+     * route-model binding never resolves it. Same expectation as
+     * CycleAuthorizationTest, and created the same way — through
+     * TenantContext::bypass(), because the scope would otherwise refuse to
+     * create it either.
+     */
+    #[Test]
+    public function the_scope_endpoint_does_not_find_a_cycle_from_another_tenant(): void
+    {
+        $foreign = TenantContext::bypass(fn () => RcsaCycle::create([
+            'organization_id' => $this->otherOrg->id,
+            'name' => "Another bank's cycle",
+            'period_start' => '2026-01-01',
+            'period_end' => '2026-06-30',
+            'methodology_id' => $this->methodology()->id,
+            'status' => RcsaCycle::DRAFT,
+        ]));
+
+        $this->actingAs($this->actor)
+            ->getJson(route('rcsa.cycles.scope', $foreign))
+            ->assertNotFound();
+    }
+
 }

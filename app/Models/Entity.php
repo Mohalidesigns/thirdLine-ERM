@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasObjectIdentity;
+use App\Models\Concerns\RejectsParentCycles;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
@@ -18,7 +20,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class Entity extends Model
 {
-    use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, RejectsParentCycles, SoftDeletes;
 
     protected $fillable = [
         'organization_id',
@@ -94,6 +96,37 @@ class Entity extends Model
      */
     public function refreshHierarchyPath(): void
     {
+        $this->materialiseHierarchyPath([]);
+    }
+
+    /**
+     * The recursive half of refreshHierarchyPath, carrying the ancestors
+     * already walked on THIS branch.
+     *
+     * RejectsParentCycles keeps `parent_id` acyclic from here on, but rows
+     * written before it existed — or by a direct UPDATE — are not covered by
+     * it, and without $visited a ring makes this method recurse until PHP is
+     * out of memory. The cycle is logged and the walk stops rather than
+     * repaired; RebuildHierarchyPaths breaks the link.
+     *
+     * @param  array<int, true>  $visited  ancestors on this branch, id => true
+     */
+    private function materialiseHierarchyPath(array $visited): void
+    {
+        $id = (int) $this->getKey();
+
+        if (isset($visited[$id])) {
+            Log::error('Cycle detected in the entity tree; path refresh stopped', [
+                'entity_id' => $id,
+                'parent_id' => $this->parent_id,
+                'branch' => array_keys($visited),
+            ]);
+
+            return;
+        }
+
+        $visited[$id] = true;
+
         $parentPath = $this->parent_id
             ? (self::query()->whereKey($this->parent_id)->value('hierarchy_path') ?: '/'.$this->parent_id.'/')
             : '/';
@@ -106,7 +139,7 @@ class Entity extends Model
         }
 
         foreach (self::query()->where('parent_id', $this->getKey())->get() as $child) {
-            $child->refreshHierarchyPath();
+            $child->materialiseHierarchyPath($visited);
         }
     }
 
@@ -221,9 +254,12 @@ class Entity extends Model
     {
         $path = collect([$this->name]);
         $current = $this;
+        // Bounded: a ring in parent_id would otherwise prepend names forever.
+        $seen = [(int) $this->getKey() => true];
 
-        while ($current->parent) {
+        while ($current->parent && ! isset($seen[(int) $current->parent->getKey()])) {
             $current = $current->parent;
+            $seen[(int) $current->getKey()] = true;
             $path->prepend($current->name);
         }
 

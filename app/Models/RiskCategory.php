@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasObjectIdentity;
+use App\Models\Concerns\RejectsParentCycles;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -11,7 +12,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 class RiskCategory extends Model
 {
-    use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, RejectsParentCycles, SoftDeletes;
 
     protected $fillable = [
         'organization_id',

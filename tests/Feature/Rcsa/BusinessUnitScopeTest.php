@@ -388,14 +388,19 @@ class BusinessUnitScopeTest extends CycleTestCase
      * A tree with a cycle in it — which a bad import can produce — must not
      * spin the expansion for ever.
      *
-     * THE CYCLE IS WRITTEN THROUGH THE QUERY BUILDER, ON PURPOSE. Saving it
-     * through the model fires `HasObjectIdentity`, which projects the unit into
-     * the object graph along its `parent` edge, and THAT recursion exhausts
-     * memory before this test's own subject is reached. Which is a real defect
-     * — a parent cycle in `business_units` will take the app down through any
-     * path that saves one — but it is a defect in the graph projection, not in
-     * scoping, and it is not P7's to fix here. Writing the row directly gets
-     * the malformed tree this test is actually about.
+     * THE CYCLE IS WRITTEN THROUGH THE QUERY BUILDER, ON PURPOSE, but no longer
+     * for the reason P7 recorded. It used to be that saving it through the
+     * model exhausted memory: `HasObjectIdentity` projects the unit into the
+     * object graph along its `parent` edge and the walk had no visited set, so
+     * the process died before this test's own subject was reached. That is
+     * fixed — BusinessUnit now carries RejectsParentCycles, and
+     * ObjectSyncService::materialisePath() bounds the walk (see
+     * tests/Feature/Graph/ParentCycleTest).
+     *
+     * The direct write stays because the guard REFUSES a cyclic parent: a
+     * normal save can no longer produce the malformed tree this test needs.
+     * Legacy rows and hand-run UPDATEs still can, which is exactly what the
+     * query builder is standing in for.
      */
     #[Test]
     public function a_cycle_in_the_unit_tree_does_not_hang_the_expansion(): void

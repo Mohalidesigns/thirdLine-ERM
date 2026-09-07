@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasObjectIdentity;
+use App\Models\Concerns\RejectsParentCycles;
 use App\Models\Concerns\ScopedToGraph;
 use App\Services\RiskScoringService;
 use App\Support\MorphTypes;
@@ -22,7 +23,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class Risk extends Model
 {
-    use BelongsToOrganization, HasFactory, HasObjectIdentity, ScopedToGraph, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, RejectsParentCycles, ScopedToGraph, SoftDeletes;
 
     protected $fillable = [
         'organization_id',
@@ -108,6 +109,15 @@ class Risk extends Model
     public function entity(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Entity::class);
+    }
+
+    /**
+     * RejectsParentCycles: risks spell the self-referential column differently
+     * from every other tree in the schema.
+     */
+    public function parentCycleColumn(): string
+    {
+        return 'parent_risk_id';
     }
 
     // ── Hierarchy Relationships ──────────────────────────────────────

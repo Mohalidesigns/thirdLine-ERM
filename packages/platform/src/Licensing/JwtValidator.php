@@ -2,12 +2,12 @@
 
 namespace ThirdLine\Platform\Licensing;
 
-use ThirdLine\Platform\Licensing\Exceptions\LicenseException;
-use ThirdLine\Platform\Licensing\Exceptions\LicenseExpiredException;
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Firebase\JWT\SignatureInvalidException;
+use ThirdLine\Platform\Licensing\Exceptions\LicenseException;
+use ThirdLine\Platform\Licensing\Exceptions\LicenseExpiredException;
 
 class JwtValidator
 {

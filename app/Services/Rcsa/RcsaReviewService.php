@@ -9,6 +9,7 @@ use App\Models\Rcsa\RcsaLineComment;
 use App\Models\Rcsa\RcsaMethodology;
 use App\Models\User;
 use App\Services\NotificationService;
+use App\Support\Rcsa\RcsaScope;
 use Illuminate\Support\Collection;
 
 /**
@@ -63,12 +64,13 @@ class RcsaReviewService
      * else.
      *
      * @param  array<string, mixed>  $filters
-     * @param  int|null  $viewerId  Whoever is looking. Null lists everything, for reporting.
+     * @param  int|null  $viewerId  Whoever is looking, for the self-review exclusion above.
+     * @param  User|null  $viewer  The same person, for §11's business-unit scoping.
      * @return list<array<string, mixed>>
      */
-    public function queue(array $filters = [], ?int $viewerId = null): array
+    public function queue(array $filters = [], ?int $viewerId = null, ?User $viewer = null): array
     {
-        $assessments = RcsaAssessment::query()
+        $assessments = app(RcsaScope::class)->apply(RcsaAssessment::query(), $viewer)
             ->whereIn('status', RcsaAssessment::REVIEWABLE)
             ->when($viewerId !== null, fn ($q) => $q->where(
                 fn ($w) => $w->whereNull('submitted_by')->orWhere('submitted_by', '!=', $viewerId),

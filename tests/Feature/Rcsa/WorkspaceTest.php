@@ -322,12 +322,19 @@ class WorkspaceTest extends CycleTestCase
         );
 
         // Rule 7 of the process flow: user, time, before, after, on columns
-        // J, K and O.
+        // J, K and O — plus Q and S, which §11 names and P7 added. The two
+        // calculated ones matter because a residual can move when the
+        // METHODOLOGY is re-versioned and no answer the assessor gave changed
+        // at all; an auditor asking when a risk crossed appetite should not
+        // have to recompute five years of bands.
         $revisions = RcsaLineRevision::where('line_id', $line->id)->get();
 
-        $this->assertCount(3, $revisions);
+        $this->assertCount(5, $revisions);
         $this->assertEqualsCanonicalizing(
-            ['inherent_likelihood', 'inherent_impact', 'control_effectiveness'],
+            [
+                'inherent_likelihood', 'inherent_impact', 'control_effectiveness',
+                'residual_score', 'risk_treatment',
+            ],
             $revisions->pluck('field')->all()
         );
 
@@ -405,7 +412,10 @@ class WorkspaceTest extends CycleTestCase
 
         // A bulk action that skipped the trail would be the easiest way to
         // change sixty ratings without a record.
-        $this->assertSame(9, RcsaLineRevision::count());
+        // Three lines × five material fields — J, K, O and the two calculated
+        // columns §11 names. The number is not the point; that a bulk action
+        // leaves the same trail a single save does, is.
+        $this->assertSame(15, RcsaLineRevision::count());
         $this->assertSame(100, $assessment->fresh()->completion_pct);
     }
 

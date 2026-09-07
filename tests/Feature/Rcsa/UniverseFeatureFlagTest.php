@@ -3,6 +3,7 @@
 namespace Tests\Feature\Rcsa;
 
 use App\Presenters\NavPresenter;
+use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
@@ -75,6 +76,56 @@ class UniverseFeatureFlagTest extends UniverseTestCase
         config()->set('features.rcsa_v2', true);
 
         $this->actingAs($this->actor)->get(route('risk.rcsa.dashboard'))->assertOk();
+    }
+
+    /**
+     * No v2 route may sit on a legacy URI.
+     *
+     * P6 registered its dashboard on `rcsa/dashboard`, which is the LEGACY
+     * module's URI. Laravel keys its lookup table by method and URI, so the
+     * later registration silently replaced the earlier one:
+     * `route('risk.rcsa.dashboard')` began throwing and four legacy tests went
+     * red — with nothing in the v2 code looking wrong. §13's rule is that the
+     * module being replaced stays live and untouched until cutover, and a URI
+     * collision is one of the quieter ways to break it.
+     *
+     * This asserts the rule directly rather than leaving it to whichever legacy
+     * test happens to call the shadowed route next.
+     */
+    #[Test]
+    public function no_v2_route_shadows_a_legacy_rcsa_route(): void
+    {
+        $legacy = [];
+        $v2 = [];
+
+        foreach (Route::getRoutes() as $route) {
+            $name = $route->getName();
+
+            if ($name === null) {
+                continue;
+            }
+
+            $key = implode('|', $route->methods()).' '.$route->uri();
+
+            if (str_starts_with($name, 'risk.rcsa.')) {
+                $legacy[$key] = $name;
+            }
+
+            if (str_starts_with($name, 'rcsa.')) {
+                $v2[$key] = $name;
+            }
+        }
+
+        $this->assertNotEmpty($legacy, 'The legacy RCSA routes have gone — that is a cutover, not a refactor.');
+
+        $collisions = array_intersect_key($legacy, $v2);
+
+        $this->assertSame(
+            [],
+            $collisions,
+            'A v2 route is registered on a legacy RCSA URI, which removes the legacy one from the route table: '
+            .json_encode($collisions),
+        );
     }
 
     private function navigationHasUniverse(): bool

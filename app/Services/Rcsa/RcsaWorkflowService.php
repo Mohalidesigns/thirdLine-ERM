@@ -42,6 +42,8 @@ use RuntimeException;
  */
 class RcsaWorkflowService
 {
+    public function __construct(private readonly RcsaAuditRecorder $audit) {}
+
     /**
      * The legal edges. from-state => list of to-states.
      *
@@ -335,6 +337,8 @@ class RcsaWorkflowService
         ?string $reason,
         ?Request $request,
     ): void {
+        $this->audit->transition($assessment, $from, $to, $actor, $reason);
+
         RcsaAssessmentTransition::create([
             'organization_id' => $assessment->organization_id,
             'assessment_id' => $assessment->id,

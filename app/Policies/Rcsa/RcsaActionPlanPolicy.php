@@ -4,6 +4,7 @@ namespace App\Policies\Rcsa;
 
 use App\Models\Rcsa\RcsaActionPlan;
 use App\Models\User;
+use App\Support\Rcsa\RcsaScope;
 
 /**
  * RCSA v2, P5. The remediation register of §9.3.
@@ -75,8 +76,23 @@ class RcsaActionPlanPolicy
             && (int) $plan->closed_by !== (int) $user->id;
     }
 
+    /**
+     * Same organisation, and a business unit this user is assigned to (§11).
+     *
+     * The plan reaches its unit through its LINE, which carries
+     * `business_unit_id` as a snapshot. Reading it through the line rather than
+     * through the assessment matters on a register that outlives the cycle: the
+     * assessment can be closed and gone from every screen while the plan is
+     * still being chased.
+     */
     private function reachable(User $user, RcsaActionPlan $plan): bool
     {
-        return $user->organization_id === $plan->organization_id;
+        if ($user->organization_id !== $plan->organization_id) {
+            return false;
+        }
+
+        $line = $plan->relationLoaded('line') ? $plan->line : $plan->line()->first();
+
+        return app(RcsaScope::class)->reaches($user, $line?->business_unit_id);
     }
 }

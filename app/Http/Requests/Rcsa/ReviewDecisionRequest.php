@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Rcsa;
 
+use App\Models\Rcsa\RcsaAssessment;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -19,12 +20,35 @@ use Illuminate\Foundation\Http\FormRequest;
  */
 class ReviewDecisionRequest extends FormRequest
 {
+    /**
+     * Authorised HERE, not only in the controller.
+     *
+     * A Form Request that returns true runs its RULES first, so a reviewer with
+     * no authority over this business unit was answered with a 302 and a
+     * validation error rather than a 403 — the request was still refused, but
+     * the refusal said "you forgot the reason" to somebody who was never going
+     * to be allowed to give one. Found by the route walk in
+     * BusinessUnitScopeTest, which could not tell the two apart, and it is the
+     * more honest ordering regardless: authority first, then the payload.
+     *
+     * The three abilities are three different permissions on the same payload,
+     * so which one applies is decided by the ROUTE.
+     */
     public function authorize(): bool
     {
-        // The controller authorises against the specific ability (validate,
-        // return, escalate), because they are three different permissions on
-        // the same payload.
-        return true;
+        $assessment = $this->route('assessment');
+
+        if (! $assessment instanceof RcsaAssessment) {
+            return false;
+        }
+
+        $ability = match (true) {
+            $this->routeIs('rcsa.review.validate') => 'validate',
+            $this->routeIs('rcsa.review.return') => 'returnForRework',
+            default => 'escalate',
+        };
+
+        return $this->user()?->can($ability, $assessment) === true;
     }
 
     /** @return array<string, mixed> */

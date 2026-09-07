@@ -220,6 +220,28 @@ class RiskPermissionCatalog extends PermissionCatalog
                     .'and only those.',
             ],
 
+            // §11 — the scoping escape hatch. A permission rather than a
+            // null assignment list, because "no assignments means everything"
+            // is a scoping system that fails open on exactly the accounts
+            // nobody has configured.
+            'RCSA Scope' => [
+                'rcsa_scope.all_units' => 'See every business unit\'s RCSA, not only the ones you are assigned to. '
+                    .'The Head of ORM, the CRO and Internal Audit hold this; a risk champion does not.',
+                'rcsa_scope.assign' => 'Assign users to the business units whose RCSA they may see.',
+            ],
+
+            // §10 — the bulk download, its log and the dashboards. Named
+            // `rcsa_export.*` rather than the plan's `rcsa.export.bulk` for the
+            // same reason as every other RCSA permission: two segments,
+            // `resource.verb` (migration Decision 2).
+            'RCSA Reporting' => [
+                'rcsa_export.bulk' => 'Download the RCSA assessment register as the 23-column workbook. '
+                    .'A completed RCSA is the bank\'s operational risk profile in one file, so every '
+                    .'export is logged with the user, the filters, the row count and the IP.',
+                'rcsa_audit.view' => 'See every user\'s RCSA export history, not only your own, and the '
+                    .'workflow audit trail behind an assessment.',
+            ],
+
             // §9.3 — the remediation register, which outlives the cycle that
             // produced it. `close` and `verify` are separate on purpose: the
             // owner claims the control is in place, the second line accepts
@@ -391,6 +413,8 @@ class RiskPermissionCatalog extends PermissionCatalog
             'rcsa_assessment.view', 'rcsa_assessment.complete', 'rcsa_assessment.submit',
             'rcsa_assessment.review', 'rcsa_assessment.validate', 'rcsa_assessment.return',
             'rcsa_actionplan.view', 'rcsa_actionplan.update', 'rcsa_actionplan.close', 'rcsa_actionplan.verify',
+            'rcsa_export.bulk', 'rcsa_audit.view',
+            'rcsa_scope.all_units', 'rcsa_scope.assign',
             'analysis.view',
             'ai.view', 'ai.use',
             'control_test.view', 'control_test.create', 'control_test.edit', 'control_test.execute', 'control_test.review',
@@ -448,6 +472,14 @@ class RiskPermissionCatalog extends PermissionCatalog
                 // ORM, who is `risk-manager` here.
                 'rcsa_assessment.review',
                 'rcsa_actionplan.view',
+                // The analyst builds the Board pack, so they export. They do
+                // NOT get `rcsa_audit.view`: seeing who else downloaded what is
+                // an administrator's control, not a reporting one.
+                'rcsa_export.bulk',
+                // The ORM Analyst reviews every unit's assessment, so they see
+                // every unit. They cannot ASSIGN — deciding who sees what is
+                // the administrator's, not the reviewer's.
+                'rcsa_scope.all_units',
                 'analysis.view',
                 'ai.view',
                 'control_test.view',
@@ -478,6 +510,9 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'rcsa_universe.view',
                 'rcsa_cycle.view', 'rcsa_assessment.view',
                 'rcsa_actionplan.view',
+                'rcsa_export.bulk',
+                // §11's "Internal Audit (read-only, full estate)".
+                'rcsa_scope.all_units',
                 'control_test.view', 'control_test.review',
                 'regulatory.view', 'regulatory.manage', 'regulatory.file',
                 'period.view',

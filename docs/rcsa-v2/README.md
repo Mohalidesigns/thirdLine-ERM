@@ -14,8 +14,8 @@ deviated from and why, and what the phase found that the plan did not know.
 | P3 | Cycles and assessment workspace | **Done** — [p3-cycles-and-workspace.md](p3-cycles-and-workspace.md) |
 | P4 | Appetite, action plans, submission gate | **Done** — [p4-appetite-and-submission.md](p4-appetite-and-submission.md) |
 | P5 | ORM review workflow, action-plan register | **Done** — [p5-orm-review.md](p5-orm-review.md) |
-| P6 | Bulk download, dashboards, offline round-trip | Not started |
-| P7 | RBAC, audit and notifications | Not started |
+| P6 | Bulk download, dashboards, offline round-trip | **Done** — [p6-export-dashboards-roundtrip.md](p6-export-dashboards-roundtrip.md) |
+| P7 | RBAC, audit, business-unit scoping | **Done** — [p7-rbac-audit.md](p7-rbac-audit.md) |
 | P8 | Migration and cutover off the legacy module | Not started |
 | P9 | Hardening and UAT | Not started |
 
@@ -53,10 +53,10 @@ Q1 is now visible in the product: `residual_mode` is `calculated`, so the worksp
 **Q6 is now answered in configuration.** The BU-head approval step is
 `organizations.settings['rcsa']['bu_approval_required']`, default off — a bank
 that wants it turns it on and takes `rcsa_assessment.submit` off `risk-owner`
-if it wants the champion unable to file directly. **Q8 (who assigns assessors)
-is still open**: `reviewer_id` is written when a reviewer claims an assessment,
-but `assigned_to` is still null and assignment belongs with P7's business-unit
-scoping.
+if it wants the champion unable to file directly. **Q8 (who assigns assessors) is now answerable**: P7 built
+`business_unit_user`, which is the model an assignment screen would read.
+`reviewer_id` is written when a reviewer claims an assessment; `assigned_to` is
+still null, and a screen for it is P8 or later.
 
 ## Fixes found in use
 

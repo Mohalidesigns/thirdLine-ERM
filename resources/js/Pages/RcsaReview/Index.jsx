@@ -17,6 +17,7 @@ export default function Index({
     filters = {},
     cycles = [],
     weights = {},
+    scopeNotice = null,
 }) {
     const { flash } = usePage().props;
 
@@ -39,6 +40,12 @@ export default function Index({
             }
         >
             <Head title="ORM review" />
+
+            {scopeNotice && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    {scopeNotice}
+                </div>
+            )}
 
             {flash?.success && (
                 <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800">

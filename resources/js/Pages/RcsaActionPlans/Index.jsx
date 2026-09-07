@@ -21,6 +21,7 @@ export default function Index({
     summary = {},
     filters = {},
     statuses = [],
+    scopeNotice = null,
     cycles = [],
 }) {
     const { flash } = usePage().props;
@@ -62,6 +63,12 @@ export default function Index({
             }
         >
             <Head title="RCSA action plans" />
+
+            {scopeNotice && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    {scopeNotice}
+                </div>
+            )}
 
             {flash?.success && (
                 <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800">

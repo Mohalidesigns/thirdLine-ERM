@@ -16,6 +16,7 @@ use App\Models\Rcsa\RcsaSystem;
 use App\Models\User;
 use App\Services\Rcsa\RcsaUniverseService;
 use App\Support\Rcsa\RcsaMethodologyTemplate as Template;
+use App\Support\Rcsa\RcsaScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -43,7 +44,10 @@ class UniverseController extends Controller
 
         $orgId = TenantContext::organizationId();
 
-        $risks = RcsaRegisterRisk::query()
+        // §11. The list must not show what the policy would refuse to open —
+        // a row a user can see but not click is a support ticket, and a row
+        // they can see at all is the leak §11 is written to close.
+        $risks = app(RcsaScope::class)->apply(RcsaRegisterRisk::query(), $request->user())
             ->with([
                 'businessUnit:id,name,code',
                 'process:id,name',

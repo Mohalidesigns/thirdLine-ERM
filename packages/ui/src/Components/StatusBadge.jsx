@@ -71,6 +71,14 @@ export default function StatusBadge({ status }) {
         flagged: "badge-status-overdue",
         challenged: "badge-medium",
         escalated: "badge-status-overdue",
+        // §10.2's export log: a link past its date is not a failure, and
+        // without a key of its own it drew as a draft — indistinguishable from
+        // an export still queued.
+        expired: "badge-status-draft",
+        ready: "badge-status-completed",
+        processing: "badge-status-active",
+        queued: "badge-status-pending",
+        failed: "badge-status-overdue",
     };
     const formatted = status ? status.replace(/_/g, " ") : "unknown";
     return (

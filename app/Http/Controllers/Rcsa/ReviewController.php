@@ -46,6 +46,7 @@ class ReviewController extends Controller
         $queue = $this->reviews->queue(
             $request->only(['cycle', 'status', 'business_unit']),
             viewerId: (int) $request->user()->id,
+            viewer: $request->user(),
         );
 
         // The reviewer's own claimed work, separated out. A queue that mixes
@@ -64,6 +65,7 @@ class ReviewController extends Controller
                 ->orderByDesc('period_start')
                 ->get(['id', 'name'])
                 ->all(),
+            'scopeNotice' => app(\App\Support\Rcsa\RcsaScope::class)->describe($request->user()),
             'weights' => [
                 'above_appetite' => RcsaReviewService::ABOVE_APPETITE_WEIGHT,
                 'escalation' => RcsaReviewService::ESCALATION_WEIGHT,

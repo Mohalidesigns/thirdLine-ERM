@@ -14,6 +14,7 @@ use App\Services\Rcsa\RcsaAssessmentService;
 use App\Services\Rcsa\RcsaReviewService;
 use App\Services\Rcsa\RcsaSubmissionService;
 use App\Services\Rcsa\RcsaWorkflowService;
+use App\Support\Rcsa\RcsaScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -49,7 +50,7 @@ class AssessmentController extends Controller
     {
         Gate::authorize('viewAny', RcsaAssessment::class);
 
-        $assessments = RcsaAssessment::query()
+        $assessments = app(RcsaScope::class)->apply(RcsaAssessment::query(), $request->user())
             ->with(['cycle:id,name,status,due_date', 'businessUnit:id,name'])
             ->withCount('lines')
             ->when($request->filled('cycle'), fn ($q) => $q->where('cycle_id', $request->input('cycle')))
@@ -74,6 +75,7 @@ class AssessmentController extends Controller
         return Inertia::render('RcsaAssessments/Index', [
             'assessments' => $assessments,
             'filters' => $request->only(['cycle', 'status']),
+            'scopeNotice' => app(RcsaScope::class)->describe($request->user()),
         ]);
     }
 

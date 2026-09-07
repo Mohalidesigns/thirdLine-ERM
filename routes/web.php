@@ -19,9 +19,13 @@ use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Rcsa\ActionPlanController as RcsaActionPlanController;
 use App\Http\Controllers\Rcsa\AssessmentController as RcsaAssessmentController;
+use App\Http\Controllers\Rcsa\AuditController as RcsaAuditController;
 use App\Http\Controllers\Rcsa\CycleController as RcsaCycleController;
+use App\Http\Controllers\Rcsa\DashboardController as RcsaDashboardController;
+use App\Http\Controllers\Rcsa\ExportController as RcsaExportController;
 use App\Http\Controllers\Rcsa\ImportController as RcsaImportController;
 use App\Http\Controllers\Rcsa\ReviewController as RcsaReviewController;
+use App\Http\Controllers\Rcsa\RoundTripController as RcsaRoundTripController;
 use App\Http\Controllers\Rcsa\UniverseController as RcsaUniverseController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
 use App\Http\Controllers\Risk\AiToolsController;
@@ -1157,6 +1161,92 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
 
         Route::post('{assessment}/escalate', [RcsaReviewController::class, 'escalate'])
             ->middleware('permission:rcsa_assessment.review')->name('escalate');
+    });
+
+    /*
+     * §11's read-only audit view. Gated on `rcsa_assessment.view` and scoped by
+     * the same policy as the assessment itself: seeing who changed what on your
+     * own unit's assessment is ordinary work. The ESTATE-WIDE trail beside it —
+     * the hash-chained rows, with IP addresses — is gated inside the controller
+     * on `rcsa_audit.view`.
+     *
+     * There is no write route here and there is nowhere for one to go: all
+     * three sources are append-only, two by construction and one by database
+     * trigger.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/assessments/{assessment}')->name('rcsa.audit.')->group(function () {
+        Route::get('audit', [RcsaAuditController::class, 'show'])
+            ->middleware('permission:rcsa_assessment.view')->name('show');
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA v2 — reporting: bulk download, dashboards, offline round trip */
+    /*  (plan §10) */
+    /* ------------------------------------------------------------------ */
+    /*
+     * THE EXPORT IS THE MOST SENSITIVE ROUTE IN THE MODULE. A completed RCSA is
+     * the bank's operational risk profile in one file, so `rcsa_export.bulk` is
+     * its own permission, every run writes a `rcsa_export_jobs` row before the
+     * file exists, and the queued download is a SIGNED link that is still
+     * checked against the permission, the tenant and the owner at the far end.
+     * The signature stops a URL being guessed; it is not authorisation.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/exports')->name('rcsa.exports.')->group(function () {
+        Route::get('/', [RcsaExportController::class, 'index'])
+            ->middleware('permission:rcsa_export.bulk')->name('index');
+
+        // The row count the current filters select, so the screen can say
+        // whether the file will arrive now or as a link before the user commits.
+        Route::get('preview', [RcsaExportController::class, 'preview'])
+            ->middleware('permission:rcsa_export.bulk')->name('preview');
+
+        Route::post('/', [RcsaExportController::class, 'store'])
+            ->middleware('permission:rcsa_export.bulk')->name('store');
+
+        Route::get('{export}/download', [RcsaExportController::class, 'download'])
+            ->middleware(['signed', 'permission:rcsa_export.bulk'])->name('download');
+    });
+
+    /*
+     * The dashboards of §10.3. Gated on `rcsa_assessment.view`, not on the
+     * export permission: reading the bank's own risk profile on a screen is
+     * ordinary work, and taking it away as a file is the act that needs its own
+     * authority.
+     *
+     * `rcsa/dashboardS`, PLURAL, and that is not cosmetic. The legacy module's
+     * dashboard is `rcsa/dashboard`, and registering this one on the same URI
+     * silently replaced it in the route table — `route('risk.rcsa.dashboard')`
+     * then threw, and four legacy tests went red. §13's rule is that the module
+     * being replaced stays live and untouched until cutover, and a URI
+     * collision is one of the quieter ways to break it.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/dashboards')->name('rcsa.dashboard.')->group(function () {
+        Route::get('/', [RcsaDashboardController::class, 'index'])
+            ->middleware('permission:rcsa_assessment.view')->name('index');
+    });
+
+    /*
+     * The offline round trip of §10.4, nested under the assessment because that
+     * is what it belongs to. Gated on `rcsa_assessment.complete` throughout —
+     * taking your own unit's assessment away to fill in is part of doing it,
+     * and requiring `rcsa_export.bulk` would mean branch staff could not use
+     * the feature built for exactly their connectivity.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/assessments/{assessment}')->name('rcsa.round-trip.')->group(function () {
+        Route::get('working-copy', [RcsaExportController::class, 'workingCopy'])
+            ->middleware('permission:rcsa_assessment.complete')->name('working-copy');
+
+        Route::post('round-trip', [RcsaRoundTripController::class, 'store'])
+            ->middleware('permission:rcsa_assessment.complete')->name('store');
+
+        Route::get('round-trip/{batch}', [RcsaRoundTripController::class, 'show'])
+            ->middleware('permission:rcsa_assessment.complete')->name('show');
+
+        Route::post('round-trip/{batch}/rows/{row}', [RcsaRoundTripController::class, 'resolve'])
+            ->middleware('permission:rcsa_assessment.complete')->name('resolve');
+
+        Route::post('round-trip/{batch}/apply', [RcsaRoundTripController::class, 'apply'])
+            ->middleware('permission:rcsa_assessment.complete')->name('apply');
     });
 
     /* ------------------------------------------------------------------ */

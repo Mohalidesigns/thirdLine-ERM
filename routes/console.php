@@ -20,6 +20,11 @@ Schedule::command('regulatory:check-deadlines')->twiceDaily(8, 16);
 // answer — see CheckRcsaActionPlans for why there is no "last reminded" column.
 Schedule::command('rcsa:check-action-plans')->dailyAt('08:45');
 
+// P7 (§11). Before the action-plan sweep, so a unit that is behind hears about
+// the assessment first and the remediation second. Same T-14/T-7/T-0 milestone
+// shape, which is what makes both idempotent without a "last reminded" column.
+Schedule::command('rcsa:check-cycle-deadlines')->dailyAt('08:40');
+
 // WP-04. The CBN publishes rates on business days; the fetcher runs before the
 // KRI check so a monetary limit is evaluated against that morning's rate.
 Schedule::command('fx:fetch-cbn-rates')->weekdays()->dailyAt('06:30');

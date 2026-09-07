@@ -7,6 +7,7 @@ use App\Http\Requests\Rcsa\UpdateActionPlanProgressRequest;
 use App\Models\Rcsa\RcsaActionPlan;
 use App\Models\Rcsa\RcsaCycle;
 use App\Services\Rcsa\RcsaActionPlanService;
+use App\Support\Rcsa\RcsaScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -38,7 +39,12 @@ class ActionPlanController extends Controller
         $filters = $request->only(['status', 'overdue', 'pending_verification', 'cycle', 'business_unit'])
             + ($mine ? ['owner' => $request->user()->id] : []);
 
-        $register = $this->plans->register($filters)->paginate(25)->withQueryString();
+        // Scoped through the LINE: a plan carries no unit of its own, and the
+        // register outlives the cycle, so the assessment may be long closed.
+        $register = app(RcsaScope::class)
+            ->applyThrough($this->plans->register($filters), $request->user(), 'line')
+            ->paginate(25)
+            ->withQueryString();
 
         $register->through(fn (RcsaActionPlan $plan) => [
             'id' => $plan->id,
@@ -78,6 +84,7 @@ class ActionPlanController extends Controller
             'plans' => $register,
             'summary' => $this->plans->summaryFor($mine ? $request->user()->id : null),
             'filters' => $request->only(['status', 'overdue', 'pending_verification', 'cycle', 'business_unit', 'mine']),
+            'scopeNotice' => app(RcsaScope::class)->describe($request->user()),
             'statuses' => RcsaActionPlan::STATUSES,
             'cycles' => RcsaCycle::query()->orderByDesc('period_start')->get(['id', 'name'])->all(),
         ]);

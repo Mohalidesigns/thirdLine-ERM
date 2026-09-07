@@ -90,6 +90,8 @@ class NavPresenter
                     ['label' => 'My Assessments', 'route' => 'rcsa.assessments.index', 'permission' => 'rcsa_assessment.view', 'feature' => 'rcsa_v2'],
                     ['label' => 'ORM Review', 'route' => 'rcsa.review.index', 'permission' => 'rcsa_assessment.review', 'feature' => 'rcsa_v2'],
                     ['label' => 'Action Plans', 'route' => 'rcsa.action-plans.index', 'permission' => 'rcsa_actionplan.view', 'feature' => 'rcsa_v2'],
+                    ['label' => 'RCSA Dashboard', 'route' => 'rcsa.dashboard.index', 'permission' => 'rcsa_assessment.view', 'feature' => 'rcsa_v2'],
+                    ['label' => 'Export', 'route' => 'rcsa.exports.index', 'permission' => 'rcsa_export.bulk', 'feature' => 'rcsa_v2'],
                 ],
             ],
             [

@@ -11,6 +11,7 @@ use App\Models\Rcsa\RcsaCycle;
 use App\Models\Rcsa\RcsaMethodology;
 use App\Models\Rcsa\RcsaRegisterRisk;
 use App\Services\Rcsa\RcsaCycleService;
+use App\Support\Rcsa\RcsaScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -84,7 +85,10 @@ class CycleController extends Controller
     {
         Gate::authorize('view', $cycle);
 
-        $assessments = $cycle->assessments()
+        // §11. A coordinator sees the whole cycle; a risk champion sees the
+        // rows for their own units and the tiles above them count the same set,
+        // so the progress they read is progress they are responsible for.
+        $assessments = app(RcsaScope::class)->apply($cycle->assessments(), $request->user())
             ->with(['businessUnit:id,name,code', 'assignee:id,name'])
             ->withCount('lines')
             ->get()

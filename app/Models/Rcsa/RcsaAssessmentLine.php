@@ -52,6 +52,15 @@ class RcsaAssessmentLine extends Model
      * recorder and the "what changed since last cycle" comparison read one
      * list.
      *
+     * P7 ADDED THE TWO CALCULATED ONES — `residual_score` (Q) and
+     * `risk_treatment` (S) — which §11 names explicitly and P3's list omitted
+     * because they are computed rather than typed. Recording them doubles
+     * nothing useful in the common case, where the J/K/O change that caused the
+     * movement is beside it; it earns its place in the uncommon one, where a
+     * residual moves because the METHODOLOGY was re-versioned and no input the
+     * assessor gave changed at all. An auditor asking "when did this risk cross
+     * appetite" should not have to recompute five years of bands to find out.
+     *
      * @var list<string>
      */
     public const MATERIAL_FIELDS = [
@@ -61,6 +70,8 @@ class RcsaAssessmentLine extends Model
         'residual_likelihood',
         'residual_impact',
         'treatment_override',
+        'residual_score',
+        'risk_treatment',
     ];
 
     /**

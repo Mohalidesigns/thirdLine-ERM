@@ -140,7 +140,8 @@ class RiskAuditTrail extends Model
     /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function changedByUser()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function changedByUser(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'changed_by');
     }

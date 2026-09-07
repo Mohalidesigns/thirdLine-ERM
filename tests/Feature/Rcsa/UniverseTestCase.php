@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\Rcsa\RcsaRegisterRisk;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Permission;
 use Tests\Support\CreatesDomainFixtures;
@@ -106,6 +107,34 @@ abstract class UniverseTestCase extends TestCase
                 'is_active' => true,
             ]);
         });
+
+        // §11's scoping. The actor is assigned to both units, which is what a
+        // real user IS — the P7 migration backfills every existing user from
+        // their `business_unit_id`, so an unassigned account is a new one
+        // nobody has configured, not the normal case. Tests about the BOUNDARY
+        // create their own narrower users; every other test here is about
+        // something else and would otherwise assert 403 over and over.
+        $this->assign($this->actor, [$this->retail, $this->treasury]);
+    }
+
+    /**
+     * Give a user authority over some business units (§11).
+     *
+     * @param  list<BusinessUnit>  $units
+     */
+    protected function assign(User $user, array $units, bool $includesDescendants = true): void
+    {
+        foreach ($units as $unit) {
+            DB::table('business_unit_user')->updateOrInsert(
+                ['user_id' => $user->id, 'business_unit_id' => $unit->id],
+                [
+                    'organization_id' => $user->organization_id,
+                    'includes_descendants' => $includesDescendants,
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ],
+            );
+        }
     }
 
     /** @param  list<string>  $permissions */
@@ -126,7 +155,7 @@ abstract class UniverseTestCase extends TestCase
      *
      * @param  list<string>  $permissions
      */
-    protected function userWith(array $permissions): User
+    protected function userWith(array $permissions, ?array $units = null): User
     {
         $user = User::create([
             'name' => 'Scoped User',
@@ -137,6 +166,12 @@ abstract class UniverseTestCase extends TestCase
         ]);
 
         $this->grant($permissions, $user);
+
+        // The same units as the actor unless the caller says otherwise. A test
+        // about permissions should not have to think about scoping, and a test
+        // about scoping passes the units it means — including `[]` for somebody
+        // assigned to nothing.
+        $this->assign($user, $units ?? [$this->retail, $this->treasury]);
 
         return $user;
     }

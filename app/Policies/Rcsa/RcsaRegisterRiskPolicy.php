@@ -4,6 +4,7 @@ namespace App\Policies\Rcsa;
 
 use App\Models\Rcsa\RcsaRegisterRisk;
 use App\Models\User;
+use App\Support\Rcsa\RcsaScope;
 
 /**
  * RCSA v2, P1. Permission first, then tenancy, then the domain rule.
@@ -98,15 +99,17 @@ class RcsaRegisterRiskPolicy
     }
 
     /**
-     * Same organisation.
+     * Same organisation, and a business unit this user is assigned to (§11).
      *
      * The global tenancy scope already keeps another tenant's rows out of every
-     * query, so this is the second line for a row reached some other way — a
-     * service, a queued job, an id a page put in a link. P7 adds the
-     * business-unit restriction here.
+     * query, so the first half is the second line for a row reached some other
+     * way — a service, a queued job, an id a page put in a link. The second
+     * half is P7's, and it is the half that stops a risk champion in Retail
+     * opening Treasury's universe row by editing a URL.
      */
     private function reachable(User $user, RcsaRegisterRisk $risk): bool
     {
-        return $user->organization_id === $risk->organization_id;
+        return $user->organization_id === $risk->organization_id
+            && app(RcsaScope::class)->reaches($user, $risk->business_unit_id);
     }
 }

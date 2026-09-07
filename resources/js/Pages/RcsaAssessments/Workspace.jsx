@@ -371,6 +371,66 @@ export default function Workspace({
                                     </>
                                 )}
 
+                            {/*
+                             * §10.4. Offered on the workspace because that is
+                             * where somebody realises they are about to lose
+                             * connectivity — not buried on an export screen
+                             * they have no permission for.
+                             */}
+                            {editable && (
+                                <>
+                                    <a
+                                        href={route(
+                                            "rcsa.round-trip.working-copy",
+                                            assessment.id,
+                                        )}
+                                        className="btn-secondary text-sm"
+                                        title="Download this assessment as a spreadsheet to fill in offline"
+                                    >
+                                        Working copy
+                                    </a>
+                                    <label className="btn-secondary cursor-pointer text-sm">
+                                        Upload
+                                        <input
+                                            type="file"
+                                            accept=".xlsx"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file =
+                                                    e.target.files?.[0];
+
+                                                if (file) {
+                                                    router.post(
+                                                        route(
+                                                            "rcsa.round-trip.store",
+                                                            assessment.id,
+                                                        ),
+                                                        { file },
+                                                        { forceFormData: true },
+                                                    );
+                                                }
+
+                                                e.target.value = "";
+                                            }}
+                                        />
+                                    </label>
+                                </>
+                            )}
+
+                            {/*
+                             * §11's read-only history. Offered to anybody who
+                             * may view the assessment: seeing who changed what
+                             * on your own unit's work is ordinary, and the
+                             * estate-wide trail behind it has its own gate.
+                             */}
+                            <a
+                                href={route("rcsa.audit.show", assessment.id)}
+                                className="btn-secondary text-sm"
+                                title="Who changed what, and when"
+                            >
+                                Audit
+                            </a>
+
                             {can.submit && assessment.editable && (
                                 <button
                                     type="button"

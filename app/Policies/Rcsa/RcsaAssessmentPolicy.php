@@ -4,6 +4,7 @@ namespace App\Policies\Rcsa;
 
 use App\Models\Rcsa\RcsaAssessment;
 use App\Models\User;
+use App\Support\Rcsa\RcsaScope;
 
 /**
  * RCSA v2, P3. Discovered from App\Models\Rcsa\RcsaAssessment.
@@ -122,8 +123,17 @@ class RcsaAssessmentPolicy
         return $this->review($user, $assessment);
     }
 
+    /**
+     * Same organisation, and a business unit this user is assigned to (§11).
+     *
+     * Every ability on this policy already routes through here, which is why
+     * P3 and P5 could defer the second half to P7: adding it in one place adds
+     * it to view, complete, submit, approve, review, validate, return and
+     * escalate at once.
+     */
     private function reachable(User $user, RcsaAssessment $assessment): bool
     {
-        return $user->organization_id === $assessment->organization_id;
+        return $user->organization_id === $assessment->organization_id
+            && app(RcsaScope::class)->reaches($user, $assessment->business_unit_id);
     }
 }

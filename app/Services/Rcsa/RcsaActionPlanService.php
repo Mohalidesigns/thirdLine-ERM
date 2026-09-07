@@ -30,6 +30,8 @@ use RuntimeException;
  */
 class RcsaActionPlanService
 {
+    public function __construct(private readonly RcsaAuditRecorder $audit) {}
+
     /**
      * The register, filtered — the ORM's view and the owner dashboard are the
      * same query with a different `owner` filter.
@@ -157,7 +159,9 @@ class RcsaActionPlanService
             throw new RuntimeException('Say what was put in place, and how it can be checked.');
         }
 
-        DB::transaction(function () use ($plan, $actor, $evidence) {
+        $before = $plan->status;
+
+        DB::transaction(function () use ($plan, $actor, $evidence, $before) {
             $plan->forceFill([
                 'status' => RcsaActionPlan::COMPLETED,
                 'progress_pct' => 100,
@@ -165,6 +169,8 @@ class RcsaActionPlanService
                 'closed_by' => $actor->id,
                 'closed_at' => now(),
             ])->save();
+
+            $this->audit->planChange($plan, 'status', $before, RcsaActionPlan::COMPLETED, $actor, $evidence);
         });
 
         $this->notifyVerifiers($plan, $actor);
@@ -235,6 +241,8 @@ class RcsaActionPlanService
             return $plan->refresh();
         }
 
+        $previousDate = $plan->target_date;
+
         $plan->forceFill([
             // Written once. A plan extended from March to June and then to
             // September is still, in the register, a plan that was due in
@@ -247,6 +255,11 @@ class RcsaActionPlanService
             // approval decided — but it is not back to `open` either.
             'status' => $plan->status === RcsaActionPlan::OVERDUE ? RcsaActionPlan::IN_PROGRESS : $plan->status,
         ])->save();
+
+        // Column W moving is the single most audit-worthy event in the
+        // register: it is how a remediation programme comes to report nothing
+        // overdue without anything having been delivered.
+        $this->audit->planChange($plan, 'target_date', $previousDate, $proposed, $actor, $plan->extension_reason);
 
         $this->notifyOwner(
             $plan,
@@ -279,6 +292,8 @@ class RcsaActionPlanService
             'verified_by' => $actor->id,
             'verified_at' => now(),
         ])->save();
+
+        $this->audit->planChange($plan, 'status', RcsaActionPlan::COMPLETED, RcsaActionPlan::CLOSED, $actor);
 
         $this->notifyOwner(
             $plan,

@@ -52,7 +52,10 @@ class RcsaAssessmentService
      */
     public const LOCKED = 'locked';
 
-    public function __construct(private readonly RcsaCalculationService $calculator) {}
+    public function __construct(
+        private readonly RcsaCalculationService $calculator,
+        private readonly RcsaAuditRecorder $audit,
+    ) {}
 
     /**
      * Apply an assessor's answers to one line.
@@ -351,6 +354,8 @@ class RcsaAssessmentService
                 continue;
             }
 
+            $reason = $field === 'treatment_override' ? $line->treatment_override_reason : null;
+
             RcsaLineRevision::create([
                 'organization_id' => $line->organization_id,
                 'line_id' => $line->id,
@@ -358,11 +363,16 @@ class RcsaAssessmentService
                 'field' => $field,
                 'old_value' => $old,
                 'new_value' => $new,
-                'reason' => $field === 'treatment_override' ? $line->treatment_override_reason : null,
+                'reason' => $reason,
                 'request_id' => $request?->header('X-Request-Id'),
                 'ip_address' => $request?->ip(),
                 'created_at' => now(),
             ]);
+
+            // And into the estate-wide trail (§11). Two writes on purpose: the
+            // revision answers "what happened to this line", the trail answers
+            // "what did this person do", and the second is hash-chained.
+            $this->audit->lineChange($line, $field, $old, $new, $actor, $reason);
         }
     }
 }

@@ -21,7 +21,7 @@ use Symfony\Component\HttpFoundation\Response;
  * enrolled user without `mfa_verified` in the session is sent to mfa.verify
  * (MfaVerifyController completes sign-in), and a user whose role requires a
  * second factor but who has not enrolled is sent to mfa.setup.
- */class EnsureMfaVerified
+ */ class EnsureMfaVerified
 {
     /**
      * Routes that must stay reachable, or a user who is required to enrol has

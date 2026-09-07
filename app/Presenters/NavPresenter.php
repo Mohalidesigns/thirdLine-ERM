@@ -105,6 +105,8 @@ class NavPresenter
                     ['label' => 'Engagements', 'route' => 'tprm.engagements.index', 'permission' => 'tprm.view', 'feature' => 'tprm'],
                     ['label' => 'Raise an Intake', 'route' => 'tprm.intake.create', 'permission' => 'tprm.create', 'feature' => 'tprm'],
                     ['label' => 'Intake Queue', 'route' => 'tprm.intake.index', 'permission' => 'tprm.view', 'feature' => 'tprm'],
+                    ['label' => 'Assessments', 'route' => 'tprm.assessments.index', 'permission' => 'tprm.assessment.view', 'feature' => 'tprm'],
+                    ['label' => 'Questionnaires', 'route' => 'tprm.templates.index', 'permission' => 'tprm.assessment.view', 'feature' => 'tprm'],
                     ['label' => 'Override Register', 'route' => 'tprm.overrides.index', 'permission' => 'tprm.view', 'feature' => 'tprm'],
                     ['label' => 'Bulk Import', 'route' => 'tprm.imports.index', 'permission' => 'tprm.create', 'feature' => 'tprm'],
                     ['label' => 'Tiering Rulesets', 'route' => 'tprm.rulesets.index', 'permission' => 'tprm.ruleset.manage', 'feature' => 'tprm'],

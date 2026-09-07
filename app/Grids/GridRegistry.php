@@ -35,6 +35,7 @@ class GridRegistry
         'circulars' => Definitions\RegulatoryCircularsGrid::class,
         'tprm_third_parties' => Definitions\TprmThirdPartiesGrid::class,
         'tprm_engagements' => Definitions\TprmEngagementsGrid::class,
+        'tprm_assessments' => Definitions\TprmAssessmentsGrid::class,
     ];
 
     public static function resolve(string $name): GridDefinition

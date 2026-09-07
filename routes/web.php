@@ -27,9 +27,11 @@ use App\Http\Controllers\Rcsa\ImportController as RcsaImportController;
 use App\Http\Controllers\Rcsa\ReviewController as RcsaReviewController;
 use App\Http\Controllers\Rcsa\RoundTripController as RcsaRoundTripController;
 use App\Http\Controllers\Rcsa\UniverseController as RcsaUniverseController;
+use App\Http\Controllers\Tprm\AssessmentController as TprmAssessmentController;
 use App\Http\Controllers\Tprm\EngagementController as TprmEngagementController;
 use App\Http\Controllers\Tprm\ImportController as TprmImportController;
 use App\Http\Controllers\Tprm\IntakeController as TprmIntakeController;
+use App\Http\Controllers\Tprm\QuestionnaireController as TprmQuestionnaireController;
 use App\Http\Controllers\Tprm\RulesetController as TprmRulesetController;
 use App\Http\Controllers\Tprm\ThirdPartyController as TprmThirdPartyController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
@@ -1665,6 +1667,42 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.create')->name('imports.commit');
         Route::post('imports/{batch}/roll-back', [TprmImportController::class, 'rollBack'])
             ->middleware('permission:tprm.create')->name('imports.roll-back');
+
+        /* --- Assessments (Phase 2) ------------------------------------- */
+        /*
+         * Four permissions rather than one, because issuing a questionnaire,
+         * reviewing an answer and validating the score it produces are
+         * different acts by different people. Validation in particular is the
+         * moment an assurance number becomes the one a residual risk is
+         * computed from.
+         */
+        Route::get('assessments', [TprmAssessmentController::class, 'index'])
+            ->middleware('permission:tprm.assessment.view')->name('assessments.index');
+        Route::post('assessments', [TprmAssessmentController::class, 'store'])
+            ->middleware('permission:tprm.assessment.issue')->name('assessments.store');
+        Route::get('assessments/{assessment}', [TprmAssessmentController::class, 'show'])
+            ->middleware('permission:tprm.assessment.view')->name('assessments.show');
+        Route::post('assessments/{assessment}/send', [TprmAssessmentController::class, 'send'])
+            ->middleware('permission:tprm.assessment.issue')->name('assessments.send');
+        Route::post('assessments/{assessment}/responses/{response}/review', [TprmAssessmentController::class, 'review'])
+            ->middleware('permission:tprm.assessment.review')->name('assessments.review');
+        Route::post('assessments/{assessment}/clarify', [TprmAssessmentController::class, 'requestClarification'])
+            ->middleware('permission:tprm.assessment.review')->name('assessments.clarify');
+        Route::post('assessments/{assessment}/validate', [TprmAssessmentController::class, 'validateAssessment'])
+            ->middleware('permission:tprm.assessment.validate')->name('assessments.validate');
+
+        /* --- Questionnaire builder (FR-ASM-01, FR-ASM-05) -------------- */
+        Route::get('templates', [TprmQuestionnaireController::class, 'index'])
+            ->middleware('permission:tprm.assessment.view')->name('templates.index');
+        // Ahead of {template}, or "preview-rule" binds as a template id.
+        Route::post('templates/preview-rule', [TprmQuestionnaireController::class, 'previewRule'])
+            ->middleware('permission:tprm.assessment.view')->name('templates.preview-rule');
+        Route::get('templates/{template}', [TprmQuestionnaireController::class, 'show'])
+            ->middleware('permission:tprm.assessment.view')->name('templates.show');
+        Route::post('templates/{template}/clone', [TprmQuestionnaireController::class, 'clone'])
+            ->middleware('permission:tprm.questionnaire.manage')->name('templates.clone');
+        Route::post('templates/{template}/publish', [TprmQuestionnaireController::class, 'publish'])
+            ->middleware('permission:tprm.questionnaire.manage')->name('templates.publish');
 
         /* --- Ruleset editor and sandbox (FR-TIER-09) ------------------- */
         /*

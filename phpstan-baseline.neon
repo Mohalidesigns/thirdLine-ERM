@@ -2190,3 +2190,135 @@ parameters:
 			identifier: match.unhandled
 			count: 1
 			path: packages/reporting/src/DocumentRenderer.php
+
+	# ------------------------------------------------------------------
+	# TPRM module models (Phases 0-2)
+	#
+	# The same two trait-level limitations the baseline already records for
+	# every other tenant-scoped model in the product, one entry per model:
+	# larastan cannot see `getOrganizationIdColumn()` on the Model the
+	# BelongsToOrganization trait types its closure against, nor
+	# `syncObjectIdentity()` on HasObjectIdentity's. Neither is new debt and
+	# neither is fixable from the model — the fix belongs in the traits, and
+	# doing it there would touch all hundred models at once.
+	# ------------------------------------------------------------------
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Assessment.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/AssessmentMessage.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/AssessmentResponse.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/AuditLog.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/BusinessFunction.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Category.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Contact.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Engagement.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/Tprm/Engagement.php
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\Tprm\\Engagement\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/Tprm/Engagement.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/EngagementFunction.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/ImportBatch.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/InherentAssessment.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Location.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Ownership.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/QuestionnaireTemplate.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/ResponseEvidence.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Ruleset.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/ScoreRun.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/ThirdParty.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/Tprm/ThirdParty.php
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\Tprm\\ThirdParty\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/Tprm/ThirdParty.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/TierPolicy.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Waiver.php

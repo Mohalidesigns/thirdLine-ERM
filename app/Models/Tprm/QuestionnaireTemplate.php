@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use RuntimeException;
 use ThirdLine\Platform\Tenancy\BelongsToOrganization;
+use ThirdLine\Platform\Tenancy\OrganizationScope;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * A questionnaire template — FR-ASM-01.
@@ -84,6 +86,33 @@ class QuestionnaireTemplate extends Model
         });
     }
 
+    /**
+     * Route binding admits the shipped packs.
+     *
+     * THE TENANCY GLOBAL SCOPE HIDES THEM, and that is the one thing about
+     * this table that catches everybody. A shipped pack carries
+     * `organization_id = null` deliberately — it belongs to no tenant and is
+     * readable by all of them — but `BelongsToOrganization` filters to
+     * `organization_id = <current>`, which excludes null. Without this
+     * override, opening a shipped pack 404s, cloning one 404s, and an
+     * assessment's `template` relation resolves to null so the console throws
+     * reading its name.
+     *
+     * The scope is dropped only for the organisation filter, never for soft
+     * deletes: a retired template stays gone.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return static::query()
+            ->withoutGlobalScope(OrganizationScope::class)
+            ->where(function (Builder $query) {
+                $query->whereNull('organization_id')
+                    ->orWhere('organization_id', TenantContext::organizationIdOrNull());
+            })
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->first();
+    }
+
     /** @param  Builder<self>  $query */
     public function scopePublished(Builder $query): void
     {
@@ -101,7 +130,10 @@ class QuestionnaireTemplate extends Model
      */
     public function scopeAvailableTo(Builder $query, ?int $organizationId): void
     {
-        $query->withoutGlobalScopes()
+        // Only the ORGANISATION scope is dropped. `withoutGlobalScopes()`
+        // would take the soft-delete scope with it and resurrect retired
+        // templates into the issue screen's list.
+        $query->withoutGlobalScope(OrganizationScope::class)
             ->where(fn (Builder $q) => $q->whereNull('organization_id')->orWhere('organization_id', $organizationId));
     }
 

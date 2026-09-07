@@ -100,10 +100,20 @@ class Assessment extends Model
         return $this->belongsTo(Engagement::class, 'engagement_id');
     }
 
-    /** @return BelongsTo<QuestionnaireTemplate, $this> */
+    /**
+     * The questionnaire this cycle was answered against.
+     *
+     * The organisation scope is dropped, because a shipped pack belongs to no
+     * tenant and would otherwise resolve to null — leaving every screen that
+     * reads `$assessment->template->name` throwing on an assessment issued
+     * from one of the packs the product ships.
+     *
+     * @return BelongsTo<QuestionnaireTemplate, $this>
+     */
     public function template(): BelongsTo
     {
-        return $this->belongsTo(QuestionnaireTemplate::class, 'template_id');
+        return $this->belongsTo(QuestionnaireTemplate::class, 'template_id')
+            ->withoutGlobalScope(\ThirdLine\Platform\Tenancy\OrganizationScope::class);
     }
 
     /** @return HasMany<AssessmentResponse, $this> */

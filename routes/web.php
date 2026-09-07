@@ -1153,6 +1153,12 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::post('{assessment}/lines/{line}/mark', [RcsaReviewController::class, 'mark'])
             ->middleware('permission:rcsa_assessment.review')->name('lines.mark');
 
+        // §14 Q5. Its own permission, not `rcsa_assessment.validate` — a tenant
+        // may put override sign-off on a risk committee rather than on the
+        // reviewer, and the two decisions have to be separable for that.
+        Route::post('{assessment}/lines/{line}/override', [RcsaReviewController::class, 'decideOverride'])
+            ->middleware('permission:rcsa_assessment.approve_override')->name('lines.override');
+
         Route::post('{assessment}/validate', [RcsaReviewController::class, 'validateAssessment'])
             ->middleware('permission:rcsa_assessment.validate')->name('validate');
 

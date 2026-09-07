@@ -42,7 +42,10 @@ use RuntimeException;
  */
 class RcsaWorkflowService
 {
-    public function __construct(private readonly RcsaAuditRecorder $audit) {}
+    public function __construct(
+        private readonly RcsaAuditRecorder $audit,
+        private readonly RcsaTreatmentOverrideService $overrides,
+    ) {}
 
     /**
      * The legal edges. from-state => list of to-states.
@@ -151,6 +154,27 @@ class RcsaWorkflowService
      */
     public function validate(RcsaAssessment $assessment, User $actor, ?string $reason = null, ?Request $request = null): RcsaAssessment
     {
+        // §14 Q5. VALIDATION IS THE GATE, NOT SUBMISSION.
+        //
+        // Blocking the submission would deadlock: the approver holds
+        // `rcsa_assessment.approve_override`, which the second line holds and
+        // the business unit does not, so an assessor could not get their own
+        // override decided in order to file. Blocking VALIDATION puts the
+        // decision exactly where it belongs — in front of the reviewer who is
+        // already going through the assessment line by line — and makes it
+        // impossible to accept an assessment that still contains a departure
+        // from the methodology nobody has agreed to.
+        $undecided = $this->overrides->awaitingDecision($assessment);
+
+        if ($undecided !== []) {
+            throw new RuntimeException(sprintf(
+                'This assessment cannot be validated while %d treatment override%s awaiting a decision: %s.',
+                count($undecided),
+                count($undecided) === 1 ? ' is' : 's are',
+                implode(', ', array_column($undecided, 'risk_no')),
+            ));
+        }
+
         return $this->transition(
             $assessment,
             RcsaAssessment::VALIDATED,

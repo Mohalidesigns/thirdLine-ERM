@@ -48,7 +48,10 @@ class RcsaReviewService
      */
     public const ESCALATION_WEIGHT = 1000;
 
-    public function __construct(private readonly RcsaAssessmentService $assessments) {}
+    public function __construct(
+        private readonly RcsaAssessmentService $assessments,
+        private readonly RcsaTreatmentOverrideService $overrides,
+    ) {}
 
     /**
      * The work queue: everything awaiting ORM review, most pressing first.
@@ -210,7 +213,7 @@ class RcsaReviewService
     /**
      * What the reviewer has and has not decided — the review summary panel.
      *
-     * @return array{total: int, accepted: int, flagged: int, pending: int, above_appetite: int, undecided: list<array{line_id: int, risk_no: string}>}
+     * @return array{total: int, accepted: int, flagged: int, pending: int, above_appetite: int, undecided: list<array{line_id: int, risk_no: string}>, overrides_awaiting: list<array{line_id: int, risk_no: string, from: string|null, to: string|null, reason: string|null}>}
      */
     public function summary(RcsaAssessment $assessment): array
     {
@@ -229,6 +232,13 @@ class RcsaReviewService
             'pending' => count($undecided),
             'above_appetite' => $lines->filter(fn (RcsaAssessmentLine $l) => $this->assessments->isAboveAppetite($l))->count(),
             'undecided' => $undecided,
+
+            // §14 Q5. Separate from `undecided`, which is about the reviewer's
+            // own accept/flag verdict on each line. An override is a different
+            // decision with a different consequence — it is what blocks
+            // validation — and folding the two together would let a reviewer
+            // clear the count without having looked at a single override.
+            'overrides_awaiting' => $this->overrides->awaitingDecision($assessment),
         ];
     }
 

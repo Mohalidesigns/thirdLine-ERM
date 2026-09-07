@@ -11,6 +11,7 @@ use App\Models\Rcsa\RcsaCycle;
 use App\Models\Rcsa\RcsaLineComment;
 use App\Services\Rcsa\RcsaAssessmentService;
 use App\Services\Rcsa\RcsaReviewService;
+use App\Services\Rcsa\RcsaTreatmentOverrideService;
 use App\Services\Rcsa\RcsaWorkflowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -34,6 +35,7 @@ class ReviewController extends Controller
         private readonly RcsaReviewService $reviews,
         private readonly RcsaWorkflowService $workflow,
         private readonly RcsaAssessmentService $assessments,
+        private readonly RcsaTreatmentOverrideService $overrides,
     ) {}
 
     /**
@@ -174,6 +176,37 @@ class ReviewController extends Controller
             : $this->reviews->flag($line, $request->user());
 
         return back();
+    }
+
+    /**
+     * Decide a treatment override — §14 Q5.
+     *
+     * A rejection must carry a note, because an assessor told only "no" cannot
+     * act on it: they do not know whether to argue the case, re-score the risk
+     * or write an action plan. Required here AND in the service, so the rule
+     * survives any path that does not come through this route.
+     */
+    public function decideOverride(Request $request, RcsaAssessment $assessment, RcsaAssessmentLine $line)
+    {
+        Gate::authorize('approveOverride', $assessment);
+        abort_unless($line->assessment_id === $assessment->id, 404);
+
+        $input = $request->validate([
+            'decision' => ['required', 'in:'.RcsaAssessmentLine::OVERRIDE_APPROVED.','.RcsaAssessmentLine::OVERRIDE_REJECTED],
+            'note' => ['nullable', 'string', 'max:2000', 'required_if:decision,'.RcsaAssessmentLine::OVERRIDE_REJECTED],
+        ]);
+
+        try {
+            $input['decision'] === RcsaAssessmentLine::OVERRIDE_APPROVED
+                ? $this->overrides->approve($line, $request->user(), $input['note'] ?? null)
+                : $this->overrides->reject($line, $request->user(), (string) $input['note']);
+        } catch (\RuntimeException|\InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', $input['decision'] === RcsaAssessmentLine::OVERRIDE_APPROVED
+            ? 'Override approved. It is now the treatment in force.'
+            : 'Override rejected. The calculated treatment stands.');
     }
 
     /* ------------------------------------------------------------------ */

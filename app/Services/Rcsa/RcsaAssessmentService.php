@@ -72,6 +72,7 @@ class RcsaAssessmentService
     public function __construct(
         private readonly RcsaCalculationService $calculator,
         private readonly RcsaAuditRecorder $audit,
+        private readonly RcsaTreatmentOverrideService $overrides,
     ) {}
 
     /**
@@ -103,6 +104,7 @@ class RcsaAssessmentService
 
         return DB::transaction(function () use ($line, $input, $actor, $methodology, $request) {
             $before = $line->only(RcsaAssessmentLine::MATERIAL_FIELDS);
+            $overrideBefore = $line->treatment_override;
 
             // ONLY the assessor's own answers. Anything else the client sent —
             // including every calculated column — is not read.
@@ -145,6 +147,20 @@ class RcsaAssessmentService
 
             $line->version = (int) $line->version + 1;
             $line->save();
+
+            // §14 Q5. On the SAVE PATH rather than in a Form Request, so that
+            // the bulk apply, the offline round trip and any future importer
+            // all reach it — a validator would cover the one HTTP route.
+            //
+            // Only on a CHANGE. Re-saving a line whose override nobody touched
+            // must not reset an approval that has already been given, or an
+            // assessor could quietly un-approve an override by editing the
+            // likelihood beside it.
+            if ($line->treatment_override !== $overrideBefore) {
+                blank($line->treatment_override)
+                    ? $this->overrides->withdraw($line, $actor)
+                    : $this->overrides->request($line, $actor);
+            }
 
             $this->recordRevisions($line, $before, $actor, $request);
             $this->recomputeProgress($line->assessment);

@@ -105,6 +105,21 @@ class RcsaAssessmentLine extends Model
      */
     public const ORM_REOPENS = [self::ORM_FLAGGED, self::ORM_CHALLENGED];
 
+    /* --- Treatment-override approval (§14 Q5) ------------------------- */
+
+    /**
+     * No approval was asked for — the tenant leaves override approval off, or
+     * the override predates the setting existing. NOT a synonym for approved:
+     * see effectiveTreatment().
+     */
+    public const OVERRIDE_NONE = 'none';
+
+    public const OVERRIDE_PENDING = 'pending';
+
+    public const OVERRIDE_APPROVED = 'approved';
+
+    public const OVERRIDE_REJECTED = 'rejected';
+
     protected $table = 'rcsa_assessment_lines';
 
     protected $fillable = [
@@ -139,6 +154,12 @@ class RcsaAssessmentLine extends Model
         'residual_impact',
         'treatment_override',
         'treatment_override_reason',
+        'treatment_override_status',
+        'treatment_override_requested_by',
+        'treatment_override_requested_at',
+        'treatment_override_decided_by',
+        'treatment_override_decided_at',
+        'treatment_override_decision_note',
         'assessor_id',
         'assessed_at',
         'assessment_rationale',
@@ -175,6 +196,8 @@ class RcsaAssessmentLine extends Model
         'version' => 'integer',
         'sort_order' => 'integer',
         'assessed_at' => 'datetime',
+        'treatment_override_requested_at' => 'datetime',
+        'treatment_override_decided_at' => 'datetime',
         'orm_reviewed_at' => 'datetime',
         'lock_expires_at' => 'datetime',
         'locked_at' => 'datetime',
@@ -322,11 +345,42 @@ class RcsaAssessmentLine extends Model
     }
 
     /**
-     * The treatment in force: the assessor's override if they made one,
-     * otherwise the calculated value.
+     * The treatment in force: the assessor's override if they made one AND it
+     * is allowed to stand, otherwise the calculated value.
+     *
+     * A PENDING OR REJECTED OVERRIDE IS NOT IN FORCE. That is the whole of
+     * §14 Q5: an override is a request to depart from what the methodology
+     * computed, and until somebody with the authority has agreed, the thing
+     * that is true is what the methodology computed. Letting a pending
+     * override through would make the approval decorative — the number would
+     * already be on the export, the dashboard and the board pack, and the
+     * approver would be ratifying something that had been in force for a week.
+     *
+     * `none` DOES stand, and that is not an inconsistency: it means no approval
+     * was asked for, which is the case for every override written before Q5 was
+     * answered and for every tenant that leaves the setting off. Those keep
+     * exactly the behaviour they have today.
      */
     public function effectiveTreatment(): ?string
     {
-        return $this->treatment_override ?? $this->risk_treatment;
+        if ($this->treatment_override === null) {
+            return $this->risk_treatment;
+        }
+
+        return $this->overrideAwaitingDecision() || $this->overrideWasRejected()
+            ? $this->risk_treatment
+            : $this->treatment_override;
+    }
+
+    /** An override has been requested and nobody has decided it yet. */
+    public function overrideAwaitingDecision(): bool
+    {
+        return $this->treatment_override_status === self::OVERRIDE_PENDING;
+    }
+
+    /** An override was put to an approver and refused. */
+    public function overrideWasRejected(): bool
+    {
+        return $this->treatment_override_status === self::OVERRIDE_REJECTED;
     }
 }

@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Tprm;
 
 use App\Grids\GridRegistry;
+use App\Enums\Tprm\RiskTier;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Tprm\OverrideTierRequest;
 use App\Models\Tprm\Engagement;
 use App\Models\Tprm\InherentAssessment;
 use App\Models\Tprm\ScoreRun;
+use App\Models\Tprm\Waiver;
+use App\Services\Tprm\TierOverrideService;
 use App\Presenters\GridPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -24,6 +28,8 @@ use Inertia\Inertia;
  */
 class EngagementController extends Controller
 {
+    public function __construct(private readonly TierOverrideService $overrides) {}
+
     public function index(Request $request, GridPresenter $presenter)
     {
         Gate::authorize('viewAny', Engagement::class);
@@ -95,6 +101,96 @@ class EngagementController extends Controller
                 'edit' => $request->user()->can('update', $engagement),
                 'overrideTier' => $request->user()->can('overrideTier', $engagement),
                 'approveIntake' => $request->user()->can('approveIntake', $engagement),
+            ],
+        ]);
+    }
+
+    /**
+     * Raise a computed tier (FR-TIER-04).
+     *
+     * A refused override is a flash message, not a 403: the user holds the
+     * authority, and what is wrong is the request — asking for a tier below
+     * the computed one, which TRD §7.3's `max()` would silently discard. The
+     * difference matters to whoever reads the message.
+     */
+    public function overrideTier(OverrideTierRequest $request, Engagement $engagement)
+    {
+        $result = $this->overrides->override(
+            $engagement,
+            RiskTier::from($request->string('tier')->toString()),
+            $request->string('rationale')->toString(),
+            \Illuminate\Support\Carbon::parse($request->string('expires_at')->toString()),
+            $request->user()->id,
+            $request->string('approver_role')->toString() ?: null,
+        );
+
+        return $result['applied']
+            ? back()->with('success', 'The tier override was recorded and appears on the override register.')
+            : back()->withInput()->with('error', $result['reason']);
+    }
+
+    public function clearOverride(Request $request, Engagement $engagement)
+    {
+        Gate::authorize('overrideTier', $engagement);
+
+        $this->overrides->clear($engagement, $request->user()->id, 'Withdrawn by '.$request->user()->name);
+
+        return back()->with('success', 'The override was removed and the computed tier restored.');
+    }
+
+    /**
+     * The override register — FR-TIER-04's "overrides are reported separately
+     * to the risk committee".
+     *
+     * Every exception in the module lands in one table, so this report is the
+     * whole picture rather than the tier-shaped slice of it. Expiring-soon
+     * first, because that is the column a committee acts on.
+     */
+    public function overrideRegister(Request $request)
+    {
+        Gate::authorize('viewAny', Engagement::class);
+
+        $waivers = Waiver::query()
+            ->with(['engagement.thirdParty:id,legal_name', 'approver:id,name', 'requester:id,name'])
+            ->when(
+                ! $request->boolean('include_lapsed'),
+                fn ($query) => $query->inForce(),
+                fn ($query) => $query->orderByRaw("CASE status WHEN 'approved' THEN 0 ELSE 1 END")
+            )
+            ->orderByRaw('expires_at IS NULL')
+            ->orderBy('expires_at')
+            ->paginate(25)
+            ->withQueryString();
+
+        $waivers->through(fn (Waiver $waiver) => [
+            'id' => $waiver->getKey(),
+            'type' => $waiver->waivable_type,
+            'type_label' => $waiver->label(),
+            'engagement' => $waiver->engagement?->reference,
+            'engagement_name' => $waiver->engagement?->name,
+            'third_party' => $waiver->engagement?->thirdParty?->legal_name,
+            'rationale' => $waiver->rationale,
+            'approver' => $waiver->approver?->name,
+            'approver_role' => $waiver->approver_role,
+            'approved_at' => $waiver->approved_at?->toDateString(),
+            'expires_at' => $waiver->expires_at?->toDateString(),
+            'days_remaining' => $waiver->expires_at === null
+                ? null
+                : (int) now()->startOfDay()->diffInDays($waiver->expires_at, false),
+            'status' => $waiver->status,
+            'in_force' => $waiver->isInForce(),
+            'url' => $waiver->engagement ? route('tprm.engagements.show', $waiver->engagement) : null,
+        ]);
+
+        return Inertia::render('Tprm/Overrides/Index', [
+            'waivers' => $waivers,
+            'includeLapsed' => $request->boolean('include_lapsed'),
+            'summary' => [
+                'in_force' => Waiver::query()->inForce()->count(),
+                'expiring_30' => Waiver::query()->expiringWithin(30)->count(),
+                'lapsed' => Waiver::query()->where('status', Waiver::STATUS_APPROVED)
+                    ->whereNotNull('expires_at')
+                    ->whereDate('expires_at', '<', now()->toDateString())->count(),
             ],
         ]);
     }

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Head } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import ScorePanel from '@/Components/Tprm/ScorePanel';
 import TierBadge from '@/Components/Tprm/TierBadge';
+import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
  * The Engagement Workspace — "the most important screen" (TRD §11).
@@ -33,6 +34,7 @@ const PENDING_TABS = [
 
 export default function Show({ engagement, derivation, inherentVersion, history = [], can = {} }) {
     const [tab, setTab] = useState('summary');
+    const [overriding, setOverriding] = useState(false);
 
     return (
         <AppLayout title={engagement.reference}>
@@ -204,6 +206,42 @@ export default function Show({ engagement, derivation, inherentVersion, history 
                 <div className="space-y-4">
                     <ScorePanel engagement={engagement} derivation={derivation} />
 
+                    {can.overrideTier && (
+                        <div className="card p-5">
+                            <h3 className="text-sm font-semibold text-gray-900">Tier override</h3>
+
+                            {engagement.tier_override ? (
+                                <div className="mt-3 space-y-2 text-xs">
+                                    <div className="flex items-center gap-2">
+                                        <TierBadge tier={engagement.tier_override} size="sm" />
+                                        <span className="text-gray-500">until {engagement.tier_override_expires_at}</span>
+                                    </div>
+                                    <p className="text-gray-700">{engagement.tier_override_reason}</p>
+                                    <button type="button"
+                                        onClick={() => router.delete(tryRoute('tprm.engagements.tier-override.clear', engagement.id), { preserveScroll: true })}
+                                        className="font-medium text-red-700 hover:underline">
+                                        Remove the override
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        An override may raise a tier, never lower it — the model deciding a vendor
+                                        needs less scrutiny is a ruleset change, not a per-vendor exception.
+                                    </p>
+                                    {overriding ? (
+                                        <OverrideForm engagement={engagement} onClose={() => setOverriding(false)} />
+                                    ) : (
+                                        <button type="button" onClick={() => setOverriding(true)}
+                                            className="btn-secondary mt-3 w-full text-sm">
+                                            Raise the tier
+                                        </button>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
+
                     <div className="card p-5">
                         <h3 className="text-sm font-semibold text-gray-900">Not yet available</h3>
                         <p className="mt-1 text-xs text-gray-500">
@@ -225,6 +263,58 @@ export default function Show({ engagement, derivation, inherentVersion, history 
                 </div>
             </div>
         </AppLayout>
+    );
+}
+
+function OverrideForm({ engagement, onClose }) {
+    const { data, setData, post, processing, errors } = useForm({
+        tier: 'critical',
+        rationale: '',
+        approver_role: '',
+        expires_at: '',
+    });
+
+    const submit = (event) => {
+        event.preventDefault();
+        post(tryRoute('tprm.engagements.tier-override', engagement.id), {
+            preserveScroll: true,
+            onSuccess: onClose,
+        });
+    };
+
+    return (
+        <form onSubmit={submit} className="mt-3 space-y-3 text-sm">
+            <div>
+                <label className="block text-xs font-medium text-gray-700">Tier</label>
+                <select value={data.tier} onChange={(e) => setData('tier', e.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm">
+                    <option value="moderate">Moderate</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                </select>
+                {errors.tier && <p className="mt-1 text-xs text-red-600">{errors.tier}</p>}
+            </div>
+
+            <div>
+                <label className="block text-xs font-medium text-gray-700">Rationale</label>
+                <textarea rows="3" value={data.rationale} onChange={(e) => setData('rationale', e.target.value)}
+                    placeholder="What the model is not seeing."
+                    className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm" />
+                {errors.rationale && <p className="mt-1 text-xs text-red-600">{errors.rationale}</p>}
+            </div>
+
+            <div>
+                <label className="block text-xs font-medium text-gray-700">Expires</label>
+                <input type="date" value={data.expires_at} onChange={(e) => setData('expires_at', e.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm" />
+                {errors.expires_at && <p className="mt-1 text-xs text-red-600">{errors.expires_at}</p>}
+            </div>
+
+            <div className="flex gap-2">
+                <button type="button" onClick={onClose} className="btn-secondary flex-1 text-sm">Cancel</button>
+                <button type="submit" disabled={processing} className="btn-primary flex-1 text-sm">Apply</button>
+            </div>
+        </form>
     );
 }
 

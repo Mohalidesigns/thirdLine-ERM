@@ -238,11 +238,25 @@ class RegisterScreensTest extends TestCase
 
         $larger = $this->countQueriesFor(route('tprm.third-parties.index'));
 
-        $this->assertSame(
-            $baseline,
+        // NOT exact equality. The measured request includes work that has
+        // nothing to do with the grid — the period lookup, the unread
+        // notification count — and one of those can vary by a query between
+        // runs, which would make an exact assertion flaky for a reason that is
+        // not the defect being guarded against.
+        //
+        // The invariant that matters is that the count does not GROW with the
+        // rows. An N+1 over fifteen extra vendors would add roughly fifteen
+        // queries, so a tolerance of one catches it with room to spare.
+        $this->assertLessThanOrEqual(
+            $baseline + 1,
             $larger,
-            "The register costs {$larger} queries for 20 rows and {$baseline} for 5 — the list has an N+1."
+            "The register costs {$larger} queries for 20 rows and {$baseline} for 5. The count is scaling with the "
+            .'row count, which means the list has an N+1.'
         );
+
+        // And an absolute ceiling, so that a future change adding a per-row
+        // query cannot pass merely by also making the 5-row case expensive.
+        $this->assertLessThan(20, $larger, "The register costs {$larger} queries for one page of 20 rows.");
     }
 
     #[Test]

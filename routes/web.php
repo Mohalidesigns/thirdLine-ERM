@@ -28,7 +28,9 @@ use App\Http\Controllers\Rcsa\ReviewController as RcsaReviewController;
 use App\Http\Controllers\Rcsa\RoundTripController as RcsaRoundTripController;
 use App\Http\Controllers\Rcsa\UniverseController as RcsaUniverseController;
 use App\Http\Controllers\Tprm\EngagementController as TprmEngagementController;
+use App\Http\Controllers\Tprm\ImportController as TprmImportController;
 use App\Http\Controllers\Tprm\IntakeController as TprmIntakeController;
+use App\Http\Controllers\Tprm\RulesetController as TprmRulesetController;
 use App\Http\Controllers\Tprm\ThirdPartyController as TprmThirdPartyController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
 use App\Http\Controllers\Risk\AiToolsController;
@@ -1635,5 +1637,52 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.intake.approve')->name('intake.approve');
         Route::post('intake/{engagement}/reject', [TprmIntakeController::class, 'reject'])
             ->middleware('permission:tprm.intake.approve')->name('intake.reject');
+
+        /* --- Tier overrides and the override register ------------------ */
+        /*
+         * `tprm.tier.override` sits with the CRO rather than the programme
+         * manager: raising a tier is deciding a vendor needs more scrutiny
+         * than the model gives it, and the register below is what the risk
+         * committee reads (FR-TIER-04).
+         */
+        Route::post('engagements/{engagement}/tier-override', [TprmEngagementController::class, 'overrideTier'])
+            ->middleware('permission:tprm.tier.override')->name('engagements.tier-override');
+        Route::delete('engagements/{engagement}/tier-override', [TprmEngagementController::class, 'clearOverride'])
+            ->middleware('permission:tprm.tier.override')->name('engagements.tier-override.clear');
+        Route::get('overrides', [TprmEngagementController::class, 'overrideRegister'])
+            ->middleware('permission:tprm.view')->name('overrides.index');
+
+        /* --- Bulk import (FR-TPR-09) ----------------------------------- */
+        Route::get('imports', [TprmImportController::class, 'index'])
+            ->middleware('permission:tprm.create')->name('imports.index');
+        Route::post('imports', [TprmImportController::class, 'store'])
+            ->middleware('permission:tprm.create')->name('imports.store');
+        Route::get('imports/{batch}', [TprmImportController::class, 'show'])
+            ->middleware('permission:tprm.create')->name('imports.show');
+        Route::post('imports/{batch}/dry-run', [TprmImportController::class, 'dryRun'])
+            ->middleware('permission:tprm.create')->name('imports.dry-run');
+        Route::post('imports/{batch}/commit', [TprmImportController::class, 'commit'])
+            ->middleware('permission:tprm.create')->name('imports.commit');
+        Route::post('imports/{batch}/roll-back', [TprmImportController::class, 'rollBack'])
+            ->middleware('permission:tprm.create')->name('imports.roll-back');
+
+        /* --- Ruleset editor and sandbox (FR-TIER-09) ------------------- */
+        /*
+         * `tprm.ruleset.manage` redefines what Critical means for every vendor
+         * at once — the TPRM equivalent of `admin.scoring`, and held by the
+         * same kind of person.
+         */
+        Route::get('settings/rulesets', [TprmRulesetController::class, 'index'])
+            ->middleware('permission:tprm.ruleset.manage')->name('rulesets.index');
+        Route::post('settings/rulesets/draft', [TprmRulesetController::class, 'draft'])
+            ->middleware('permission:tprm.ruleset.manage')->name('rulesets.draft');
+        Route::get('settings/rulesets/{ruleset}', [TprmRulesetController::class, 'show'])
+            ->middleware('permission:tprm.ruleset.manage')->name('rulesets.show');
+        Route::put('settings/rulesets/{ruleset}', [TprmRulesetController::class, 'update'])
+            ->middleware('permission:tprm.ruleset.manage')->name('rulesets.update');
+        Route::post('settings/rulesets/{ruleset}/simulate', [TprmRulesetController::class, 'simulate'])
+            ->middleware('permission:tprm.ruleset.manage')->name('rulesets.simulate');
+        Route::post('settings/rulesets/{ruleset}/publish', [TprmRulesetController::class, 'publish'])
+            ->middleware('permission:tprm.ruleset.manage')->name('rulesets.publish');
     });
 });

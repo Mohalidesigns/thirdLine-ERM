@@ -511,6 +511,7 @@ class RcsaLegacyMigrator
             impact: $impact,
             controlEffectiveness: $control,
             methodology: $methodology,
+            riskCategory: $this->category($risk),
         );
 
         $line = new RcsaAssessmentLine([

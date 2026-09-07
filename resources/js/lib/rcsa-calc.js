@@ -35,6 +35,8 @@
  * @property {'calculated'|'assessed'|'hybrid'} residualMode
  * @property {number} residualFloor
  * @property {string} appetiteCeilingLevel
+ * @property {'single'|'per_category'} [appetiteMode]
+ * @property {Object<string, string>} [categoryAppetites]  category -> ceiling level
  */
 
 const normalise = (value) =>
@@ -71,15 +73,36 @@ export function bandRank(level, bands) {
 }
 
 /**
+ * The ceiling governing a risk in `riskCategory` — the mirror of
+ * RcsaMethodology::appetiteCeilingFor.
+ *
+ * A category with no row FALLS BACK to the house ceiling, and so does a null
+ * category. Read the server's note before changing that direction: "no row"
+ * meaning "no ceiling" would silently drop a category out of every obligation.
+ */
+export function appetiteCeilingFor(riskCategory, methodology) {
+  if (methodology.appetiteMode !== 'per_category' || !riskCategory) {
+    return methodology.appetiteCeilingLevel;
+  }
+
+  const configured = methodology.categoryAppetites || {};
+
+  return configured[riskCategory] || methodology.appetiteCeilingLevel;
+}
+
+/**
  * Whether a residual band sits above the appetite ceiling.
  *
  * Derived from the CEILING, not from the band's own sentence — see the long
  * note on RcsaMethodology::isAboveAppetite. The sentence is what the user
  * reads; the ceiling is what the obligation follows.
+ *
+ * `riskCategory` is ignored under `single` mode, which is the seeded default,
+ * so an existing caller that does not pass it keeps its behaviour exactly.
  */
-export function isAboveAppetite(level, methodology) {
+export function isAboveAppetite(level, methodology, riskCategory = null) {
   const rank = bandRank(level, methodology.bands);
-  const ceiling = bandRank(methodology.appetiteCeilingLevel, methodology.bands);
+  const ceiling = bandRank(appetiteCeilingFor(riskCategory, methodology), methodology.bands);
 
   if (rank === null || ceiling === null) return false;
 
@@ -120,6 +143,7 @@ function validRating(value, scale) {
  * @param {string|null} input.controlEffectiveness
  * @param {number|null} [input.residualLikelihood]
  * @param {number|null} [input.residualImpact]
+ * @param {string|null} [input.riskCategory]  column H, for per-category appetite
  * @param {RcsaMethodologyPayload} methodology
  */
 export function calculate(input, methodology) {
@@ -170,7 +194,12 @@ export function calculate(input, methodology) {
     residualColour: residualBand ? residualBand.colour : null,
     riskTreatment: residualBand ? residualBand.treatment : null,
     appetiteStatus: residualBand ? residualBand.appetiteStatus : null,
-    actionPlanRequired: residualBand ? isAboveAppetite(residualBand.level, methodology) : false,
+    actionPlanRequired: residualBand
+      ? isAboveAppetite(residualBand.level, methodology, input.riskCategory ?? null)
+      : false,
+    aboveAppetite: residualBand
+      ? isAboveAppetite(residualBand.level, methodology, input.riskCategory ?? null)
+      : null,
     isComplete: residualBand !== null,
     residualFloored,
     residualAssessed,

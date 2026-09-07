@@ -134,6 +134,7 @@ class RcsaAssessmentLine extends Model
         'residual_level',
         'risk_treatment',
         'appetite_status',
+        'above_appetite',
         'residual_likelihood',
         'residual_impact',
         'treatment_override',
@@ -165,6 +166,10 @@ class RcsaAssessmentLine extends Model
         'inherent_score' => 'integer',
         'ce_modifier' => 'integer',
         'residual_score' => 'float',
+
+        // Nullable on purpose — see the migration. `boolean` casts NULL to NULL
+        // rather than to false, which is the behaviour this relies on.
+        'above_appetite' => 'boolean',
         'residual_likelihood' => 'integer',
         'residual_impact' => 'integer',
         'version' => 'integer',

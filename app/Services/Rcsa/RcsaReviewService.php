@@ -6,7 +6,6 @@ use App\Models\Rcsa\RcsaAssessment;
 use App\Models\Rcsa\RcsaAssessmentLine;
 use App\Models\Rcsa\RcsaCycle;
 use App\Models\Rcsa\RcsaLineComment;
-use App\Models\Rcsa\RcsaMethodology;
 use App\Models\User;
 use App\Services\NotificationService;
 use App\Support\Rcsa\RcsaScope;
@@ -258,44 +257,25 @@ class RcsaReviewService
      */
     private function aboveAppetiteCounts(Collection $assessments): array
     {
+        // ONE QUERY, no grouping by methodology. This used to fan out across
+        // methodologies to fetch each one's list of above-appetite band names,
+        // because appetite was a property of the band. §14 Q4 made it a
+        // property of the band AND the risk's category, so the engine now
+        // stores the verdict per line and the queue simply counts it.
+        $rows = RcsaAssessmentLine::query()
+            ->whereIn('assessment_id', $assessments->pluck('id'))
+            ->where('above_appetite', true)
+            ->selectRaw('assessment_id, count(*) as aggregate')
+            ->groupBy('assessment_id')
+            ->pluck('aggregate', 'assessment_id');
+
         $counts = [];
 
-        // Grouped by methodology, because that is what decides the answer: two
-        // cycles on the same methodology share one band list and one query.
-        foreach ($assessments->groupBy(fn (RcsaAssessment $a) => $this->methodologyIdOf($a)) as $methodologyId => $group) {
-            $levels = $this->aboveAppetiteLevels((int) $methodologyId);
-
-            if ($levels === []) {
-                continue;
-            }
-
-            $rows = RcsaAssessmentLine::query()
-                ->whereIn('assessment_id', $group->pluck('id'))
-                ->whereIn('residual_level', $levels)
-                ->selectRaw('assessment_id, count(*) as aggregate')
-                ->groupBy('assessment_id')
-                ->pluck('aggregate', 'assessment_id');
-
-            foreach ($rows as $assessmentId => $count) {
-                $counts[(int) $assessmentId] = (int) $count;
-            }
+        foreach ($rows as $assessmentId => $count) {
+            $counts[(int) $assessmentId] = (int) $count;
         }
 
         return $counts;
-    }
-
-    /**
-     * The methodology the assessment's cycle pinned.
-     *
-     * An explicit null check rather than `?->methodology_id ?? 0`: larastan
-     * types a `belongsTo` as non-nullable and rejects the nullsafe as dead
-     * code, while the relation genuinely is null when it has not been loaded.
-     */
-    private function methodologyIdOf(RcsaAssessment $assessment): int
-    {
-        $cycle = $assessment->getRelationValue('cycle');
-
-        return $cycle === null ? 0 : (int) $cycle->methodology_id;
     }
 
     /**
@@ -311,32 +291,6 @@ class RcsaReviewService
             ->groupBy('assessment_id')
             ->pluck('aggregate', 'assessment_id')
             ->mapWithKeys(fn ($count, $id) => [(int) $id => (int) $count])
-            ->all();
-    }
-
-    /**
-     * The band names that sit above this methodology's appetite ceiling.
-     *
-     * @return list<string>
-     */
-    private function aboveAppetiteLevels(int $methodologyId): array
-    {
-        static $cache = [];
-
-        if (isset($cache[$methodologyId])) {
-            return $cache[$methodologyId];
-        }
-
-        $methodology = RcsaMethodology::withoutGlobalScopes()->with('bands')->find($methodologyId);
-
-        if ($methodology === null) {
-            return $cache[$methodologyId] = [];
-        }
-
-        return $cache[$methodologyId] = $methodology->bands
-            ->filter(fn ($band) => $methodology->isAboveAppetite($band->level))
-            ->pluck('level')
-            ->values()
             ->all();
     }
 

@@ -56,6 +56,7 @@ class RcsaMethodology extends Model
         'residual_mode',
         'residual_floor',
         'appetite_ceiling_level',
+        'appetite_mode',
         'is_system',
         'is_locked',
         'locked_at',
@@ -129,6 +130,20 @@ class RcsaMethodology extends Model
     public function bands(): HasMany
     {
         return $this->hasMany(RcsaRiskBand::class, 'methodology_id')->orderBy('min_score');
+    }
+
+    /**
+     * Per-category appetite ceilings — §14 Q4.
+     *
+     * Empty on every methodology seeded before Q4 was answered, and inert
+     * unless `appetite_mode` is `per_category`.
+     *
+     * @return HasMany<RcsaCategoryAppetite, $this>
+     */
+    public function categoryAppetites(): HasMany
+    {
+        return $this->hasMany(RcsaCategoryAppetite::class, 'methodology_id')
+            ->orderBy('risk_category');
     }
 
     /* ------------------------------------------------------------------ */
@@ -269,16 +284,68 @@ class RcsaMethodology extends Model
      * The sentence is what the user reads; the ceiling is what the submission
      * gate enforces.
      */
-    public function isAboveAppetite(?string $residualLevel): bool
+    public function isAboveAppetite(?string $residualLevel, ?string $riskCategory = null): bool
     {
         $rank = $this->bandRank($residualLevel);
-        $ceiling = $this->bandRank($this->appetite_ceiling_level);
+        $ceiling = $this->bandRank($this->appetiteCeilingFor($riskCategory));
 
         if ($rank === null || $ceiling === null) {
             return false;
         }
 
         return $rank > $ceiling;
+    }
+
+    /**
+     * The ceiling that governs a risk in $riskCategory — §14 Q4.
+     *
+     * `single` mode ignores the category entirely, which is what has shipped
+     * since P0 and remains the seeded default. `per_category` consults
+     * `rcsa_category_appetites` and FALLS BACK TO THE HOUSE CEILING for a
+     * category with no row of its own.
+     *
+     * The fallback DIRECTION is the whole safety property here. "No row",
+     * during a half-finished configuration, must mean "the house rule still
+     * applies" and not "this category has no ceiling" — the second reading
+     * would place a category outside every obligation, silently, with nothing
+     * on any screen to say it had happened. A caller that wants to know the
+     * configuration is incomplete asks `categoriesWithoutAppetite()`. It should
+     * not learn it from risks quietly ceasing to require action plans.
+     *
+     * A NULL category falls back for the same reason: column H is nullable, and
+     * an uncategorised line is not an unlimited one.
+     */
+    public function appetiteCeilingFor(?string $riskCategory): ?string
+    {
+        if ($this->appetite_mode !== 'per_category' || $riskCategory === null) {
+            return $this->appetite_ceiling_level;
+        }
+
+        $row = $this->categoryAppetites->firstWhere('risk_category', $riskCategory);
+
+        return $row?->ceiling_level ?? $this->appetite_ceiling_level;
+    }
+
+    /**
+     * Categories governed by the house ceiling because they have no row.
+     *
+     * For a settings screen to say so out loud. A per-category appetite that
+     * covers eleven of thirteen categories is not wrong, but it is a state the
+     * bank should be looking at deliberately rather than meeting in an
+     * examination.
+     *
+     * @param  list<string>  $vocabulary  the categories in use
+     * @return list<string>
+     */
+    public function categoriesWithoutAppetite(array $vocabulary): array
+    {
+        if ($this->appetite_mode !== 'per_category') {
+            return [];
+        }
+
+        $configured = $this->categoryAppetites->pluck('risk_category')->all();
+
+        return array_values(array_diff($vocabulary, $configured));
     }
 
     /* ------------------------------------------------------------------ */
@@ -314,6 +381,18 @@ class RcsaMethodology extends Model
             'residualMode' => $this->residual_mode,
             'residualFloor' => (float) $this->residual_floor,
             'appetiteCeilingLevel' => $this->appetite_ceiling_level,
+            'appetiteMode' => $this->appetite_mode,
+
+            // Sent as a map so the mirror can look a category up without
+            // scanning, and sent EVEN IN `single` MODE so that flipping the
+            // mode does not depend on a page reload to take effect on the
+            // client. The mirror ignores it under `single`, exactly as the
+            // server does.
+            'categoryAppetites' => $this->categoryAppetites
+                ->mapWithKeys(fn (RcsaCategoryAppetite $row) => [
+                    $row->risk_category => $row->ceiling_level,
+                ])
+                ->all(),
             'likelihood' => $scaleRows(RcsaScaleItem::TYPE_LIKELIHOOD),
             'impact' => $scaleRows(RcsaScaleItem::TYPE_IMPACT),
             'controlEffectiveness' => array_values(array_map(

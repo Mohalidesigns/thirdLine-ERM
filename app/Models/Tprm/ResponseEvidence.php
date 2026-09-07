@@ -38,4 +38,21 @@ class ResponseEvidence extends Model
     {
         return $this->belongsTo(AssessmentResponse::class, 'response_id');
     }
+
+    /**
+     * The document itself.
+     *
+     * Absent until Phase 6 needed it, and its absence was a silent one:
+     * `ResponseQualityChecker` read `$evidence->document` to find answers
+     * relying on expired evidence, and with no relation that read returned
+     * null every time — the check existed and never fired. PHPStan found it;
+     * no test would have, because "no flags raised" is what a clean assessment
+     * looks like too.
+     *
+     * @return BelongsTo<Document, $this>
+     */
+    public function document(): BelongsTo
+    {
+        return $this->belongsTo(Document::class, 'document_id');
+    }
 }

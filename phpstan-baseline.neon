@@ -2402,3 +2402,43 @@ parameters:
 			identifier: method.notFound
 			count: 1
 			path: app/Models/Tprm/RiskAcceptance.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/Alert.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/AlertRule.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/DueDiligenceChecklist.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/DueDiligenceItem.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/MonitoringSignal.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/MonitoringSource.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/ScreeningCheck.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/ScreeningMatch.php

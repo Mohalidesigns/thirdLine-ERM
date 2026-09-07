@@ -67,14 +67,17 @@ use App\Http\Controllers\Tprm\AssessmentController as TprmAssessmentController;
 use App\Http\Controllers\Tprm\ClauseLibraryController as TprmClauseLibraryController;
 use App\Http\Controllers\Tprm\ContractController as TprmContractController;
 use App\Http\Controllers\Tprm\DocumentController as TprmDocumentController;
+use App\Http\Controllers\Tprm\DueDiligenceController as TprmDueDiligenceController;
 use App\Http\Controllers\Tprm\EngagementController as TprmEngagementController;
 use App\Http\Controllers\Tprm\FindingController as TprmFindingController;
 use App\Http\Controllers\Tprm\ImportController as TprmImportController;
 use App\Http\Controllers\Tprm\IntakeController as TprmIntakeController;
+use App\Http\Controllers\Tprm\MonitoringController as TprmMonitoringController;
 use App\Http\Controllers\Tprm\ObligationController as TprmObligationController;
 use App\Http\Controllers\Tprm\PciMatrixController as TprmPciMatrixController;
 use App\Http\Controllers\Tprm\QuestionnaireController as TprmQuestionnaireController;
 use App\Http\Controllers\Tprm\RulesetController as TprmRulesetController;
+use App\Http\Controllers\Tprm\ScreeningController as TprmScreeningController;
 use App\Http\Controllers\Tprm\SlaController as TprmSlaController;
 use App\Http\Controllers\Tprm\ThirdPartyController as TprmThirdPartyController;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -1841,6 +1844,47 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.finding.accept_risk')->name('findings.accept-risk');
         Route::post('findings/{finding}/acceptances/{acceptance}/withdraw', [TprmFindingController::class, 'withdrawAcceptance'])
             ->middleware('permission:tprm.finding.accept_risk')->name('findings.acceptances.withdraw');
+
+        /* --- Due diligence, screening and monitoring (Phase 6) ---------- */
+        /*
+         * `tprm.screening.decide` is the sharpest permission in the module.
+         * Confirming a sanctions match suspends every engagement with a
+         * vendor, blacklists it, forces its residual score to the maximum and
+         * starts a 24-hour regulatory clock — so it sits with the AML function
+         * rather than with whoever is running the onboarding.
+         */
+        Route::get('engagements/{engagement}/due-diligence', [TprmDueDiligenceController::class, 'show'])
+            ->middleware('permission:tprm.view')->name('due-diligence.show');
+        Route::post('engagements/{engagement}/due-diligence', [TprmDueDiligenceController::class, 'generate'])
+            ->middleware('permission:tprm.edit')->name('due-diligence.generate');
+        Route::post('due-diligence/items/{item}/complete', [TprmDueDiligenceController::class, 'completeItem'])
+            ->middleware('permission:tprm.edit')->name('due-diligence.items.complete');
+        Route::post('due-diligence/items/{item}/waive', [TprmDueDiligenceController::class, 'waiveItem'])
+            ->middleware('permission:tprm.waiver.approve')->name('due-diligence.items.waive');
+        Route::post('due-diligence/{checklist}/complete', [TprmDueDiligenceController::class, 'complete'])
+            ->middleware('permission:tprm.edit')->name('due-diligence.complete');
+
+        Route::get('screening', [TprmScreeningController::class, 'index'])
+            ->middleware('permission:tprm.screening.view')->name('screening.index');
+        Route::get('screening/{thirdParty}/history', [TprmScreeningController::class, 'history'])
+            ->middleware('permission:tprm.screening.view')->name('screening.history');
+        Route::post('screening/{thirdParty}/run', [TprmScreeningController::class, 'screen'])
+            ->middleware('permission:tprm.screening.decide')->name('screening.run');
+        Route::post('screening/matches/{match}/decide', [TprmScreeningController::class, 'decide'])
+            ->middleware('permission:tprm.screening.decide')->name('screening.decide');
+
+        Route::get('monitoring', [TprmMonitoringController::class, 'index'])
+            ->middleware('permission:tprm.monitoring.view')->name('monitoring.index');
+        Route::post('monitoring/run', [TprmMonitoringController::class, 'run'])
+            ->middleware('permission:tprm.monitoring.manage')->name('monitoring.run');
+        Route::post('monitoring/rules', [TprmMonitoringController::class, 'storeRule'])
+            ->middleware('permission:tprm.monitoring.manage')->name('monitoring.rules.store');
+        Route::put('monitoring/rules/{rule}', [TprmMonitoringController::class, 'updateRule'])
+            ->middleware('permission:tprm.monitoring.manage')->name('monitoring.rules.update');
+        Route::post('monitoring/alerts/{alert}/acknowledge', [TprmMonitoringController::class, 'acknowledge'])
+            ->middleware('permission:tprm.monitoring.view')->name('monitoring.alerts.acknowledge');
+        Route::post('monitoring/alerts/{alert}/mute', [TprmMonitoringController::class, 'mute'])
+            ->middleware('permission:tprm.monitoring.manage')->name('monitoring.alerts.mute');
 
         /* --- Clause library settings ----------------------------------- */
         Route::get('settings/clauses', [TprmClauseLibraryController::class, 'index'])

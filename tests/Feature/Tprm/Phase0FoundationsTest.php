@@ -169,6 +169,16 @@ class Phase0FoundationsTest extends TestCase
             // The vendor owns this, not one of our tenants. Access is granted
             // per client through tp_trust_profile_shares, which IS scoped.
             'tp_trust_profiles' => 'Vendor-owned; read only through a share row.',
+
+            // Phase 6. A sanctions list is the same list for every institution
+            // in the country. Scoping it per tenant would hold the UN
+            // consolidated list once per customer and let one tenant's stale
+            // refresh give a different answer from another's — which is the
+            // one place in this module where two tenants MUST see the same
+            // thing.
+            'tp_sanctions_lists' => 'The same published list for every tenant; scoping it would let two '
+                .'tenants screen against different data.',
+            'tp_sanctions_entries' => 'Belongs to its list; global for the same reason.',
         ];
 
         $missing = [];

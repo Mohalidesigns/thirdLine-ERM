@@ -164,19 +164,27 @@ class ResidualScoringService
     /**
      * The signals that enter SU.
      *
-     * Phase 6 brings the monitoring stream and the screening decisions; the
-     * three derivable today are computed from the module's own state —
-     * expired mandatory evidence, an overdue assessment, and repeated SLA
-     * breaches. They are real signals rather than placeholders: an engagement
-     * whose evidence has lapsed genuinely carries more residual risk, and
-     * waiting for a monitoring feed to say so would leave the score silent
-     * about something the register already knows.
+     * SPLIT BY ORIGIN, AND THE SPLIT IS DELIBERATE.
+     *
+     *   INTERNALLY DERIVABLE signals — expired evidence, an overdue
+     *   assessment, repeated SLA breaches — are computed LIVE from the
+     *   register's own state. They are always current, they cost one query
+     *   each, and deriving them here means a score is right the moment
+     *   something changes rather than the morning after the sweep runs.
+     *
+     *   EXTERNALLY OBSERVED signals — a confirmed sanctions match, a breach, a
+     *   ratings drop, a regulatory action — can only be read from
+     *   `tp_monitoring_signals`, because nothing in the register knows them.
+     *
+     * The two sets are disjoint by construction: `SignalType::isInternallyDerived()`
+     * decides which side a type falls on, so a type cannot be counted twice
+     * however it arrived.
      *
      * @return list<SignalContribution>
      */
     public function signalContributions(Engagement $engagement): array
     {
-        $signals = [];
+        $signals = $this->observedSignals($engagement);
 
         foreach ($this->expiredEvidence($engagement) as $document) {
             $signals[] = new SignalContribution(
@@ -213,6 +221,71 @@ class ResidualScoringService
         }
 
         return $signals;
+    }
+
+    /**
+     * Signals nothing in the register could derive — read from the monitoring
+     * stream.
+     *
+     * Only signal types flagged as NOT internally derived, so a stored
+     * `evidence_expired` written by last night's sweep cannot be counted on
+     * top of the live derivation above.
+     *
+     * A MUTED ALERT DOES NOT MUTE A SIGNAL. Muting silences the console; it
+     * does not make a confirmed breach stop having happened, and a score that
+     * fell because somebody silenced an alert would be the most damaging
+     * feature in the module.
+     *
+     * @return list<SignalContribution>
+     */
+    private function observedSignals(Engagement $engagement): array
+    {
+        $externalTypes = array_values(array_filter(
+            array_map(fn (\App\Enums\Tprm\SignalType $type) => $type->value, \App\Enums\Tprm\SignalType::cases()),
+            fn (string $value) => ! \App\Enums\Tprm\SignalType::from($value)->isInternallyDerived(),
+        ));
+
+        return \App\Models\Tprm\MonitoringSignal::query()
+            ->where(fn ($query) => $query
+                ->where('engagement_id', $engagement->getKey())
+                ->orWhere(fn ($inner) => $inner
+                    ->whereNull('engagement_id')
+                    ->where('third_party_id', $engagement->third_party_id)))
+            ->whereIn('signal_type', $externalTypes)
+            // A twelve-month window: TRD §7.5 scopes the breach penalty to
+            // "confirmed breach ≤12 months", and an observation older than
+            // that is history rather than a current condition.
+            ->where('observed_at', '>=', now()->subMonths(12))
+            ->orderByDesc('observed_at')
+            ->get()
+            ->map(fn (\App\Models\Tprm\MonitoringSignal $signal) => new SignalContribution(
+                type: $this->penaltyKeyFor($signal->signal_type),
+                label: $signal->title,
+                id: $signal->getKey(),
+                observedAt: $signal->observed_at?->toDateString(),
+            ))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The config key a signal type's penalty is stored under.
+     *
+     * The enum's names and TRD §7.5's penalty table use different vocabulary —
+     * `data_breach` against `confirmed_breach_12m` — and the mapping lives
+     * here rather than in the calculator, which knows only about the penalty
+     * table's keys.
+     */
+    private function penaltyKeyFor(\App\Enums\Tprm\SignalType $type): string
+    {
+        return match ($type) {
+            \App\Enums\Tprm\SignalType::SanctionsMatch => 'sanctions_true_match',
+            \App\Enums\Tprm\SignalType::DataBreach => 'confirmed_breach_12m',
+            \App\Enums\Tprm\SignalType::CyberRatingChange => 'cyber_rating_band_drop',
+            \App\Enums\Tprm\SignalType::FinancialDistress => 'financial_distress',
+            \App\Enums\Tprm\SignalType::RegulatoryAction => 'regulatory_action',
+            default => $type->value,
+        };
     }
 
     /**

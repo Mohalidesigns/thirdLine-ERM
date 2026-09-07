@@ -18,12 +18,21 @@
         </include>
     </source>
     <php>
-        <!-- The suite peaks around 150 MB, and the WP-04 performance test
-             builds a 5,000-risk register in memory to prove the 12-period
-             trend query does not scale with the row count. PHP's 128M default
-             is below both, so the limit is set here rather than left to
-             whatever php.ini the CI image ships with. -->
-        <ini name="memory_limit" value="512M"/>
+        <!-- The WP-04 performance test builds a 5,000-risk register in
+             memory to prove the 12-period trend query does not scale with the
+             row count, and PHP's 128M default is well below that — so the
+             limit is set here rather than left to whatever php.ini the CI
+             image ships with.
+
+             RAISED FROM 512M IN TPRM PHASE 5. A full run peaked at 499 MB
+             before the TPRM module's tests existed, which was close enough to
+             512 that the next few hundred tests tipped it over — and the
+             failure is a fatal error partway through the run rather than a
+             test failure, so it reads as a broken suite rather than a limit
+             that needs raising. Note that this value overrides `php -d` on the
+             command line, which is why raising it here is the only way to
+             raise it at all. -->
+        <ini name="memory_limit" value="1G"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>

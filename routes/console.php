@@ -90,3 +90,18 @@ Schedule::command('tprm:check-obligations')->dailyAt('07:25');
 // score-run table into a record of the passage of time rather than of
 // decisions.
 Schedule::command('tprm:recompute-scores')->dailyAt('07:35');
+
+// TPRM Phase 6 (FR-MON-09). Last of the TPRM sweeps, because it derives
+// signals from the state the earlier ones have just updated — an obligation
+// breached at 07:25 should appear in the monitoring stream at 07:40, not
+// tomorrow. The internal generator runs whether or not any external feed is
+// configured, which is what makes "continuous monitoring" true on day one for
+// a client with no data budget.
+Schedule::command('tprm:run-monitoring')->dailyAt('07:40');
+
+// TPRM Phase 6. Before the monitoring sweep, so a designation published
+// overnight is on the list by the time anything screens against it. A failed
+// refresh leaves the previous list standing and the screening driver reports a
+// failure rather than a clear result — an empty or stale list must never be
+// mistaken for a clean search.
+Schedule::command('tprm:refresh-sanctions-lists')->dailyAt('05:15');

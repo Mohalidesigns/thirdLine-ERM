@@ -219,6 +219,24 @@ return [
 
         'evidence_expiry_notice_days' => [90, 60, 30, 7],
 
+        /*
+         * How often a third party is re-screened when its tier policy sets no
+         * cadence of its own. Twelve months is the floor rather than the
+         * ambition: CBN AML/CFT Reg. 29 expects screening to be ongoing, and a
+         * tier policy on a Critical vendor should shorten this rather than
+         * rely on it.
+         */
+        'screening_interval_months' => 12,
+
+        /*
+         * How long a vendor gets to answer a targeted mini-assessment raised
+         * by a monitoring signal. Shorter than a full cycle deliberately: it
+         * is a handful of questions about a specific event, and a fortnight is
+         * generous for that, while a quarter would let the answer arrive after
+         * the thing it asks about has stopped mattering.
+         */
+        'targeted_assessment_days' => 14,
+
         'carry_forward_cycle_limit' => 2,
 
         'nth_party_depth' => 4,
@@ -296,6 +314,56 @@ return [
     | off would ship the integration as a feature nobody discovers.
     |
     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | Screening
+    |--------------------------------------------------------------------------
+    |
+    | Two sanctions lists ship built in — the UN Security Council consolidated
+    | list and the Nigeria Sanctions List — because a Nigerian bank with no
+    | data budget should still have working AML screening on day one. Both are
+    | free to obtain and neither is redistributed with the product.
+    |
+    | NO LIST DATA SHIPS. Designations change weekly, so a list frozen at build
+    | time would be wrong the day after release and would look authoritative
+    | while being so. Both lists install EMPTY, `tprm:refresh-sanctions-lists`
+    | populates them, and the driver refuses to report a clear result against
+    | an empty list — an installation that has never refreshed cannot mistake
+    | silence for a clean search.
+    |
+    | The URLs below are the publishers' own. They are configurable because a
+    | client behind a proxy, or one that prefers to fetch and vet the file
+    | itself, should not have to patch the product to do so.
+    |
+    */
+
+    'screening' => [
+        'sources' => [
+            'unscr' => env('TPRM_UNSCR_URL', 'https://scsanctions.un.org/resources/xml/en/consolidated.xml'),
+            // NigSAC publishes through the NFIU rather than at a stable
+            // machine-readable endpoint, so this is left unset by default and
+            // the list is loaded from an uploaded file.
+            'nigsac' => env('TPRM_NIGSAC_URL', ''),
+        ],
+
+        /*
+         * Commercial providers register here — OFAC SDN, EU consolidated, UK
+         * HMT, and PEP or adverse-media vendors. Each is a class implementing
+         * `ScreeningDriver`; absent credentials it reports itself unavailable
+         * rather than throwing, so the screening console shows a row that says
+         * why instead of a page that will not load.
+         */
+        'drivers' => [],
+
+        /*
+         * A match at or above this score is worth a person's attention. Set
+         * low on purpose: a false positive costs a reviewer thirty seconds and
+         * a rationale, and a false negative costs an institution a designated
+         * counterparty nobody ever saw.
+         */
+        'match_threshold' => 0.5,
+    ],
 
     'integration' => [
         // Every finding mirrors into the ERM issue register, with closure

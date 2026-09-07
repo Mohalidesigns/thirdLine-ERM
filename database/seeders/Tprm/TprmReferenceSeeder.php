@@ -45,6 +45,7 @@ class TprmReferenceSeeder extends Seeder
         $this->seedDocumentTypes();
         $this->seedClauseLibrary();
         $this->seedCountryRisk();
+        $this->seedSanctionsLists();
 
         // Tenant reference data for every organisation that exists. A tenant
         // created later gets it from the same method, called from wherever
@@ -463,6 +464,50 @@ class TprmReferenceSeeder extends Seeder
      * who approves the intake, whether an exit plan is mandatory and how often
      * it must be tested, whether the engagement reaches the board.
      */
+    /**
+     * The two free sanctions lists, installed EMPTY.
+     *
+     * No designations ship with the product. They change weekly, so a list
+     * frozen at build time would be wrong the day after release while looking
+     * authoritative — and inventing plausible entries so a demo has something
+     * to find would put fabricated names into an AML control that somebody
+     * would eventually treat as real.
+     *
+     * `tprm:refresh-sanctions-lists` populates them, and `LocalListDriver`
+     * refuses to report a clear result against an empty one. An installation
+     * that has never refreshed therefore cannot mistake silence for a clean
+     * search — which is the only safe behaviour available here.
+     */
+    private function seedSanctionsLists(): void
+    {
+        $lists = [
+            [
+                'code' => 'unscr',
+                'name' => 'UN Security Council Consolidated List',
+                'publisher' => 'United Nations Security Council',
+                'source_url' => 'https://scsanctions.un.org/resources/xml/en/consolidated.xml',
+            ],
+            [
+                'code' => 'nigsac',
+                'name' => 'Nigeria Sanctions List',
+                'publisher' => 'Nigerian Sanctions Committee (NigSAC) / NFIU',
+                'source_url' => null,
+            ],
+        ];
+
+        foreach ($lists as $list) {
+            DB::table('tp_sanctions_lists')->updateOrInsert(
+                ['code' => $list['code']],
+                $list + [
+                    'is_built_in' => true,
+                    'is_active' => true,
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ],
+            );
+        }
+    }
+
     private function seedTierPolicies(Organization $organization): void
     {
         $slaDefaults = config('tprm.defaults.remediation_sla_days');

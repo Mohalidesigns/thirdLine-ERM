@@ -9,6 +9,7 @@ use App\Http\Requests\Tprm\StoreThirdPartyRequest;
 use App\Http\Requests\Tprm\UpdateThirdPartyRequest;
 use App\Models\Tprm\Category;
 use App\Models\Tprm\ThirdParty;
+use App\Services\Tprm\Evidence\CertificateRegister;
 use App\Models\User;
 use App\Presenters\GridPresenter;
 use App\Services\Tprm\ThirdPartyDeduplicator;
@@ -120,10 +121,17 @@ class ThirdPartyController extends Controller
                 'business_unit' => $engagement->businessUnit?->name,
                 'url' => route('tprm.engagements.show', $engagement),
             ])->values(),
+            // FR-DDL-07. Deferred, because a profile is often opened to read
+            // the engagement list and the register runs a scope comparison per
+            // certificate per engagement.
+            'certificates' => fn () => $request->user()->can('tprm.evidence.view')
+                ? app(CertificateRegister::class)->for($thirdParty)
+                : null,
             'can' => [
                 'edit' => $request->user()->can('update', $thirdParty),
                 'delete' => $request->user()->can('delete', $thirdParty),
                 'raiseIntake' => $request->user()->can('tprm.create'),
+                'viewEvidence' => $request->user()->can('tprm.evidence.view'),
             ],
         ]);
     }

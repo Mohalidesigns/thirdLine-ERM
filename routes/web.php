@@ -1073,6 +1073,27 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
 
         Route::post('{assessment}/bulk-apply', [RcsaAssessmentController::class, 'bulkApply'])
             ->middleware('permission:rcsa_assessment.complete')->name('bulk-apply');
+
+        /*
+         * Action plans — the workbook's columns U, V and W. Recording them is
+         * part of completing the assessment, so they are gated on `complete`
+         * rather than a permission of their own; the action-plan REGISTER that
+         * outlives the cycle (closure, verification, reminders) is P5 and gets
+         * its own.
+         */
+        Route::post('{assessment}/lines/{line}/plans', [RcsaAssessmentController::class, 'storePlan'])
+            ->middleware('permission:rcsa_assessment.complete')->name('plans.store');
+
+        Route::put('{assessment}/lines/{line}/plans/{plan}', [RcsaAssessmentController::class, 'updatePlan'])
+            ->middleware('permission:rcsa_assessment.complete')->name('plans.update');
+
+        Route::delete('{assessment}/lines/{line}/plans/{plan}', [RcsaAssessmentController::class, 'destroyPlan'])
+            ->middleware('permission:rcsa_assessment.complete')->name('plans.destroy');
+
+        // Submission locks every line and hands the work to the second line,
+        // so it is its own permission — see the catalog for why.
+        Route::post('{assessment}/submit', [RcsaAssessmentController::class, 'submit'])
+            ->middleware('permission:rcsa_assessment.submit')->name('submit');
     });
 
     /* ------------------------------------------------------------------ */

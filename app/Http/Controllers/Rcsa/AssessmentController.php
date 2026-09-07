@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Rcsa;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Rcsa\StoreActionPlanRequest;
 use App\Http\Requests\Rcsa\UpdateAssessmentLineRequest;
+use App\Models\Rcsa\RcsaActionPlan;
 use App\Models\Rcsa\RcsaAssessment;
 use App\Models\Rcsa\RcsaAssessmentLine;
 use App\Models\Rcsa\RcsaMethodology;
 use App\Models\Rcsa\RcsaScaleItem;
 use App\Services\Rcsa\RcsaAssessmentService;
+use App\Services\Rcsa\RcsaSubmissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -30,7 +33,10 @@ use Inertia\Inertia;
  */
 class AssessmentController extends Controller
 {
-    public function __construct(private readonly RcsaAssessmentService $assessments) {}
+    public function __construct(
+        private readonly RcsaAssessmentService $assessments,
+        private readonly RcsaSubmissionService $submissions,
+    ) {}
 
     /**
      * The assessments this user can work on — the picker for steps 1 and 2.
@@ -81,10 +87,10 @@ class AssessmentController extends Controller
             ->findOrFail($assessment->cycle->methodology_id);
 
         $lines = $assessment->lines()
-            ->with(['priorLine:id,inherent_score,inherent_level,residual_score,residual_level,control_effectiveness', 'actionPlans'])
+            ->with(['priorLine:id,inherent_score,inherent_level,residual_score,residual_level,control_effectiveness', 'actionPlans.owner:id,name'])
             ->get();
 
-        $outstanding = $this->assessments->outstanding($assessment);
+        $outstanding = $this->submissions->blockers($assessment, $request->user()->id);
 
         return Inertia::render('RcsaAssessments/Workspace', [
             'assessment' => [
@@ -114,10 +120,79 @@ class AssessmentController extends Controller
                 $methodology->scale(RcsaScaleItem::TYPE_CONTROL_EFFECTIVENESS)
             )),
             'outstanding' => $outstanding,
+            'owners' => \App\Models\User::query()
+                ->where('organization_id', $assessment->organization_id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->all(),
             'can' => [
                 'complete' => $request->user()->can('complete', $assessment),
+                'submit' => $request->user()->can('submit', $assessment),
             ],
         ]);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Action plans — workbook columns U, V and W (§8.4) */
+    /* ------------------------------------------------------------------ */
+
+    public function storePlan(StoreActionPlanRequest $request, RcsaAssessment $assessment, RcsaAssessmentLine $line)
+    {
+        abort_unless($line->assessment_id === $assessment->id, 404);
+
+        $line->actionPlans()->create($request->validated() + [
+            'organization_id' => $assessment->organization_id,
+            'status' => RcsaActionPlan::OPEN,
+        ]);
+
+        return back()->with('success', 'Action plan added.');
+    }
+
+    public function updatePlan(StoreActionPlanRequest $request, RcsaAssessment $assessment, RcsaAssessmentLine $line, RcsaActionPlan $plan)
+    {
+        abort_unless($line->assessment_id === $assessment->id && $plan->line_id === $line->id, 404);
+
+        $plan->update($request->validated());
+
+        return back()->with('success', 'Action plan updated.');
+    }
+
+    public function destroyPlan(Request $request, RcsaAssessment $assessment, RcsaAssessmentLine $line, RcsaActionPlan $plan)
+    {
+        Gate::authorize('complete', $assessment);
+        abort_unless($line->assessment_id === $assessment->id && $plan->line_id === $line->id, 404);
+
+        $plan->delete();
+
+        return back()->with('success', 'Action plan removed.');
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Submission — step 8 (§8.4) */
+    /* ------------------------------------------------------------------ */
+
+    public function submit(Request $request, RcsaAssessment $assessment)
+    {
+        Gate::authorize('submit', $assessment);
+
+        try {
+            $result = $this->submissions->submit($assessment, $request->user());
+        } catch (\RuntimeException $e) {
+            // The blockers are already on the page and each carries a jump
+            // link, so the flash says how many rather than repeating them into
+            // a toast nobody can act on.
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('rcsa.cycles.show', $assessment->cycle_id)
+            ->with('success', sprintf(
+                'Submitted for ORM review. %d risks are locked, and %d %s been notified.',
+                $result['lines'],
+                $result['notified'],
+                $result['notified'] === 1 ? 'person has' : 'people have',
+            ));
     }
 
     /**
@@ -289,6 +364,19 @@ class AssessmentController extends Controller
             'assessed_at' => $line->assessed_at?->toDateTimeString(),
             'is_scored' => $line->isScored(),
             'action_plans_count' => $line->relationLoaded('actionPlans') ? $line->actionPlans->count() : 0,
+            'action_plans' => $line->relationLoaded('actionPlans')
+                ? $line->actionPlans->map(fn (RcsaActionPlan $plan) => [
+                    'id' => $plan->id,
+                    'control_to_implement' => $plan->control_to_implement,
+                    'owner_id' => $plan->owner_id,
+                    'owner' => $plan->getRelationValue('owner')?->name,
+                    'target_date' => $plan->target_date?->toDateString(),
+                    'status' => $plan->status,
+                    'is_overdue' => $plan->target_date !== null
+                        && $plan->target_date->isPast()
+                        && ! in_array($plan->status, [RcsaActionPlan::COMPLETED, RcsaActionPlan::CLOSED], true),
+                ])->all()
+                : [],
 
             /* --- Last cycle (§8.3) ---------------------------------------- */
             'prior' => $prior === null ? null : [

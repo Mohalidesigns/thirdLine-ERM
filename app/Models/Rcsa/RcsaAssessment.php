@@ -97,6 +97,19 @@ class RcsaAssessment extends Model
         return $this->hasMany(RcsaAssessmentLine::class, 'assessment_id')->orderBy('sort_order');
     }
 
+    /**
+     * @return BelongsTo<\App\Models\Organization, $this>
+     *
+     * Needed by the submission snapshot: the shared PDF layout is branded per
+     * tenant, and DocumentRenderer resolves that branding from an Organization
+     * MODEL — handed an id it returns nothing and the layout fails on a
+     * missing colour.
+     */
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Organization::class);
+    }
+
     /** @return BelongsTo<RcsaCycle, $this> */
     public function cycle(): BelongsTo
     {

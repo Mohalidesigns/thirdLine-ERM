@@ -193,7 +193,10 @@ class RiskPermissionCatalog extends PermissionCatalog
 
             'RCSA Assessments' => [
                 'rcsa_assessment.view' => 'See RCSA assessments and the risks in them.',
-                'rcsa_assessment.complete' => 'Answer likelihood, impact and control effectiveness on an assessment.',
+                'rcsa_assessment.complete' => 'Answer likelihood, impact and control effectiveness on an assessment, '
+                    .'and record the action plans for risks above appetite.',
+                'rcsa_assessment.submit' => 'Submit a completed assessment for ORM review. Separate from completing '
+                    .'it: submission locks every line and is what hands the work to the second line.',
             ],
 
             'Campaigns' => [
@@ -351,7 +354,7 @@ class RiskPermissionCatalog extends PermissionCatalog
             'rcsa_universe.view', 'rcsa_universe.create', 'rcsa_universe.update',
             'rcsa_universe.delete', 'rcsa_universe.publish', 'rcsa_universe.import',
             'rcsa_cycle.view', 'rcsa_cycle.manage', 'rcsa_cycle.open', 'rcsa_cycle.close',
-            'rcsa_assessment.view', 'rcsa_assessment.complete',
+            'rcsa_assessment.view', 'rcsa_assessment.complete', 'rcsa_assessment.submit',
             'analysis.view',
             'ai.view', 'ai.use',
             'control_test.view', 'control_test.create', 'control_test.edit', 'control_test.execute', 'control_test.review',
@@ -383,7 +386,7 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'rcsa.view', 'rcsa.submit',
                 'rcsa_universe.view', 'rcsa_universe.create', 'rcsa_universe.update',
                 'rcsa_cycle.view',
-                'rcsa_assessment.view', 'rcsa_assessment.complete',
+                'rcsa_assessment.view', 'rcsa_assessment.complete', 'rcsa_assessment.submit',
                 'analysis.view',
                 'campaign.view', 'campaign.respond',
                 'control_test.view',

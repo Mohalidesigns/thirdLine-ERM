@@ -12,7 +12,7 @@ deviated from and why, and what the phase found that the plan did not know.
 | P1 | RCSA Universe screen | **Done** — [p1-universe.md](p1-universe.md) |
 | P2 | Template generator and bulk upload | **Done** — [p2-template-and-import.md](p2-template-and-import.md) |
 | P3 | Cycles and assessment workspace | **Done** — [p3-cycles-and-workspace.md](p3-cycles-and-workspace.md) |
-| P4 | Appetite, action plans, submission gate | Not started |
+| P4 | Appetite, action plans, submission gate | **Done** — [p4-appetite-and-submission.md](p4-appetite-and-submission.md) |
 | P5 | ORM review workflow | Not started |
 | P6 | Bulk download, dashboards, offline round-trip | Not started |
 | P7 | RBAC, audit and notifications | Not started |

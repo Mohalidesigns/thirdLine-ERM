@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { calculate } from '@/lib/rcsa-calc';
+import ActionPlans from './ActionPlans';
 import GuidedStep from './GuidedStep';
 import HeatPosition from './HeatPosition';
 
@@ -36,6 +37,7 @@ export default function Workspace({
     impactCriteria = {},
     controlGuidance = [],
     outstanding: initialOutstanding,
+    owners = [],
     can = {},
 }) {
     const { flash } = usePage().props;
@@ -49,6 +51,7 @@ export default function Workspace({
     const [selected, setSelected] = useState([]);
     const [conflict, setConflict] = useState(null);
     const [saving, setSaving] = useState({});
+    const [planningFor, setPlanningFor] = useState(null);
 
     const editable = assessment.editable && can.complete;
 
@@ -136,6 +139,10 @@ export default function Workspace({
         [assessment.id, editable, methodology, replaceLine],
     );
 
+    const afterPlanChange = useCallback(() => {
+        router.reload({ only: ['lines', 'outstanding'] });
+    }, []);
+
     const refreshOutstanding = useCallback(() => {
         window.axios
             .get(route('rcsa.assessments.outstanding', assessment.id))
@@ -219,6 +226,26 @@ export default function Workspace({
         );
     };
 
+    const submit = () => {
+        if (outstanding.issues.length > 0) {
+            window.alert(
+                `${outstanding.issues.length} thing${outstanding.issues.length === 1 ? '' : 's'} still to do. They are listed on the right — click one to jump to it.`,
+            );
+
+            return;
+        }
+
+        if (
+            !window.confirm(
+                `Submit ${assessment.business_unit}'s assessment for ORM review?\n\nEvery risk is locked, a PDF record of what you filed is kept, and the operational risk team is told.`,
+            )
+        ) {
+            return;
+        }
+
+        router.post(route('rcsa.assessments.submit', assessment.id), {}, { preserveScroll: true });
+    };
+
     const jumpTo = (lineId) => {
         const index = visible.findIndex((line) => line.id === lineId);
 
@@ -250,6 +277,22 @@ export default function Workspace({
                     ]}
                     actions={
                         <div className="flex items-center gap-2">
+                            {can.submit && assessment.editable && (
+                                <button
+                                    type="button"
+                                    onClick={submit}
+                                    disabled={outstanding.issues.length > 0}
+                                    title={
+                                        outstanding.issues.length > 0
+                                            ? `${outstanding.issues.length} thing(s) still to do — see the panel on the right`
+                                            : 'Submit for ORM review'
+                                    }
+                                    className="btn-primary text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    Submit for review
+                                </button>
+                            )}
+
                             <div className="flex rounded-md border border-gray-300 p-0.5">
                                 {['grid', 'guided'].map((option) => (
                                     <button
@@ -361,7 +404,8 @@ export default function Workspace({
                                     </thead>
                                     <tbody>
                                         {visible.map((line, rowIndex) => (
-                                            <tr key={line.id} data-row={line.id} className={saving[line.id] ? 'opacity-70' : ''}>
+                                            <Fragment key={line.id}>
+                                            <tr data-row={line.id} className={saving[line.id] ? 'opacity-70' : ''}>
                                                 <td>
                                                     <input
                                                         type="checkbox"
@@ -441,15 +485,42 @@ export default function Workspace({
 
                                                 <td className="bg-gray-50">
                                                     {line.appetite_status ? (
-                                                        <span
-                                                            className={`text-xs ${
-                                                                line.appetite_status.startsWith('Above')
-                                                                    ? 'font-medium text-red-700'
-                                                                    : 'text-green-700'
-                                                            }`}
-                                                        >
-                                                            {line.risk_treatment}
-                                                        </span>
+                                                        <div>
+                                                            <span
+                                                                className={`text-xs ${
+                                                                    line.appetite_status.startsWith('Above')
+                                                                        ? 'font-medium text-red-700'
+                                                                        : 'text-green-700'
+                                                                }`}
+                                                            >
+                                                                {line.risk_treatment}
+                                                            </span>
+                                                            {/*
+                                                              * Step 7. The plan block is offered on the row
+                                                              * that needs it, at the moment the residual
+                                                              * lands above appetite — not saved up as a
+                                                              * surprise when somebody presses submit.
+                                                              */}
+                                                            {line.appetite_status.startsWith('Above') && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        setPlanningFor(
+                                                                            planningFor === line.id ? null : line.id,
+                                                                        )
+                                                                    }
+                                                                    className={`mt-0.5 block text-xs underline ${
+                                                                        (line.action_plans ?? []).length === 0
+                                                                            ? 'text-red-700'
+                                                                            : 'text-gray-500'
+                                                                    }`}
+                                                                >
+                                                                    {(line.action_plans ?? []).length === 0
+                                                                        ? 'Plan needed'
+                                                                        : `${line.action_plans.length} plan(s)`}
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     ) : (
                                                         <span className="text-xs text-gray-400">—</span>
                                                     )}
@@ -473,6 +544,21 @@ export default function Workspace({
                                                     )}
                                                 </td>
                                             </tr>
+
+                                            {planningFor === line.id && (
+                                                <tr className="bg-gray-50/70">
+                                                    <td colSpan={9} className="px-4 py-3">
+                                                        <ActionPlans
+                                                            assessmentId={assessment.id}
+                                                            line={line}
+                                                            owners={owners}
+                                                            editable={editable}
+                                                            onChanged={afterPlanChange}
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            </Fragment>
                                         ))}
 
                                         {visible.length === 0 && (
@@ -502,6 +588,18 @@ export default function Workspace({
                                 setCursor((c) => Math.min(Math.max(c + delta, 0), visible.length - 1))
                             }
                         />
+                    )}
+
+                    {mode === 'guided' && current && (
+                        <div className="mt-4">
+                            <ActionPlans
+                                assessmentId={assessment.id}
+                                line={current}
+                                owners={owners}
+                                editable={editable}
+                                onChanged={afterPlanChange}
+                            />
+                        </div>
                     )}
                 </div>
 

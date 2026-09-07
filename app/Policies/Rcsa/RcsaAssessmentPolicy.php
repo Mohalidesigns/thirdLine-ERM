@@ -40,6 +40,23 @@ class RcsaAssessmentPolicy
             && $assessment->acceptsEdits();
     }
 
+    /**
+     * May this user submit it?
+     *
+     * The permission plus the state, as `complete` is — an assessment already
+     * submitted cannot be submitted again, and one whose cycle has closed
+     * cannot be submitted at all. Whether the BLOCKERS are clear is not asked
+     * here: that is a question about the assessment's content rather than
+     * about this user's authority, and RcsaSubmissionService answers it with a
+     * list rather than a yes or no.
+     */
+    public function submit(User $user, RcsaAssessment $assessment): bool
+    {
+        return $user->can('rcsa_assessment.submit')
+            && $this->reachable($user, $assessment)
+            && $assessment->acceptsEdits();
+    }
+
     private function reachable(User $user, RcsaAssessment $assessment): bool
     {
         return $user->organization_id === $assessment->organization_id;

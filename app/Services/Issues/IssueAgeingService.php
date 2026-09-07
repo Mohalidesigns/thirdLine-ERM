@@ -197,7 +197,6 @@ class IssueAgeingService
     private function monthKey(string $column): string
     {
         return match (DB::connection()->getDriverName()) {
-            'sqlite' => "strftime('%Y-%m', {$column})",
             'pgsql' => "to_char({$column}, 'YYYY-MM')",
             default => "DATE_FORMAT({$column}, '%Y-%m')",
         };

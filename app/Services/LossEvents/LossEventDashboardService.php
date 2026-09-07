@@ -278,7 +278,6 @@ class LossEventDashboardService
     private function monthNumber(string $column): string
     {
         return match (DB::connection()->getDriverName()) {
-            'sqlite' => "CAST(strftime('%m', {$column}) AS INTEGER)",
             'pgsql' => "EXTRACT(MONTH FROM {$column})",
             default => "MONTH({$column})",
         };

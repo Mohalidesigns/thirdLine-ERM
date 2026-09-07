@@ -225,6 +225,18 @@ class RiskPermissionCatalog extends PermissionCatalog
                     .'the reviewer can move it. Only consulted when the tenant turns override approval on.',
             ],
 
+            // §14's three open questions, once the bank answers them. One
+            // permission for the screen rather than one per question: they are
+            // the same act — configuring how the module behaves for this
+            // tenant — and splitting them would produce three permissions no
+            // administrator could describe the difference between.
+            'RCSA Settings' => [
+                'rcsa_settings.manage' => 'Configure the RCSA module for this tenant: how appetite is expressed '
+                    .'(one ceiling or one per risk category), whether a treatment override needs approving, '
+                    .'and the retention periods. Distinct from `rcsa_cycle.manage` — running cycles is the '
+                    .'operating job; deciding what the numbers MEAN is a policy one.',
+            ],
+
             // §11 — the scoping escape hatch. A permission rather than a
             // null assignment list, because "no assignments means everything"
             // is a scoping system that fails open on exactly the accounts
@@ -421,6 +433,7 @@ class RiskPermissionCatalog extends PermissionCatalog
             'rcsa_actionplan.view', 'rcsa_actionplan.update', 'rcsa_actionplan.close', 'rcsa_actionplan.verify',
             'rcsa_export.bulk', 'rcsa_audit.view',
             'rcsa_scope.all_units', 'rcsa_scope.assign',
+            'rcsa_settings.manage',
             'analysis.view',
             'ai.view', 'ai.use',
             'control_test.view', 'control_test.create', 'control_test.edit', 'control_test.execute', 'control_test.review',

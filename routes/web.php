@@ -25,6 +25,7 @@ use App\Http\Controllers\Rcsa\DashboardController as RcsaDashboardController;
 use App\Http\Controllers\Rcsa\ExportController as RcsaExportController;
 use App\Http\Controllers\Rcsa\ImportController as RcsaImportController;
 use App\Http\Controllers\Rcsa\ReviewController as RcsaReviewController;
+use App\Http\Controllers\Rcsa\SettingsController as RcsaSettingsController;
 use App\Http\Controllers\Rcsa\RoundTripController as RcsaRoundTripController;
 use App\Http\Controllers\Rcsa\UniverseController as RcsaUniverseController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
@@ -1132,6 +1133,19 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
      * into one person, and the policy adds the other half of it: whoever
      * submitted an assessment cannot review it, whatever they hold.
      */
+    /*
+     * §14's three open questions, in one screen. `rcsa_settings.manage` rather
+     * than `rcsa_cycle.manage`: running cycles is the operating job, deciding
+     * what the numbers mean is a policy one.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/settings')->name('rcsa.settings.')->group(function () {
+        Route::get('/', [RcsaSettingsController::class, 'index'])
+            ->middleware('permission:rcsa_settings.manage')->name('index');
+
+        Route::put('/', [RcsaSettingsController::class, 'update'])
+            ->middleware('permission:rcsa_settings.manage')->name('update');
+    });
+
     Route::middleware('feature:rcsa_v2')->prefix('rcsa/review')->name('rcsa.review.')->group(function () {
         Route::get('/', [RcsaReviewController::class, 'index'])
             ->middleware('permission:rcsa_assessment.review')->name('index');

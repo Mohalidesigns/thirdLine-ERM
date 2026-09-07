@@ -99,28 +99,41 @@ class DatabaseSeeder extends Seeder
         $this->call(WidgetDashboardSeeder::class);
 
         /* ------------------------------------------------------------------ */
-        /*  12. TPRM reference libraries (idempotent).                         */
-        /*                                                                     */
-        /*      After RiskCategorySeeder, and the dependency is real rather    */
-        /*      than incidental: the seeder hangs a "Third-Party and           */
-        /*      Outsourcing Risk" area beneath the tenant's Operational Risk   */
-        /*      node so third-party exposure rolls up into the ERM key risk    */
-        /*      areas. Without a taxonomy it degrades — categories seed        */
-        /*      unmapped rather than the run failing — but the mapping is the  */
-        /*      point, so it runs where the taxonomy exists.                   */
+        /*  12. TPRM reference libraries (idempotent). */
+        /* */
+        /*      After RiskCategorySeeder, and the dependency is real rather */
+        /*      than incidental: the seeder hangs a "Third-Party and */
+        /*      Outsourcing Risk" area beneath the tenant's Operational Risk */
+        /*      node so third-party exposure rolls up into the ERM key risk */
+        /*      areas. Without a taxonomy it degrades — categories seed */
+        /*      unmapped rather than the run failing — but the mapping is the */
+        /*      point, so it runs where the taxonomy exists. */
         /* ------------------------------------------------------------------ */
 
         $this->call(\Database\Seeders\Tprm\TprmReferenceSeeder::class);
 
         /* ------------------------------------------------------------------ */
-        /*  13. TPRM questionnaire packs (idempotent).                         */
-        /*                                                                     */
-        /*      After the reference seeder, because the packs map their        */
-        /*      questions to framework controls it seeds. Publishing runs      */
-        /*      through the model, so FR-ASM-05's gate is exercised by the     */
-        /*      seeder before any author ever meets it.                        */
+        /*  13. TPRM questionnaire packs (idempotent). */
+        /* */
+        /*      After the reference seeder, because the packs map their */
+        /*      questions to framework controls it seeds. Publishing runs */
+        /*      through the model, so FR-ASM-05's gate is exercised by the */
+        /*      seeder before any author ever meets it. */
         /* ------------------------------------------------------------------ */
 
         $this->call(\Database\Seeders\Tprm\TprmQuestionnairePackSeeder::class);
+
+        /* ------------------------------------------------------------------ */
+        /*  14. TPRM demonstration portfolio. */
+        /* */
+        /*      Invented vendors with invented spend, kept OUT of the */
+        /*      reference seeder on purpose: a client who found Interswitch */
+        /*      already in their register with a made-up contract value would */
+        /*      be right to stop trusting everything else the seeder put */
+        /*      there. It sits here beside DemoDataSeeder, which the same */
+        /*      reasoning already applies to. */
+        /* ------------------------------------------------------------------ */
+
+        $this->call(\Database\Seeders\Tprm\TprmDemoSeeder::class);
     }
 }

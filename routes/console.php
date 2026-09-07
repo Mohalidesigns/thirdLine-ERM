@@ -105,3 +105,13 @@ Schedule::command('tprm:run-monitoring')->dailyAt('07:40');
 // failure rather than a clear result — an empty or stale list must never be
 // mistaken for a clean search.
 Schedule::command('tprm:refresh-sanctions-lists')->dailyAt('05:15');
+
+// TPRM Phase 7. Before the monitoring sweep, because an expired grant becomes
+// a Critical finding and the residual score should pick it up in the same
+// night rather than the next one.
+Schedule::command('tprm:reconcile-access')->dailyAt('07:30');
+
+// Weekly, not daily: concentration is a property of the portfolio's shape,
+// which does not move overnight. Daily snapshots would bury the four quarters
+// anybody wants to compare under three hundred near-identical rows.
+Schedule::command('tprm:run-concentration')->weeklyOn(1, '04:30');

@@ -401,6 +401,19 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'tprm.incident.notify' => 'Approve a regulatory notification draft and record it as submitted. Nothing is ever submitted automatically.',
 
                 'tprm.portal.manage' => 'Invite, suspend and remove vendor portal users.',
+                'tprm.graph.view' => 'See the sub-processor graph, concentration analysis and single points of failure.',
+                'tprm.graph.manage' => 'Record and confirm sub-processor relationships, and run the concentration analysis.',
+
+                /*
+                 * Access is split from the rest of the engagement because the
+                 * people who close connections are the network and identity
+                 * teams, not the vendor managers — and because `access.manage`
+                 * is the permission that can clear the one gate stopping an
+                 * engagement being closed with a live production login on it.
+                 */
+                'tprm.access.view' => 'See third-party connections, access grants and the access reconciliation report.',
+                'tprm.access.manage' => 'Record connections and access grants, and close or revoke them with evidence.',
+
                 'tprm.report.view' => 'See TPRM reports, registers and regulatory returns.',
                 'tprm.report.export' => 'Export the CBN, DORA, NDPA and PCI registers and returns.',
                 'tprm.admin' => 'Administer the TPRM programme: tier policies, clause library, document types and the category taxonomy.',

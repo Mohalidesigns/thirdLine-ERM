@@ -213,6 +213,24 @@ class Engagement extends Model
         return $this->hasMany(ScoreRun::class, 'engagement_id')->latest('created_at');
     }
 
+    /** @return HasMany<Contract, $this> */
+    public function contracts(): HasMany
+    {
+        return $this->hasMany(Contract::class, 'engagement_id');
+    }
+
+    /** @return HasMany<Connection, $this> */
+    public function connections(): HasMany
+    {
+        return $this->hasMany(Connection::class, 'engagement_id');
+    }
+
+    /** @return HasMany<AccessGrant, $this> */
+    public function accessGrants(): HasMany
+    {
+        return $this->hasMany(AccessGrant::class, 'engagement_id');
+    }
+
     /**
      * The ERM register risk this engagement is represented by (TRD §15).
      *

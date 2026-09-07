@@ -39,6 +39,15 @@ class Waiver extends Model
 
     public const TYPE_ACCESS_EXCEPTION = 'access_exception';
 
+    /*
+     * Phase 0 declared one access exception type. It needed two: a waiver
+     * carries only `waivable_id`, and connection 5 and access grant 5 can both
+     * exist under one engagement, so a single type makes the subject of the
+     * exception a guess. Guessing wrong here releases the wrong obstacle from
+     * the termination guard — the one control the register exists for.
+     */
+    public const TYPE_CONNECTION_EXCEPTION = 'connection_exception';
+
     public const TYPE_OFFBOARDING_ITEM = 'offboarding_item';
 
     public const STATUS_REQUESTED = 'requested';
@@ -55,6 +64,7 @@ class Waiver extends Model
         self::TYPE_BLOCKING_CLAUSE,
         self::TYPE_DUE_DILIGENCE_ITEM,
         self::TYPE_ACCESS_EXCEPTION,
+        self::TYPE_CONNECTION_EXCEPTION,
         self::TYPE_OFFBOARDING_ITEM,
     ];
 
@@ -101,7 +111,8 @@ class Waiver extends Model
             self::TYPE_TIER_OVERRIDE => 'Tier override',
             self::TYPE_BLOCKING_CLAUSE => 'Blocking clause waived',
             self::TYPE_DUE_DILIGENCE_ITEM => 'Due diligence item waived',
-            self::TYPE_ACCESS_EXCEPTION => 'Access exception',
+            self::TYPE_ACCESS_EXCEPTION => 'Access grant exception',
+            self::TYPE_CONNECTION_EXCEPTION => 'Connection closure exception',
             self::TYPE_OFFBOARDING_ITEM => 'Offboarding item excepted',
             default => ucwords(str_replace('_', ' ', (string) $this->waivable_type)),
         };

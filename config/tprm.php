@@ -189,6 +189,16 @@ return [
         /*
          * Portfolio metrics — TRD §7.8. HHI over critical-function dependency
          * by provider group.
+         *
+         * The thresholds below fire an alert rather than blocking anything
+         * (FR-NTH-05). Concentration is a board-level judgement about the
+         * institution's shape, not a control somebody violated, and a hard
+         * block would be routed around within a week.
+         *
+         * The defaults are conservative for a Nigerian bank, where a handful
+         * of providers genuinely carry most of the market's switching, hosting
+         * and core banking. A client whose portfolio breaches these on day one
+         * is learning something true about itself.
          */
         'concentration' => [
             'hhi_bands' => [
@@ -196,6 +206,14 @@ return [
                 'moderate' => [1500, 2500],
                 'concentrated' => [2501, 10000],
             ],
+
+            // More than this many critical or important business functions on
+            // one provider group. Three is where a single failure stops being
+            // an incident and starts being an outage.
+            'max_critical_functions_per_group' => 3,
+
+            // Share of third-party spend with one group.
+            'max_spend_share_per_group' => 0.35,
         ],
     ],
 
@@ -239,6 +257,12 @@ return [
 
         'carry_forward_cycle_limit' => 2,
 
+        /*
+         * How deep the graph walks — the default depth for the supply-chain
+         * screen and for the provider-group dimension of the concentration
+         * analysis. Four covers vendor → host → platform → network, which is
+         * where the shared dependencies actually sit.
+         */
         'nth_party_depth' => 4,
     ],
 

@@ -63,8 +63,10 @@ use App\Http\Controllers\Risk\ThresholdController;
 use App\Http\Controllers\Risk\TreatmentPlanController;
 use App\Http\Controllers\Risk\WidgetController;
 use App\Http\Controllers\Risk\WorkflowController;
+use App\Http\Controllers\Tprm\AccessController as TprmAccessController;
 use App\Http\Controllers\Tprm\AssessmentController as TprmAssessmentController;
 use App\Http\Controllers\Tprm\ClauseLibraryController as TprmClauseLibraryController;
+use App\Http\Controllers\Tprm\ConcentrationController as TprmConcentrationController;
 use App\Http\Controllers\Tprm\ContractController as TprmContractController;
 use App\Http\Controllers\Tprm\DocumentController as TprmDocumentController;
 use App\Http\Controllers\Tprm\DueDiligenceController as TprmDueDiligenceController;
@@ -1914,5 +1916,42 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.ruleset.manage')->name('rulesets.simulate');
         Route::post('settings/rulesets/{ruleset}/publish', [TprmRulesetController::class, 'publish'])
             ->middleware('permission:tprm.ruleset.manage')->name('rulesets.publish');
+
+        /*
+         * Supply chain and concentration — FR-NTH.
+         *
+         * `chain` returns JSON rather than an Inertia page: it is the
+         * drill-down a node opens, and re-rendering the whole screen to expand
+         * one vendor would throw away the graph's layout every time somebody
+         * looked at a branch.
+         */
+        Route::get('concentration', [TprmConcentrationController::class, 'index'])
+            ->middleware('permission:tprm.graph.view')->name('concentration.index');
+        Route::post('concentration/run', [TprmConcentrationController::class, 'run'])
+            ->middleware('permission:tprm.graph.manage')->name('concentration.run');
+        Route::get('concentration/chain/{thirdParty}', [TprmConcentrationController::class, 'chain'])
+            ->middleware('permission:tprm.graph.view')->name('concentration.chain');
+        Route::post('concentration/discover/{document}', [TprmConcentrationController::class, 'discover'])
+            ->middleware('permission:tprm.graph.manage')->name('concentration.discover');
+        Route::post('concentration/edges/{edge}/confirm', [TprmConcentrationController::class, 'confirmEdge'])
+            ->middleware('permission:tprm.graph.manage')->name('concentration.edges.confirm');
+        Route::post('concentration/edges/{edge}/reject', [TprmConcentrationController::class, 'rejectEdge'])
+            ->middleware('permission:tprm.graph.manage')->name('concentration.edges.reject');
+
+        /* Connections, access grants and the reconciliation report — FR-ACC. */
+        Route::get('access', [TprmAccessController::class, 'index'])
+            ->middleware('permission:tprm.access.view')->name('access.index');
+        Route::get('access/engagements/{engagement}', [TprmAccessController::class, 'show'])
+            ->middleware('permission:tprm.access.view')->name('access.show');
+        Route::post('access/engagements/{engagement}/connections', [TprmAccessController::class, 'storeConnection'])
+            ->middleware('permission:tprm.access.manage')->name('access.connections.store');
+        Route::post('access/connections/{connection}/close', [TprmAccessController::class, 'closeConnection'])
+            ->middleware('permission:tprm.access.manage')->name('access.connections.close');
+        Route::post('access/engagements/{engagement}/grants', [TprmAccessController::class, 'storeGrant'])
+            ->middleware('permission:tprm.access.manage')->name('access.grants.store');
+        Route::post('access/grants/{grant}/approve', [TprmAccessController::class, 'approveGrant'])
+            ->middleware('permission:tprm.access.manage')->name('access.grants.approve');
+        Route::post('access/grants/{grant}/revoke', [TprmAccessController::class, 'revokeGrant'])
+            ->middleware('permission:tprm.access.manage')->name('access.grants.revoke');
     });
 });

@@ -8,6 +8,7 @@ use App\Models\Tprm\Soc2Cuec;
 use App\Models\Tprm\Soc2Detail;
 use App\Models\Tprm\Soc2Exception;
 use App\Models\Tprm\Soc2SubserviceOrg;
+use App\Services\Tprm\Graph\NthPartyService;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -53,7 +54,7 @@ class ExtractionConfirmer
                 'confirmed_at' => now(),
             ])->save();
 
-            $this->materialise($extraction->document, $extraction, $confirmed);
+            $this->materialise($extraction->document, $extraction, $confirmed, $userId);
 
             return $extraction->refresh();
         });
@@ -100,7 +101,7 @@ class ExtractionConfirmer
             'confirmed_at' => now(),
         ]);
 
-        $this->materialise($document, $extraction, $fields);
+        $this->materialise($document, $extraction, $fields, $userId);
 
         return $extraction->refresh();
     }
@@ -110,10 +111,10 @@ class ExtractionConfirmer
      *
      * @param  array<string, mixed>  $fields
      */
-    private function materialise(Document $document, DocumentExtraction $extraction, array $fields): void
+    private function materialise(Document $document, DocumentExtraction $extraction, array $fields, ?int $userId = null): void
     {
         match ($extraction->extractor?->value) {
-            'soc2' => $this->materialiseSoc2($document, $fields),
+            'soc2' => $this->materialiseSoc2($document, $fields, $userId),
             'iso_cert', 'pci_aoc' => $this->materialiseCertificate($document, $fields),
             default => $this->materialiseDates($document, $fields),
         };
@@ -122,7 +123,7 @@ class ExtractionConfirmer
     /**
      * @param  array<string, mixed>  $fields
      */
-    private function materialiseSoc2(Document $document, array $fields): void
+    private function materialiseSoc2(Document $document, array $fields, ?int $userId = null): void
     {
         $soc2 = Soc2Detail::updateOrCreate(
             ['document_id' => $document->getKey()],
@@ -180,6 +181,20 @@ class ExtractionConfirmer
                 'method' => $row['method'] ?? Soc2SubserviceOrg::METHOD_CARVE_OUT,
             ]);
         }
+
+        /*
+         * Each CARVE-OUT becomes a proposed nth-party edge (Phase 7, build
+         * item 2). This is the moment to do it: a carve-out is the auditor
+         * saying "I examined nothing this organisation does", which is a
+         * fourth-party exposure the bank now knows about and did not a minute
+         * ago. Waiting for somebody to open a graph screen and press a button
+         * would mean the exposure is recorded in a subservice table nothing
+         * reads.
+         *
+         * The proposals are PROPOSALS. Confirming a SOC 2 extraction does not
+         * silently extend the supply-chain map.
+         */
+        app(NthPartyService::class)->fromSoc2Carveouts($soc2->refresh(), $userId);
 
         // The report's own period is the document's validity. Evidence expires
         // when the period it opines on ends — not when a certificate says so,

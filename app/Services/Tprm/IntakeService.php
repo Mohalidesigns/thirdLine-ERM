@@ -5,11 +5,13 @@ namespace App\Services\Tprm;
 use App\Enums\Tprm\EngagementStatus;
 use App\Events\Tprm\ProhibitedOutsourcingAttempted;
 use App\Exceptions\Tprm\BlockingClauseException;
+use App\Exceptions\Tprm\OpenAccessException;
 use App\Exceptions\Tprm\ProhibitedOutsourcingException;
 use App\Models\Tprm\AuditLog;
 use App\Models\Tprm\BusinessFunction;
 use App\Models\Tprm\Engagement;
 use App\Models\Tprm\TierPolicy;
+use App\Services\Tprm\Access\TerminationGuard;
 use App\Services\Tprm\Contracts\ActivationGuard;
 use App\Services\Tprm\Scoring\TieringOutcome;
 use App\Services\Tprm\Scoring\TieringService;
@@ -182,7 +184,14 @@ class IntakeService
      * alike would tell a user their engagement was in the wrong status when
      * the truth is that their contract has no audit-rights clause.
      *
+     * THE ACCESS GATE SITS HERE TOO (FR-ACC-04, AC-10), for the same reason
+     * and with more at stake: the whole point of the connection register is
+     * that a relationship cannot be recorded as over while a path into the
+     * network is still open. A check that only ran on the termination BUTTON
+     * would be cleared by the importer on its first bulk close-out.
+     *
      * @throws \App\Exceptions\Tprm\BlockingClauseException
+     * @throws \App\Exceptions\Tprm\OpenAccessException
      */
     public function transition(Engagement $engagement, EngagementStatus $target, ?int $userId = null): bool
     {
@@ -197,6 +206,14 @@ class IntakeService
 
             if (! $verdict->allowed) {
                 throw new BlockingClauseException($verdict);
+            }
+        }
+
+        if ($target === EngagementStatus::Terminated) {
+            $access = app(TerminationGuard::class)->check($engagement);
+
+            if (! $access->allowed) {
+                throw new OpenAccessException($access);
             }
         }
 

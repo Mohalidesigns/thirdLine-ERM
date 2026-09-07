@@ -207,7 +207,22 @@ class RcsaAssessmentService
         $issues = [];
         $scored = 0;
 
-        $lines = $assessment->lines()->with('actionPlans')->get();
+        // `priorLine` is eager-loaded because `movedMaterially()` below reads it
+        // for every line. Without it this method issued one query per line —
+        // 499 of them on a 500-line assessment — and it did so INVISIBLY UNTIL
+        // THE SECOND CYCLE, because `prior_cycle_line_id` is null until a
+        // cycle has a predecessor. A bank would have met it in their second
+        // quarter, on the largest assessment they had.
+        //
+        // Only the columns movedMaterially() compares: this is a second copy of
+        // the lines, loaded alongside the controller's own, and there is no
+        // reason for it to carry the risk statements twice.
+        $lines = $assessment->lines()
+            ->with([
+                'actionPlans',
+                'priorLine:id,inherent_score,residual_level',
+            ])
+            ->get();
 
         foreach ($lines as $line) {
             if ($line->isScored()) {

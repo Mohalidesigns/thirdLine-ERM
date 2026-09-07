@@ -104,7 +104,7 @@ class AssessmentController extends Controller
             ])
             ->get();
 
-        $outstanding = $this->submissions->blockers($assessment, $request->user()->id);
+        $outstanding = $this->cap($this->submissions->blockers($assessment, $request->user()->id));
 
         return Inertia::render('RcsaAssessments/Workspace', [
             'assessment' => [
@@ -428,7 +428,41 @@ class AssessmentController extends Controller
     {
         Gate::authorize('view', $assessment);
 
-        return response()->json($this->assessments->outstanding($assessment));
+        return response()->json($this->cap($this->assessments->outstanding($assessment)));
+    }
+
+    /**
+     * How many blocking issues travel to the client.
+     *
+     * The panel renders forty and summarises the rest, so shipping every one of
+     * them is pure weight: a 2,000-line assessment nobody has started yet
+     * produces an issue per line, which measured at 297 KB of a 3.6 MB page —
+     * the single largest prop, sent to render forty rows.
+     *
+     * FIFTY RATHER THAN FORTY, so the panel's own "…and N more" still has
+     * something in hand if it ever shows more. The TRUE total travels
+     * separately as `issue_count`, because every message the screen writes —
+     * "12 things still to do", the disabled submit button's tooltip — is about
+     * the total and would otherwise silently cap at fifty and lie.
+     *
+     * IT DOES NOT WEAKEN THE SUBMISSION GATE. `canSubmit()` and `submit()` both
+     * call `blockers()` directly on the server and see the full list; this caps
+     * only what is drawn.
+     */
+    private const MAX_ISSUES_SENT = 50;
+
+    /**
+     * @param  array{scored: int, total: int, issues: list<array<string, mixed>>}  $outstanding
+     * @return array<string, mixed>
+     */
+    private function cap(array $outstanding): array
+    {
+        return [
+            'scored' => $outstanding['scored'],
+            'total' => $outstanding['total'],
+            'issue_count' => count($outstanding['issues']),
+            'issues' => array_slice($outstanding['issues'], 0, self::MAX_ISSUES_SENT),
+        ];
     }
 
     /* ------------------------------------------------------------------ */

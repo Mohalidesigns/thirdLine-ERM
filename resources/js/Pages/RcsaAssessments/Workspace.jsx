@@ -51,6 +51,17 @@ export default function Workspace({
 
     const [lines, setLines] = useState(initialLines);
     const [outstanding, setOutstanding] = useState(initialOutstanding);
+
+    /**
+     * The TRUE number outstanding, which is not `issues.length`.
+     *
+     * The server caps the list it sends — the panel renders forty and a
+     * 2,000-line assessment would otherwise ship an issue per line — so every
+     * message about "how many things are left" reads this instead. Falling back
+     * to the array keeps an older cached response rendering sensibly rather
+     * than showing zero and enabling submit.
+     */
+    const issueCount = outstanding.issue_count ?? outstanding.issues.length;
     const [completion, setCompletion] = useState(assessment.completion_pct);
     const [mode, setMode] = useState("grid");
     const [cursor, setCursor] = useState(0);
@@ -267,9 +278,9 @@ export default function Workspace({
     };
 
     const submit = () => {
-        if (outstanding.issues.length > 0) {
+        if (issueCount > 0) {
             window.alert(
-                `${outstanding.issues.length} thing${outstanding.issues.length === 1 ? "" : "s"} still to do. They are listed on the right — click one to jump to it.`,
+                `${issueCount} thing${issueCount === 1 ? "" : "s"} still to do. They are listed on the right — click one to jump to it.`,
             );
 
             return;
@@ -435,10 +446,10 @@ export default function Workspace({
                                 <button
                                     type="button"
                                     onClick={submit}
-                                    disabled={outstanding.issues.length > 0}
+                                    disabled={issueCount > 0}
                                     title={
-                                        outstanding.issues.length > 0
-                                            ? `${outstanding.issues.length} thing(s) still to do — see the panel on the right`
+                                        issueCount > 0
+                                            ? `${issueCount} thing(s) still to do — see the panel on the right`
                                             : "Submit for ORM review"
                                     }
                                     className="btn-primary text-sm disabled:cursor-not-allowed disabled:opacity-50"
@@ -1090,7 +1101,7 @@ export default function Workspace({
                             Before this can be submitted
                         </p>
 
-                        {outstanding.issues.length === 0 ? (
+                        {issueCount === 0 ? (
                             <p className="mt-2 text-sm text-green-700">
                                 Nothing outstanding. Every risk is assessed and
                                 every one above appetite has a plan.
@@ -1119,9 +1130,10 @@ export default function Workspace({
                                             </button>
                                         </li>
                                     ))}
-                                {outstanding.issues.length > 40 && (
+                                {issueCount > outstanding.issues.length && (
                                     <li className="text-xs text-gray-500">
-                                        …and {outstanding.issues.length - 40}{" "}
+                                        …and{" "}
+                                        {issueCount - outstanding.issues.length}{" "}
                                         more.
                                     </li>
                                 )}

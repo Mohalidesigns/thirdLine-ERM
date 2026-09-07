@@ -17,7 +17,7 @@ deviated from and why, and what the phase found that the plan did not know.
 | P6 | Bulk download, dashboards, offline round-trip | **Done** — [p6-export-dashboards-roundtrip.md](p6-export-dashboards-roundtrip.md) |
 | P7 | RBAC, audit, business-unit scoping | **Done** — [p7-rbac-audit.md](p7-rbac-audit.md) |
 | P8 | Migration and cutover off the legacy module | **Done** — [p8-migration-and-cutover.md](p8-migration-and-cutover.md) · [runbook](cutover-runbook.md) |
-| P9 | Hardening and UAT | Not started |
+| P9 | Hardening and UAT | **Done** — [p9-hardening.md](p9-hardening.md) · [user guide](user-guide.md) · [admin guide](admin-guide.md) |
 
 ## The two RCSA modules
 

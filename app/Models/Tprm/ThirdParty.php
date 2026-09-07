@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
@@ -130,6 +131,42 @@ class ThirdParty extends Model
     public function contacts(): HasMany
     {
         return $this->hasMany(Contact::class, 'third_party_id');
+    }
+
+    /**
+     * Whether any screening check on this entity or one of its owners carries
+     * a CONFIRMED true match — the KO-SANCTION condition and the AC-08
+     * trigger.
+     *
+     * Reads `tp_screening_checks` and `tp_screening_matches` directly; the
+     * screening models belong to Phase 6. Scoped to the organisation
+     * explicitly, because the query builder carries no global scope.
+     *
+     * A `possible` match is deliberately NOT a true match. The distinction is
+     * an analyst's decision with a rationale behind it, and treating "we could
+     * not establish it" as "confirmed" would suspend every engagement with the
+     * vendor on an unresolved alert.
+     */
+    public function hasConfirmedSanctionsMatch(): bool
+    {
+        return DB::table('tp_screening_matches')
+            ->join('tp_screening_checks', 'tp_screening_matches.check_id', '=', 'tp_screening_checks.id')
+            ->where('tp_screening_matches.organization_id', $this->organization_id)
+            ->where('tp_screening_matches.decision', 'true_match')
+            ->where(function ($query) {
+                $query->where(function ($entity) {
+                    $entity->where('tp_screening_checks.subject_type', 'third_party')
+                        ->where('tp_screening_checks.subject_id', $this->getKey());
+                })->orWhere(function ($owner) {
+                    $owner->where('tp_screening_checks.subject_type', 'ownership')
+                        ->whereIn('tp_screening_checks.subject_id', function ($sub) {
+                            $sub->select('id')->from('tp_ownership')
+                                ->where('third_party_id', $this->getKey())
+                                ->whereNull('deleted_at');
+                        });
+                });
+            })
+            ->exists();
     }
 
     /**

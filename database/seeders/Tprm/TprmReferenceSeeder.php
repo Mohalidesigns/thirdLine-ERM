@@ -5,9 +5,11 @@ namespace Database\Seeders\Tprm;
 use App\Enums\Tprm\AssuranceLevel;
 use App\Enums\Tprm\DocumentExtractor;
 use App\Enums\Tprm\RiskTier;
+use App\Support\Tprm\DefaultRuleset;
 use App\Models\Organization;
 use App\Models\RiskCategory;
 use Database\Seeders\Tprm\Reference\ClauseLibrary;
+use Database\Seeders\Tprm\Reference\CountryRisk;
 use Database\Seeders\Tprm\Reference\FrameworkLibraries;
 use Database\Seeders\Tprm\Reference\Iso27002Library;
 use Illuminate\Database\Seeder;
@@ -42,6 +44,7 @@ class TprmReferenceSeeder extends Seeder
         $this->seedFrameworks();
         $this->seedDocumentTypes();
         $this->seedClauseLibrary();
+        $this->seedCountryRisk();
 
         // Tenant reference data for every organisation that exists. A tenant
         // created later gets it from the same method, called from wherever
@@ -190,6 +193,33 @@ class TprmReferenceSeeder extends Seeder
         }
     }
 
+    /**
+     * Country reference data for the GEO factor.
+     *
+     * `supervisory_access_impeded` is NEVER written here. Asserting that a
+     * jurisdiction obstructs a Nigerian supervisor is a policy determination
+     * with diplomatic weight; the column exists and the scoring reads it, and
+     * a tenant's risk function is what fills it in. Re-running the seeder must
+     * therefore not reset a tenant's assessment, which is why the update below
+     * touches region, name and score only.
+     */
+    private function seedCountryRisk(): void
+    {
+        foreach (CountryRisk::countries() as $country) {
+            DB::table('tp_country_risk')->updateOrInsert(
+                ['organization_id' => null, 'country_code' => $country['code']],
+                [
+                    'name' => $country['name'],
+                    'region' => $country['region'],
+                    'geo_score' => CountryRisk::REGION_SCORES[$country['region']] ?? null,
+                    'is_active' => true,
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+        }
+    }
+
     /* ------------------------------------------------------------------ */
     /*  Per-tenant reference data                                          */
     /* ------------------------------------------------------------------ */
@@ -204,6 +234,7 @@ class TprmReferenceSeeder extends Seeder
             $this->seedCategories($organization, $riskAreaId);
             $this->seedBusinessFunctions($organization);
             $this->seedTierPolicies($organization);
+            $this->seedRuleset($organization);
         } finally {
             TenantContext::clear();
         }
@@ -384,6 +415,44 @@ class TprmReferenceSeeder extends Seeder
                 ]
             );
         }
+    }
+
+    /**
+     * The shipped tiering ruleset, published as version 1.0.
+     *
+     * Written only when the tenant has no published ruleset at all. Once a
+     * tenant publishes its own, re-running the seeder must not reintroduce
+     * ours beside it — a second published ruleset would make "which rules
+     * produced this score" ambiguous, which is the one thing the version stamp
+     * exists to prevent.
+     */
+    private function seedRuleset(Organization $organization): void
+    {
+        $alreadyPublished = DB::table('tp_rulesets')
+            ->where('organization_id', $organization->id)
+            ->where('status', 'published')
+            ->exists();
+
+        if ($alreadyPublished) {
+            return;
+        }
+
+        DB::table('tp_rulesets')->updateOrInsert(
+            ['organization_id' => $organization->id, 'version' => DefaultRuleset::VERSION],
+            [
+                'name' => 'Shipped default ruleset',
+                'notes' => 'The factor model of TRD §7.2 and the ten knockout rules of §7.3, as shipped. '
+                    .'The REG severities and the FIN spend bands are this product\'s defaults rather than '
+                    .'requirements — edit them to your own risk function\'s view and publish a new version.',
+                'status' => 'published',
+                'factors' => json_encode(DefaultRuleset::factors()),
+                'knockouts' => json_encode(DefaultRuleset::knockouts()),
+                'band_edges' => json_encode(DefaultRuleset::bandEdges()),
+                'published_at' => now(),
+                'updated_at' => now(),
+                'created_at' => now(),
+            ]
+        );
     }
 
     /**

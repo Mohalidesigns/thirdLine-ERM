@@ -3,7 +3,7 @@
 namespace App\Models\Tprm\Concerns;
 
 use App\Models\Tprm\AuditLog;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -55,18 +55,33 @@ trait TprmAuditable
         static::deleted(function (self $model): void {
             // A soft delete is a status change, not a disappearance, and the
             // log should say which of the two happened.
-            $event = in_array(SoftDeletes::class, class_uses_recursive($model), true) && ! $model->isForceDeleting()
-                ? 'soft_deleted'
-                : 'deleted';
+            $event = self::isSoftDeleting($model) ? 'soft_deleted' : 'deleted';
 
             $model->writeAuditRow($event, $model->auditPayload($model->getOriginal()), null);
         });
 
-        if (in_array(SoftDeletes::class, class_uses_recursive(static::class), true)) {
-            static::restored(function (self $model): void {
+        // Registered by NAME rather than through the `restored()` helper,
+        // because that helper exists only on models using SoftDeletes and this
+        // trait is applied to models that do not (a ruleset is versioned, not
+        // soft-deleted). `registerModelEvent` is on every Eloquent model, so
+        // one registration covers both cases and static analysis can see it.
+        static::registerModelEvent('restored', function (Model $model): void {
+            if ($model instanceof self) {
                 $model->writeAuditRow('restored', null, $model->auditPayload($model->getAttributes()));
-            });
-        }
+            }
+        });
+    }
+
+    /**
+     * Whether this delete is a soft delete.
+     *
+     * Asked of the instance rather than of the class, so that static analysis
+     * narrows the type and a model without SoftDeletes is handled rather than
+     * assumed away.
+     */
+    private static function isSoftDeleting(Model $model): bool
+    {
+        return method_exists($model, 'isForceDeleting') && ! $model->isForceDeleting();
     }
 
     /**

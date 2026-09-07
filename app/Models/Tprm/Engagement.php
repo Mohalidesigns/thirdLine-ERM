@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
@@ -258,6 +259,65 @@ class Engagement extends Model
     {
         return $this->engagement_type?->isIctArrangement()
             ?? false;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Derived facts for the knockout rules                               */
+    /* ------------------------------------------------------------------ */
+
+    /*
+     * The next three read tables whose Eloquent models belong to later phases
+     * — contracts to Phase 4, connections and access grants to Phase 7. They
+     * are queried directly rather than modelled early, because a half-designed
+     * model written now to satisfy one boolean is a model the owning phase has
+     * to unpick.
+     *
+     * Each query is EXPLICITLY SCOPED TO organization_id. The query builder has
+     * no global scope, so a query written here without it would read across
+     * every tenant — the exact hole `BelongsToOrganization` exists to close.
+     */
+
+    /**
+     * Whether an executed, unexpired contract exists — the KO-NOCONTRACT
+     * condition, and the gate FR-CTR-05 builds on.
+     */
+    public function hasExecutedContract(): bool
+    {
+        return DB::table('tp_contracts')
+            ->where('organization_id', $this->organization_id)
+            ->where('engagement_id', $this->getKey())
+            ->where('status', 'executed')
+            ->whereNull('deleted_at')
+            ->where(function ($query) {
+                $query->whereNull('expiry_date')->orWhere('expiry_date', '>=', now()->toDateString());
+            })
+            ->exists();
+    }
+
+    /**
+     * Whether any open connection reaches the core banking system or the
+     * payment switch — one half of KO-CORE-CONN, the other being the intake
+     * answer before any connection record exists.
+     */
+    public function connectionsToCoreBanking(): bool
+    {
+        return DB::table('tp_connections')
+            ->where('organization_id', $this->organization_id)
+            ->where('engagement_id', $this->getKey())
+            ->whereIn('status', ['requested', 'active'])
+            ->whereIn('type', ['direct_db', 'leased_line', 'api'])
+            ->exists();
+    }
+
+    /** Whether any live access grant is privileged or administrative — KO-PRIV. */
+    public function hasPrivilegedAccessGrant(): bool
+    {
+        return DB::table('tp_access_grants')
+            ->where('organization_id', $this->organization_id)
+            ->where('engagement_id', $this->getKey())
+            ->where('status', 'active')
+            ->whereIn('access_level', ['privileged', 'admin'])
+            ->exists();
     }
 
     /**

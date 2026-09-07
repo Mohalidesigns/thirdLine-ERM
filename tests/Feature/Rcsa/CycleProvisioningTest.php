@@ -8,8 +8,8 @@ use App\Models\Rcsa\RcsaCycle;
 use App\Models\Rcsa\RcsaRegisterRisk;
 use App\Models\Rcsa\RcsaSystem;
 use App\Services\Rcsa\RcsaCycleService;
-use ThirdLine\Platform\Tenancy\TenantContext;
 use PHPUnit\Framework\Attributes\Test;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Step 3 of the process flow: "the system populates Process, Risk & Control".
@@ -268,6 +268,7 @@ class CycleProvisioningTest extends CycleTestCase
         $this->assertSame(RcsaAssessment::IN_PROGRESS, $assessment->status);
         $this->assertFalse($assessment->acceptsEdits());
     }
+
     /**
      * The scope endpoint the cycle form calls before you open anything.
      *
@@ -324,5 +325,4 @@ class CycleProvisioningTest extends CycleTestCase
             ->getJson(route('rcsa.cycles.scope', $foreign))
             ->assertNotFound();
     }
-
 }

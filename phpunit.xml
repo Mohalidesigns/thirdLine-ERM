@@ -29,8 +29,24 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
+        <!--
+            MySQL, not SQLite in memory. This project runs MySQL in
+            development and in production, and a suite that proved itself on a
+            driver nobody deploys proves the wrong thing: P0 shipped two index
+            names MySQL rejected and SQLite had accepted, and only a MySQL run
+            found them.
+
+            It costs speed — the suite is minutes rather than ninety seconds —
+            and it means a MySQL server is now a prerequisite for running the
+            tests. `DB_DATABASE` is deliberately a SEPARATE database from the
+            development one, because RefreshDatabase drops every table it
+            finds: point this at `risk` and the first test run destroys the
+            developer's working data.
+        -->
+        <env name="DB_CONNECTION" value="mysql"/>
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="3306"/>
+        <env name="DB_DATABASE" value="risk_test"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

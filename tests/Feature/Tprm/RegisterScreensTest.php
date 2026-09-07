@@ -469,6 +469,9 @@ class RegisterScreensTest extends TestCase
         return $count;
     }
 
+    /** Incremented per created engagement, so no two share a reference. */
+    private int $engagementSequence = 0;
+
     private function makeThirdParty(string $name, string $slug): ThirdParty
     {
         return ThirdParty::create([
@@ -477,11 +480,21 @@ class RegisterScreensTest extends TestCase
         ]);
     }
 
+    /**
+     * References are SEQUENTIAL, not random.
+     *
+     * They were `random_int(1000, 8999)` until the full suite caught it: the
+     * N+1 test creates twenty engagements in one run, and twenty draws from
+     * eight thousand values collide about one time in forty by the birthday
+     * bound. The unique index then failed the test for a reason that had
+     * nothing to do with what it was guarding, and only in a full-suite run —
+     * the worst kind of flake to chase.
+     */
     private function makeEngagement(ThirdParty $vendor, ?RiskTier $tier, ?string $reference = null): Engagement
     {
         $engagement = Engagement::create([
             'third_party_id' => $vendor->id,
-            'reference' => $reference ?? 'ENG-2026-'.str_pad((string) random_int(1000, 8999), 4, '0', STR_PAD_LEFT),
+            'reference' => $reference ?? sprintf('ENG-2026-%04d', ++$this->engagementSequence),
             'name' => 'Managed service',
             'engagement_type' => 'ict_service',
             'status' => 'active',

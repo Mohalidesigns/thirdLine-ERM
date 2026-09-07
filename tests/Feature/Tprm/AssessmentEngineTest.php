@@ -492,6 +492,13 @@ class AssessmentEngineTest extends TestCase
 
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Sequential, not random. A random four-digit reference collides against
+     * the unique index often enough to fail a full-suite run for a reason
+     * unrelated to the test — see RegisterScreensTest, where it did.
+     */
+    private int $engagementSequence = 0;
+
     private function draftTemplate(): QuestionnaireTemplate
     {
         return QuestionnaireTemplate::create([
@@ -571,7 +578,7 @@ class AssessmentEngineTest extends TestCase
 
         $engagement = Engagement::create($attributes + [
             'third_party_id' => $vendor->id,
-            'reference' => 'ENG-2026-'.random_int(1000, 9999),
+            'reference' => sprintf('ENG-2026-%04d', ++$this->engagementSequence),
             'name' => 'Managed service',
             'engagement_type' => 'ict_service',
         ]);

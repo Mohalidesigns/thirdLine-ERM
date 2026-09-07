@@ -17,6 +17,16 @@ use App\Http\Controllers\Admin\WebhookController;
 use App\Http\Controllers\Auth\SsoController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Rcsa\ActionPlanController as RcsaActionPlanController;
+use App\Http\Controllers\Rcsa\AssessmentController as RcsaAssessmentController;
+use App\Http\Controllers\Rcsa\AuditController as RcsaAuditController;
+use App\Http\Controllers\Rcsa\CycleController as RcsaCycleController;
+use App\Http\Controllers\Rcsa\DashboardController as RcsaDashboardController;
+use App\Http\Controllers\Rcsa\ExportController as RcsaExportController;
+use App\Http\Controllers\Rcsa\ImportController as RcsaImportController;
+use App\Http\Controllers\Rcsa\ReviewController as RcsaReviewController;
+use App\Http\Controllers\Rcsa\RoundTripController as RcsaRoundTripController;
+use App\Http\Controllers\Rcsa\UniverseController as RcsaUniverseController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
 use App\Http\Controllers\Risk\AiToolsController;
 use App\Http\Controllers\Risk\AnalysisController;
@@ -937,6 +947,339 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         ->middleware('permission:rcsa.view')->name('risk.rcsa.controls');
     Route::get('rcsa/matrix', [RcsaController::class, 'matrix'])
         ->middleware('permission:rcsa.view')->name('risk.rcsa.matrix');
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA v2 — the rewritten module (plan §6), behind `rcsa_v2` */
+    /* ------------------------------------------------------------------ */
+    /*
+     * A SECOND, SEPARATE RCSA. The four routes above belong to the module this
+     * one replaces; both are live during the parallel run and neither knows
+     * about the other. `feature:rcsa_v2` 404s when the flag is off, so on a
+     * default install these URLs do not exist — which is why they can sit here
+     * beside the legacy ones without confusing anybody.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/universe')->name('rcsa.universe.')->group(function () {
+        Route::get('/', [RcsaUniverseController::class, 'index'])
+            ->middleware('permission:rcsa_universe.view')->name('index');
+
+        Route::post('/', [RcsaUniverseController::class, 'store'])
+            ->middleware('permission:rcsa_universe.create')->name('store');
+
+        Route::put('{risk}', [RcsaUniverseController::class, 'update'])
+            ->middleware('permission:rcsa_universe.update')->name('update');
+
+        Route::delete('{risk}', [RcsaUniverseController::class, 'destroy'])
+            ->middleware('permission:rcsa_universe.delete')->name('destroy');
+
+        Route::post('{risk}/duplicate', [RcsaUniverseController::class, 'duplicate'])
+            ->middleware('permission:rcsa_universe.create')->name('duplicate');
+
+        // Publish and retire are the same authority — letting a row into future
+        // cycles, and taking it out again.
+        Route::post('publish', [RcsaUniverseController::class, 'publish'])
+            ->middleware('permission:rcsa_universe.publish')->name('publish');
+
+        Route::post('retire', [RcsaUniverseController::class, 'retire'])
+            ->middleware('permission:rcsa_universe.publish')->name('retire');
+
+        Route::post('bulk-update', [RcsaUniverseController::class, 'bulkUpdate'])
+            ->middleware('permission:rcsa_universe.update')->name('bulk-update');
+
+        // Inline process creation from the Add Risk panel (§6.2).
+        Route::post('processes', [RcsaUniverseController::class, 'storeProcess'])
+            ->middleware('permission:rcsa_universe.create')->name('processes.store');
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA v2 — template download and bulk upload (plan §7) */
+    /* ------------------------------------------------------------------ */
+    /*
+     * The upload routes are gated on `rcsa_universe.import`; PUBLISH is gated
+     * on `rcsa_universe.publish`, because preparing a spreadsheet and approving
+     * what it does to the master data are different acts. Everything staged by
+     * an upload is inert until that second permission is exercised.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/imports')->name('rcsa.imports.')->group(function () {
+        Route::get('template', [RcsaImportController::class, 'template'])
+            ->middleware('permission:rcsa_universe.view')->name('template');
+
+        Route::post('/', [RcsaImportController::class, 'store'])
+            ->middleware('permission:rcsa_universe.import')->name('store');
+
+        Route::get('{batch}', [RcsaImportController::class, 'show'])
+            ->middleware('permission:rcsa_universe.import')->name('show');
+
+        Route::patch('{batch}/rows/{row}', [RcsaImportController::class, 'updateRow'])
+            ->middleware('permission:rcsa_universe.import')->name('rows.update');
+
+        Route::get('{batch}/errors', [RcsaImportController::class, 'errorWorkbook'])
+            ->middleware('permission:rcsa_universe.import')->name('errors');
+
+        Route::post('{batch}/publish', [RcsaImportController::class, 'publish'])
+            ->middleware('permission:rcsa_universe.publish')->name('publish');
+
+        Route::delete('{batch}', [RcsaImportController::class, 'destroy'])
+            ->middleware('permission:rcsa_universe.import')->name('destroy');
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA v2 — cycles and the assessment workspace (plan §8) */
+    /* ------------------------------------------------------------------ */
+    /*
+     * OPENING A CYCLE HAS ITS OWN PERMISSION. It copies the whole published
+     * universe into an assessment for every business unit and cannot be
+     * undone, so scheduling a cycle (`manage`) and pulling that trigger
+     * (`open`) are separate — which lets a coordinator draft the quarter while
+     * the Head of ORM decides when it starts.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/cycles')->name('rcsa.cycles.')->group(function () {
+        Route::get('/', [RcsaCycleController::class, 'index'])
+            ->middleware('permission:rcsa_cycle.view')->name('index');
+
+        Route::post('/', [RcsaCycleController::class, 'store'])
+            ->middleware('permission:rcsa_cycle.manage')->name('store');
+
+        Route::get('{cycle}', [RcsaCycleController::class, 'show'])
+            ->middleware('permission:rcsa_cycle.view')->name('show');
+
+        Route::get('{cycle}/scope', [RcsaCycleController::class, 'scope'])
+            ->middleware('permission:rcsa_cycle.view')->name('scope');
+
+        Route::put('{cycle}', [RcsaCycleController::class, 'update'])
+            ->middleware('permission:rcsa_cycle.manage')->name('update');
+
+        Route::post('{cycle}/open', [RcsaCycleController::class, 'open'])
+            ->middleware('permission:rcsa_cycle.open')->name('open');
+
+        Route::post('{cycle}/close', [RcsaCycleController::class, 'close'])
+            ->middleware('permission:rcsa_cycle.close')->name('close');
+
+        Route::delete('{cycle}', [RcsaCycleController::class, 'destroy'])
+            ->middleware('permission:rcsa_cycle.manage')->name('destroy');
+    });
+
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/assessments')->name('rcsa.assessments.')->group(function () {
+        Route::get('/', [RcsaAssessmentController::class, 'index'])
+            ->middleware('permission:rcsa_assessment.view')->name('index');
+
+        Route::get('{assessment}', [RcsaAssessmentController::class, 'show'])
+            ->middleware('permission:rcsa_assessment.view')->name('show');
+
+        Route::get('{assessment}/outstanding', [RcsaAssessmentController::class, 'outstanding'])
+            ->middleware('permission:rcsa_assessment.view')->name('outstanding');
+
+        // Per-cell autosave. PATCH, and it answers JSON rather than an Inertia
+        // redirect: the grid updates one row in place and a full page response
+        // would throw away the user's cursor position on every keystroke.
+        Route::patch('{assessment}/lines/{line}', [RcsaAssessmentController::class, 'updateLine'])
+            ->middleware('permission:rcsa_assessment.complete')->name('lines.update');
+
+        Route::post('{assessment}/lines/{line}/lock', [RcsaAssessmentController::class, 'lock'])
+            ->middleware('permission:rcsa_assessment.complete')->name('lines.lock');
+
+        Route::post('{assessment}/bulk-apply', [RcsaAssessmentController::class, 'bulkApply'])
+            ->middleware('permission:rcsa_assessment.complete')->name('bulk-apply');
+
+        /*
+         * Action plans — the workbook's columns U, V and W. Recording them is
+         * part of completing the assessment, so they are gated on `complete`
+         * rather than a permission of their own; the action-plan REGISTER that
+         * outlives the cycle (closure, verification, reminders) is P5 and gets
+         * its own.
+         */
+        Route::post('{assessment}/lines/{line}/plans', [RcsaAssessmentController::class, 'storePlan'])
+            ->middleware('permission:rcsa_assessment.complete')->name('plans.store');
+
+        Route::put('{assessment}/lines/{line}/plans/{plan}', [RcsaAssessmentController::class, 'updatePlan'])
+            ->middleware('permission:rcsa_assessment.complete')->name('plans.update');
+
+        Route::delete('{assessment}/lines/{line}/plans/{plan}', [RcsaAssessmentController::class, 'destroyPlan'])
+            ->middleware('permission:rcsa_assessment.complete')->name('plans.destroy');
+
+        // Submission locks every line and hands the work to the second line,
+        // so it is its own permission — see the catalog for why.
+        Route::post('{assessment}/submit', [RcsaAssessmentController::class, 'submit'])
+            ->middleware('permission:rcsa_assessment.submit')->name('submit');
+
+        /*
+         * The optional BU-head step of §9.1, enabled per tenant in
+         * `organizations.settings['rcsa']['bu_approval_required']`. The
+         * permission exists whether or not a tenant uses the step; the policy
+         * refuses it outside `bu_approval`, and refuses it to the person who
+         * submitted, because an approval you give yourself is not one.
+         */
+        Route::post('{assessment}/approve', [RcsaAssessmentController::class, 'approve'])
+            ->middleware('permission:rcsa_assessment.approve')->name('approve');
+
+        Route::post('{assessment}/reject', [RcsaAssessmentController::class, 'reject'])
+            ->middleware('permission:rcsa_assessment.approve')->name('reject');
+
+        // The assessor answering an ORM challenge on a reopened line. Gated on
+        // `complete`, because replying to a challenge is part of doing the
+        // assessment rather than of reviewing it.
+        Route::post('{assessment}/lines/{line}/respond', [RcsaAssessmentController::class, 'respond'])
+            ->middleware('permission:rcsa_assessment.complete')->name('lines.respond');
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA v2 — ORM review (plan §9.1, §9.2) */
+    /* ------------------------------------------------------------------ */
+    /*
+     * THREE PERMISSIONS, NOT ONE. `review` opens the queue, claims an
+     * assessment, challenges a line and escalates — the ORM Analyst's work.
+     * `validate` and `return` are the decisions, and they are the Head of
+     * ORM's. Handing an analyst all three collapses §9's two-person control
+     * into one person, and the policy adds the other half of it: whoever
+     * submitted an assessment cannot review it, whatever they hold.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/review')->name('rcsa.review.')->group(function () {
+        Route::get('/', [RcsaReviewController::class, 'index'])
+            ->middleware('permission:rcsa_assessment.review')->name('index');
+
+        Route::get('{assessment}', [RcsaReviewController::class, 'show'])
+            ->middleware('permission:rcsa_assessment.review')->name('show');
+
+        // The PDF filed at submission — streamed from storage, never
+        // re-rendered. P4 wrote it and this is the first thing that reads it.
+        Route::get('{assessment}/snapshot', [RcsaReviewController::class, 'snapshot'])
+            ->middleware('permission:rcsa_assessment.view')->name('snapshot');
+
+        Route::post('{assessment}/claim', [RcsaReviewController::class, 'claim'])
+            ->middleware('permission:rcsa_assessment.review')->name('claim');
+
+        Route::post('{assessment}/lines/{line}/challenge', [RcsaReviewController::class, 'challenge'])
+            ->middleware('permission:rcsa_assessment.review')->name('lines.challenge');
+
+        Route::post('{assessment}/lines/{line}/mark', [RcsaReviewController::class, 'mark'])
+            ->middleware('permission:rcsa_assessment.review')->name('lines.mark');
+
+        Route::post('{assessment}/validate', [RcsaReviewController::class, 'validateAssessment'])
+            ->middleware('permission:rcsa_assessment.validate')->name('validate');
+
+        Route::post('{assessment}/return', [RcsaReviewController::class, 'returnForRework'])
+            ->middleware('permission:rcsa_assessment.return')->name('return');
+
+        Route::post('{assessment}/escalate', [RcsaReviewController::class, 'escalate'])
+            ->middleware('permission:rcsa_assessment.review')->name('escalate');
+    });
+
+    /*
+     * §11's read-only audit view. Gated on `rcsa_assessment.view` and scoped by
+     * the same policy as the assessment itself: seeing who changed what on your
+     * own unit's assessment is ordinary work. The ESTATE-WIDE trail beside it —
+     * the hash-chained rows, with IP addresses — is gated inside the controller
+     * on `rcsa_audit.view`.
+     *
+     * There is no write route here and there is nowhere for one to go: all
+     * three sources are append-only, two by construction and one by database
+     * trigger.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/assessments/{assessment}')->name('rcsa.audit.')->group(function () {
+        Route::get('audit', [RcsaAuditController::class, 'show'])
+            ->middleware('permission:rcsa_assessment.view')->name('show');
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA v2 — reporting: bulk download, dashboards, offline round trip */
+    /*  (plan §10) */
+    /* ------------------------------------------------------------------ */
+    /*
+     * THE EXPORT IS THE MOST SENSITIVE ROUTE IN THE MODULE. A completed RCSA is
+     * the bank's operational risk profile in one file, so `rcsa_export.bulk` is
+     * its own permission, every run writes a `rcsa_export_jobs` row before the
+     * file exists, and the queued download is a SIGNED link that is still
+     * checked against the permission, the tenant and the owner at the far end.
+     * The signature stops a URL being guessed; it is not authorisation.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/exports')->name('rcsa.exports.')->group(function () {
+        Route::get('/', [RcsaExportController::class, 'index'])
+            ->middleware('permission:rcsa_export.bulk')->name('index');
+
+        // The row count the current filters select, so the screen can say
+        // whether the file will arrive now or as a link before the user commits.
+        Route::get('preview', [RcsaExportController::class, 'preview'])
+            ->middleware('permission:rcsa_export.bulk')->name('preview');
+
+        Route::post('/', [RcsaExportController::class, 'store'])
+            ->middleware('permission:rcsa_export.bulk')->name('store');
+
+        Route::get('{export}/download', [RcsaExportController::class, 'download'])
+            ->middleware(['signed', 'permission:rcsa_export.bulk'])->name('download');
+    });
+
+    /*
+     * The dashboards of §10.3. Gated on `rcsa_assessment.view`, not on the
+     * export permission: reading the bank's own risk profile on a screen is
+     * ordinary work, and taking it away as a file is the act that needs its own
+     * authority.
+     *
+     * `rcsa/dashboardS`, PLURAL, and that is not cosmetic. The legacy module's
+     * dashboard is `rcsa/dashboard`, and registering this one on the same URI
+     * silently replaced it in the route table — `route('risk.rcsa.dashboard')`
+     * then threw, and four legacy tests went red. §13's rule is that the module
+     * being replaced stays live and untouched until cutover, and a URI
+     * collision is one of the quieter ways to break it.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/dashboards')->name('rcsa.dashboard.')->group(function () {
+        Route::get('/', [RcsaDashboardController::class, 'index'])
+            ->middleware('permission:rcsa_assessment.view')->name('index');
+    });
+
+    /*
+     * The offline round trip of §10.4, nested under the assessment because that
+     * is what it belongs to. Gated on `rcsa_assessment.complete` throughout —
+     * taking your own unit's assessment away to fill in is part of doing it,
+     * and requiring `rcsa_export.bulk` would mean branch staff could not use
+     * the feature built for exactly their connectivity.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/assessments/{assessment}')->name('rcsa.round-trip.')->group(function () {
+        Route::get('working-copy', [RcsaExportController::class, 'workingCopy'])
+            ->middleware('permission:rcsa_assessment.complete')->name('working-copy');
+
+        Route::post('round-trip', [RcsaRoundTripController::class, 'store'])
+            ->middleware('permission:rcsa_assessment.complete')->name('store');
+
+        Route::get('round-trip/{batch}', [RcsaRoundTripController::class, 'show'])
+            ->middleware('permission:rcsa_assessment.complete')->name('show');
+
+        Route::post('round-trip/{batch}/rows/{row}', [RcsaRoundTripController::class, 'resolve'])
+            ->middleware('permission:rcsa_assessment.complete')->name('resolve');
+
+        Route::post('round-trip/{batch}/apply', [RcsaRoundTripController::class, 'apply'])
+            ->middleware('permission:rcsa_assessment.complete')->name('apply');
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA v2 — the action-plan register (plan §9.3) */
+    /* ------------------------------------------------------------------ */
+    /*
+     * IT OUTLIVES THE CYCLE, so it is not nested under one. A plan raised in
+     * 2026 H1 and due in October is still the ORM's business in H2, and the
+     * register is the screen that says so.
+     *
+     * `close` (the owner's claim) and `verify` (the second line accepting it)
+     * are separate permissions, and the policy stops one person doing both on
+     * the same plan even where they hold both.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/action-plans')->name('rcsa.action-plans.')->group(function () {
+        Route::get('/', [RcsaActionPlanController::class, 'index'])
+            ->middleware('permission:rcsa_actionplan.view')->name('index');
+
+        Route::patch('{plan}/progress', [RcsaActionPlanController::class, 'progress'])
+            ->middleware('permission:rcsa_actionplan.update')->name('progress');
+
+        Route::post('{plan}/complete', [RcsaActionPlanController::class, 'complete'])
+            ->middleware('permission:rcsa_actionplan.update')->name('complete');
+
+        Route::post('{plan}/extension', [RcsaActionPlanController::class, 'requestExtension'])
+            ->middleware('permission:rcsa_actionplan.update')->name('extension');
+
+        Route::post('{plan}/extension/decide', [RcsaActionPlanController::class, 'decideExtension'])
+            ->middleware('permission:rcsa_actionplan.close')->name('extension.decide');
+
+        Route::post('{plan}/verify', [RcsaActionPlanController::class, 'verify'])
+            ->middleware('permission:rcsa_actionplan.verify')->name('verify');
+    });
 
     /* ------------------------------------------------------------------ */
     /*  Analysis */

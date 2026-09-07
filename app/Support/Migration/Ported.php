@@ -228,6 +228,17 @@ final class Ported
         'risk.workflows.dashboard',
         'risk.workflows.definitions',
         'risk.workflows.show-instance',
+
+        // RCSA v2 (a rewrite, not a port — listed because the registry is what
+        // the navigation consults to decide whether a link is an Inertia
+        // <Link>, and this page is Inertia. It reaches the navigation only when
+        // `features.rcsa_v2` is on.)
+        'rcsa.universe.index',
+        'rcsa.imports.show',
+        'rcsa.cycles.index',
+        'rcsa.cycles.show',
+        'rcsa.assessments.index',
+        'rcsa.assessments.show',
     ];
 
     public static function isRoute(string $name): bool

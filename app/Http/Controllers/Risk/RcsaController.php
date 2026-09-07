@@ -10,6 +10,7 @@ use App\Models\Control;
 use App\Models\RiskCategory;
 use App\Services\Rcsa\RcsaService;
 use App\Services\Rcsa\RcsaWorksheetService;
+use App\Support\Rcsa\RcsaCutover;
 use App\Support\Rcsa\RcsaProgramme;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -88,6 +89,21 @@ class RcsaController extends Controller
 
     public function storeWorksheet(SubmitRcsaWorksheetRequest $request)
     {
+        // §13 step 6, and the only place it can be enforced. "Legacy tables
+        // become read-only" cannot be applied literally — this module has no
+        // tables of its own and the ones it reads are the enterprise register
+        // that half the product depends on. THIS is the legacy write path, so
+        // closing it is what read-only means here.
+        //
+        // A REFUSAL, NOT A REDIRECT. A redirect would drop whatever the
+        // respondent had typed; a message on the screen they are already on
+        // tells them where the work goes now and lets them copy it across.
+        if (app(RcsaCutover::class)->hasCutOver($request->user()->organization_id)) {
+            return back()->with('error',
+                'This organisation has moved to the new RCSA module, so the old worksheet no longer accepts '
+                .'submissions. Your work has not been saved here — file it under RCSA → My Assessments.');
+        }
+
         $result = $this->worksheets->file($request->validated(), $request->user());
 
         $lines = $result['lines'];

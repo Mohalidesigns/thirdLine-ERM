@@ -30,8 +30,6 @@ class TenantFixture
     private int $counter = 0;
 
     /** @var array<string, array<string, list<string>>> table => column => allowed enum values */
-    private array $enumCache = [];
-
     /**
      * Create (or reuse) a row in $table belonging to $organizationId and return its id.
      */
@@ -138,10 +136,6 @@ class TenantFixture
         $type = strtolower($column['type_name']);
         $fullType = strtolower((string) $column['type']);
 
-        if ($allowed = $this->enumValues($table, $name)) {
-            return $allowed[0];
-        }
-
         if (str_contains($fullType, 'enum(')) {
             preg_match_all("/'([^']*)'/", $fullType, $m);
 
@@ -235,37 +229,5 @@ class TenantFixture
         $value = "fx{$n}";
 
         return strlen($value) <= $length ? $value : substr((string) $n, -$length);
-    }
-
-    /**
-     * SQLite renders enum columns as `varchar check ("col" in ('a','b'))`, and
-     * getColumns() reports only "varchar" — so the allowed values have to come
-     * out of the stored DDL or the insert trips the check constraint.
-     *
-     * @return list<string>
-     */
-    private function enumValues(string $table, string $column): array
-    {
-        if (DB::connection()->getDriverName() !== 'sqlite') {
-            return [];
-        }
-
-        if (! isset($this->enumCache[$table])) {
-            $this->enumCache[$table] = [];
-
-            $ddl = (string) DB::table('sqlite_master')
-                ->where('type', 'table')
-                ->where('name', $table)
-                ->value('sql');
-
-            if (preg_match_all('/"([a-z_0-9]+)"\s+in\s+\(([^)]*)\)/i', $ddl, $matches, PREG_SET_ORDER)) {
-                foreach ($matches as $match) {
-                    preg_match_all("/'([^']*)'/", $match[2], $values);
-                    $this->enumCache[$table][$match[1]] = $values[1];
-                }
-            }
-        }
-
-        return $this->enumCache[$table][$column] ?? [];
     }
 }

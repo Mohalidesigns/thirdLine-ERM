@@ -33,6 +33,14 @@ use App\Models\Organization;
 use App\Models\Period;
 use App\Models\QuantificationScenario;
 use App\Models\Questionnaire;
+use App\Models\Rcsa\RcsaActionPlan;
+use App\Models\Rcsa\RcsaAssessment;
+use App\Models\Rcsa\RcsaAssessmentLine;
+use App\Models\Rcsa\RcsaCycle;
+use App\Models\Rcsa\RcsaExportJob;
+use App\Models\Rcsa\RcsaImportBatch;
+use App\Models\Rcsa\RcsaMethodology;
+use App\Models\Rcsa\RcsaRegisterRisk;
 use App\Models\Risk;
 use App\Models\RiskAppetite;
 use App\Models\RiskAssessment;
@@ -144,6 +152,18 @@ class MorphTypes
             'period' => Period::class,
             'quantification_scenario' => QuantificationScenario::class,
             'questionnaire' => Questionnaire::class,
+            // RCSA v2 (P7). The aliases are what `risk_audit_trail.entity_type`
+            // stores, and that column is 50 characters — every one of these is
+            // comfortably inside it, which is worth checking whenever one is
+            // added because SQLite never enforces the width and MySQL does.
+            'rcsa_action_plan' => RcsaActionPlan::class,
+            'rcsa_assessment' => RcsaAssessment::class,
+            'rcsa_assessment_line' => RcsaAssessmentLine::class,
+            'rcsa_cycle' => RcsaCycle::class,
+            'rcsa_export_job' => RcsaExportJob::class,
+            'rcsa_import_batch' => RcsaImportBatch::class,
+            'rcsa_methodology' => RcsaMethodology::class,
+            'rcsa_register_risk' => RcsaRegisterRisk::class,
             'risk' => Risk::class,
             'risk_appetite' => RiskAppetite::class,
             'risk_assessment' => RiskAssessment::class,

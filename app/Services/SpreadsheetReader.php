@@ -35,14 +35,14 @@ class SpreadsheetReader
      *
      * @return list<list<string|null>>
      */
-    public function rows(string $path): array
+    public function rows(string $path, ?string $sheetName = null): array
     {
         if (! is_readable($path)) {
             throw new RuntimeException('The uploaded file could not be read from storage.');
         }
 
         return $this->isSpreadsheet($path)
-            ? $this->readSpreadsheet($path)
+            ? $this->readSpreadsheet($path, $sheetName)
             : $this->readDelimited($path);
     }
 
@@ -107,7 +107,10 @@ class SpreadsheetReader
     /**
      * @return list<list<string|null>>
      */
-    private function readSpreadsheet(string $path): array
+    /**
+     * @param  string|null  $sheetName  Read this sheet when the workbook has it.
+     */
+    private function readSpreadsheet(string $path, ?string $sheetName = null): array
     {
         try {
             $reader = IOFactory::createReaderForFile($path);
@@ -122,7 +125,17 @@ class SpreadsheetReader
             );
         }
 
-        $sheet = $spreadsheet->getActiveSheet();
+        // NAMED SHEET FIRST, active sheet second.
+        //
+        // A multi-sheet template is saved with whichever tab the user last
+        // clicked left active — the RCSA template opens on its Instructions
+        // sheet, so reading the active sheet parsed the instructions as a
+        // header row and rejected the product's own template on every upload.
+        // A caller that knows which sheet carries the data says so; callers
+        // that do not are unaffected.
+        $sheet = $sheetName !== null && $spreadsheet->sheetNameExists($sheetName)
+            ? $spreadsheet->getSheetByName($sheetName)
+            : $spreadsheet->getActiveSheet();
 
         $rows = [];
         foreach ($sheet->getRowIterator() as $row) {

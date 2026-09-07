@@ -82,6 +82,16 @@ class NavPresenter
                     ['label' => 'Dashboard', 'route' => 'risk.rcsa.dashboard', 'permission' => 'rcsa.view'],
                     ['label' => 'Worksheet', 'route' => 'risk.rcsa.worksheet', 'permission' => 'rcsa.view'],
                     ['label' => 'Risk Matrix', 'route' => 'risk.rcsa.matrix', 'permission' => 'rcsa.view'],
+                    // RCSA v2. Sits beside the module it will replace for the
+                    // duration of the parallel run; the flag is what keeps it
+                    // out of every install that has not opted in.
+                    ['label' => 'Universe', 'route' => 'rcsa.universe.index', 'permission' => 'rcsa_universe.view', 'feature' => 'rcsa_v2'],
+                    ['label' => 'Cycles', 'route' => 'rcsa.cycles.index', 'permission' => 'rcsa_cycle.view', 'feature' => 'rcsa_v2'],
+                    ['label' => 'My Assessments', 'route' => 'rcsa.assessments.index', 'permission' => 'rcsa_assessment.view', 'feature' => 'rcsa_v2'],
+                    ['label' => 'ORM Review', 'route' => 'rcsa.review.index', 'permission' => 'rcsa_assessment.review', 'feature' => 'rcsa_v2'],
+                    ['label' => 'Action Plans', 'route' => 'rcsa.action-plans.index', 'permission' => 'rcsa_actionplan.view', 'feature' => 'rcsa_v2'],
+                    ['label' => 'RCSA Dashboard', 'route' => 'rcsa.dashboard.index', 'permission' => 'rcsa_assessment.view', 'feature' => 'rcsa_v2'],
+                    ['label' => 'Export', 'route' => 'rcsa.exports.index', 'permission' => 'rcsa_export.bulk', 'feature' => 'rcsa_v2'],
                 ],
             ],
             [

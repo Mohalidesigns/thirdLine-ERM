@@ -384,7 +384,21 @@ class TenancyIsolationTest extends TestCase
         );
     }
 
-    /** @return list<class-string<Model>> every Eloquent model in app/Models */
+    /**
+     * Every Eloquent model in app/Models, INCLUDING SUBDIRECTORIES.
+     *
+     * This used to glob `app/Models/*.php` only. That was correct while every
+     * model sat at the top level and quietly stopped being correct the moment
+     * a module namespaced its own: `app/Models/Rcsa` and `app/Models/Tprm`
+     * were invisible to this provider, so the guard reported green over models
+     * it had never looked at — the worst failure mode available to a guard,
+     * because the build stays green and the coverage silently shrinks.
+     *
+     * Recursive now. A new module directory is covered on the day it is
+     * created rather than on the day somebody remembers this file.
+     *
+     * @return list<class-string<Model>>
+     */
     private static function eloquentModels(): array
     {
         $models = [];
@@ -393,8 +407,17 @@ class TenancyIsolationTest extends TestCase
         // providers before the Laravel container exists.
         $modelPath = dirname(__DIR__, 2).'/app/Models';
 
-        foreach (glob($modelPath.'/*.php') as $file) {
-            $class = 'App\\Models\\'.basename($file, '.php');
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($modelPath, \FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($files as $file) {
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $relative = substr($file->getPathname(), strlen($modelPath) + 1, -4);
+            $class = 'App\\Models\\'.str_replace('/', '\\', $relative);
 
             if (! class_exists($class)) {
                 continue;

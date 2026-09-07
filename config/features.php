@@ -58,4 +58,22 @@ return [
      */
     'mfa_totp' => env('FEATURE_MFA_TOTP', false),
 
+    /*
+     * The rewritten RCSA module (RCSA v2).
+     *
+     * The existing RCSA — four screens computed over Risk, Control and
+     * RiskControlMapping — stays live and untouched behind this flag being off.
+     * The rewrite is built alongside it on its own `rcsa_` tables, per §13 of
+     * the implementation plan: build alongside, not on top. Nothing redirects,
+     * nothing is deleted and no legacy table is dropped until a tenant has
+     * completed a parallel run and signed off the reconciliation.
+     *
+     * OFF BY DEFAULT UNTIL THE MODULE IS COMPLETE. Turning it on exposes the
+     * new universe, workspace and export surfaces alongside the old ones, which
+     * is the intended state during the parallel run and a confusing one before
+     * it. The flag is per environment; cutover is per tenant and is a separate
+     * decision recorded against the tenant, not this file.
+     */
+    'rcsa_v2' => env('FEATURE_RCSA_V2', false),
+
 ];

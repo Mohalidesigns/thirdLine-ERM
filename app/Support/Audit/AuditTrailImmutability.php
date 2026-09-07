@@ -56,13 +56,6 @@ class AuditTrailImmutability
                  FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '{$message}'",
             ]),
 
-            'sqlite' => self::run([
-                "CREATE TRIGGER risk_audit_trail_no_update BEFORE UPDATE ON risk_audit_trail
-                 BEGIN SELECT RAISE(ABORT, '{$message}'); END",
-                "CREATE TRIGGER risk_audit_trail_no_delete BEFORE DELETE ON risk_audit_trail
-                 BEGIN SELECT RAISE(ABORT, '{$message}'); END",
-            ]),
-
             'pgsql' => self::run([
                 "CREATE OR REPLACE FUNCTION risk_audit_trail_immutable() RETURNS trigger AS $$
                  BEGIN RAISE EXCEPTION '{$message}'; END; $$ LANGUAGE plpgsql",

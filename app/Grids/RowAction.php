@@ -12,6 +12,7 @@ use Closure;
 class RowAction
 {
     public string $label;
+
     public string $icon;
 
     /** @var Closure(mixed): string */
@@ -21,7 +22,7 @@ class RowAction
 
     public static function make(string $label, string $icon, Closure $url): self
     {
-        $action = new self();
+        $action = new self;
         $action->label = $label;
         $action->icon = $icon;
         $action->url = $url;

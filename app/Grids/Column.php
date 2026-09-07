@@ -15,10 +15,13 @@ use Closure;
 class Column
 {
     public string $key;
+
     public string $label;
 
     public bool $sortable = false;
+
     public bool $searchable = false;
+
     public bool $visibleByDefault = true;
 
     /** Column used for ORDER BY / WHERE when it differs from $key (e.g. a relation aggregate). */
@@ -26,6 +29,7 @@ class Column
 
     /** text | badge | date | datetime | money | rag | progress | count */
     public string $type = 'text';
+
     public array $typeOptions = [];
 
     /** Renders the cell as a link to this URL. */
@@ -39,7 +43,7 @@ class Column
 
     public static function make(string $key, string $label): self
     {
-        $column = new self();
+        $column = new self;
         $column->key = $key;
         $column->label = $label;
 

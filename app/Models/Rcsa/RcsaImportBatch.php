@@ -53,6 +53,7 @@ class RcsaImportBatch extends Model
         'type',
         'assessment_id',
         'file_path',
+        'file_purged_at',
         'original_name',
         'template_version',
         'status',
@@ -71,6 +72,7 @@ class RcsaImportBatch extends Model
     ];
 
     protected $casts = [
+        'file_purged_at' => 'datetime',
         'total_rows' => 'integer',
         'valid_rows' => 'integer',
         'error_rows' => 'integer',

@@ -47,6 +47,7 @@ class RcsaExportJob extends Model
         'status',
         'row_count',
         'file_path',
+        'file_purged_at',
         'failure_reason',
         'expires_at',
         'downloaded_at',
@@ -60,6 +61,7 @@ class RcsaExportJob extends Model
         'row_count' => 'integer',
         'download_count' => 'integer',
         'expires_at' => 'datetime',
+        'file_purged_at' => 'datetime',
         'downloaded_at' => 'datetime',
     ];
 

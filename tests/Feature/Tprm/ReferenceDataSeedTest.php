@@ -63,7 +63,7 @@ class ReferenceDataSeedTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Framework libraries                                                */
+    /*  Framework libraries */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -165,7 +165,7 @@ class ReferenceDataSeedTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Clause library                                                     */
+    /*  Clause library */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -218,7 +218,7 @@ class ReferenceDataSeedTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Tenant reference data and the ERM bridge                           */
+    /*  Tenant reference data and the ERM bridge */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -239,7 +239,7 @@ class ReferenceDataSeedTest extends TestCase
             $this->assertSame(
                 'CBN Corporate Governance Guidelines 2023 §13.1, §3.6.2',
                 $function->prohibition_citation,
-                "A prohibited function with no citation would show a user a block with no reason."
+                'A prohibited function with no citation would show a user a block with no reason.'
             );
         }
     }

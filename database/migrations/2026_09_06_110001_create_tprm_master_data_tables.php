@@ -46,7 +46,7 @@ return new class extends Migration
     public function up(): void
     {
         /* ------------------------------------------------------------------ */
-        /*  Categories — the vendor taxonomy                                   */
+        /*  Categories — the vendor taxonomy */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_categories', function (Blueprint $table) {
@@ -84,7 +84,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Third parties — the legal entities                                 */
+        /*  Third parties — the legal entities */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_third_parties', function (Blueprint $table) {
@@ -154,7 +154,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Locations                                                          */
+        /*  Locations */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_locations', function (Blueprint $table) {
@@ -192,7 +192,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Contacts                                                           */
+        /*  Contacts */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_contacts', function (Blueprint $table) {
@@ -222,7 +222,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Ownership — shareholders, directors and UBOs                       */
+        /*  Ownership — shareholders, directors and UBOs */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_ownership', function (Blueprint $table) {
@@ -255,7 +255,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Business functions — the DORA RT.06.01 model                       */
+        /*  Business functions — the DORA RT.06.01 model */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_business_functions', function (Blueprint $table) {

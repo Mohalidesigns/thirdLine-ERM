@@ -91,7 +91,7 @@ class EvidenceScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The library                                                        */
+    /*  The library */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -153,7 +153,7 @@ class EvidenceScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The workspace                                                      */
+    /*  The workspace */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -221,7 +221,7 @@ class EvidenceScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The two confirmations, over HTTP                                   */
+    /*  The two confirmations, over HTTP */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -318,7 +318,7 @@ class EvidenceScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  FR-DDL-07 — the certificate register                               */
+    /*  FR-DDL-07 — the certificate register */
     /* ------------------------------------------------------------------ */
 
     #[Test]

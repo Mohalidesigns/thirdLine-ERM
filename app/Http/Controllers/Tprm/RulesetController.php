@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Tprm;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Tprm\SaveRulesetRequest;
 use App\Models\Tprm\Ruleset;
-use App\Services\Tprm\Scoring\Ruleset as RulesetValue;
 use App\Services\Tprm\Scoring\RulesetSandbox;
 use App\Support\Tprm\DefaultRuleset;
 use Illuminate\Http\Request;

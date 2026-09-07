@@ -5,12 +5,12 @@ namespace App\Models\Tprm;
 use App\Models\Organization;
 use App\Models\Tprm\Concerns\TprmAuditable;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use ThirdLine\Platform\Tenancy\BelongsToOrganization;
@@ -151,7 +151,7 @@ class Contract extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Hierarchy                                                          */
+    /*  Hierarchy */
     /* ------------------------------------------------------------------ */
 
     /**
@@ -233,7 +233,7 @@ class Contract extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Dates                                                              */
+    /*  Dates */
     /* ------------------------------------------------------------------ */
 
     /**
@@ -321,7 +321,7 @@ class Contract extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Scopes                                                             */
+    /*  Scopes */
     /* ------------------------------------------------------------------ */
 
     /**

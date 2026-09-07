@@ -29,7 +29,7 @@ return new class extends Migration
     public function up(): void
     {
         /* ------------------------------------------------------------------ */
-        /*  Due diligence checklists                                           */
+        /*  Due diligence checklists */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_due_diligence_checklists', function (Blueprint $table) {
@@ -93,7 +93,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Screening                                                          */
+        /*  Screening */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_screening_checks', function (Blueprint $table) {
@@ -158,7 +158,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Financial reviews                                                  */
+        /*  Financial reviews */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_financial_reviews', function (Blueprint $table) {
@@ -203,7 +203,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Site visits                                                        */
+        /*  Site visits */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_site_visits', function (Blueprint $table) {

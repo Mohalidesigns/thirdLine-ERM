@@ -35,7 +35,7 @@ return new class extends Migration
     public function up(): void
     {
         /* ------------------------------------------------------------------ */
-        /*  Tier policies — what a tier MEANS, per tenant                      */
+        /*  Tier policies — what a tier MEANS, per tenant */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_tier_policies', function (Blueprint $table) {
@@ -76,7 +76,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Engagements                                                        */
+        /*  Engagements */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_engagements', function (Blueprint $table) {
@@ -196,7 +196,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Engagement ↔ business function                                     */
+        /*  Engagement ↔ business function */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_engagement_functions', function (Blueprint $table) {
@@ -218,7 +218,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Inherent assessments — versioned, never overwritten                */
+        /*  Inherent assessments — versioned, never overwritten */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_inherent_assessments', function (Blueprint $table) {
@@ -255,7 +255,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Score runs — the immutable record of every computation             */
+        /*  Score runs — the immutable record of every computation */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_score_runs', function (Blueprint $table) {

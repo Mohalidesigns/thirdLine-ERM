@@ -38,7 +38,7 @@ class InherentRiskCalculatorTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The shipped ruleset itself                                         */
+    /*  The shipped ruleset itself */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -75,7 +75,7 @@ class InherentRiskCalculatorTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Whole-model golden values                                          */
+    /*  Whole-model golden values */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -145,7 +145,7 @@ class InherentRiskCalculatorTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The two multiplied factors                                         */
+    /*  The two multiplied factors */
     /* ------------------------------------------------------------------ */
 
     /**
@@ -224,7 +224,7 @@ class InherentRiskCalculatorTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The two overrides in §7.2                                          */
+    /*  The two overrides in §7.2 */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -276,7 +276,7 @@ class InherentRiskCalculatorTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Regulatory exposure                                                */
+    /*  Regulatory exposure */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -332,7 +332,7 @@ class InherentRiskCalculatorTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Bad and missing input                                              */
+    /*  Bad and missing input */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -425,7 +425,7 @@ class InherentRiskCalculatorTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Determinism                                                        */
+    /*  Determinism */
     /* ------------------------------------------------------------------ */
 
     #[Test]

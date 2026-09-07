@@ -27,19 +27,6 @@ use App\Http\Controllers\Rcsa\ImportController as RcsaImportController;
 use App\Http\Controllers\Rcsa\ReviewController as RcsaReviewController;
 use App\Http\Controllers\Rcsa\RoundTripController as RcsaRoundTripController;
 use App\Http\Controllers\Rcsa\UniverseController as RcsaUniverseController;
-use App\Http\Controllers\Tprm\AssessmentController as TprmAssessmentController;
-use App\Http\Controllers\Tprm\ClauseLibraryController as TprmClauseLibraryController;
-use App\Http\Controllers\Tprm\ContractController as TprmContractController;
-use App\Http\Controllers\Tprm\DocumentController as TprmDocumentController;
-use App\Http\Controllers\Tprm\ObligationController as TprmObligationController;
-use App\Http\Controllers\Tprm\PciMatrixController as TprmPciMatrixController;
-use App\Http\Controllers\Tprm\SlaController as TprmSlaController;
-use App\Http\Controllers\Tprm\EngagementController as TprmEngagementController;
-use App\Http\Controllers\Tprm\ImportController as TprmImportController;
-use App\Http\Controllers\Tprm\IntakeController as TprmIntakeController;
-use App\Http\Controllers\Tprm\QuestionnaireController as TprmQuestionnaireController;
-use App\Http\Controllers\Tprm\RulesetController as TprmRulesetController;
-use App\Http\Controllers\Tprm\ThirdPartyController as TprmThirdPartyController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
 use App\Http\Controllers\Risk\AiToolsController;
 use App\Http\Controllers\Risk\AnalysisController;
@@ -76,6 +63,20 @@ use App\Http\Controllers\Risk\ThresholdController;
 use App\Http\Controllers\Risk\TreatmentPlanController;
 use App\Http\Controllers\Risk\WidgetController;
 use App\Http\Controllers\Risk\WorkflowController;
+use App\Http\Controllers\Tprm\AssessmentController as TprmAssessmentController;
+use App\Http\Controllers\Tprm\ClauseLibraryController as TprmClauseLibraryController;
+use App\Http\Controllers\Tprm\ContractController as TprmContractController;
+use App\Http\Controllers\Tprm\DocumentController as TprmDocumentController;
+use App\Http\Controllers\Tprm\EngagementController as TprmEngagementController;
+use App\Http\Controllers\Tprm\FindingController as TprmFindingController;
+use App\Http\Controllers\Tprm\ImportController as TprmImportController;
+use App\Http\Controllers\Tprm\IntakeController as TprmIntakeController;
+use App\Http\Controllers\Tprm\ObligationController as TprmObligationController;
+use App\Http\Controllers\Tprm\PciMatrixController as TprmPciMatrixController;
+use App\Http\Controllers\Tprm\QuestionnaireController as TprmQuestionnaireController;
+use App\Http\Controllers\Tprm\RulesetController as TprmRulesetController;
+use App\Http\Controllers\Tprm\SlaController as TprmSlaController;
+use App\Http\Controllers\Tprm\ThirdPartyController as TprmThirdPartyController;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -1812,6 +1813,34 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.contract.manage')->name('pci-matrix.prepopulate');
         Route::post('engagements/{engagement}/pci-matrix/{row}/confirm', [TprmPciMatrixController::class, 'confirm'])
             ->middleware('permission:tprm.contract.manage')->name('pci-matrix.confirm');
+
+        /* --- Findings and risk acceptance (Phase 5) --------------------- */
+        /*
+         * `tprm.finding.accept_risk` is not `manage` with a flag. It is the
+         * authority to say the institution will carry a control failure in a
+         * third party, and it belongs with the risk function rather than with
+         * whoever is chasing the vendor. `RiskAcceptanceService` checks a
+         * severity-specific permission again on top of the route's, because a
+         * Critical acceptance is a different decision from a Low one.
+         */
+        Route::get('findings', [TprmFindingController::class, 'index'])
+            ->middleware('permission:tprm.finding.view')->name('findings.index');
+        Route::get('findings/{finding}', [TprmFindingController::class, 'show'])
+            ->middleware('permission:tprm.finding.view')->name('findings.show');
+        Route::post('engagements/{engagement}/findings', [TprmFindingController::class, 'store'])
+            ->middleware('permission:tprm.finding.manage')->name('findings.store');
+        Route::post('findings/{finding}/transition', [TprmFindingController::class, 'transition'])
+            ->middleware('permission:tprm.finding.manage')->name('findings.transition');
+        Route::post('findings/{finding}/plan', [TprmFindingController::class, 'recordPlan'])
+            ->middleware('permission:tprm.finding.manage')->name('findings.plan');
+        Route::post('findings/{finding}/verify', [TprmFindingController::class, 'submitForVerification'])
+            ->middleware('permission:tprm.finding.manage')->name('findings.verify');
+        Route::post('findings/{finding}/close', [TprmFindingController::class, 'close'])
+            ->middleware('permission:tprm.finding.manage')->name('findings.close');
+        Route::post('findings/{finding}/accept-risk', [TprmFindingController::class, 'acceptRisk'])
+            ->middleware('permission:tprm.finding.accept_risk')->name('findings.accept-risk');
+        Route::post('findings/{finding}/acceptances/{acceptance}/withdraw', [TprmFindingController::class, 'withdrawAcceptance'])
+            ->middleware('permission:tprm.finding.accept_risk')->name('findings.acceptances.withdraw');
 
         /* --- Clause library settings ----------------------------------- */
         Route::get('settings/clauses', [TprmClauseLibraryController::class, 'index'])

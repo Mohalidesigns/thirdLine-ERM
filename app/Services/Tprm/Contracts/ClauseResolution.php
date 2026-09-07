@@ -47,7 +47,7 @@ class ClauseResolution
      * nobody read.
      *
      * @return Collection<int, array<string, mixed>> each row is
-     *     `{clause: ClauseLibraryEntry, determination: ContractClause|null}`
+     *                                               `{clause: ClauseLibraryEntry, determination: ContractClause|null}`
      */
     public function gaps(): Collection
     {

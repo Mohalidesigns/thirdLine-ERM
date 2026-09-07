@@ -60,8 +60,6 @@ class LlmClient
 
     /**
      * Run an extraction prompt against document text.
-     *
-     * @return LlmResult
      */
     public function extract(DocumentExtractor $extractor, string $documentText, ?int $organizationId = null): LlmResult
     {

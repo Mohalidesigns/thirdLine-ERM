@@ -93,7 +93,6 @@ class Soc2Extractor implements Extractor
     }
 
     /**
-     * @param  mixed  $value
      * @return list<array<string, mixed>>
      */
     private function rows(mixed $value): array

@@ -281,6 +281,35 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Suite integration
+    |--------------------------------------------------------------------------
+    |
+    | TRD §15. TPRM is part of the ERM programme rather than a module beside
+    | it, and these two switches are how that link is turned off for a
+    | deployment that does not want it — a TPRM-only installation, or one
+    | mid-migration on its issue register.
+    |
+    | Both default ON, because the whole reason this module was asked for is
+    | that third-party risk should reach the key risk areas. Defaulting them
+    | off would ship the integration as a feature nobody discovers.
+    |
+    */
+
+    'integration' => [
+        // Every finding mirrors into the ERM issue register, with closure
+        // syncing both ways.
+        'mirror_findings_to_issues' => env('TPRM_MIRROR_FINDINGS', true),
+
+        // Critical and High tier engagements, and any engagement with an open
+        // Critical finding, appear in the ERM risk register under
+        // "Third-Party and Outsourcing Risk". NOT every engagement: a risk
+        // register holding four hundred stationery suppliers is one nobody
+        // reads.
+        'mirror_engagements_to_risks' => env('TPRM_MIRROR_ENGAGEMENTS', true),
+    ],
+
     'ai' => [
         'enabled' => env('TPRM_AI_ENABLED', false),
 

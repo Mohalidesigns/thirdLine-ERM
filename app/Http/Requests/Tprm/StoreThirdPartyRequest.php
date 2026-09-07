@@ -5,7 +5,6 @@ namespace App\Http\Requests\Tprm;
 use App\Enums\Tprm\ThirdPartyStatus;
 use App\Models\Tprm\Category;
 use App\Models\Tprm\ThirdParty;
-use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use ThirdLine\Platform\Tenancy\TenantContext;

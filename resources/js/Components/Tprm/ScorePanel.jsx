@@ -16,7 +16,43 @@ import TierBadge from './TierBadge';
  * the product's own standard (§5) forbids a figure that is absent being shown
  * as a number.
  */
-export default function ScorePanel({ engagement, derivation }) {
+function BandChip({ band, label }) {
+    const tone = {
+        critical: 'bg-red-100 text-red-800',
+        high: 'bg-orange-100 text-orange-800',
+        moderate: 'bg-amber-100 text-amber-800',
+        low: 'bg-green-100 text-green-800',
+    }[band] ?? 'bg-gray-100 text-gray-600';
+
+    return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}>{label ?? band}</span>;
+}
+
+/**
+ * Current / Ageing / Stale — three words rather than a percentage.
+ *
+ * A badge reading "0.63" invites a conversation about the number; one reading
+ * "Ageing" invites one about the vendor.
+ */
+function ConfidenceBadge({ confidence, raw }) {
+    if (!confidence && (raw === null || raw === undefined)) {
+        return <span className="text-sm text-gray-500">Not assessed</span>;
+    }
+
+    const badge = confidence?.badge ?? (raw >= 0.8 ? 'Current' : raw >= 0.5 ? 'Ageing' : 'Stale');
+    const tone = {
+        Current: 'bg-green-100 text-green-800',
+        Ageing: 'bg-amber-100 text-amber-800',
+        Stale: 'bg-red-100 text-red-800',
+    }[badge] ?? 'bg-gray-100 text-gray-600';
+
+    return (
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone}`} title={`DC ${raw ?? confidence?.dc}`}>
+            {badge}
+        </span>
+    );
+}
+
+export default function ScorePanel({ engagement, derivation, score = null }) {
     const [open, setOpen] = useState(false);
 
     const inherent = derivation?.inherent;
@@ -49,18 +85,67 @@ export default function ScorePanel({ engagement, derivation }) {
 
                 <div className="flex items-center justify-between">
                     <dt className="text-sm text-gray-600">Residual risk (RR)</dt>
-                    <dd className="text-sm text-gray-500">
-                        {engagement.residual_score ?? 'Not yet scored'}
+                    <dd className="flex items-center gap-2">
+                        {score?.rr === null || score?.rr === undefined ? (
+                            /* An engagement that has not been scored does not
+                               have a residual risk of nought. */
+                            <span className="text-sm text-gray-500">Not yet scored</span>
+                        ) : (
+                            <>
+                                <span className="text-lg font-semibold text-gray-900">
+                                    {Math.round(score.rr * 10) / 10}
+                                </span>
+                                <BandChip band={score.band} label={score.band_label} />
+                            </>
+                        )}
                     </dd>
                 </div>
 
+                {score && (
+                    <div className="flex items-center justify-between">
+                        <dt className="text-sm text-gray-600">Mitigation (M)</dt>
+                        <dd className="text-sm tabular-nums text-gray-700">
+                            {score.m === null ? '—' : `${Math.round(score.m * 1000) / 10}%`}
+                        </dd>
+                    </div>
+                )}
+
+                {score && (score.fu > 0 || score.su > 0) && (
+                    <div className="flex items-center justify-between">
+                        <dt className="text-sm text-gray-600">Uplift</dt>
+                        <dd className="text-sm tabular-nums text-gray-700">
+                            +{Math.round((score.fu + score.su) * 10) / 10}
+                            <span className="ml-1 text-xs text-gray-500">
+                                ({score.fu} findings, {score.su} signals)
+                            </span>
+                        </dd>
+                    </div>
+                )}
+
                 <div className="flex items-center justify-between">
                     <dt className="text-sm text-gray-600">Data confidence</dt>
-                    <dd className="text-sm text-gray-500">
-                        {engagement.data_confidence ?? 'Not assessed'}
+                    <dd>
+                        <ConfidenceBadge confidence={derivation?.data_confidence} raw={score?.dc} />
                     </dd>
                 </div>
             </dl>
+
+            {derivation?.data_confidence?.may_close_review === false && (
+                /* TRD §7.6's teeth. Without this the badge is decoration, and
+                   the module joins every other product that prints a confident
+                   number derived from stale data. */
+                <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    This score may not be used to close a review or support a board assertion: the inputs
+                    behind it are too old.
+                    {derivation.data_confidence.weaknesses?.length > 0 && (
+                        <span className="mt-1 block">{derivation.data_confidence.weaknesses[0]}</span>
+                    )}
+                </p>
+            )}
+
+            {derivation?.headline && (
+                <p className="mt-3 text-xs leading-relaxed text-gray-600">{derivation.headline}</p>
+            )}
 
             {decidedBy === 'knockout' && (
                 <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -89,6 +174,87 @@ export default function ScorePanel({ engagement, derivation }) {
 
             {open && derivation && (
                 <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
+                    {derivation.arithmetic && (
+                        <div>
+                            <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                The arithmetic
+                            </h4>
+                            {/* A reader who cannot reproduce the number will
+                                not believe it, and this is a sentence anybody
+                                can check with a calculator. */}
+                            <p className="mt-1.5 font-mono text-xs text-gray-800">{derivation.arithmetic}</p>
+                        </div>
+                    )}
+
+                    {derivation.mitigation && (
+                        <div>
+                            <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Assurance held (M)
+                            </h4>
+                            <p className="mt-1.5 font-mono text-xs text-gray-800">
+                                AC × EC × Kmax = {derivation.mitigation.arithmetic}
+                            </p>
+                            <p className="mt-1 text-xs text-gray-600">{derivation.mitigation.note}</p>
+                        </div>
+                    )}
+
+                    {derivation.findings?.contributions?.length > 0 && (
+                        <div>
+                            <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Findings (FU = {derivation.findings.total})
+                            </h4>
+                            <ul className="mt-2 space-y-1.5">
+                                {derivation.findings.contributions.map((row, index) => (
+                                    <li key={row.reference ?? index} className="rounded bg-gray-50 p-2 text-xs">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="font-medium text-gray-800">
+                                                {row.reference ? `${row.reference} — ` : ''}{row.title ?? row.severity}
+                                            </span>
+                                            <span className="tabular-nums text-gray-900">
+                                                {row.penalty > 0 ? '+' : ''}{row.penalty}
+                                            </span>
+                                        </div>
+                                        <p className="mt-0.5 text-gray-600">{row.reason}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {derivation.signals?.contributions?.length > 0 && (
+                        <div>
+                            <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Monitoring signals (SU = {derivation.signals.total})
+                            </h4>
+                            <ul className="mt-2 space-y-1.5">
+                                {derivation.signals.contributions.map((row, index) => (
+                                    <li key={index} className="rounded bg-gray-50 p-2 text-xs">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="font-medium text-gray-800">{row.label}</span>
+                                            <span className="tabular-nums text-gray-900">
+                                                {row.penalty === null ? 'override' : `+${row.penalty}`}
+                                            </span>
+                                        </div>
+                                        <p className="mt-0.5 text-gray-600">{row.reason}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {derivation.data_confidence?.weaknesses?.length > 0 && (
+                        <div>
+                            <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Why confidence is not full
+                            </h4>
+                            <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-gray-600">
+                                {derivation.data_confidence.weaknesses.map((text) => (
+                                    <li key={text}>{text}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
                     {inherent?.factors?.length > 0 && (
                         <div>
                             <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">

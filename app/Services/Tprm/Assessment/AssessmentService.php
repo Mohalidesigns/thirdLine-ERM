@@ -4,11 +4,13 @@ namespace App\Services\Tprm\Assessment;
 
 use App\Enums\Tprm\AssessmentStatus;
 use App\Enums\Tprm\ComplianceLevel;
+use App\Events\Tprm\EngagementScoreInvalidated;
 use App\Models\Tprm\Assessment;
 use App\Models\Tprm\AssessmentResponse;
 use App\Models\Tprm\Engagement;
 use App\Models\Tprm\Question;
 use App\Models\Tprm\QuestionnaireTemplate;
+use App\Services\Tprm\Findings\FindingRaiser;
 use App\Services\Tprm\Scoring\EngagementContext;
 use Illuminate\Support\Facades\DB;
 
@@ -183,6 +185,25 @@ class AssessmentService
                 'status' => AssessmentStatus::Scored->value,
             ])->save();
         });
+
+        // Phase 5, and the ORDER matters. The findings are raised first so
+        // that the recomputation below sees them: raising afterwards would
+        // score the engagement, then add three findings, and leave the number
+        // a step behind the register until something else moved it.
+        //
+        // FR-ASM-09. Idempotent on the question, so re-scoring an assessment
+        // does not duplicate the gap it already raised.
+        app(FindingRaiser::class)->fromAssessment($assessment->refresh());
+
+        // AC and EC are two of the three factors in M, so a new assessment
+        // score moves the residual score. Dispatched here rather than from the
+        // controller, because the importer and the API reach this method too.
+        if ($assessment->engagement !== null) {
+            EngagementScoreInvalidated::dispatch(
+                $assessment->engagement,
+                EngagementScoreInvalidated::ASSESSMENT_SCORED,
+            );
+        }
 
         return ['scored' => true, 'reason' => null, 'score' => $score];
     }

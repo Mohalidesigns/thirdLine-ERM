@@ -82,7 +82,7 @@ class ContractScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The register                                                       */
+    /*  The register */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -125,7 +125,7 @@ class ContractScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The workspace                                                      */
+    /*  The workspace */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -218,7 +218,7 @@ class ContractScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The gap report                                                     */
+    /*  The gap report */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -236,7 +236,7 @@ class ContractScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The two-step over HTTP                                             */
+    /*  The two-step over HTTP */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -298,7 +298,7 @@ class ContractScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Service levels and the PCI matrix                                  */
+    /*  Service levels and the PCI matrix */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -364,7 +364,7 @@ class ContractScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The clause library                                                 */
+    /*  The clause library */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -421,7 +421,7 @@ class ContractScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Permissions                                                        */
+    /*  Permissions */
     /* ------------------------------------------------------------------ */
 
     #[Test]

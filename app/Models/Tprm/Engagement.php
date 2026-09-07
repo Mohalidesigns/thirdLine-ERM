@@ -148,7 +148,7 @@ class Engagement extends Model
     ];
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     /** @return BelongsTo<Organization, $this> */
@@ -229,7 +229,7 @@ class Engagement extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Derived reads                                                      */
+    /*  Derived reads */
     /* ------------------------------------------------------------------ */
 
     /**
@@ -262,7 +262,7 @@ class Engagement extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Derived facts for the knockout rules                               */
+    /*  Derived facts for the knockout rules */
     /* ------------------------------------------------------------------ */
 
     /*

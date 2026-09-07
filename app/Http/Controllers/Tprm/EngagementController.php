@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers\Tprm;
 
-use App\Grids\GridRegistry;
 use App\Enums\Tprm\RiskTier;
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Tprm\OverrideTierRequest;
 use App\Models\Tprm\Engagement;
 use App\Models\Tprm\InherentAssessment;
 use App\Models\Tprm\ScoreRun;
 use App\Models\Tprm\Waiver;
-use App\Services\Tprm\TierOverrideService;
 use App\Presenters\GridPresenter;
+use App\Services\Tprm\TierOverrideService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -76,6 +76,27 @@ class EngagementController extends Controller
             // never from a fresh computation — that is what makes two users
             // looking at the same score see the same derivation (AC-15).
             'derivation' => $latestRun?->explanation,
+            // Phase 5. The panel's own numbers come off the same run, so the
+            // headline and the detail cannot disagree: recomputing either on
+            // read is exactly how they would.
+            'score' => $latestRun === null ? null : [
+                'ir' => $latestRun->ir === null ? null : (float) $latestRun->ir,
+                'ac' => $latestRun->ac === null ? null : (float) $latestRun->ac,
+                'ec' => $latestRun->ec === null ? null : (float) $latestRun->ec,
+                'm' => $latestRun->m === null ? null : (float) $latestRun->m,
+                'fu' => $latestRun->fu === null ? null : (float) $latestRun->fu,
+                'su' => $latestRun->su === null ? null : (float) $latestRun->su,
+                'rr' => $latestRun->rr === null ? null : (float) $latestRun->rr,
+                'band' => $latestRun->band?->value,
+                'band_label' => $latestRun->band?->label(),
+                'dc' => $latestRun->dc === null ? null : (float) $latestRun->dc,
+                'run_type' => $latestRun->run_type,
+                'triggered_by' => $latestRun->triggered_by,
+                'computed_at' => $latestRun->created_at?->toDayDateTimeString(),
+                'engine_version' => $latestRun->engine_version,
+                'ruleset_version' => $latestRun->ruleset_version,
+            ],
+            'findings' => fn () => $this->scoringFindings($engagement),
             'inherentVersion' => $current === null ? null : [
                 'version' => $current->version,
                 'ruleset_version' => $current->ruleset_version,
@@ -193,6 +214,41 @@ class EngagementController extends Controller
                     ->whereDate('expires_at', '<', now()->toDateString())->count(),
             ],
         ]);
+    }
+
+    /**
+     * The findings entering this engagement's residual score.
+     *
+     * Open ones plus risk-accepted ones, because an accepted finding still
+     * contributes at half weight — a list that hid them would leave a reader
+     * unable to reconcile the score panel's FU against anything on the page.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function scoringFindings(Engagement $engagement): array
+    {
+        return \App\Models\Tprm\Finding::query()
+            ->where('engagement_id', $engagement->getKey())
+            ->scoring()
+            ->with('owner:id,name')
+            ->orderByRaw("CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END")
+            ->orderBy('target_date')
+            ->get()
+            ->map(fn (\App\Models\Tprm\Finding $finding): array => [
+                'id' => $finding->getKey(),
+                'reference' => $finding->reference,
+                'title' => $finding->title,
+                'severity' => $finding->severity->value,
+                'status' => $finding->status->value,
+                'status_label' => $finding->status->label(),
+                'target_date' => $finding->target_date?->toDateString(),
+                'is_overdue' => $finding->isOverdue(),
+                'risk_accepted' => $finding->isRiskAccepted(),
+                'owner' => $finding->owner?->name,
+                'url' => route('tprm.findings.show', $finding),
+            ])
+            ->values()
+            ->all();
     }
 
     /** @return array<string, mixed> */

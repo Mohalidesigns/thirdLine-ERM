@@ -127,7 +127,7 @@ class ActivationGuard
         })->implode("\n");
 
         return sprintf(
-            "This engagement cannot be activated: its contract is missing %d clause(s) that are conditions of "
+            'This engagement cannot be activated: its contract is missing %d clause(s) that are conditions of '
             ."activation.\n\n%s\n\nEach can be added by amendment, or waived individually by the risk function "
             .'with a rationale and an expiry — a waiver appears on the override register and is reported to the '
             .'risk committee.',

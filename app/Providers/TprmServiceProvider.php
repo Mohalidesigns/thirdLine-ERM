@@ -42,6 +42,7 @@ class TprmServiceProvider extends ServiceProvider
         \App\Models\Tprm\QuestionnaireTemplate::class => \App\Policies\Tprm\QuestionnaireTemplatePolicy::class,
         \App\Models\Tprm\Contract::class => \App\Policies\Tprm\ContractPolicy::class,
         \App\Models\Tprm\Obligation::class => \App\Policies\Tprm\ObligationPolicy::class,
+        \App\Models\Tprm\Finding::class => \App\Policies\Tprm\FindingPolicy::class,
     ];
 
     public function register(): void
@@ -66,5 +67,15 @@ class TprmServiceProvider extends ServiceProvider
                 \Illuminate\Support\Facades\Gate::policy($model, $policy);
             }
         }
+
+        // Phase 5. One listener on one event, dispatched from everywhere a
+        // scoring input changes — see EngagementScoreInvalidated for why it is
+        // one event rather than the seven the phase prompt names. Registered
+        // here rather than in an EventServiceProvider so that a reader looking
+        // for what this module wires finds all of it in one file.
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\Tprm\EngagementScoreInvalidated::class,
+            \App\Listeners\Tprm\RecomputeResidualScore::class,
+        );
     }
 }

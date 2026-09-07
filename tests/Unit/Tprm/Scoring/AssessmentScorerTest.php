@@ -48,7 +48,7 @@ class AssessmentScorerTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  AC — assurance coverage                                            */
+    /*  AC — assurance coverage */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -149,7 +149,7 @@ class AssessmentScorerTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  EC — the four coefficients                                         */
+    /*  EC — the four coefficients */
     /* ------------------------------------------------------------------ */
 
     /**
@@ -228,7 +228,7 @@ class AssessmentScorerTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The modifiers                                                      */
+    /*  The modifiers */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -337,9 +337,6 @@ class AssessmentScorerTest extends TestCase
 
     /* --- Carry-forward decay ------------------------------------------ */
 
-    /**
-     * @param  int  $cycles
-     */
     #[Test]
     #[DataProvider('carryForwardCases')]
     public function carry_forward_decays_per_cycle_with_its_own_floor(int $cycles, float $expected): void
@@ -369,7 +366,7 @@ class AssessmentScorerTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Critical questions                                                 */
+    /*  Critical questions */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -435,7 +432,7 @@ class AssessmentScorerTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Section and domain scores — FR-ASM-10                              */
+    /*  Section and domain scores — FR-ASM-10 */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -459,7 +456,7 @@ class AssessmentScorerTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  AC-03 — the criterion the module is sold on                        */
+    /*  AC-03 — the criterion the module is sold on */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -525,7 +522,7 @@ class AssessmentScorerTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Determinism                                                        */
+    /*  Determinism */
     /* ------------------------------------------------------------------ */
 
     #[Test]

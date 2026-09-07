@@ -57,7 +57,7 @@ return new class extends Migration
     public function up(): void
     {
         /* ------------------------------------------------------------------ */
-        /*  Vendor portal                                                      */
+        /*  Vendor portal */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_portal_users', function (Blueprint $table) {
@@ -163,7 +163,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Programme governance                                               */
+        /*  Programme governance */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_policies', function (Blueprint $table) {
@@ -212,7 +212,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Waivers — one override register for the whole module               */
+        /*  Waivers — one override register for the whole module */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_waivers', function (Blueprint $table) {
@@ -253,7 +253,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Reversible bulk import                                             */
+        /*  Reversible bulk import */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_import_batches', function (Blueprint $table) {
@@ -287,7 +287,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Append-only audit log                                              */
+        /*  Append-only audit log */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_audit_logs', function (Blueprint $table) {
@@ -334,7 +334,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  The ERM bridge                                                     */
+        /*  The ERM bridge */
         /* ------------------------------------------------------------------ */
 
         Schema::table('tp_categories', function (Blueprint $table) {

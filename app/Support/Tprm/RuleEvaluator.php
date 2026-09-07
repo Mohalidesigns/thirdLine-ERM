@@ -139,7 +139,6 @@ class RuleEvaluator
     }
 
     /**
-     * @param  mixed  $value
      * @return list<array<string, mixed>>
      */
     private function children(mixed $value): array

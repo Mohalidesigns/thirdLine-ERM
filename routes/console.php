@@ -82,3 +82,11 @@ Schedule::command('tprm:check-evidence-expiry')->dailyAt('07:15');
 // decision that is no longer theirs to make.
 Schedule::command('tprm:check-contract-renewals')->dailyAt('07:20');
 Schedule::command('tprm:check-obligations')->dailyAt('07:25');
+
+// TPRM Phase 5. After the obligation sweep, because a finding raised by that
+// sweep should be in the register before the scores are recomputed. Lapsed
+// risk acceptances reopen first, then the engagements whose inputs actually
+// changed are rescored — never every engagement nightly, which would turn the
+// score-run table into a record of the passage of time rather than of
+// decisions.
+Schedule::command('tprm:recompute-scores')->dailyAt('07:35');

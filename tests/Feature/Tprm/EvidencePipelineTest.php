@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Tprm;
 
-use App\Enums\Tprm\AssessmentStatus;
 use App\Enums\Tprm\AssuranceLevel;
 use App\Models\Organization;
 use App\Models\RiskCategory;
@@ -15,7 +14,6 @@ use App\Models\Tprm\DocumentExtraction;
 use App\Models\Tprm\DocumentType;
 use App\Models\Tprm\Engagement;
 use App\Models\Tprm\QuestionnaireTemplate;
-use App\Models\Tprm\Soc2Cuec;
 use App\Models\Tprm\Soc2Detail;
 use App\Models\Tprm\ThirdParty;
 use App\Models\User;
@@ -101,7 +99,7 @@ class EvidencePipelineTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  AC-16 — every workflow completes with no AI at all                 */
+    /*  AC-16 — every workflow completes with no AI at all */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -174,8 +172,10 @@ class EvidencePipelineTest extends TestCase
             'obligor' => 'entity',
             'owner_id' => $this->user->id,
         ]);
-        // Named as waiting rather than silently dropped.
-        $this->assertSame(1, $applied['findings_pending']);
+        // Phase 5: the findings leg lands too, opt-in per confirmation.
+        $this->assertSame(1, $applied['findings_available']);
+        $this->assertSame(0, $applied['findings_raised'], 'Findings were raised without being asked for.');
+        // Still waiting on Phase 7, and named rather than dropped.
         $this->assertSame(1, $applied['edges_pending']);
 
         $answered = AssessmentResponse::query()
@@ -274,7 +274,7 @@ class EvidencePipelineTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The evidence library                                               */
+    /*  The evidence library */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -437,7 +437,7 @@ class EvidencePipelineTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  FR-DDL-07 — the scope-mismatch check                               */
+    /*  FR-DDL-07 — the scope-mismatch check */
     /* ------------------------------------------------------------------ */
 
     #[Test]

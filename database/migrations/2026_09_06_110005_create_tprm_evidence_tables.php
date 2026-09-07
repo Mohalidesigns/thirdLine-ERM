@@ -161,7 +161,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  SOC 2 decomposition                                                */
+        /*  SOC 2 decomposition */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_soc2_details', function (Blueprint $table) {
@@ -259,7 +259,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Deferred foreign keys from earlier parts                           */
+        /*  Deferred foreign keys from earlier parts */
         /* ------------------------------------------------------------------ */
 
         // SQLite cannot add a foreign key to an existing table, and this

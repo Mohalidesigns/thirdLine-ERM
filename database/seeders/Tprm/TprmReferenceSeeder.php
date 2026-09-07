@@ -5,9 +5,9 @@ namespace Database\Seeders\Tprm;
 use App\Enums\Tprm\AssuranceLevel;
 use App\Enums\Tprm\DocumentExtractor;
 use App\Enums\Tprm\RiskTier;
-use App\Support\Tprm\DefaultRuleset;
 use App\Models\Organization;
 use App\Models\RiskCategory;
+use App\Support\Tprm\DefaultRuleset;
 use Database\Seeders\Tprm\Reference\ClauseLibrary;
 use Database\Seeders\Tprm\Reference\CountryRisk;
 use Database\Seeders\Tprm\Reference\FrameworkLibraries;
@@ -53,7 +53,7 @@ class TprmReferenceSeeder extends Seeder
     }
 
     /* ------------------------------------------------------------------ */
-    /*  System libraries                                                   */
+    /*  System libraries */
     /* ------------------------------------------------------------------ */
 
     private function seedFrameworks(): void
@@ -221,7 +221,7 @@ class TprmReferenceSeeder extends Seeder
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Per-tenant reference data                                          */
+    /*  Per-tenant reference data */
     /* ------------------------------------------------------------------ */
 
     public function seedForOrganization(Organization $organization): void

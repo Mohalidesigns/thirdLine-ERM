@@ -110,6 +110,7 @@ class NavPresenter
                     ['label' => 'Evidence Library', 'route' => 'tprm.documents.index', 'permission' => 'tprm.evidence.view', 'feature' => 'tprm'],
                     ['label' => 'Contracts', 'route' => 'tprm.contracts.index', 'permission' => 'tprm.contract.view', 'feature' => 'tprm'],
                     ['label' => 'Obligations', 'route' => 'tprm.obligations.index', 'permission' => 'tprm.contract.view', 'feature' => 'tprm'],
+                    ['label' => 'Findings', 'route' => 'tprm.findings.index', 'permission' => 'tprm.finding.view', 'feature' => 'tprm'],
                     ['label' => 'Override Register', 'route' => 'tprm.overrides.index', 'permission' => 'tprm.view', 'feature' => 'tprm'],
                     ['label' => 'Bulk Import', 'route' => 'tprm.imports.index', 'permission' => 'tprm.create', 'feature' => 'tprm'],
                     ['label' => 'Tiering Rulesets', 'route' => 'tprm.rulesets.index', 'permission' => 'tprm.ruleset.manage', 'feature' => 'tprm'],

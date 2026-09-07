@@ -5,10 +5,10 @@ namespace App\Models\Tprm;
 use App\Enums\Tprm\ObligationStatus;
 use App\Models\Tprm\Concerns\TprmAuditable;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Carbon\CarbonInterface;
 use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**

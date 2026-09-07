@@ -7,6 +7,7 @@ use App\Models\Tprm\Document;
 use App\Models\Tprm\Obligation;
 use App\Models\Tprm\Soc2Cuec;
 use App\Models\Tprm\Soc2Detail;
+use App\Services\Tprm\Findings\FindingRaiser;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -30,12 +31,16 @@ use Illuminate\Support\Facades\DB;
  *   register with an owner and a date they are duties the institution does not
  *   know it has.
  *
- *   Findings and nth-party edges are NOT applied here, and that is the phase
- *   prompt's own instruction: the edge object arrives in Phase 7 and the
- *   proposals persist as `tp_soc2_subservice_orgs` rows until it does. The
- *   proposals are returned so the screen can show them as pending rather than
- *   silently dropping them — a proposal that vanishes on confirmation is worse
- *   than one that says it is waiting.
+ *   Findings are applied as of Phase 5, when `tp_findings` and its lifecycle
+ *   arrived. A Section 4 exception becomes an owned, dated, escalating finding
+ *   that moves the residual score — which is what the proposal was always for.
+ *
+ *   Nth-party edges are still NOT applied, and that is the phase prompt's own
+ *   instruction: the edge object arrives in Phase 7 and the proposals persist
+ *   as `tp_soc2_subservice_orgs` rows until it does. They are returned so the
+ *   screen can show them as pending rather than silently dropping them — a
+ *   proposal that vanishes on confirmation is worse than one that says it is
+ *   waiting.
  */
 class Soc2CascadeApplier
 {
@@ -44,7 +49,7 @@ class Soc2CascadeApplier
     /**
      * Apply the selected proposals.
      *
-     * @param  array{answers?: list<int>, cuecs?: array<int, array{owner_id?: int|null, control_id?: int|null}>}  $selected
+     * @param  array{answers?: list<int>, cuecs?: array<int, array{owner_id?: int|null, control_id?: int|null}>, findings?: bool}  $selected
      * @return array<string, mixed> what was applied and what is still waiting
      */
     public function apply(Soc2Detail $soc2, array $selected, ?int $userId = null): array
@@ -56,12 +61,21 @@ class Soc2CascadeApplier
             $soc2->loadMissing('document');
             $cuecs = $this->applyCuecOwners($selected['cuecs'] ?? [], $soc2);
 
+            // Phase 5: the findings leg lands. Opt-in per confirmation rather
+            // than automatic, because raising twelve findings against a vendor
+            // is a decision somebody makes, not a side effect of agreeing that
+            // a report was read correctly.
+            $findings = ($selected['findings'] ?? false)
+                ? app(FindingRaiser::class)->fromSoc2($soc2, $userId)->count()
+                : 0;
+
             return [
                 'answers_applied' => $answers,
                 'cuecs_assigned' => $cuecs['assigned'],
                 'obligations_created' => $cuecs['obligations'],
-                // Not applied, and named rather than dropped.
-                'findings_pending' => count($proposals->findings),
+                'findings_raised' => $findings,
+                'findings_available' => count($proposals->findings),
+                // Still waiting on Phase 7, and named rather than dropped.
                 'edges_pending' => count($proposals->nthPartyEdges),
                 'bridge_letter_cap' => $proposals->bridgeLetterCap,
             ];

@@ -256,22 +256,27 @@ class DocumentController extends Controller
             'answers' => 'array',
             'answers.*' => 'integer',
             'cuecs' => 'array',
+            'findings' => 'boolean',
         ]);
 
         $applied = app(Soc2CascadeApplier::class)->apply(
             $soc2,
-            ['answers' => $validated['answers'] ?? [], 'cuecs' => $validated['cuecs'] ?? []],
+            [
+                'answers' => $validated['answers'] ?? [],
+                'cuecs' => $validated['cuecs'] ?? [],
+                'findings' => (bool) ($validated['findings'] ?? false),
+            ],
             $request->user()->id,
         );
 
         return back()->with('success', sprintf(
-            '%d answer(s) pre-answered, %d complementary control(s) assigned and %d obligation(s) added to the '
-            .'register as duties owed by us. %d finding(s) and %d sub-processor edge(s) remain proposals until '
-            .'their modules arrive.',
+            '%d answer(s) pre-answered, %d complementary control(s) assigned, %d obligation(s) added as duties '
+            .'owed by us and %d finding(s) raised. %d sub-processor edge(s) remain proposals until the '
+            .'nth-party register arrives.',
             $applied['answers_applied'],
             $applied['cuecs_assigned'],
             $applied['obligations_created'],
-            $applied['findings_pending'],
+            $applied['findings_raised'],
             $applied['edges_pending'],
         ));
     }

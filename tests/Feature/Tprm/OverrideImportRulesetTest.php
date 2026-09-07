@@ -82,7 +82,7 @@ class OverrideImportRulesetTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  FR-TIER-04 — manual tier override                                  */
+    /*  FR-TIER-04 — manual tier override */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -203,7 +203,7 @@ class OverrideImportRulesetTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  FR-TPR-09 — reversible bulk import                                 */
+    /*  FR-TPR-09 — reversible bulk import */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -332,7 +332,7 @@ class OverrideImportRulesetTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  FR-TIER-09 — the ruleset editor and its sandbox                    */
+    /*  FR-TIER-09 — the ruleset editor and its sandbox */
     /* ------------------------------------------------------------------ */
 
     #[Test]

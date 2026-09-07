@@ -270,7 +270,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  CBN Cyber §2.3 recurring obligations, each with a next-due date    */
+        /*  CBN Cyber §2.3 recurring obligations, each with a next-due date */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_awareness_attestations', function (Blueprint $table) {
@@ -345,7 +345,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Deferred foreign keys                                              */
+        /*  Deferred foreign keys */
         /* ------------------------------------------------------------------ */
 
         if (Schema::getConnection()->getDriverName() !== 'sqlite') {

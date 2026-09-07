@@ -87,7 +87,7 @@ class Soc2CascadeTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  AC-04, the four sets                                               */
+    /*  AC-04, the four sets */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -194,7 +194,7 @@ class Soc2CascadeTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  AC-05 and the Type I distinction                                   */
+    /*  AC-05 and the Type I distinction */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -248,7 +248,7 @@ class Soc2CascadeTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The other three sets                                               */
+    /*  The other three sets */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -331,7 +331,7 @@ class Soc2CascadeTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The rule everything else rests on                                  */
+    /*  The rule everything else rests on */
     /* ------------------------------------------------------------------ */
 
     #[Test]

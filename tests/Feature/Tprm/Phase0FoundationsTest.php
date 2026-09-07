@@ -58,7 +58,7 @@ class Phase0FoundationsTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The object graph resolves                                          */
+    /*  The object graph resolves */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -145,7 +145,7 @@ class Phase0FoundationsTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Tenancy                                                            */
+    /*  Tenancy */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -219,7 +219,7 @@ class Phase0FoundationsTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The audit trail                                                    */
+    /*  The audit trail */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -311,7 +311,7 @@ class Phase0FoundationsTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Score runs are immutable                                           */
+    /*  Score runs are immutable */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -352,7 +352,7 @@ class Phase0FoundationsTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The scoring vocabulary matches the specification                   */
+    /*  The scoring vocabulary matches the specification */
     /* ------------------------------------------------------------------ */
 
     #[Test]

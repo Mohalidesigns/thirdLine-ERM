@@ -76,7 +76,7 @@ class AssessmentEngineTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  FR-ASM-05 — the publish gate                                       */
+    /*  FR-ASM-05 — the publish gate */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -159,7 +159,7 @@ class AssessmentEngineTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The shipped packs                                                  */
+    /*  The shipped packs */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -229,7 +229,7 @@ class AssessmentEngineTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Issuing and scoping                                                */
+    /*  Issuing and scoping */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -269,7 +269,7 @@ class AssessmentEngineTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The lifecycle                                                      */
+    /*  The lifecycle */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -369,7 +369,7 @@ class AssessmentEngineTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  AC-12 — delta reassessment                                         */
+    /*  AC-12 — delta reassessment */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -450,7 +450,7 @@ class AssessmentEngineTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  FR-ASM-06 — inheritance                                            */
+    /*  FR-ASM-06 — inheritance */
     /* ------------------------------------------------------------------ */
 
     #[Test]

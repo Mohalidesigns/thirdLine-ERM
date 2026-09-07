@@ -44,7 +44,6 @@ class CitationVerifier
      * Verify every citation in an extraction against the document's text.
      *
      * @param  list<array{field?: string, quote?: string, page?: int|string|null}>  $citations
-     * @return CitationVerification
      */
     public function verify(array $citations, string $documentText): CitationVerification
     {

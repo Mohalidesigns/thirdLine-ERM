@@ -42,7 +42,7 @@ return new class extends Migration
     public function up(): void
     {
         /* ------------------------------------------------------------------ */
-        /*  Framework libraries — system-owned reference data                  */
+        /*  Framework libraries — system-owned reference data */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_frameworks', function (Blueprint $table) {
@@ -117,7 +117,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Questionnaire templates                                            */
+        /*  Questionnaire templates */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_questionnaire_templates', function (Blueprint $table) {
@@ -230,7 +230,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Assessments                                                        */
+        /*  Assessments */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_assessments', function (Blueprint $table) {

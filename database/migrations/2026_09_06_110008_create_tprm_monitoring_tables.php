@@ -159,7 +159,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Nth-party graph and concentration                                  */
+        /*  Nth-party graph and concentration */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_nth_party_edges', function (Blueprint $table) {
@@ -220,7 +220,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Exit                                                               */
+        /*  Exit */
         /* ------------------------------------------------------------------ */
 
         Schema::create('tp_exit_plans', function (Blueprint $table) {
@@ -330,7 +330,7 @@ return new class extends Migration
         });
 
         /* ------------------------------------------------------------------ */
-        /*  Deferred foreign keys                                              */
+        /*  Deferred foreign keys */
         /* ------------------------------------------------------------------ */
 
         if (Schema::getConnection()->getDriverName() !== 'sqlite') {

@@ -6,7 +6,6 @@ use App\Enums\Tprm\ClausePresence;
 use App\Enums\Tprm\ObligationStatus;
 use App\Models\Organization;
 use App\Models\RiskCategory;
-use App\Models\Tprm\ClauseLibraryEntry;
 use App\Models\Tprm\Contract;
 use App\Models\Tprm\Engagement;
 use App\Models\Tprm\Obligation;
@@ -85,7 +84,7 @@ class ContractObligationsTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Obligation generation                                              */
+    /*  Obligation generation */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -209,7 +208,7 @@ class ContractObligationsTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Satisfying and breaching                                           */
+    /*  Satisfying and breaching */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -322,7 +321,7 @@ class ContractObligationsTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  FR-CTR-02 — notice, not expiry                                     */
+    /*  FR-CTR-02 — notice, not expiry */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -409,7 +408,7 @@ class ContractObligationsTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Service levels                                                     */
+    /*  Service levels */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -541,7 +540,7 @@ class ContractObligationsTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  PCI matrix                                                         */
+    /*  PCI matrix */
     /* ------------------------------------------------------------------ */
 
     #[Test]

@@ -27,12 +27,11 @@ const PENDING_TABS = [
     ['Obligations & SLAs', 'Phase 4'],
     ['Connections & Access', 'Phase 7'],
     ['Sub-processors', 'Phase 7'],
-    ['Findings', 'Phase 5'],
     ['Monitoring', 'Phase 6'],
     ['Exit Plan', 'Phase 9'],
 ];
 
-export default function Show({ engagement, derivation, inherentVersion, history = [], can = {} }) {
+export default function Show({ engagement, derivation, inherentVersion, history = [], score = null, findings = [], can = {} }) {
     const [tab, setTab] = useState('summary');
     const [overriding, setOverriding] = useState(false);
 
@@ -66,7 +65,12 @@ export default function Show({ engagement, derivation, inherentVersion, history 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <div className="lg:col-span-2">
                     <div className="mb-4 flex flex-wrap gap-1 border-b border-gray-200">
-                        {[['summary', 'Summary'], ['inherent', 'Inherent Risk'], ['history', 'Score History']].map(([key, label]) => (
+                        {[
+                            ['summary', 'Summary'],
+                            ['inherent', 'Inherent Risk'],
+                            ['findings', `Findings (${findings.length})`],
+                            ['history', 'Score History'],
+                        ].map(([key, label]) => (
                             <button
                                 key={key}
                                 type="button"
@@ -170,6 +174,53 @@ export default function Show({ engagement, derivation, inherentVersion, history 
                         </div>
                     )}
 
+                    {tab === 'findings' && (
+                        <div className="card p-5">
+                            <h3 className="text-sm font-semibold text-gray-900">Open and accepted findings</h3>
+                            <p className="mt-0.5 text-xs text-gray-500">
+                                These are the findings entering this engagement&rsquo;s residual score. A closed
+                                one contributes nothing; an accepted one contributes at half until its
+                                acceptance expires.
+                            </p>
+
+                            {findings.length === 0 ? (
+                                <p className="mt-4 text-sm text-gray-500">
+                                    No open findings against this engagement.
+                                </p>
+                            ) : (
+                                <ul className="mt-3 divide-y divide-gray-100">
+                                    {findings.map((finding) => (
+                                        <li key={finding.id} className="py-2.5 text-sm">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <a href={finding.url} className="text-blue-700 hover:underline">
+                                                    <span className="font-mono text-xs">{finding.reference}</span>
+                                                    {' — '}{finding.title}
+                                                </a>
+                                                <span className="flex items-center gap-2 text-xs">
+                                                    <span className="capitalize text-gray-600">{finding.severity}</span>
+                                                    <span className={
+                                                        finding.risk_accepted ? 'text-gray-500'
+                                                            : finding.is_overdue ? 'text-red-700' : 'text-gray-500'
+                                                    }>
+                                                        {finding.risk_accepted
+                                                            ? 'Risk accepted'
+                                                            : finding.is_overdue
+                                                                ? `Overdue since ${finding.target_date}`
+                                                                : finding.status_label}
+                                                    </span>
+                                                </span>
+                                            </div>
+                                            <p className="mt-0.5 text-xs text-gray-500">
+                                                {finding.owner ?? 'Unassigned'}
+                                                {finding.target_date ? ` · due ${finding.target_date}` : ''}
+                                            </p>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    )}
+
                     {tab === 'history' && (
                         <div className="card p-5">
                             <h3 className="mb-3 text-sm font-semibold text-gray-900">Score history</h3>
@@ -204,7 +255,7 @@ export default function Show({ engagement, derivation, inherentVersion, history 
                 </div>
 
                 <div className="space-y-4">
-                    <ScorePanel engagement={engagement} derivation={derivation} />
+                    <ScorePanel engagement={engagement} derivation={derivation} score={score} />
 
                     {can.overrideTier && (
                         <div className="card p-5">

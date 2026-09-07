@@ -80,7 +80,7 @@ class IntakeAcceptanceTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  AC-01 — prohibited outsourcing                                     */
+    /*  AC-01 — prohibited outsourcing */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -163,7 +163,7 @@ class IntakeAcceptanceTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  AC-02 — knockout floors, end to end                                */
+    /*  AC-02 — knockout floors, end to end */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -226,7 +226,7 @@ class IntakeAcceptanceTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Versioning and the preview                                         */
+    /*  Versioning and the preview */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -299,7 +299,7 @@ class IntakeAcceptanceTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Approval routing                                                   */
+    /*  Approval routing */
     /* ------------------------------------------------------------------ */
 
     #[Test]

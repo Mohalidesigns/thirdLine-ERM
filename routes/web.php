@@ -1700,12 +1700,18 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
          * obligations to the register, and the second is the act a supervisor
          * would ask who performed.
          *
-         * The download route is `signed` and carries no permission middleware
-         * of its own: the signature IS the authorisation, it expires in five
-         * minutes, and it is issued only to a user who could already see the
-         * document. Adding a permission check here would break the one case
-         * the signed URL exists for — a link opened in a viewer that carries
-         * no session.
+         * The download route carries BOTH `signed` and the view permission,
+         * and the two do different jobs. The signature bounds the link in
+         * time — five minutes, so a URL pasted into a chat is dead by the time
+         * anyone else opens it. The permission bounds it by person, so a link
+         * forwarded inside that window still refuses a colleague who may not
+         * see this vendor's evidence.
+         *
+         * An earlier version of this route omitted the permission on the
+         * argument that the signature was the authorisation. `RouteAuthorizationTest`
+         * refused it, and the guard was right: a bearer token that anyone in
+         * possession of can redeem is not authorisation, it is a lock with the
+         * key taped to it.
          */
         Route::get('documents', [TprmDocumentController::class, 'index'])
             ->middleware('permission:tprm.evidence.view')->name('documents.index');
@@ -1714,7 +1720,7 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::get('documents/{document}', [TprmDocumentController::class, 'show'])
             ->middleware('permission:tprm.evidence.view')->name('documents.show');
         Route::get('documents/{document}/download', [TprmDocumentController::class, 'download'])
-            ->middleware('signed')->name('documents.download');
+            ->middleware(['signed', 'permission:tprm.evidence.view'])->name('documents.download');
         Route::post('documents/{document}/replace', [TprmDocumentController::class, 'replace'])
             ->middleware('permission:tprm.evidence.upload')->name('documents.replace');
         Route::post('documents/{document}/extract', [TprmDocumentController::class, 'extract'])

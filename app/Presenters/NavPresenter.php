@@ -86,6 +86,8 @@ class NavPresenter
                     // duration of the parallel run; the flag is what keeps it
                     // out of every install that has not opted in.
                     ['label' => 'Universe', 'route' => 'rcsa.universe.index', 'permission' => 'rcsa_universe.view', 'feature' => 'rcsa_v2'],
+                    ['label' => 'Cycles', 'route' => 'rcsa.cycles.index', 'permission' => 'rcsa_cycle.view', 'feature' => 'rcsa_v2'],
+                    ['label' => 'My Assessments', 'route' => 'rcsa.assessments.index', 'permission' => 'rcsa_assessment.view', 'feature' => 'rcsa_v2'],
                 ],
             ],
             [

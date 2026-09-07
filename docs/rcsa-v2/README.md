@@ -11,7 +11,7 @@ deviated from and why, and what the phase found that the plan did not know.
 | P0 | Foundations: schema, methodology, calculation engine | **Done** — [p0-foundations.md](p0-foundations.md) |
 | P1 | RCSA Universe screen | **Done** — [p1-universe.md](p1-universe.md) |
 | P2 | Template generator and bulk upload | **Done** — [p2-template-and-import.md](p2-template-and-import.md) |
-| P3 | Cycles and assessment workspace | Not started |
+| P3 | Cycles and assessment workspace | **Done** — [p3-cycles-and-workspace.md](p3-cycles-and-workspace.md) |
 | P4 | Appetite, action plans, submission gate | Not started |
 | P5 | ORM review workflow | Not started |
 | P6 | Bulk download, dashboards, offline round-trip | Not started |
@@ -48,7 +48,7 @@ carried in the schema as configuration rather than being guessed at:
 | Q3 | Should Fully Achieved really drive residual to zero? | `rcsa_methodologies.residual_floor` — `0` seeded, which is template parity |
 | Q4 | Is appetite a single ceiling, or a statement per risk category? | `rcsa_methodologies.appetite_ceiling_level` — `low` seeded |
 
-The remaining seven (Q2, Q5–Q10) do not block P0, P1 or P2.
+Q1 is now visible in the product: `residual_mode` is `calculated`, so the workspace offers no residual likelihood/impact pair and the line endpoint refuses one. Switching the seeded methodology to `assessed` turns both on. The remaining questions (Q2, Q5–Q10) do not block P0–P3; Q6 and Q8 become live decisions in P5.
 
 ## Fixes found in use
 

@@ -183,6 +183,19 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'rcsa_universe.import' => 'Bulk-upload universe rows from the RCSA template.',
             ],
 
+            'RCSA Cycles' => [
+                'rcsa_cycle.view' => 'See RCSA cycles and their progress.',
+                'rcsa_cycle.manage' => 'Create and schedule an RCSA cycle.',
+                'rcsa_cycle.open' => 'Open a cycle, which copies the published universe into an '
+                    .'assessment for every business unit. This cannot be undone.',
+                'rcsa_cycle.close' => 'Close a cycle, freezing every assessment under it.',
+            ],
+
+            'RCSA Assessments' => [
+                'rcsa_assessment.view' => 'See RCSA assessments and the risks in them.',
+                'rcsa_assessment.complete' => 'Answer likelihood, impact and control effectiveness on an assessment.',
+            ],
+
             'Campaigns' => [
                 'campaign.view' => 'See assessment campaigns.',
                 'campaign.create' => 'Create a campaign.',
@@ -337,6 +350,8 @@ class RiskPermissionCatalog extends PermissionCatalog
             'rcsa.view', 'rcsa.submit',
             'rcsa_universe.view', 'rcsa_universe.create', 'rcsa_universe.update',
             'rcsa_universe.delete', 'rcsa_universe.publish', 'rcsa_universe.import',
+            'rcsa_cycle.view', 'rcsa_cycle.manage', 'rcsa_cycle.open', 'rcsa_cycle.close',
+            'rcsa_assessment.view', 'rcsa_assessment.complete',
             'analysis.view',
             'ai.view', 'ai.use',
             'control_test.view', 'control_test.create', 'control_test.edit', 'control_test.execute', 'control_test.review',
@@ -367,6 +382,8 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'treatment.view', 'treatment.create',
                 'rcsa.view', 'rcsa.submit',
                 'rcsa_universe.view', 'rcsa_universe.create', 'rcsa_universe.update',
+                'rcsa_cycle.view',
+                'rcsa_assessment.view', 'rcsa_assessment.complete',
                 'analysis.view',
                 'campaign.view', 'campaign.respond',
                 'control_test.view',
@@ -380,6 +397,7 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'report.view', 'report.generate',
                 'rcsa.view',
                 'rcsa_universe.view',
+                'rcsa_cycle.view', 'rcsa_assessment.view',
                 'analysis.view',
                 'ai.view',
                 'control_test.view',
@@ -408,6 +426,7 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'analysis.view',
                 'rcsa.view',
                 'rcsa_universe.view',
+                'rcsa_cycle.view', 'rcsa_assessment.view',
                 'control_test.view', 'control_test.review',
                 'regulatory.view', 'regulatory.manage', 'regulatory.file',
                 'period.view',

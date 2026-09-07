@@ -17,6 +17,8 @@ use App\Http\Controllers\Admin\WebhookController;
 use App\Http\Controllers\Auth\SsoController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Rcsa\AssessmentController as RcsaAssessmentController;
+use App\Http\Controllers\Rcsa\CycleController as RcsaCycleController;
 use App\Http\Controllers\Rcsa\ImportController as RcsaImportController;
 use App\Http\Controllers\Rcsa\UniverseController as RcsaUniverseController;
 use App\Http\Controllers\Risk\AiIntelligenceController;
@@ -1012,6 +1014,65 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
 
         Route::delete('{batch}', [RcsaImportController::class, 'destroy'])
             ->middleware('permission:rcsa_universe.import')->name('destroy');
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA v2 — cycles and the assessment workspace (plan §8) */
+    /* ------------------------------------------------------------------ */
+    /*
+     * OPENING A CYCLE HAS ITS OWN PERMISSION. It copies the whole published
+     * universe into an assessment for every business unit and cannot be
+     * undone, so scheduling a cycle (`manage`) and pulling that trigger
+     * (`open`) are separate — which lets a coordinator draft the quarter while
+     * the Head of ORM decides when it starts.
+     */
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/cycles')->name('rcsa.cycles.')->group(function () {
+        Route::get('/', [RcsaCycleController::class, 'index'])
+            ->middleware('permission:rcsa_cycle.view')->name('index');
+
+        Route::post('/', [RcsaCycleController::class, 'store'])
+            ->middleware('permission:rcsa_cycle.manage')->name('store');
+
+        Route::get('{cycle}', [RcsaCycleController::class, 'show'])
+            ->middleware('permission:rcsa_cycle.view')->name('show');
+
+        Route::get('{cycle}/scope', [RcsaCycleController::class, 'scope'])
+            ->middleware('permission:rcsa_cycle.view')->name('scope');
+
+        Route::put('{cycle}', [RcsaCycleController::class, 'update'])
+            ->middleware('permission:rcsa_cycle.manage')->name('update');
+
+        Route::post('{cycle}/open', [RcsaCycleController::class, 'open'])
+            ->middleware('permission:rcsa_cycle.open')->name('open');
+
+        Route::post('{cycle}/close', [RcsaCycleController::class, 'close'])
+            ->middleware('permission:rcsa_cycle.close')->name('close');
+
+        Route::delete('{cycle}', [RcsaCycleController::class, 'destroy'])
+            ->middleware('permission:rcsa_cycle.manage')->name('destroy');
+    });
+
+    Route::middleware('feature:rcsa_v2')->prefix('rcsa/assessments')->name('rcsa.assessments.')->group(function () {
+        Route::get('/', [RcsaAssessmentController::class, 'index'])
+            ->middleware('permission:rcsa_assessment.view')->name('index');
+
+        Route::get('{assessment}', [RcsaAssessmentController::class, 'show'])
+            ->middleware('permission:rcsa_assessment.view')->name('show');
+
+        Route::get('{assessment}/outstanding', [RcsaAssessmentController::class, 'outstanding'])
+            ->middleware('permission:rcsa_assessment.view')->name('outstanding');
+
+        // Per-cell autosave. PATCH, and it answers JSON rather than an Inertia
+        // redirect: the grid updates one row in place and a full page response
+        // would throw away the user's cursor position on every keystroke.
+        Route::patch('{assessment}/lines/{line}', [RcsaAssessmentController::class, 'updateLine'])
+            ->middleware('permission:rcsa_assessment.complete')->name('lines.update');
+
+        Route::post('{assessment}/lines/{line}/lock', [RcsaAssessmentController::class, 'lock'])
+            ->middleware('permission:rcsa_assessment.complete')->name('lines.lock');
+
+        Route::post('{assessment}/bulk-apply', [RcsaAssessmentController::class, 'bulkApply'])
+            ->middleware('permission:rcsa_assessment.complete')->name('bulk-apply');
     });
 
     /* ------------------------------------------------------------------ */

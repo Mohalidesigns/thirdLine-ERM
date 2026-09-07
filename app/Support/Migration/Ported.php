@@ -235,6 +235,10 @@ final class Ported
         // `features.rcsa_v2` is on.)
         'rcsa.universe.index',
         'rcsa.imports.show',
+        'rcsa.cycles.index',
+        'rcsa.cycles.show',
+        'rcsa.assessments.index',
+        'rcsa.assessments.show',
     ];
 
     public static function isRoute(string $name): bool

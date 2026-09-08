@@ -54,6 +54,29 @@ class RouteAuthorizationTest extends TestCase
         // one user's own calendar. Phase4ScreensTest covers the tampered-URL,
         // disabled-account and cross-tenant cases in detail.
         'bcms/calendar/{user}/calendar.ics',
+
+        // BCMS Phase 6 — the three cascade acknowledgement routes, and the
+        // second member of the signed-capability category the calendar feed
+        // opened. The credential is a 16-character HMAC of the test-node
+        // id, compared with `hash_equals` and unguessable without the app
+        // key; the controller resolves the tenant from the node before it
+        // reads anything, because `OrganizationScope` is inert untenanted.
+        //
+        // WHY NOT `signed`. The URL travels in an SMS. A Laravel signed URL
+        // is ~120 characters of query string, which pushes a 160-character
+        // message into two segments and doubles the cost of every cascade —
+        // and the security property is identical, an unguessable
+        // capability in the URL. The short form is a cost decision, not a
+        // weaker one.
+        //
+        // The inbound webhook is the one that cannot carry a per-user
+        // credential at all: a gateway posts to it. It is throttled, it
+        // matches a token inside the body, and it answers an unmatched
+        // reply with `matched: false` rather than an error a gateway would
+        // retry. PROVIDER SIGNATURE VERIFICATION IS PHASE 7'S, with the
+        // real adapters that know each provider's scheme.
+        'bcms/cascade/{token}',
+        'bcms/cascade-inbound',
     ];
 
     #[Test]
@@ -176,7 +199,16 @@ class RouteAuthorizationTest extends TestCase
             // calendar application that sends no session. It is the only
             // member of that category so far; a second one should have to
             // argue for itself here.
-            'bcms/calendar/{user}/calendar.ics'];
+            'bcms/calendar/{user}/calendar.ics',
+            // BCMS Phase 6. The same category, and the argument is in the
+            // constant above: an unguessable HMAC capability in the path
+            // rather than a signed query string, because the URL travels in an
+            // SMS and a signed one would double the cost of every cascade. The
+            // inbound webhook is a gateway callback that can carry no per-user
+            // credential; it is throttled and Phase 7 adds provider signature
+            // verification with the real adapters.
+            'bcms/cascade/{token}',
+            'bcms/cascade-inbound'];
 
         $this->assertSame(
             $permitted,

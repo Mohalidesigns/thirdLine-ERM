@@ -349,6 +349,30 @@ class CalendarService
                     }
                 });
             }
+
+            /*
+             * AN UNANNOUNCED EXERCISE IS NOT ON THE PARTICIPANTS' CALENDAR.
+             * Phase 4 kept it out of the ICS feed and Phase 5 suppressed its
+             * reminder ladder, and both are pointless if the drill is sitting
+             * on the month view where anybody can read it (Phase 6, criterion
+             * 7). A cascade everybody was expecting measures how well people
+             * wait for a message, which is not the thing being tested.
+             *
+             * Three people still see it: whoever can run the programme, the
+             * definition's owner, and the facilitator who has to be there. The
+             * facilitator's own readiness ladder runs as normal — unannounced
+             * means unannounced to participants, not to the person holding the
+             * stopwatch.
+             */
+            if ($user->can('bcms.exercise.manage') !== true) {
+                $userId = (int) $user->getKey();
+
+                $query->where(function (Builder $q) use ($userId) {
+                    $q->where('d.unannounced', false)
+                        ->orWhere('d.owner_id', $userId)
+                        ->orWhere('bcms_exercise_occurrences.facilitator_id', $userId);
+                });
+            }
         }
 
         foreach ([

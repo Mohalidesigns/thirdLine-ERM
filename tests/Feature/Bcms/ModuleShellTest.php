@@ -178,19 +178,18 @@ class ModuleShellTest extends TestCase
     #[Test]
     public function a_section_screen_names_the_phase_that_delivers_it(): void
     {
-        // `calendar` was the example here until Phase 4 replaced it with the
-        // real screen. `call-trees` is Phase 6's and is still a shell — the
-        // example has to be a section that has not landed, or this asserts
-        // nothing.
-        $user = $this->userWith(['bcms.view', 'bcms.calltree.view']);
+        // The example has to be a section that has not landed, or this asserts
+        // nothing. `calendar` was it until Phase 4 and `call-trees` until Phase
+        // 6; `emns` is Phase 7's and is the next one to be replaced.
+        $user = $this->userWith(['bcms.view', 'bcms.alert.view']);
 
         // A blank screen is indistinguishable from a broken one.
         $this->actingAs($user)
-            ->get(route('bcms.call-trees.index'))
+            ->get(route('bcms.emns.index'))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->component('Bcms/Section')
-                ->where('section.key', 'call-trees')
+                ->where('section.key', 'emns')
                 ->has('section.phase')
                 ->has('section.lands')
                 ->has('section.clause')

@@ -50,8 +50,15 @@ trait ScopedToOrgHierarchy
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     * The generic is not decoration: this returns the builder it was handed, so
+     * a caller with a `Builder<CallTree>` gets one back. Declared as
+     * `Builder<Model>` it made every typed caller a variance error and pushed
+     * them towards widening their own return types to match.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<TModel>
      */
     public function scopeVisibleTo(Builder $query, ?User $user): Builder
     {
@@ -90,8 +97,15 @@ trait ScopedToOrgHierarchy
      * a constructor of its own, and the builder already carries the instance
      * that owns the scope.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     * The generic is not decoration. This returns the builder it was handed,
+     * so a caller with a `Builder<CallTree>` must get one back; declaring the
+     * parameter as `Builder<Model>` made every typed caller a variance error
+     * and pushed them towards widening their own return types to match.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<TModel>
      */
     public static function visibleQuery(Builder $query, ?User $user): Builder
     {

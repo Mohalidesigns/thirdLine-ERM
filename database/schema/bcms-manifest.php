@@ -103,7 +103,7 @@ return [
         'activation_authority_user_id', 'approved_at', 'approved_by', 'business_unit_id',
         'created_at', 'created_by', 'deleted_at', 'id', 'iso_clause_ref', 'last_reviewed_at',
         'name', 'organization_id', 'review_frequency_days', 'site_id', 'source', 'status',
-        'tree_type', 'updated_at', 'updated_by', 'uuid', 'version',
+        'supersedes_call_tree_id', 'tree_type', 'updated_at', 'updated_by', 'uuid', 'version',
     ],
     'bcms_clause_refs' => [
         'citation', 'clause', 'code', 'created_at', 'export_packs', 'id', 'is_mandatory_record',

@@ -161,3 +161,17 @@ Schedule::command('bcms:chase-bia')->dailyAt('07:00');
 // catches the changes the application never sees, like a vendor soft-deleted in
 // TPRM or a site closed, which cannot know that a plan depends on them.
 Schedule::command('bcms:check-plan-drift')->dailyAt('05:30')->withoutOverlapping();
+
+// BCMS Phase 6. EVERY MINUTE, because a minute is the unit the scorecard
+// measures in: a node's response window is commonly ten or fifteen, and a sweep
+// running every five would report a fifteen-minute window as having closed
+// after twenty. It does nothing at all when no cascade is running, which is
+// almost always. `withoutOverlapping` because a slow tick must not have a
+// second one escalating the same node to the same deputy twice.
+Schedule::command('bcms:cascade-tick')->everyMinute()->withoutOverlapping();
+
+// BCMS Phase 6, and it runs AFTER the directory sync rather than performing
+// one — a leaver is already an inactive contact by the time this looks. 05:15
+// puts it before the plan-drift sweep at 05:30, so a call-tree binding that
+// drift is about to re-resolve has already been flagged.
+Schedule::command('bcms:call-tree-hygiene')->dailyAt('05:15')->withoutOverlapping();

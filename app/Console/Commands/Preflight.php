@@ -236,6 +236,29 @@ class Preflight extends Command
             // disabled-account and cross-tenant cases.
             'bcms/calendar/{user}/calendar.ics',
 
+            // BCMS Phase 6 — the three cascade acknowledgement routes, and the
+            // second member of the signed-capability category the calendar feed
+            // opened. The credential is a 16-character HMAC of the test-node
+            // id, compared with `hash_equals` and unguessable without the app
+            // key; the controller resolves the tenant from the node before it
+            // reads anything, because `OrganizationScope` is inert untenanted.
+            //
+            // WHY NOT `signed`. The URL travels in an SMS. A Laravel signed URL
+            // is ~120 characters of query string, which pushes a 160-character
+            // message into two segments and doubles the cost of every cascade —
+            // and the security property is identical, an unguessable
+            // capability in the URL. The short form is a cost decision, not a
+            // weaker one.
+            //
+            // The inbound webhook is the one that cannot carry a per-user
+            // credential at all: a gateway posts to it. It is throttled, it
+            // matches a token inside the body, and it answers an unmatched
+            // reply with `matched: false` rather than an error a gateway would
+            // retry. PROVIDER SIGNATURE VERIFICATION IS PHASE 7'S, with the
+            // real adapters that know each provider's scheme.
+            'bcms/cascade/{token}',
+            'bcms/cascade-inbound',
+
             // Livewire's two framework endpoints were here — upload-file and
             // preview-file/{filename}, neither mapping to a feature and so
             // neither taking a permission. Migration Phase 6.8 uninstalled

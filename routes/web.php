@@ -19,6 +19,8 @@ use App\Http\Controllers\Bcms\BiaCampaignController as BcmsBiaCampaignController
 use App\Http\Controllers\Bcms\BiaController as BcmsBiaController;
 use App\Http\Controllers\Bcms\BiaReportController as BcmsBiaReportController;
 use App\Http\Controllers\Bcms\CalendarController as BcmsCalendarController;
+use App\Http\Controllers\Bcms\CallTreeController as BcmsCallTreeController;
+use App\Http\Controllers\Bcms\CallTreeTestController as BcmsCallTreeTestController;
 use App\Http\Controllers\Bcms\DependencyController as BcmsDependencyController;
 use App\Http\Controllers\Bcms\ExerciseDefinitionController as BcmsExerciseDefinitionController;
 use App\Http\Controllers\Bcms\ExerciseProgrammeController as BcmsExerciseProgrammeController;
@@ -2348,6 +2350,79 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::post('readiness-tasks/{task}/override', [BcmsReadinessController::class, 'override'])
             ->middleware('permission:bcms.readiness.override')->name('readiness-tasks.override');
 
+        /* --- Call trees (Phase 6) --------------------------------------- */
+        /*
+         * THREE PERMISSIONS, NOT TWO. Seeing a tree, editing it and firing it
+         * at two hundred people are three different authorities: the third one
+         * puts a message on the phone of every teller in a branch at 03:00, and
+         * whoever holds it is a shorter list than whoever may draw the diagram.
+         */
+        Route::get('call-trees', [BcmsCallTreeController::class, 'index'])
+            ->middleware('permission:bcms.calltree.view')->name('call-trees.index');
+        Route::post('call-trees', [BcmsCallTreeController::class, 'store'])
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.store');
+        Route::post('call-trees/generate', [BcmsCallTreeController::class, 'generate'])
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.generate');
+        Route::get('call-trees/generate/preview', [BcmsCallTreeController::class, 'preview'])
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.generate.preview');
+        Route::get('call-trees/{call_tree}', [BcmsCallTreeController::class, 'show'])
+            ->middleware('permission:bcms.calltree.view')->name('call-trees.show');
+        Route::patch('call-trees/{call_tree}', [BcmsCallTreeController::class, 'update'])
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.update');
+        Route::get('call-trees/{call_tree}/versions', [BcmsCallTreeController::class, 'versions'])
+            ->middleware('permission:bcms.calltree.view')->name('call-trees.versions');
+        Route::get('call-trees/{call_tree}/candidates', [BcmsCallTreeController::class, 'candidates'])
+            ->middleware('permission:bcms.calltree.view')->name('call-trees.candidates');
+        Route::post('call-trees/{call_tree}/approve', [BcmsCallTreeController::class, 'approve'])
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.approve');
+        Route::post('call-trees/{call_tree}/supersede', [BcmsCallTreeController::class, 'supersede'])
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.supersede');
+        Route::post('call-trees/{call_tree}/review', [BcmsCallTreeController::class, 'review'])
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.review');
+        Route::post('call-trees/{call_tree}/nodes', [BcmsCallTreeController::class, 'storeNode'])
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.store');
+        Route::patch('call-trees/{call_tree}/nodes/{node}', [BcmsCallTreeController::class, 'updateNode'])
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.update');
+        Route::delete('call-trees/{call_tree}/nodes/{node}', [BcmsCallTreeController::class, 'destroyNode'])
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.destroy');
+        Route::post('call-trees/{call_tree}/nodes/{node}/reparent', [BcmsCallTreeController::class, 'reparentNode'])
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.reparent');
+        Route::post('call-trees/{call_tree}/nodes/{node}/deputy', [BcmsCallTreeController::class, 'assignDeputy'])
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.deputy');
+
+        Route::post('call-trees/{call_tree}/tests', [BcmsCallTreeTestController::class, 'store'])
+            ->middleware('permission:bcms.calltree.test')->name('call-trees.tests.store');
+        Route::get('call-tree-tests/{test}', [BcmsCallTreeTestController::class, 'show'])
+            ->middleware('permission:bcms.calltree.view')->name('call-tree-tests.show');
+        Route::get('call-tree-tests/{test}/live', [BcmsCallTreeTestController::class, 'liveScreen'])
+            ->middleware('permission:bcms.calltree.view')->name('call-tree-tests.live');
+        Route::get('call-tree-tests/{test}/live.json', [BcmsCallTreeTestController::class, 'live'])
+            ->middleware('permission:bcms.calltree.view')->name('call-tree-tests.live.json');
+        Route::get('call-tree-tests/{test}/scorecard', [BcmsCallTreeTestController::class, 'scorecard'])
+            ->middleware('permission:bcms.calltree.view')->name('call-tree-tests.scorecard');
+        Route::get('call-tree-tests/{test}/broken-branches', [BcmsCallTreeTestController::class, 'brokenBranches'])
+            ->middleware('permission:bcms.calltree.view')->name('call-tree-tests.broken-branches');
+        Route::post('call-tree-tests/{test}/initiate', [BcmsCallTreeTestController::class, 'initiate'])
+            ->middleware('permission:bcms.calltree.test')->name('call-tree-tests.initiate');
+        Route::post('call-tree-tests/{test}/complete', [BcmsCallTreeTestController::class, 'complete'])
+            ->middleware('permission:bcms.calltree.test')->name('call-tree-tests.complete');
+        Route::post('call-tree-tests/{test}/abort', [BcmsCallTreeTestController::class, 'abort'])
+            ->middleware('permission:bcms.calltree.test')->name('call-tree-tests.abort');
+        /*
+         * ACKNOWLEDGING IS `calltree.view`, NOT `calltree.test`. The person
+         * confirming they were reached is a teller, not the BC team; requiring
+         * the dispatch permission to answer a cascade would mean nobody on the
+         * tree could record their own response.
+         */
+        Route::post('call-tree-tests/{test}/nodes/{node}/ack', [BcmsCallTreeTestController::class, 'acknowledge'])
+            ->middleware('permission:bcms.calltree.view')->name('call-tree-tests.nodes.ack');
+        Route::post('call-tree-tests/{test}/nodes/{node}/failure', [BcmsCallTreeTestController::class, 'recordFailure'])
+            ->middleware('permission:bcms.calltree.test')->name('call-tree-tests.nodes.failure');
+        Route::post('call-tree-tests/{test}/nodes/{node}/fix-contact', [BcmsCallTreeTestController::class, 'fixContact'])
+            ->middleware('permission:bcms.contact.manage')->name('call-tree-tests.nodes.fix-contact');
+        Route::post('call-tree-tests/{test}/nodes/{node}/finding', [BcmsCallTreeTestController::class, 'raiseFinding'])
+            ->middleware('permission:bcms.finding.manage')->name('call-tree-tests.nodes.finding');
+
         /* --- The sections whose phase has not landed yet ---------------- */
         foreach (\App\Support\Bcms\ModuleSections::all() as $bcmsSection) {
             if ($bcmsSection['live']) {
@@ -2380,3 +2455,33 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
 Route::middleware(['signed', 'feature:bcms'])
     ->get('bcms/calendar/{user}/calendar.ics', [\App\Http\Controllers\Bcms\CalendarController::class, 'ics'])
     ->name('bcms.calendar.ics');
+
+/* ---------------------------------------------------------------------- */
+/*  Cascade acknowledgement — the other two routes outside `auth`. */
+/* ---------------------------------------------------------------------- */
+/*
+ * A branch teller with a feature phone at three in the morning does not log
+ * into a GRC platform to say "received". Criterion 3 wants three ways in and
+ * two of them arrive with no session: the signed link in the message, and an
+ * inbound reply posted by a gateway.
+ *
+ * The credential is an HMAC of the node id, compared with `hash_equals`. The
+ * controller sets `TenantContext` from the resolved node before it reads
+ * anything else — `OrganizationScope` is inert untenanted, and this is the
+ * second route in the product where that matters.
+ */
+Route::middleware(['feature:bcms'])->group(function () {
+    Route::get('bcms/cascade/{token}', [\App\Http\Controllers\Bcms\CascadeAckController::class, 'show'])
+        ->name('bcms.cascade.ack');
+    Route::post('bcms/cascade/{token}', [\App\Http\Controllers\Bcms\CascadeAckController::class, 'store'])
+        ->name('bcms.cascade.ack.store');
+    /*
+     * Throttled, because it is the one route here a gateway posts to and
+     * nothing about it can carry a per-user credential. Phase 7 adds each
+     * provider's own signature scheme with its adapter; until then the rate
+     * limit and the in-body token are what stand between this and a stranger.
+     */
+    Route::post('bcms/cascade-inbound', [\App\Http\Controllers\Bcms\CascadeAckController::class, 'inbound'])
+        ->middleware('throttle:60,1')
+        ->name('bcms.cascade.inbound');
+});

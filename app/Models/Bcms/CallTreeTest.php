@@ -2,6 +2,7 @@
 
 namespace App\Models\Bcms;
 
+use App\Enums\Bcms\CascadeMode;
 use App\Models\Bcms\Concerns\BcmsAuditable;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\User;
@@ -24,7 +25,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property int $organization_id
  * @property int $call_tree_id
  * @property ?int $occurrence_id
- * @property string $mode
+ * @property \App\Enums\Bcms\CascadeMode $mode
  * @property bool $announced
  * @property ?\Illuminate\Support\Carbon $initiated_at
  * @property ?int $initiated_by
@@ -78,6 +79,7 @@ class CallTreeTest extends Model
             'nodes_reached' => 'integer',
             'created_by' => 'integer',
             'updated_by' => 'integer',
+            'mode' => CascadeMode::class,
         ];
     }
 

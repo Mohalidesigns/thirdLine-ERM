@@ -135,7 +135,7 @@ class ModuleSections
                 'summary' => 'Cascade trees per department, tested live, scored per node, with the broken branch shown for what it is.',
                 'lands' => 'The tree designer, generation from Active Directory, live test mode with per-node timing, and the broken-branch screen with its downstream-blocked count.',
                 'clause' => 'ISO 22301 clause 8.4.3',
-                'live' => false,
+                'live' => true,
             ],
             [
                 'key' => 'emns',

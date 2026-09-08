@@ -257,6 +257,10 @@ class BcmsDemoSeeder extends Seeder
             // countdown is live.
             $this->seedCountdownDemo();
 
+            // Phase 6: 22 call trees over a ~330-person roster, with the
+            // Operations tree built to be the broken-branch demo.
+            (new CallTreeDemoSeeder)->run($organization);
+
             app(MaturityService::class)->assess($programme, 'scheduled');
         } finally {
             TenantContext::clear();

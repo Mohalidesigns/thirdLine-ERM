@@ -220,7 +220,50 @@ class ResidualScoringService
             );
         }
 
+        /*
+         * AC-11. Derived LIVE from the plan's own state rather than read from
+         * a stored signal, for the reason the whole split above exists: the
+         * moment a plan is tested the uplift should go, and a score that
+         * waited for tomorrow's sweep would tell a relationship owner their
+         * remediation had not worked.
+         */
+        $stalePlan = $this->staleExitPlan($engagement);
+
+        if ($stalePlan !== null) {
+            $signals[] = new SignalContribution(
+                type: 'exit_plan_stale',
+                label: $stalePlan->last_tested_at === null
+                    ? 'The exit plan has never been tested'
+                    : sprintf(
+                        'The exit plan was last tested on %s, past its %s interval',
+                        $stalePlan->last_tested_at->toDateString(),
+                        $stalePlan->next_test_due?->toDateString() ?? 'policy',
+                    ),
+                id: $stalePlan->getKey(),
+                observedAt: $stalePlan->next_test_due?->toDateString(),
+            );
+        }
+
         return $signals;
+    }
+
+    /**
+     * The engagement's exit plan, where it is past its test interval.
+     *
+     * Reads the DATE rather than the `stale` status. The status is set by a
+     * nightly job and is the record that the finding was raised; the date is
+     * true the moment it passes. A score that only reflected staleness after
+     * the job had run would be a day behind on the one signal a supervisor is
+     * most likely to ask about.
+     */
+    private function staleExitPlan(Engagement $engagement): ?\App\Models\Tprm\ExitPlan
+    {
+        return \App\Models\Tprm\ExitPlan::query()
+            ->where('engagement_id', $engagement->getKey())
+            ->whereNotIn('status', ['not_required', 'completed'])
+            ->whereNotNull('next_test_due')
+            ->whereDate('next_test_due', '<', now()->toDateString())
+            ->first();
     }
 
     /**

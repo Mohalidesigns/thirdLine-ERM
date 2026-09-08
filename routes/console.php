@@ -111,6 +111,13 @@ Schedule::command('tprm:refresh-sanctions-lists')->dailyAt('05:15');
 // night rather than the next one.
 Schedule::command('tprm:reconcile-access')->dailyAt('07:30');
 
+// TPRM Phase 9. EVERY FIFTEEN MINUTES, which is unusual here and is a property
+// of the clocks rather than of the module: a 24-hour CBN window escalates at
+// 50% and 80% — twelve and roughly nineteen hours — and a daily job would miss
+// the first threshold entirely on an incident reported in the afternoon. The
+// escalation table's unique index makes the frequency safe.
+Schedule::command('tprm:run-clocks')->everyFifteenMinutes()->withoutOverlapping();
+
 // Weekly, not daily: concentration is a property of the portfolio's shape,
 // which does not move overnight. Daily snapshots would bury the four quarters
 // anybody wants to compare under three hundred near-identical rows.

@@ -128,6 +128,14 @@ return [
                 'expired_mandatory_evidence' => 4,
                 'overdue_assessment' => 5,
                 'unrevoked_access_terminated' => 6,
+
+                /*
+                 * AC-11. An exit plan past its test interval is a document
+                 * about exiting rather than a demonstrated ability to exit,
+                 * and the residual risk carries the difference. Four is the
+                 * number the acceptance criterion names.
+                 */
+                'exit_plan_stale' => 4,
             ],
             'expired_evidence_cap' => 8,
         ],

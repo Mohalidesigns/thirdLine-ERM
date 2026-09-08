@@ -2351,6 +2351,26 @@ parameters:
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
 			identifier: method.notFound
 			count: 1
+			path: app/Models/Tprm/ExitTest.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/IncidentEscalation.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/NotificationDraft.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Tprm/TprmSetting.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
 			path: app/Models/Tprm/Incident.php
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'

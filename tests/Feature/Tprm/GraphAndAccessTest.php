@@ -485,7 +485,10 @@ class GraphAndAccessTest extends TestCase
         } catch (OpenAccessException $exception) {
             $this->assertStringContainsString('Yusuf Bello', $exception->getMessage());
             $this->assertStringContainsString('Core Banking', $exception->getMessage());
-            $this->assertCount(1, $exception->details());
+
+            // Phase 9 reports both gates together, so the offboarding items
+            // appear alongside the access blocker. The access one leads,
+            // because it is the one with a live credential behind it.
             $this->assertSame('access_grant', $exception->details()[0]['kind']);
         }
 
@@ -517,7 +520,15 @@ class GraphAndAccessTest extends TestCase
 
         $this->assertTrue(app(TerminationGuard::class)->check($this->engagement)->allowed);
 
+        /*
+         * Phase 9 added a SECOND gate. Revoking clears the ACCESS block, which
+         * is what this test is about; the offboarding checklist (FR-EXT-03)
+         * then has to be settled too, and it is generated when the engagement
+         * enters transition. Settling it here is fixture work, not the subject
+         * — `OffboardingTest` is where the second gate is actually tested.
+         */
         $this->walkToTransitioning();
+        $this->settleOffboarding();
 
         $this->assertTrue(
             app(IntakeService::class)->transition($this->engagement, EngagementStatus::Terminated, $this->manager->id),
@@ -869,6 +880,31 @@ class GraphAndAccessTest extends TestCase
                 'dependency_level' => 'primary',
                 'reliance_level' => 'high',
             ]);
+        }
+    }
+
+    /**
+     * Settle the offboarding checklist so a Phase 7 test can reach
+     * `terminated` without also being a Phase 9 test.
+     */
+    private function settleOffboarding(): void
+    {
+        $checklist = \App\Models\Tprm\OffboardingChecklist::query()
+            ->where('engagement_id', $this->engagement->getKey())
+            ->first();
+
+        if ($checklist === null) {
+            return;
+        }
+
+        $service = app(\App\Services\Tprm\Exit\OffboardingService::class);
+
+        foreach ($checklist->items as $item) {
+            if ($item->isReconciled() || $item->isSettled()) {
+                continue;
+            }
+
+            $service->complete($item, null, $this->manager->id);
         }
     }
 

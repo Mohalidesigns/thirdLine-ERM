@@ -11,8 +11,9 @@ use App\Models\Tprm\AuditLog;
 use App\Models\Tprm\BusinessFunction;
 use App\Models\Tprm\Engagement;
 use App\Models\Tprm\TierPolicy;
-use App\Services\Tprm\Access\TerminationGuard;
+use App\Services\Tprm\Access\TerminationVerdict;
 use App\Services\Tprm\Contracts\ActivationGuard;
+use App\Services\Tprm\Exit\OffboardingService;
 use App\Services\Tprm\Scoring\TieringOutcome;
 use App\Services\Tprm\Scoring\TieringService;
 use Illuminate\Support\Collection;
@@ -210,11 +211,34 @@ class IntakeService
         }
 
         if ($target === EngagementStatus::Terminated) {
-            $access = app(TerminationGuard::class)->check($engagement);
+            /*
+             * TWO GATES, ASKED AS ONE QUESTION (Phase 9, FR-EXT-03). Access
+             * must be closed AND the mandatory offboarding items settled.
+             * Asking them separately would send somebody round the loop twice
+             * — clear the access, press terminate, discover the data
+             * destruction certificate is missing.
+             */
+            $readiness = app(OffboardingService::class)->terminationReadiness($engagement);
 
-            if (! $access->allowed) {
-                throw new OpenAccessException($access);
+            if (! $readiness['allowed']) {
+                throw new OpenAccessException(TerminationVerdict::refused(
+                    $readiness['reason'].' '.implode(
+                        '; ',
+                        array_slice(array_column($readiness['blockers'], 'label'), 0, 3),
+                    ),
+                    $readiness['blockers'],
+                ));
             }
+        }
+
+        /*
+         * The checklist is generated on entering TRANSITION, not on
+         * termination. By the time a relationship is being terminated the data
+         * return should already have happened; a checklist that appeared at
+         * the end would be a list of things it is too late to do.
+         */
+        if ($target === EngagementStatus::Transitioning) {
+            app(OffboardingService::class)->generate($engagement, $userId);
         }
 
         $engagement->forceFill(['status' => $target->value, 'updated_by' => $userId])->save();

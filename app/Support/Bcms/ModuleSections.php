@@ -63,7 +63,7 @@ class ModuleSections
                 'summary' => 'MTPD, RTO, RPO and MBCO per process, with impact scored over time and dependencies mapped.',
                 'lands' => 'BIA campaigns with distributed questionnaires, the impact-over-time grid, the dependency graph, and an AI first draft that stays a draft until somebody edits it.',
                 'clause' => 'ISO 22301 clause 8.2.2 · ISO/TS 22317',
-                'live' => false,
+                'live' => true,
             ],
             [
                 'key' => 'strategy',

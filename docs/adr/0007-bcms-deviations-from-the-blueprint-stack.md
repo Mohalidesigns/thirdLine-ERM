@@ -26,10 +26,22 @@ than discovered file by file.
 ## Two things the build pack asks for that this phase deliberately does **not** do
 
 - **Meilisearch and Laravel Prism bindings.** Neither is wired for BCMS in
-  Phase 0. Prism arrives with the AI capabilities in the phases that own them
-  (standing rule 4 — AI output is always a draft); search indexing arrives when
-  there is something to index. Wiring either now would be an untested
-  dependency in the schema-freeze commit.
+  Phase 0. Search indexing arrives when there is something to index; wiring it in
+  the schema-freeze commit would be an untested dependency.
+
+  **Update, Phase 2: Prism is never coming.** It is not installed in this product
+  and never has been. BCMS AI runs on `App\Services\LlmService` — the locally
+  hosted, Ollama-compatible client every existing AI feature already uses —
+  wrapped in `App\Services\Bcms\Ai\BcmsLlmClient`. **ADR 0010** argues it,
+  and the argument is not only reuse: a BIA is a bank's complete map of what it
+  depends on and how long it survives without each piece, and an architecture
+  that can run entirely inside the customer's estate is the one this product can
+  actually sell into Blueprint §14's on-prem requirement.
+
+  **Update, Phase 2: MeiliSearch is not installed either.** Process search is a
+  database `LIKE` across name, code and description. Adequate at fifty processes
+  and it will not be at five thousand; installing a search stack is an
+  infrastructure decision rather than a phase's.
 - **A `docs/design/BCMS-BLUEPRINT.md` copy.** The blueprint lives at
   `plans/NexusRisk-BCMS-Module-Blueprint-and-Implementation-Plan.md`, beside
   the TPRM and RCSA plans, and the orchestration document and phase prompts

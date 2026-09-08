@@ -31,6 +31,8 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property bool $require_dual_approval_for_live
  * @property string $alert_currency
  * @property int $contact_verification_days
+ * @property int $impact_intolerable_score
+ * @property ?string $critical_service_rto_ceiling_hours
  * @property ?int $created_by
  * @property ?int $updated_by
  * @property ?\Illuminate\Support\Carbon $created_at
@@ -48,7 +50,7 @@ class Setting extends Model
         'default_reminder_mode', 'quiet_hours_start', 'quiet_hours_end', 'escalation_day_offset',
         'default_channel_set', 'life_safety_channel_set', 'ai_enabled', 'ai_capabilities',
         'exercise_simulation_default', 'require_dual_approval_for_live', 'alert_currency',
-        'contact_verification_days', 'created_by', 'updated_by',
+        'contact_verification_days', 'impact_intolerable_score', 'critical_service_rto_ceiling_hours', 'created_by', 'updated_by',
     ];
 
     /** @return array<string, string> */
@@ -65,6 +67,8 @@ class Setting extends Model
             'exercise_simulation_default' => 'boolean',
             'require_dual_approval_for_live' => 'boolean',
             'contact_verification_days' => 'integer',
+            'impact_intolerable_score' => 'integer',
+            'critical_service_rto_ceiling_hours' => 'decimal:2',
             'created_by' => 'integer',
             'updated_by' => 'integer',
         ];

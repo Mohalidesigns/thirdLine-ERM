@@ -15,6 +15,10 @@ use App\Http\Controllers\Admin\SsoSettingsController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WebhookController;
 use App\Http\Controllers\Auth\SsoController;
+use App\Http\Controllers\Bcms\BiaCampaignController as BcmsBiaCampaignController;
+use App\Http\Controllers\Bcms\BiaController as BcmsBiaController;
+use App\Http\Controllers\Bcms\BiaReportController as BcmsBiaReportController;
+use App\Http\Controllers\Bcms\DependencyController as BcmsDependencyController;
 use App\Http\Controllers\Bcms\FindingController as BcmsFindingController;
 use App\Http\Controllers\Bcms\HomeController as BcmsHomeController;
 use App\Http\Controllers\Bcms\PolicyController as BcmsPolicyController;
@@ -2063,6 +2067,70 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.process.manage')->name('processes.raci.store');
         Route::delete('processes/{process}/raci', [BcmsProcessController::class, 'removeRaci'])
             ->middleware('permission:bcms.process.manage')->name('processes.raci.destroy');
+
+        /* --- The BIA engine (clause 8.2.2, ISO/TS 22317) ---------------- */
+        /*
+         * `bia` keeps the route name its Phase 0 shell had, so navigation,
+         * permissions and bookmarks survive the replacement.
+         *
+         * Completing an assessment and APPROVING one are different grants, and
+         * the service refuses an approver who is the assessor even when they
+         * hold both: approving fixes the recovery objectives every strategy,
+         * plan and DR tier downstream is measured against.
+         */
+        Route::get('bia', [BcmsBiaController::class, 'index'])
+            ->middleware('permission:bcms.bia.view')->name('bia.index');
+        Route::get('bia/assessments/{assessment}', [BcmsBiaController::class, 'show'])
+            ->middleware('permission:bcms.bia.view')->name('bia.show');
+        Route::post('bia/processes/{process}', [BcmsBiaController::class, 'store'])
+            ->middleware('permission:bcms.bia.complete')->name('bia.store');
+        Route::put('bia/assessments/{assessment}', [BcmsBiaController::class, 'update'])
+            ->middleware('permission:bcms.bia.complete')->name('bia.update');
+        Route::post('bia/assessments/{assessment}/impacts', [BcmsBiaController::class, 'scoreImpact'])
+            ->middleware('permission:bcms.bia.complete')->name('bia.impacts.store');
+        Route::post('bia/assessments/{assessment}/accept-derived-mtpd', [BcmsBiaController::class, 'acceptDerivedMtpd'])
+            ->middleware('permission:bcms.bia.complete')->name('bia.accept-mtpd');
+        Route::post('bia/assessments/{assessment}/submit', [BcmsBiaController::class, 'submit'])
+            ->middleware('permission:bcms.bia.complete')->name('bia.submit');
+        Route::post('bia/assessments/{assessment}/approve', [BcmsBiaController::class, 'approve'])
+            ->middleware('permission:bcms.bia.approve')->name('bia.approve');
+        Route::post('bia/assessments/{assessment}/return', [BcmsBiaController::class, 'returnForRework'])
+            ->middleware('permission:bcms.bia.approve')->name('bia.return');
+        // Standing rule 4: what comes back is a draft, flagged, with its
+        // reasoning, and it cannot submit or approve itself.
+        Route::post('bia/assessments/{assessment}/ai-draft', [BcmsBiaController::class, 'aiDraft'])
+            ->middleware('permission:bcms.bia.complete')->name('bia.ai-draft');
+        Route::post('bia/assessments/{assessment}/dependencies', [BcmsBiaController::class, 'storeDependency'])
+            ->middleware('permission:bcms.bia.complete')->name('bia.dependencies.store');
+        Route::delete('bia/assessments/{assessment}/dependencies/{dependency}', [BcmsBiaController::class, 'destroyDependency'])
+            ->middleware('permission:bcms.bia.complete')->name('bia.dependencies.destroy');
+
+        /* --- BIA campaigns --------------------------------------------- */
+        Route::get('bia-campaigns', [BcmsBiaCampaignController::class, 'index'])
+            ->middleware('permission:bcms.bia.view')->name('bia-campaigns.index');
+        Route::post('bia-campaigns', [BcmsBiaCampaignController::class, 'store'])
+            ->middleware('permission:bcms.bia.campaign.manage')->name('bia-campaigns.store');
+        Route::post('bia-campaigns/{campaign}/distribute', [BcmsBiaCampaignController::class, 'distribute'])
+            ->middleware('permission:bcms.bia.campaign.manage')->name('bia-campaigns.distribute');
+        Route::post('bia-campaigns/{campaign}/chase', [BcmsBiaCampaignController::class, 'chase'])
+            ->middleware('permission:bcms.bia.campaign.manage')->name('bia-campaigns.chase');
+        Route::post('bia-campaigns/{campaign}/close', [BcmsBiaCampaignController::class, 'close'])
+            ->middleware('permission:bcms.bia.campaign.manage')->name('bia-campaigns.close');
+
+        /* --- Dependencies and the reverse view -------------------------- */
+        Route::get('dependencies', [BcmsDependencyController::class, 'index'])
+            ->middleware('permission:bcms.bia.view')->name('dependencies.index');
+        // A morph key and an id rather than a bound model: the seven types live
+        // in four modules and a binding would need seven routes.
+        Route::get('dependencies/impact-of/{type}/{id}', [BcmsDependencyController::class, 'impactOf'])
+            ->whereNumber('id')
+            ->middleware('permission:bcms.bia.view')->name('dependencies.impact-of');
+
+        /* --- The BIA report --------------------------------------------- */
+        Route::get('bia-report', [BcmsBiaReportController::class, 'index'])
+            ->middleware('permission:bcms.bia.view')->name('bia-report.index');
+        Route::get('bia-report/export', [BcmsBiaReportController::class, 'export'])
+            ->middleware('permission:bcms.report.export')->name('bia-report.export');
 
         /* --- Findings and corrective actions (clause 10.1) -------------- */
         /*

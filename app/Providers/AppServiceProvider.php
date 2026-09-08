@@ -30,6 +30,16 @@ class AppServiceProvider extends ServiceProvider
         // product's idea, not a platform primitive.
         $this->app->singleton(\App\Support\Periods\PeriodContext::class);
 
+        /*
+         * BCMS tenant settings — a SINGLETON, because the service memoises the
+         * row per organisation and two instances would hold two caches. A
+         * settings change saved through one and read through another is a stale
+         * read inside a single request: the AI kill switch flipped on and the
+         * client still refusing, the RTO ceiling raised and the validator still
+         * blocking. Both are silent.
+         */
+        $this->app->singleton(\App\Services\Bcms\BcmsSettings::class);
+
         // How this product names the owner of a rendered document. The
         // renderer lives in thirdline/reporting and deliberately does not know
         // what an organisation is — see OrganizationBranding for why a Central

@@ -5,9 +5,13 @@ namespace Database\Seeders\Bcms;
 use App\Enums\Bcms\ContactSource;
 use App\Enums\Bcms\FindingClassification;
 use App\Enums\Bcms\FindingSource;
+use App\Enums\Bcms\ImpactCategory;
+use App\Enums\Bcms\ImpactHorizon;
 use App\Enums\Bcms\IsoClauseRef;
 use App\Enums\Bcms\RaciRole;
 use App\Models\Bcms\Application;
+use App\Models\Bcms\BiaAssessment;
+use App\Models\Bcms\BiaCampaign;
 use App\Models\Bcms\Contact;
 use App\Models\Bcms\DataSet;
 use App\Models\Bcms\Equipment;
@@ -22,6 +26,9 @@ use App\Models\BusinessProcess;
 use App\Models\BusinessUnit;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Bcms\Bia\BiaAssessmentService;
+use App\Services\Bcms\Bia\BiaCampaignService;
+use App\Services\Bcms\Bia\DependencyService;
 use App\Services\Bcms\Findings\CorrectiveActionService;
 use App\Services\Bcms\Findings\FindingService;
 use App\Services\Bcms\MaturityService;
@@ -191,6 +198,7 @@ class BcmsDemoSeeder extends Seeder
             $this->seedEquipment($sites);
             $this->seedDataSets($applications);
             $this->seedProcesses();
+            $this->assignProcessOwners();
             $programme = $this->seedProgramme();
             $this->seedExerciseProgramme($programme);
             $this->seedContacts($sites);
@@ -204,6 +212,7 @@ class BcmsDemoSeeder extends Seeder
             $this->seedObjectives($programme);
             $this->seedManagementReview($programme);
             $this->seedWorkedFinding();
+            $this->seedBiaCampaign();
             app(MaturityService::class)->assess($programme, 'scheduled');
         } finally {
             TenantContext::clear();
@@ -305,6 +314,21 @@ class BcmsDemoSeeder extends Seeder
             ['APP-EMAIL', 'Corporate Email and Collaboration', 'saas', 'DC-CLD'],
             ['APP-HR', 'HR and Payroll', 'saas', 'DC-CLD'],
             ['APP-GL', 'General Ledger and Reporting', 'on_premise', 'DC-PRI'],
+            ['APP-ATM', 'ATM Switch and Monitoring', 'on_premise', 'DC-PRI'],
+            ['APP-AGENT', 'Agent Banking Platform', 'saas', 'DC-CLD'],
+            ['APP-LOAN', 'Loan Origination System', 'on_premise', 'DC-PRI'],
+            ['APP-COLL', 'Collections and Recovery', 'on_premise', 'DC-PRI'],
+            ['APP-TRADE', 'Trade Finance System', 'on_premise', 'DC-PRI'],
+            ['APP-CRM', 'Customer Relationship Management', 'saas', 'DC-CLD'],
+            ['APP-CONTACT', 'Contact Centre Platform', 'saas', 'DC-CLD'],
+            ['APP-DMS', 'Document Management System', 'on_premise', 'DC-PRI'],
+            ['APP-SIEM', 'Security Monitoring (SIEM)', 'on_premise', 'DC-PRI'],
+            ['APP-BACKUP', 'Backup and Replication', 'on_premise', 'DC-DR'],
+            ['APP-AD', 'Directory Services', 'on_premise', 'DC-PRI'],
+            ['APP-NET', 'Network Management', 'on_premise', 'DC-PRI'],
+            ['APP-RETURNS', 'Regulatory Returns Engine', 'on_premise', 'DC-PRI'],
+            ['APP-RECON', 'Reconciliation Engine', 'on_premise', 'DC-PRI'],
+            ['APP-SWIFT', 'SWIFT Gateway', 'on_premise', 'DC-PRI'],
         ];
 
         $applications = [];
@@ -418,6 +442,29 @@ class BcmsDemoSeeder extends Seeder
                     'status' => 'active',
                 ]
             );
+        }
+    }
+
+    /**
+     * Give every process an owner.
+     *
+     * The eight linked to the org's own catalogue inherit its owner; the rest
+     * are spread across the active users. Without this a campaign distributes
+     * fifty assessments and asks five people, which is exactly the failure
+     * `distribute()` reports rather than hides.
+     */
+    private function assignProcessOwners(): void
+    {
+        $users = User::query()->where('is_active', true)->orderBy('id')->get();
+
+        if ($users->isEmpty()) {
+            return;
+        }
+
+        $unowned = Process::query()->whereNull('owner_id')->orderBy('code')->get();
+
+        foreach ($unowned as $index => $process) {
+            $process->update(['owner_id' => $users[$index % $users->count()]->id]);
         }
     }
 
@@ -709,5 +756,196 @@ class BcmsDemoSeeder extends Seeder
 
         // Left open on purpose. A demo whose only finding is already closed
         // shows the register at rest rather than at work.
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Phase 2 — the BIA estate */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * The recovery objectives and dependencies for the twelve processes the
+     * demo actually walks through.
+     *
+     * Tier, RTO in hours, RPO in minutes, and what the process rests on.
+     * FOUR DELIBERATE SINGLE POINTS OF FAILURE and one dependency four
+     * processes share, because a dependency screen with neither shows a feature
+     * working and demonstrates nothing.
+     *
+     * @var array<string, array<string, mixed>>
+     */
+    private const BIA_PROFILE = [
+        'BCP-PY' => ['tier' => 1, 'rto' => 0.5, 'rpo' => 0, 'mtpd' => 4,
+            'mbco' => 'NIP inbound and outbound settlement for retail values, with corporate payments queued.',
+            'deps' => [['applications', 'APP-SWITCH', 'critical', true], ['applications', 'APP-CORE', 'critical', false], ['applications', 'APP-NET', 'critical', true], ['sites', 'DC-PRI', 'critical', false]]],
+        'BCP-CHAN' => ['tier' => 1, 'rto' => 1, 'rpo' => 15, 'mtpd' => 8,
+            'mbco' => 'Balance enquiry and intra-bank transfer on USSD; full mobile app service may follow.',
+            'deps' => [['applications', 'APP-MOBILE', 'critical', false], ['applications', 'APP-USSD', 'high', false], ['applications', 'APP-CORE', 'critical', false], ['applications', 'APP-NET', 'critical', true]]],
+        'BCP-CORE' => ['tier' => 1, 'rto' => 2, 'rpo' => 0, 'mtpd' => 8,
+            'mbco' => 'Deposit, withdrawal and balance enquiry against the current ledger.',
+            'deps' => [['applications', 'APP-CORE', 'critical', true], ['sites', 'DC-PRI', 'critical', false], ['applications', 'APP-AD', 'high', false], ['applications', 'APP-NET', 'critical', true]]],
+        'BCP-CARD' => ['tier' => 1, 'rto' => 1, 'rpo' => 5, 'mtpd' => 6,
+            'mbco' => 'Card authorisation at point of sale; issuing and personalisation can wait.',
+            'deps' => [['applications', 'APP-CARD', 'critical', false], ['applications', 'APP-SWITCH', 'critical', true], ['applications', 'APP-NET', 'critical', true]]],
+        'BCP-ATM' => ['tier' => 2, 'rto' => 4, 'rpo' => 30, 'mtpd' => 24,
+            'mbco' => 'Cash withdrawal at branch-attached ATMs.',
+            'deps' => [['applications', 'APP-ATM', 'high', false], ['applications', 'APP-SWITCH', 'critical', true], ['equipment', 'HQ-GEN', 'medium', false]]],
+        'BCP-CASH' => ['tier' => 2, 'rto' => 4, 'rpo' => 60, 'mtpd' => 24,
+            'mbco' => 'Counter cash service at head office and the four largest branches.',
+            'deps' => [['applications', 'APP-CORE', 'critical', false], ['sites', 'BR-KAN', 'high', false], ['equipment', 'HQ-GEN', 'high', false]]],
+        'BCP-FX' => ['tier' => 2, 'rto' => 4, 'rpo' => 15, 'mtpd' => 24,
+            'mbco' => 'Settlement of trades already struck; new dealing may be suspended.',
+            'deps' => [['applications', 'APP-TREAS', 'critical', false], ['applications', 'APP-SWIFT', 'critical', true], ['applications', 'APP-NET', 'high', true]]],
+        'BCP-RET' => ['tier' => 2, 'rto' => 8, 'rpo' => 240, 'mtpd' => 48,
+            'mbco' => 'The returns falling due inside the next five working days.',
+            'deps' => [['applications', 'APP-RETURNS', 'high', false], ['applications', 'APP-GL', 'high', false], ['data_sets', 'DS-GL', 'critical', false]]],
+        'BCP-NET' => ['tier' => 2, 'rto' => 2, 'rpo' => 0, 'mtpd' => 8,
+            'mbco' => 'One working path between head office, the primary data centre and the switch.',
+            'deps' => [['applications', 'APP-NET', 'critical', true], ['sites', 'DC-PRI', 'critical', false]]],
+        'BCP-LN' => ['tier' => 3, 'rto' => 24, 'rpo' => 480, 'mtpd' => 72,
+            'mbco' => 'Disbursement of loans already approved; new applications may queue.',
+            'deps' => [['applications', 'APP-LOAN', 'high', false], ['applications', 'APP-CORE', 'high', false]]],
+        'BCP-KY' => ['tier' => 3, 'rto' => 24, 'rpo' => 480, 'mtpd' => 72,
+            'mbco' => 'Account opening for walk-in customers on a manual form, keyed later.',
+            'deps' => [['applications', 'APP-CRM', 'medium', false], ['applications', 'APP-DMS', 'medium', false]]],
+        'BCP-AML' => ['tier' => 2, 'rto' => 8, 'rpo' => 60, 'mtpd' => 48,
+            'mbco' => 'Screening of transactions above the reporting threshold.',
+            'deps' => [['applications', 'APP-AML', 'critical', false], ['data_sets', 'DS-TXN', 'critical', false]]],
+    ];
+
+    /**
+     * A distributed, part-completed BIA campaign.
+     *
+     * DELIBERATELY NOT ALL APPROVED. Twelve processes are assessed and approved;
+     * the other thirty-eight are outstanding, so the report's coverage figure
+     * and its gap list have something to say. A demo tenant at 100% coverage
+     * shows a screen that never has to be honest.
+     */
+    private function seedBiaCampaign(): void
+    {
+        if (BiaCampaign::query()->exists()) {
+            return;
+        }
+
+        $campaigns = app(BiaCampaignService::class);
+        $assessments = app(BiaAssessmentService::class);
+        $dependencies = app(DependencyService::class);
+
+        $campaign = $campaigns->create([
+            'name' => 'Annual business impact analysis '.now()->year,
+            'cycle' => 'annual',
+            'opens_at' => now()->subWeeks(6),
+            'closes_at' => now()->subWeek(),
+        ]);
+
+        $campaigns->distribute($campaign);
+
+        $approver = User::query()->where('email', 'admin@risk.test')->first()
+            ?? User::query()->where('is_active', true)->first();
+
+        foreach (self::BIA_PROFILE as $code => $profile) {
+            $process = Process::query()->where('code', $code)->first();
+
+            if ($process === null) {
+                continue;
+            }
+
+            $assessment = BiaAssessment::query()
+                ->where('campaign_id', $campaign->getKey())
+                ->where('process_id', $process->getKey())
+                ->first();
+
+            if ($assessment === null) {
+                continue;
+            }
+
+            $this->scoreGrid($assessments, $assessment, $profile['mtpd']);
+
+            $assessments->save($assessment->refresh(), [
+                'mtpd_hours' => $profile['mtpd'],
+                'rto_hours' => $profile['rto'],
+                'rpo_minutes' => $profile['rpo'],
+                'mbco_description' => $profile['mbco'],
+                'min_staff_required' => max(2, (int) round($profile['rto'])),
+                // Month-end, salary week and the festive period matter enormously
+                // in Nigerian banking, and a BIA that ignores them plans for a
+                // quiet Tuesday.
+                'peak_periods' => ['Month-end (last three working days)', 'Salary week (25th–28th)', 'December festive period'],
+                'workaround_available' => $profile['tier'] > 1,
+                'workaround_max_duration_hours' => $profile['tier'] > 1 ? $profile['rto'] * 2 : null,
+            ]);
+
+            foreach ($profile['deps'] as [$type, $targetCode, $criticality, $spof]) {
+                $target = $this->dependencyTarget($type, $targetCode);
+
+                if ($target === null) {
+                    continue;
+                }
+
+                $dependencies->attach($assessment->refresh(), $target, [
+                    'dependency_type' => 'upstream',
+                    'criticality' => $criticality,
+                    'single_point_of_failure' => $spof,
+                    // A single point of failure cannot also have an alternative;
+                    // the form request refuses that pairing and the demo must
+                    // not ship it.
+                    'alternative_available' => ! $spof && $criticality !== 'critical',
+                    'recovery_notes' => $spof
+                        ? 'No diverse alternative is in place. This is the gap, not a note.'
+                        : null,
+                ]);
+            }
+
+            $assessments->submit($assessment->refresh());
+
+            if ($approver !== null && (int) $approver->getKey() !== (int) $assessment->assessor_id) {
+                $assessments->approve($assessment->refresh(), (int) $approver->getKey(), $profile['tier']);
+            }
+        }
+    }
+
+    /**
+     * Fill the impact grid so the derived MTPD lands on the profile's figure.
+     *
+     * Impact ramps with time and crosses the intolerable score exactly at the
+     * intended horizon, which is what makes the derived proposal agree with the
+     * recorded answer on a demo tenant — and lets a demo show the two differing
+     * by editing one cell.
+     */
+    private function scoreGrid(BiaAssessmentService $assessments, BiaAssessment $assessment, float $mtpdHours): void
+    {
+        foreach (ImpactHorizon::cases() as $horizon) {
+            $hours = $horizon->hours();
+
+            $severity = match (true) {
+                $hours < $mtpdHours / 4 => 1,
+                $hours < $mtpdHours / 2 => 2,
+                $hours < $mtpdHours => 3,
+                $hours == $mtpdHours => 4,
+                default => 5,
+            };
+
+            foreach ([ImpactCategory::Regulatory, ImpactCategory::Customer, ImpactCategory::Financial] as $category) {
+                $assessments->scoreImpact(
+                    $assessment,
+                    $category,
+                    $horizon,
+                    $category === ImpactCategory::Regulatory ? $severity : max(1, $severity - 1),
+                    $category === ImpactCategory::Financial && $severity >= 4 ? 50_000_000_00 * $severity : null,
+                    sprintf('At %s the %s impact is rated %d of 5.', $horizon->value, $category->value, $severity),
+                );
+            }
+        }
+    }
+
+    private function dependencyTarget(string $type, string $code): ?\Illuminate\Database\Eloquent\Model
+    {
+        return match ($type) {
+            'applications' => Application::query()->where('code', $code)->first(),
+            'sites' => Site::query()->where('code', $code)->first(),
+            'equipment' => Equipment::query()->where('code', $code)->first(),
+            'data_sets' => DataSet::query()->where('code', $code)->first(),
+            'processes' => Process::query()->where('code', $code)->first(),
+            default => null,
+        };
     }
 }

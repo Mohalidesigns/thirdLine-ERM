@@ -2,6 +2,7 @@
 
 namespace App\Models\Bcms;
 
+use App\Enums\Bcms\BiaAssessmentStatus;
 use App\Models\Bcms\Concerns\BcmsAuditable;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\User;
@@ -25,8 +26,9 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?int $campaign_id
  * @property int $process_id
  * @property ?int $assessor_id
- * @property string $status
+ * @property BiaAssessmentStatus $status
  * @property ?string $mtpd_hours
+ * @property ?string $derived_mtpd_hours
  * @property ?string $rto_hours
  * @property ?int $rpo_minutes
  * @property ?string $mbco_description
@@ -36,6 +38,11 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?string $workaround_max_duration_hours
  * @property bool $ai_generated
  * @property ?\Illuminate\Support\Carbon $ai_drafted_at
+ * @property array<array-key, mixed> $ai_reasoning
+ * @property ?\Illuminate\Support\Carbon $chased_at
+ * @property int $chase_count
+ * @property ?\Illuminate\Support\Carbon $escalated_at
+ * @property ?int $escalated_to_user_id
  * @property ?\Illuminate\Support\Carbon $submitted_at
  * @property ?int $approved_by
  * @property ?\Illuminate\Support\Carbon $approved_at
@@ -54,9 +61,9 @@ class BiaAssessment extends Model
 
     /** @var list<string> */
     protected $fillable = [
-        'organization_id', 'campaign_id', 'process_id', 'assessor_id', 'status', 'mtpd_hours',
+        'organization_id', 'campaign_id', 'process_id', 'assessor_id', 'status', 'mtpd_hours', 'derived_mtpd_hours',
         'rto_hours', 'rpo_minutes', 'mbco_description', 'min_staff_required', 'peak_periods',
-        'workaround_available', 'workaround_max_duration_hours', 'ai_generated', 'ai_drafted_at',
+        'workaround_available', 'workaround_max_duration_hours', 'ai_generated', 'ai_drafted_at', 'ai_reasoning', 'chased_at', 'chase_count', 'escalated_at', 'escalated_to_user_id',
         'submitted_at', 'approved_by', 'approved_at', 'iso_clause_ref', 'created_by', 'updated_by',
     ];
 
@@ -69,7 +76,14 @@ class BiaAssessment extends Model
             'campaign_id' => 'integer',
             'process_id' => 'integer',
             'assessor_id' => 'integer',
+            'status' => BiaAssessmentStatus::class,
             'mtpd_hours' => 'decimal:2',
+            'derived_mtpd_hours' => 'decimal:2',
+            'ai_reasoning' => 'array',
+            'chased_at' => 'datetime',
+            'chase_count' => 'integer',
+            'escalated_at' => 'datetime',
+            'escalated_to_user_id' => 'integer',
             'rto_hours' => 'decimal:2',
             'rpo_minutes' => 'integer',
             'min_staff_required' => 'integer',

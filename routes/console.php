@@ -148,3 +148,9 @@ Schedule::command('bcms:watchdog')->hourlyAt(30)->withoutOverlapping();
 // accessor makes "overdue" a property of when you looked, and a board pack
 // printed in March has to still say in December what it said in March.
 Schedule::command('bcms:sweep-actions')->dailyAt('06:45');
+
+// BCMS Phase 2. After the CAPA sweep and before the morning digest, so an owner
+// opening their mail at 08:00 sees one message rather than two. The command
+// chases on an interval rather than nightly — forty people taught to filter a
+// daily reminder are forty people who will not read the escalation either.
+Schedule::command('bcms:chase-bia')->dailyAt('07:00');

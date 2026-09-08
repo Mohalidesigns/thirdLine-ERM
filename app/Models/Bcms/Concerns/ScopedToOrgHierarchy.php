@@ -49,6 +49,10 @@ trait ScopedToOrgHierarchy
         return 'business_unit_id';
     }
 
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     */
     public function scopeVisibleTo(Builder $query, ?User $user): Builder
     {
         $units = app(RcsaScope::class)->unitIdsFor($user);
@@ -71,6 +75,30 @@ trait ScopedToOrgHierarchy
                 $q->orWhereIn($column, $units);
             }
         });
+    }
+
+    /**
+     * The same filter, applied to a builder a closure was handed.
+     *
+     * `whereHas('process', fn ($q) => $q->visibleTo($user))` gives static
+     * analysis a bare `Builder` with no idea the scope exists. This is the same
+     * rule reachable statically, so a nested constraint does not have to choose
+     * between being analysable and being scoped.
+     *
+     * The scope is reached through the QUERY'S OWN MODEL rather than a fresh
+     * instance: `new static` inside a trait is unsafe when the using class has
+     * a constructor of its own, and the builder already carries the instance
+     * that owns the scope.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>
+     */
+    public static function visibleQuery(Builder $query, ?User $user): Builder
+    {
+        /** @var static $model */
+        $model = $query->getModel();
+
+        return $model->scopeVisibleTo($query, $user);
     }
 
     /**

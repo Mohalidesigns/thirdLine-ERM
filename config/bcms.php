@@ -141,6 +141,37 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | AI capabilities (Blueprint §12)
+    |--------------------------------------------------------------------------
+    |
+    | ADR 0010: BCMS AI runs on the product's own LlmService — a locally hosted
+    | Ollama-compatible model — rather than on Laravel Prism, which this product
+    | does not have. A BIA is a bank's complete map of what it depends on and
+    | how long it survives without each piece; an architecture that can run
+    | entirely inside the customer's estate is the one this can actually be sold
+    | with.
+    |
+    | THREE SWITCHES GATE EVERY CALL and all three must be on: `services.llm.
+    | enabled` for the deployment, `bcms_settings.ai_enabled` for the tenant, and
+    | the per-capability flag below. Blueprint §12 lists eight capabilities, and
+    | an institution may well trust a model to draft an impact narrative and not
+    | to propose a recovery time objective.
+    |
+    | EVERY ONE DEFAULTS OFF. A module whose BIA cannot be filled in without a
+    | model is a module a bank cannot buy.
+    |
+    */
+    'ai' => [
+        'capabilities' => [
+            'bia_draft' => env('BCMS_AI_BIA_DRAFT', false),
+            'scenario_generator' => env('BCMS_AI_SCENARIO_GENERATOR', false),
+            'aar_synthesis' => env('BCMS_AI_AAR_SYNTHESIS', false),
+            'alert_composer' => env('BCMS_AI_ALERT_COMPOSER', false),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Non-functional targets (Blueprint §14)
     |--------------------------------------------------------------------------
     |

@@ -71,8 +71,10 @@ use App\Http\Controllers\Tprm\ContractController as TprmContractController;
 use App\Http\Controllers\Tprm\DocumentController as TprmDocumentController;
 use App\Http\Controllers\Tprm\DueDiligenceController as TprmDueDiligenceController;
 use App\Http\Controllers\Tprm\EngagementController as TprmEngagementController;
+use App\Http\Controllers\Tprm\ExitReadinessController as TprmExitReadinessController;
 use App\Http\Controllers\Tprm\FindingController as TprmFindingController;
 use App\Http\Controllers\Tprm\ImportController as TprmImportController;
+use App\Http\Controllers\Tprm\IncidentController as TprmIncidentController;
 use App\Http\Controllers\Tprm\IntakeController as TprmIntakeController;
 use App\Http\Controllers\Tprm\MonitoringController as TprmMonitoringController;
 use App\Http\Controllers\Tprm\ObligationController as TprmObligationController;
@@ -1937,6 +1939,36 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.graph.manage')->name('concentration.edges.confirm');
         Route::post('concentration/edges/{edge}/reject', [TprmConcentrationController::class, 'rejectEdge'])
             ->middleware('permission:tprm.graph.manage')->name('concentration.edges.reject');
+
+        /*
+         * Incidents and their regulatory clocks — AC-07.
+         *
+         * `drafts.submit` is the only route in the module that stops a
+         * statutory clock, and it is behind `tprm.incident.notify` — a
+         * permission held by the people who can actually sign a notification.
+         * Nothing is ever transmitted to a regulator from here; the route
+         * records that a named officer sent it.
+         */
+        Route::get('incidents', [TprmIncidentController::class, 'index'])
+            ->middleware('permission:tprm.incident.view')->name('incidents.index');
+        Route::get('incidents/{incident}', [TprmIncidentController::class, 'show'])
+            ->middleware('permission:tprm.incident.view')->name('incidents.show');
+        Route::post('incidents/{incident}/assess', [TprmIncidentController::class, 'assess'])
+            ->middleware('permission:tprm.incident.manage')->name('incidents.assess');
+        Route::post('incidents/{incident}/drafts', [TprmIncidentController::class, 'buildDrafts'])
+            ->middleware('permission:tprm.incident.manage')->name('incidents.drafts.build');
+        Route::post('incidents/{incident}/loss-register', [TprmIncidentController::class, 'postToLossRegister'])
+            ->middleware('permission:tprm.incident.manage')->name('incidents.loss-register');
+        Route::post('incident-drafts/{draft}/approve', [TprmIncidentController::class, 'approveDraft'])
+            ->middleware('permission:tprm.incident.notify')->name('incidents.drafts.approve');
+        Route::post('incident-drafts/{draft}/submitted', [TprmIncidentController::class, 'recordSubmission'])
+            ->middleware('permission:tprm.incident.notify')->name('incidents.drafts.submit');
+
+        /* Exit readiness — Phase 9, and the stage every competitor skips. */
+        Route::get('exit-readiness', [TprmExitReadinessController::class, 'index'])
+            ->middleware('permission:tprm.exit.view')->name('exit.index');
+        Route::post('exit-plans/{exitPlan}/tests', [TprmExitReadinessController::class, 'recordTest'])
+            ->middleware('permission:tprm.exit.manage')->name('exit.tests.store');
 
         /* Connections, access grants and the reconciliation report — FR-ACC. */
         Route::get('access', [TprmAccessController::class, 'index'])

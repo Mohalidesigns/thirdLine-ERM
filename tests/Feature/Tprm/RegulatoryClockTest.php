@@ -473,6 +473,63 @@ class RegulatoryClockTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
+    /*  Screens */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function the_incident_screen_leads_with_the_clocks(): void
+    {
+        $incident = $this->reportBreach();
+        app(ObligationClockService::class)->assess($incident);
+        app(NotificationDraftService::class)->buildDue($incident->refresh());
+
+        $this->actingAs($this->permitted())
+            ->get(route('tprm.incidents.show', $incident->uuid))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Tprm/Incidents/Show')
+                ->has('clocks', 2)
+                ->has('assessments', 2)
+                ->has('drafts', 2)
+                ->where('settings.has_materiality_basis', false));
+    }
+
+    #[Test]
+    public function the_register_renders_and_the_settings_gap_is_stated_on_it(): void
+    {
+        $incident = $this->reportBreach();
+        app(ObligationClockService::class)->assess($incident);
+
+        $this->actingAs($this->permitted())
+            ->get(route('tprm.incidents.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Tprm/Incidents/Index')
+                ->has('incidents', 1)
+                // Shown on the register, not buried in settings: this is the
+                // screen where somebody is deciding whether a clock started.
+                ->where('settings.has_materiality_basis', false));
+    }
+
+    #[Test]
+    public function recording_a_submission_needs_the_notify_permission(): void
+    {
+        $incident = $this->reportBreach();
+        app(ObligationClockService::class)->assess($incident);
+
+        $draft = app(NotificationDraftService::class)->build($incident->refresh(), Regulator::Ndpc);
+        app(NotificationDraftService::class)->approve($draft, $this->officer);
+
+        // `tprm.incident.manage` is not enough. Stopping a statutory clock is
+        // for the people who can actually sign a notification.
+        $this->actingAs($this->permitted(['tprm.incident.view', 'tprm.incident.manage']))
+            ->post(route('tprm.incidents.drafts.submit', $draft->uuid), ['reference' => 'NDPC/1'])
+            ->assertForbidden();
+
+        $this->assertNull($incident->refresh()->ndpc_reported_at);
+    }
+
+    /* ------------------------------------------------------------------ */
     /*  Fixtures */
     /* ------------------------------------------------------------------ */
 
@@ -538,6 +595,24 @@ class RegulatoryClockTest extends TestCase
         ]);
 
         return $engagement->refresh();
+    }
+
+    /**
+     * @param  list<string>  $permissions
+     */
+    private function permitted(array $permissions = ['tprm.incident.view', 'tprm.incident.manage', 'tprm.incident.notify']): User
+    {
+        $user = $this->user('permitted-'.Str::random(6).'@lub.test');
+
+        $role = \Spatie\Permission\Models\Role::findOrCreate('tprm-incident-'.Str::random(6), 'web');
+
+        foreach ($permissions as $permission) {
+            $role->givePermissionTo(\Spatie\Permission\Models\Permission::findOrCreate($permission, 'web'));
+        }
+
+        $user->assignRole($role);
+
+        return $user;
     }
 
     private function user(string $email): User

@@ -401,6 +401,11 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'tprm.incident.notify' => 'Approve a regulatory notification draft and record it as submitted. Nothing is ever submitted automatically.',
 
                 'tprm.portal.manage' => 'Invite, suspend and remove vendor portal users.',
+                'tprm.exit.view' => 'See exit plans, their test history and the exit readiness dashboard.',
+                'tprm.exit.manage' => 'Author exit plans and record exit tests.',
+                'tprm.performance.view' => 'See scheduled service reviews and their performance packs.',
+                'tprm.performance.manage' => 'Schedule and record service reviews and their actions.',
+
                 'tprm.graph.view' => 'See the sub-processor graph, concentration analysis and single points of failure.',
                 'tprm.graph.manage' => 'Record and confirm sub-processor relationships, and run the concentration analysis.',
 

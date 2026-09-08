@@ -119,6 +119,8 @@ class NavPresenter
                     ['label' => 'Access Reconciliation', 'route' => 'tprm.access.index', 'permission' => 'tprm.access.view', 'feature' => 'tprm'],
                     ['label' => 'CBN ICT Register', 'route' => 'tprm.reports.cbn-register', 'permission' => 'tprm.report.view', 'feature' => 'tprm'],
                     ['label' => 'Register of Information', 'route' => 'tprm.reports.dora-register', 'permission' => 'tprm.report.view', 'feature' => 'tprm'],
+                    ['label' => 'NDPA Audit Return', 'route' => 'tprm.reports.ndpa-car', 'permission' => 'tprm.report.view', 'feature' => 'tprm'],
+                    ['label' => 'PCI DSS 12.8 Pack', 'route' => 'tprm.reports.pci-pack', 'permission' => 'tprm.report.view', 'feature' => 'tprm'],
                     ['label' => 'Override Register', 'route' => 'tprm.overrides.index', 'permission' => 'tprm.view', 'feature' => 'tprm'],
                     ['label' => 'Bulk Import', 'route' => 'tprm.imports.index', 'permission' => 'tprm.create', 'feature' => 'tprm'],
                     ['label' => 'Tiering Rulesets', 'route' => 'tprm.rulesets.index', 'permission' => 'tprm.ruleset.manage', 'feature' => 'tprm'],

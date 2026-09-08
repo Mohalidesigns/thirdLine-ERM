@@ -83,6 +83,8 @@ use App\Http\Controllers\Tprm\ProgrammeSettingsController as TprmProgrammeSettin
 use App\Http\Controllers\Tprm\QuestionnaireController as TprmQuestionnaireController;
 use App\Http\Controllers\Tprm\Reports\CbnRegisterController as TprmCbnRegisterController;
 use App\Http\Controllers\Tprm\Reports\DoraRegisterController as TprmDoraRegisterController;
+use App\Http\Controllers\Tprm\Reports\NdpaCarPackController as TprmNdpaCarPackController;
+use App\Http\Controllers\Tprm\Reports\PciPackController as TprmPciPackController;
 use App\Http\Controllers\Tprm\RulesetController as TprmRulesetController;
 use App\Http\Controllers\Tprm\ScreeningController as TprmScreeningController;
 use App\Http\Controllers\Tprm\SlaController as TprmSlaController;
@@ -1990,6 +1992,16 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.report.view')->name('reports.dora-register');
         Route::get('reports/register-of-information/export', [TprmDoraRegisterController::class, 'export'])
             ->middleware('permission:tprm.report.export')->name('reports.dora-register.export');
+
+        Route::get('reports/ndpa-car', [TprmNdpaCarPackController::class, 'index'])
+            ->middleware('permission:tprm.report.view')->name('reports.ndpa-car');
+        Route::get('reports/ndpa-car/export', [TprmNdpaCarPackController::class, 'export'])
+            ->middleware('permission:tprm.report.export')->name('reports.ndpa-car.export');
+
+        Route::get('reports/pci-pack', [TprmPciPackController::class, 'index'])
+            ->middleware('permission:tprm.report.view')->name('reports.pci-pack');
+        Route::get('reports/pci-pack/export', [TprmPciPackController::class, 'export'])
+            ->middleware('permission:tprm.report.export')->name('reports.pci-pack.export');
 
         /*
          * Programme settings — `tprm.admin`, not `tprm.report.*`.

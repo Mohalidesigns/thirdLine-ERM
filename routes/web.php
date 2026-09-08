@@ -15,6 +15,9 @@ use App\Http\Controllers\Admin\SsoSettingsController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WebhookController;
 use App\Http\Controllers\Auth\SsoController;
+use App\Http\Controllers\Bcms\HomeController as BcmsHomeController;
+use App\Http\Controllers\Bcms\SectionController as BcmsSectionController;
+use App\Http\Controllers\Bcms\SettingsController as BcmsSettingsController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Rcsa\ActionPlanController as RcsaActionPlanController;
@@ -1953,5 +1956,45 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.access.manage')->name('access.grants.approve');
         Route::post('access/grants/{grant}/revoke', [TprmAccessController::class, 'revokeGrant'])
             ->middleware('permission:tprm.access.manage')->name('access.grants.revoke');
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  Business Continuity Management (BCMS), behind `bcms` */
+    /* ------------------------------------------------------------------ */
+    /*
+     * `feature:bcms` 404s when the flag is off, so on a default install these
+     * URLs do not exist. Every route carries a permission, per standard §2 and
+     * RouteAuthorizationTest.
+     *
+     * PHASE 0 REGISTERS THE URLS AND THE PERMISSIONS AND NOTHING ELSE. The
+     * twelve sub-module routes render a shell that says which phase delivers
+     * them; each is replaced in place by its phase's real controller. The URL
+     * and the permission are the contract, settled now so that four parallel
+     * tracks do not each invent their own — and so a menu item can never point
+     * at a route nobody registered, because both come from
+     * App\Support\Bcms\ModuleSections.
+     *
+     * The section permission is NOT a blanket `bcms.view`. A user who may see
+     * the calendar but not the contact roster gets the calendar and no menu
+     * entry for the roster; that split is far easier to get right now than to
+     * retrofit over twelve screens.
+     */
+    Route::middleware('feature:bcms')->prefix('bcms')->name('bcms.')->group(function () {
+        Route::get('/', [BcmsHomeController::class, 'index'])
+            ->middleware('permission:bcms.view')->name('home');
+
+        // Settings before the wildcard section route, or `settings` binds as a
+        // section key and 404s.
+        Route::get('settings', [BcmsSettingsController::class, 'index'])
+            ->middleware('permission:bcms.admin')->name('settings.index');
+        Route::put('settings', [BcmsSettingsController::class, 'update'])
+            ->middleware('permission:bcms.admin')->name('settings.update');
+
+        foreach (\App\Support\Bcms\ModuleSections::all() as $bcmsSection) {
+            Route::get($bcmsSection['key'], [BcmsSectionController::class, 'show'])
+                ->defaults('section', $bcmsSection['key'])
+                ->middleware('permission:'.$bcmsSection['permission'])
+                ->name($bcmsSection['key'].'.index');
+        }
     });
 });

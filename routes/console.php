@@ -115,3 +115,29 @@ Schedule::command('tprm:reconcile-access')->dailyAt('07:30');
 // which does not move overnight. Daily snapshots would bury the four quarters
 // anybody wants to compare under three hundred near-identical rows.
 Schedule::command('tprm:run-concentration')->weeklyOn(1, '04:30');
+
+/*
+|--------------------------------------------------------------------------
+| BCMS
+|--------------------------------------------------------------------------
+*/
+
+// BCMS Phase 0 skeleton, Phase 5 dispatch. HOURLY, not daily, and that is the
+// whole design: the T-10 ladder is materialised with a `send_at` per intended
+// send (ADR 0005), so the tick only has to be finer than the granularity
+// customers can configure. A daily tick would send every tenant's reminders at
+// whatever hour the scheduler happened to fire, ignoring the per-tenant
+// `reminder_send_time` that Blueprint §5.4 makes configurable.
+//
+// `withoutOverlapping` because the claim is per row and idempotent, but two
+// overlapping runs would still do the same work twice at a cost nobody wants
+// during a busy exercise week.
+Schedule::command('bcms:dispatch-reminders')->hourly()->withoutOverlapping();
+
+// The watchdog runs on the half hour, offset from the dispatcher so it is
+// looking at a settled state rather than at a tick in progress. Its whole
+// purpose is to notice the failure that produces no error: a scheduler that
+// stopped, a dispatcher throwing silently, a delivery written ahead of a
+// provider call by a worker that then died. A silent reminder failure is a
+// customer compliance breach, not a bug.
+Schedule::command('bcms:watchdog')->hourlyAt(30)->withoutOverlapping();

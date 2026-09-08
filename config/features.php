@@ -93,4 +93,20 @@ return [
      */
     'tprm' => env('FEATURE_TPRM', false),
 
+    /*
+     * Business Continuity Management (BCMS).
+     *
+     * The fifth module, on its own `bcms_` tables beside the register rather
+     * than inside it — the rule RCSA v2 and TPRM both follow: build alongside,
+     * not on top. Nothing in the existing risk register, issue register or KRI
+     * module changes shape for it; BCMS reaches them through the one-way
+     * bridges described in docs/adr/0001-bcms-module-boundary-and-reuse.md.
+     *
+     * OFF BY DEFAULT UNTIL THE MODULE IS COMPLETE. Phase 0 lands the schema,
+     * the contracts and an empty module shell; the screens behind the flag do
+     * not do anything yet, so turning it on before Phase 1 exposes navigation
+     * to a module with nothing in it.
+     */
+    'bcms' => env('FEATURE_BCMS', false),
+
 ];

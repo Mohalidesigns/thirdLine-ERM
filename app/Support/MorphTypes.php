@@ -4,6 +4,11 @@ namespace App\Support;
 
 use App\Models\ApprovalRequest;
 use App\Models\AssessmentCampaign;
+use App\Models\Bcms\Application as BcmsApplication;
+use App\Models\Bcms\DataSet as BcmsDataSet;
+use App\Models\Bcms\Equipment as BcmsEquipment;
+use App\Models\Bcms\Process as BcmsProcess;
+use App\Models\Bcms\Site as BcmsSite;
 use App\Models\BusinessProcess;
 use App\Models\BusinessUnit;
 use App\Models\Connector;
@@ -46,6 +51,7 @@ use App\Models\RiskAppetite;
 use App\Models\RiskAssessment;
 use App\Models\RiskCategory;
 use App\Models\SimulationRun;
+use App\Models\Tprm\ThirdParty;
 use App\Models\TreatmentPlan;
 use App\Models\User;
 use App\Models\WebhookDelivery;
@@ -95,6 +101,28 @@ class MorphTypes
         return [
             'approval_request' => ApprovalRequest::class,
             'assessment_campaign' => AssessmentCampaign::class,
+            /*
+             * BCMS. The seven types a `bcms_dependencies` row may point at
+             * (ADR 0002) live in THIS map rather than in a BCMS-local one,
+             * because `Relation::enforceMorphMap()` takes one map for the whole
+             * application and a second would silently replace the first.
+             *
+             * Blueprint §9.1 names the keys `applications`, `vendors`, `sites`,
+             * `users`, `equipment`, `data_sets` and `processes`. Those are the
+             * enum CASE names in `App\Enums\Bcms\DependencyType`; the stored
+             * strings are these, because this map's convention is singular
+             * snake_case and `users` would be a second alias for a class that
+             * already has one — `getMorphClass()` returns the first match, so
+             * two aliases for one class is a coin toss written into customer
+             * data. `bcms_process` is prefixed for the same reason:
+             * `business_process` is already taken and means something else.
+             */
+            'bcms_application' => BcmsApplication::class,
+            'bcms_data_set' => BcmsDataSet::class,
+            'bcms_equipment' => BcmsEquipment::class,
+            'bcms_process' => BcmsProcess::class,
+            'bcms_site' => BcmsSite::class,
+            'tprm_third_party' => ThirdParty::class,
             'business_process' => BusinessProcess::class,
             'business_unit' => BusinessUnit::class,
             // WP-07. The integration surface is audited and job-tracked, so

@@ -122,6 +122,32 @@ class NavPresenter
                 ],
             ],
 
+            // Business Continuity Management. Its own section for the reason
+            // TPRM has one: an exercise occurrence and a risk are different
+            // objects, and folding the resilience calendar under the register
+            // would suggest otherwise.
+            //
+            // THE ITEM LIST IS BUILT FROM App\Support\Bcms\ModuleSections,
+            // which is also what registers the routes. A hand-typed list here
+            // is a menu item pointing at a route nobody registered — a 500 on
+            // a customer's screen, found by a customer.
+            [
+                'key' => 'bcms', 'label' => 'Business Continuity', 'icon' => 'health_and_safety', 'prefixes' => ['/risk/bcms'],
+                'items' => array_merge(
+                    [['label' => 'BCMS Home', 'route' => 'bcms.home', 'permission' => 'bcms.view', 'feature' => 'bcms']],
+                    array_map(
+                        fn (array $section) => [
+                            'label' => $section['label'],
+                            'route' => 'bcms.'.$section['key'].'.index',
+                            'permission' => $section['permission'],
+                            'feature' => 'bcms',
+                        ],
+                        \App\Support\Bcms\ModuleSections::all()
+                    ),
+                    [['label' => 'BCMS Settings', 'route' => 'bcms.settings.index', 'permission' => 'bcms.admin', 'feature' => 'bcms']],
+                ),
+            ],
+
             [
                 'key' => 'assessments', 'label' => 'Risk Assessments', 'icon' => 'rate_review', 'prefixes' => ['/risk/assessments'],
                 'items' => [

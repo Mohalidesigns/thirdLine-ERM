@@ -135,5 +135,31 @@ class DatabaseSeeder extends Seeder
         /* ------------------------------------------------------------------ */
 
         $this->call(\Database\Seeders\Tprm\TprmDemoSeeder::class);
+
+        /* ------------------------------------------------------------------ */
+        /*  15. BCMS reference libraries (idempotent). */
+        /* */
+        /*      System-owned: the ISO 22301 / CBN clause reference table, the */
+        /*      exercise-type catalogue, the readiness templates, the Nigerian */
+        /*      blackout calendar, the alert templates, the scenario library */
+        /*      and the training curricula. Plus one `bcms_settings` row per */
+        /*      organisation. Independent of everything above it — it needs an */
+        /*      organisation to exist and nothing else. */
+        /* ------------------------------------------------------------------ */
+
+        $this->call(\Database\Seeders\Bcms\BcmsReferenceSeeder::class);
+
+        /* ------------------------------------------------------------------ */
+        /*  16. BCMS demonstration estate. */
+        /* */
+        /*      After DemoDataSeeder, and the dependency is real: the BCM */
+        /*      process overlay links to `business_processes` rows that seeder */
+        /*      creates, and the four divisions reparent its business units. */
+        /*      Kept out of the reference seeder for the reason TprmDemoSeeder */
+        /*      records — invented estate does not belong beside data a client */
+        /*      is meant to trust. */
+        /* ------------------------------------------------------------------ */
+
+        $this->call(\Database\Seeders\Bcms\BcmsDemoSeeder::class);
     }
 }

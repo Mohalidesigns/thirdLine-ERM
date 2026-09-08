@@ -198,6 +198,28 @@ class NullOrganizationRowsAreDeclaredGlobalTest extends TestCase
         sort($global);
 
         $this->assertSame([
+            // BCMS reference libraries, added in Phase 0. Each ships rows with
+            // the product — the exercise-type catalogue and its ISO 22398
+            // ladder, the readiness checklists, the Nigerian blackout calendar,
+            // the alert templates in English and Pidgin, the scenario library,
+            // the training curricula — readable by every tenant and editable by
+            // none. This declaration is the mechanism ADR 0006 requires, and
+            // dropping it from any of them would hide a shipped library from
+            // every tenant while the seeder kept writing to it: the exact
+            // silent disagreement this whole test exists to catch.
+            //
+            // `bcms_clause_refs` is deliberately absent — it has no
+            // `organization_id` column at all, because ISO 22301 clause 8.5
+            // does not vary by customer and a per-tenant copy would let one
+            // tenant's edit change what a clause means in their evidence pack.
+            'bcms_alert_templates',
+            'bcms_blackout_periods',
+            'bcms_exercise_types',
+            'bcms_readiness_template_tasks',
+            'bcms_readiness_templates',
+            'bcms_scenarios',
+            'bcms_training_curricula',
+
             'dashboards',
             'fx_rates',
             'object_lifecycles',

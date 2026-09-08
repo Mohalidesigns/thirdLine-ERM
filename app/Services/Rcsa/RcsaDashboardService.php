@@ -37,6 +37,17 @@ class RcsaDashboardService
     public const TOP_RISKS = 10;
 
     /**
+     * Methodologies already resolved, keyed by cycle id.
+     *
+     * An instance property for the reason given at length on
+     * RcsaAssessmentService::$methodologyCache — a `static` local outlives the
+     * request and turns a cache into a stale read nothing invalidates.
+     *
+     * @var array<int, RcsaMethodology|null>
+     */
+    private array $methodologyCache = [];
+
+    /**
      * Whose dashboard this is.
      *
      * P6 built the panels unscoped; P7 makes every one of them answer for a
@@ -226,20 +237,16 @@ class RcsaDashboardService
      */
     public function aboveAppetiteByUnit(?int $cycleId): array
     {
-        $levels = $this->aboveAppetiteLevels($cycleId);
-
         $totals = $this->lines($cycleId)
             ->selectRaw('business_unit_name, count(*) as aggregate')
             ->groupBy('business_unit_name')
             ->pluck('aggregate', 'business_unit_name');
 
-        $above = $levels === []
-            ? collect()
-            : $this->lines($cycleId)
-                ->whereIn('residual_level', $levels)
-                ->selectRaw('business_unit_name, count(*) as aggregate')
-                ->groupBy('business_unit_name')
-                ->pluck('aggregate', 'business_unit_name');
+        $above = $this->lines($cycleId)
+            ->where('above_appetite', true)
+            ->selectRaw('business_unit_name, count(*) as aggregate')
+            ->groupBy('business_unit_name')
+            ->pluck('aggregate', 'business_unit_name');
 
         return $totals
             ->map(fn ($total, $unit) => [
@@ -445,8 +452,6 @@ class RcsaDashboardService
      */
     public function headline(?int $cycleId): array
     {
-        $levels = $this->aboveAppetiteLevels($cycleId);
-
         $total = $this->lines($cycleId)->count();
 
         return [
@@ -456,9 +461,7 @@ class RcsaDashboardService
                 ->whereNotNull('inherent_impact')
                 ->whereNotNull('control_effectiveness')
                 ->count(),
-            'above_appetite' => $levels === []
-                ? 0
-                : $this->lines($cycleId)->whereIn('residual_level', $levels)->count(),
+            'above_appetite' => $this->lines($cycleId)->where('above_appetite', true)->count(),
             'units' => $this->assessments($cycleId)->count(),
             'units_complete' => $this->assessments($cycleId)->where('completion_pct', '>=', 100)->count(),
             'average_residual' => $total === 0 ? null : round(
@@ -508,38 +511,20 @@ class RcsaDashboardService
 
     private function methodologyFor(?int $cycleId): ?RcsaMethodology
     {
-        static $cache = [];
-
         $key = $cycleId ?? 0;
 
-        if (array_key_exists($key, $cache)) {
-            return $cache[$key];
+        if (array_key_exists($key, $this->methodologyCache)) {
+            return $this->methodologyCache[$key];
         }
 
         $methodologyId = $cycleId === null
             ? null
             : RcsaCycle::query()->find($cycleId)?->methodology_id;
 
-        return $cache[$key] = $methodologyId === null
-            ? RcsaMethodology::active()?->loadMissing(['scaleItems', 'bands'])
-            : RcsaMethodology::withoutGlobalScopes()->with(['scaleItems', 'bands'])->find($methodologyId);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function aboveAppetiteLevels(?int $cycleId): array
-    {
-        $methodology = $this->methodologyFor($cycleId);
-
-        if ($methodology === null) {
-            return [];
-        }
-
-        return $methodology->bands
-            ->filter(fn ($band) => $methodology->isAboveAppetite($band->level))
-            ->pluck('level')
-            ->values()
-            ->all();
+        return $this->methodologyCache[$key] = $methodologyId === null
+            ? RcsaMethodology::active()?->loadMissing(['scaleItems', 'bands', 'categoryAppetites'])
+            : RcsaMethodology::withoutGlobalScopes()
+                ->with(['scaleItems', 'bands', 'categoryAppetites'])
+                ->find($methodologyId);
     }
 }

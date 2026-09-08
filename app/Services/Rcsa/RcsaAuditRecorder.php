@@ -129,6 +129,34 @@ class RcsaAuditRecorder
         );
     }
 
+    /**
+     * A retention sweep (§14 Q10) — what was cleaned up, and by whom.
+     *
+     * Recorded against the ORGANISATION rather than against each artefact,
+     * because the rows the sweep touched are exactly the ones whose files no
+     * longer exist: an entry per deleted file would be a trail of pointers to
+     * nothing. One entry per sweep answers the question an examiner asks, which
+     * is whether the housekeeping ran and what it removed.
+     *
+     * THE TRAIL ITSELF IS NEVER SWEPT. It is hash-chained and append-only; see
+     * the long note on RcsaRetentionService.
+     */
+    public function retention(Model $organization, int $exportFiles, int $importFiles, int $importRows, ?User $actor): void
+    {
+        $this->write(
+            entity: $organization,
+            actionType: 'rcsa_retention_sweep',
+            field: 'files_purged',
+            old: null,
+            new: [
+                'export_files' => $exportFiles,
+                'import_files' => $importFiles,
+                'import_rows' => $importRows,
+            ],
+            actor: $actor,
+        );
+    }
+
     /* ------------------------------------------------------------------ */
     /*  Internals */
     /* ------------------------------------------------------------------ */

@@ -57,6 +57,9 @@ class RcsaCycle extends Model
         'opened_at',
         'closed_by',
         'closed_at',
+        'legal_hold_at',
+        'legal_hold_by',
+        'legal_hold_reason',
     ];
 
     protected $casts = [
@@ -65,6 +68,7 @@ class RcsaCycle extends Model
         'due_date' => 'date',
         'opened_at' => 'datetime',
         'closed_at' => 'datetime',
+        'legal_hold_at' => 'datetime',
     ];
 
     protected static function boot(): void
@@ -76,6 +80,18 @@ class RcsaCycle extends Model
                 $model->uuid = (string) Str::uuid();
             }
         });
+    }
+
+    /**
+     * Under a legal hold — excluded from every retention sweep (§14 Q10).
+     *
+     * A retention period is a housekeeping rule; a hold is a legal
+     * instruction, and the instruction wins. Checked as a presence rather than
+     * a boolean so the trail carries WHEN it was placed.
+     */
+    public function isUnderLegalHold(): bool
+    {
+        return $this->legal_hold_at !== null;
     }
 
     /** @return HasMany<RcsaAssessment, $this> */

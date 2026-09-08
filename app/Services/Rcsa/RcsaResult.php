@@ -31,6 +31,7 @@ final readonly class RcsaResult
      * @param  string|null  $riskTreatment  Column S — treat / mitigate / accept.
      * @param  string|null  $appetiteStatus  Column T — the sentence.
      * @param  bool  $actionPlanRequired  Derived: the line is above appetite.
+     * @param  bool|null  $aboveAppetite  The same fact, STORED — null until scored.
      * @param  bool  $isComplete  All three assessed inputs are present.
      * @param  bool  $residualFloored  The floor, not the formula, set the residual.
      * @param  bool  $residualAssessed  The residual came from the assessor, not the formula.
@@ -49,6 +50,7 @@ final readonly class RcsaResult
         public ?string $riskTreatment = null,
         public ?string $appetiteStatus = null,
         public bool $actionPlanRequired = false,
+        public ?bool $aboveAppetite = null,
         public bool $isComplete = false,
         public bool $residualFloored = false,
         public bool $residualAssessed = false,
@@ -72,6 +74,19 @@ final readonly class RcsaResult
             'residual_level' => $this->residualLevel,
             'risk_treatment' => $this->riskTreatment,
             'appetite_status' => $this->appetiteStatus,
+
+            // Stored, not derived at read time, because appetite stopped being
+            // a property of the BAND when §14 Q4 made it a property of the band
+            // AND the category. Three services used to reconstruct this with
+            // `whereIn('residual_level', $levelsAboveAppetite)`, which cannot
+            // express "VERY LOW is above appetite for Compliance and inside it
+            // for Strategic". The engine already knows the answer; this is it
+            // written down.
+            //
+            // NULL, not false, on an unscored line: "no residual band yet" and
+            // "inside appetite" are different states and the dashboards count
+            // them separately.
+            'above_appetite' => $this->aboveAppetite,
         ];
     }
 

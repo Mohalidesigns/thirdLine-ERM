@@ -22,6 +22,7 @@ const FIELDS = [
   'riskTreatment',
   'appetiteStatus',
   'actionPlanRequired',
+  'aboveAppetite',
 ];
 
 const read = () =>
@@ -38,6 +39,7 @@ const read = () =>
 const { methodology, cases } = JSON.parse(await read());
 
 const mismatches = [];
+let compared = 0;
 
 for (const testCase of cases) {
   const actual = calculate(
@@ -45,11 +47,21 @@ for (const testCase of cases) {
       likelihood: testCase.likelihood,
       impact: testCase.impact,
       controlEffectiveness: testCase.controlEffectiveness,
+      // Column H. Absent from the 100-case truth table, which predates §14 Q4
+      // and runs in `single` mode where the category is ignored.
+      riskCategory: testCase.riskCategory ?? null,
     },
     methodology,
   );
 
   for (const field of FIELDS) {
+    // A case states only the fields it means to pin. The count of comparisons
+    // actually made is reported back so the PHP side can assert it, rather
+    // than a mistyped field name silently comparing nothing.
+    if (!Object.prototype.hasOwnProperty.call(testCase.expected, field)) continue;
+
+    compared += 1;
+
     const expected = testCase.expected[field];
 
     // Loose only across the integer/float line: the fixture writes a residual
@@ -70,7 +82,7 @@ for (const testCase of cases) {
   }
 }
 
-process.stdout.write(JSON.stringify({ checked: cases.length, mismatches }, null, 2));
+process.stdout.write(JSON.stringify({ checked: cases.length, compared, mismatches }, null, 2));
 
 if (mismatches.length > 0) {
   process.exit(1);

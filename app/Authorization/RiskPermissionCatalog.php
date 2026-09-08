@@ -218,6 +218,23 @@ class RiskPermissionCatalog extends PermissionCatalog
                     .'the business filed.',
                 'rcsa_assessment.return' => 'Return an assessment for rework, which reopens the flagged risks '
                     .'and only those.',
+                'rcsa_assessment.approve_override' => 'Decide an assessor\'s request to override the calculated '
+                    .'risk treatment (§14 Q5). Its own permission rather than part of `validate`, because who '
+                    .'may sign off "the formula says TREAT and we are choosing to ACCEPT" is exactly the '
+                    .'question the bank was asked; a tenant that wants it on a risk committee rather than on '
+                    .'the reviewer can move it. Only consulted when the tenant turns override approval on.',
+            ],
+
+            // §14's three open questions, once the bank answers them. One
+            // permission for the screen rather than one per question: they are
+            // the same act — configuring how the module behaves for this
+            // tenant — and splitting them would produce three permissions no
+            // administrator could describe the difference between.
+            'RCSA Settings' => [
+                'rcsa_settings.manage' => 'Configure the RCSA module for this tenant: how appetite is expressed '
+                    .'(one ceiling or one per risk category), whether a treatment override needs approving, '
+                    .'and the retention periods. Distinct from `rcsa_cycle.manage` — running cycles is the '
+                    .'operating job; deciding what the numbers MEAN is a policy one.',
             ],
 
             // §11 — the scoping escape hatch. A permission rather than a
@@ -412,9 +429,11 @@ class RiskPermissionCatalog extends PermissionCatalog
             'rcsa_cycle.view', 'rcsa_cycle.manage', 'rcsa_cycle.open', 'rcsa_cycle.close',
             'rcsa_assessment.view', 'rcsa_assessment.complete', 'rcsa_assessment.submit',
             'rcsa_assessment.review', 'rcsa_assessment.validate', 'rcsa_assessment.return',
+            'rcsa_assessment.approve_override',
             'rcsa_actionplan.view', 'rcsa_actionplan.update', 'rcsa_actionplan.close', 'rcsa_actionplan.verify',
             'rcsa_export.bulk', 'rcsa_audit.view',
             'rcsa_scope.all_units', 'rcsa_scope.assign',
+            'rcsa_settings.manage',
             'analysis.view',
             'ai.view', 'ai.use',
             'control_test.view', 'control_test.create', 'control_test.edit', 'control_test.execute', 'control_test.review',

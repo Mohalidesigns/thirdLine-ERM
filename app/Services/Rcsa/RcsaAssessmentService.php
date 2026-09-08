@@ -34,6 +34,23 @@ use Illuminate\Support\Facades\DB;
 class RcsaAssessmentService
 {
     /**
+     * Methodologies already loaded, keyed by id — one query per methodology
+     * rather than one per line.
+     *
+     * AN INSTANCE PROPERTY, NOT A `static` LOCAL. It was a static, which made
+     * it live for the whole PHP process: a queue worker that had scored a line
+     * under one methodology went on using its in-memory copy after an
+     * administrator edited it, and a test that loaded it in single appetite
+     * mode saw single mode for the rest of the suite no matter what the
+     * database said. Neither is a cache; both are a stale read that nothing
+     * invalidates. The service is resolved per request, which is exactly the
+     * lifetime this wants.
+     *
+     * @var array<int, RcsaMethodology>
+     */
+    private array $methodologyCache = [];
+
+    /**
      * Thrown as a 409 by the controller. Not an exception class of its own:
      * the controller needs the CURRENT line to send back so the user can see
      * what the other person did, and an exception carrying a model is a
@@ -55,6 +72,7 @@ class RcsaAssessmentService
     public function __construct(
         private readonly RcsaCalculationService $calculator,
         private readonly RcsaAuditRecorder $audit,
+        private readonly RcsaTreatmentOverrideService $overrides,
     ) {}
 
     /**
@@ -86,6 +104,7 @@ class RcsaAssessmentService
 
         return DB::transaction(function () use ($line, $input, $actor, $methodology, $request) {
             $before = $line->only(RcsaAssessmentLine::MATERIAL_FIELDS);
+            $overrideBefore = $line->treatment_override;
 
             // ONLY the assessor's own answers. Anything else the client sent —
             // including every calculated column — is not read.
@@ -109,6 +128,7 @@ class RcsaAssessmentService
                 methodology: $methodology,
                 residualLikelihood: $line->residual_likelihood,
                 residualImpact: $line->residual_impact,
+                riskCategory: $line->risk_category,
             );
 
             // The canonical spelling of the control rating, so "fully achieved"
@@ -127,6 +147,20 @@ class RcsaAssessmentService
 
             $line->version = (int) $line->version + 1;
             $line->save();
+
+            // §14 Q5. On the SAVE PATH rather than in a Form Request, so that
+            // the bulk apply, the offline round trip and any future importer
+            // all reach it — a validator would cover the one HTTP route.
+            //
+            // Only on a CHANGE. Re-saving a line whose override nobody touched
+            // must not reset an approval that has already been given, or an
+            // assessor could quietly un-approve an override by editing the
+            // likelihood beside it.
+            if ($line->treatment_override !== $overrideBefore) {
+                blank($line->treatment_override)
+                    ? $this->overrides->withdraw($line, $actor)
+                    : $this->overrides->request($line, $actor);
+            }
 
             $this->recordRevisions($line, $before, $actor, $request);
             $this->recomputeProgress($line->assessment);
@@ -298,11 +332,23 @@ class RcsaAssessmentService
     }
 
     /**
-     * Whether a line's residual sits above the methodology's appetite ceiling.
+     * Whether a line's residual sits above the appetite ceiling that governs it.
+     *
+     * READS THE STORED COLUMN when the line has been scored since Q4 landed,
+     * and recomputes only for a line that predates it. Recomputing is not
+     * merely slower — under `per_category` it needs the methodology's appetite
+     * rows loaded, and a caller iterating lines would pay a query each. The
+     * engine wrote the answer down at save time precisely so that nothing
+     * downstream has to derive it again.
      */
     public function isAboveAppetite(RcsaAssessmentLine $line): bool
     {
-        return $this->methodologyFor($line)->isAboveAppetite($line->residual_level);
+        if ($line->above_appetite !== null) {
+            return (bool) $line->above_appetite;
+        }
+
+        return $this->methodologyFor($line)
+            ->isAboveAppetite($line->residual_level, $line->risk_category);
     }
 
     /**
@@ -341,17 +387,15 @@ class RcsaAssessmentService
      */
     private function methodologyFor(RcsaAssessmentLine $line): RcsaMethodology
     {
-        static $cache = [];
-
         $id = (int) $line->methodology_id;
 
-        if (! isset($cache[$id])) {
-            $cache[$id] = RcsaMethodology::withoutGlobalScopes()
-                ->with(['scaleItems', 'bands'])
+        if (! isset($this->methodologyCache[$id])) {
+            $this->methodologyCache[$id] = RcsaMethodology::withoutGlobalScopes()
+                ->with(['scaleItems', 'bands', 'categoryAppetites'])
                 ->findOrFail($id);
         }
 
-        return $cache[$id];
+        return $this->methodologyCache[$id];
     }
 
     /**

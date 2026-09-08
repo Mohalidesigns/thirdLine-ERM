@@ -114,6 +114,26 @@ class RcsaAssessmentPolicy
     }
 
     /**
+     * May this user decide a treatment override? (§14 Q5.)
+     *
+     * Its own permission on top of `review`, for the reason the catalog entry
+     * gives: who signs off "the formula says TREAT and we are choosing to
+     * ACCEPT" is the question the bank was actually asked, and a tenant that
+     * wants it on a risk committee rather than on the reviewer can move it
+     * without touching `validate`.
+     *
+     * Routing through `review()` carries the two rules that matter for free —
+     * the assessment must be reachable in this user's units, and THE SUBMITTER
+     * CANNOT DECIDE. RcsaTreatmentOverrideService repeats the narrower version
+     * of that (the requester cannot decide their own) because the service is
+     * reachable from paths this policy is not on.
+     */
+    public function approveOverride(User $user, RcsaAssessment $assessment): bool
+    {
+        return $user->can('rcsa_assessment.approve_override') && $this->review($user, $assessment);
+    }
+
+    /**
      * Escalating is part of reviewing: raising a hand is not a decision, and a
      * reviewer who can see something wrong but cannot say so to anybody senior
      * is the reason escalation paths go unused.

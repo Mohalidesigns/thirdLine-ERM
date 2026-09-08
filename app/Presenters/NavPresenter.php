@@ -92,6 +92,7 @@ class NavPresenter
                     ['label' => 'Action Plans', 'route' => 'rcsa.action-plans.index', 'permission' => 'rcsa_actionplan.view', 'feature' => 'rcsa_v2'],
                     ['label' => 'RCSA Dashboard', 'route' => 'rcsa.dashboard.index', 'permission' => 'rcsa_assessment.view', 'feature' => 'rcsa_v2'],
                     ['label' => 'Export', 'route' => 'rcsa.exports.index', 'permission' => 'rcsa_export.bulk', 'feature' => 'rcsa_v2'],
+                    ['label' => 'Settings', 'route' => 'rcsa.settings.index', 'permission' => 'rcsa_settings.manage', 'feature' => 'rcsa_v2'],
                 ],
             ],
             [

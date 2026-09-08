@@ -66,6 +66,7 @@ class RcsaCalculationService
         RcsaMethodology $methodology,
         ?int $residualLikelihood = null,
         ?int $residualImpact = null,
+        ?string $riskCategory = null,
     ): RcsaResult {
         $likelihood = $this->validRating($likelihood, RcsaScaleItem::TYPE_LIKELIHOOD, $methodology);
         $impact = $this->validRating($impact, RcsaScaleItem::TYPE_IMPACT, $methodology);
@@ -127,8 +128,16 @@ class RcsaCalculationService
 
         /* --- Columns S and T -------------------------------------------- */
 
+        // The category is what makes appetite a per-risk question rather than a
+        // per-methodology one (§14 Q4). It is IGNORED in `single` mode, so
+        // passing it costs nothing and forgetting to pass it costs nothing
+        // either — until a tenant switches mode, at which point a caller that
+        // never learned to pass it would silently score against the house
+        // ceiling. Every caller in this module passes it; the parameter is
+        // optional only so that the /calculate endpoint's own tests, and the
+        // truth table, can go on calling the engine with six arguments.
         $aboveAppetite = $residualBand !== null
-            && $methodology->isAboveAppetite($residualBand->level);
+            && $methodology->isAboveAppetite($residualBand->level, $riskCategory);
 
         return new RcsaResult(
             inherentScore: $inherentScore,
@@ -144,6 +153,7 @@ class RcsaCalculationService
             riskTreatment: $residualBand?->treatment,
             appetiteStatus: $residualBand?->appetite_status,
             actionPlanRequired: $aboveAppetite,
+            aboveAppetite: $residualBand !== null ? $aboveAppetite : null,
             isComplete: $residualBand !== null,
             residualFloored: $floored,
             residualAssessed: $assessedResidual !== null,

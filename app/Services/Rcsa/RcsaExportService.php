@@ -4,9 +4,7 @@ namespace App\Services\Rcsa;
 
 use App\Models\BusinessUnit;
 use App\Models\Rcsa\RcsaAssessmentLine;
-use App\Models\Rcsa\RcsaCycle;
 use App\Models\Rcsa\RcsaExportJob;
-use App\Models\Rcsa\RcsaMethodology;
 use App\Models\User;
 use App\Support\Rcsa\RcsaScope;
 use Illuminate\Database\Eloquent\Builder;
@@ -99,18 +97,20 @@ class RcsaExportService
                 'assessment',
                 fn ($a) => $a->where('status', $filters['assessment_status']),
             ))
-            // Appetite is not a column — it is a comparison against the
-            // methodology's ceiling — so it filters on the BAND NAMES that sit
-            // above it. Same technique as the review queue's count, and for
-            // the same reason: one query rather than a model per row.
-            ->when(($filters['appetite'] ?? null) === 'above', fn ($q) => $q->whereIn(
-                'residual_level',
-                $this->aboveAppetiteLevels($filters['cycle'] ?? null),
-            ))
-            ->when(($filters['appetite'] ?? null) === 'within', fn ($q) => $q->whereNotIn(
-                'residual_level',
-                $this->aboveAppetiteLevels($filters['cycle'] ?? null),
-            ))
+            // Appetite IS a column now (§14 Q4). It used to be a comparison
+            // against the methodology's ceiling, filtered by listing the band
+            // names above it — which forced this filter to pick one band list
+            // for an export spanning several cycles, and could not express a
+            // ceiling that varies by category at all. The engine stores the
+            // answer per line; both filters read it.
+            //
+            // An unscored line (`above_appetite` NULL) matches NEITHER, which
+            // is the same behaviour the NOT IN had and the right one: a line
+            // with no residual band is not within appetite, it is unanswered.
+            ->when(($filters['appetite'] ?? null) === 'above',
+                fn ($q) => $q->where('above_appetite', true))
+            ->when(($filters['appetite'] ?? null) === 'within',
+                fn ($q) => $q->where('above_appetite', false))
             ->when(filled($filters['from'] ?? null), fn ($q) => $q->whereHas(
                 'assessment',
                 fn ($a) => $a->whereDate('submitted_at', '>=', $filters['from']),
@@ -222,40 +222,6 @@ class RcsaExportService
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (BusinessUnit $unit) => ['id' => (int) $unit->id, 'name' => (string) $unit->name])
-            ->all();
-    }
-
-    /* ------------------------------------------------------------------ */
-    /*  Internals */
-    /* ------------------------------------------------------------------ */
-
-    /**
-     * The band names above the appetite ceiling, for the appetite filter.
-     *
-     * Scoped to the cycle's methodology when one is named; otherwise the
-     * tenant's active methodology, because a filter across several cycles has
-     * to pick one band list and the current one is the only defensible choice.
-     *
-     * @return list<string>
-     */
-    private function aboveAppetiteLevels(mixed $cycleId): array
-    {
-        $methodology = filled($cycleId)
-            ? RcsaCycle::query()->find($cycleId)?->methodology_id
-            : null;
-
-        $resolved = $methodology === null
-            ? $this->calculator->methodology()
-            : RcsaMethodology::withoutGlobalScopes()->with('bands')->find($methodology);
-
-        if ($resolved === null) {
-            return [];
-        }
-
-        return $resolved->bands
-            ->filter(fn ($band) => $resolved->isAboveAppetite($band->level))
-            ->pluck('level')
-            ->values()
             ->all();
     }
 }

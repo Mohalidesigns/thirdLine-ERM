@@ -84,6 +84,7 @@ use App\Http\Controllers\Tprm\QuestionnaireController as TprmQuestionnaireContro
 use App\Http\Controllers\Tprm\Reports\BoardPackController as TprmBoardPackController;
 use App\Http\Controllers\Tprm\Reports\CbnRegisterController as TprmCbnRegisterController;
 use App\Http\Controllers\Tprm\Reports\DoraRegisterController as TprmDoraRegisterController;
+use App\Http\Controllers\Tprm\Reports\MaturityController as TprmMaturityController;
 use App\Http\Controllers\Tprm\Reports\NdpaCarPackController as TprmNdpaCarPackController;
 use App\Http\Controllers\Tprm\Reports\PciPackController as TprmPciPackController;
 use App\Http\Controllers\Tprm\RulesetController as TprmRulesetController;
@@ -2025,6 +2026,27 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.report.view')->name('reports.board-packs.transition');
         Route::get('reports/board-packs/{boardPack}/export', [TprmBoardPackController::class, 'export'])
             ->middleware('permission:tprm.report.export')->name('reports.board-packs.export');
+
+        /*
+         * Programme maturity — FR-RPT-06.
+         *
+         * Reading is `tprm.report.view`, because the point of a maturity
+         * self-assessment is that the business units it describes can see it.
+         * SCORING IS `tprm.admin`: the number recorded here is what a
+         * regulator is shown when it asks how mature this institution's
+         * third-party management is, and whoever can run a register export
+         * should not be able to raise it.
+         */
+        Route::get('reports/maturity', [TprmMaturityController::class, 'index'])
+            ->middleware('permission:tprm.report.view')->name('reports.maturity');
+        Route::post('reports/maturity', [TprmMaturityController::class, 'open'])
+            ->middleware('permission:tprm.admin')->name('reports.maturity.open');
+        Route::get('reports/maturity/{maturityAssessment}', [TprmMaturityController::class, 'show'])
+            ->middleware('permission:tprm.report.view')->name('reports.maturity.show');
+        Route::put('reports/maturity/scores/{maturityScore}', [TprmMaturityController::class, 'score'])
+            ->middleware('permission:tprm.admin')->name('reports.maturity.score');
+        Route::post('reports/maturity/{maturityAssessment}/approve', [TprmMaturityController::class, 'approve'])
+            ->middleware('permission:tprm.admin')->name('reports.maturity.approve');
 
         /*
          * Programme settings — `tprm.admin`, not `tprm.report.*`.

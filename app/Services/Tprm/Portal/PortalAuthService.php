@@ -2,6 +2,8 @@
 
 namespace App\Services\Tprm\Portal;
 
+use App\Mail\Tprm\PortalSignInCode;
+use App\Models\Organization;
 use App\Models\Tprm\AuditLog;
 use App\Models\Tprm\PortalInvitation;
 use App\Models\Tprm\PortalUser;
@@ -11,6 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use RuntimeException;
 
 /**
@@ -186,6 +189,119 @@ class PortalAuthService
         return ['user' => $user, 'reason' => null];
     }
 
+    /* ------------------------------------------------------------------ */
+    /*  Email one-time codes — the default second factor */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Issue a code and send it.
+     *
+     * THE CODE IS HASHED AT REST and returned to nobody. A one-time code
+     * sitting in plaintext in a column is a credential that a reporting
+     * replica, a support export or a database backup carries; its entire value
+     * is that only one mailbox holds it.
+     *
+     * ISSUING REPLACES ANY LIVE CODE. Two valid codes at once is how a vendor
+     * ends up typing the older of the two and being told it is wrong.
+     *
+     * @return array{sent: bool, reason: string|null, retry_after: int}
+     */
+    public function sendEmailCode(PortalUser $user, bool $force = false): array
+    {
+        if (! $user->canAuthenticate()) {
+            return ['sent' => false, 'reason' => 'This account is not active.', 'retry_after' => 0];
+        }
+
+        $wait = $user->secondsUntilResend();
+
+        if ($wait > 0 && ! $force) {
+            return [
+                'sent' => false,
+                'reason' => sprintf('A code was just sent. You can ask for another in %d seconds.', $wait),
+                'retry_after' => $wait,
+            ];
+        }
+
+        /*
+         * `random_int` rather than `rand`: this is a credential, and a
+         * predictable one is not a second factor. Padded so that a code
+         * beginning with a zero is still six digits, because a six-digit box
+         * that sometimes wants five is a support call.
+         */
+        $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        $user->forceFill([
+            'mfa_code_hash' => Hash::make($code),
+            'mfa_code_expires_at' => now()->addMinutes(PortalUser::CODE_TTL_MINUTES),
+            'mfa_code_sent_at' => now(),
+            'mfa_code_attempts' => 0,
+        ])->save();
+
+        $clientName = Organization::query()->find($user->organization_id)->name ?? config('app.name');
+
+        Mail::to($user->email)->send(new PortalSignInCode(
+            $user,
+            $code,
+            (string) $clientName,
+            PortalUser::CODE_TTL_MINUTES,
+        ));
+
+        /*
+         * The audit records that a code was SENT, never the code. An audit
+         * trail readable by the client's staff must not hand them a live
+         * second factor for one of their vendors.
+         */
+        $this->audit($user->organization_id, PortalUser::class, $user->getKey(), 'portal_mfa_code_sent', [
+            'email' => $user->email,
+            'expires_at' => $user->mfa_code_expires_at?->toIso8601String(),
+        ]);
+
+        return ['sent' => true, 'reason' => null, 'retry_after' => PortalUser::CODE_RESEND_SECONDS];
+    }
+
+    /**
+     * Check an emailed code.
+     *
+     * A WRONG CODE BURNS AN ATTEMPT AGAINST THE ISSUED CODE, and five wrong
+     * ones burn the code itself rather than only counting toward the account
+     * lockout. Six digits is a million guesses; without a per-code ceiling an
+     * attacker who can keep requesting fresh codes gets unlimited attempts at
+     * a fresh target each time, which is a much better position than it looks.
+     */
+    public function verifyEmailCode(PortalUser $user, string $code): bool
+    {
+        if (! $user->hasLiveCode()) {
+            return false;
+        }
+
+        if ((int) $user->mfa_code_attempts >= PortalUser::CODE_MAX_ATTEMPTS) {
+            $this->burnCode($user);
+
+            return false;
+        }
+
+        if (! Hash::check($code, (string) $user->mfa_code_hash)) {
+            $user->forceFill(['mfa_code_attempts' => (int) $user->mfa_code_attempts + 1])->save();
+
+            return false;
+        }
+
+        // Single use. Burned before the session is minted, so a replay of the
+        // same code against a second session finds nothing.
+        $this->burnCode($user);
+
+        return true;
+    }
+
+    private function burnCode(PortalUser $user): void
+    {
+        $user->forceFill([
+            'mfa_code_hash' => null,
+            'mfa_code_expires_at' => null,
+            'mfa_code_attempts' => 0,
+        ])->save();
+    }
+
     /**
      * Begin MFA enrolment, returning the secret and its otpauth URI.
      *
@@ -229,10 +345,16 @@ class PortalAuthService
     /**
      * Check a challenge code and mint the session — the only place that does.
      *
-     * The counter is reset here rather than after the password, because a
-     * password that is right and a code that is wrong is exactly the shape of
-     * a credential-stuffing attempt against a stolen password. Resetting on
-     * the password alone would give an attacker unlimited code guesses.
+     * IT DISPATCHES ON THE ACCOUNT'S METHOD rather than trying both. Trying
+     * TOTP and then the emailed code, or the reverse, would mean an account on
+     * the email method could still be signed into with a stale TOTP secret
+     * left over from an abandoned enrolment.
+     *
+     * The account counter is reset here rather than after the password,
+     * because a password that is right and a code that is wrong is exactly the
+     * shape of a credential-stuffing attempt against a stolen password.
+     * Resetting on the password alone would give an attacker unlimited code
+     * guesses.
      */
     public function completeMfa(PortalUser $user, string $code, bool $remember = false): bool
     {
@@ -240,7 +362,11 @@ class PortalAuthService
             return false;
         }
 
-        if ($user->mfa_secret === null || ! Totp::verify($code, (string) $user->mfa_secret)) {
+        $verified = $user->usesEmailCodes()
+            ? $this->verifyEmailCode($user, $code)
+            : ($user->mfa_secret !== null && Totp::verify($code, (string) $user->mfa_secret));
+
+        if (! $verified) {
             $this->recordFailure($user);
 
             return false;

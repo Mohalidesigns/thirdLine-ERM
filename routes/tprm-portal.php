@@ -59,6 +59,10 @@ Route::middleware('portal.pending')->group(function (): void {
         ->middleware('throttle:tprm-portal-login')
         ->name('mfa.verify');
 
+    Route::post('mfa/resend', [MfaController::class, 'resend'])
+        ->middleware('throttle:tprm-portal-login')
+        ->name('mfa.resend');
+
     Route::post('mfa/abandon', [MfaController::class, 'abandon'])->name('mfa.abandon');
 });
 

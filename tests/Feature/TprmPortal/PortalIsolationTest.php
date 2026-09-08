@@ -2,14 +2,15 @@
 
 namespace Tests\Feature\TprmPortal;
 
+use App\Mail\Tprm\PortalSignInCode;
 use App\Models\Organization;
 use App\Models\RiskCategory;
 use App\Models\Tprm\PortalUser;
 use App\Models\Tprm\ThirdParty;
 use App\Models\User;
-use App\Support\Auth\Totp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\Test;
@@ -162,6 +163,8 @@ class PortalIsolationTest extends TestCase
     #[Test]
     public function a_password_alone_does_not_produce_a_session(): void
     {
+        Mail::fake();
+
         $this->post(route('tprm-portal.login.attempt', ['client' => $this->bankA->uuid]), [
             'email' => $this->vendorAtA->email,
             'password' => 'Sup3r-Str0ng-P@ssphrase!',
@@ -178,6 +181,8 @@ class PortalIsolationTest extends TestCase
     #[Test]
     public function a_wrong_code_does_not_produce_a_session(): void
     {
+        Mail::fake();
+
         $this->post(route('tprm-portal.login.attempt', ['client' => $this->bankA->uuid]), [
             'email' => $this->vendorAtA->email,
             'password' => 'Sup3r-Str0ng-P@ssphrase!',
@@ -383,8 +388,9 @@ class PortalIsolationTest extends TestCase
             $user->forceFill([
                 'status' => PortalUser::STATUS_ACTIVE,
                 'accepted_at' => now(),
-                'mfa_secret' => Totp::generateSecret(),
-                'mfa_enabled' => true,
+                // The default method. Email codes need no enrolment, which is
+                // why they are the default — see PortalUser.
+                'mfa_method' => PortalUser::METHOD_EMAIL,
             ])->save();
 
             return $user;
@@ -401,6 +407,8 @@ class PortalIsolationTest extends TestCase
      */
     private function signInToPortal(PortalUser $user): void
     {
+        Mail::fake();
+
         $organization = Organization::query()->findOrFail($user->organization_id);
 
         $this->post(route('tprm-portal.login.attempt', ['client' => $organization->uuid]), [
@@ -409,7 +417,33 @@ class PortalIsolationTest extends TestCase
         ])->assertRedirect(route('tprm-portal.mfa.challenge'));
 
         $this->post(route('tprm-portal.mfa.verify'), [
-            'code' => Totp::at((string) $user->mfa_secret, time()),
+            'code' => $this->codeSentTo($user),
         ])->assertRedirect(route('tprm-portal.dashboard'));
+    }
+
+    /**
+     * The code that was actually emailed.
+     *
+     * Read off the mailable rather than out of the database, because the
+     * database only holds a HASH of it — which is the property under test as
+     * much as anything else here.
+     */
+    private function codeSentTo(PortalUser $user): string
+    {
+        $code = null;
+
+        Mail::assertSent(PortalSignInCode::class, function (PortalSignInCode $mail) use ($user, &$code): bool {
+            if ($mail->portalUser->getKey() !== $user->getKey()) {
+                return false;
+            }
+
+            $code = $mail->code;
+
+            return true;
+        });
+
+        $this->assertNotNull($code, 'No sign-in code was emailed.');
+
+        return (string) $code;
     }
 }

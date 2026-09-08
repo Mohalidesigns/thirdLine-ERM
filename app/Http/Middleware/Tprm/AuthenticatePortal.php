@@ -28,8 +28,13 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  * would be one forgotten route name away from an MFA bypass.
  *
  * The session flag is still checked, for one narrow case: an administrator
- * resets `mfa_enabled` on a compromised account while its session is live.
- * Without the check that session keeps working until it expires.
+ * disables an account's second factor while its session is live. Without the
+ * check that session keeps working until it expires.
+ *
+ * `hasSecondFactor()`, NOT `mfa_enabled`. The email method has no enrolment
+ * step and therefore never sets that column — reading it directly locked every
+ * email-method vendor out of the dashboard they had just signed in to, which
+ * is what the probe caught.
  */
 class AuthenticatePortal
 {
@@ -42,7 +47,7 @@ class AuthenticatePortal
             return $this->refuse($request, 'Please sign in to continue.');
         }
 
-        if (! $user->canAuthenticate() || ! $user->mfa_enabled) {
+        if (! $user->canAuthenticate() || ! $user->hasSecondFactor()) {
             return $this->endSession($request, 'This account is no longer active. Contact your client\'s risk team.');
         }
 

@@ -68,6 +68,17 @@ class SessionController extends Controller
         $request->session()->put(EnsurePendingPortalUser::STARTED_KEY, time());
         $request->session()->put('tprm_portal_pending_organization', $user->organization_id);
 
+        /*
+         * Email accounts go straight to the challenge and the code is sent on
+         * the way — there is nothing to enrol. Only a vendor who chose TOTP
+         * and stopped halfway sees the enrolment screen.
+         */
+        if ($user->usesEmailCodes()) {
+            $this->auth->sendEmailCode($user);
+
+            return redirect()->route('tprm-portal.mfa.challenge');
+        }
+
         return redirect()->route($user->mfa_enabled ? 'tprm-portal.mfa.challenge' : 'tprm-portal.mfa.setup');
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\RejectsParentCycles;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -25,7 +26,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class GraphObject extends Model
 {
-    use BelongsToOrganization, HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, RejectsParentCycles, SoftDeletes;
 
     protected $table = 'objects';
 
@@ -74,6 +75,18 @@ class GraphObject extends Model
                 $model->uuid = (string) Str::uuid();
             }
         });
+    }
+
+    /**
+     * `objects` is what the hierarchy walks actually read, and `parent_id` is
+     * writable on the `objects` API resource — so a client can close a ring
+     * here without going through any typed table. ObjectSyncService writes
+     * this row with saveQuietly(), which does not fire the guard: the mirror
+     * must never refuse to reflect what the typed table already says.
+     */
+    public function parentCycleSubject(): string
+    {
+        return 'graph object';
     }
 
     /* ------------------------------------------------------------------ */

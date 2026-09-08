@@ -130,10 +130,37 @@ the real check. Authority first, then the payload.
 **A parent cycle in `business_units` takes the application down.**
 `BusinessUnit` uses `HasObjectIdentity`, which projects into the object graph
 along its `parent` edge on save; a cycle makes that recurse until memory is
-exhausted. Found because a scoping test tried to create one. **This is a real
-pre-existing defect and P7 did not fix it** — it is in the graph projection, not
-in scoping. The test writes its malformed tree through the query builder to get
-past it, and says so.
+exhausted. Found because a scoping test tried to create one. P7 did not fix it —
+it is in the graph projection, not in scoping — and the test wrote its malformed
+tree through the query builder to get past it.
+
+**FIXED after P7**, at two layers, because one is not enough:
+
+- `ObjectSyncService::materialisePath()` (the recursive half of
+  `applyHierarchy()`) carries a visited set. A ring is logged and the walk
+  stops, so a malformed tree degrades to a wrong `hierarchy_path` instead of a
+  dead process. `Entity::refreshHierarchyPath()` and `getFullPathAttribute()`
+  had the same unguarded walk and are bounded the same way. Repair stays with
+  `RebuildHierarchyPaths` (`graph:backfill`), which already breaks cycles
+  rather than spinning on them.
+- `App\Models\Concerns\RejectsParentCycles` refuses the write. On `saving`,
+  when the parent column is dirty, it walks up from the PROPOSED parent and
+  throws a `ValidationException` if it meets the row itself. Applied to every
+  model `ObjectSourceMap` gives a `parent` edge — `BusinessUnit`, `Entity`,
+  `Risk` (`parent_risk_id`), `RiskCategory` — and to `GraphObject`, whose
+  `parent_id` is writable on the `objects` API resource with no rule of its
+  own. On the model rather than in a Form Request because `business_units` has
+  no HTTP writer at all: units arrive from seeders, from the entity
+  unification pass and from imports, and a rule in a request none of them go
+  through protects nothing. `UpdateEntityRequest` keeps its equivalent rule so
+  the user still gets the error on the field.
+
+`tests/Feature/Graph/ParentCycleTest` covers both layers, including that the
+projection can still mirror a legacy ring (it writes with `saveQuietly()`, which
+skips the guard — the index must never refuse to reflect the typed table).
+`a_cycle_in_the_unit_tree_does_not_hang_the_expansion` still writes its tree
+through the query builder, now because the guard REFUSES a cyclic parent rather
+than because saving one kills the process.
 
 **The RCSA models were not in the morph map**, so any audit row written against
 one would have been unreadable by the relationship that fetches it — the exact

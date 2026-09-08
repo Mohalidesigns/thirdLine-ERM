@@ -29,7 +29,10 @@ class UpdateEntityRequest extends StoreEntityRequest
             $ownPath = $entity->hierarchy_path ?: '/'.$entity->getKey().'/';
 
             // Not itself, and not anything beneath it — either would make the
-            // hierarchy a cycle and refreshHierarchyPath() would never return.
+            // hierarchy a cycle. Entity::RejectsParentCycles refuses the same
+            // write at the model, which is what covers the seeders and the
+            // API; this stays because it puts the error on the field the user
+            // is looking at instead of surfacing a 422 with no context.
             $rules['parent_id'] = [
                 'nullable',
                 Rule::notIn([$entity->getKey()]),

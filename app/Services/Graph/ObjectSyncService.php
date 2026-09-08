@@ -408,6 +408,47 @@ class ObjectSyncService
      */
     public function applyHierarchy(GraphObject $object): void
     {
+        $this->materialisePath($object, []);
+    }
+
+    /**
+     * The recursive half of applyHierarchy, carrying the ancestors already
+     * walked on THIS branch.
+     *
+     * `objects.parent_id` is not guaranteed acyclic. It mirrors parent columns
+     * on the typed tables, and any of them — a `business_units.parent_id`
+     * written by a seeder, an importer or a direct UPDATE — can name a row
+     * that is already beneath it. Without $visited that makes this method walk
+     * A -> B -> A forever, appending a segment to hierarchy_path each time,
+     * until PHP runs out of memory and takes the request down with it. The
+     * save that triggered it has already committed by then, so the process
+     * dies AFTER the domain write rather than instead of it.
+     *
+     * The cycle is logged and the walk stops. Deliberately NOT repaired here:
+     * this service's contract is that it never writes back to anything but the
+     * index, and silently nulling a parent somebody just set hides the
+     * problem. RebuildHierarchyPaths breaks the link and is one command away
+     * (`graph:backfill`); RejectsParentCycles stops the cycle reaching the
+     * typed table in the first place.
+     *
+     * @param  array<int, true>  $visited  ancestors on this branch, id => true
+     */
+    private function materialisePath(GraphObject $object, array $visited): void
+    {
+        $id = (int) $object->getKey();
+
+        if (isset($visited[$id])) {
+            Log::error('Cycle detected while materialising hierarchy paths; walk stopped', [
+                'object_id' => $id,
+                'parent_id' => $object->parent_id,
+                'branch' => array_keys($visited),
+            ]);
+
+            return;
+        }
+
+        $visited[$id] = true;
+
         $parentPath = null;
         $parentDepth = -1;
 
@@ -450,7 +491,7 @@ class ObjectSyncService
             ->get();
 
         foreach ($children as $child) {
-            $this->applyHierarchy($child);
+            $this->materialisePath($child, $visited);
         }
     }
 

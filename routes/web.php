@@ -86,6 +86,7 @@ use App\Http\Controllers\Tprm\Reports\CbnRegisterController as TprmCbnRegisterCo
 use App\Http\Controllers\Tprm\Reports\DoraRegisterController as TprmDoraRegisterController;
 use App\Http\Controllers\Tprm\Reports\MaturityController as TprmMaturityController;
 use App\Http\Controllers\Tprm\Reports\NdpaCarPackController as TprmNdpaCarPackController;
+use App\Http\Controllers\Tprm\Reports\OperationalReportController as TprmOperationalReportController;
 use App\Http\Controllers\Tprm\Reports\PciPackController as TprmPciPackController;
 use App\Http\Controllers\Tprm\RulesetController as TprmRulesetController;
 use App\Http\Controllers\Tprm\ScreeningController as TprmScreeningController;
@@ -2047,6 +2048,24 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.admin')->name('reports.maturity.score');
         Route::post('reports/maturity/{maturityAssessment}/approve', [TprmMaturityController::class, 'approve'])
             ->middleware('permission:tprm.admin')->name('reports.maturity.approve');
+
+        /*
+         * The eight standard operational reports — FR-RPT-07.
+         *
+         * The route guard is the HUB's permission. Each report's own
+         * permission is checked in the controller, because they differ per
+         * report — the screening log needs `tprm.screening.view` and the
+         * access reconciliation needs `tprm.access.view`. Guarding the route
+         * with any one of them would either lock everybody out of seven
+         * reports or let the reports page become a way around the module's
+         * own gates.
+         */
+        Route::get('reports/operational', [TprmOperationalReportController::class, 'index'])
+            ->middleware('permission:tprm.report.view')->name('reports.operational');
+        Route::get('reports/operational/{report}', [TprmOperationalReportController::class, 'show'])
+            ->middleware('permission:tprm.report.view')->name('reports.operational.show');
+        Route::get('reports/operational/{report}/export', [TprmOperationalReportController::class, 'export'])
+            ->middleware('permission:tprm.report.export')->name('reports.operational.export');
 
         /*
          * Programme settings — `tprm.admin`, not `tprm.report.*`.

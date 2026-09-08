@@ -527,5 +527,4 @@ class RcsaDashboardService
                 ->with(['scaleItems', 'bands', 'categoryAppetites'])
                 ->find($methodologyId);
     }
-
 }

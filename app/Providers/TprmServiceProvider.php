@@ -77,5 +77,49 @@ class TprmServiceProvider extends ServiceProvider
             \App\Events\Tprm\EngagementScoreInvalidated::class,
             \App\Listeners\Tprm\RecomputeResidualScore::class,
         );
+
+        $this->registerPortalRateLimiter();
+    }
+
+    /**
+     * Per-organisation rate limiting on the vendor portal — FR-PRT-01.
+     *
+     * KEYED ON (organisation, ip, email), not on ip alone. Vendors of one bank
+     * routinely share an office and therefore an egress address; a plain
+     * per-ip limit would let one careless vendor lock out every other vendor
+     * of that client, which is a denial of service a competitor could arrange
+     * for the price of a wrong password typed slowly.
+     *
+     * Including the ORGANISATION means noise from one tenant's portal cannot
+     * spill into another's, and including the EMAIL means the limit bites the
+     * account under attack rather than the address it is attacked from.
+     *
+     * This is the outer bound. The per-account lockout in `PortalAuthService`
+     * is the sharper instrument; this one exists so that an attacker who
+     * rotates addresses to avoid tripping the lockout still meets a wall.
+     */
+    private function registerPortalRateLimiter(): void
+    {
+        \Illuminate\Support\Facades\RateLimiter::for('tprm-portal-login', function (\Illuminate\Http\Request $request) {
+            /*
+             * The RAW route value, not a bound model. Throttle middleware runs
+             * before SubstituteBindings, so `route('client')` is still the
+             * uuid string here — asking it for `getKey()` is a fatal on the
+             * first login attempt, which is how this was found.
+             */
+            $client = $request->route('client');
+
+            $tenantKey = is_object($client)
+                ? $client->getKey()
+                : ($client ?? $request->session()->get('tprm_portal_pending_organization') ?? 'none');
+
+            return [
+                \Illuminate\Cache\RateLimiting\Limit::perMinute(10)
+                    ->by('tprm-portal:'.$tenantKey.':'.$request->ip()),
+
+                \Illuminate\Cache\RateLimiting\Limit::perMinute(5)
+                    ->by('tprm-portal-account:'.$tenantKey.':'.mb_strtolower((string) $request->input('email'))),
+            ];
+        });
     }
 }

@@ -17,6 +17,24 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: '',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+
+        /*
+         * The vendor portal — TPRM Phase 8, FR-PRT-01.
+         *
+         * Its own route file under its own middleware group, NOT the `web`
+         * group with extra guards bolted on. `web` appends ResolveTenant (which
+         * reads the tenant from an internal `users` session),
+         * HandleInertiaRequests (which shares the internal navigation and
+         * permission list with every page) and the licence heartbeat. A vendor
+         * has no business receiving any of it, and a group that starts by
+         * inheriting all of it leaks whatever is added to `web` next.
+         */
+        then: function (): void {
+            \Illuminate\Support\Facades\Route::middleware('tprm-portal')
+                ->prefix('vendor-portal')
+                ->name('tprm-portal.')
+                ->group(__DIR__.'/../routes/tprm-portal.php');
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
@@ -36,6 +54,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'scope' => \App\Http\Middleware\EnsureTokenScope::class,
             'scope.resource' => \App\Http\Middleware\EnsureResourceScope::class,
             'idempotency' => \App\Http\Middleware\IdempotentRequest::class,
+
+            // TPRM Phase 8. `portal.auth` is the portal's equivalent of `auth`
+            // and binds the tenant from the portal user; `portal.guest` keeps a
+            // signed-in vendor off the login screen.
+            'portal.auth' => \App\Http\Middleware\Tprm\AuthenticatePortal::class,
+            'portal.guest' => \App\Http\Middleware\Tprm\RedirectIfPortalAuthenticated::class,
+            // The half-authenticated state: password accepted, code outstanding.
+            'portal.pending' => \App\Http\Middleware\Tprm\EnsurePendingPortalUser::class,
 
             // Migration Phase 0: the ThirdLine licensing client. Neither alias is
             // applied to a route group yet — LICENSE_ENFORCE_VALID ships false —
@@ -70,6 +96,38 @@ return Application::configure(basePath: dirname(__DIR__))
             ],
         );
 
+        /*
+         * The portal's stack, assembled rather than inherited.
+         *
+         * StartPortalSession REPLACES Illuminate's StartSession — it is a
+         * subclass that renames the store — so the group has one session
+         * middleware, not two.
+         *
+         * There is no ResolveTenant here — AuthenticatePortal binds the tenant
+         * from the portal user, because the internal one reads a `users`
+         * session that a vendor will never have. That makes the ordering
+         * against SubstituteBindings load-bearing, and it is fixed in the
+         * priority list below rather than here: `portal.auth` is ROUTE
+         * middleware, which ordinarily runs after the group's, and without the
+         * prepend every `{assessment}` and `{document}` in the portal would be
+         * resolved untenanted — the global scope does not filter when no
+         * organisation is set, so the binding would happily hand a vendor
+         * another tenant's row before any controller ran.
+         */
+        $middleware->group('tprm-portal', [
+            \Illuminate\Cookie\Middleware\EncryptCookies::class,
+            \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            // Not Illuminate's StartSession: this one is it, with the portal's
+            // own cookie name. See the class for why renaming the store beats
+            // rewriting `session.cookie` in the container.
+            \App\Http\Middleware\Tprm\StartPortalSession::class,
+            \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+            \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\Tprm\HandlePortalInertiaRequests::class,
+            \ThirdLine\Platform\Http\Middleware\SetSecurityHeaders::class,
+        ]);
+
         // ResolveTenant is REMOVED from the api group in WP-07. It reads the
         // tenant from the session user, and an API request has no session — a
         // machine token has no user at all. AuthenticateApiToken binds the
@@ -94,6 +152,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prependToPriorityList(
             before: SubstituteBindings::class,
             prepend: \App\Http\Middleware\AuthenticateApiToken::class,
+        );
+
+        // Same reasoning for the vendor portal: bind the tenant from the portal
+        // session before route-model binding resolves anything. See the group
+        // definition above.
+        $middleware->prependToPriorityList(
+            before: SubstituteBindings::class,
+            prepend: \App\Http\Middleware\Tprm\AuthenticatePortal::class,
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {

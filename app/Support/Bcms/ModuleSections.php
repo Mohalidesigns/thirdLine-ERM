@@ -115,7 +115,7 @@ class ModuleSections
                 'summary' => 'The year of exercises: declared by frequency, generated as occurrences, conflict-checked against the blackout calendar.',
                 'lands' => 'Frequency-per-year generation, the drag-and-drop year view, conflict and blackout detection, and the T-10 countdown ladder materialised per occurrence.',
                 'clause' => 'ISO 22301 clause 8.5 · ISO 22398',
-                'live' => false,
+                'live' => true,
             ],
             [
                 'key' => 'exercises',

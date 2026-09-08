@@ -53,6 +53,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property array<array-key, mixed> $default_channel_set
  * @property array<array-key, mixed> $default_audience_rule
  * @property string $status
+ * @property ?array<array-key, mixed> $generation_log
  * @property ?string $iso_clause_ref
  * @property ?int $created_by
  * @property ?int $updated_by
@@ -74,7 +75,7 @@ class ExerciseDefinition extends Model
         'min_notice_days', 'daily_reminder_enabled', 'reminder_send_time', 'reminder_mode',
         'readiness_gating', 'unannounced', 'mandatory', 'regulatory_drivers', 'objectives',
         'scenario_id', 'blackout_overrides', 'default_channel_set', 'default_audience_rule',
-        'status', 'iso_clause_ref', 'created_by', 'updated_by',
+        'status', 'generation_log', 'iso_clause_ref', 'created_by', 'updated_by',
     ];
 
     /** @return array<string, string> */
@@ -82,6 +83,7 @@ class ExerciseDefinition extends Model
     {
         return [
             'process_ids' => 'array',
+            'generation_log' => 'array',
             'preferred_window' => 'array',
             'regulatory_drivers' => 'array',
             'objectives' => 'array',

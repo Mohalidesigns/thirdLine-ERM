@@ -168,6 +168,7 @@ return [
             'aar_synthesis' => env('BCMS_AI_AAR_SYNTHESIS', false),
             'alert_composer' => env('BCMS_AI_ALERT_COMPOSER', false),
             'plan_draft' => env('BCMS_AI_PLAN_DRAFT', false),
+            'programme_advisor' => env('BCMS_AI_PROGRAMME_ADVISOR', false),
         ],
     ],
 

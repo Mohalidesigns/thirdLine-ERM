@@ -87,6 +87,27 @@ trait BcmsAuditable
     }
 
     /**
+     * Record something that happened to this row which is not a column change.
+     *
+     * A RESCHEDULE'S JUSTIFICATION IS THE CASE THIS EXISTS FOR. The automatic
+     * diff already captures that `scheduled_date` moved from the 14th to the
+     * 28th; what it cannot capture is *why*, and the why is the half a regulator
+     * asks about. The same shape covers a cancellation's reason, an executive
+     * waiver and a readiness override — all decisions with a sentence attached
+     * that no column holds.
+     *
+     * It writes an `after` and no `before` deliberately: this is an event, not
+     * a transition, and inventing a "before" for one would make the audit log
+     * read as though something reverted.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    public function recordAudit(string $event, array $context = []): void
+    {
+        $this->writeBcmsAuditRow($event, null, $context);
+    }
+
+    /**
      * @param  array<string, mixed>|null  $before
      * @param  array<string, mixed>|null  $after
      */

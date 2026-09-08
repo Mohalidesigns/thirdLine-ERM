@@ -46,6 +46,14 @@ class RouteAuthorizationTest extends TestCase
         'auth/sso/{slug}/callback', // who the user is
         'auth/sso/{slug}/acs',
         'auth/sso/{slug}/metadata',
+        // The BCMS calendar subscription feed. Outlook and Google fetch a
+        // subscribed calendar with no cookie and no bearer token, so a
+        // `permission:` middleware could never pass — the SIGNATURE is the
+        // credential, per user and tamper-evident, and `ValidateSignature`
+        // rejects anything else before the controller runs. What it exposes is
+        // one user's own calendar. Phase4ScreensTest covers the tampered-URL,
+        // disabled-account and cross-tenant cases in detail.
+        'bcms/calendar/{user}/calendar.ics',
     ];
 
     #[Test]
@@ -161,13 +169,21 @@ class RouteAuthorizationTest extends TestCase
         // make the suite pass, this fails.
         $permitted = ['/', 'up', 'login', 'logout', 'forgot-password', 'reset-password', 'reset-password/{token}', 'mfa/verify', 'mfa/setup', 'mfa/enable',
             'auth/sso/discover', 'auth/sso/{slug}', 'auth/sso/{slug}/callback',
-            'auth/sso/{slug}/acs', 'auth/sso/{slug}/metadata'];
+            'auth/sso/{slug}/acs', 'auth/sso/{slug}/metadata',
+            // BCMS Phase 4. A SIGNED capability URL rather than an
+            // unauthenticated one: `ValidateSignature` is the guard, and a
+            // `permission:` middleware is impossible because the client is a
+            // calendar application that sends no session. It is the only
+            // member of that category so far; a second one should have to
+            // argue for itself here.
+            'bcms/calendar/{user}/calendar.ics'];
 
         $this->assertSame(
             $permitted,
             self::ALLOWLIST_URIS,
-            'The route authorization allowlist changed. Only unauthenticated auth-flow, '
-            .'health and MFA-enrolment routes may appear on it.'
+            'The route authorization allowlist changed. Only unauthenticated auth-flow, health, '
+            .'MFA-enrolment and signed capability routes may appear on it — and a signed one has to '
+            .'be a route a browser session could never reach.'
         );
     }
 

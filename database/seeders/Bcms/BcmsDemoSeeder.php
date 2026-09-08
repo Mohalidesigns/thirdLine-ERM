@@ -3,6 +3,7 @@
 namespace Database\Seeders\Bcms;
 
 use App\Enums\Bcms\ContactSource;
+use App\Enums\Bcms\DistributionMode;
 use App\Enums\Bcms\FindingClassification;
 use App\Enums\Bcms\FindingSource;
 use App\Enums\Bcms\ImpactCategory;
@@ -14,10 +15,13 @@ use App\Enums\Bcms\StrategyType;
 use App\Models\Bcms\Application;
 use App\Models\Bcms\BiaAssessment;
 use App\Models\Bcms\BiaCampaign;
+use App\Models\Bcms\BlackoutPeriod;
 use App\Models\Bcms\Contact;
 use App\Models\Bcms\DataSet;
 use App\Models\Bcms\Equipment;
+use App\Models\Bcms\ExerciseDefinition;
 use App\Models\Bcms\ExerciseProgramme;
+use App\Models\Bcms\ExerciseType;
 use App\Models\Bcms\Finding;
 use App\Models\Bcms\ManagementReview;
 use App\Models\Bcms\Objective;
@@ -33,6 +37,9 @@ use App\Models\User;
 use App\Services\Bcms\Bia\BiaAssessmentService;
 use App\Services\Bcms\Bia\BiaCampaignService;
 use App\Services\Bcms\Bia\DependencyService;
+use App\Services\Bcms\Exercises\ExerciseDefinitionService;
+use App\Services\Bcms\Exercises\ExerciseProgrammeService;
+use App\Services\Bcms\Exercises\OccurrenceGenerator;
 use App\Services\Bcms\Findings\CorrectiveActionService;
 use App\Services\Bcms\Findings\FindingService;
 use App\Services\Bcms\MaturityService;
@@ -236,6 +243,9 @@ class BcmsDemoSeeder extends Seeder
             $this->assignProcessUnits();
             $this->seedStrategies();
             $this->seedPlans($sites);
+
+            // Phase 4: next year's exercise programme, generated.
+            $this->seedExerciseCalendar($sites);
 
             app(MaturityService::class)->assess($programme, 'scheduled');
         } finally {
@@ -1310,5 +1320,247 @@ class BcmsDemoSeeder extends Seeder
 
             $assembler->assemble($plan, $author?->getKey());
         }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Phase 4 — the resilience calendar */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Eighteen exercises across nine types and six sites, generated for next
+     * year.
+     *
+     * THREE OF THEM ARE DELIBERATELY WRONG, and each demonstrates one of the
+     * engine's answers rather than its happy path:
+     *
+     *   · **Two exercises competing for the same people on the same day.** The
+     *     second is shifted forward inside its own segment and the shift is in
+     *     the generation log — never into the next segment, because that is how
+     *     four quarterly exercises silently become three in Q4.
+     *   · **A month that is entirely blacked out.** A core banking migration
+     *     freeze covers the whole of July, and the exercise told to run in July
+     *     comes out `needs_scheduling` rather than being dropped or booked into
+     *     the freeze. It also demonstrates ADR 0012's claim that a change-freeze
+     *     window IS a blackout period rather than a table of its own.
+     *   · **A full-scale exercise on a process nobody has tabletopped.** The
+     *     ladder advisor says so, and does not block it — the exercise is
+     *     booked, the regulator is watching, and a system that refused to record
+     *     it is a system people work around.
+     *
+     * @param  array<string, Site>  $sites
+     */
+    private function seedExerciseCalendar(array $sites): void
+    {
+        if (ExerciseDefinition::query()->exists()) {
+            return;
+        }
+
+        $year = (int) now()->addYear()->year;
+        $approver = User::query()->where('email', 'admin@risk.test')->first();
+
+        // A DIFFERENT PERSON FROM THE APPROVER. Clause 8.5's programme is
+        // approved by somebody other than its author, the service enforces it,
+        // and a demo whose programme silently stayed in draft because both
+        // roles landed on the same account would be demonstrating nothing.
+        $author = User::query()->where('is_active', true)
+            ->when($approver !== null, fn ($q) => $q->whereKeyNot($approver->getKey()))
+            ->orderBy('id')
+            ->first() ?? $approver;
+
+        $programme = app(ExerciseProgrammeService::class)->create(
+            $year,
+            self::TRADING_NAME.' exercise programme '.$year,
+            ['programme_id' => Programme::query()->value('id')],
+            $author?->getKey(),
+        );
+
+        $this->seedChangeFreeze($year);
+        $this->giveContactsADepartment();
+
+        $units = BusinessUnit::query()->whereIn('code', ['BU-IT', 'BU-OP', 'BU-TR', 'BU-RT', 'BU-CX', 'BU-ERM'])
+            ->get()->keyBy('code');
+        $types = ExerciseType::query()->get()->keyBy('code');
+        $processes = Process::query()->get()->keyBy('code');
+
+        $definitions = app(ExerciseDefinitionService::class);
+        $generator = app(OccurrenceGenerator::class);
+
+        foreach ($this->exerciseDefinitions() as $spec) {
+            $type = $types->get($spec['type']);
+
+            if ($type === null) {
+                continue;
+            }
+
+            $definition = $definitions->create(
+                $programme,
+                $type,
+                $spec['name'],
+                array_filter([
+                    'business_unit_id' => isset($spec['unit']) ? $units->get($spec['unit'])?->id : null,
+                    'site_id' => isset($spec['site']) ? ($sites[$spec['site']]->id ?? null) : null,
+                    'process_ids' => isset($spec['processes'])
+                        ? array_values(array_filter(array_map(
+                            fn (string $code) => $processes->get($code)?->id,
+                            $spec['processes'],
+                        )))
+                        : null,
+                    'frequency_per_year' => $spec['frequency'],
+                    'distribution_mode' => $spec['mode'] ?? DistributionMode::Even->value,
+                    'preferred_window' => $spec['window'] ?? null,
+                    'min_notice_days' => $spec['min_notice'] ?? 5,
+                    'mandatory' => $spec['mandatory'] ?? false,
+                    'unannounced' => $spec['unannounced'] ?? false,
+                    // An unannounced exercise cannot also send participants a
+                    // countdown — the form request refuses that pairing and the
+                    // demo must not ship it.
+                    'daily_reminder_enabled' => ! ($spec['unannounced'] ?? false),
+                    'default_audience_rule' => isset($spec['unit']) && $units->get($spec['unit']) !== null
+                        ? AudienceRule::make('org_node', [
+                            'id' => $units->get($spec['unit'])->id,
+                            'include_descendants' => true,
+                        ])->toArray()
+                        : null,
+                    'owner_id' => $author?->getKey(),
+                    'facilitator_id' => $author?->getKey(),
+                    'status' => 'active',
+                ], fn ($v) => $v !== null),
+                $author?->getKey(),
+            );
+
+            $generator->generate($definition->refresh(), $author?->getKey());
+        }
+
+        app(ExerciseProgrammeService::class)->refreshCounts($programme->refresh());
+
+        if ($approver !== null && (int) $approver->getKey() !== (int) $author?->getKey()) {
+            app(ExerciseProgrammeService::class)->approve($programme->refresh(), $approver);
+        }
+    }
+
+    /**
+     * The change-freeze window that blacks out a whole month.
+     *
+     * A CHANGE FREEZE IS A BLACKOUT PERIOD (ADR 0012). The phase prompt lists
+     * "system change-freeze windows" as a conflict source of its own; they are
+     * expressible exactly as this, and a separate table would be the blackout
+     * calendar under a different name.
+     */
+    private function seedChangeFreeze(int $year): void
+    {
+        BlackoutPeriod::query()->updateOrCreate(
+            ['organization_id' => TenantContext::organizationIdOrNull(), 'name' => 'Core banking migration freeze'],
+            [
+                'category' => 'custom',
+                'is_hard_block' => true,
+                'starts_on' => $year.'-07-01',
+                'ends_on' => $year.'-07-31',
+                'is_system_default' => false,
+                'is_active' => true,
+            ]
+        );
+    }
+
+    /**
+     * Put the emergency roster into departments.
+     *
+     * Contacts inherit their unit from the user record, and the demo's users
+     * sit at organisation level — so every `org_node` audience resolved to
+     * nobody, and a conflict detector that works on shared PEOPLE had no people
+     * to share. Phase 2C owns the contact roster properly; this is the minimum
+     * that makes the calendar's conflict detection demonstrable.
+     */
+    private function giveContactsADepartment(): void
+    {
+        $units = BusinessUnit::query()->whereIn('code', ['BU-IT', 'BU-OP', 'BU-TR'])->pluck('id')->all();
+
+        if ($units === []) {
+            return;
+        }
+
+        foreach (Contact::query()->whereNull('business_unit_id')->orderBy('id')->get() as $index => $contact) {
+            $contact->update(['business_unit_id' => $units[$index % count($units)]]);
+        }
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function exerciseDefinitions(): array
+    {
+        return [
+            // --- The regulator's cadences ------------------------------
+            [
+                'type' => 'DRFAILOVER', 'name' => 'CBN open banking failover test', 'unit' => 'BU-IT',
+                'processes' => ['BCP-CHAN', 'BCP-PY'], 'frequency' => 4, 'mandatory' => true,
+                'window' => ['weekdays' => ['tue', 'wed'], 'start_time' => '08:00'], 'min_notice' => 10,
+            ],
+            [
+                'type' => 'DRTEST', 'name' => 'Full disaster recovery test', 'unit' => 'BU-IT', 'site' => 'DC-PRI',
+                'processes' => ['BCP-CORE', 'BCP-DC'], 'frequency' => 2, 'mandatory' => true, 'min_notice' => 14,
+            ],
+            [
+                'type' => 'BACKUP', 'name' => 'Backup restore verification', 'unit' => 'BU-IT',
+                'processes' => ['BCP-BACKUP'], 'frequency' => 4,
+            ],
+            [
+                'type' => 'CALLTREE', 'name' => 'Group call tree test', 'frequency' => 4, 'unannounced' => true,
+                'window' => ['start_time' => '07:30'],
+            ],
+            // --- The deliberate participant conflict -------------------
+            //
+            // Two IT exercises, same audience, same `even` spread and the same
+            // frequency, so they want the same midpoint. The second is shifted
+            // inside its own segment and the shift is in its generation log.
+            [
+                'type' => 'CYBER', 'name' => 'Cyber incident exercise', 'unit' => 'BU-IT',
+                'processes' => ['BCP-ITSEC'], 'frequency' => 2,
+                'window' => ['weekdays' => ['wed'], 'start_time' => '09:00'],
+            ],
+            [
+                'type' => 'CRISISSIM', 'name' => 'Crisis management simulation', 'unit' => 'BU-IT',
+                'processes' => ['BCP-CORE'], 'frequency' => 2,
+                'window' => ['weekdays' => ['wed'], 'start_time' => '09:00'],
+            ],
+            // --- The fully blacked-out segment -------------------------
+            [
+                'type' => 'WALKTHRU', 'name' => 'Treasury plan walkthrough (July)', 'unit' => 'BU-TR',
+                'processes' => ['BCP-FX', 'BCP-TREAS'], 'frequency' => 1,
+                'mode' => DistributionMode::MonthSpecific->value,
+                'window' => ['months' => [7]],
+            ],
+            // --- The ladder warning ------------------------------------
+            [
+                'type' => 'FULLSCALE', 'name' => 'Full-scale payments failure exercise', 'unit' => 'BU-OP',
+                'processes' => ['BCP-PY'], 'frequency' => 1, 'min_notice' => 14,
+            ],
+            // --- The rest of the year ----------------------------------
+            ['type' => 'FIREDRILL', 'name' => 'Head office fire drill', 'site' => 'HQ', 'frequency' => 2],
+            ['type' => 'FIREDRILL', 'name' => 'Kano branch fire drill', 'site' => 'KAN', 'frequency' => 2],
+            ['type' => 'FIREDRILL', 'name' => 'Lagos branch fire drill', 'site' => 'LAG', 'frequency' => 2],
+            ['type' => 'EVAC', 'name' => 'Abuja branch evacuation test', 'site' => 'ABJ', 'frequency' => 1],
+            ['type' => 'EVAC', 'name' => 'Port Harcourt evacuation test', 'site' => 'PHC', 'frequency' => 1],
+            [
+                'type' => 'TABLETOP', 'name' => 'Retail operations tabletop', 'unit' => 'BU-RT',
+                'processes' => ['BCP-BRANCH', 'BCP-CASH'], 'frequency' => 2,
+            ],
+            [
+                'type' => 'TABLETOP', 'name' => 'Contact centre tabletop', 'unit' => 'BU-CX',
+                'processes' => ['BCP-CALL', 'BCP-CUST'], 'frequency' => 2,
+            ],
+            [
+                'type' => 'ORIENT', 'name' => 'New joiner BC orientation', 'frequency' => 12,
+                'mode' => DistributionMode::Even->value,
+            ],
+            [
+                'type' => 'PANDEMIC', 'name' => 'Mass absence exercise', 'unit' => 'BU-ERM',
+                'processes' => ['BCP-HR'], 'frequency' => 1,
+            ],
+            [
+                'type' => 'SUPPLIER', 'name' => 'Critical supplier continuity test', 'unit' => 'BU-ERM',
+                'processes' => ['BCP-VEND'], 'frequency' => 1,
+                'mode' => DistributionMode::QuarterEnd->value,
+            ],
+        ];
     }
 }

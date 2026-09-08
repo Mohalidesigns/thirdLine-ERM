@@ -18,9 +18,13 @@ use App\Http\Controllers\Auth\SsoController;
 use App\Http\Controllers\Bcms\BiaCampaignController as BcmsBiaCampaignController;
 use App\Http\Controllers\Bcms\BiaController as BcmsBiaController;
 use App\Http\Controllers\Bcms\BiaReportController as BcmsBiaReportController;
+use App\Http\Controllers\Bcms\CalendarController as BcmsCalendarController;
 use App\Http\Controllers\Bcms\DependencyController as BcmsDependencyController;
+use App\Http\Controllers\Bcms\ExerciseDefinitionController as BcmsExerciseDefinitionController;
+use App\Http\Controllers\Bcms\ExerciseProgrammeController as BcmsExerciseProgrammeController;
 use App\Http\Controllers\Bcms\FindingController as BcmsFindingController;
 use App\Http\Controllers\Bcms\HomeController as BcmsHomeController;
+use App\Http\Controllers\Bcms\OccurrenceController as BcmsOccurrenceController;
 use App\Http\Controllers\Bcms\PlanController as BcmsPlanController;
 use App\Http\Controllers\Bcms\PlanDocumentController as BcmsPlanDocumentController;
 use App\Http\Controllers\Bcms\PolicyController as BcmsPolicyController;
@@ -2264,6 +2268,56 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::post('plans/{plan}/activations/{activation}/deactivate', [BcmsPlanDocumentController::class, 'deactivate'])
             ->middleware('permission:bcms.plan.activate')->name('plans.deactivate');
 
+        /* --- The resilience calendar (clause 8.5, ISO 22398) ------------ */
+        /*
+         * ONE ROUTE, EIGHT VIEWS. `?view=year|month|week|agenda|gantt|
+         * compliance|mine|unscheduled` — they are one calendar and a route each
+         * would be eight sets of filters to keep in step.
+         *
+         * `exercises` keeps the shell's route name so navigation, permissions
+         * and bookmarks survive; it is the calendar's own alias.
+         */
+        Route::get('calendar', [BcmsCalendarController::class, 'index'])
+            ->middleware('permission:bcms.exercise.view')->name('calendar.index');
+
+        /* --- Exercise programmes and definitions ------------------------ */
+        Route::get('exercise-programmes', [BcmsExerciseProgrammeController::class, 'index'])
+            ->middleware('permission:bcms.exercise.view')->name('exercise-programmes.index');
+        Route::post('exercise-programmes', [BcmsExerciseProgrammeController::class, 'store'])
+            ->middleware('permission:bcms.exercise.manage')->name('exercise-programmes.store');
+        Route::get('exercise-programmes/{programme}', [BcmsExerciseProgrammeController::class, 'show'])
+            ->middleware('permission:bcms.exercise.view')->name('exercise-programmes.show');
+        // Approving freezes `total_planned` as the year's commitment, which is
+        // what clause 8.5 asks to be able to compare delivery against.
+        Route::post('exercise-programmes/{programme}/approve', [BcmsExerciseProgrammeController::class, 'approve'])
+            ->middleware('permission:bcms.exercise.approve')->name('exercise-programmes.approve');
+        Route::post('exercise-programmes/{programme}/generate', [BcmsExerciseProgrammeController::class, 'generate'])
+            ->middleware('permission:bcms.exercise.manage')->name('exercise-programmes.generate');
+        Route::post('exercise-programmes/{programme}/ai-advise', [BcmsExerciseProgrammeController::class, 'advise'])
+            ->middleware('permission:bcms.exercise.manage')->name('exercise-programmes.advise');
+
+        Route::post('exercise-programmes/{programme}/definitions', [BcmsExerciseDefinitionController::class, 'store'])
+            ->middleware('permission:bcms.exercise.manage')->name('exercise-definitions.store');
+        // JSON, because the wizard's "this will create 4 occurrences and 56
+        // notifications" updates as the frequency changes.
+        Route::post('exercise-programmes/{programme}/preview', [BcmsExerciseDefinitionController::class, 'preview'])
+            ->middleware('permission:bcms.exercise.manage')->name('exercise-definitions.preview');
+        Route::patch('exercise-definitions/{definition}', [BcmsExerciseDefinitionController::class, 'update'])
+            ->middleware('permission:bcms.exercise.manage')->name('exercise-definitions.update');
+        Route::post('exercise-definitions/{definition}/generate', [BcmsExerciseDefinitionController::class, 'generate'])
+            ->middleware('permission:bcms.exercise.manage')->name('exercise-definitions.generate');
+
+        /* --- Occurrence governance -------------------------------------- */
+        /*
+         * `bcms.exercise.schedule` and not `.manage`: moving a booked exercise
+         * is a different act from designing the programme, and in practice a
+         * different person does it.
+         */
+        Route::post('occurrences/{occurrence}/reschedule', [BcmsOccurrenceController::class, 'reschedule'])
+            ->middleware('permission:bcms.exercise.schedule')->name('occurrences.reschedule');
+        Route::post('occurrences/{occurrence}/cancel', [BcmsOccurrenceController::class, 'cancel'])
+            ->middleware('permission:bcms.exercise.schedule')->name('occurrences.cancel');
+
         /* --- The sections whose phase has not landed yet ---------------- */
         foreach (\App\Support\Bcms\ModuleSections::all() as $bcmsSection) {
             if ($bcmsSection['live']) {
@@ -2277,3 +2331,22 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         }
     });
 });
+
+/* ---------------------------------------------------------------------- */
+/*  The BCMS calendar subscription feed — deliberately outside `auth`. */
+/* ---------------------------------------------------------------------- */
+/*
+ * Outlook and Google fetch a subscribed calendar with no cookie and no bearer
+ * token, so a feed behind the session would simply never work. The SIGNATURE is
+ * the credential: per user, tamper-evident, and revocable by rotating the app
+ * key (ADR 0012 — a token column would be a stored secret whose only advantage
+ * is individual revocation).
+ *
+ * It still sits behind `feature:bcms`, and the controller sets the tenant from
+ * the bound user before it reads anything. That second part is not belt and
+ * braces: `OrganizationScope` is INERT with no tenant resolved, so without it
+ * this route would serve every organisation's exercises in every feed.
+ */
+Route::middleware(['signed', 'feature:bcms'])
+    ->get('bcms/calendar/{user}/calendar.ics', [\App\Http\Controllers\Bcms\CalendarController::class, 'ics'])
+    ->name('bcms.calendar.ics');

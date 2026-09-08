@@ -42,6 +42,8 @@ class BcmsLlmClient
 
     public const PLAN_DRAFT = 'plan_draft';
 
+    public const PROGRAMME_ADVISOR = 'programme_advisor';
+
     public function __construct(
         private LlmService $llm,
         private BcmsSettings $settings,

@@ -227,6 +227,15 @@ class Preflight extends Command
             'auth/sso/discover', 'auth/sso/{slug}', 'auth/sso/{slug}/callback',
             'auth/sso/{slug}/acs', 'auth/sso/{slug}/metadata',
 
+            // A SIGNED capability URL rather than an unauthenticated one. The
+            // BCMS calendar feed is fetched by Outlook and Google, which send
+            // no cookie and no bearer token, so a `permission:` middleware
+            // could never pass; `ValidateSignature` is what authorizes it, per
+            // user and tamper-evident, and what it exposes is one user's own
+            // calendar. Phase4ScreensTest covers the tampered-URL,
+            // disabled-account and cross-tenant cases.
+            'bcms/calendar/{user}/calendar.ics',
+
             // Livewire's two framework endpoints were here — upload-file and
             // preview-file/{filename}, neither mapping to a feature and so
             // neither taking a permission. Migration Phase 6.8 uninstalled

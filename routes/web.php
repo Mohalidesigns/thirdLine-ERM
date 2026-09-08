@@ -88,6 +88,7 @@ use App\Http\Controllers\Tprm\Reports\MaturityController as TprmMaturityControll
 use App\Http\Controllers\Tprm\Reports\NdpaCarPackController as TprmNdpaCarPackController;
 use App\Http\Controllers\Tprm\Reports\OperationalReportController as TprmOperationalReportController;
 use App\Http\Controllers\Tprm\Reports\PciPackController as TprmPciPackController;
+use App\Http\Controllers\Tprm\Reports\ReportScheduleController as TprmReportScheduleController;
 use App\Http\Controllers\Tprm\RulesetController as TprmRulesetController;
 use App\Http\Controllers\Tprm\ScreeningController as TprmScreeningController;
 use App\Http\Controllers\Tprm\SlaController as TprmSlaController;
@@ -2066,6 +2067,31 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.report.view')->name('reports.operational.show');
         Route::get('reports/operational/{report}/export', [TprmOperationalReportController::class, 'export'])
             ->middleware('permission:tprm.report.export')->name('reports.operational.export');
+
+        /*
+         * Standing report schedules — FR-RPT-09.
+         *
+         * The LIST is `tprm.report.view`, and it shows every schedule
+         * including ones reading data the viewer cannot open. A schedule is a
+         * standing instruction to email data out of the institution, and
+         * somebody reviewing that estate needs to see it exists. Only the
+         * schedule's name, frequency and recipients are shown — never its
+         * contents.
+         *
+         * Creating one is `tprm.report.export`, and the form request checks
+         * the REPORT'S own permission too: scheduling a report you cannot read
+         * would be a permission bypass with a one-day delay.
+         */
+        Route::get('reports/schedules', [TprmReportScheduleController::class, 'index'])
+            ->middleware('permission:tprm.report.view')->name('reports.schedules');
+        Route::post('reports/schedules', [TprmReportScheduleController::class, 'store'])
+            ->middleware('permission:tprm.report.export')->name('reports.schedules.store');
+        Route::put('reports/schedules/{reportSchedule}', [TprmReportScheduleController::class, 'update'])
+            ->middleware('permission:tprm.report.export')->name('reports.schedules.update');
+        Route::delete('reports/schedules/{reportSchedule}', [TprmReportScheduleController::class, 'destroy'])
+            ->middleware('permission:tprm.report.export')->name('reports.schedules.destroy');
+        Route::post('reports/schedules/{reportSchedule}/run', [TprmReportScheduleController::class, 'runNow'])
+            ->middleware('permission:tprm.report.export')->name('reports.schedules.run');
 
         /*
          * Programme settings — `tprm.admin`, not `tprm.report.*`.

@@ -118,6 +118,16 @@ Schedule::command('tprm:reconcile-access')->dailyAt('07:30');
 // escalation table's unique index makes the frequency safe.
 Schedule::command('tprm:run-clocks')->everyFifteenMinutes()->withoutOverlapping();
 
+// TPRM Phase 10 (FR-RPT-09). After every sweep above, so a scheduled report
+// carries the morning's findings rather than yesterday's: the obligation sweep
+// at 07:25 and the monitoring run at 07:40 both change rows these reports read.
+//
+// The command decides what is due from each schedule's own frequency, so this
+// entry is daily regardless of whether any schedule is weekly or monthly — and
+// it is idempotent, because a schedule already sent today is skipped by its own
+// `last_run_at` rather than by the cron not firing twice.
+Schedule::command('tprm:send-scheduled-reports')->dailyAt('08:00')->withoutOverlapping();
+
 // Weekly, not daily: concentration is a property of the portfolio's shape,
 // which does not move overnight. Daily snapshots would bury the four quarters
 // anybody wants to compare under three hundred near-identical rows.

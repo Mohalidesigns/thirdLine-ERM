@@ -231,6 +231,27 @@ class Engagement extends Model
         return $this->hasMany(AccessGrant::class, 'engagement_id');
     }
 
+    /** @return HasMany<Assessment, $this> */
+    public function assessments(): HasMany
+    {
+        return $this->hasMany(Assessment::class, 'engagement_id');
+    }
+
+    /**
+     * There is at most one exit plan per engagement.
+     *
+     * `hasOne` rather than `hasMany` because `tp_exit_plans` carries its own
+     * `version` column: a revised plan is a new version of the same row, not a
+     * second row. A hasMany here would invite a caller to take ->first() and
+     * quietly report a superseded plan as the current one.
+     *
+     * @return HasOne<ExitPlan, $this>
+     */
+    public function exitPlan(): HasOne
+    {
+        return $this->hasOne(ExitPlan::class, 'engagement_id');
+    }
+
     /**
      * The ERM register risk this engagement is represented by (TRD §15).
      *

@@ -30,6 +30,11 @@ class TprmSetting extends Model
     protected $fillable = [
         'organization_id', 'shareholders_funds_minor', 'shareholders_funds_currency',
         'shareholders_funds_as_at', 'regulatory_contact_name', 'regulatory_contact_title', 'updated_by',
+        // Phase 10: the four facts DORA RT.01.01 identifies the maintaining
+        // entity by. None is derivable from `organizations`, which carries a
+        // CBN institution code and an RC number — Nigerian registrations, and
+        // not any of these.
+        'lei', 'country', 'competent_authority', 'reporting_currency',
     ];
 
     protected $casts = [

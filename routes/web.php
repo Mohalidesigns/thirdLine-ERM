@@ -79,8 +79,10 @@ use App\Http\Controllers\Tprm\IntakeController as TprmIntakeController;
 use App\Http\Controllers\Tprm\MonitoringController as TprmMonitoringController;
 use App\Http\Controllers\Tprm\ObligationController as TprmObligationController;
 use App\Http\Controllers\Tprm\PciMatrixController as TprmPciMatrixController;
+use App\Http\Controllers\Tprm\ProgrammeSettingsController as TprmProgrammeSettingsController;
 use App\Http\Controllers\Tprm\QuestionnaireController as TprmQuestionnaireController;
 use App\Http\Controllers\Tprm\Reports\CbnRegisterController as TprmCbnRegisterController;
+use App\Http\Controllers\Tprm\Reports\DoraRegisterController as TprmDoraRegisterController;
 use App\Http\Controllers\Tprm\RulesetController as TprmRulesetController;
 use App\Http\Controllers\Tprm\ScreeningController as TprmScreeningController;
 use App\Http\Controllers\Tprm\SlaController as TprmSlaController;
@@ -1983,6 +1985,25 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.report.view')->name('reports.cbn-register');
         Route::get('reports/cbn-register/export', [TprmCbnRegisterController::class, 'export'])
             ->middleware('permission:tprm.report.export')->name('reports.cbn-register.export');
+
+        Route::get('reports/register-of-information', [TprmDoraRegisterController::class, 'index'])
+            ->middleware('permission:tprm.report.view')->name('reports.dora-register');
+        Route::get('reports/register-of-information/export', [TprmDoraRegisterController::class, 'export'])
+            ->middleware('permission:tprm.report.export')->name('reports.dora-register.export');
+
+        /*
+         * Programme settings — `tprm.admin`, not `tprm.report.*`.
+         *
+         * The shareholders' funds figure entered here moves the threshold at
+         * which a third-party incident becomes reportable to the Central Bank.
+         * That is a programme administration decision and not a reporting one,
+         * and it must not sit behind the permission that lets somebody read a
+         * register.
+         */
+        Route::get('settings/programme', [TprmProgrammeSettingsController::class, 'edit'])
+            ->middleware('permission:tprm.admin')->name('settings.programme');
+        Route::put('settings/programme', [TprmProgrammeSettingsController::class, 'update'])
+            ->middleware('permission:tprm.admin')->name('settings.programme.update');
 
         /* Connections, access grants and the reconciliation report — FR-ACC. */
         Route::get('access', [TprmAccessController::class, 'index'])

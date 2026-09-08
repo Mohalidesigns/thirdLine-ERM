@@ -6,6 +6,7 @@ use App\Enums\Tprm\AccessGrantStatus;
 use App\Enums\Tprm\EngagementStatus;
 use App\Models\Tprm\Document;
 use App\Models\Tprm\Engagement;
+use App\Services\Tprm\Reporting\Concerns\StatesAbsence;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
@@ -42,6 +43,8 @@ use Illuminate\Support\Collection;
  */
 class CbnRegisterBuilder
 {
+    use StatesAbsence;
+
     /**
      * A connection counts as documented when it has been approved AND carries
      * the four facts an examiner asks for: what it connects to, how it is
@@ -235,19 +238,19 @@ class CbnRegisterBuilder
             'registration_number' => $thirdParty->registration_number ?: '—',
             'lei' => $thirdParty->lei ?: '—',
             'country_of_incorporation' => $thirdParty->country_of_incorporation ?: '—',
-            'category' => $thirdParty->category?->name ?? '—',
+            'category' => $this->labelOf($thirdParty->category, 'name', '—'),
 
             'reference' => $engagement->reference,
             'service' => $engagement->name,
             'engagement_type' => $engagement->engagement_type?->label() ?? '—',
             'cloud_model' => $engagement->cloud_model ? strtoupper($engagement->cloud_model) : '—',
-            'business_unit' => $engagement->businessUnit?->name ?? '—',
+            'business_unit' => $this->labelOf($engagement->businessUnit, 'name', '—'),
             'status' => $engagement->status->label(),
             'supports_critical_function' => $engagement->supports_critical_function ? 'Yes' : 'No',
             'is_material_outsourcing' => $engagement->is_material_outsourcing ? 'Yes' : 'No',
             'start_date' => $engagement->start_date?->toDateString() ?? '—',
             'end_date' => $engagement->end_date?->toDateString() ?? 'Open-ended',
-            'contract_reference' => $contract?->reference ?? 'None recorded',
+            'contract_reference' => $this->labelOf($contract, 'reference', 'None recorded'),
             'contract_expiry' => $contract?->expiry_date?->toDateString() ?? '—',
 
             'data_location_at_rest' => $engagement->data_location_at_rest ?: '—',

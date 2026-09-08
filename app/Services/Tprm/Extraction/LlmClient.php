@@ -35,6 +35,13 @@ class LlmClient
 
     public const CLAUSE_ANALYSIS = 'clause_analysis';
 
+    /**
+     * TRD §12.7 — the board pack's narrative. Named here rather than passed as
+     * a literal so the kill switch, the availability probe and the per-call
+     * log apply to it exactly as they do to the other two.
+     */
+    public const NARRATIVE_GENERATION = 'narrative_generation';
+
     public function __construct(
         private readonly LlmService $llm,
         private readonly PromptRegistry $prompts,

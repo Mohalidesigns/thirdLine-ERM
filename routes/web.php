@@ -81,6 +81,7 @@ use App\Http\Controllers\Tprm\ObligationController as TprmObligationController;
 use App\Http\Controllers\Tprm\PciMatrixController as TprmPciMatrixController;
 use App\Http\Controllers\Tprm\ProgrammeSettingsController as TprmProgrammeSettingsController;
 use App\Http\Controllers\Tprm\QuestionnaireController as TprmQuestionnaireController;
+use App\Http\Controllers\Tprm\Reports\BoardPackController as TprmBoardPackController;
 use App\Http\Controllers\Tprm\Reports\CbnRegisterController as TprmCbnRegisterController;
 use App\Http\Controllers\Tprm\Reports\DoraRegisterController as TprmDoraRegisterController;
 use App\Http\Controllers\Tprm\Reports\NdpaCarPackController as TprmNdpaCarPackController;
@@ -2002,6 +2003,28 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.report.view')->name('reports.pci-pack');
         Route::get('reports/pci-pack/export', [TprmPciPackController::class, 'export'])
             ->middleware('permission:tprm.report.export')->name('reports.pci-pack.export');
+
+        /*
+         * The Board and Risk Committee pack — FR-RPT-05.
+         *
+         * `transition` is the only route here NOT behind a report permission
+         * at the route level: it carries both moves and authorises each one
+         * separately in the controller, because signing off is `tprm.admin`
+         * and submitting for review is not. Guarding the route with the
+         * stronger of the two would stop a preparer submitting their own pack.
+         */
+        Route::get('reports/board-packs', [TprmBoardPackController::class, 'index'])
+            ->middleware('permission:tprm.report.view')->name('reports.board-packs');
+        Route::post('reports/board-packs', [TprmBoardPackController::class, 'prepare'])
+            ->middleware('permission:tprm.report.export')->name('reports.board-packs.prepare');
+        Route::get('reports/board-packs/{boardPack}', [TprmBoardPackController::class, 'show'])
+            ->middleware('permission:tprm.report.view')->name('reports.board-packs.show');
+        Route::put('reports/board-packs/{boardPack}/narrative', [TprmBoardPackController::class, 'updateNarrative'])
+            ->middleware('permission:tprm.report.export')->name('reports.board-packs.narrative');
+        Route::post('reports/board-packs/{boardPack}/transition', [TprmBoardPackController::class, 'transition'])
+            ->middleware('permission:tprm.report.view')->name('reports.board-packs.transition');
+        Route::get('reports/board-packs/{boardPack}/export', [TprmBoardPackController::class, 'export'])
+            ->middleware('permission:tprm.report.export')->name('reports.board-packs.export');
 
         /*
          * Programme settings — `tprm.admin`, not `tprm.report.*`.

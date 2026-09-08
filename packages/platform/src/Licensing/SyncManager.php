@@ -2,9 +2,9 @@
 
 namespace ThirdLine\Platform\Licensing;
 
-use ThirdLine\Platform\Licensing\Models\LicenseAuditLog;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use ThirdLine\Platform\Licensing\Models\LicenseAuditLog;
 
 class SyncManager
 {

@@ -10,6 +10,7 @@ use App\Services\Rcsa\RcsaRoundTripService;
 use App\Services\Rcsa\RcsaWorkbookWriter;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Testing\AssertableInertia;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -98,6 +99,30 @@ class RoundTripTest extends CycleTestCase
         (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save($out);
 
         return $out;
+    }
+
+    /**
+     * The conflict screen itself — GET, not just the actions on it.
+     *
+     * The parity guard caught this: every other round-trip route had a test
+     * naming it, and `show` had none. The screen that renders the comparison a
+     * user actually reads had never been requested by anything but a person,
+     * which is precisely the gap the guard exists to report.
+     */
+    #[Test]
+    public function the_batch_screen_renders_the_rows_it_will_apply(): void
+    {
+        $batch = $this->upload($this->downloadWorkingCopy());
+
+        $this->actingAs($this->actor)
+            ->get(route('rcsa.round-trip.show', [$this->assessment, $batch]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('RcsaRoundTrip/Show')
+                ->where('batch.id', $batch->id)
+                ->where('assessment.id', $this->assessment->id)
+                ->has('rows')
+            );
     }
 
     private function upload(string $path): RcsaImportBatch

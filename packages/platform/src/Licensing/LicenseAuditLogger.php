@@ -2,8 +2,8 @@
 
 namespace ThirdLine\Platform\Licensing;
 
-use ThirdLine\Platform\Licensing\Models\LicenseAuditLog;
 use Illuminate\Database\Eloquent\Collection;
+use ThirdLine\Platform\Licensing\Models\LicenseAuditLog;
 
 class LicenseAuditLogger
 {

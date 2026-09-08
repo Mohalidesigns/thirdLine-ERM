@@ -2,7 +2,6 @@
 
 namespace ThirdLine\Reporting;
 
-use ThirdLine\Reporting\Contracts\ResolvesDocumentBranding;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonImmutable;
 use InvalidArgumentException;
@@ -11,6 +10,7 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
+use ThirdLine\Reporting\Contracts\ResolvesDocumentBranding;
 
 /**
  * Turns a Blade view or a tabular dataset into a real document.
@@ -37,8 +37,8 @@ class DocumentRenderer
 
     /**
      * @param  ResolvesDocumentBranding|null  $branding  how this product names
-     *         the owner of a document. Null is legitimate: a consumer that has
-     *         no branding of its own renders unbranded rather than wrong.
+     *                                                   the owner of a document. Null is legitimate: a consumer that has
+     *                                                   no branding of its own renders unbranded rather than wrong.
      */
     public function __construct(
         private readonly ?ResolvesDocumentBranding $branding = null,

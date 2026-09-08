@@ -200,10 +200,11 @@ class CommandCentreService
 
         // Risk trend: Use risk_assessments grouped by month and overall_rating
         //
-        // The month key is built with a driver-appropriate expression rather
-        // than MySQL's DATE_FORMAT. The configured default connection is
-        // sqlite, which has no such function, so this whole screen returned a
-        // 500 on any deployment or test run that was not on MySQL.
+        // The month key goes through monthExpression() rather than an inline
+        // DATE_FORMAT. It was written when the default connection was sqlite,
+        // which has no such function and returned a 500 on this whole screen;
+        // the default is MySQL now, and the indirection stays because the
+        // expression is shared with four other dashboards.
         $twelveMonthsAgo = now()->subMonths(12)->startOfMonth();
         $monthExpression = $this->monthExpression('assessment_date');
 
@@ -454,7 +455,6 @@ class CommandCentreService
     private function monthExpression(string $column): string
     {
         return match (DB::connection()->getDriverName()) {
-            'sqlite' => "strftime('%Y-%m', {$column})",
             'pgsql' => "to_char({$column}, 'YYYY-MM')",
             'sqlsrv' => "FORMAT({$column}, 'yyyy-MM')",
             default => "DATE_FORMAT({$column}, '%Y-%m')",

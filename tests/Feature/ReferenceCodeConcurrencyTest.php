@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -28,7 +29,7 @@ class ReferenceCodeConcurrencyTest extends TestCase
 
     private const CODES_PER_WORKER = 10;
 
-    private string $databasePath;
+    private string $databaseName;
 
     private string $workerPath;
 
@@ -36,16 +37,38 @@ class ReferenceCodeConcurrencyTest extends TestCase
     {
         parent::setUp();
 
-        $this->databasePath = storage_path('framework/testing/reference-concurrency-'.getmypid().'.sqlite');
+        // A DATABASE OF ITS OWN, on the same server the product runs on.
+        //
+        // This used to be a SQLite file, and the file was the problem. The
+        // invariant under test is that `SELECT ... FOR UPDATE` stops two
+        // workers reading the same counter — and SQLite has no row lock, so
+        // what it actually exercised was a whole-file writer lock. The old
+        // comment said so out loud: "the file-database equivalent of the row
+        // lock MySQL gives us". An equivalent is not the thing, and on a loaded
+        // CI runner it returned "database is locked" and 29 codes out of 50.
+        //
+        // Named per-process so parallel runs cannot collide.
+        $this->databaseName = 'risk_test_concurrency_'.getmypid();
         $this->workerPath = storage_path('framework/testing/reference-worker-'.getmypid().'.php');
 
-        File::ensureDirectoryExists(dirname($this->databasePath));
-        File::put($this->databasePath, '');
+        File::ensureDirectoryExists(dirname($this->workerPath));
+
+        DB::statement("DROP DATABASE IF EXISTS `{$this->databaseName}`");
+        DB::statement("CREATE DATABASE `{$this->databaseName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
     }
 
     protected function tearDown(): void
     {
-        File::delete([$this->databasePath, $this->workerPath]);
+        // Drop the database, not a file named after it. Guarded, because a
+        // test that failed before setUp finished leaves nothing to drop and a
+        // teardown that throws hides the failure that caused it.
+        try {
+            DB::statement("DROP DATABASE IF EXISTS `{$this->databaseName}`");
+        } catch (\Throwable) {
+            // The connection is already gone; the database goes with the run.
+        }
+
+        File::delete($this->workerPath);
 
         parent::tearDown();
     }
@@ -76,7 +99,7 @@ class ReferenceCodeConcurrencyTest extends TestCase
                     '%s %s %s %d %d %d',
                     escapeshellarg(PHP_BINARY),
                     escapeshellarg($this->workerPath),
-                    escapeshellarg($this->databasePath),
+                    escapeshellarg($this->databaseName),
                     $organizationId,
                     self::CODES_PER_WORKER,
                     $barrier
@@ -130,16 +153,10 @@ class ReferenceCodeConcurrencyTest extends TestCase
 
     private function migrateWorkerDatabase(): void
     {
+        // No journal-mode dance any more. InnoDB gives concurrent readers and
+        // a row-level writer lock without being asked, which is the whole
+        // reason this test is worth running on it.
         $this->runArtisan('migrate --force');
-
-        // WAL once, here — switching journal mode takes an exclusive lock, so
-        // five workers all trying it on startup would leave four of them dead
-        // before they generated anything. WAL lets the readers proceed while
-        // one writer holds the counter, which is what makes the contention
-        // this test exists to create actually reach the row lock.
-        $previous = $this->swapConnection();
-        \Illuminate\Support\Facades\DB::statement('PRAGMA journal_mode = WAL');
-        $this->restoreConnection($previous);
     }
 
     private function seedOrganization(): int
@@ -162,8 +179,8 @@ class ReferenceCodeConcurrencyTest extends TestCase
     private function runArtisan(string $command): void
     {
         $full = sprintf(
-            'DB_CONNECTION=sqlite DB_DATABASE=%s %s artisan %s 2>&1',
-            escapeshellarg($this->databasePath),
+            'DB_CONNECTION=mysql DB_DATABASE=%s %s artisan %s 2>&1',
+            escapeshellarg($this->databaseName),
             escapeshellarg(PHP_BINARY),
             $command
         );
@@ -180,13 +197,13 @@ class ReferenceCodeConcurrencyTest extends TestCase
      */
     private function swapConnection(): array
     {
-        $previous = [config('database.default'), config('database.connections.sqlite.database')];
+        $previous = [config('database.default'), config('database.connections.mysql.database')];
 
         config([
-            'database.default' => 'sqlite',
-            'database.connections.sqlite.database' => $this->databasePath,
+            'database.default' => 'mysql',
+            'database.connections.mysql.database' => $this->databaseName,
         ]);
-        app('db')->purge('sqlite');
+        app('db')->purge('mysql');
 
         return $previous;
     }
@@ -197,9 +214,9 @@ class ReferenceCodeConcurrencyTest extends TestCase
 
         config([
             'database.default' => $default,
-            'database.connections.sqlite.database' => $database,
+            'database.connections.mysql.database' => $database,
         ]);
-        app('db')->purge('sqlite');
+        app('db')->purge('mysql');
     }
 
     /**
@@ -220,9 +237,9 @@ class ReferenceCodeConcurrencyTest extends TestCase
 // $_ENV before putenv(), and a CLI process inherits PHPUnit's DB_DATABASE
 // (":memory:") into $_SERVER — so setting only $_ENV leaves the worker
 // pointed at an in-memory database that has no tables in it.
-putenv("DB_CONNECTION=sqlite");
+putenv("DB_CONNECTION=mysql");
 putenv("DB_DATABASE={$database}");
-$_ENV['DB_CONNECTION'] = $_SERVER['DB_CONNECTION'] = 'sqlite';
+$_ENV['DB_CONNECTION'] = $_SERVER['DB_CONNECTION'] = 'mysql';
 $_ENV['DB_DATABASE'] = $_SERVER['DB_DATABASE'] = $database;
 
 require __DIR__.'/../../../vendor/autoload.php';
@@ -230,10 +247,8 @@ require __DIR__.'/../../../vendor/autoload.php';
 $app = require __DIR__.'/../../../bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-// SQLite serialises writers, so a worker that arrives while another holds the
-// write lock must wait rather than fail. This is the file-database equivalent
-// of the row lock MySQL gives us.
-Illuminate\Support\Facades\DB::statement('PRAGMA busy_timeout = 10000');
+// Nothing to configure: InnoDB blocks a second writer on the counter row
+// until the first commits, which is the lock this test exists to prove.
 
 // Line the workers up on a common start, so they contend on the counter
 // instead of politely queueing behind one another's framework boot.

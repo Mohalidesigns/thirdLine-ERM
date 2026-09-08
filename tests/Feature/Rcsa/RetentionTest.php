@@ -247,8 +247,20 @@ class RetentionTest extends CycleTestCase
         $this->exportJob(ageDays: 60);
         $this->importBatch(ageDays: 60, status: RcsaImportBatch::PUBLISHED, rows: 4);
 
+        // getTableListing() returns SCHEMA-QUALIFIED names, and this stripped
+        // the schema instead of filtering by it — so a table belonging to an
+        // unrelated database on the same server was counted as one of ours.
+        // On the machine that found it, `internalaudit.rcsa_campaigns` became
+        // `rcsa_campaigns` and the count blew up with "table doesn't exist".
+        //
+        // CI never saw it: its container hosts a single database. A developer's
+        // MySQL usually hosts a dozen, which is exactly the environment a guard
+        // that enumerates tables has to survive.
+        $database = DB::connection()->getDatabaseName();
+
         $tables = collect(DB::connection()->getSchemaBuilder()->getTableListing())
             ->map(fn ($t) => is_array($t) ? ($t['name'] ?? '') : (string) $t)
+            ->filter(fn (string $t) => ! str_contains($t, '.') || str_starts_with($t, $database.'.'))
             ->map(fn (string $t) => str_contains($t, '.') ? substr($t, (int) strrpos($t, '.') + 1) : $t)
             ->filter(fn (string $t) => str_starts_with($t, 'rcsa_') || $t === 'risk_audit_trail')
             ->values();

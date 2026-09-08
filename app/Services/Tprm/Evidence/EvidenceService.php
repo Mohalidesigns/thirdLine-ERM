@@ -116,6 +116,7 @@ class EvidenceService
         UploadedFile $file,
         array $attributes,
         ?int $userId = null,
+        string $via = 'internal',
     ): Document {
         $replacement = $this->store(
             $file,
@@ -124,6 +125,11 @@ class EvidenceService
             $existing->documentType,
             $attributes + ['title' => $existing->title],
             $userId,
+            // Carried through, so a vendor replacing its own expiring
+            // certificate is recorded as a portal upload rather than as one of
+            // ours. A reviewer needs to know which it was, and the virus-scan
+            // posture differs.
+            $via,
         );
 
         $existing->supersede($replacement);

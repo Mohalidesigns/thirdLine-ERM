@@ -18,6 +18,9 @@ export default function PortalLayout({ title, children }) {
         ['tprm-portal.dashboard', 'Overview'],
         ['tprm-portal.assessments.index', 'Assessments'],
         ['tprm-portal.findings.index', 'Findings'],
+        ['tprm-portal.documents.index', 'Documents'],
+        ['tprm-portal.subprocessors.index', 'Sub-processors'],
+        ['tprm-portal.incidents.index', 'Incidents'],
         ['tprm-portal.trust-profile.show', 'Trust profile'],
         ['tprm-portal.sharing.index', 'Sharing'],
     ];

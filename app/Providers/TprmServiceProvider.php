@@ -79,6 +79,26 @@ class TprmServiceProvider extends ServiceProvider
         );
 
         $this->registerPortalRateLimiter();
+        $this->registerPortalUploadLimiter();
+    }
+
+    /**
+     * The upload endpoint's own limit — Phase 8, part 11.
+     *
+     * SEPARATE FROM THE LOGIN LIMITER because the two protect different
+     * things. Login throttling is about guessing a credential; this is about a
+     * signed-in vendor filling the disk, deliberately or through a retry loop
+     * in their own script. Twenty 25MB files a minute is generous for a person
+     * and inconvenient for a machine.
+     */
+    private function registerPortalUploadLimiter(): void
+    {
+        \Illuminate\Support\Facades\RateLimiter::for('tprm-portal-upload', function (\Illuminate\Http\Request $request) {
+            $user = $request->user('tprm-portal');
+
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute(20)
+                ->by('tprm-portal-upload:'.($user?->getKey() ?? $request->ip()));
+        });
     }
 
     /**

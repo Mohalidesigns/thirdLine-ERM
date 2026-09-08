@@ -7,6 +7,7 @@ use App\Http\Controllers\TprmPortal\InvitationController;
 use App\Http\Controllers\TprmPortal\MfaController;
 use App\Http\Controllers\TprmPortal\SessionController;
 use App\Http\Controllers\TprmPortal\TrustProfileController;
+use App\Http\Controllers\TprmPortal\VendorRecordController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -111,6 +112,27 @@ Route::middleware('portal.auth')->group(function (): void {
         ->name('sharing.decline');
     Route::post('sharing/{share}/revoke', [TrustProfileController::class, 'revokeShare'])
         ->name('sharing.revoke');
+
+    /*
+    | What the vendor MAINTAINS rather than answers — FR-PRT-05, 06 and 07.
+    |
+    | `documents.upload` is the only endpoint in the product that accepts a
+    | file from outside the bank's network. It goes through the same
+    | FileUploadService the internal side uses, which validates against the
+    | DETECTED mime rather than the client's header — a second upload path
+    | would be a second place to get that wrong.
+    */
+    Route::get('documents', [VendorRecordController::class, 'documents'])->name('documents.index');
+    Route::post('documents', [VendorRecordController::class, 'uploadDocument'])
+        ->middleware('throttle:tprm-portal-upload')
+        ->name('documents.upload');
+
+    Route::get('subprocessors', [VendorRecordController::class, 'subprocessors'])->name('subprocessors.index');
+    Route::post('subprocessors', [VendorRecordController::class, 'declareSubprocessor'])
+        ->name('subprocessors.declare');
+
+    Route::get('incidents', [VendorRecordController::class, 'incidents'])->name('incidents.index');
+    Route::post('incidents', [VendorRecordController::class, 'reportIncident'])->name('incidents.report');
 
     Route::post('logout', [SessionController::class, 'destroy'])->name('logout');
 });

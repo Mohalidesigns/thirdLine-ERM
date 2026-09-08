@@ -44,7 +44,7 @@ class ThirdParty extends Model
         'organization_id', 'legal_name', 'trading_name', 'slug', 'registration_number', 'tax_id', 'lei',
         'entity_type', 'ownership_type', 'country_of_incorporation', 'country_of_hq', 'website',
         'year_established', 'employee_band', 'ultimate_parent_id', 'is_intra_group', 'status',
-        'relationship_owner_id', 'oversight_owner_id', 'category_id', 'notes', 'logo_path',
+        'relationship_owner_id', 'oversight_owner_id', 'category_id', 'notes', 'logo_path', 'vendor_identity_id',
         'portal_enabled', 'data_confidence', 'aggregate_residual', 'screening_status',
         'last_screened_at', 'blacklisted_at', 'blacklist_reason', 'created_by', 'updated_by',
     ];
@@ -113,6 +113,22 @@ class ThirdParty extends Model
     public function oversightOwner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'oversight_owner_id');
+    }
+
+    /**
+     * The global company record this supplier row represents, if the vendor
+     * has claimed one — FR-PRT-04.
+     *
+     * Null for most rows and that is normal: a vendor with no portal account
+     * has no identity and needs none. Nothing sets this automatically; the
+     * vendor claims it, because a wrong link shows one bank the posture
+     * another bank's vendor declared.
+     *
+     * @return BelongsTo<VendorIdentity, $this>
+     */
+    public function vendorIdentity(): BelongsTo
+    {
+        return $this->belongsTo(VendorIdentity::class, 'vendor_identity_id');
     }
 
     /** @return HasMany<Engagement, $this> */

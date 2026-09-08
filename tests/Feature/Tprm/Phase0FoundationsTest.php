@@ -166,9 +166,19 @@ class Phase0FoundationsTest extends TestCase
             'tp_questions' => 'Belongs to its section; scoped through it.',
             'tp_question_control_maps' => 'Belongs to its question; scoped through it.',
 
-            // The vendor owns this, not one of our tenants. Access is granted
-            // per client through tp_trust_profile_shares, which IS scoped.
+            // Phase 8. The vendor owns these, not one of our tenants. Access
+            // is granted per client through tp_trust_profile_shares, which IS
+            // scoped — and every internal read goes through
+            // TrustProfileService::documentFor(), the single door that checks
+            // a live share before returning anything.
+            //
+            // `tp_vendor_identities` is the row that means "this company, in
+            // the world". It has to be global for the same reason the profile
+            // does: Lagos Union Bank's supplier record for Cloudspan and Abuja
+            // Trust Bank's are two tenant-scoped rows, and the whole point of
+            // the reusable profile is that one company completes it once.
             'tp_trust_profiles' => 'Vendor-owned; read only through a share row.',
+            'tp_vendor_identities' => 'The company itself, spanning tenants; read only through a share row.',
 
             // Phase 6. A sanctions list is the same list for every institution
             // in the country. Scoping it per tenant would hold the UN

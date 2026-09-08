@@ -11,6 +11,7 @@ use App\Models\Tprm\Engagement;
 use App\Models\Tprm\Question;
 use App\Models\Tprm\QuestionnaireTemplate;
 use App\Services\Tprm\Findings\FindingRaiser;
+use App\Services\Tprm\Portal\TrustProfilePrefill;
 use App\Services\Tprm\Scoring\EngagementContext;
 use Illuminate\Support\Facades\DB;
 
@@ -30,6 +31,7 @@ class AssessmentService
         private readonly QuestionnaireScoper $scoper,
         private readonly EngagementContext $context,
         private readonly AnswerInheritanceResolver $inheritance,
+        private readonly TrustProfilePrefill $prefill,
     ) {}
 
     /**
@@ -84,6 +86,19 @@ class AssessmentService
                 // answered with evidence that is still good.
                 $this->inheritance->apply($response, $question, $engagement);
             }
+
+            /*
+             * FR-PRT-04: then fill what is still blank from the vendor's
+             * published trust profile, where the vendor has approved a share
+             * with this client.
+             *
+             * AFTER INHERITANCE, NEVER BEFORE. An answer this vendor gave THIS
+             * client in an earlier cycle, with evidence this client accepted,
+             * beats a general statement the vendor published for everybody —
+             * and `apply()` only touches responses that are still unanswered,
+             * so ordering is the whole of the precedence rule.
+             */
+            $this->prefill->apply($assessment);
 
             return $assessment->refresh();
         });

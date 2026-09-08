@@ -260,15 +260,16 @@ return [
         'plan_id', 'statement', 'updated_at',
     ],
     'bcms_plan_sections' => [
-        'ai_generated', 'body', 'created_at', 'id', 'is_overridden', 'organization_id', 'plan_id',
-        'section_key', 'sort_order', 'source_binding', 'title', 'updated_at',
+        'ai_generated', 'body', 'created_at', 'id', 'is_overridden', 'last_verified_at',
+        'needs_review', 'organization_id', 'plan_id', 'section_key', 'sort_order',
+        'source_binding', 'source_fingerprint', 'title', 'updated_at',
     ],
     'bcms_plans' => [
         'ai_generated', 'approved_at', 'approver_id', 'business_unit_id', 'content', 'created_at',
-        'created_by', 'deleted_at', 'effective_from', 'id', 'iso_clause_ref', 'next_review_date',
-        'offline_bundle_generated_at', 'offline_bundle_path', 'organization_id', 'owner_id',
-        'plan_type', 'site_id', 'status', 'supersedes_plan_id', 'title', 'updated_at',
-        'updated_by', 'uuid', 'version',
+        'created_by', 'deleted_at', 'distribution_rule', 'effective_from', 'id', 'iso_clause_ref',
+        'next_review_date', 'offline_bundle_generated_at', 'offline_bundle_path',
+        'organization_id', 'owner_id', 'plan_type', 'review_frequency_months', 'site_id', 'status',
+        'supersedes_plan_id', 'title', 'updated_at', 'updated_by', 'uuid', 'version',
     ],
     'bcms_processes' => [
         'business_process_id', 'business_unit_id', 'category', 'code', 'created_at', 'created_by',

@@ -87,13 +87,13 @@ export default function Index({ current, versions = [], default_statement: defau
                                         <div className="flex gap-2">
                                             {can.approve && version.status === 'draft' && (
                                                 <button type="button" className="btn-primary text-sm"
-                                                    onClick={() => router.post(tryRoute('bcms.policy.approve', version.id), {}, { preserveScroll: true })}>
+                                                    onClick={() => router.post(tryRoute('bcms.policy.approve', version.uuid), {}, { preserveScroll: true })}>
                                                     Approve
                                                 </button>
                                             )}
                                             {can.manage && version.status === 'approved' && (
                                                 <form
-                                                    onSubmit={(e) => { e.preventDefault(); supersede.post(tryRoute('bcms.policy.supersede', version.id), { preserveScroll: true }); }}
+                                                    onSubmit={(e) => { e.preventDefault(); supersede.post(tryRoute('bcms.policy.supersede', version.uuid), { preserveScroll: true }); }}
                                                     className="flex gap-2"
                                                 >
                                                     <input placeholder="2.0" className="w-20 rounded border-gray-300 text-sm"
@@ -134,7 +134,7 @@ export default function Index({ current, versions = [], default_statement: defau
 
                                     {can.attest && version.status === 'approved' && (
                                         <form
-                                            onSubmit={(e) => { e.preventDefault(); attest.post(tryRoute('bcms.policy.attest', version.id), { preserveScroll: true }); }}
+                                            onSubmit={(e) => { e.preventDefault(); attest.post(tryRoute('bcms.policy.attest', version.uuid), { preserveScroll: true }); }}
                                             className="mt-4 space-y-3 border-t border-gray-100 pt-4"
                                         >
                                             <label className="block text-sm">

@@ -154,3 +154,10 @@ Schedule::command('bcms:sweep-actions')->dailyAt('06:45');
 // chases on an interval rather than nightly — forty people taught to filter a
 // daily reminder are forty people who will not read the escalation either.
 Schedule::command('bcms:chase-bia')->dailyAt('07:00');
+
+// BCMS Phase 3. Late enough that the day's BIA approvals and vendor changes are
+// in, early enough that a plan owner opening the library at 08:00 sees last
+// night's truth. Drift is ALSO detected the moment a BIA is approved — this
+// catches the changes the application never sees, like a vendor soft-deleted in
+// TPRM or a site closed, which cannot know that a plan depends on them.
+Schedule::command('bcms:check-plan-drift')->dailyAt('05:30')->withoutOverlapping();

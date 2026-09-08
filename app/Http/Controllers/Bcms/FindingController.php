@@ -236,6 +236,9 @@ class FindingController extends Controller
             'erm_issue_id' => $finding->erm_issue_id,
             'actions' => $finding->correctiveActions->map(fn (CorrectiveAction $a) => [
                 'id' => $a->getKey(),
+                // The route key. Corrective actions are addressed by uuid, and
+                // a screen that builds a URL from the numeric id links to a 404.
+                'uuid' => $a->uuid,
                 'reference' => $a->reference,
                 'title' => $a->title,
                 'owner' => $a->owner?->name,

@@ -189,13 +189,13 @@ export default function Index({ findings, filters = {}, summary = {}, options = 
                                     <div className="flex gap-2">
                                         {can.manage && (a.status === 'open' || a.status === 'in_progress' || a.status === 'overdue') && (
                                             <button type="button" className="btn-secondary text-xs"
-                                                onClick={() => router.post(tryRoute('bcms.actions.complete', a.id), {}, { preserveScroll: true })}>
+                                                onClick={() => router.post(tryRoute('bcms.actions.complete', a.uuid), {}, { preserveScroll: true })}>
                                                 Mark complete
                                             </button>
                                         )}
                                         {can.verify && a.status === 'completed' && (
                                             <button type="button" className="btn-primary text-xs"
-                                                onClick={() => router.post(tryRoute('bcms.actions.verify', a.id), {}, { preserveScroll: true })}>
+                                                onClick={() => router.post(tryRoute('bcms.actions.verify', a.uuid), {}, { preserveScroll: true })}>
                                                 Verify
                                             </button>
                                         )}
@@ -211,7 +211,7 @@ export default function Index({ findings, filters = {}, summary = {}, options = 
                         {can.manage && f.status === 'open' && f.actions.length > 0 && (
                             <footer className="mt-3">
                                 <button type="button" className="text-xs text-gray-600 underline"
-                                    onClick={() => router.post(tryRoute('bcms.findings.close', f.id), {}, { preserveScroll: true })}>
+                                    onClick={() => router.post(tryRoute('bcms.findings.close', f.uuid), {}, { preserveScroll: true })}>
                                     Close this finding
                                 </button>
                             </footer>

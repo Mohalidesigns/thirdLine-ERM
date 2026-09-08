@@ -73,7 +73,7 @@ class ModuleSections
                 'summary' => 'Strategy options per process, their cost, the recovery time they can actually achieve, and the gap.',
                 'lands' => 'The strategy register with cost/benefit, resource requirements and the gap against the BIA\'s required RTO.',
                 'clause' => 'ISO 22301 clause 8.3 · ISO 22331',
-                'live' => false,
+                'live' => true,
             ],
             [
                 'key' => 'plans',
@@ -83,7 +83,7 @@ class ModuleSections
                 'summary' => 'BCP, DRP, CMP, IRP, pandemic and site plans, versioned, approved and distributed offline.',
                 'lands' => 'The plan builder with section bindings to live BIA and call-tree data, approval workflow, and the offline PWA bundle.',
                 'clause' => 'ISO 22301 clause 8.4',
-                'live' => false,
+                'live' => true,
             ],
             [
                 /*

@@ -8,7 +8,9 @@ use App\Enums\Bcms\FindingSource;
 use App\Enums\Bcms\ImpactCategory;
 use App\Enums\Bcms\ImpactHorizon;
 use App\Enums\Bcms\IsoClauseRef;
+use App\Enums\Bcms\PlanType;
 use App\Enums\Bcms\RaciRole;
+use App\Enums\Bcms\StrategyType;
 use App\Models\Bcms\Application;
 use App\Models\Bcms\BiaAssessment;
 use App\Models\Bcms\BiaCampaign;
@@ -19,9 +21,11 @@ use App\Models\Bcms\ExerciseProgramme;
 use App\Models\Bcms\Finding;
 use App\Models\Bcms\ManagementReview;
 use App\Models\Bcms\Objective;
+use App\Models\Bcms\Plan;
 use App\Models\Bcms\Process;
 use App\Models\Bcms\Programme;
 use App\Models\Bcms\Site;
+use App\Models\Bcms\Strategy;
 use App\Models\BusinessProcess;
 use App\Models\BusinessUnit;
 use App\Models\Organization;
@@ -32,9 +36,13 @@ use App\Services\Bcms\Bia\DependencyService;
 use App\Services\Bcms\Findings\CorrectiveActionService;
 use App\Services\Bcms\Findings\FindingService;
 use App\Services\Bcms\MaturityService;
+use App\Services\Bcms\Plans\PlanAssembler;
+use App\Services\Bcms\Plans\PlanService;
 use App\Services\Bcms\PolicyService;
 use App\Services\Bcms\ProgrammeService;
 use App\Services\Bcms\RaciService;
+use App\Services\Bcms\Strategy\StrategyService;
+use App\Support\Bcms\AudienceRule;
 use Illuminate\Database\Seeder;
 use ThirdLine\Platform\Tenancy\TenantContext;
 
@@ -171,12 +179,21 @@ class BcmsDemoSeeder extends Seeder
         'BCP-DC' => 'The primary data centre hosts every tier-1 system. It is designated in its own right because a facilities failure is a different scenario from an application failure.',
     ];
 
-    /** The four divisions the twelve existing departments hang beneath. */
+    /**
+     * The four divisions the existing departments hang beneath.
+     *
+     * THE CODES ARE THE ONES THE DEMO ORGANISATION ACTUALLY HAS. Five of the
+     * original entries — `BU-RB`, `BU-CB`, `BU-RM`, `BU-CO`, `BU-FN` — matched
+     * nothing, so those departments were silently left at the top of the tree.
+     * Nothing depended on the hierarchy until Phase 3, where a departmental
+     * plan finds its processes by walking down from its own unit; an orphaned
+     * department is a plan with an empty recovery-objectives table.
+     */
     private const DIVISIONS = [
-        ['DIV-RB', 'Retail Banking Division', ['BU-RB', 'BU-CX', 'BU-PB', 'BU-RES']],
-        ['DIV-CB', 'Corporate Banking Division', ['BU-CB', 'BU-TR', 'BU-SB', 'BU-LMDR']],
+        ['DIV-RB', 'Retail Banking Division', ['BU-RT', 'BU-CX', 'BU-PB', 'BU-RES', 'BU-DB']],
+        ['DIV-CB', 'Corporate Banking Division', ['BU-IB', 'BU-TR', 'BU-SB', 'BU-LMDR']],
         ['DIV-OPS', 'Operations and Technology Division', ['BU-OP', 'BU-IT']],
-        ['DIV-CTL', 'Control Division', ['BU-RM', 'BU-CO', 'BU-IA', 'BU-LG', 'BU-FN', 'BU-HR']],
+        ['DIV-CTL', 'Control Division', ['BU-ERM', 'BU-CIC', 'BU-IA', 'BU-LG', 'BU-FC', 'BU-HR', 'BU-SBP', 'BU-BM']],
     ];
 
     public function run(): void
@@ -213,6 +230,13 @@ class BcmsDemoSeeder extends Seeder
             $this->seedManagementReview($programme);
             $this->seedWorkedFinding();
             $this->seedBiaCampaign();
+
+            // Phase 3: the strategy register with three deliberate gaps, and
+            // the plan estate those strategies feed.
+            $this->assignProcessUnits();
+            $this->seedStrategies();
+            $this->seedPlans($sites);
+
             app(MaturityService::class)->assess($programme, 'scheduled');
         } finally {
             TenantContext::clear();
@@ -947,5 +971,344 @@ class BcmsDemoSeeder extends Seeder
             'processes' => Process::query()->where('code', $code)->first(),
             default => null,
         };
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Phase 3 — strategy and plans */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Which department owns each process.
+     *
+     * ONLY THE EIGHT LINKED TO THE ORG'S OWN CATALOGUE INHERITED A UNIT, and
+     * the other forty were left at organisation level. That is fine for a
+     * register and useless for a departmental plan: a plan scoped to IT
+     * Operations finds its processes through `business_unit_id`, and a
+     * catalogue where every process is organisation-level produces a
+     * departmental BCP with an empty recovery-objectives table. Assigning them
+     * is what makes the demo show the binding working rather than the empty
+     * state.
+     *
+     * @var array<string, string> process code prefix or code => business unit code
+     */
+    private const PROCESS_UNITS = [
+        'BCP-PY' => 'BU-OP', 'BCP-CORE' => 'BU-OP', 'BCP-CLEAR' => 'BU-OP', 'BCP-CASH' => 'BU-OP',
+        'BCP-RET' => 'BU-FC', 'BCP-FIN' => 'BU-FC', 'BCP-TAX' => 'BU-FC', 'BCP-PROC' => 'BU-FC',
+        'BCP-CHAN' => 'BU-IT', 'BCP-CARD' => 'BU-IT', 'BCP-ATM' => 'BU-IT', 'BCP-ITOPS' => 'BU-IT',
+        'BCP-ITSEC' => 'BU-IT', 'BCP-NET' => 'BU-IT', 'BCP-DC' => 'BU-IT', 'BCP-BACKUP' => 'BU-IT',
+        'BCP-CHANGE' => 'BU-IT', 'BCP-DEV' => 'BU-IT',
+        'BCP-FX' => 'BU-TR', 'BCP-TREAS' => 'BU-TR',
+        'BCP-LN' => 'BU-RT', 'BCP-KY' => 'BU-RT', 'BCP-CREDIT' => 'BU-RT', 'BCP-COLL' => 'BU-LMDR',
+        'BCP-BRANCH' => 'BU-RT', 'BCP-AGENT' => 'BU-RT', 'BCP-SME' => 'BU-RT', 'BCP-REMIT' => 'BU-RT',
+        'BCP-CUST' => 'BU-CX', 'BCP-CALL' => 'BU-CX',
+        'BCP-CORP' => 'BU-IB', 'BCP-TF' => 'BU-IB',
+        'BCP-PRIV' => 'BU-PB',
+        'BCP-AML' => 'BU-CIC', 'BCP-SANC' => 'BU-CIC', 'BCP-COMP' => 'BU-CIC',
+        'BCP-FRAUD' => 'BU-ERM', 'BCP-RISK' => 'BU-ERM', 'BCP-ORM' => 'BU-ERM', 'BCP-VEND' => 'BU-ERM',
+        'BCP-AUDIT' => 'BU-IA',
+        'BCP-LEGAL' => 'BU-LG',
+        'BCP-HR' => 'BU-HR', 'BCP-PAYROLL' => 'BU-HR', 'BCP-TRAIN' => 'BU-HR',
+    ];
+
+    /**
+     * The strategy register — ISO 22331, with three deliberate gaps.
+     *
+     * THE GAPS ARE THE POINT OF THE DEMO. Payments cannot be recovered in the
+     * thirty minutes the BIA demands by the strategy the bank has actually
+     * funded; cards and regulatory returns are the same story at different
+     * scales. A demo estate where every strategy meets its objective would show
+     * the gap-analysis screen as an empty table, which is the one screen a
+     * prospect asks to see.
+     *
+     * @var array<string, list<array{0:string, 1:string, 2:int, 3:float, 4:bool}>>
+     *                                                                             process code => [type, title, cost in whole naira, achievable RTO hours, selected]
+     */
+    private const STRATEGIES = [
+        'BCP-PY' => [
+            ['recover', 'Restore the switch interface at the primary data centre', 18_000_000, 1.5, true],
+            ['relocate', 'Fail the switch interface over to the Abuja DR site', 240_000_000, 0.5, false],
+            ['manual_workaround', 'Queue outbound NIP and release on restoration', 0, 6.0, false],
+        ],
+        'BCP-CHAN' => [
+            ['recover', 'Restart channel middleware on standby capacity', 42_000_000, 1.0, true],
+            ['manual_workaround', 'USSD-only service with balance and intra-bank transfer', 3_000_000, 4.0, false],
+        ],
+        'BCP-CORE' => [
+            ['relocate', 'Warm standby of the core at the Abuja DR site', 310_000_000, 2.0, true],
+            ['recover', 'Rebuild the core in place from the last verified backup', 12_000_000, 26.0, false],
+        ],
+        'BCP-CARD' => [
+            ['recover', 'Restore card authorisation on the primary platform', 22_000_000, 2.0, true],
+            ['outsource', 'Stand-in authorisation by the scheme, with limits', 95_000_000, 0.75, false],
+        ],
+        'BCP-ATM' => [
+            ['recover', 'Restore the ATM controller and reload cassettes', 8_000_000, 3.0, true],
+            ['accept', 'Direct customers to branches and agent locations', 0, 24.0, false],
+        ],
+        'BCP-CASH' => [
+            ['relocate', 'Move counter service to the four largest branches', 6_500_000, 3.0, true],
+        ],
+        'BCP-FX' => [
+            ['remote', 'Dealers and settlement staff work from home on the treasury VPN', 4_200_000, 3.0, true],
+        ],
+        'BCP-RET' => [
+            ['manual_workaround', 'Compile returns from the general ledger extract by hand', 1_200_000, 12.0, true],
+            ['recover', 'Restore the returns platform from backup', 14_000_000, 6.0, false],
+        ],
+        'BCP-NET' => [
+            ['recover', 'Fail over to the secondary carrier on the diverse path', 36_000_000, 1.5, true],
+        ],
+        'BCP-DC' => [
+            ['relocate', 'Transfer production to the Abuja DR site', 310_000_000, 6.0, true],
+        ],
+        'BCP-ITSEC' => [
+            ['remote', 'Security operations run remotely on the out-of-band channel', 5_400_000, 2.0, true],
+        ],
+    ];
+
+    /**
+     * Where the deliberate gaps are, and why each one is realistic.
+     *
+     * @var array<string, string>
+     */
+    private const STRATEGY_GAP_RATIONALE = [
+        'BCP-PY' => 'Full switch failover to Abuja meets the thirty-minute objective and costs ₦240m. '
+            .'The funded strategy is an in-place restore at ninety minutes. The gap is a funding decision, '
+            .'not an oversight, and it is recorded here so that it is one somebody has taken rather than one '
+            .'nobody has seen.',
+        'BCP-CARD' => 'Scheme stand-in authorisation would meet the one-hour objective. It is priced per '
+            .'transaction and was not approved for this cycle, so the funded strategy recovers in two hours.',
+        'BCP-RET' => 'Manual compilation from the general ledger takes twelve hours against an eight-hour '
+            .'objective. Restoring the returns platform would meet it; the platform is scheduled for '
+            .'replacement and the spend was deferred.',
+    ];
+
+    private function assignProcessUnits(): void
+    {
+        $units = BusinessUnit::query()
+            ->whereIn('code', array_values(array_unique(self::PROCESS_UNITS)))
+            ->get()
+            ->keyBy('code');
+
+        foreach (self::PROCESS_UNITS as $processCode => $unitCode) {
+            $unit = $units->get($unitCode);
+
+            if ($unit === null) {
+                continue;
+            }
+
+            // Only where none is set. A process linked to the organisation's own
+            // catalogue already inherited that catalogue's unit, and overwriting
+            // it here would make the BCMS overlay disagree with the register it
+            // overlays (ADR 0001).
+            Process::query()
+                ->where('code', $processCode)
+                ->whereNull('business_unit_id')
+                ->update(['business_unit_id' => $unit->getKey()]);
+        }
+    }
+
+    private function seedStrategies(): void
+    {
+        if (Strategy::query()->exists()) {
+            return;
+        }
+
+        $service = app(StrategyService::class);
+
+        $approver = User::query()->where('email', 'admin@risk.test')->first()
+            ?? User::query()->where('is_active', true)->first();
+
+        foreach (self::STRATEGIES as $processCode => $options) {
+            $process = Process::query()->where('code', $processCode)->first();
+
+            if ($process === null) {
+                continue;
+            }
+
+            foreach ($options as [$type, $title, $costNaira, $achievable, $selected]) {
+                $strategyType = StrategyType::from($type);
+
+                $strategy = $service->propose($process, $strategyType, [
+                    'title' => $title,
+                    'description' => $strategyType->description(),
+                    // Minor units throughout. ₦42,000,000 stored as 42000000
+                    // is either forty-two million or four hundred and twenty
+                    // thousand, and a register that mixes the two cannot be
+                    // totalled.
+                    'cost_estimate_minor' => $costNaira * 100,
+                    'currency' => 'NGN',
+                    'rto_achievable_hours' => $achievable,
+                    'resource_requirements' => $this->resourcesFor($strategyType),
+                    'selection_rationale' => $strategyType->requiresRationale()
+                        ? 'Recorded deliberately rather than by omission: this is what the organisation has decided to do.'
+                        : null,
+                ]);
+
+                if (! $selected) {
+                    continue;
+                }
+
+                $service->select(
+                    $strategy,
+                    self::STRATEGY_GAP_RATIONALE[$processCode]
+                        ?? 'Selected as the best balance of cost and achievable recovery time for this process.',
+                );
+
+                if ($approver !== null) {
+                    $service->approve($strategy->refresh(), $approver);
+                }
+            }
+        }
+    }
+
+    /** @return array<string, list<string>> */
+    private function resourcesFor(StrategyType $type): array
+    {
+        return match ($type) {
+            StrategyType::Relocate => [
+                'people' => ['Recovery team, 12 seats', 'Site coordinator'],
+                'facilities' => ['DR site — Abuja, 40 seats'],
+                'technology' => ['Warm standby infrastructure', 'Replicated storage'],
+                'funding' => ['Annual DR site retainer'],
+            ],
+            StrategyType::Remote => [
+                'people' => ['All affected staff with laptops'],
+                'technology' => ['VPN concentrator capacity', 'Softphone licences'],
+                'information' => ['Access to the transaction ledger'],
+            ],
+            StrategyType::ManualWorkaround => [
+                'people' => ['Two additional operators per shift'],
+                'information' => ['Printed ledger extract', 'Manual register forms'],
+            ],
+            StrategyType::Outsource => [
+                'suppliers' => ['Scheme stand-in service'],
+                'funding' => ['Per-transaction stand-in fee'],
+            ],
+            default => [
+                'people' => ['On-call engineering team'],
+                'technology' => ['Spare capacity at the primary site'],
+            ],
+        };
+    }
+
+    /**
+     * The plan estate: one group BCP, four departmental, one crisis management
+     * plan, one IT DRP, eight branch plans and a pandemic plan.
+     *
+     * THE GROUP BCP IS APPROVED AND THE REST ARE NOT. A demo where everything
+     * is approved shows nothing about document control; one where nothing is
+     * shows nothing about the frozen render. One of each is what lets somebody
+     * see both the immutable version and the editable one in the same estate.
+     *
+     * @param  array<string, Site>  $sites
+     */
+    private function seedPlans(array $sites): void
+    {
+        if (Plan::query()->where('plan_type', '!=', PlanType::Policy->value)->exists()) {
+            return;
+        }
+
+        $plans = app(PlanService::class);
+        $assembler = app(PlanAssembler::class);
+
+        $author = User::query()->where('is_active', true)->orderBy('id')->first();
+        $approver = User::query()->where('email', 'admin@risk.test')->first();
+
+        if ($approver !== null && $author !== null && (int) $approver->getKey() === (int) $author->getKey()) {
+            $author = User::query()->where('is_active', true)->whereKeyNot($approver->getKey())->first();
+        }
+
+        $units = BusinessUnit::query()->whereIn('code', ['BU-OP', 'BU-IT', 'BU-RT', 'BU-TR'])->get()->keyBy('code');
+
+        // --- The group plan, approved -----------------------------------
+        $group = $plans->create(
+            PlanType::Bcp,
+            self::TRADING_NAME.' Group Business Continuity Plan',
+            [
+                'owner_id' => $author?->getKey(),
+                'review_frequency_months' => 12,
+                // Everybody with a role in the group plan. The grammar is the
+                // one every other targeting feature uses (ADR 0003).
+                'distribution_rule' => AudienceRule::make('role', ['names' => ['bcm-coordinator', 'risk-champion']])->toArray(),
+            ],
+            'bcp_group',
+            $author?->getKey(),
+        );
+
+        $assembler->assemble($group, $author?->getKey());
+
+        if ($approver !== null) {
+            $plans->submitForReview($group, $author?->getKey());
+            $plans->approve($group, $approver, now()->subMonths(2)->toDateString(), 12);
+        }
+
+        // --- Four departmental plans ------------------------------------
+        foreach ([
+            'BU-OP' => 'Operations Division Business Continuity Plan',
+            'BU-IT' => 'Information Technology Business Continuity Plan',
+            'BU-RT' => 'Retail Banking Business Continuity Plan',
+            'BU-TR' => 'Treasury Business Continuity Plan',
+        ] as $unitCode => $title) {
+            $unit = $units->get($unitCode);
+
+            if ($unit === null) {
+                continue;
+            }
+
+            $plan = $plans->create(
+                PlanType::Department,
+                $title,
+                [
+                    'business_unit_id' => $unit->getKey(),
+                    'owner_id' => $author?->getKey(),
+                    'review_frequency_months' => 12,
+                ],
+                'bcp_department',
+                $author?->getKey(),
+            );
+
+            $assembler->assemble($plan, $author?->getKey());
+        }
+
+        // --- Crisis management, IT DR and pandemic -----------------------
+        foreach ([
+            [PlanType::Cmp, 'Crisis Management Plan', 'cmp_crisis', 12],
+            [PlanType::Drp, 'IT Disaster Recovery Plan', 'drp_it', 6],
+            [PlanType::Pandemic, 'Pandemic and Infectious Disease Plan', 'pandemic', 24],
+        ] as [$type, $title, $template, $months]) {
+            $plan = $plans->create(
+                $type,
+                $title,
+                ['owner_id' => $author?->getKey(), 'review_frequency_months' => $months],
+                $template,
+                $author?->getKey(),
+            );
+
+            $assembler->assemble($plan, $author?->getKey());
+        }
+
+        // --- Eight branch site plans ------------------------------------
+        foreach (self::BRANCHES as [$code, $name]) {
+            $site = $sites[$code] ?? null;
+
+            if ($site === null) {
+                continue;
+            }
+
+            $plan = $plans->create(
+                PlanType::Site,
+                $name.' Continuity Plan',
+                [
+                    'site_id' => $site->getKey(),
+                    'owner_id' => $author?->getKey(),
+                    'review_frequency_months' => 12,
+                ],
+                'site_branch',
+                $author?->getKey(),
+            );
+
+            $assembler->assemble($plan, $author?->getKey());
+        }
     }
 }

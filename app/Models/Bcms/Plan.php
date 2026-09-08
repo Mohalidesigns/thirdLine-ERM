@@ -35,10 +35,12 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property string $status
  * @property ?\Illuminate\Support\Carbon $effective_from
  * @property ?\Illuminate\Support\Carbon $next_review_date
+ * @property ?int $review_frequency_months
  * @property ?int $owner_id
  * @property ?int $approver_id
  * @property ?\Illuminate\Support\Carbon $approved_at
  * @property array<array-key, mixed> $content
+ * @property ?array<array-key, mixed> $distribution_rule
  * @property ?\Illuminate\Support\Carbon $offline_bundle_generated_at
  * @property ?string $offline_bundle_path
  * @property bool $ai_generated
@@ -58,8 +60,9 @@ class Plan extends Model
     /** @var list<string> */
     protected $fillable = [
         'organization_id', 'business_unit_id', 'site_id', 'plan_type', 'title', 'version',
-        'supersedes_plan_id', 'status', 'effective_from', 'next_review_date', 'owner_id',
-        'approver_id', 'approved_at', 'content', 'offline_bundle_generated_at',
+        'supersedes_plan_id', 'status', 'effective_from', 'next_review_date',
+        'review_frequency_months', 'owner_id', 'approver_id', 'approved_at', 'content',
+        'distribution_rule', 'offline_bundle_generated_at',
         'offline_bundle_path', 'ai_generated', 'iso_clause_ref', 'created_by', 'updated_by',
     ];
 
@@ -68,12 +71,14 @@ class Plan extends Model
     {
         return [
             'content' => 'array',
+            'distribution_rule' => 'array',
             'organization_id' => 'integer',
             'business_unit_id' => 'integer',
             'site_id' => 'integer',
             'supersedes_plan_id' => 'integer',
             'effective_from' => 'date',
             'next_review_date' => 'date',
+            'review_frequency_months' => 'integer',
             'owner_id' => 'integer',
             'approver_id' => 'integer',
             'approved_at' => 'datetime',

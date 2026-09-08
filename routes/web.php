@@ -21,11 +21,14 @@ use App\Http\Controllers\Bcms\BiaReportController as BcmsBiaReportController;
 use App\Http\Controllers\Bcms\DependencyController as BcmsDependencyController;
 use App\Http\Controllers\Bcms\FindingController as BcmsFindingController;
 use App\Http\Controllers\Bcms\HomeController as BcmsHomeController;
+use App\Http\Controllers\Bcms\PlanController as BcmsPlanController;
+use App\Http\Controllers\Bcms\PlanDocumentController as BcmsPlanDocumentController;
 use App\Http\Controllers\Bcms\PolicyController as BcmsPolicyController;
 use App\Http\Controllers\Bcms\ProcessController as BcmsProcessController;
 use App\Http\Controllers\Bcms\ProgrammeController as BcmsProgrammeController;
 use App\Http\Controllers\Bcms\SectionController as BcmsSectionController;
 use App\Http\Controllers\Bcms\SettingsController as BcmsSettingsController;
+use App\Http\Controllers\Bcms\StrategyController as BcmsStrategyController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Rcsa\ActionPlanController as RcsaActionPlanController;
@@ -2157,6 +2160,109 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.finding.verify')->name('actions.verify');
         Route::post('actions/{action}/accept-risk', [BcmsFindingController::class, 'acceptAction'])
             ->middleware('permission:bcms.finding.accept_risk')->name('actions.accept-risk');
+
+        /* --- Continuity strategy (clause 8.3, ISO 22331) ---------------- */
+        /*
+         * `gap-analysis` is a route of its own rather than a tab on the
+         * register, because it is the page a CRO is sent a link to. Its export
+         * is behind `bcms.report.export` — the register is an internal working
+         * view; the gap table goes into a board pack.
+         */
+        Route::get('strategy', [BcmsStrategyController::class, 'index'])
+            ->middleware('permission:bcms.strategy.view')->name('strategy.index');
+        Route::get('strategy/gap-analysis', [BcmsStrategyController::class, 'gapAnalysis'])
+            ->middleware('permission:bcms.strategy.view')->name('strategy.gap');
+        Route::get('strategy/gap-analysis/export', [BcmsStrategyController::class, 'exportGapAnalysis'])
+            ->middleware('permission:bcms.report.export')->name('strategy.gap.export');
+        Route::get('strategy/processes/{process}', [BcmsStrategyController::class, 'show'])
+            ->middleware('permission:bcms.strategy.view')->name('strategy.show');
+        Route::post('strategy', [BcmsStrategyController::class, 'store'])
+            ->middleware('permission:bcms.strategy.manage')->name('strategy.store');
+        Route::patch('strategy/{strategy}', [BcmsStrategyController::class, 'update'])
+            ->middleware('permission:bcms.strategy.manage')->name('strategy.update');
+        Route::post('strategy/{strategy}/reassess', [BcmsStrategyController::class, 'reassess'])
+            ->middleware('permission:bcms.strategy.manage')->name('strategy.reassess');
+        // Selecting is the decision; approving is the signature. Both sit
+        // behind the same grant because in practice one committee does both.
+        Route::post('strategy/{strategy}/select', [BcmsStrategyController::class, 'select'])
+            ->middleware('permission:bcms.strategy.approve')->name('strategy.select');
+        Route::post('strategy/{strategy}/approve', [BcmsStrategyController::class, 'approve'])
+            ->middleware('permission:bcms.strategy.approve')->name('strategy.approve');
+        Route::post('strategy/{strategy}/reject', [BcmsStrategyController::class, 'reject'])
+            ->middleware('permission:bcms.strategy.approve')->name('strategy.reject');
+
+        /* --- Plans (clause 8.4) ----------------------------------------- */
+        /*
+         * `plans/stale` is declared BEFORE `plans/{plan}`, or "stale" binds as
+         * a plan id and the KRI's own list 404s.
+         *
+         * Every section route carries `{plan}` as well as `{section}`: the
+         * controller checks the second belongs to the first. Tenancy would stop
+         * a cross-tenant edit anyway; this stops the one INSIDE an organisation,
+         * which is the scoping bug that survives a tenancy test.
+         */
+        Route::get('plans', [BcmsPlanController::class, 'index'])
+            ->middleware('permission:bcms.plan.view')->name('plans.index');
+        Route::get('plans/stale', [BcmsPlanController::class, 'stale'])
+            ->middleware('permission:bcms.plan.view')->name('plans.stale');
+        Route::post('plans', [BcmsPlanController::class, 'store'])
+            ->middleware('permission:bcms.plan.manage')->name('plans.store');
+        // Declared before `plans/{plan}` for the same reason `plans/stale` is.
+        Route::post('plans/review-cycle', [BcmsPlanController::class, 'setReviewCycle'])
+            ->middleware('permission:bcms.plan.manage')->name('plans.review-cycle');
+        Route::get('plans/{plan}', [BcmsPlanController::class, 'show'])
+            ->middleware('permission:bcms.plan.view')->name('plans.show');
+        Route::patch('plans/{plan}', [BcmsPlanController::class, 'update'])
+            ->middleware('permission:bcms.plan.manage')->name('plans.update');
+        Route::post('plans/{plan}/template', [BcmsPlanController::class, 'applyTemplate'])
+            ->middleware('permission:bcms.plan.manage')->name('plans.template');
+        Route::post('plans/{plan}/assemble', [BcmsPlanController::class, 'assemble'])
+            ->middleware('permission:bcms.plan.manage')->name('plans.assemble');
+        Route::post('plans/{plan}/preview-binding', [BcmsPlanController::class, 'previewBinding'])
+            ->middleware('permission:bcms.plan.manage')->name('plans.preview-binding');
+        Route::post('plans/{plan}/submit-review', [BcmsPlanController::class, 'submitForReview'])
+            ->middleware('permission:bcms.plan.manage')->name('plans.submit-review');
+        Route::post('plans/{plan}/approve', [BcmsPlanController::class, 'approve'])
+            ->middleware('permission:bcms.plan.approve')->name('plans.approve');
+        Route::post('plans/{plan}/supersede', [BcmsPlanController::class, 'supersede'])
+            ->middleware('permission:bcms.plan.manage')->name('plans.supersede');
+        Route::post('plans/{plan}/check-drift', [BcmsPlanController::class, 'checkDrift'])
+            ->middleware('permission:bcms.plan.view')->name('plans.check-drift');
+        Route::post('plans/{plan}/ai-draft', [BcmsPlanController::class, 'aiDraft'])
+            ->middleware('permission:bcms.plan.manage')->name('plans.ai-draft');
+
+        Route::post('plans/{plan}/sections', [BcmsPlanController::class, 'storeSection'])
+            ->middleware('permission:bcms.plan.manage')->name('plans.sections.store');
+        Route::patch('plans/{plan}/sections/{section}', [BcmsPlanController::class, 'updateSection'])
+            ->middleware('permission:bcms.plan.manage')->name('plans.sections.update');
+        Route::delete('plans/{plan}/sections/{section}', [BcmsPlanController::class, 'destroySection'])
+            ->middleware('permission:bcms.plan.manage')->name('plans.sections.destroy');
+
+        /* --- Plan distribution ------------------------------------------ */
+        /*
+         * The offline bundle is behind `bcms.contact.export`, not
+         * `bcms.plan.view`. It carries mobile numbers off the platform onto a
+         * phone — that is its entire purpose — and a bulk personal-data export
+         * under the NDPA is what it is however the button is labelled.
+         *
+         * Acknowledging needs no grant beyond seeing the plan. Requiring one
+         * would mean the people a plan is distributed to could not produce the
+         * clause 7.4 evidence that it was.
+         */
+        Route::get('plans/{plan}/pdf', [BcmsPlanDocumentController::class, 'pdf'])
+            ->middleware('permission:bcms.plan.view')->name('plans.pdf');
+        Route::post('plans/{plan}/offline-bundle', [BcmsPlanDocumentController::class, 'generateBundle'])
+            ->middleware('permission:bcms.contact.export')->name('plans.bundle.generate');
+        Route::get('plans/{plan}/offline-bundle', [BcmsPlanDocumentController::class, 'bundle'])
+            ->middleware('permission:bcms.contact.export')->name('plans.bundle');
+        Route::post('plans/{plan}/acknowledge', [BcmsPlanDocumentController::class, 'acknowledge'])
+            ->middleware('permission:bcms.plan.view')->name('plans.acknowledge');
+        Route::get('plans/{plan}/acknowledgements/export', [BcmsPlanDocumentController::class, 'acknowledgements'])
+            ->middleware('permission:bcms.report.export')->name('plans.acknowledgements.export');
+        Route::post('plans/{plan}/activate', [BcmsPlanDocumentController::class, 'activate'])
+            ->middleware('permission:bcms.plan.activate')->name('plans.activate');
+        Route::post('plans/{plan}/activations/{activation}/deactivate', [BcmsPlanDocumentController::class, 'deactivate'])
+            ->middleware('permission:bcms.plan.activate')->name('plans.deactivate');
 
         /* --- The sections whose phase has not landed yet ---------------- */
         foreach (\App\Support\Bcms\ModuleSections::all() as $bcmsSection) {

@@ -2,6 +2,7 @@
 
 namespace App\Models\Bcms;
 
+use App\Enums\Bcms\StrategyType;
 use App\Models\Bcms\Concerns\BcmsAuditable;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\User;
@@ -22,7 +23,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property string $uuid
  * @property int $organization_id
  * @property int $process_id
- * @property string $strategy_type
+ * @property \App\Enums\Bcms\StrategyType $strategy_type
  * @property ?string $title
  * @property ?string $description
  * @property ?int $cost_estimate_minor
@@ -63,6 +64,7 @@ class Strategy extends Model
     {
         return [
             'resource_requirements' => 'array',
+            'strategy_type' => StrategyType::class,
             'organization_id' => 'integer',
             'process_id' => 'integer',
             'cost_estimate_minor' => 'integer',

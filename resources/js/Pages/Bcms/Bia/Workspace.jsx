@@ -212,7 +212,7 @@ export default function Workspace({
                                         )}
                                         {editable && (
                                             <button type="button" className="text-xs text-gray-500 underline"
-                                                onClick={() => router.delete(tryRoute('bcms.bia.dependencies.destroy', [assessment.id, d.id]), { preserveScroll: true })}>
+                                                onClick={() => router.delete(tryRoute('bcms.bia.dependencies.destroy', [assessment.uuid, d.id]), { preserveScroll: true })}>
                                                 remove
                                             </button>
                                         )}
@@ -245,7 +245,7 @@ export default function Workspace({
                     </div>
 
                     <form
-                        onSubmit={(e) => { e.preventDefault(); objectives.put(tryRoute('bcms.bia.update', assessment.id), { preserveScroll: true }); }}
+                        onSubmit={(e) => { e.preventDefault(); objectives.put(tryRoute('bcms.bia.update', assessment.uuid), { preserveScroll: true }); }}
                         className="space-y-4 rounded-lg border border-gray-200 bg-white p-5"
                     >
                         <h2 className="text-sm font-semibold text-gray-900">Recovery objectives</h2>

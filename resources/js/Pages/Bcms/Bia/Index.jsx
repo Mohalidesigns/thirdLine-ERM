@@ -64,7 +64,7 @@ export default function Index({ assessments, filters = {}, statuses = [], can = 
                         {rows.map((a) => (
                             <tr key={a.id}>
                                 <td className="px-4 py-3">
-                                    <Link href={tryRoute('bcms.bia.show', a.id)} className="text-gray-900 underline">{a.process}</Link>
+                                    <Link href={tryRoute('bcms.bia.show', a.uuid)} className="text-gray-900 underline">{a.process}</Link>
                                     <span className="block font-mono text-xs text-gray-500">{a.code}</span>
                                     {a.is_critical_service && (
                                         <span className="mt-1 inline-block rounded bg-purple-50 px-1.5 py-0.5 text-[11px] text-purple-800">critical service</span>

@@ -19,6 +19,9 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property int $sort_order
  * @property array<array-key, mixed> $source_binding
  * @property bool $is_overridden
+ * @property ?\Illuminate\Support\Carbon $last_verified_at
+ * @property ?string $source_fingerprint
+ * @property bool $needs_review
  * @property bool $ai_generated
  * @property ?\Illuminate\Support\Carbon $created_at
  * @property ?\Illuminate\Support\Carbon $updated_at
@@ -32,7 +35,8 @@ class PlanSection extends Model
     /** @var list<string> */
     protected $fillable = [
         'organization_id', 'plan_id', 'section_key', 'title', 'body', 'sort_order',
-        'source_binding', 'is_overridden', 'ai_generated',
+        'source_binding', 'is_overridden', 'last_verified_at', 'source_fingerprint',
+        'needs_review', 'ai_generated',
     ];
 
     /** @return array<string, string> */
@@ -44,6 +48,8 @@ class PlanSection extends Model
             'plan_id' => 'integer',
             'sort_order' => 'integer',
             'is_overridden' => 'boolean',
+            'last_verified_at' => 'datetime',
+            'needs_review' => 'boolean',
             'ai_generated' => 'boolean',
         ];
     }

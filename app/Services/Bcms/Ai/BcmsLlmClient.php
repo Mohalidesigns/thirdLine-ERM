@@ -40,6 +40,8 @@ class BcmsLlmClient
 
     public const ALERT_COMPOSER = 'alert_composer';
 
+    public const PLAN_DRAFT = 'plan_draft';
+
     public function __construct(
         private LlmService $llm,
         private BcmsSettings $settings,

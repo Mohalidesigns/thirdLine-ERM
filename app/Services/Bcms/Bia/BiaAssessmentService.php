@@ -9,7 +9,9 @@ use App\Enums\Bcms\IsoClauseRef;
 use App\Models\Bcms\BiaAssessment;
 use App\Models\Bcms\BiaImpact;
 use App\Models\Bcms\Process;
+use App\Services\Bcms\Plans\PlanDriftDetector;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 
 /**
@@ -207,7 +209,28 @@ class BiaAssessmentService
                 $assessment->process->update(['criticality_tier' => $tier]);
             }
 
-            return $assessment->refresh();
+            $assessment->refresh();
+
+            // A new approved RTO is exactly the change a bound plan section is
+            // there to notice, and noticing it a whole day later — when the
+            // nightly sweep runs — is the difference between the flag being
+            // part of the approval conversation and being a surprise. The
+            // nightly command still exists, for the changes the application
+            // never sees: a vendor soft-deleted in TPRM, a site closed.
+            //
+            // Failure here must not undo the approval. A plan-review flag is
+            // worth less than the assessment itself, and the sweep will catch
+            // whatever this missed within a day.
+            try {
+                app(PlanDriftDetector::class)->sweep();
+            } catch (\Throwable $e) {
+                Log::warning('BIA approval could not refresh plan drift flags', [
+                    'assessment_id' => $assessment->getKey(),
+                    'message' => $e->getMessage(),
+                ]);
+            }
+
+            return $assessment;
         });
     }
 

@@ -167,8 +167,23 @@ return [
             'scenario_generator' => env('BCMS_AI_SCENARIO_GENERATOR', false),
             'aar_synthesis' => env('BCMS_AI_AAR_SYNTHESIS', false),
             'alert_composer' => env('BCMS_AI_ALERT_COMPOSER', false),
+            'plan_draft' => env('BCMS_AI_PLAN_DRAFT', false),
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Offline bundles
+    |--------------------------------------------------------------------------
+    |
+    | Where the PWA's offline plan bundles are written. A separate setting from
+    | the default disk because a bundle carries mobile numbers and assembly
+    | points — Blueprint §1.2's whole point is that it leaves the platform — and
+    | a bank that keeps its evidence on S3 may well want these on local disk
+    | inside its own perimeter, or the reverse.
+    |
+    */
+    'offline_disk' => env('BCMS_OFFLINE_DISK', env('FILESYSTEM_DISK', 'local')),
 
     /*
     |--------------------------------------------------------------------------

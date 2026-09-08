@@ -16,6 +16,11 @@ namespace App\Enums\Bcms;
  * from a clause 9.3 review is a corrective action against a finding, not a
  * second action register.
  *
+ * `plan_review` is an eighth, added in Phase 3. A plan whose bound sections no
+ * longer match the BIA they were assembled from is a real gap and the register
+ * is where gaps live; `affected_plan_id` was already on the table, so it is one
+ * of the checkable four rather than a fifth orphan.
+ *
  * WHY THE KIND IS STORED AS WELL AS THE LINK. "Show me every nonconformity that
  * came out of an exercise this year" is the question a certification auditor
  * asks, and answering it by testing which of six columns is non-null is a query
@@ -30,6 +35,7 @@ enum FindingSource: string
     case Audit = 'audit';
     case GapAnalysis = 'gap_analysis';
     case ManagementReview = 'management_review';
+    case PlanReview = 'plan_review';
 
     /** The foreign key that carries the link, or null where none can. */
     public function foreignKey(): ?string
@@ -40,6 +46,7 @@ enum FindingSource: string
             self::CallTreeTest => 'call_tree_test_id',
             self::DrTest => 'dr_test_id',
             self::ManagementReview => 'management_review_id',
+            self::PlanReview => 'affected_plan_id',
             self::Audit, self::GapAnalysis => null,
         };
     }
@@ -54,6 +61,7 @@ enum FindingSource: string
             self::Audit => 'Internal audit',
             self::GapAnalysis => 'Gap analysis',
             self::ManagementReview => 'Management review',
+            self::PlanReview => 'Plan review',
         };
     }
 
@@ -74,6 +82,7 @@ enum FindingSource: string
             self::Audit => IsoClauseRef::Iso22301_9_2_results,
             self::GapAnalysis => IsoClauseRef::Iso22301_8_6,
             self::ManagementReview => IsoClauseRef::Iso22301_9_3_results,
+            self::PlanReview => IsoClauseRef::Iso22301_8_4_4,
         };
     }
 }

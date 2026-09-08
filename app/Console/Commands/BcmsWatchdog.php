@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use App\Models\Bcms\NotificationDelivery;
 use App\Models\Bcms\ReminderSchedule;
 use App\Models\Organization;
+use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use ThirdLine\Platform\Tenancy\TenantContext;
@@ -36,8 +38,14 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  *
  * IT REPORTS AND DOES NOT REPAIR. A watchdog that retried what it found would
  * hide the fault it exists to surface, and could re-send an alert that did in
- * fact go out. Phase 5 adds the alerting hook; the detection is here because
- * the schema it detects against is frozen now.
+ * fact go out.
+ *
+ * PHASE 5 ADDED THE ALERTING HOOK, and who it tells matters. The tenant's own
+ * administrators are told because it is their compliance date; **Atheris support
+ * is told as well** because a stalled scheduler is our fault far more often than
+ * theirs, and a customer who discovers it from an examiner has discovered it too
+ * late. That second recipient is the reason this is a watchdog rather than a
+ * dashboard tile.
  */
 class BcmsWatchdog extends Command
 {
@@ -82,6 +90,8 @@ class BcmsWatchdog extends Command
             return self::SUCCESS;
         }
 
+        $this->alertAdministrators($problems);
+
         foreach ($problems as $problem) {
             $this->error(sprintf(
                 '%s: %d reminder(s) overdue, %d delivery(ies) stuck in queued.',
@@ -98,5 +108,66 @@ class BcmsWatchdog extends Command
         // A non-zero exit so a cron wrapper or a monitor notices without
         // having to parse the output.
         return self::FAILURE;
+    }
+
+    /**
+     * Tell the people whose problem this is.
+     *
+     * IN-APP AND A LOG LINE, NOT AN EMAIL THROUGH THE THING THAT IS BROKEN. The
+     * fault being detected is "the notification path has stopped", so routing
+     * the warning about it through that same path is how a watchdog reports
+     * nothing at the moment it matters. `notifications_log` is a database
+     * insert and the support line is a log record an operator's collector
+     * scrapes; neither depends on a queue worker or a gateway.
+     *
+     * @param  list<array<string, mixed>>  $problems
+     */
+    private function alertAdministrators(array $problems): void
+    {
+        foreach ($problems as $problem) {
+            $organization = Organization::query()->where('name', $problem['organization'])->first();
+
+            if ($organization === null) {
+                continue;
+            }
+
+            TenantContext::set($organization->id);
+
+            try {
+                $admins = User::query()
+                    ->where('is_active', true)
+                    ->get()
+                    ->filter(fn (User $u) => $u->can('bcms.admin'));
+
+                foreach ($admins as $admin) {
+                    NotificationService::send(
+                        organizationId: (int) $organization->id,
+                        userId: (int) $admin->getKey(),
+                        type: 'bcms.watchdog.stalled',
+                        subject: 'Business continuity reminders have stopped sending',
+                        body: sprintf(
+                            '%d exercise reminders are past their send time and %d deliveries are stuck. '
+                            .'Until this is fixed, exercise notices are not reaching anybody — which is a '
+                            .'compliance gap rather than an inconvenience. Atheris support has been notified.',
+                            $problem['overdue_reminders'],
+                            $problem['stuck_deliveries'],
+                        ),
+                        metadata: $problem,
+                        priority: 'high',
+                        category: 'bcms',
+                    );
+                }
+            } finally {
+                TenantContext::clear();
+            }
+        }
+
+        // The support channel. A structured line an operator's log collector
+        // alerts on, deliberately separate from the per-tenant notification —
+        // if every tenant's admin is asleep, somebody at Atheris is not.
+        Log::critical('BCMS watchdog: notification path stalled, support notified', [
+            'support_alert' => true,
+            'problems' => $problems,
+        ]);
     }
 }

@@ -88,6 +88,25 @@ class ReadinessTemplates
                 ],
             ],
             [
+                'code' => 'TABLETOP',
+                'name' => 'Tabletop exercise readiness',
+                'description' => 'A tabletop needs less than a drill and more than a meeting: a scenario somebody '
+                    .'has written, injects that land, and the executives whose decisions are being tested actually '
+                    .'in the room.',
+                'tasks' => [
+                    ['title' => 'Finalise the scenario and its injects', 'offset' => -8, 'blocking' => true, 'evidence' => true, 'role' => 'facilitator'],
+                    ['title' => 'Confirm the facilitator and a scribe', 'offset' => -6, 'blocking' => true, 'evidence' => false, 'role' => 'coordinator'],
+                    ['title' => 'Distribute the pre-read to participants', 'offset' => -5, 'blocking' => false, 'evidence' => true, 'role' => 'coordinator'],
+                    ['title' => 'Book the venue or the conference bridge', 'offset' => -5, 'blocking' => false, 'evidence' => false, 'role' => 'coordinator'],
+                    // Blocking, and the one that most often is not done: a
+                    // tabletop of executive decision-making without the
+                    // executives is a meeting about a scenario.
+                    ['title' => 'Confirm executive attendance, or a nominated deputy for each', 'offset' => -3, 'blocking' => true, 'evidence' => false, 'role' => 'facilitator'],
+                    ['title' => 'Prepare the scoring sheet against the stated objectives', 'offset' => -2, 'blocking' => false, 'evidence' => false, 'role' => 'facilitator'],
+                    ['title' => 'Draft the after-action report', 'offset' => 3, 'blocking' => false, 'evidence' => true, 'role' => 'facilitator'],
+                ],
+            ],
+            [
                 'code' => 'CYBER',
                 'name' => 'Cyber incident exercise readiness',
                 'description' => 'For a cyber scenario, where the regulatory clock and the assumption of compromise are what make it different.',

@@ -80,5 +80,21 @@ class EventServiceProvider extends ServiceProvider
         \App\Events\RcsaWorksheetSubmitted::class => [
             \App\Listeners\SendNotification::class,
         ],
+
+        /*
+         * BCMS Track B's seam. Phase 4's generator places dates and emits this;
+         * Phase 5 arms the countdown and the readiness checklist off it. The
+         * generator does not know Phase 5 exists, which is the point —
+         * Orchestration §5 has the exercise engine and the notification path in
+         * different tracks on purpose.
+         *
+         * Declared here rather than discovered: discovery is off (see above),
+         * and a listener that ran twice would materialise the ladder twice.
+         * That is survivable — the idempotency key would refuse the second —
+         * but "survivable because a unique index caught it" is not a design.
+         */
+        \App\Events\Bcms\ExerciseOccurrenceScheduled::class => [
+            \App\Listeners\Bcms\MaterialiseReminderLadder::class,
+        ],
     ];
 }

@@ -121,10 +121,19 @@ class BcmsSettings
 
         $time = Carbon::parse((string) $settings->reminder_send_time);
 
-        return CarbonImmutable::parse($date)
-            ->setTimezone($settings->timezone)
-            ->setTime((int) $time->hour, (int) $time->minute, 0)
-            ->setTimezone('UTC');
+        // THE CALENDAR DAY, NOT THE INSTANT. `$date` arrives as midnight UTC;
+        // converting that instant into a tenant's zone moves it to the previous
+        // evening for anywhere west of UTC, and `setTime()` then lands 07:30 on
+        // the WRONG DAY — every reminder a day early, silently, for every
+        // tenant that is not east of Greenwich. Lagos is UTC+1 and hid this
+        // completely.
+        //
+        // Formatting the date and reparsing it IN the tenant's zone asks the
+        // question that was actually meant: "07:30 on this calendar day, there".
+        return CarbonImmutable::parse(
+            CarbonImmutable::parse($date)->format('Y-m-d').' '.$time->format('H:i:s'),
+            $settings->timezone,
+        )->setTimezone('UTC');
     }
 
     /**

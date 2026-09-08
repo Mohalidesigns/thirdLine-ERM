@@ -40,6 +40,22 @@ class AppServiceProvider extends ServiceProvider
          */
         $this->app->singleton(\App\Services\Bcms\BcmsSettings::class);
 
+        /*
+         * The channel registry, for the same reason and with a sharper edge.
+         *
+         * It resolves and CACHES one adapter instance per channel. Not a
+         * singleton, every caller got its own registry and its own adapters —
+         * which is wasteful, defeats `swap()` entirely (a test's replacement
+         * went to a throwaway instance while the dispatcher used a fresh mock),
+         * and would silently duplicate any adapter that ever holds state: a
+         * connection, a rate limiter, a batch buffer. Phase 7 ships exactly
+         * that kind of adapter.
+         *
+         * Found by a Phase 5 test asserting on a swapped channel and getting
+         * nothing. The same defect as BcmsSettings above, one phase later.
+         */
+        $this->app->singleton(\App\Services\Bcms\Notification\ChannelRegistry::class);
+
         // How this product names the owner of a rendered document. The
         // renderer lives in thirdline/reporting and deliberately does not know
         // what an organisation is — see OrganizationBranding for why a Central

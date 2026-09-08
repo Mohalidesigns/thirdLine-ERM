@@ -30,6 +30,7 @@ use App\Http\Controllers\Bcms\PlanDocumentController as BcmsPlanDocumentControll
 use App\Http\Controllers\Bcms\PolicyController as BcmsPolicyController;
 use App\Http\Controllers\Bcms\ProcessController as BcmsProcessController;
 use App\Http\Controllers\Bcms\ProgrammeController as BcmsProgrammeController;
+use App\Http\Controllers\Bcms\ReadinessController as BcmsReadinessController;
 use App\Http\Controllers\Bcms\SectionController as BcmsSectionController;
 use App\Http\Controllers\Bcms\SettingsController as BcmsSettingsController;
 use App\Http\Controllers\Bcms\StrategyController as BcmsStrategyController;
@@ -2317,6 +2318,35 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.exercise.schedule')->name('occurrences.reschedule');
         Route::post('occurrences/{occurrence}/cancel', [BcmsOccurrenceController::class, 'cancel'])
             ->middleware('permission:bcms.exercise.schedule')->name('occurrences.cancel');
+
+        /* --- Readiness and the T-10 countdown (Gate G1) ----------------- */
+        /*
+         * `me/readiness-tasks` is declared BEFORE `occurrences/{occurrence}`
+         * for the same reason `plans/stale` is: a literal segment that could
+         * be read as an identifier has to win.
+         *
+         * OVERRIDING A BLOCKING TASK IS ITS OWN PERMISSION. `bcms.readiness.
+         * override` is held by fewer people than `bcms.exercise.facilitate`,
+         * because overriding is deciding to run an exercise unprepared and
+         * that decision belongs to somebody who will answer for it.
+         */
+        Route::get('me/readiness-tasks', [BcmsReadinessController::class, 'mine'])
+            ->middleware('permission:bcms.exercise.view')->name('readiness.mine');
+        Route::get('occurrences/{occurrence}/readiness', [BcmsReadinessController::class, 'show'])
+            ->middleware('permission:bcms.exercise.view')->name('occurrences.readiness');
+        Route::post('occurrences/{occurrence}/reminder-schedule/regenerate', [BcmsReadinessController::class, 'regenerate'])
+            ->middleware('permission:bcms.exercise.manage')->name('occurrences.reminders.regenerate');
+        // No extra grant beyond seeing the exercise: the people being asked to
+        // confirm are the participants, and requiring a permission would mean
+        // they could not answer.
+        Route::post('occurrences/{occurrence}/confirm-attendance', [BcmsReadinessController::class, 'confirmAttendance'])
+            ->middleware('permission:bcms.exercise.view')->name('occurrences.confirm-attendance');
+        Route::get('occurrences/{occurrence}/deliveries/export', [BcmsReadinessController::class, 'deliveries'])
+            ->middleware('permission:bcms.report.export')->name('occurrences.deliveries.export');
+        Route::post('readiness-tasks/{task}/complete', [BcmsReadinessController::class, 'complete'])
+            ->middleware('permission:bcms.exercise.facilitate')->name('readiness-tasks.complete');
+        Route::post('readiness-tasks/{task}/override', [BcmsReadinessController::class, 'override'])
+            ->middleware('permission:bcms.readiness.override')->name('readiness-tasks.override');
 
         /* --- The sections whose phase has not landed yet ---------------- */
         foreach (\App\Support\Bcms\ModuleSections::all() as $bcmsSection) {

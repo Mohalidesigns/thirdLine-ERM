@@ -9,6 +9,7 @@ use App\Enums\Bcms\FindingSource;
 use App\Enums\Bcms\ImpactCategory;
 use App\Enums\Bcms\ImpactHorizon;
 use App\Enums\Bcms\IsoClauseRef;
+use App\Enums\Bcms\LadderLevel;
 use App\Enums\Bcms\PlanType;
 use App\Enums\Bcms\RaciRole;
 use App\Enums\Bcms\StrategyType;
@@ -20,6 +21,8 @@ use App\Models\Bcms\Contact;
 use App\Models\Bcms\DataSet;
 use App\Models\Bcms\Equipment;
 use App\Models\Bcms\ExerciseDefinition;
+use App\Models\Bcms\ExerciseOccurrence;
+use App\Models\Bcms\ExerciseParticipant;
 use App\Models\Bcms\ExerciseProgramme;
 use App\Models\Bcms\ExerciseType;
 use App\Models\Bcms\Finding;
@@ -28,6 +31,7 @@ use App\Models\Bcms\Objective;
 use App\Models\Bcms\Plan;
 use App\Models\Bcms\Process;
 use App\Models\Bcms\Programme;
+use App\Models\Bcms\ReadinessTask;
 use App\Models\Bcms\Site;
 use App\Models\Bcms\Strategy;
 use App\Models\BusinessProcess;
@@ -48,6 +52,8 @@ use App\Services\Bcms\Plans\PlanService;
 use App\Services\Bcms\PolicyService;
 use App\Services\Bcms\ProgrammeService;
 use App\Services\Bcms\RaciService;
+use App\Services\Bcms\Reminders\ReadinessService;
+use App\Services\Bcms\Reminders\ReminderScheduleBuilder;
 use App\Services\Bcms\Strategy\StrategyService;
 use App\Support\Bcms\AudienceRule;
 use Illuminate\Database\Seeder;
@@ -246,6 +252,10 @@ class BcmsDemoSeeder extends Seeder
 
             // Phase 4: next year's exercise programme, generated.
             $this->seedExerciseCalendar($sites);
+
+            // Phase 5: participants, and one exercise close enough that the
+            // countdown is live.
+            $this->seedCountdownDemo();
 
             app(MaturityService::class)->assess($programme, 'scheduled');
         } finally {
@@ -1562,5 +1572,105 @@ class BcmsDemoSeeder extends Seeder
                 'mode' => DistributionMode::QuarterEnd->value,
             ],
         ];
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Phase 5 — the countdown */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Participants, and one exercise ten days out so the ladder is live.
+     *
+     * A CALENDAR WITH NO PARTICIPANTS DEMONSTRATES NOTHING. The whole of Phase 5
+     * is "one alert per person per day", and the demo estate had exercises with
+     * nobody in them — every rung would resolve to nobody and be recorded as
+     * sent-to-nobody, which is honest and useless to show.
+     *
+     * ONE EXERCISE IS PULLED FORWARD TO T-10 DELIBERATELY. Next year's programme
+     * is the right shape for a calendar and the wrong shape for a countdown; a
+     * demo of the T-10 ladder needs an exercise whose ladder is actually
+     * running. Two of its readiness owners are left behind on purpose, which is
+     * what the T-2 escalation is for.
+     */
+    private function seedCountdownDemo(): void
+    {
+        if (ExerciseParticipant::query()->exists()) {
+            return;
+        }
+
+        $contacts = Contact::query()->where('is_active', true)->get();
+
+        if ($contacts->isEmpty()) {
+            return;
+        }
+
+        $occurrences = ExerciseOccurrence::query()
+            ->whereNotNull('scheduled_date')
+            ->with('definition')
+            ->orderBy('scheduled_date')
+            ->get();
+
+        foreach ($occurrences as $occurrence) {
+            foreach ($contacts as $index => $contact) {
+                if ($contact->user_id === null) {
+                    continue;
+                }
+
+                ExerciseParticipant::query()->updateOrCreate(
+                    ['occurrence_id' => $occurrence->getKey(), 'user_id' => $contact->user_id],
+                    [
+                        'organization_id' => $occurrence->organization_id,
+                        'contact_id' => $contact->getKey(),
+                        // One facilitator, one observer, the rest taking part.
+                        'role' => match ($index) {
+                            0 => 'facilitator',
+                            1 => 'observer',
+                            default => 'participant',
+                        },
+                        'business_unit_id' => $contact->business_unit_id,
+                        'invitation_status' => 'pending',
+                    ]
+                );
+            }
+        }
+
+        // The live countdown. A tabletop is the right one to pull forward: it
+        // is the exercise type with the most human readiness items, so the
+        // daily digest has something to say.
+        $live = $occurrences->first(
+            fn (ExerciseOccurrence $o) => $o->definition?->exerciseType?->ladder_level === LadderLevel::Tabletop
+        ) ?? $occurrences->first();
+
+        if ($live === null) {
+            return;
+        }
+
+        $live->update([
+            'scheduled_date' => now()->addDays(10)->toDateString(),
+            'scheduled_start' => now()->addDays(10)->setTime(9, 0),
+            'scheduled_end' => now()->addDays(10)->setTime(12, 0),
+        ]);
+
+        app(ReadinessService::class)->materialise($live->refresh());
+        app(ReminderScheduleBuilder::class)->build($live->refresh());
+
+        // Spread the checklist across the people who are actually in the
+        // exercise, then close most of it — two owners left behind is what the
+        // T-2 escalation exists to catch, and a checklist that is entirely open
+        // shows the escalation without showing the progress.
+        $owners = $contacts->pluck('user_id')->filter()->values();
+        $tasks = ReadinessTask::query()->where('occurrence_id', $live->getKey())->orderBy('id')->get();
+
+        foreach ($tasks as $index => $task) {
+            $task->update(['owner_id' => $owners[$index % max(1, $owners->count())] ?? null]);
+        }
+
+        $tasks->take(max(0, $tasks->count() - 2))->each(fn (ReadinessTask $t) => $t->update([
+            'status' => 'complete',
+            'completed_at' => now(),
+            'completed_by' => $t->owner_id,
+        ]));
+
+        app(ReadinessService::class)->refreshCounts($live->refresh());
     }
 }

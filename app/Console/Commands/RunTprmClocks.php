@@ -5,15 +5,17 @@ namespace App\Console\Commands;
 use App\Models\Organization;
 use App\Services\Tprm\Exit\ExitPlanService;
 use App\Services\Tprm\Incidents\ClockEscalationService;
+use App\Services\Tprm\Performance\ServiceReviewService;
 use Illuminate\Console\Command;
 use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The regulatory clock sweep — AC-07 — and the exit staleness sweep — AC-11.
  *
- * TWO SWEEPS IN ONE COMMAND because they share a schedule and a failure mode:
- * both exist so that a deadline nobody is watching still reaches somebody.
- * They are separately guarded so a throw in one cannot silence the other.
+ * THREE SWEEPS IN ONE COMMAND because they share a failure mode: each exists
+ * so that a date nobody is watching still reaches somebody. They are
+ * separately guarded so a throw in one cannot silence the others, and so one
+ * tenant's bad data cannot stop the next tenant's escalations.
  *
  * IT RUNS EVERY FIFTEEN MINUTES, which is unusual in this module and is a
  * property of the clocks. A twenty-four-hour window escalates at 50% and 80% —
@@ -28,10 +30,13 @@ class RunTprmClocks extends Command
         {--organization= : Limit to one tenant}
         {--skip-exit : Escalate the regulatory clocks only}';
 
-    protected $description = 'Escalate running regulatory clocks and mark exit plans past their test interval';
+    protected $description = 'Escalate regulatory clocks, mark stale exit plans and record missed service reviews';
 
-    public function handle(ClockEscalationService $escalations, ExitPlanService $exitPlans): int
-    {
+    public function handle(
+        ClockEscalationService $escalations,
+        ExitPlanService $exitPlans,
+        ServiceReviewService $reviews,
+    ): int {
         if (! config('features.tprm')) {
             $this->comment('TPRM is disabled; nothing to do.');
 
@@ -44,11 +49,12 @@ class RunTprmClocks extends Command
 
         $escalated = 0;
         $stale = 0;
+        $missed = 0;
         $findings = 0;
 
         foreach ($organizations as $organizationId) {
             TenantContext::actingAs($organizationId, function () use (
-                $escalations, $exitPlans, $organizationId, &$escalated, &$stale, &$findings
+                $escalations, $exitPlans, $reviews, $organizationId, &$escalated, &$stale, &$missed, &$findings
             ): void {
                 try {
                     $escalated += $escalations->sweep($organizationId)['escalated'];
@@ -70,6 +76,14 @@ class RunTprmClocks extends Command
                 } catch (\Throwable $exception) {
                     $this->error(sprintf('Exit sweep failed for org %d: %s', $organizationId, $exception->getMessage()));
                 }
+
+                try {
+                    $result = $reviews->markMissed($organizationId);
+                    $missed += $result['missed'];
+                    $findings += $result['findings'];
+                } catch (\Throwable $exception) {
+                    $this->error(sprintf('Review sweep failed for org %d: %s', $organizationId, $exception->getMessage()));
+                }
             });
         }
 
@@ -77,8 +91,9 @@ class RunTprmClocks extends Command
 
         if (! $this->option('skip-exit')) {
             $this->info(sprintf(
-                '%d exit plan(s) marked stale, %d finding(s) raised.',
+                '%d exit plan(s) marked stale, %d service review(s) missed, %d finding(s) raised.',
                 $stale,
+                $missed,
                 $findings,
             ));
         }

@@ -326,12 +326,6 @@ parameters:
 			path: app/Listeners/FlagRiskForReview.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ApiToken.php
-
-		-
 			message: '#^Method App\\Models\\ApiToken\:\:findToken\(\) should return static\(App\\Models\\ApiToken\)\|null but returns App\\Models\\ApiToken\|null\.$#'
 			identifier: return.type
 			count: 1
@@ -344,12 +338,6 @@ parameters:
 			path: app/Models/ApiToken.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ApprovalRequest.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$awaiting_review_count\.$#'
 			identifier: property.notFound
 			count: 1
@@ -358,12 +346,6 @@ parameters:
 		-
 			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$completed_count\.$#'
 			identifier: property.notFound
-			count: 1
-			path: app/Models/AssessmentCampaign.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
 			count: 1
 			path: app/Models/AssessmentCampaign.php
 
@@ -380,12 +362,6 @@ parameters:
 			path: app/Models/AssessmentCampaign.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/BusinessProcess.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
 			identifier: method.notFound
 			count: 2
@@ -396,12 +372,6 @@ parameters:
 			identifier: function.alreadyNarrowedType
 			count: 1
 			path: app/Models/BusinessProcess.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/BusinessUnit.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
@@ -416,43 +386,13 @@ parameters:
 			path: app/Models/BusinessUnit.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ConfigBundle.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ConfigBundleApplication.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:active\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: app/Models/Connector.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Connector.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ConnectorRun.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:visibleTo\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Control.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: app/Models/Control.php
@@ -470,12 +410,6 @@ parameters:
 			path: app/Models/Control.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ControlTest.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
 			identifier: method.notFound
 			count: 2
@@ -488,34 +422,10 @@ parameters:
 			path: app/Models/ControlTest.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Dashboard.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/DataImport.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\DomainEvent\:\:\$aggregate_type\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Models/DomainEvent.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/DomainEvent.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/EmergingRisk.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
@@ -528,12 +438,6 @@ parameters:
 			identifier: function.alreadyNarrowedType
 			count: 1
 			path: app/Models/EmergingRisk.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Entity.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
@@ -552,36 +456,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Models/Entity.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/EntityType.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/FxRate.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/GeneratedReport.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/GraphObject.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/IcaapAssessment.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$closed_date\.$#'
@@ -614,12 +488,6 @@ parameters:
 			path: app/Models/Issue.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Issue.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
 			identifier: method.notFound
 			count: 2
@@ -632,25 +500,7 @@ parameters:
 			path: app/Models/Issue.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/IssueEscalationRule.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/JobRun.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:visibleTo\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/KeyRiskIndicator.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: app/Models/KeyRiskIndicator.php
@@ -686,12 +536,6 @@ parameters:
 			path: app/Models/LossEvent.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/LossEvent.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
 			identifier: method.notFound
 			count: 2
@@ -722,46 +566,10 @@ parameters:
 			path: app/Models/LossEvent.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/LossEventRca.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Measure.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:resolved\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: app/Models/MeasureBreach.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/MeasureBreach.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/MeasureThreshold.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/MeasureValue.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/NearMiss.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
@@ -774,60 +582,6 @@ parameters:
 			identifier: function.alreadyNarrowedType
 			count: 1
 			path: app/Models/NearMiss.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ObjectLifecycle.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ObjectMergeCandidate.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ObjectRelationship.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ObjectRelationshipType.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ObjectType.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/OrganizationSsoSetting.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Period.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/PeriodCalendar.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/QuantificationScenario.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
@@ -848,43 +602,7 @@ parameters:
 			path: app/Models/QuantificationScenario.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/QuantificationSetting.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/QuestionLibrary.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Questionnaire.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/RegulatoryCircular.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/RegulatoryDeadline.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:visibleTo\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Risk.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: app/Models/Risk.php
@@ -902,12 +620,6 @@ parameters:
 			path: app/Models/Risk.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/RiskAppetite.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
 			identifier: method.notFound
 			count: 2
@@ -918,30 +630,6 @@ parameters:
 			identifier: function.alreadyNarrowedType
 			count: 1
 			path: app/Models/RiskAppetite.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/RiskAssessment.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/RiskAssessmentControl.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/RiskAuditTrail.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/RiskCategory.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
@@ -956,46 +644,10 @@ parameters:
 			path: app/Models/RiskCategory.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/RiskCause.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Models/RiskCause.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/RiskCauseCategory.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/RiskControlMapping.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/RiskTaxonomy.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ScimToken.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ScoringProfile.php
 
 		-
 			message: '#^Strict comparison using \!\=\= between int and null will always evaluate to true\.$#'
@@ -1010,18 +662,6 @@ parameters:
 			path: app/Models/ScoringProfile.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/SimulationRun.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/TreatmentPlan.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
 			identifier: method.notFound
 			count: 2
@@ -1034,55 +674,13 @@ parameters:
 			path: app/Models/TreatmentPlan.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/User.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/WebhookDelivery.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/WebhookSubscription.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/WidgetDefinition.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Models/WorkflowAction.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/WorkflowDefinition.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/WorkflowInstance.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:open\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/WorkflowTask.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: app/Models/WorkflowTask.php
@@ -2194,54 +1792,21 @@ parameters:
 	# ------------------------------------------------------------------
 	# TPRM module models (Phases 0-2)
 	#
-	# The same two trait-level limitations the baseline already records for
-	# every other tenant-scoped model in the product, one entry per model:
-	# larastan cannot see `getOrganizationIdColumn()` on the Model the
-	# BelongsToOrganization trait types its closure against, nor
-	# `syncObjectIdentity()` on HasObjectIdentity's. Neither is new debt and
-	# neither is fixable from the model — the fix belongs in the traits, and
-	# doing it there would touch all hundred models at once.
+	# ONE OF THE TWO TRAIT-LEVEL LIMITATIONS THIS BLOCK RECORDED IS NOW FIXED.
+	# `BelongsToOrganization` typed its boot closure against `Model` rather than
+	# `self`, so larastan could not see `getOrganizationIdColumn()` on it — one
+	# entry per tenant-scoped model, 116 of them. BCMS Phase 0 added 57 more in
+	# a single commit, which made the point this comment was already making:
+	# "the fix belongs in the traits". It is a one-word change (`Model` →
+	# `self`, which in a trait resolves to the using class), it is behaviourally
+	# identical, and it removed all 116 entries plus the 57 that would have
+	# joined them.
+	#
+	# `HasObjectIdentity` has the identical defect and is NOT fixed here, on
+	# purpose: no BCMS model uses it, so BCMS added nothing to it, and fixing a
+	# trait the object graph's own tests cover was not this phase's to do. The
+	# entries below are what remains.
 	# ------------------------------------------------------------------
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Assessment.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/AssessmentMessage.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/AssessmentResponse.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/AuditLog.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/BusinessFunction.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Category.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Contact.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Engagement.php
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
 			identifier: method.notFound
@@ -2253,56 +1818,6 @@ parameters:
 			count: 1
 			path: app/Models/Tprm/Engagement.php
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/EngagementFunction.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/ImportBatch.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/InherentAssessment.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Location.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Ownership.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/QuestionnaireTemplate.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/ResponseEvidence.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Ruleset.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/ScoreRun.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/ThirdParty.php
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
 			identifier: method.notFound
 			count: 2
@@ -2312,158 +1827,3 @@ parameters:
 			identifier: function.alreadyNarrowedType
 			count: 1
 			path: app/Models/Tprm/ThirdParty.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/TierPolicy.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Waiver.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Document.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/DocumentExtraction.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/DocumentType.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Soc2Cuec.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Soc2Detail.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/AccessGrant.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/ConcentrationAnalysis.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Connection.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/ExitPlan.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/NthPartyEdge.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Soc2Exception.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Soc2SubserviceOrg.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/ClauseLibraryEntry.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Contract.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/ContractClause.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Obligation.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/PciResponsibility.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Sla.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/SlaMeasurement.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Finding.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/RiskAcceptance.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/Alert.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/AlertRule.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/DueDiligenceChecklist.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/DueDiligenceItem.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/MonitoringSignal.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/MonitoringSource.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/ScreeningCheck.php
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getOrganizationIdColumn\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/Tprm/ScreeningMatch.php

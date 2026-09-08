@@ -91,7 +91,7 @@ phase that needs one raises it here first.
 |---|---|---|---|---|---|
 | 9.1 | `iso22301.9.1` | Monitoring and measurement | Resilience KRIs in the existing KRI module | `key_risk_indicators`, `kri_measurements` | ISO pack, board |
 | **9.2** | two codes | Internal audit **programme** and **results** (both mandatory records) | The thirdLine audit programme and its findings, synced as BCMS findings | `bcms_findings` (+ `erm_issue_id` → `issues`) | ISO pack, board |
-| **9.3** | two codes | Management review **inputs** and **results** (results mandatory) | Management review record with the prior-action status | Phase 11 — **gap, see below** | ISO pack, board |
+| **9.3** | two codes | Management review **inputs** and **results** (results mandatory) | `bcms_management_reviews` — attendees, a **snapshot** of the clause 9.3 inputs, decisions, approval | `bcms_management_reviews` | ISO pack, board |
 
 ## Clause 10 — Improvement
 
@@ -121,26 +121,43 @@ assembling anything?*
 | Show me who you told, and when, in your last incident | `bcms_alert_recipients` + `bcms_notification_deliveries`, both snapshotted at dispatch | Schema in place; Phase 7 |
 | Show me the branch of your call tree that failed and what you did about it | `bcms_call_tree_test_nodes.downstream_blocked_count` → `bcms_findings` | Schema in place; Phase 6 |
 
-## Known gaps at G0
+## Gaps at G0, and what Phase 1 did about them
 
-1. **Management review (9.3) has no home table.** `bcms_programmes` carries the
-   approval and the board attestation, which is not the same artefact: 9.3 asks
-   for the review's *inputs* (prior action status, performance data, changes in
-   issues) and its *results* (decisions on improvement and resource need). Phase
-   11 owns it and **will need a structural migration**, which means an ADR — the
-   first one this schema freeze will have to answer. It is named here rather
-   than smuggled in later.
-2. **Policy is stored as a plan record**, which works but is a slight abuse of
-   `bcms_plans`. Acceptable at G0; revisit if Phase 1 finds it strains.
-3. **The ERM risk link on `bcms_processes` is not yet a column.** 8.2.3 is
-   satisfied through the existing register today; if Phase 2 needs a direct
-   edge, that is an ADR.
+1. ~~**Management review (9.3) has no home table.**~~ **Closed in Phase 1.**
+   `bcms_management_reviews` was added under ADR 0008 — the first structural
+   migration after the freeze, and the one this section predicted. The inputs
+   are a **snapshot**: a review held in March considered March's CAPA status,
+   and re-deriving it for a reader in December would rewrite what the meeting
+   looked at. A review cannot be approved before they are captured.
+   **Actions arising are corrective actions**, against a finding whose source is
+   `management_review` — not a second action register.
+2. **Policy is stored as a plan record.** Confirmed in Phase 1 and it does not
+   strain: `bcms_plans` already models a versioned, approved, supersedable
+   document with an owner and an approver, and `PolicyService` adds the one rule
+   that matters — an approved version is immutable and is superseded, never
+   edited. `PlanType::Policy` and `bcms_plan_attestations` complete it.
+3. **The ERM risk link on `bcms_processes` is not yet a column,** and Phase 1
+   decided it should stay that way. BCMS deliberately creates **no ERM risks**:
+   a missed drill is not a new risk, and the disruption it exercises is already
+   in the register. Continuity exposure reaches the register through the KRIs the
+   clause 6.2 objectives are measured by, which is the join Blueprint §4.2 asks
+   for. If Phase 2 finds it needs a direct edge, that is an ADR.
+
+### New gaps opened by Phase 1
+
+4. **`bcms_programme_obligations.cadence_per_year` has nothing to compare
+   against yet.** The obligation register knows CBN Open Banking requires four
+   failover exercises a year; proving the calendar delivers four needs Phase 4's
+   occurrences.
+5. **No evidence-pack export.** Every artefact carries its `iso_clause_ref` and
+   `bcms_clause_refs.export_packs` says which pack it belongs in. Assembling the
+   pack is Phase 11.
 
 ## HANDOFF
 
-**Phase:** P0 — Foundations & schema freeze
+**Phase:** P0 — Foundations & schema freeze (updated after P1)
 **Agent:** compliance-analyst
-**Status:** complete
+**Status:** complete; revisited at the end of Phase 1, which closed gap 1 and confirmed gaps 2 and 3
 **Delivered:** `docs/compliance/iso22301-clause-map.md`, `docs/compliance/cbn-obligations.md`, `docs/compliance/ndpa-register.md`, `App\Enums\Bcms\IsoClauseRef`, `Database\Seeders\Bcms\Reference\ClauseRefs`
 **Clause refs published:** 52 — 29 ISO 22301 (5 to sub-clause level on 8.4, 8.5, 9.2, 9.3 and 10.1), 8 companion-standard, 15 Nigerian
 **Contracts touched:** `iso_clause_ref` taxonomy (Orchestration §5) — frozen at G0

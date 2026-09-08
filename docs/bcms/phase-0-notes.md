@@ -81,16 +81,21 @@ Each is an ADR; this is the index.
 
 ## 5. Known gaps handed to later phases
 
-1. **Management review (ISO 22301 9.3) has no home table.** The clause map names
-   it. Phase 11 owns it and **will need the first post-freeze structural
-   migration**, which means the first ADR against standing rule 2. Flagged now
-   rather than smuggled in later.
+1. ~~**Management review (ISO 22301 9.3) has no home table.**~~ **Closed in
+   Phase 1**, sooner than this note expected — Phase 1's acceptance criterion 7
+   required clause 9.3 to be evidenced, so ADR 0008 arrived in week 2 rather
+   than week 12. The prediction was right about everything except the date, and
+   the freeze behaved exactly as designed: `bcms:verify-schema` named all
+   fifteen changes, the ADR argued each, and the manifest was regenerated in the
+   same commit. See `docs/bcms/phase-1-notes.md` §3.
 2. **`HasObjectIdentity` is not applied to any BCMS model.** The object graph
    would need type registration in `ObjectSourceMap`, which is a Phase 11
    reporting concern and not a Phase 0 one. No BCMS row is in the graph index.
 3. **`App\Support\Rcsa\RcsaScope` is now used by two modules and its namespace is
    wrong for what it does.** Renaming it is a refactor of RCSA's call sites, not
-   a Phase 0 decision. Revisit when a third module needs it.
+   a Phase 0 decision. Revisit when a third module needs it. (Phase 1 exercised
+   it in anger — the process catalogue's org scoping runs through it and is
+   tested in both directions — and it held.)
 4. **Geo columns exist and nothing writes them.** Before anything does, Phase 2C
    must add a separate location consent, a granularity statement and a retention
    in days — see the NDPA register.

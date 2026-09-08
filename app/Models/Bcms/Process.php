@@ -37,6 +37,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?string $category
  * @property ?int $criticality_tier
  * @property bool $is_critical_service
+ * @property ?string $critical_service_justification
  * @property array<array-key, mixed> $regulatory_flags
  * @property string $status
  * @property ?string $iso_clause_ref
@@ -55,7 +56,7 @@ class Process extends Model
     /** @var list<string> */
     protected $fillable = [
         'organization_id', 'business_unit_id', 'business_process_id', 'parent_process_id', 'code',
-        'name', 'description', 'owner_id', 'category', 'criticality_tier', 'is_critical_service',
+        'name', 'description', 'owner_id', 'category', 'criticality_tier', 'is_critical_service', 'critical_service_justification',
         'regulatory_flags', 'status', 'iso_clause_ref', 'created_by', 'updated_by',
     ];
 
@@ -120,5 +121,27 @@ class Process extends Model
     public function strategies(): HasMany
     {
         return $this->hasMany(Strategy::class, 'process_id');
+    }
+
+    /**
+     * RACI assignments against this process.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\MorphMany<RaciAssignment, $this>
+     */
+    public function raci(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(RaciAssignment::class, 'assignable');
+    }
+
+    /**
+     * The one person accountable, or null — which is the gap report's whole
+     * question. `owner_id` is who runs it day to day and is a different fact.
+     */
+    public function accountable(): ?\App\Models\User
+    {
+        return $this->raci()
+            ->where('raci_role', \App\Enums\Bcms\RaciRole::Accountable->value)
+            ->with('user')
+            ->first()?->user;
     }
 }

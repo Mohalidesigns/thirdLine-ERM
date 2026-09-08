@@ -26,6 +26,8 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?string $measure_description
  * @property ?string $target_value
  * @property ?string $target_unit
+ * @property ?string $baseline_value
+ * @property ?\Illuminate\Support\Carbon $baseline_captured_at
  * @property ?int $key_risk_indicator_id
  * @property ?\Illuminate\Support\Carbon $target_date
  * @property ?int $owner_id
@@ -46,7 +48,7 @@ class Objective extends Model
     /** @var list<string> */
     protected $fillable = [
         'organization_id', 'programme_id', 'title', 'description', 'measure_description',
-        'target_value', 'target_unit', 'key_risk_indicator_id', 'target_date', 'owner_id',
+        'target_value', 'target_unit', 'baseline_value', 'baseline_captured_at', 'key_risk_indicator_id', 'target_date', 'owner_id',
         'status', 'iso_clause_ref', 'created_by', 'updated_by',
     ];
 

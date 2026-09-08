@@ -3,6 +3,7 @@
 namespace App\Models\Bcms;
 
 use App\Enums\Bcms\FindingClassification;
+use App\Enums\Bcms\FindingSource;
 use App\Models\Bcms\Concerns\BcmsAuditable;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\Bcms\Concerns\ScopedToOrgHierarchy;
@@ -35,6 +36,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?int $incident_id
  * @property ?int $call_tree_test_id
  * @property ?int $dr_test_id
+ * @property ?int $management_review_id
  * @property \App\Enums\Bcms\FindingClassification $classification
  * @property ?string $severity
  * @property string $description
@@ -63,7 +65,7 @@ class Finding extends Model
 
     /** @var list<string> */
     protected $fillable = [
-        'organization_id', 'reference', 'aar_id', 'incident_id', 'call_tree_test_id', 'dr_test_id',
+        'organization_id', 'reference', 'source', 'management_review_id', 'aar_id', 'incident_id', 'call_tree_test_id', 'dr_test_id',
         'classification', 'severity', 'description', 'root_cause', 'affected_plan_id',
         'affected_process_id', 'affected_business_unit_id', 'iso_clause_ref', 'status',
         'raised_by', 'raised_at', 'closed_at', 'erm_issue_id', 'ai_generated', 'created_by',
@@ -90,6 +92,7 @@ class Finding extends Model
             'created_by' => 'integer',
             'updated_by' => 'integer',
             'classification' => FindingClassification::class,
+            'source' => FindingSource::class,
         ];
     }
 
@@ -149,5 +152,11 @@ class Finding extends Model
     public function ermIssue(): BelongsTo
     {
         return $this->belongsTo(Issue::class, 'erm_issue_id');
+    }
+
+    /** @return BelongsTo<ManagementReview, $this> */
+    public function managementReview(): BelongsTo
+    {
+        return $this->belongsTo(ManagementReview::class, 'management_review_id');
     }
 }

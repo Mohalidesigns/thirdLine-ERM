@@ -8,6 +8,7 @@ use App\Models\Bcms\Application as BcmsApplication;
 use App\Models\Bcms\DataSet as BcmsDataSet;
 use App\Models\Bcms\Equipment as BcmsEquipment;
 use App\Models\Bcms\Process as BcmsProcess;
+use App\Models\Bcms\Programme as BcmsProgramme;
 use App\Models\Bcms\Site as BcmsSite;
 use App\Models\BusinessProcess;
 use App\Models\BusinessUnit;
@@ -121,6 +122,9 @@ class MorphTypes
             'bcms_data_set' => BcmsDataSet::class,
             'bcms_equipment' => BcmsEquipment::class,
             'bcms_process' => BcmsProcess::class,
+            // Phase 1 (ADR 0008): RACI assignments and programme scope rows are
+            // morphs over a programme as well as a process.
+            'bcms_programme' => BcmsProgramme::class,
             'bcms_site' => BcmsSite::class,
             'tprm_third_party' => ThirdParty::class,
             'business_process' => BusinessProcess::class,

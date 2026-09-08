@@ -144,7 +144,14 @@ class NavPresenter
                         ],
                         \App\Support\Bcms\ModuleSections::all()
                     ),
-                    [['label' => 'BCMS Settings', 'route' => 'bcms.settings.index', 'permission' => 'bcms.admin', 'feature' => 'bcms']],
+                    [
+                        // Not a §4.1 sub-module — the BC policy is one artefact,
+                        // and clause 5.2 makes it the one an auditor opens
+                        // first. Two clicks inside the programme screen is the
+                        // wrong place for it.
+                        ['label' => 'BC Policy', 'route' => 'bcms.policy.index', 'permission' => 'bcms.plan.view', 'feature' => 'bcms'],
+                        ['label' => 'BCMS Settings', 'route' => 'bcms.settings.index', 'permission' => 'bcms.admin', 'feature' => 'bcms'],
+                    ],
                 ),
             ],
 

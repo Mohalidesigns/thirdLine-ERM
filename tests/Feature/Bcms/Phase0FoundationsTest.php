@@ -509,6 +509,13 @@ class Phase0FoundationsTest extends TestCase
             );
         }
 
-        $this->assertCount(12, ModuleSections::all(), 'Blueprint §4.1 names twelve sub-modules.');
+        // Twelve sub-modules from Blueprint §4.1, plus one. Phase 1 added
+        // `findings`: the CAPA register is the cross-track contract of
+        // Orchestration §5 — four phases create findings and none of them owns
+        // the register — and the blueprint files it inside Programme
+        // Governance, where an overdue action is two clicks from anywhere and
+        // therefore stops being looked at.
+        $this->assertCount(13, ModuleSections::all());
+        $this->assertContains('findings', ModuleSections::keys());
     }
 }

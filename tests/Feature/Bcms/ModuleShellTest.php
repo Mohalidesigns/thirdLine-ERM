@@ -223,14 +223,14 @@ class ModuleShellTest extends TestCase
         // halves come from ModuleSections, so this asserts the wiring rather
         // than a hand-typed list.
         $user = $this->userWith(array_merge(
-            ['bcms.view', 'bcms.admin'],
+            ['bcms.view', 'bcms.admin', 'bcms.plan.view'],
             array_column(ModuleSections::all(), 'permission')
         ));
 
         $section = $this->bcmsNavSection($user);
 
         $this->assertNotNull($section, 'The BCMS navigation section is missing for a fully permitted user.');
-        $this->assertCount(14, $section['items'], 'Home, twelve sub-modules and settings.');
+        $this->assertCount(16, $section['items'], 'Home, thirteen sub-modules, the BC policy and settings.');
 
         foreach ($section['items'] as $item) {
             $this->assertArrayHasKey('url', $item, "Nav item '{$item['label']}' resolved to no URL.");

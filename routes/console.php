@@ -141,3 +141,10 @@ Schedule::command('bcms:dispatch-reminders')->hourly()->withoutOverlapping();
 // provider call by a worker that then died. A silent reminder failure is a
 // customer compliance breach, not a bug.
 Schedule::command('bcms:watchdog')->hourlyAt(30)->withoutOverlapping();
+
+// BCMS Phase 1. Early, before the morning digest, so an owner reading their
+// overdue list at 08:00 is reading last night's state rather than yesterday
+// morning's. Overdue is written by this sweep rather than computed on read: an
+// accessor makes "overdue" a property of when you looked, and a board pack
+// printed in March has to still say in December what it said in March.
+Schedule::command('bcms:sweep-actions')->dailyAt('06:45');

@@ -130,4 +130,26 @@ class Plan extends Model
     {
         return $this->hasMany(PlanActivation::class, 'plan_id');
     }
+
+    /** @return HasMany<PlanAttestation, $this> */
+    public function attestations(): HasMany
+    {
+        return $this->hasMany(PlanAttestation::class, 'plan_id');
+    }
+
+    /** @return HasMany<Plan, $this> */
+    public function supersededBy(): HasMany
+    {
+        return $this->hasMany(Plan::class, 'supersedes_plan_id');
+    }
+
+    /**
+     * An approved plan version is IMMUTABLE. It is superseded, never edited —
+     * the supersession chain is the version history an auditor reads, and a
+     * chain whose links can be rewritten is not a history.
+     */
+    public function isImmutable(): bool
+    {
+        return in_array($this->status, ['approved', 'archived'], true);
+    }
 }

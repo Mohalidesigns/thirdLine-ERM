@@ -121,6 +121,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | ERM integration
+    |--------------------------------------------------------------------------
+    |
+    | The one-way bridge of ADR 0001. A BCMS finding is mirrored into the ERM
+    | issue register so that a bank runs one remediation register rather than
+    | two; closing either closes the other.
+    |
+    | BCMS deliberately creates no ERM RISKS. A missed fire drill is not a new
+    | risk — the disruption it exercises is already in the register — and
+    | "Fire drill overdue at Kano branch" as a risk row would fill the register
+    | with programme-management noise. Continuity exposure reaches the register
+    | through the KRIs the BC objectives are measured by.
+    |
+    */
+    'integration' => [
+        'mirror_findings_to_issues' => env('BCMS_MIRROR_FINDINGS', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Non-functional targets (Blueprint §14)
     |--------------------------------------------------------------------------
     |

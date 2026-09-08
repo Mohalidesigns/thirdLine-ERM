@@ -15,7 +15,11 @@ use App\Http\Controllers\Admin\SsoSettingsController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WebhookController;
 use App\Http\Controllers\Auth\SsoController;
+use App\Http\Controllers\Bcms\FindingController as BcmsFindingController;
 use App\Http\Controllers\Bcms\HomeController as BcmsHomeController;
+use App\Http\Controllers\Bcms\PolicyController as BcmsPolicyController;
+use App\Http\Controllers\Bcms\ProcessController as BcmsProcessController;
+use App\Http\Controllers\Bcms\ProgrammeController as BcmsProgrammeController;
 use App\Http\Controllers\Bcms\SectionController as BcmsSectionController;
 use App\Http\Controllers\Bcms\SettingsController as BcmsSettingsController;
 use App\Http\Controllers\LicenseController;
@@ -1990,7 +1994,108 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::put('settings', [BcmsSettingsController::class, 'update'])
             ->middleware('permission:bcms.admin')->name('settings.update');
 
+        /*
+         * Phase 1 — three sections now have real screens. They keep the SAME
+         * route names the shells had, so navigation, permissions, bookmarks and
+         * every test that names them survive the replacement. That is what the
+         * `live` flag on a section is for.
+         */
+
+        /* --- Programme governance (clauses 4, 5, 6, 9.3) --------------- */
+        Route::get('programme', [BcmsProgrammeController::class, 'index'])
+            ->middleware('permission:bcms.view')->name('programme.index');
+        Route::post('programme', [BcmsProgrammeController::class, 'store'])
+            ->middleware('permission:bcms.programme.manage')->name('programme.store');
+        Route::put('programme/{programme}', [BcmsProgrammeController::class, 'update'])
+            ->middleware('permission:bcms.programme.manage')->name('programme.update');
+        // Approving is a different authority from editing: a programme signed
+        // off by the person who wrote it has had no oversight.
+        Route::post('programme/{programme}/approve', [BcmsProgrammeController::class, 'approve'])
+            ->middleware('permission:bcms.programme.approve')->name('programme.approve');
+        Route::post('programme/{programme}/activate', [BcmsProgrammeController::class, 'activate'])
+            ->middleware('permission:bcms.programme.approve')->name('programme.activate');
+        Route::post('programme/{programme}/scope', [BcmsProgrammeController::class, 'storeScope'])
+            ->middleware('permission:bcms.programme.manage')->name('programme.scope.store');
+        Route::post('programme/{programme}/obligations', [BcmsProgrammeController::class, 'seedObligations'])
+            ->middleware('permission:bcms.programme.manage')->name('programme.obligations.seed');
+        Route::put('obligations/{obligation}', [BcmsProgrammeController::class, 'updateObligation'])
+            ->middleware('permission:bcms.programme.manage')->name('obligations.update');
+        Route::post('programme/{programme}/reviews', [BcmsProgrammeController::class, 'storeReview'])
+            ->middleware('permission:bcms.programme.manage')->name('reviews.store');
+        Route::post('reviews/{review}/capture', [BcmsProgrammeController::class, 'captureReviewInputs'])
+            ->middleware('permission:bcms.programme.manage')->name('reviews.capture');
+        Route::post('reviews/{review}/approve', [BcmsProgrammeController::class, 'approveReview'])
+            ->middleware('permission:bcms.programme.approve')->name('reviews.approve');
+        Route::post('maturity/assess', [BcmsProgrammeController::class, 'assessMaturity'])
+            ->middleware('permission:bcms.report.view')->name('maturity.assess');
+
+        /* --- The BC policy (clause 5.2) -------------------------------- */
+        Route::get('policy', [BcmsPolicyController::class, 'index'])
+            ->middleware('permission:bcms.plan.view')->name('policy.index');
+        Route::post('policy', [BcmsPolicyController::class, 'store'])
+            ->middleware('permission:bcms.plan.manage')->name('policy.store');
+        Route::put('policy/{plan}', [BcmsPolicyController::class, 'update'])
+            ->middleware('permission:bcms.plan.manage')->name('policy.update');
+        Route::post('policy/{plan}/approve', [BcmsPolicyController::class, 'approve'])
+            ->middleware('permission:bcms.plan.approve')->name('policy.approve');
+        Route::post('policy/{plan}/supersede', [BcmsPolicyController::class, 'supersede'])
+            ->middleware('permission:bcms.plan.manage')->name('policy.supersede');
+        // Board attestation is a board act, so it carries the programme
+        // approval grant rather than a plan grant.
+        Route::post('policy/{plan}/attest', [BcmsPolicyController::class, 'attest'])
+            ->middleware('permission:bcms.programme.approve')->name('policy.attest');
+
+        /* --- The process catalogue ------------------------------------- */
+        Route::get('processes', [BcmsProcessController::class, 'index'])
+            ->middleware('permission:bcms.process.view')->name('processes.index');
+        // Ahead of {process}, or `import` and `export` bind as a model and 404.
+        Route::post('processes/import/dry-run', [BcmsProcessController::class, 'dryRun'])
+            ->middleware('permission:bcms.process.manage')->name('processes.import.dry-run');
+        Route::post('processes/import', [BcmsProcessController::class, 'import'])
+            ->middleware('permission:bcms.process.manage')->name('processes.import');
+        Route::get('processes/export', [BcmsProcessController::class, 'export'])
+            ->middleware('permission:bcms.process.view')->name('processes.export');
+        Route::post('processes', [BcmsProcessController::class, 'store'])
+            ->middleware('permission:bcms.process.manage')->name('processes.store');
+        Route::put('processes/{process}', [BcmsProcessController::class, 'update'])
+            ->middleware('permission:bcms.process.manage')->name('processes.update');
+        Route::post('processes/{process}/raci', [BcmsProcessController::class, 'assignRaci'])
+            ->middleware('permission:bcms.process.manage')->name('processes.raci.store');
+        Route::delete('processes/{process}/raci', [BcmsProcessController::class, 'removeRaci'])
+            ->middleware('permission:bcms.process.manage')->name('processes.raci.destroy');
+
+        /* --- Findings and corrective actions (clause 10.1) -------------- */
+        /*
+         * The cross-track contract of Orchestration §5. Track A owns this
+         * surface; P6, P9, P10 and thirdLine only CREATE findings, through
+         * FindingService rather than through these routes.
+         */
+        Route::get('findings', [BcmsFindingController::class, 'index'])
+            ->middleware('permission:bcms.finding.view')->name('findings.index');
+        Route::post('findings', [BcmsFindingController::class, 'store'])
+            ->middleware('permission:bcms.finding.manage')->name('findings.store');
+        Route::post('findings/{finding}/close', [BcmsFindingController::class, 'close'])
+            ->middleware('permission:bcms.finding.manage')->name('findings.close');
+        Route::post('findings/{finding}/accept-risk', [BcmsFindingController::class, 'acceptRisk'])
+            ->middleware('permission:bcms.finding.accept_risk')->name('findings.accept-risk');
+        Route::post('findings/{finding}/actions', [BcmsFindingController::class, 'storeAction'])
+            ->middleware('permission:bcms.finding.manage')->name('actions.store');
+        Route::post('actions/{action}/complete', [BcmsFindingController::class, 'completeAction'])
+            ->middleware('permission:bcms.finding.manage')->name('actions.complete');
+        // Verification asks whether the action WORKED, which the person who did
+        // it cannot answer about themselves — a separate grant, and the service
+        // refuses the owner by name even if somebody holds both.
+        Route::post('actions/{action}/verify', [BcmsFindingController::class, 'verifyAction'])
+            ->middleware('permission:bcms.finding.verify')->name('actions.verify');
+        Route::post('actions/{action}/accept-risk', [BcmsFindingController::class, 'acceptAction'])
+            ->middleware('permission:bcms.finding.accept_risk')->name('actions.accept-risk');
+
+        /* --- The sections whose phase has not landed yet ---------------- */
         foreach (\App\Support\Bcms\ModuleSections::all() as $bcmsSection) {
+            if ($bcmsSection['live']) {
+                continue;
+            }
+
             Route::get($bcmsSection['key'], [BcmsSectionController::class, 'show'])
                 ->defaults('section', $bcmsSection['key'])
                 ->middleware('permission:'.$bcmsSection['permission'])

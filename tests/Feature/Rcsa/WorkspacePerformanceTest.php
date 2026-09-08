@@ -32,11 +32,33 @@ use PHPUnit\Framework\Attributes\Test;
  *      Measured before that cap, `outstanding` was 297 KB of a 3.6 MB page.
  *
  * The wall-clock measurement that produced the number in the phase note was
- * taken against MySQL with a real dataset; these run on SQLite, which is why
- * the budget here is a smoke check rather than the acceptance figure.
+ * taken against MySQL with a real dataset. These now run on MariaDB too — the
+ * suite stopped using SQLite in 2026-09 — but the budget here stays a smoke
+ * check rather than the acceptance figure, because a shared CI runner measures
+ * the runner. The QUERY assertions below are the machine-independent half, and
+ * they are the ones worth reading when this file goes red.
  */
 class WorkspacePerformanceTest extends CycleTestCase
 {
+    /**
+     * How many more queries a 500-line render may issue than a 20-line one.
+     *
+     * Three, which is noise rather than scaling. The defect this guard exists
+     * to catch is one query PER LINE — the difference between 25 and 525, not
+     * between 25 and 26. See the note at the assertion for why exact equality
+     * had to go.
+     */
+    private const QUERY_TOLERANCE = 3;
+
+    /**
+     * The absolute ceiling for a 500-line render.
+     *
+     * Steady state is around 24. Fifty leaves generous room for a legitimate
+     * new eager load while staying an order of magnitude below the ~525 any
+     * per-line query would produce.
+     */
+    private const QUERY_CEILING = 50;
+
     /**
      * A cycle with an assessment of `$lines` scored rows, inserted in bulk.
      *
@@ -203,14 +225,53 @@ class WorkspacePerformanceTest extends CycleTestCase
         $small = $this->render($twenty);
         $large = $this->render($fiveHundred);
 
-        $this->assertSame(
-            $small['queries'],
+        // BOUNDED, NOT IDENTICAL — and the difference is the whole point.
+        //
+        // This asserted `assertSame($small, $large)`: that a 20-line render and
+        // a 500-line render issue EXACTLY the same number of queries. That is
+        // stricter than anything this test claims, and it made the guard flaky.
+        // It was seen failing in BOTH directions — 24 against 25, and 25
+        // against 24 — at two different commits, and passing on re-run; always
+        // alongside other tests, never in eleven consecutive runs on its own.
+        // Logging and normalising every statement showed the two renders
+        // issuing the same SHAPES every time, so whatever the extra query is,
+        // it is occasional and not a function of row count. It was not pinned
+        // down, and this comment says so rather than implying it was.
+        //
+        // A guard that goes red for a reason nobody can name is worse than no
+        // guard: the next person assumes a real N+1, looks for it, finds
+        // nothing, and learns to re-run the suite instead of reading it.
+        //
+        // What the test actually claims is in its name — the query count does
+        // not GROW with the number of lines. That defect is not subtle: one
+        // query per line is 500-odd, not 26. A margin of three absorbs the
+        // noise and could not hide it.
+        $this->assertLessThanOrEqual(
+            $small['queries'] + self::QUERY_TOLERANCE,
             $large['queries'],
             sprintf(
-                'The workspace issued %d queries for 20 lines and %d for 500. That is an N+1 — almost '
-                .'certainly an eager load dropped from AssessmentController::show().',
+                'The workspace issued %d queries for 20 lines and %d for 500 — a growth of %d, past the '
+                .'tolerance of %d. That is an N+1: almost certainly an eager load dropped from '
+                .'AssessmentController::show().',
                 $small['queries'],
                 $large['queries'],
+                $large['queries'] - $small['queries'],
+                self::QUERY_TOLERANCE,
+            ),
+        );
+
+        // The second half of the same guarantee. The margin above is RELATIVE,
+        // so a render that regressed to 200 queries at both sizes would satisfy
+        // it while being catastrophic. This puts a ceiling on the absolute
+        // number, an order of magnitude below anything per-line.
+        $this->assertLessThan(
+            self::QUERY_CEILING,
+            $large['queries'],
+            sprintf(
+                'A 500-line workspace issued %d queries, past the ceiling of %d. Whatever grew, it is no '
+                .'longer a bounded number of round trips.',
+                $large['queries'],
+                self::QUERY_CEILING,
             ),
         );
 

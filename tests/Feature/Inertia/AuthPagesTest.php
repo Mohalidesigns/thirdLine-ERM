@@ -244,7 +244,16 @@ class AuthPagesTest extends TestCase
      */
     private function bladePageViews(): array
     {
-        $allowed = ['app.blade.php', 'layouts/', 'components/', 'livewire/', 'reports/pdf/', 'emails/', 'vendor/'];
+        $allowed = [
+            'app.blade.php',
+            // The vendor portal's Inertia root — TPRM Phase 8. A root view,
+            // not a page: it exists so the portal can ship its own <title> and
+            // only its own Ziggy route group, rather than handing a vendor the
+            // internal route map. Listed by name for the same reason
+            // `app.blade.php` is.
+            'tprm-portal.blade.php',
+            'layouts/', 'components/', 'livewire/', 'reports/pdf/', 'emails/', 'vendor/',
+        ];
         $root = resource_path('views');
         $pages = [];
 

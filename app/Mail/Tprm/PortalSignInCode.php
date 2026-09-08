@@ -48,7 +48,7 @@ class PortalSignInCode extends Mailable
     public function content(): Content
     {
         return new Content(
-            markdown: 'mail.tprm.portal-sign-in-code',
+            markdown: 'emails.tprm.portal-sign-in-code',
             with: [
                 'name' => $this->portalUser->name,
                 'code' => $this->code,

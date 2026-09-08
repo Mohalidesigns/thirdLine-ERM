@@ -36,6 +36,10 @@ ALLOWLIST=(
     # Poisson and Box-Muller variates for the loss distribution. Seeded via
     # Random\Randomizer(Mt19937) and the seed is persisted on simulation_runs.
     "app/Services/MonteCarloService.php"
+    # The vendor portal's emailed sign-in code. Allowed for the OPPOSITE reason
+    # to MonteCarloService: that one is seeded so a figure is reproducible, this
+    # one must never be. A credential is not a figure.
+    "app/Services/Tprm/Portal/PortalAuthService.php"
 )
 
 # mt_rand, rand, random_int, shuffle, str_shuffle, array_rand, uniqid.

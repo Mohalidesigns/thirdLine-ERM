@@ -4,7 +4,7 @@
 # to zero. What is left is there on purpose, and the reasons matter more than the
 # count:
 #
-#   11  nullsafe.neverNull — PHPStan IS WRONG, AND OBEYING IT WOULD BREAK THE APP.
+#   14  nullsafe.neverNull — PHPStan IS WRONG, AND OBEYING IT WOULD BREAK THE APP.
 #       Every one is `$model->relation?->column ?? $fallback` on a belongsTo whose
 #       FOREIGN KEY IS NULLABLE: a document with no loss event, a task with no
 #       assignee, a dashboard bound to no object type. larastan types a belongsTo
@@ -2532,3 +2532,15 @@ parameters:
 			identifier: method.notFound
 			count: 1
 			path: app/Models/Tprm/ScreeningMatch.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Services/Tprm/Reporting/CbnRegisterBuilder.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>reference" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Tprm/Reporting/CbnRegisterBuilder.php

@@ -80,6 +80,7 @@ use App\Http\Controllers\Tprm\MonitoringController as TprmMonitoringController;
 use App\Http\Controllers\Tprm\ObligationController as TprmObligationController;
 use App\Http\Controllers\Tprm\PciMatrixController as TprmPciMatrixController;
 use App\Http\Controllers\Tprm\QuestionnaireController as TprmQuestionnaireController;
+use App\Http\Controllers\Tprm\Reports\CbnRegisterController as TprmCbnRegisterController;
 use App\Http\Controllers\Tprm\RulesetController as TprmRulesetController;
 use App\Http\Controllers\Tprm\ScreeningController as TprmScreeningController;
 use App\Http\Controllers\Tprm\SlaController as TprmSlaController;
@@ -1969,6 +1970,19 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.exit.view')->name('exit.index');
         Route::post('exit-plans/{exitPlan}/tests', [TprmExitReadinessController::class, 'recordTest'])
             ->middleware('permission:tprm.exit.manage')->name('exit.tests.store');
+
+        /*
+         * Regulatory returns — Phase 10, FR-RPT.
+         *
+         * `tprm.report.view` sees a return; `tprm.report.export` produces the
+         * file. They are separate because the export is the artefact that
+         * leaves the building carrying a named preparer, and a reader of the
+         * register is not automatically the person who files it.
+         */
+        Route::get('reports/cbn-register', [TprmCbnRegisterController::class, 'index'])
+            ->middleware('permission:tprm.report.view')->name('reports.cbn-register');
+        Route::get('reports/cbn-register/export', [TprmCbnRegisterController::class, 'export'])
+            ->middleware('permission:tprm.report.export')->name('reports.cbn-register.export');
 
         /* Connections, access grants and the reconciliation report — FR-ACC. */
         Route::get('access', [TprmAccessController::class, 'index'])

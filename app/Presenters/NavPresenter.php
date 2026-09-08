@@ -117,6 +117,7 @@ class NavPresenter
                     ['label' => 'Exit Readiness', 'route' => 'tprm.exit.index', 'permission' => 'tprm.exit.view', 'feature' => 'tprm'],
                     ['label' => 'Concentration', 'route' => 'tprm.concentration.index', 'permission' => 'tprm.graph.view', 'feature' => 'tprm'],
                     ['label' => 'Access Reconciliation', 'route' => 'tprm.access.index', 'permission' => 'tprm.access.view', 'feature' => 'tprm'],
+                    ['label' => 'CBN ICT Register', 'route' => 'tprm.reports.cbn-register', 'permission' => 'tprm.report.view', 'feature' => 'tprm'],
                     ['label' => 'Override Register', 'route' => 'tprm.overrides.index', 'permission' => 'tprm.view', 'feature' => 'tprm'],
                     ['label' => 'Bulk Import', 'route' => 'tprm.imports.index', 'permission' => 'tprm.create', 'feature' => 'tprm'],
                     ['label' => 'Tiering Rulesets', 'route' => 'tprm.rulesets.index', 'permission' => 'tprm.ruleset.manage', 'feature' => 'tprm'],

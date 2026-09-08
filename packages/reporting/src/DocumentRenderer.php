@@ -2,7 +2,6 @@
 
 namespace ThirdLine\Reporting;
 
-use ThirdLine\Reporting\Contracts\ResolvesDocumentBranding;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonImmutable;
 use InvalidArgumentException;
@@ -10,7 +9,9 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
+use ThirdLine\Reporting\Contracts\ResolvesDocumentBranding;
 
 /**
  * Turns a Blade view or a tabular dataset into a real document.
@@ -37,8 +38,8 @@ class DocumentRenderer
 
     /**
      * @param  ResolvesDocumentBranding|null  $branding  how this product names
-     *         the owner of a document. Null is legitimate: a consumer that has
-     *         no branding of its own renders unbranded rather than wrong.
+     *                                                   the owner of a document. Null is legitimate: a consumer that has
+     *                                                   no branding of its own renders unbranded rather than wrong.
      */
     public function __construct(
         private readonly ?ResolvesDocumentBranding $branding = null,
@@ -78,19 +79,25 @@ class DocumentRenderer
                 'extension' => 'pdf',
             ],
             self::FORMAT_XLSX => [
-                'content' => $this->xlsx(
-                    $this->requireTabular($data, 'headers'),
-                    $this->requireTabular($data, 'rows'),
-                    $data['sheet_name'] ?? 'Report',
-                    $data['meta'] ?? []
-                ),
+                // `sheets` is the multi-tab form; `headers`/`rows` the single.
+                // A caller that supplies neither still gets the original
+                // error naming `headers`, because that is the mistake it made.
+                'content' => isset($data['sheets'])
+                    ? $this->workbook($this->requireTabular($data, 'sheets'))
+                    : $this->xlsx(
+                        $this->requireTabular($data, 'headers'),
+                        $this->requireTabular($data, 'rows'),
+                        $data['sheet_name'] ?? 'Report',
+                        $data['meta'] ?? []
+                    ),
                 'mime' => self::MIME[self::FORMAT_XLSX],
                 'extension' => 'xlsx',
             ],
             self::FORMAT_CSV => [
                 'content' => $this->csv(
                     $this->requireTabular($data, 'headers'),
-                    $this->requireTabular($data, 'rows')
+                    $this->requireTabular($data, 'rows'),
+                    $data['meta'] ?? []
                 ),
                 'mime' => self::MIME[self::FORMAT_CSV],
                 'extension' => 'csv',
@@ -184,66 +191,55 @@ class DocumentRenderer
      */
     public function xlsx(array $headers, iterable $rows, string $sheetName = 'Report', array $meta = []): string
     {
+        return $this->workbook([[
+            'name' => $sheetName,
+            'headers' => $headers,
+            'rows' => $rows,
+            'meta' => $meta,
+        ]]);
+    }
+
+    /**
+     * A multi-sheet workbook.
+     *
+     * Added for regulatory returns that are a workbook by definition rather
+     * than by preference: DORA's Register of Information is fifteen related
+     * tables (RT.01.01–RT.07.01) and a supervisor reads them as one file with
+     * fifteen tabs. Handing that over as fifteen separate downloads, or as one
+     * flattened sheet, is not the artefact that was asked for.
+     *
+     * A sheet with no `headers` is written as plain rows with no header band,
+     * autofilter or frozen pane — which is what a cover sheet is: prose, not a
+     * table, and styling it as a table invites someone to sort it.
+     *
+     * @param  list<array{name?: string, headers?: list<string>, rows?: iterable<array-key, array<array-key, mixed>>, meta?: array<string,string>}>  $sheets
+     */
+    public function workbook(array $sheets): string
+    {
+        if ($sheets === []) {
+            throw new InvalidArgumentException('A workbook needs at least one sheet.');
+        }
+
         $spreadsheet = new Spreadsheet;
-        $sheet = $spreadsheet->getActiveSheet();
-        // Excel rejects sheet names over 31 chars or carrying []:*?/\
-        $sheet->setTitle(mb_substr(preg_replace('/[\[\]\*\/\\\\\?:]/', '-', $sheetName), 0, 31));
+        // createSheet() below appends; the default sheet would otherwise sit
+        // in front of the cover as an empty first tab.
+        $spreadsheet->removeSheetByIndex(0);
 
-        $row = 1;
+        $taken = [];
 
-        foreach ($meta as $label => $value) {
-            $sheet->setCellValue([1, $row], $label);
-            $sheet->setCellValue([2, $row], $value);
-            $sheet->getStyle([1, $row, 1, $row])->getFont()->setBold(true);
-            $row++;
+        foreach (array_values($sheets) as $index => $spec) {
+            $sheet = $spreadsheet->createSheet();
+            $sheet->setTitle($this->sheetTitle($spec['name'] ?? 'Sheet '.($index + 1), $taken));
+
+            $this->writeSheet(
+                $sheet,
+                array_values($spec['headers'] ?? []),
+                $spec['rows'] ?? [],
+                $spec['meta'] ?? []
+            );
         }
 
-        if ($meta !== []) {
-            $row++; // blank spacer between the stamp and the table
-        }
-
-        $headerRow = $row;
-        foreach (array_values($headers) as $i => $header) {
-            $sheet->setCellValue([$i + 1, $headerRow], $header);
-        }
-
-        $lastColumn = max(1, count($headers));
-        $headerStyle = $sheet->getStyle([1, $headerRow, $lastColumn, $headerRow]);
-        $headerStyle->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
-        $headerStyle->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF1A365D');
-        $headerStyle->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
-        $sheet->getRowDimension($headerRow)->setRowHeight(20);
-
-        $row = $headerRow + 1;
-        foreach ($rows as $dataRow) {
-            foreach (array_values((array) $dataRow) as $i => $value) {
-                // setCellValueExplicit is avoided so numbers stay numeric and
-                // sort correctly, but a leading = must never be evaluated:
-                // a risk title starting with "=" would otherwise become a
-                // formula in the recipient's Excel.
-                if (is_string($value) && str_starts_with($value, '=')) {
-                    $value = "'".$value;
-                }
-                $sheet->setCellValue([$i + 1, $row], $value);
-            }
-            $row++;
-        }
-
-        $lastRow = max($headerRow, $row - 1);
-
-        if ($lastRow > $headerRow) {
-            $sheet->getStyle([1, $headerRow, $lastColumn, $lastRow])
-                ->getBorders()->getAllBorders()
-                ->setBorderStyle(Border::BORDER_THIN)
-                ->getColor()->setARGB('FFD9D9D9');
-        }
-
-        $sheet->setAutoFilter([1, $headerRow, $lastColumn, $lastRow]);
-        $sheet->freezePane([1, $headerRow + 1]);
-
-        for ($column = 1; $column <= $lastColumn; $column++) {
-            $sheet->getColumnDimensionByColumn($column)->setAutoSize(true);
-        }
+        $spreadsheet->setActiveSheetIndex(0);
 
         // PhpSpreadsheet writes to a stream or a path; capture the bytes so the
         // caller can store or stream them without a temp file of its own.
@@ -258,14 +254,132 @@ class DocumentRenderer
     }
 
     /**
+     * Excel rejects a sheet name over 31 chars or carrying []:*?/\, and
+     * refuses a workbook with two sheets sharing a name. Truncating fifteen
+     * regulatory table titles to 31 characters is exactly the way to produce
+     * that collision, so uniqueness is enforced here rather than left to the
+     * caller to discover from a corrupt-file dialog.
+     *
+     * @param  array<string, true>  $taken
+     */
+    private function sheetTitle(string $name, array &$taken): string
+    {
+        $clean = mb_substr(trim(preg_replace('/[\[\]\*\/\\\?:]/', '-', $name)) ?: 'Sheet', 0, 31);
+
+        $candidate = $clean;
+        $suffix = 2;
+
+        while (isset($taken[mb_strtolower($candidate)])) {
+            $tail = ' ('.$suffix.')';
+            $candidate = mb_substr($clean, 0, 31 - mb_strlen($tail)).$tail;
+            $suffix++;
+        }
+
+        $taken[mb_strtolower($candidate)] = true;
+
+        return $candidate;
+    }
+
+    /**
      * @param  list<string>  $headers
      * @param  iterable<array-key, array<array-key, mixed>>  $rows
+     * @param  array<string,string>  $meta
      */
-    public function csv(array $headers, iterable $rows): string
+    private function writeSheet(Worksheet $sheet, array $headers, iterable $rows, array $meta): void
+    {
+        $row = 1;
+
+        foreach ($meta as $label => $value) {
+            $sheet->setCellValue([1, $row], $label);
+            $sheet->setCellValue([2, $row], $value);
+            $sheet->getStyle([1, $row, 1, $row])->getFont()->setBold(true);
+            $row++;
+        }
+
+        if ($meta !== []) {
+            $row++; // blank spacer between the stamp and the table
+        }
+
+        $headerRow = $row;
+
+        if ($headers !== []) {
+            foreach ($headers as $i => $header) {
+                $sheet->setCellValue([$i + 1, $headerRow], $header);
+            }
+
+            $lastColumn = count($headers);
+            $headerStyle = $sheet->getStyle([1, $headerRow, $lastColumn, $headerRow]);
+            $headerStyle->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+            $headerStyle->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF1A365D');
+            $headerStyle->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getRowDimension($headerRow)->setRowHeight(20);
+
+            $row = $headerRow + 1;
+        }
+
+        $widest = max(1, count($headers));
+
+        foreach ($rows as $dataRow) {
+            $values = array_values((array) $dataRow);
+            $widest = max($widest, count($values));
+
+            foreach ($values as $i => $value) {
+                // setCellValueExplicit is avoided so numbers stay numeric and
+                // sort correctly, but a leading = must never be evaluated:
+                // a risk title starting with "=" would otherwise become a
+                // formula in the recipient's Excel.
+                if (is_string($value) && str_starts_with($value, '=')) {
+                    $value = "'".$value;
+                }
+                $sheet->setCellValue([$i + 1, $row], $value);
+            }
+            $row++;
+        }
+
+        $lastRow = max($headerRow, $row - 1);
+
+        if ($headers !== []) {
+            $lastColumn = count($headers);
+
+            if ($lastRow > $headerRow) {
+                $sheet->getStyle([1, $headerRow, $lastColumn, $lastRow])
+                    ->getBorders()->getAllBorders()
+                    ->setBorderStyle(Border::BORDER_THIN)
+                    ->getColor()->setARGB('FFD9D9D9');
+            }
+
+            $sheet->setAutoFilter([1, $headerRow, $lastColumn, $lastRow]);
+            $sheet->freezePane([1, $headerRow + 1]);
+        }
+
+        for ($column = 1; $column <= $widest; $column++) {
+            $sheet->getColumnDimensionByColumn($column)->setAutoSize(true);
+        }
+    }
+
+    /**
+     * @param  list<string>  $headers
+     * @param  iterable<array-key, array<array-key, mixed>>  $rows
+     * @param  array<string,string>  $meta  key => value pairs written above the
+     *                                      table, the same block the xlsx path stamps. A regulatory return
+     *                                      carries its provenance in every format it is offered in, or the
+     *                                      csv becomes the copy people circulate precisely because it makes
+     *                                      no claim about who prepared it.
+     */
+    public function csv(array $headers, iterable $rows, array $meta = []): string
     {
         $handle = fopen('php://temp', 'r+');
 
         fwrite($handle, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel reads ₦ correctly
+
+        foreach ($meta as $label => $value) {
+            fputcsv($handle, [$label, $value]);
+        }
+
+        if ($meta !== []) {
+            fputcsv($handle, []);
+        }
+
         fputcsv($handle, $headers);
 
         foreach ($rows as $row) {

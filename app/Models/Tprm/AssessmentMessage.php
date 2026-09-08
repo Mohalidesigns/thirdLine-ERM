@@ -18,6 +18,14 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * `author_type` is `internal` or `vendor` and `author_id` is deliberately NOT
  * a foreign key: a vendor author is a portal user in a different table under a
  * different guard, and a single FK would force the two populations into one.
+ *
+ * ONE TABLE SERVES BOTH THE ASSESSMENT THREAD AND THE FINDING THREAD
+ * (FR-PRT-08 and FR-PRT-09). They are the same object — a conversation between
+ * a reviewer and a vendor, attached to something, on the record instead of in
+ * an inbox — and a second table would mean a second unread count, a second
+ * notification path and two screens to keep in step, which is how one of them
+ * quietly stops working. Exactly one of `assessment_id` and `finding_id` is
+ * set; `subjectKind()` says which.
  */
 class AssessmentMessage extends Model
 {
@@ -30,7 +38,7 @@ class AssessmentMessage extends Model
     public const AUTHOR_VENDOR = 'vendor';
 
     protected $fillable = [
-        'organization_id', 'assessment_id', 'response_id',
+        'organization_id', 'assessment_id', 'response_id', 'finding_id',
         'author_type', 'author_id', 'body', 'attachments', 'read_at',
     ];
 
@@ -57,6 +65,18 @@ class AssessmentMessage extends Model
     public function response(): BelongsTo
     {
         return $this->belongsTo(AssessmentResponse::class, 'response_id');
+    }
+
+    /** @return BelongsTo<Finding, $this> */
+    public function finding(): BelongsTo
+    {
+        return $this->belongsTo(Finding::class, 'finding_id');
+    }
+
+    /** `assessment` or `finding`. */
+    public function subjectKind(): string
+    {
+        return $this->finding_id !== null ? 'finding' : 'assessment';
     }
 
     public function isFromVendor(): bool

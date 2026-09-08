@@ -1,9 +1,12 @@
 <?php
 
+use App\Http\Controllers\TprmPortal\AssessmentController;
 use App\Http\Controllers\TprmPortal\DashboardController;
+use App\Http\Controllers\TprmPortal\FindingController;
 use App\Http\Controllers\TprmPortal\InvitationController;
 use App\Http\Controllers\TprmPortal\MfaController;
 use App\Http\Controllers\TprmPortal\SessionController;
+use App\Http\Controllers\TprmPortal\TrustProfileController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -68,6 +71,46 @@ Route::middleware('portal.pending')->group(function (): void {
 
 Route::middleware('portal.auth')->group(function (): void {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    /*
+    | Assessments — FR-PRT-03.
+    |
+    | `answers.save` is posted on every field blur, which is what makes
+    | save-and-resume the default rather than a button somebody forgets. A
+    | tier-1 questionnaire is forty questions across three people and a week;
+    | a form that loses work on a dropped connection gets answered in a
+    | spreadsheet and emailed instead.
+    */
+    Route::get('assessments', [AssessmentController::class, 'index'])->name('assessments.index');
+    Route::get('assessments/{assessment}', [AssessmentController::class, 'show'])->name('assessments.show');
+    Route::post('assessments/{assessment}/answers/{response}', [AssessmentController::class, 'saveAnswer'])
+        ->name('assessments.answers.save');
+    Route::post('assessments/{assessment}/sections/{section}/delegate', [AssessmentController::class, 'delegate'])
+        ->name('assessments.delegate');
+    Route::post('assessments/{assessment}/submit', [AssessmentController::class, 'submit'])
+        ->name('assessments.submit');
+    Route::post('assessments/{assessment}/messages', [AssessmentController::class, 'postMessage'])
+        ->name('assessments.messages.store');
+
+    /* Findings — FR-PRT-08. The vendor responds; it never closes. */
+    Route::get('findings', [FindingController::class, 'index'])->name('findings.index');
+    Route::get('findings/{finding}', [FindingController::class, 'show'])->name('findings.show');
+    Route::post('findings/{finding}/messages', [FindingController::class, 'postMessage'])
+        ->name('findings.messages.store');
+
+    /* The reusable trust profile — FR-PRT-04. */
+    Route::get('trust-profile', [TrustProfileController::class, 'show'])->name('trust-profile.show');
+    Route::post('trust-profile', [TrustProfileController::class, 'saveDraft'])->name('trust-profile.save');
+    Route::post('trust-profile/publish', [TrustProfileController::class, 'publish'])
+        ->name('trust-profile.publish');
+
+    Route::get('sharing', [TrustProfileController::class, 'sharing'])->name('sharing.index');
+    Route::post('sharing/{share}/approve', [TrustProfileController::class, 'approveShare'])
+        ->name('sharing.approve');
+    Route::post('sharing/{share}/decline', [TrustProfileController::class, 'declineShare'])
+        ->name('sharing.decline');
+    Route::post('sharing/{share}/revoke', [TrustProfileController::class, 'revokeShare'])
+        ->name('sharing.revoke');
 
     Route::post('logout', [SessionController::class, 'destroy'])->name('logout');
 });

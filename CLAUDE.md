@@ -98,3 +98,11 @@ suite is not evidence about the customer's database. The MariaDB test config exi
 Until it does, portable SQL is a correctness requirement, not a style preference — see
 `CalendarService.php:410`, where a raw `JSON_CONTAINS` was deliberately avoided because it "would
 pass every test and fail on the only database a customer runs".
+**The fix is two files, not one.** Switching `phpunit.xml` to MariaDB leaves CI still running its
+second leg against `mysql:8.0` — and that arm is the more dangerous of the two, because MySQL 8 has
+the CTEs, window functions and full JSON function set that MariaDB 10.4 largely does not. The
+sqlite arm is obviously not production and nobody trusts it; the mysql arm looks like real database
+coverage and goes green on SQL production cannot run. `ci.yml`'s service image needs to become
+`mariadb:10.4` alongside the `phpunit.xml` change, or CI keeps certifying against a database nobody
+ships.
+

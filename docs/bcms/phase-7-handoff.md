@@ -81,12 +81,61 @@
 - **No channel is live.** No credentials exist, so every adapter falls back to the Phase 0 mock. Correct state; every screen says so. Nothing can be verified end-to-end until the Nigerian paperwork lands — a commercial lead time, not a code gap.
 - **ha / yo / ig emergency copy is not authored**, deliberately. `compliance-analyst` should own this before P11: the coverage grid, the recorded `locale_fell_back` flag and the inactive-on-creation rule are built and waiting.
 - **Provider webhook signature verification is scaffolded only** — HMAC when a secret is configured, accepted when not, because some aggregators do not sign.
-- **Two defects were found and fixed in this phase; both are worth a regression test from qa-engineer** — the `'3'`-inside-the-token misclassification (a reply of "SAFE" recorded as NOT ON SITE) and the tenancy leak from running `DispatchAlertChunkJob` inline.
+### Two regression tests the gate must not pass without
+
+Both are defects found and fixed inside this phase. Neither had a test before it
+bit, and both belong to a family rather than being one-offs — which is why they
+are named here as gate conditions rather than left in the notes.
+
+1. **Substring match on a numeric token.** `not_on_site` matched the bare string
+   `'3'` with `str_contains`, and the acknowledgement token is sixteen hex
+   characters — roughly two in three contain a 3. A person replying **"SAFE
+   8a3f…" was recorded as NOT ON SITE**: a false negative in a roll-call, which
+   is the direction that leaves somebody in a building. The test must use a
+   **real token**, not a tidy fixture, or it proves nothing.
+2. **Tenancy bypass from running a queue job inline.**
+   `DispatchAlertChunkJob::handle()` clears `TenantContext` in its `finally` —
+   correct for a worker, and it silently untenants everything after it when a
+   seeder or a test calls the job directly. It cost a failed maturity assessment
+   before it was found. Same family as the Phase 4 ICS feed and the Phase 6
+   cascade acknowledgement route: **`OrganizationScope` is inert with no tenant
+   resolved.**
 
 ### Two contradictions in the new agent definitions — please fix the definitions, not the code
 
-1. **"There is no SQLite" is false on this branch.** `qa-engineer.md:68`, `backend-engineer.md:104` and `code-reviewer.md:68` all say MariaDB 10.4 everywhere. But `riskerm-wt/bcms/phpunit.xml:41-42` sets `DB_CONNECTION=sqlite`, `DB_DATABASE=:memory:`, and **all 3,422 tests in this branch's suite run on SQLite.** The MariaDB switch landed on another branch and has not reached `feature/bcms-module`. This matters beyond tidiness: Phase 4 shipped a `JSON_CONTAINS` predicate that passed every SQLite test and would have failed on the only database a customer runs. Until `phpunit.xml` is changed here, that class of defect is still invisible. **Either merge the MariaDB test config into this branch, or the three agents are telling a fresh session something the suite contradicts.**
-2. **"Chart.js for charts" is true of the product and wrong for BCMS.** `chart.js@^4.5.1` is in `package.json`, so `ui-designer.md:57` and `frontend-engineer.md:55` are not false — but **no BCMS screen uses it.** Every BCMS chart is inline SVG, and the reason is written in the file: *"Inline SVG and no chart dependency, which is the house convention (`Components/Quantification/SeriesChart`)"* — `CostRtoScatter.jsx`, `YearHeatGrid.jsx`, and the tier bars in `CallTrees/Results.jsx`. A fresh `frontend-engineer` told to reach for Chart.js would contradict six phases of shipped precedent. Suggest: "inline SVG is the BCMS convention; Chart.js exists in the product and is available where a full chart library genuinely earns its place."
+1. **"There is no SQLite" is false on this branch — and the gap is wider than a
+   wording fix.** *(Definitions corrected in `ff69cc0`; the configuration gap
+   below is still open and is a gate blocker.)* `qa-engineer.md:68`, `backend-engineer.md:104` and `code-reviewer.md:68` all say MariaDB 10.4 everywhere. But `riskerm-wt/bcms/phpunit.xml:41-42` sets `DB_CONNECTION=sqlite`, `DB_DATABASE=:memory:`, and **all 3,422 tests in this branch's suite run on SQLite.** The MariaDB switch landed on another branch and has not reached `feature/bcms-module`. This matters beyond tidiness: Phase 4 shipped a `JSON_CONTAINS` predicate that passed every SQLite test and would have failed on the only database a customer runs. Until `phpunit.xml` is changed here, that class of defect is still invisible. **Verified across every branch, and it is a four-way mismatch:**
+
+   | Where | Database |
+   |---|---|
+   | Production | **MariaDB 10.4** |
+   | `migration/phase-7-shared-packages`, `fix/parent-cycle-guard` | `mysql` |
+   | **`feature/bcms-module`, `feature/tprm-module`** | **`sqlite` / `:memory:`** |
+   | **`ci.yml` matrix on both feature branches** | **`sqlite` + `mysql:8.0`** |
+
+   The CI arm is the part worth pausing on. **`mysql:8.0` is not MariaDB 10.4.**
+   MySQL 8 has CTEs, window functions and the full JSON function set that MariaDB
+   10.4 largely does not — so that arm goes green on SQL production cannot run,
+   while looking like real database coverage. TPRM's 3,098 tests are in the same
+   position.
+
+   **This is a decision for whoever holds the branch, not for a documentation
+   commit — neither I nor the peer changed it.** My recommendation: switch
+   `phpunit.xml` here to MariaDB **before** the P7 gates run, and expect fallout.
+   Fixing CI the first time found a feature that had never worked on a real
+   database; there is no reason to assume two feature branches are cleaner. What
+   to hunt: raw JSON functions, CTEs, window functions, `information_schema`
+   reads, `ONLY_FULL_GROUP_BY`, strict-mode inserts.
+   `app/Services/Bcms/Exercises/CalendarService.php:410` is the good outcome.
+
+   **Until that happens, no gate verdict about database behaviour means
+   anything.**
+2. **"Chart.js for charts" is true of the product and wrong for BCMS.**
+   *(Corrected in `ff69cc0`. The peer went further and confirmed nothing in
+   `resources/` imports `chart.js` on any branch — it is unused product-wide, and
+   the claim came from development standard §8 Decision 4, which is aspirational
+   rather than descriptive.)* `chart.js@^4.5.1` is in `package.json`, so `ui-designer.md:57` and `frontend-engineer.md:55` are not false — but **no BCMS screen uses it.** Every BCMS chart is inline SVG, and the reason is written in the file: *"Inline SVG and no chart dependency, which is the house convention (`Components/Quantification/SeriesChart`)"* — `CostRtoScatter.jsx`, `YearHeatGrid.jsx`, and the tier bars in `CallTrees/Results.jsx`. A fresh `frontend-engineer` told to reach for Chart.js would contradict six phases of shipped precedent. Suggest: "inline SVG is the BCMS convention; Chart.js exists in the product and is available where a full chart library genuinely earns its place."
 
 ### Verification run
 
@@ -108,4 +157,5 @@ First things I would put in front of them:
 2. Decide criteria 1, 2, 6 and 12 — I claim partial and would not argue with a fail.
 3. Check the two adapter rules by reading, not by testing: no adapter throws for a provider failure, and none retries internally. Those are the frozen interface's rules and the whole failover design hangs off them.
 4. Confirm the credential fallback both ways: enabled-without-credentials must report `awaiting_credentials` and still dispatch through the mock.
-5. Settle the SQLite contradiction above before certifying anything about database behaviour.
+5. **Settle the database configuration before certifying anything about database behaviour** — see the table above. This one is a blocker, not a caveat.
+6. Require the two regression tests named above. The gate should not pass without them.

@@ -101,6 +101,7 @@ class NavPresenter
             [
                 'key' => 'tprm', 'label' => 'Third-Party Risk', 'icon' => 'handshake', 'prefixes' => ['/risk/tprm'],
                 'items' => [
+                    ['label' => 'Overview', 'route' => 'tprm.overview', 'permission' => 'tprm.view', 'feature' => 'tprm'],
                     ['label' => 'Third-Party Register', 'route' => 'tprm.third-parties.index', 'permission' => 'tprm.view', 'feature' => 'tprm'],
                     ['label' => 'Engagements', 'route' => 'tprm.engagements.index', 'permission' => 'tprm.view', 'feature' => 'tprm'],
                     ['label' => 'Raise an Intake', 'route' => 'tprm.intake.create', 'permission' => 'tprm.create', 'feature' => 'tprm'],

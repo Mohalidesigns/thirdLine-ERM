@@ -78,6 +78,7 @@ use App\Http\Controllers\Tprm\IncidentController as TprmIncidentController;
 use App\Http\Controllers\Tprm\IntakeController as TprmIntakeController;
 use App\Http\Controllers\Tprm\MonitoringController as TprmMonitoringController;
 use App\Http\Controllers\Tprm\ObligationController as TprmObligationController;
+use App\Http\Controllers\Tprm\OverviewController as TprmOverviewController;
 use App\Http\Controllers\Tprm\PciMatrixController as TprmPciMatrixController;
 use App\Http\Controllers\Tprm\ProgrammeSettingsController as TprmProgrammeSettingsController;
 use App\Http\Controllers\Tprm\QuestionnaireController as TprmQuestionnaireController;
@@ -1619,6 +1620,19 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
      * approves it.
      */
     Route::middleware('feature:tprm')->prefix('tprm')->name('tprm.')->group(function () {
+        /*
+         * The module's front door — item 10 of Phase 10.
+         *
+         * `tprm.view`, the same permission as the register, because somebody
+         * who can see the register should land somewhere that tells them what
+         * needs doing. The KRI panel on it is gated separately in the
+         * controller, and adopting the nine indicators is `tprm.admin`:
+         * creating KRIs in a bank's register changes their risk framework.
+         */
+        Route::get('/', [TprmOverviewController::class, 'index'])
+            ->middleware('permission:tprm.view')->name('overview');
+        Route::post('kris/adopt', [TprmOverviewController::class, 'adoptKris'])
+            ->middleware('permission:tprm.admin')->name('kris.adopt');
 
         /* --- Third-party register (the CBN App. II §1.4 artefact) ------ */
         Route::get('third-parties', [TprmThirdPartyController::class, 'index'])

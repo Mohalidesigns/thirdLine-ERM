@@ -128,6 +128,17 @@ Schedule::command('tprm:run-clocks')->everyFifteenMinutes()->withoutOverlapping(
 // `last_run_at` rather than by the cron not firing twice.
 Schedule::command('tprm:send-scheduled-reports')->dailyAt('08:00')->withoutOverlapping();
 
+// TPRM Phase 10 (FR-RPT-10). After the scheduled reports, and after every
+// sweep above: seven of the nine metrics read state those commands have just
+// changed, and a finding raised at 07:25 belongs in the average age published
+// now rather than tomorrow.
+//
+// NO `--adopt`. Creating nine KRIs in a tenant's register is a change to their
+// risk framework, not a reporting side effect, so adoption is a deliberate act
+// on the overview screen or a hand-run command. A tenant that has not adopted
+// them publishes nothing, which is the correct amount.
+Schedule::command('tprm:publish-kris')->dailyAt('08:15')->withoutOverlapping();
+
 // Weekly, not daily: concentration is a property of the portfolio's shape,
 // which does not move overnight. Daily snapshots would bury the four quarters
 // anybody wants to compare under three hundred near-identical rows.

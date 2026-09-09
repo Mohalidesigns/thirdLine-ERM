@@ -57,6 +57,17 @@ class BcmsWatchdog extends Command
 
     public function handle(): int
     {
+        // Same reason as every other bcms: command — a module that is off must
+        // be off in the scheduler too, not only at the HTTP boundary. This one
+        // reads rather than sends, so the exposure was an hourly query and a
+        // possible false alarm rather than a message to staff, but "dark"
+        // cannot be a property of the routing table alone.
+        if (! config('features.bcms')) {
+            $this->line('The BCMS module is switched off; nothing to watch.');
+
+            return self::SUCCESS;
+        }
+
         $threshold = now()->subMinutes((int) $this->option('minutes'));
         $problems = [];
 

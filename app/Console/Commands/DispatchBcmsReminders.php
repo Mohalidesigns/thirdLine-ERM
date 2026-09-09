@@ -38,6 +38,20 @@ class DispatchBcmsReminders extends Command
 
     public function handle(ReminderDispatcher $dispatcher, ReadinessService $readiness): int
     {
+        // The module ships dark — `features.bcms` defaults to false and every
+        // one of its 167 routes 404s without it. This command is scheduled
+        // HOURLY and it does not merely read: it calls markOverdue() and
+        // dispatchDue(), so on an installation where BCMS is switched off but
+        // the tables happen to hold rows — a pilot, a restored dump, a flag
+        // flipped and flipped back — an hourly no-op becomes an hourly SEND to
+        // real staff. Six of this module's eight commands already guard; this
+        // was one of the two that did not.
+        if (! config('features.bcms')) {
+            $this->line('The BCMS module is switched off; no reminders dispatched.');
+
+            return self::SUCCESS;
+        }
+
         $totals = [];
 
         $organizations = Organization::query()

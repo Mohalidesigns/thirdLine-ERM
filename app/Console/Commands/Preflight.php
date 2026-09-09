@@ -28,6 +28,15 @@ class Preflight extends Command
      */
     public const EXPECTED_DB_ENGINE = 'MariaDB';
 
+    /**
+     * The sentence in docs/bcms/phase-7-handoff.md that means "not certified".
+     *
+     * Deleting it from that document is how Phase 7 gets certified, and it is
+     * meant to be a deliberate act by whoever ran the gates — not something
+     * this file can decide.
+     */
+    private const UNCERTIFIED_MARKER = 'THE QA GATE AND THE REVIEW GATE HAVE NOT BEEN RUN';
+
     protected $signature = 'app:preflight {--allow-local : Do not fail merely because APP_ENV is local}';
 
     protected $description = 'Verify this deployment is configured safely before serving traffic';
@@ -48,6 +57,8 @@ class Preflight extends Command
         $this->checkEveryRouteIsGuarded();
         $this->checkAuditChainColumns();
         $this->checkDatabaseEngine();
+        $this->checkEnabledModules();
+        $this->checkUncertifiedModulesAreOff();
 
         $this->newLine();
         $this->table(
@@ -481,6 +492,80 @@ class Preflight extends Command
         }
 
         $this->pass('Database engine', $detail);
+    }
+
+    /**
+     * Say which modules this installation actually serves.
+     *
+     * Nothing else tells an operator. Every module flag in `config/features.php`
+     * defaults to FALSE, so an installation that never sets `FEATURE_TPRM`
+     * serves 404 on every TPRM route — the module looks absent rather than
+     * switched off, and the first person to notice is the customer. The same
+     * argument that justified reporting the database engine applies here
+     * verbatim: the configuration cannot be inferred from the outside, so the
+     * deployment should state it.
+     */
+    private function checkEnabledModules(): void
+    {
+        $flags = (array) config('features', []);
+        $on = array_keys(array_filter($flags, fn ($v) => (bool) $v));
+        $off = array_keys(array_filter($flags, fn ($v) => ! (bool) $v));
+
+        sort($on);
+        sort($off);
+
+        if ($on === []) {
+            $this->warn_('Modules enabled', 'NONE — every feature flag is off, so this installation serves no gated module at all');
+
+            return;
+        }
+
+        $this->pass('Modules enabled', implode(', ', $on).($off === [] ? '' : '  ·  off: '.implode(', ', $off)));
+    }
+
+    /**
+     * Refuse to serve a module that has not passed its gates.
+     *
+     * BCMS Phase 7 — nine channel adapters and two unauthenticated provider
+     * callbacks — was merged without qa-engineer or code-reviewer having run
+     * against it. That is defensible only because the module ships dark: with
+     * `features.bcms` false, all 167 of its routes 404 and every `bcms:`
+     * command returns immediately.
+     *
+     * "Ships dark" is a property worth exactly as much as whatever enforces it.
+     * A note in a handoff document is a convention, and conventions last until
+     * the first person who needs a demo environment. This is the enforcement:
+     * turn the flag on before the gates have run and the deploy fails.
+     *
+     * The certification state is read from the handoff document itself rather
+     * than from a constant here, so certifying is a single deliberate edit in
+     * the place that records the decision — and cannot be done by accident from
+     * this file.
+     */
+    private function checkUncertifiedModulesAreOff(): void
+    {
+        $handoff = base_path('docs/bcms/phase-7-handoff.md');
+
+        if (! config('features.bcms')) {
+            $this->pass('Uncertified modules', 'BCMS is off, as it must be until Phase 7 passes both gates');
+
+            return;
+        }
+
+        if (! File::exists($handoff)) {
+            $this->warn_('Uncertified modules', 'BCMS is ON and docs/bcms/phase-7-handoff.md is missing; cannot confirm it was certified');
+
+            return;
+        }
+
+        if (str_contains(File::get($handoff), self::UNCERTIFIED_MARKER)) {
+            $this->fail_('Uncertified modules', 'BCMS IS ON but docs/bcms/phase-7-handoff.md still says the gates have not been run. '.
+                'Phase 7 ships two unauthenticated provider callbacks. Run qa-engineer and code-reviewer against it, or turn FEATURE_BCMS off.');
+
+            return;
+        }
+
+        $this->pass('Uncertified modules', 'BCMS is on and its Phase 7 handoff no longer reports ungated code');
     }
 
     /* ------------------------------------------------------------------ */

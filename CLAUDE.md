@@ -9,6 +9,21 @@ another more often than you would expect.
 document. Every entry in it was bought with a shipped defect. Plans live in `plans/`; per-module
 notes and ADRs in `docs/`.
 
+## The database gap
+
+`phpunit.xml:41-42` runs the suite on **SQLite in-memory**. CI runs a `[sqlite, mysql]` matrix
+against **MySQL 8.0**. Production is **MariaDB 10.4** — the hosting panel says "MySQL"; the server
+does not. **Nothing in the pipeline exercises MariaDB**, so a green suite is not evidence about the
+customer's database, on any module. A MariaDB test config exists on
+`migration/phase-7-shared-packages` and `fix/parent-cycle-guard` and has not reached `main`,
+`feature/tprm-module` or `feature/bcms-module`.
+
+Until it does, portable SQL is a correctness requirement rather than a style preference. Raw JSON
+functions, CTEs and window functions are the usual offenders — MySQL 8 has them, MariaDB 10.4
+largely does not. `app/Services/Bcms/Exercises/CalendarService.php:410` shows the shape of a good
+outcome and states the reason: a raw `JSON_CONTAINS` "would pass every test and fail on the only
+database a customer runs".
+
 ## Module work is agent-driven
 
 The nine definitions in `.claude/agents/` are written against **this** repository — its layout,

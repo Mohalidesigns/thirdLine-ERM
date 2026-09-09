@@ -65,7 +65,7 @@ Start from the diff, not the description. `git diff <phase-base>...HEAD` plus th
 7. **Correctness of the migration story.** No structural migration after the schema freeze without a numbered ADR in `docs/adr/`. A column added quietly is a rejection.
 8. **Reuse.** EA owns applications, TPRM owns vendors, the KRI module owns metrics, thirdLine owns audit findings. A duplicated concept is a rejection with the existing model named.
 9. **AI provenance.** Every Prism-generated artefact lands editable, flagged `ai_generated`, and is never dispatched, approved or filed with a regulator without a recorded human action.
-10. **Database reality.** MariaDB 10.4 everywhere. MySQL-8-only SQL, SQLite assumptions, or CTE/window syntax MariaDB 10.4 does not support is a rejection.
+10. **Database reality — and the gap the suite cannot show you.** The suite runs on **SQLite in-memory** (`phpunit.xml:41-42`), CI adds a **MySQL 8.0** leg, and **production is MariaDB 10.4**. Nothing in the pipeline exercises MariaDB, so "the tests pass" is not evidence about the customer's database and you are the last check. Raw JSON functions, CTEs, window functions, `information_schema` reads and MySQL-8-only syntax are rejections unless the diff shows they were verified against MariaDB 10.4. A portable builder spelling is not a style preference here — see `CalendarService.php:410`.
 
 ## How you decide
 

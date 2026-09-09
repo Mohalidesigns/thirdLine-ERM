@@ -11,26 +11,31 @@ notes and ADRs in `docs/`.
 
 ## The database gap
 
-`phpunit.xml:41-42` runs the suite on **SQLite in-memory**. CI runs a `[sqlite, mysql]` matrix
-against **MySQL 8.0**. Production is **MariaDB 10.4** — the hosting panel says "MySQL"; the server
-does not. **Nothing in the pipeline exercises MariaDB**, so a green suite is not evidence about the
-customer's database, on any module. A MariaDB test config exists on
-`migration/phase-7-shared-packages` and `fix/parent-cycle-guard` and has not reached `main` or
-`integration/tprm-bcms`.
+**CLOSED ON THIS BRANCH, 2026-09-09.** `phpunit.xml` runs on **MariaDB 10.4** (`risk_test`) and
+`ci.yml` is a single `mariadb:10.4` job — the `[sqlite, mysql:8.0]` matrix is gone. Production is
+MariaDB 10.4; the hosting panel says "MySQL", the server does not. `main` still has the old
+config, so the gap below still describes it.
 
-Until it does, portable SQL is a correctness requirement rather than a style preference. Raw JSON
+Closing it took the suite from 0 failures to 72, then to 6. None were regressions: they were
+defects SQLite had concealed, including a `connectors.config` json column holding encrypted
+ciphertext, which meant creating a connector had **never once succeeded on a real database**.
+Every one of the 72 had already been diagnosed and fixed on `migration/phase-7-shared-packages`
+months earlier — **diff against that branch before writing any MariaDB-compatibility fix.**
+
+Portable SQL remains a correctness requirement rather than a style preference — the suite now
+catches the difference on this branch, but `main` still cannot. Raw JSON
 functions, CTEs and window functions are the usual offenders — MySQL 8 has them, MariaDB 10.4
 largely does not. `app/Services/Bcms/Exercises/CalendarService.php:410` shows the shape of a good
 outcome and states the reason: a raw `JSON_CONTAINS` "would pass every test and fail on the only
 database a customer runs".
 
-**The fix is two files, not one.** Switching `phpunit.xml` to MariaDB leaves CI still running its
+**When `main` is done, the fix is two files, not one** — that is how it was done here. Switching `phpunit.xml` to MariaDB leaves CI still running its
 second leg against `mysql:8.0` — and that arm is the more dangerous of the two, because MySQL 8 has
 the CTEs, window functions and full JSON function set that MariaDB 10.4 largely does not. The
 sqlite arm is obviously not production and nobody trusts it; the mysql arm looks like real database
-coverage and goes green on SQL production cannot run. `ci.yml`'s service image needs to become
+coverage and goes green on SQL production cannot run. `ci.yml`'s service image must become
 `mariadb:10.4` alongside the `phpunit.xml` change, or CI keeps certifying against a database nobody
-ships.
+ships. See `e24f3b6` for both halves.
 
 ## Module work is agent-driven
 

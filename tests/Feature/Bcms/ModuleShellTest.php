@@ -180,16 +180,16 @@ class ModuleShellTest extends TestCase
     {
         // The example has to be a section that has not landed, or this asserts
         // nothing. `calendar` was it until Phase 4 and `call-trees` until Phase
-        // 6; `emns` is Phase 7's and is the next one to be replaced.
-        $user = $this->userWith(['bcms.view', 'bcms.alert.view']);
+        // 6; `emns` until Phase 7; `incidents` is Phase 10's.
+        $user = $this->userWith(['bcms.view', 'bcms.incident.view']);
 
         // A blank screen is indistinguishable from a broken one.
         $this->actingAs($user)
-            ->get(route('bcms.emns.index'))
+            ->get(route('bcms.incidents.index'))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->component('Bcms/Section')
-                ->where('section.key', 'emns')
+                ->where('section.key', 'incidents')
                 ->has('section.phase')
                 ->has('section.lands')
                 ->has('section.clause')

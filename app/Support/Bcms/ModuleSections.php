@@ -145,7 +145,7 @@ class ModuleSections
                 'summary' => 'Multi-channel dispatch with two-way acknowledgement, the safety roll-call, and a delivery audit trail.',
                 'lands' => 'The EMNS console with a live recipient count and cost estimate, real SMS, WhatsApp, voice, Teams and push adapters, and the roll-call that produces a headcount in minutes.',
                 'clause' => 'ISO 22301 clause 8.4.3',
-                'live' => false,
+                'live' => true,
             ],
             [
                 'key' => 'incidents',

@@ -77,6 +77,17 @@ class RouteAuthorizationTest extends TestCase
         // real adapters that know each provider's scheme.
         'bcms/cascade/{token}',
         'bcms/cascade-inbound',
+        // BCMS Phase 7 — the two EMNS provider callbacks, and the same category
+        // again. A gateway posting a delivery receipt has no session and never
+        // will; a person replying "SAFE" from a feature phone has none either.
+        // What stands in for a login: a per-provider shared secret compared
+        // with `hash_equals` on the status route, a rate limit on both, and the
+        // rule that the body may never name a recipient — a reply carries a
+        // token this system minted and a receipt carries a message id this
+        // system stored. A payload that could say "recipient 4192 is safe" is a
+        // payload that can mark a whole branch safe from the public internet.
+        'bcms/alert-reply',
+        'bcms/provider-status/{provider}',
     ];
 
     #[Test]
@@ -208,7 +219,12 @@ class RouteAuthorizationTest extends TestCase
             // credential; it is throttled and Phase 7 adds provider signature
             // verification with the real adapters.
             'bcms/cascade/{token}',
-            'bcms/cascade-inbound'];
+            'bcms/cascade-inbound',
+            // BCMS Phase 7. The same category once more: gateway callbacks and
+            // an inbound reply, neither of which can carry a session. The
+            // argument is in the constant above.
+            'bcms/alert-reply',
+            'bcms/provider-status/{provider}'];
 
         $this->assertSame(
             $permitted,

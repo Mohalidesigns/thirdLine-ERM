@@ -261,6 +261,10 @@ class BcmsDemoSeeder extends Seeder
             // Operations tree built to be the broken-branch demo.
             (new CallTreeDemoSeeder)->run($organization);
 
+            // Phase 7: the channel spread a real roster has, two saved
+            // audiences, and one evacuation drill run through the real engine.
+            (new EmnsDemoSeeder)->run($organization);
+
             app(MaturityService::class)->assess($programme, 'scheduled');
         } finally {
             TenantContext::clear();

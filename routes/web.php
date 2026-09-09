@@ -15,6 +15,8 @@ use App\Http\Controllers\Admin\SsoSettingsController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WebhookController;
 use App\Http\Controllers\Auth\SsoController;
+use App\Http\Controllers\Bcms\AlertController as BcmsAlertController;
+use App\Http\Controllers\Bcms\AlertTemplateController as BcmsAlertTemplateController;
 use App\Http\Controllers\Bcms\BiaCampaignController as BcmsBiaCampaignController;
 use App\Http\Controllers\Bcms\BiaController as BcmsBiaController;
 use App\Http\Controllers\Bcms\BiaReportController as BcmsBiaReportController;
@@ -2423,6 +2425,51 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::post('call-tree-tests/{test}/nodes/{node}/finding', [BcmsCallTreeTestController::class, 'raiseFinding'])
             ->middleware('permission:bcms.finding.manage')->name('call-tree-tests.nodes.finding');
 
+        /* --- Emergency notification (Phase 7) --------------------------- */
+        /*
+         * DISPATCH CARRIES `mfa` AND THAT IS ACCEPTANCE CRITERION 13, not a
+         * hardening task for Phase 12. Live dispatch ships in this phase: from
+         * today a stolen session can put a sentence on twelve thousand phones,
+         * and a password alone is not a proportionate control over that. The
+         * compose and approve routes deliberately do NOT require it — an
+         * operator drafting under stress should hit the second factor once, at
+         * the moment it matters, rather than three times while a building is
+         * being evacuated.
+         */
+        Route::get('emns', [BcmsAlertController::class, 'index'])
+            ->middleware('permission:bcms.alert.view')->name('emns.index');
+        Route::get('alerts/{alert}', [BcmsAlertController::class, 'show'])
+            ->middleware('permission:bcms.alert.view')->name('alerts.show');
+        Route::get('alerts/{alert}/live.json', [BcmsAlertController::class, 'live'])
+            ->middleware('permission:bcms.alert.view')->name('alerts.live');
+        Route::get('alerts/{alert}/roll-call', [BcmsAlertController::class, 'rollCall'])
+            ->middleware('permission:bcms.alert.view')->name('alerts.roll-call');
+        Route::post('alerts', [BcmsAlertController::class, 'store'])
+            ->middleware('permission:bcms.alert.compose')->name('alerts.store');
+        Route::post('alerts/{alert}/estimate', [BcmsAlertController::class, 'estimate'])
+            ->middleware('permission:bcms.alert.compose')->name('alerts.estimate');
+        Route::post('alerts/{alert}/approve', [BcmsAlertController::class, 'approve'])
+            ->middleware('permission:bcms.alert.approve')->name('alerts.approve');
+        Route::post('alerts/{alert}/dispatch', [BcmsAlertController::class, 'dispatchAlert'])
+            ->middleware(['permission:bcms.alert.dispatch', 'mfa'])->name('alerts.dispatch');
+        Route::post('alerts/{alert}/recipients/{recipient}/respond', [BcmsAlertController::class, 'respond'])
+            ->middleware('permission:bcms.alert.view')->name('alerts.respond');
+        Route::get('alerts/{alert}/evidence', [BcmsAlertController::class, 'evidence'])
+            ->middleware('permission:bcms.report.export')->name('alerts.evidence');
+
+        Route::get('alert-templates', [BcmsAlertTemplateController::class, 'index'])
+            ->middleware('permission:bcms.alert.view')->name('alert-templates.index');
+        Route::post('alert-templates', [BcmsAlertTemplateController::class, 'store'])
+            ->middleware('permission:bcms.alert.template.manage')->name('alert-templates.store');
+        Route::patch('alert-templates/{template}', [BcmsAlertTemplateController::class, 'update'])
+            ->middleware('permission:bcms.alert.template.manage')->name('alert-templates.update');
+        Route::post('alert-templates/{template}/activate', [BcmsAlertTemplateController::class, 'activate'])
+            ->middleware('permission:bcms.alert.template.manage')->name('alert-templates.activate');
+        Route::get('alert-templates/inspect', [BcmsAlertTemplateController::class, 'inspect'])
+            ->middleware('permission:bcms.alert.view')->name('alert-templates.inspect');
+        Route::get('providers', [BcmsAlertTemplateController::class, 'providers'])
+            ->middleware('permission:bcms.alert.view')->name('providers.index');
+
         /* --- The sections whose phase has not landed yet ---------------- */
         foreach (\App\Support\Bcms\ModuleSections::all() as $bcmsSection) {
             if ($bcmsSection['live']) {
@@ -2484,4 +2531,22 @@ Route::middleware(['feature:bcms'])->group(function () {
     Route::post('bcms/cascade-inbound', [\App\Http\Controllers\Bcms\CascadeAckController::class, 'inbound'])
         ->middleware('throttle:60,1')
         ->name('bcms.cascade.inbound');
+
+    /*
+     * EMNS provider callbacks (Phase 7). A gateway posting a delivery receipt
+     * has no session and never will. What stands in for a login: a per-provider
+     * shared secret compared with `hash_equals`, a rate limit, and the rule that
+     * the body may never name a recipient — a reply carries a token this system
+     * minted, a receipt carries a message id this system stored. Both are
+     * throttled generously rather than tightly: a thousand-recipient dispatch
+     * produces a thousand delivery receipts within a minute or two, and
+     * rate-limiting our own evidence away would be worse than the abuse it
+     * prevents.
+     */
+    Route::post('bcms/alert-reply', [\App\Http\Controllers\Bcms\AlertWebhookController::class, 'reply'])
+        ->middleware('throttle:600,1')
+        ->name('bcms.alerts.reply');
+    Route::post('bcms/provider-status/{provider}', [\App\Http\Controllers\Bcms\AlertWebhookController::class, 'status'])
+        ->middleware('throttle:3000,1')
+        ->name('bcms.alerts.provider-status');
 });

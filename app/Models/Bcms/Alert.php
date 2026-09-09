@@ -137,6 +137,19 @@ class Alert extends Model
         return $this->hasMany(NotificationDelivery::class, 'alert_id');
     }
 
+    /** The first authoriser. The second is `second_approved_by` (ADR 0004). */
+    /** @return BelongsTo<User, $this> */
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function secondApprover(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'second_approved_by');
+    }
+
     /** @return BelongsTo<User, $this> */
     public function initiator(): BelongsTo
     {

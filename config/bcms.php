@@ -121,6 +121,34 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Dual approval (Phase 7)
+    |--------------------------------------------------------------------------
+    |
+    | The two thresholds above which a live alert needs a second authoriser.
+    | EITHER trips it: a critical alert to nine people and an advisory to nine
+    | thousand both deserve a second pair of eyes, for different reasons, and a
+    | rule that only looked at severity would wave through the accidental
+    | all-staff "ACTIVE FIRE" this control exists to prevent.
+    |
+    | DEPLOYMENT-WIDE, NOT PER TENANT, and that is deliberate. "How loud is too
+    | loud to send unchecked" is a property of the product's duty of care, not a
+    | number a customer should be able to raise to nine thousand on a Friday
+    | afternoon. What a tenant controls is the switch itself —
+    | `bcms_settings.require_dual_approval_for_live`. Making the thresholds
+    | per-tenant would take two columns and an ADR.
+    |
+    | A SIMULATION NEVER NEEDS APPROVAL: it reaches nobody outside the sandbox,
+    | and requiring a signature to run a training exercise is how operators
+    | learn to route around the control.
+    |
+    */
+    'dual_approval' => [
+        'severity' => env('BCMS_DUAL_APPROVAL_SEVERITY', 'critical'),
+        'recipients' => env('BCMS_DUAL_APPROVAL_RECIPIENTS', 500),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | ERM integration
     |--------------------------------------------------------------------------
     |

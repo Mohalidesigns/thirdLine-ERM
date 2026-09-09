@@ -479,7 +479,7 @@ class Phase1ScreensTest extends TestCase
         // The `live` flag exists so a phase can swap a shell for a real screen
         // without moving a URL, a permission or a bookmark.
         $user = $this->userWith([
-            'bcms.view', 'bcms.process.view', 'bcms.finding.view', 'bcms.alert.view',
+            'bcms.view', 'bcms.process.view', 'bcms.finding.view', 'bcms.incident.view',
         ], 'risk@khb.test');
 
         $this->actingAs($user)->get(route('bcms.programme.index'))
@@ -492,8 +492,8 @@ class Phase1ScreensTest extends TestCase
         // A section whose phase has not landed still shows the shell. The
         // example has to be one that has not landed, or this half asserts
         // nothing: `calendar` was it until Phase 4, `call-trees` until Phase 6,
-        // and `emns` is Phase 7's.
-        $this->actingAs($user)->get(route('bcms.emns.index'))
+        // `emns` until Phase 7, and `incidents` is Phase 10's.
+        $this->actingAs($user)->get(route('bcms.incidents.index'))
             ->assertInertia(fn (AssertableInertia $p) => $p->component('Bcms/Section'));
     }
 }

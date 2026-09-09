@@ -138,8 +138,82 @@ class WidgetQueryEngine
                         $q->whereIn('id', $nodeIds)->orWhereIn('node_id', $nodeIds);
                     }),
             ),
+            // TPRM. The row carries an ENGAGEMENT id, and an engagement hangs
+            // off the org graph through the business functions it supports.
+            'engagement_functions' => $query->whereIn(
+                $query->qualifyColumn($column),
+                $this->engagementsUnderNodes($nodeIds),
+            ),
+            // TPRM. The row carries a THIRD PARTY id — an incident names a
+            // provider, not one engagement — so it is in scope when any of
+            // that provider's engagements is.
+            'third_party_engagements' => $query->whereIn(
+                $query->qualifyColumn($column),
+                \Illuminate\Support\Facades\DB::table('tp_engagements')
+                    ->select('third_party_id')
+                    ->whereIn('id', $this->engagementsUnderNodes($nodeIds))
+                    ->whereNull('deleted_at'),
+            ),
             default => $query->whereIn($query->qualifyColumn($column), $nodeIds),
         };
+    }
+
+    /**
+     * The engagements that sit under a set of org nodes.
+     *
+     * TPRM TABLES CARRY NO `node_id`, AND DELIBERATELY SO. An engagement is
+     * not owned by one part of the organisation the way a risk is: it supports
+     * business FUNCTIONS, and a payments switch can serve treasury, operations
+     * and the branch network at once. Denormalising a single node onto
+     * `tp_engagements` would have to pick one of those, and picking wrongly is
+     * how a business unit stops seeing the vendor it depends on.
+     *
+     * So the resolution is a join, and it has TWO limbs:
+     *
+     *   1. Through `tp_engagement_functions` to the function's owning business
+     *      unit — the real relationship, and the one the user chose.
+     *   2. Through the engagement's OWN `business_unit_id`.
+     *
+     * The second limb exists because without it an engagement linked to no
+     * business function would be invisible on every node page while appearing
+     * in the unscoped register — a row that silently disappears when somebody
+     * navigates into their own unit. An engagement with neither is genuinely
+     * unattributable and is out of scope on every node, which is a gap the
+     * register shows rather than one this query hides.
+     *
+     * @param  list<int>  $nodeIds
+     */
+    private function engagementsUnderNodes(array $nodeIds): \Illuminate\Database\Query\Builder
+    {
+        // Business units whose graph object is one of the nodes in scope, or
+        // hangs off one. `objects.source_model_type` is the morph alias the
+        // sync service writes.
+        $unitIds = \Illuminate\Support\Facades\DB::table('objects')
+            ->select('source_model_id')
+            ->where('source_model_type', 'business_unit')
+            ->whereNull('deleted_at')
+            ->where(function ($query) use ($nodeIds) {
+                $query->whereIn('id', $nodeIds)->orWhereIn('node_id', $nodeIds);
+            });
+
+        $viaFunctions = \Illuminate\Support\Facades\DB::table('tp_engagement_functions')
+            ->join(
+                'tp_business_functions',
+                'tp_business_functions.id',
+                '=',
+                'tp_engagement_functions.business_function_id'
+            )
+            ->select('tp_engagement_functions.engagement_id')
+            ->whereIn('tp_business_functions.owning_business_unit_id', $unitIds)
+            ->whereNull('tp_business_functions.deleted_at');
+
+        return \Illuminate\Support\Facades\DB::table('tp_engagements')
+            ->select('id')
+            ->whereNull('deleted_at')
+            ->where(function ($query) use ($viaFunctions, $unitIds) {
+                $query->whereIn('id', $viaFunctions)
+                    ->orWhereIn('business_unit_id', $unitIds);
+            });
     }
 
     private function applyPeriods(Builder $query, WidgetDefinition $definition, ResolvedPeriods $periods, array $source): void

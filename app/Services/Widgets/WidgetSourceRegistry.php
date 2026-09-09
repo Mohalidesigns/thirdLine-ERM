@@ -222,6 +222,138 @@ class WidgetSourceRegistry
             ],
             'sums' => [],
         ],
+
+        /* ------------------------------------------------------------------
+         | Third-party risk — FR-RPT-08.
+         |
+         | THESE FOUR CARRY NO `node_id`, AND THE JOIN IS THE POINT. An
+         | engagement is not owned by one part of the organisation the way a
+         | risk is: it supports business FUNCTIONS, and a payments switch
+         | serves treasury, operations and the branch network at once.
+         | Denormalising one node onto `tp_engagements` would have to pick one
+         | of those, and picking wrongly is how a business unit stops seeing
+         | the vendor it depends on. `engagement_functions` resolves through
+         | `tp_engagement_functions` instead — see WidgetQueryEngine.
+         ------------------------------------------------------------------ */
+
+        'tprm_engagements' => [
+            'model' => \App\Models\Tprm\Engagement::class,
+            // The row IS the engagement, so the column holding the engagement
+            // id is its own key.
+            'node_column' => 'id',
+            'node_column_kind' => 'engagement_functions',
+            'date_column' => 'created_at',
+            'code_column' => 'reference',
+            'label_column' => 'name',
+            'owner_column' => 'relationship_owner_id',
+            'permission' => 'tprm.view',
+            'columns' => [
+                'reference', 'name', 'engagement_type', 'status', 'effective_tier',
+                'inherent_tier', 'inherent_score', 'residual_score', 'residual_band',
+                'assurance_coverage', 'evidence_confidence', 'data_confidence',
+                'supports_critical_function', 'is_material_outsourcing', 'pci_in_scope',
+                'processes_personal_data', 'cross_border', 'cloud_model',
+                'exit_plan_required', 'next_assessment_due', 'next_review_due',
+                'business_unit_id', 'relationship_owner_id', 'third_party_id',
+                'start_date', 'end_date', 'created_at',
+            ],
+            'sums' => ['residual_score', 'inherent_score', 'annual_spend_minor'],
+        ],
+
+        'tprm_findings' => [
+            'model' => \App\Models\Tprm\Finding::class,
+            'node_column' => 'engagement_id',
+            'node_column_kind' => 'engagement_functions',
+            // `identified_at`, never `created_at`: a finding imported from a
+            // prior programme was identified long before this row existed, and
+            // ageing it from the row would restart every clock at go-live.
+            'date_column' => 'identified_at',
+            'code_column' => 'reference',
+            'label_column' => 'title',
+            'owner_column' => 'owner_id',
+            'permission' => 'tprm.finding.view',
+            'columns' => [
+                'reference', 'title', 'severity', 'status', 'source', 'identified_at',
+                'target_date', 'sla_days', 'closure_type', 'owner_id', 'engagement_id',
+                'third_party_id', 'created_at',
+            ],
+            'sums' => [],
+        ],
+
+        'tprm_contracts' => [
+            'model' => \App\Models\Tprm\Contract::class,
+            'node_column' => 'engagement_id',
+            'node_column_kind' => 'engagement_functions',
+            'date_column' => 'effective_date',
+            'code_column' => 'reference',
+            'label_column' => 'title',
+            'owner_column' => 'internal_signatory_id',
+            'permission' => 'tprm.contract.view',
+            'columns' => [
+                'reference', 'title', 'contract_type', 'status', 'effective_date',
+                'expiry_date', 'renewal_type', 'notice_period_days_entity',
+                'governing_law_country', 'blocking_gaps_count', 'clause_analysis_status',
+                'engagement_id', 'created_at',
+            ],
+            'sums' => ['value_minor', 'blocking_gaps_count'],
+        ],
+
+        /*
+         * Evidence, scoped by the engagement that owns it.
+         *
+         * A DOCUMENT OWNED BY THE PROVIDER RATHER THAN THE ENGAGEMENT IS NOT
+         * NODE-ATTRIBUTABLE, and that is a fact about SOC 2 reports rather
+         * than a limitation of this query: one report covers every engagement
+         * with that provider, across every unit that buys from them.
+         * `owner_type` is in the whitelist so a widget filters to the
+         * engagement-owned population explicitly, and the shipped Expiring
+         * Evidence widget says so in its description rather than quietly
+         * under-counting on an HQ page.
+         */
+        'tprm_evidence' => [
+            'model' => \App\Models\Tprm\Document::class,
+            'node_column' => 'owner_id',
+            'node_column_kind' => 'engagement_functions',
+            'date_column' => 'valid_to',
+            'code_column' => 'version',
+            'label_column' => 'title',
+            'owner_column' => 'uploaded_by',
+            'permission' => 'tprm.evidence.view',
+            'columns' => [
+                'title', 'owner_type', 'owner_id', 'document_type_id', 'issuer',
+                'issue_date', 'valid_from', 'valid_to', 'is_superseded',
+                'extraction_status', 'virus_scan_status', 'uploaded_by', 'created_at',
+            ],
+            'sums' => [],
+        ],
+
+        /*
+         * Incidents name a PROVIDER, not one engagement — `engagement_ids` is
+         * a json array — so they are scoped through that provider's
+         * engagements instead. An incident at a vendor that serves three units
+         * is in scope on all three, which is the honest answer: the outage
+         * happened to all of them.
+         */
+        'tprm_incidents' => [
+            'model' => \App\Models\Tprm\Incident::class,
+            'node_column' => 'third_party_id',
+            'node_column_kind' => 'third_party_engagements',
+            // OUR awareness, not the vendor's detection date — the same column
+            // the NDPA §40(2) clock runs from.
+            'date_column' => 'reported_to_us_at',
+            'code_column' => 'reference',
+            'label_column' => 'title',
+            'owner_column' => 'created_by',
+            'permission' => 'tprm.incident.view',
+            'columns' => [
+                'reference', 'title', 'type', 'severity', 'status', 'detected_at',
+                'reported_to_us_at', 'personal_data_involved', 'customer_impact',
+                'cbn_reportable', 'cbn_deadline_at', 'cbn_reported_at',
+                'ndpc_reportable', 'ndpc_deadline_at', 'ndpc_reported_at',
+                'third_party_id', 'created_at',
+            ],
+            'sums' => ['estimated_loss_minor', 'data_subjects_affected'],
+        ],
     ];
 
     /** @return array<string, mixed>|null */

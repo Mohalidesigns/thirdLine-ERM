@@ -124,6 +124,17 @@ class DatabaseSeeder extends Seeder
         $this->call(\Database\Seeders\Tprm\TprmQuestionnairePackSeeder::class);
 
         /* ------------------------------------------------------------------ */
+        /*  13b. The TPRM widget library (FR-RPT-08). */
+        /* */
+        /*      System rows with a null organization_id, like the rest of the */
+        /*      widget library, so any tenant can place them. Seeded after the */
+        /*      TPRM reference data because a widget names a source, and a */
+        /*      source is only meaningful once the tables behind it exist. */
+        /* ------------------------------------------------------------------ */
+
+        $this->call(\Database\Seeders\Tprm\TprmWidgetSeeder::class);
+
+        /* ------------------------------------------------------------------ */
         /*  14. TPRM demonstration portfolio. */
         /* */
         /*      Invented vendors with invented spend, kept OUT of the */

@@ -159,6 +159,27 @@ class RcsaScope
         return $units === null || in_array((int) $unitId, $units, true);
     }
 
+    /**
+     * One unit and everything beneath it.
+     *
+     * NOT A USER QUESTION. `unitIdsFor()` asks "what may this person see";
+     * this asks "what is inside this part of the organisation", which is what a
+     * plan scoped to a department needs in order to find its processes. They
+     * share the tree walk and must not share an implementation with it, because
+     * one is an authorisation boundary and the other is a data scope, and a
+     * caller that confused them would widen the wrong one.
+     *
+     * Added for BCMS Phase 3, which is the second module to need the walk. The
+     * alternative was a second breadth-first descent in `App\Services\Bcms`,
+     * which `ScopedToOrgHierarchy`'s own docblock forbids for good reason.
+     *
+     * @return list<int>
+     */
+    public function subtreeOf(int $unitId, int $organizationId): array
+    {
+        return $this->expand([$unitId => true], $organizationId);
+    }
+
     /* ------------------------------------------------------------------ */
     /*  Internals */
     /* ------------------------------------------------------------------ */

@@ -227,6 +227,50 @@ class Preflight extends Command
             'auth/sso/discover', 'auth/sso/{slug}', 'auth/sso/{slug}/callback',
             'auth/sso/{slug}/acs', 'auth/sso/{slug}/metadata',
 
+            // A SIGNED capability URL rather than an unauthenticated one. The
+            // BCMS calendar feed is fetched by Outlook and Google, which send
+            // no cookie and no bearer token, so a `permission:` middleware
+            // could never pass; `ValidateSignature` is what authorizes it, per
+            // user and tamper-evident, and what it exposes is one user's own
+            // calendar. Phase4ScreensTest covers the tampered-URL,
+            // disabled-account and cross-tenant cases.
+            'bcms/calendar/{user}/calendar.ics',
+
+            // BCMS Phase 6 — the three cascade acknowledgement routes, and the
+            // second member of the signed-capability category the calendar feed
+            // opened. The credential is a 16-character HMAC of the test-node
+            // id, compared with `hash_equals` and unguessable without the app
+            // key; the controller resolves the tenant from the node before it
+            // reads anything, because `OrganizationScope` is inert untenanted.
+            //
+            // WHY NOT `signed`. The URL travels in an SMS. A Laravel signed URL
+            // is ~120 characters of query string, which pushes a 160-character
+            // message into two segments and doubles the cost of every cascade —
+            // and the security property is identical, an unguessable
+            // capability in the URL. The short form is a cost decision, not a
+            // weaker one.
+            //
+            // The inbound webhook is the one that cannot carry a per-user
+            // credential at all: a gateway posts to it. It is throttled, it
+            // matches a token inside the body, and it answers an unmatched
+            // reply with `matched: false` rather than an error a gateway would
+            // retry. PROVIDER SIGNATURE VERIFICATION IS PHASE 7'S, with the
+            // real adapters that know each provider's scheme.
+            'bcms/cascade/{token}',
+            'bcms/cascade-inbound',
+            // BCMS Phase 7 — the two EMNS provider callbacks, and the same
+            // category again. A gateway posting a delivery receipt has no
+            // session and never will; a person replying "SAFE" from a feature
+            // phone has none either. What stands in for a login: a per-provider
+            // shared secret compared with `hash_equals` on the status route, a
+            // rate limit on both, and the rule that the body may never name a
+            // recipient — a reply carries a token this system minted and a
+            // receipt carries a message id this system stored. A payload that
+            // could say "recipient 4192 is safe" is a payload that can mark a
+            // whole branch safe from the public internet.
+            'bcms/alert-reply',
+            'bcms/provider-status/{provider}',
+
             // Livewire's two framework endpoints were here — upload-file and
             // preview-file/{filename}, neither mapping to a feature and so
             // neither taking a permission. Migration Phase 6.8 uninstalled

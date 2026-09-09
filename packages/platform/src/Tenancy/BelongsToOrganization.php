@@ -20,7 +20,14 @@ trait BelongsToOrganization
     {
         static::addGlobalScope(new OrganizationScope);
 
-        static::creating(function (Model $model): void {
+        // `self`, not `Model`. In a trait `self` resolves to the USING class,
+        // so static analysis can see this trait's own methods on it; `Model`
+        // widens it to the base class and produces one "undefined method
+        // getOrganizationIdColumn()" per model in the application — 117 of them
+        // in the baseline before this line changed, and 57 more the moment a
+        // module was added. A debt register that grows by a module is one
+        // nobody reads.
+        static::creating(function (self $model): void {
             $column = $model->getOrganizationIdColumn();
 
             if ($model->getAttribute($column) !== null) {

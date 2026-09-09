@@ -46,6 +46,48 @@ class RouteAuthorizationTest extends TestCase
         'auth/sso/{slug}/callback', // who the user is
         'auth/sso/{slug}/acs',
         'auth/sso/{slug}/metadata',
+        // The BCMS calendar subscription feed. Outlook and Google fetch a
+        // subscribed calendar with no cookie and no bearer token, so a
+        // `permission:` middleware could never pass — the SIGNATURE is the
+        // credential, per user and tamper-evident, and `ValidateSignature`
+        // rejects anything else before the controller runs. What it exposes is
+        // one user's own calendar. Phase4ScreensTest covers the tampered-URL,
+        // disabled-account and cross-tenant cases in detail.
+        'bcms/calendar/{user}/calendar.ics',
+
+        // BCMS Phase 6 — the three cascade acknowledgement routes, and the
+        // second member of the signed-capability category the calendar feed
+        // opened. The credential is a 16-character HMAC of the test-node
+        // id, compared with `hash_equals` and unguessable without the app
+        // key; the controller resolves the tenant from the node before it
+        // reads anything, because `OrganizationScope` is inert untenanted.
+        //
+        // WHY NOT `signed`. The URL travels in an SMS. A Laravel signed URL
+        // is ~120 characters of query string, which pushes a 160-character
+        // message into two segments and doubles the cost of every cascade —
+        // and the security property is identical, an unguessable
+        // capability in the URL. The short form is a cost decision, not a
+        // weaker one.
+        //
+        // The inbound webhook is the one that cannot carry a per-user
+        // credential at all: a gateway posts to it. It is throttled, it
+        // matches a token inside the body, and it answers an unmatched
+        // reply with `matched: false` rather than an error a gateway would
+        // retry. PROVIDER SIGNATURE VERIFICATION IS PHASE 7'S, with the
+        // real adapters that know each provider's scheme.
+        'bcms/cascade/{token}',
+        'bcms/cascade-inbound',
+        // BCMS Phase 7 — the two EMNS provider callbacks, and the same category
+        // again. A gateway posting a delivery receipt has no session and never
+        // will; a person replying "SAFE" from a feature phone has none either.
+        // What stands in for a login: a per-provider shared secret compared
+        // with `hash_equals` on the status route, a rate limit on both, and the
+        // rule that the body may never name a recipient — a reply carries a
+        // token this system minted and a receipt carries a message id this
+        // system stored. A payload that could say "recipient 4192 is safe" is a
+        // payload that can mark a whole branch safe from the public internet.
+        'bcms/alert-reply',
+        'bcms/provider-status/{provider}',
     ];
 
     #[Test]
@@ -161,13 +203,35 @@ class RouteAuthorizationTest extends TestCase
         // make the suite pass, this fails.
         $permitted = ['/', 'up', 'login', 'logout', 'forgot-password', 'reset-password', 'reset-password/{token}', 'mfa/verify', 'mfa/setup', 'mfa/enable',
             'auth/sso/discover', 'auth/sso/{slug}', 'auth/sso/{slug}/callback',
-            'auth/sso/{slug}/acs', 'auth/sso/{slug}/metadata'];
+            'auth/sso/{slug}/acs', 'auth/sso/{slug}/metadata',
+            // BCMS Phase 4. A SIGNED capability URL rather than an
+            // unauthenticated one: `ValidateSignature` is the guard, and a
+            // `permission:` middleware is impossible because the client is a
+            // calendar application that sends no session. It is the only
+            // member of that category so far; a second one should have to
+            // argue for itself here.
+            'bcms/calendar/{user}/calendar.ics',
+            // BCMS Phase 6. The same category, and the argument is in the
+            // constant above: an unguessable HMAC capability in the path
+            // rather than a signed query string, because the URL travels in an
+            // SMS and a signed one would double the cost of every cascade. The
+            // inbound webhook is a gateway callback that can carry no per-user
+            // credential; it is throttled and Phase 7 adds provider signature
+            // verification with the real adapters.
+            'bcms/cascade/{token}',
+            'bcms/cascade-inbound',
+            // BCMS Phase 7. The same category once more: gateway callbacks and
+            // an inbound reply, neither of which can carry a session. The
+            // argument is in the constant above.
+            'bcms/alert-reply',
+            'bcms/provider-status/{provider}'];
 
         $this->assertSame(
             $permitted,
             self::ALLOWLIST_URIS,
-            'The route authorization allowlist changed. Only unauthenticated auth-flow, '
-            .'health and MFA-enrolment routes may appear on it.'
+            'The route authorization allowlist changed. Only unauthenticated auth-flow, health, '
+            .'MFA-enrolment and signed capability routes may appear on it — and a signed one has to '
+            .'be a route a browser session could never reach.'
         );
     }
 

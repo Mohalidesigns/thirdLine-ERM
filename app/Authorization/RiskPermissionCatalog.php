@@ -424,6 +424,109 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'tprm.admin' => 'Administer the TPRM programme: tier policies, clause library, document types and the category taxonomy.',
             ],
 
+            'Business continuity (BCMS)' => [
+                'bcms.view' => 'See the BCMS module: the programme, the resilience calendar and the registers behind them.',
+                'bcms.admin' => 'Administer the BCMS module itself: tenant settings, exercise types, readiness templates, the blackout calendar and the scenario library.',
+
+                'bcms.programme.manage' => 'Create and edit the BC programme, its scope statement and its objectives.',
+                'bcms.programme.approve' => 'Approve the BC programme and record the board attestation against it.',
+
+                'bcms.process.view' => 'See the BCM process catalogue and its criticality tiers.',
+                'bcms.process.manage' => 'Add and edit BCM processes, their dependencies and their criticality.',
+
+                'bcms.bia.view' => 'See business impact assessments and their RTO, RPO and MTPD figures.',
+                'bcms.bia.complete' => 'Complete a business impact assessment for a process you are assigned.',
+                // Approving a BIA fixes the RTO every downstream strategy,
+                // plan, DR tier and regulatory return is measured against. It
+                // is separate from completing one because a unit that approves
+                // its own impact analysis has not had one reviewed.
+                'bcms.bia.approve' => 'Approve a submitted BIA, fixing the recovery objectives everything downstream is measured against.',
+                'bcms.bia.campaign.manage' => 'Open, distribute and close BIA campaigns.',
+
+                'bcms.strategy.view' => 'See continuity strategies and their cost, capability and gap analysis.',
+                'bcms.strategy.manage' => 'Propose and edit continuity strategies.',
+                'bcms.strategy.approve' => 'Select and approve the continuity strategy a process will rely on.',
+
+                'bcms.plan.view' => 'See continuity, recovery, crisis and incident plans.',
+                'bcms.plan.manage' => 'Author and edit plans and their sections.',
+                'bcms.plan.approve' => 'Approve a plan, which makes it the version distributed for use.',
+                'bcms.plan.activate' => 'Activate a plan in a live incident.',
+
+                // ---- The exercise engine. -------------------------------
+                'bcms.exercise.view' => 'See the resilience calendar, exercise definitions and their occurrences.',
+                'bcms.exercise.manage' => 'Create and edit exercise definitions and generate their occurrences for the year.',
+                // Approving the annual programme is the clause 8.5 record. The
+                // programme as approved is what an examiner compares delivery
+                // against, so approving it is not the same authority as editing
+                // a definition inside it.
+                'bcms.exercise.approve' => 'Approve the annual exercise programme, which is the ISO 22301 8.5 record delivery is measured against.',
+                'bcms.exercise.schedule' => 'Move, defer or cancel a scheduled occurrence.',
+                'bcms.exercise.facilitate' => 'Run an exercise: start it, release injects, log the timeline and close it out.',
+                'bcms.exercise.evaluate' => 'Score objectives and attach evidence as an observer or evaluator.',
+                // A blocking readiness task exists to stop an exercise going
+                // ahead unprepared. Overriding it is deciding to run anyway,
+                // and it is recorded in the AAR — so it needs an owner.
+                'bcms.readiness.override' => 'Override a blocking readiness task and let an exercise proceed unprepared.',
+                'bcms.aar.manage' => 'Draft and edit the after-action report for an exercise.',
+                'bcms.aar.approve' => 'Approve and distribute an after-action report.',
+
+                'bcms.finding.view' => 'See BCMS findings and their corrective actions.',
+                'bcms.finding.manage' => 'Raise, assign and progress BCMS findings and corrective actions.',
+                // Verification asks whether the action WORKED, which the person
+                // who did it cannot answer about themselves (clause 10.1).
+                'bcms.finding.verify' => 'Verify that a completed corrective action actually closed the finding.',
+                'bcms.finding.accept_risk' => 'Accept a BCMS nonconformity rather than correcting it.',
+
+                // ---- Call tree and EMNS. ---------------------------------
+                'bcms.calltree.view' => 'See call trees, their tiers and their test history.',
+                'bcms.calltree.manage' => 'Build and edit call trees, tiers and deputies.',
+                'bcms.calltree.test' => 'Initiate a call tree test, which contacts every person on the tree.',
+
+                'bcms.contact.view' => 'See the emergency contact roster.',
+                // Contact records are personal data under the NDPA, held for
+                // emergency use only. Editing somebody else\'s emergency
+                // contact details is a different authority from editing your own,
+                // which every employee has through `bcms.myprofile.manage`.
+                'bcms.contact.manage' => 'Edit other people\'s emergency contact records, which are personal data held under the NDPA.',
+                'bcms.contact.export' => 'Export the contact roster, including personal phone numbers — a bulk personal-data export.',
+                'bcms.myprofile.manage' => 'Maintain your own emergency profile, channels and consent.',
+
+                'bcms.alert.view' => 'See alerts, their audiences and their delivery audit trail.',
+                'bcms.alert.compose' => 'Compose an alert and send it for approval.',
+                // Dispatching is the act that puts a message on ten thousand
+                // handsets. It is separate from composing one, and separate
+                // again from the life-safety grant below.
+                'bcms.alert.dispatch' => 'Dispatch an alert to its resolved audience.',
+                'bcms.alert.approve' => 'Act as the second authoriser on a dual-approval alert.',
+                // A life-safety dispatch bypasses quiet hours, throttling and
+                // the routine queue, and a live (non-simulated) send from an
+                // exercise context is a decision with real consequences.
+                'bcms.alert.life_safety' => 'Dispatch life-safety traffic, which bypasses quiet hours and throttling, and authorise a live send from an exercise context.',
+                'bcms.alert.template.manage' => 'Author alert templates and their per-channel and per-language renderings.',
+
+                // ---- Incident, crisis and IT DR. -------------------------
+                'bcms.incident.view' => 'See incidents, their decision log and their regulatory clocks.',
+                'bcms.incident.declare' => 'Declare an incident and set its activation level.',
+                'bcms.incident.manage' => 'Run an incident: log decisions, assign tasks and close it out.',
+                'bcms.incident.notify' => 'Record a regulatory notification of an incident as submitted. Nothing is ever submitted automatically.',
+
+                'bcms.dr.view' => 'See the IT DR register, recovery tiers and test history.',
+                'bcms.dr.manage' => 'Maintain DR systems, their targets and their runbook links.',
+                'bcms.dr.test.record' => 'Record a DR test result and its actual RTO and RPO.',
+
+                // ---- Training, identity sync and reporting. ---------------
+                'bcms.training.view' => 'See BC training curricula and competency records.',
+                'bcms.training.manage' => 'Maintain curricula and record training and competency outcomes.',
+
+                // Identity sync reads a corporate directory and rewrites the
+                // roster every alert resolves against. It is an administrator\'s
+                // authority, and the read-only rule is enforced in the connector.
+                'bcms.identity.manage' => 'Configure and run the AD, Entra and SCIM contact sync. Read-only against the directory; nothing is ever written back.',
+
+                'bcms.report.view' => 'See BCMS reports, the maturity heatmap and the board pack.',
+                'bcms.report.export' => 'Export the ISO 22301, CBN and board evidence packs.',
+            ],
+
             'Licensing' => [
                 // A licence binds the whole deployment, not one organisation's
                 // settings, so both go to super-admin only.
@@ -531,6 +634,33 @@ class RiskPermissionCatalog extends PermissionCatalog
             'tprm.portal.manage',
             'tprm.report.view', 'tprm.report.export',
             'tprm.admin',
+
+            // BCMS: the risk function runs the continuity programme day to
+            // day — the BC Coordinator of Blueprint §13. Six grants are
+            // deliberately NOT here and sit with the CRO below, because each
+            // is a decision to proceed on terms the system says are
+            // insufficient: overriding a blocking readiness task, accepting a
+            // nonconformity, dispatching life-safety traffic, approving the
+            // annual programme, approving the programme itself, and recording
+            // a regulatory notification.
+            'bcms.view', 'bcms.admin',
+            'bcms.programme.manage',
+            'bcms.process.view', 'bcms.process.manage',
+            'bcms.bia.view', 'bcms.bia.complete', 'bcms.bia.approve', 'bcms.bia.campaign.manage',
+            'bcms.strategy.view', 'bcms.strategy.manage', 'bcms.strategy.approve',
+            'bcms.plan.view', 'bcms.plan.manage', 'bcms.plan.approve',
+            'bcms.exercise.view', 'bcms.exercise.manage', 'bcms.exercise.schedule',
+            'bcms.exercise.facilitate', 'bcms.exercise.evaluate',
+            'bcms.aar.manage', 'bcms.aar.approve',
+            'bcms.finding.view', 'bcms.finding.manage', 'bcms.finding.verify',
+            'bcms.calltree.view', 'bcms.calltree.manage', 'bcms.calltree.test',
+            'bcms.contact.view', 'bcms.contact.manage', 'bcms.myprofile.manage',
+            'bcms.alert.view', 'bcms.alert.compose', 'bcms.alert.dispatch',
+            'bcms.alert.template.manage',
+            'bcms.incident.view', 'bcms.incident.manage',
+            'bcms.dr.view', 'bcms.dr.manage', 'bcms.dr.test.record',
+            'bcms.training.view', 'bcms.training.manage',
+            'bcms.report.view', 'bcms.report.export',
         ];
 
         return [
@@ -558,6 +688,25 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'campaign.view', 'campaign.respond',
                 'control_test.view',
                 'approval.view',
+
+                // Blueprint §13's Department BC Champion: owns the unit's BIA,
+                // plan and call tree, closes its readiness tasks, sees its own
+                // calendar. Approving its own BIA is NOT here, for the same
+                // reason a unit does not review its own RCSA assessment.
+                'bcms.view',
+                'bcms.process.view',
+                'bcms.bia.view', 'bcms.bia.complete',
+                'bcms.strategy.view',
+                'bcms.plan.view', 'bcms.plan.manage',
+                'bcms.exercise.view', 'bcms.exercise.facilitate',
+                'bcms.aar.manage',
+                'bcms.finding.view', 'bcms.finding.manage',
+                'bcms.calltree.view', 'bcms.calltree.manage',
+                'bcms.contact.view',
+                'bcms.alert.view',
+                'bcms.incident.view',
+                'bcms.training.view',
+                'bcms.myprofile.manage',
             ],
 
             'risk-analyst' => [
@@ -591,6 +740,17 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'measure.view', 'measure.record',
                 'fx_rate.view',
                 'regulatory.view',
+
+                // Reads the continuity estate to build the board pack and
+                // evaluates exercises as an observer. Decides nothing.
+                'bcms.view',
+                'bcms.process.view', 'bcms.bia.view', 'bcms.strategy.view', 'bcms.plan.view',
+                'bcms.exercise.view', 'bcms.exercise.evaluate',
+                'bcms.finding.view',
+                'bcms.calltree.view', 'bcms.contact.view',
+                'bcms.alert.view', 'bcms.incident.view', 'bcms.dr.view',
+                'bcms.training.view', 'bcms.myprofile.manage',
+                'bcms.report.view',
             ],
 
             'chief-risk-officer' => [
@@ -610,6 +770,20 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'tprm.screening.decide',
                 'tprm.ruleset.manage',
                 'tprm.incident.notify',
+
+                // The BCMS grants that are decisions to proceed on terms the
+                // system says are insufficient, plus the two approvals that
+                // create the ISO 22301 records an examiner compares delivery
+                // against.
+                'bcms.programme.approve',
+                'bcms.exercise.approve',
+                'bcms.readiness.override',
+                'bcms.finding.accept_risk',
+                'bcms.plan.activate',
+                'bcms.incident.declare', 'bcms.incident.notify',
+                'bcms.alert.approve', 'bcms.alert.life_safety',
+                'bcms.contact.export',
+                'bcms.identity.manage',
             ],
 
             'compliance-officer' => [
@@ -640,6 +814,22 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'tprm.screening.view', 'tprm.screening.decide',
                 'tprm.incident.view',
                 'tprm.report.view', 'tprm.report.export',
+
+                // Compliance reads the whole continuity estate and raises
+                // findings against it; it runs no exercise and dispatches no
+                // alert. `bcms.contact.export` is withheld deliberately — a
+                // bulk export of staff mobile numbers is an NDPA event, not a
+                // reporting one.
+                'bcms.view',
+                'bcms.programme.manage',
+                'bcms.process.view', 'bcms.bia.view', 'bcms.strategy.view', 'bcms.plan.view',
+                'bcms.exercise.view', 'bcms.exercise.evaluate',
+                'bcms.finding.view', 'bcms.finding.manage', 'bcms.finding.verify',
+                'bcms.calltree.view', 'bcms.contact.view',
+                'bcms.alert.view', 'bcms.incident.view', 'bcms.dr.view',
+                'bcms.training.view',
+                'bcms.myprofile.manage',
+                'bcms.report.view', 'bcms.report.export',
                 'period.view',
                 'threshold.view',
                 'measure.view',
@@ -655,6 +845,11 @@ class RiskPermissionCatalog extends PermissionCatalog
                 // register and the reports and nothing else.
                 'tprm.view',
                 'tprm.report.view',
+                // Read-only, plus the attestation the CBN Corporate Governance
+                // Guidelines make a board act: `bcms.programme.approve` is what
+                // records it against the programme.
+                'bcms.view', 'bcms.report.view', 'bcms.programme.approve',
+                'bcms.myprofile.manage',
                 'period.view',
                 'threshold.view',
                 'measure.view',

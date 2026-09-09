@@ -15,8 +15,8 @@ notes and ADRs in `docs/`.
 against **MySQL 8.0**. Production is **MariaDB 10.4** — the hosting panel says "MySQL"; the server
 does not. **Nothing in the pipeline exercises MariaDB**, so a green suite is not evidence about the
 customer's database, on any module. A MariaDB test config exists on
-`migration/phase-7-shared-packages` and `fix/parent-cycle-guard` and has not reached `main`,
-`feature/tprm-module` or `feature/bcms-module`.
+`migration/phase-7-shared-packages` and `fix/parent-cycle-guard` and has not reached `main` or
+`integration/tprm-bcms`.
 
 Until it does, portable SQL is a correctness requirement rather than a style preference. Raw JSON
 functions, CTEs and window functions are the usual offenders — MySQL 8 has them, MariaDB 10.4
@@ -56,8 +56,9 @@ cycle restarts at `qa-engineer`. This is binding for BCMS from Phase 7 onward an
 way to TPRM and RCSA phase work. Every agent ends with the `## HANDOFF` block from
 `plans/bcms/BCMS-ORCHESTRATION.md` §6.
 
-For BCMS specifically, read `riskerm-wt/bcms/CLAUDE.md` — the roster, the per-phase sequence and
-the standing rules from the orchestration document.
+For BCMS specifically, read `docs/bcms/WORKING-AGREEMENT.md` — the roster with its model policy,
+the per-phase sequence and the standing rules from the orchestration document. (It was the root
+`CLAUDE.md` of the `riskerm-wt/bcms` worktree until the two branches were merged.)
 
 Agent definitions load at **session start**. Adding or editing one requires a new session before
 it can be used.

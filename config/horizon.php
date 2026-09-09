@@ -265,6 +265,93 @@ return [
             'timeout' => 3660,
             'nice' => 5,
         ],
+
+        /*
+         * BCMS — four supervisors, not one, and not folded into 'interactive'.
+         * ADR 0005 has the full reasoning; the short version is that the four
+         * queues fail differently.
+         *
+         * bcms-lifesafety  "Are you safe?", evacuation, crisis activation.
+         *                  ALWAYS WARM, minProcesses never zero, never
+         *                  throttled, never behind anything. A roll-call queued
+         *                  behind five thousand drill reminders is the failure
+         *                  this whole module exists to prevent, and a shared
+         *                  pool with a priority flag is still behind whatever
+         *                  the worker is doing right now.
+         * bcms-alerts      EMNS dispatch, ack chasing, escalation. Bursty: a
+         *                  10,000-recipient dispatch must be queued in under 30
+         *                  seconds (Blueprint §14) without delaying anything
+         *                  else for hours.
+         * bcms-reminders   The T-10 ladder. High volume, low urgency, retried
+         *                  generously — a reminder that arrives twice is a
+         *                  nuisance, one that never arrives is a compliance
+         *                  breach.
+         * bcms-sync        AD/Entra/SCIM sync and contact hygiene. Long,
+         *                  single-attempt, nobody watching. Gate G0 criterion 7
+         *                  backs up 10,000 jobs here and asserts life safety is
+         *                  still picked up.
+         */
+        'bcms-lifesafety' => [
+            'connection' => 'redis',
+            'queue' => ['bcms-lifesafety'],
+            'balance' => 'simple',
+            'autoScalingStrategy' => 'time',
+            'minProcesses' => 1,
+            'maxProcesses' => 2,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 192,
+            // Three tries and a short timeout: a life-safety send that has
+            // failed three times needs the failover path, not a fourth attempt
+            // on the same gateway.
+            'tries' => 3,
+            'timeout' => 60,
+            'nice' => 0,
+        ],
+
+        'bcms-alerts' => [
+            'connection' => 'redis',
+            'queue' => ['bcms-alerts'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 2,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 3,
+            'timeout' => 120,
+            'nice' => 0,
+        ],
+
+        'bcms-reminders' => [
+            'connection' => 'redis',
+            'queue' => ['bcms-reminders'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 5,
+            'timeout' => 300,
+            'nice' => 5,
+        ],
+
+        'bcms-sync' => [
+            'connection' => 'redis',
+            'queue' => ['bcms-sync'],
+            'balance' => 'simple',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 512,
+            // Single attempt: a directory sync that half-ran and is retried
+            // from the top writes the same contacts twice.
+            'tries' => 1,
+            'timeout' => 3600,
+            'nice' => 10,
+        ],
     ],
 
     'environments' => [
@@ -276,12 +363,24 @@ return [
             ],
             'simulations' => ['maxProcesses' => 2],
             'bulk' => ['maxProcesses' => 3],
+
+            // Life safety scales up and never down to zero. Blueprint §14 asks
+            // for a 99.95% dispatch path and the first SMS delivered inside 60
+            // seconds; a cold worker spends the first of those seconds booting.
+            'bcms-lifesafety' => ['minProcesses' => 2, 'maxProcesses' => 6],
+            'bcms-alerts' => ['maxProcesses' => 12, 'balanceMaxShift' => 2, 'balanceCooldown' => 3],
+            'bcms-reminders' => ['maxProcesses' => 4],
+            'bcms-sync' => ['maxProcesses' => 2],
         ],
 
         'local' => [
             'interactive' => ['maxProcesses' => 3],
             'simulations' => ['maxProcesses' => 1],
             'bulk' => ['maxProcesses' => 1],
+            'bcms-lifesafety' => ['minProcesses' => 1, 'maxProcesses' => 1],
+            'bcms-alerts' => ['maxProcesses' => 1],
+            'bcms-reminders' => ['maxProcesses' => 1],
+            'bcms-sync' => ['maxProcesses' => 1],
         ],
     ],
 

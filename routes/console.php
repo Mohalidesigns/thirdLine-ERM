@@ -143,3 +143,63 @@ Schedule::command('tprm:publish-kris')->dailyAt('08:15')->withoutOverlapping();
 // which does not move overnight. Daily snapshots would bury the four quarters
 // anybody wants to compare under three hundred near-identical rows.
 Schedule::command('tprm:run-concentration')->weeklyOn(1, '04:30');
+
+/*
+|--------------------------------------------------------------------------
+| BCMS
+|--------------------------------------------------------------------------
+*/
+
+// BCMS Phase 0 skeleton, Phase 5 dispatch. HOURLY, not daily, and that is the
+// whole design: the T-10 ladder is materialised with a `send_at` per intended
+// send (ADR 0005), so the tick only has to be finer than the granularity
+// customers can configure. A daily tick would send every tenant's reminders at
+// whatever hour the scheduler happened to fire, ignoring the per-tenant
+// `reminder_send_time` that Blueprint §5.4 makes configurable.
+//
+// `withoutOverlapping` because the claim is per row and idempotent, but two
+// overlapping runs would still do the same work twice at a cost nobody wants
+// during a busy exercise week.
+Schedule::command('bcms:dispatch-reminders')->hourly()->withoutOverlapping();
+
+// The watchdog runs on the half hour, offset from the dispatcher so it is
+// looking at a settled state rather than at a tick in progress. Its whole
+// purpose is to notice the failure that produces no error: a scheduler that
+// stopped, a dispatcher throwing silently, a delivery written ahead of a
+// provider call by a worker that then died. A silent reminder failure is a
+// customer compliance breach, not a bug.
+Schedule::command('bcms:watchdog')->hourlyAt(30)->withoutOverlapping();
+
+// BCMS Phase 1. Early, before the morning digest, so an owner reading their
+// overdue list at 08:00 is reading last night's state rather than yesterday
+// morning's. Overdue is written by this sweep rather than computed on read: an
+// accessor makes "overdue" a property of when you looked, and a board pack
+// printed in March has to still say in December what it said in March.
+Schedule::command('bcms:sweep-actions')->dailyAt('06:45');
+
+// BCMS Phase 2. After the CAPA sweep and before the morning digest, so an owner
+// opening their mail at 08:00 sees one message rather than two. The command
+// chases on an interval rather than nightly — forty people taught to filter a
+// daily reminder are forty people who will not read the escalation either.
+Schedule::command('bcms:chase-bia')->dailyAt('07:00');
+
+// BCMS Phase 3. Late enough that the day's BIA approvals and vendor changes are
+// in, early enough that a plan owner opening the library at 08:00 sees last
+// night's truth. Drift is ALSO detected the moment a BIA is approved — this
+// catches the changes the application never sees, like a vendor soft-deleted in
+// TPRM or a site closed, which cannot know that a plan depends on them.
+Schedule::command('bcms:check-plan-drift')->dailyAt('05:30')->withoutOverlapping();
+
+// BCMS Phase 6. EVERY MINUTE, because a minute is the unit the scorecard
+// measures in: a node's response window is commonly ten or fifteen, and a sweep
+// running every five would report a fifteen-minute window as having closed
+// after twenty. It does nothing at all when no cascade is running, which is
+// almost always. `withoutOverlapping` because a slow tick must not have a
+// second one escalating the same node to the same deputy twice.
+Schedule::command('bcms:cascade-tick')->everyMinute()->withoutOverlapping();
+
+// BCMS Phase 6, and it runs AFTER the directory sync rather than performing
+// one — a leaver is already an inactive contact by the time this looks. 05:15
+// puts it before the plan-drift sweep at 05:30, so a call-tree binding that
+// drift is about to re-resolve has already been flagged.
+Schedule::command('bcms:call-tree-hygiene')->dailyAt('05:15')->withoutOverlapping();

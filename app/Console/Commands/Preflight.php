@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -36,6 +37,7 @@ class Preflight extends Command
         $this->checkNoDevBackdoor();
         $this->checkEveryRouteIsGuarded();
         $this->checkAuditChainColumns();
+        $this->checkDatabaseEngine();
 
         $this->newLine();
         $this->table(
@@ -395,6 +397,62 @@ class Preflight extends Command
         }
 
         $this->pass('Audit trail', 'hash chain present — run audit:verify to check integrity');
+    }
+
+    /**
+     * Report the database engine this environment is ACTUALLY running.
+     *
+     * Nothing in a Laravel configuration can tell you this, and that has cost
+     * this project real time more than once. `DB_CONNECTION=mysql` names the
+     * PDO driver, and MariaDB and MySQL share it — the value is identical and
+     * correct for both. Hosting panels are no better: XAMPP's control panel on
+     * a developer machine here says "Starting MySQL Database..." over a server
+     * that reports `10.4.28-MariaDB`, and the shared-hosting panel this product
+     * is deployed behind says "MySQL Database" too.
+     *
+     * Three labels, all saying MySQL, none of them evidence. The only thing
+     * that answers the question is asking the server, so this asks it and
+     * prints the answer on every environment it runs in — including the ones
+     * nobody can easily log into.
+     *
+     * It does NOT fail on a particular engine. Which engine is right is a
+     * decision for whoever owns the estate, and a preflight check is the wrong
+     * place to litigate it. It fails only when the engine cannot be determined
+     * at all, and warns when what is running disagrees with what the test suite
+     * and CI are pinned to — because that gap is the one that ships defects a
+     * green suite promised were not there.
+     */
+    private function checkDatabaseEngine(): void
+    {
+        try {
+            $version = (string) DB::selectOne('select version() as v')->v;
+        } catch (\Throwable $e) {
+            $this->fail_('Database engine', 'could not read version(): '.$e->getMessage());
+
+            return;
+        }
+
+        $isMariaDb = str_contains(strtolower($version), 'mariadb');
+        $engine = $isMariaDb ? 'MariaDB' : 'MySQL';
+        $driver = DB::connection()->getDriverName();
+
+        // What the pipeline is pinned to. Keep in step with ci.yml's service
+        // image; the point of the warning is to notice when they diverge.
+        $expected = 'MariaDB';
+
+        // version() reports e.g. "10.4.28-MariaDB" or "8.0.36"; the suffix is
+        // the engine, already named, so it is not repeated here.
+        $number = trim(preg_replace('/-mariadb.*$/i', '', $version));
+        $detail = "{$engine} {$number} (version(): {$version}, driver: {$driver})";
+
+        if ($engine !== $expected) {
+            $this->warn_('Database engine', $detail." — CI and phpunit.xml are pinned to {$expected}. ".
+                'One of the two is wrong, and a green suite is not evidence about this server until they agree.');
+
+            return;
+        }
+
+        $this->pass('Database engine', $detail);
     }
 
     /* ------------------------------------------------------------------ */

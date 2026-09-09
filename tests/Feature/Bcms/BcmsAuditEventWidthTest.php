@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Bcms;
 
+use App\Models\Organization;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
@@ -62,25 +64,71 @@ class BcmsAuditEventWidthTest extends TestCase
     }
 
     #[Test]
-    public function an_oversized_event_name_would_actually_be_rejected(): void
+    public function an_oversized_event_name_is_rejected_for_being_oversized(): void
     {
         // Proves the guard above is guarding something real: that the database
-        // does reject an overlong value rather than truncating it quietly. On a
-        // driver with no length enforcement there is nothing to prove.
+        // rejects an overlong value rather than truncating it quietly.
+        //
+        // THE ASSERTION IS ON THE SQLSTATE, NOT ON QueryException. An earlier
+        // version of this test asserted only `expectException(QueryException)`
+        // against a row whose organization_id did not exist, and gate 2 showed
+        // by control experiment that the identical insert with a VALID short
+        // event also throws QueryException — SQLSTATE[23000] 1452, a foreign
+        // key violation. Both are QueryException, so the test could not tell
+        // "the width was enforced" from "the fixture was wrong", and on a
+        // server in the non-strict mode this test claims to exclude it would
+        // have passed while the value truncated silently.
+        //
+        // 22001 is "string data, right truncated". Nothing else raises it here.
         if (! in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
             $this->markTestSkipped('Only a strict-mode server enforces VARCHAR length.');
         }
 
+        $organization = Organization::create([
+            'name' => 'Width Probe Bank', 'short_name' => 'WPB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
         $width = $this->eventColumnWidth();
 
-        $this->expectException(\Illuminate\Database\QueryException::class);
+        try {
+            DB::table('bcms_audit_logs')->insert([
+                'organization_id' => $organization->id,
+                'auditable_type' => 'Test',
+                'auditable_id' => 1,
+                'event' => str_repeat('x', $width + 1),
+                'created_at' => now(),
+            ]);
 
+            $this->fail(sprintf(
+                'A %d-character event was accepted into a %d-character column. The server is not enforcing '.
+                'VARCHAR length, so every audit row longer than the column is being truncated in silence.',
+                $width + 1,
+                $width
+            ));
+        } catch (QueryException $e) {
+            $this->assertSame(
+                '22001',
+                $e->getCode(),
+                'The insert failed, but not for being too long — SQLSTATE '.$e->getCode().': '.$e->getMessage().
+                "\nThis test only proves anything if the width is what rejected the row."
+            );
+        }
+
+        // And the control: the same row with a value that fits must insert
+        // cleanly. Without this, a fixture that could never insert for any
+        // reason would still satisfy the assertion above.
         DB::table('bcms_audit_logs')->insert([
-            'organization_id' => 1,
+            'organization_id' => $organization->id,
             'auditable_type' => 'Test',
             'auditable_id' => 1,
-            'event' => str_repeat('x', $width + 1),
+            'event' => str_repeat('x', $width),
             'created_at' => now(),
+        ]);
+
+        $this->assertDatabaseHas('bcms_audit_logs', [
+            'organization_id' => $organization->id,
+            'event' => str_repeat('x', $width),
         ]);
     }
 

@@ -171,21 +171,14 @@ class CheckBcmsPlanDriftCommandTest extends TestCase
             'name' => 'Approver B', 'email' => 'approver@sb.test', 'password' => Hash::make(Str::random(32)),
             'email_verified_at' => now(), 'organization_id' => $orgB->id, 'is_active' => true,
         ]);
-        $processB = Process::query()->create([
-            'code' => 'BCP-B', 'name' => 'Process B', 'status' => 'active',
-            'business_unit_id' => $unitB->id, 'owner_id' => $authorB->id, 'criticality_tier' => 1,
-        ]);
-        $assessments = app(BiaAssessmentService::class);
-        $assessment = $assessments->start($processB, $authorB->id);
-        $assessments->save($assessment, [
-            'mtpd_hours' => 8, 'rto_hours' => 2, 'rpo_minutes' => 15,
-            'mbco_description' => 'Minimum service for BCP-B.',
-        ]);
-        foreach (ImpactHorizon::cases() as $horizon) {
-            $assessments->scoreImpact($assessment, ImpactCategory::Regulatory, $horizon, $horizon->hours() >= 8 ? 5 : 2, null, 'Seeded.');
-        }
-        $assessments->submit($assessment->refresh());
-        $assessments->approve($assessment->refresh(), $approverB->id, 1);
+        // Bank B gets its OWN drifted plan, not just a process. Without one it
+        // has nothing for the sweep to find, so "no findings for B" would be
+        // true whether the command visited B or skipped it entirely — which is
+        // exactly how the first version of this test passed while asserting
+        // nothing about the second tenant at all.
+        $processB = $this->processWithApprovedBia('BCP-B', rto: 2, mtpd: 8, unit: $unitB, author: $authorB, approver: $approverB);
+        $planB = $this->approvedPlan('Plan B', unit: $unitB, author: $authorB, approver: $approverB);
+        $this->approvedAssessment($processB, rto: 6, mtpd: 24, author: $authorB, approver: $approverB);
         TenantContext::clear();
 
         $this->artisan('bcms:check-plan-drift')->assertSuccessful();
@@ -194,7 +187,29 @@ class CheckBcmsPlanDriftCommandTest extends TestCase
         $sectionA = $planA->sections()->where('section_key', 'recovery_objectives')->sole();
         TenantContext::clear();
 
+        TenantContext::set($orgB->id);
+        $sectionB = $planB->sections()->where('section_key', 'recovery_objectives')->sole();
+        TenantContext::clear();
+
+        // BOTH tenants must be swept. A wrapper that set no context, or that
+        // broke out of its loop after the first organisation, flags only one.
         $this->assertTrue((bool) $sectionA->refresh()->needs_review, "Bank A's drifted plan was not flagged.");
+        $this->assertTrue((bool) $sectionB->refresh()->needs_review, "Bank B's drifted plan was not flagged — the sweep did not reach the second tenant.");
+
+        // And each finding must be ATTRIBUTED to the tenant it belongs to.
+        // Scopes are bypassed deliberately: with them on, a finding stamped
+        // with the wrong organization_id is invisible rather than wrong, which
+        // is the failure mode this assertion exists to catch.
+        $findingsA = Finding::query()->withoutGlobalScopes()
+            ->where('organization_id', $this->organization->id)->where('affected_plan_id', $planA->getKey())->count();
+        $findingsB = Finding::query()->withoutGlobalScopes()
+            ->where('organization_id', $orgB->id)->where('affected_plan_id', $planB->getKey())->count();
+        $findingsTotal = Finding::query()->withoutGlobalScopes()
+            ->whereIn('organization_id', [$this->organization->id, $orgB->id])->count();
+
+        $this->assertSame(1, $findingsA, "Bank A's finding is missing or was stamped with another tenant's id.");
+        $this->assertSame(1, $findingsB, "Bank B's finding is missing or was stamped with another tenant's id.");
+        $this->assertSame(2, $findingsTotal, 'Findings were duplicated or cross-attributed between the two tenants.');
     }
 
     private function user(string $email): User
@@ -207,27 +222,40 @@ class CheckBcmsPlanDriftCommandTest extends TestCase
     }
 
     /** @param array<string, mixed> $attributes */
-    private function process(string $code, array $attributes = []): Process
+    private function process(string $code, array $attributes = [], ?BusinessUnit $unit = null, ?User $author = null): Process
     {
         return Process::query()->create(array_merge([
             'code' => $code, 'name' => "Process {$code}", 'status' => 'active',
-            'business_unit_id' => $this->unit->id, 'owner_id' => $this->author->id,
+            'business_unit_id' => ($unit ?? $this->unit)->id, 'owner_id' => ($author ?? $this->author)->id,
         ], $attributes));
     }
 
-    private function processWithApprovedBia(string $code, float $rto, float $mtpd, int $tier = 1): Process
-    {
-        $process = $this->process($code, ['criticality_tier' => $tier]);
-        $this->approvedAssessment($process, $rto, $mtpd, $tier);
+    private function processWithApprovedBia(
+        string $code,
+        float $rto,
+        float $mtpd,
+        int $tier = 1,
+        ?BusinessUnit $unit = null,
+        ?User $author = null,
+        ?User $approver = null,
+    ): Process {
+        $process = $this->process($code, ['criticality_tier' => $tier], $unit, $author);
+        $this->approvedAssessment($process, $rto, $mtpd, $tier, $author, $approver);
 
         return $process->refresh();
     }
 
-    private function approvedAssessment(Process $process, float $rto, float $mtpd, int $tier = 1): BiaAssessment
-    {
+    private function approvedAssessment(
+        Process $process,
+        float $rto,
+        float $mtpd,
+        int $tier = 1,
+        ?User $author = null,
+        ?User $approver = null,
+    ): BiaAssessment {
         $assessments = app(BiaAssessmentService::class);
 
-        $assessment = $assessments->start($process, $this->author->id);
+        $assessment = $assessments->start($process, ($author ?? $this->author)->id);
 
         $assessments->save($assessment, [
             'mtpd_hours' => $mtpd,
@@ -249,26 +277,36 @@ class CheckBcmsPlanDriftCommandTest extends TestCase
 
         $assessments->submit($assessment->refresh());
 
-        return $assessments->approve($assessment->refresh(), $this->approver->id, $tier);
+        return $assessments->approve($assessment->refresh(), ($approver ?? $this->approver)->id, $tier);
     }
 
-    private function templatedPlan(string $title = 'Group Business Continuity Plan'): Plan
+    private function templatedPlan(string $title = 'Group Business Continuity Plan', ?BusinessUnit $unit = null, ?User $author = null): Plan
     {
+        $unit ??= $this->unit;
+        $author ??= $this->author;
+
         return app(PlanService::class)->create(
             PlanType::Bcp,
             $title,
-            ['business_unit_id' => $this->unit->id, 'owner_id' => $this->author->id, 'review_frequency_months' => 12],
+            ['business_unit_id' => $unit->id, 'owner_id' => $author->id, 'review_frequency_months' => 12],
             'bcp_group',
-            $this->author->id,
+            $author->id,
         );
     }
 
-    private function approvedPlan(string $title = 'Group Business Continuity Plan'): Plan
-    {
-        $plan = $this->templatedPlan($title);
-        app(PlanAssembler::class)->assemble($plan, $this->author->id);
-        app(PlanService::class)->submitForReview($plan, $this->author->id);
+    private function approvedPlan(
+        string $title = 'Group Business Continuity Plan',
+        ?BusinessUnit $unit = null,
+        ?User $author = null,
+        ?User $approver = null,
+    ): Plan {
+        $author ??= $this->author;
+        $approver ??= $this->approver;
 
-        return app(PlanService::class)->approve($plan, $this->approver, now()->toDateString(), 12);
+        $plan = $this->templatedPlan($title, $unit, $author);
+        app(PlanAssembler::class)->assemble($plan, $author->id);
+        app(PlanService::class)->submitForReview($plan, $author->id);
+
+        return app(PlanService::class)->approve($plan, $approver, now()->toDateString(), 12);
     }
 }

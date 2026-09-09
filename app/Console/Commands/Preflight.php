@@ -18,6 +18,16 @@ use Illuminate\Support\Facades\Schema;
  */
 class Preflight extends Command
 {
+    /**
+     * The engine the test suite and CI are pinned to.
+     *
+     * Kept honest by PreflightDatabaseEngineTest, which reads the service image
+     * out of .github/workflows/ci.yml and fails if the two drift apart — a
+     * constant whose only guarantee is a comment saying "keep this in step" is
+     * the same defect one level up from the one this check exists to catch.
+     */
+    public const EXPECTED_DB_ENGINE = 'MariaDB';
+
     protected $signature = 'app:preflight {--allow-local : Do not fail merely because APP_ENV is local}';
 
     protected $description = 'Verify this deployment is configured safely before serving traffic';
@@ -424,30 +434,48 @@ class Preflight extends Command
      */
     private function checkDatabaseEngine(): void
     {
-        try {
-            $version = (string) DB::selectOne('select version() as v')->v;
-        } catch (\Throwable $e) {
-            $this->fail_('Database engine', 'could not read version(): '.$e->getMessage());
+        $driver = DB::connection()->getDriverName();
+
+        // Ask the driver its own question. `version()` is not universal —
+        // SQLite has `sqlite_version()` and no `version()` at all, so the first
+        // cut of this check FAILED preflight on every SQLite deployment while
+        // claiming to fail "only when the engine cannot be determined". SQLite
+        // is perfectly determinable; the query was just wrong for it.
+        [$sql, $engine] = match ($driver) {
+            'mysql', 'mariadb' => ['select version() as v', null],   // decided below
+            'sqlite' => ['select sqlite_version() as v', 'SQLite'],
+            'pgsql' => ['select version() as v', 'PostgreSQL'],
+            'sqlsrv' => ['select @@version as v', 'SQL Server'],
+            default => [null, null],
+        };
+
+        if ($sql === null) {
+            $this->fail_('Database engine', "unrecognised driver [{$driver}]; cannot determine the engine");
 
             return;
         }
 
-        $isMariaDb = str_contains(strtolower($version), 'mariadb');
-        $engine = $isMariaDb ? 'MariaDB' : 'MySQL';
-        $driver = DB::connection()->getDriverName();
+        try {
+            $version = trim((string) DB::selectOne($sql)->v);
+        } catch (\Throwable $e) {
+            $this->fail_('Database engine', "could not read the version over [{$driver}]: ".$e->getMessage());
 
-        // What the pipeline is pinned to. Keep in step with ci.yml's service
-        // image; the point of the warning is to notice when they diverge.
-        $expected = 'MariaDB';
+            return;
+        }
 
-        // version() reports e.g. "10.4.28-MariaDB" or "8.0.36"; the suffix is
-        // the engine, already named, so it is not repeated here.
-        $number = trim(preg_replace('/-mariadb.*$/i', '', $version));
-        $detail = "{$engine} {$number} (version(): {$version}, driver: {$driver})";
+        // MariaDB and MySQL share the `mysql` driver, so the driver name cannot
+        // separate them and neither can DB_CONNECTION. Only the server's own
+        // version string can: MariaDB stamps itself into it, MySQL does not.
+        $engine ??= str_contains(strtolower($version), 'mariadb') ? 'MariaDB' : 'MySQL';
 
-        if ($engine !== $expected) {
-            $this->warn_('Database engine', $detail." — CI and phpunit.xml are pinned to {$expected}. ".
-                'One of the two is wrong, and a green suite is not evidence about this server until they agree.');
+        // version() reports e.g. "10.4.28-MariaDB"; the suffix names the engine
+        // we have just named, so it is not repeated in the number.
+        $number = trim((string) preg_replace('/-mariadb.*$/i', '', $version));
+        $detail = "{$engine} {$number} (driver: {$driver})";
+
+        if ($engine !== self::EXPECTED_DB_ENGINE) {
+            $this->warn_('Database engine', $detail.' — the suite and CI are pinned to '.self::EXPECTED_DB_ENGINE.
+                '. One of the two is wrong, and a green suite is not evidence about this server until they agree.');
 
             return;
         }

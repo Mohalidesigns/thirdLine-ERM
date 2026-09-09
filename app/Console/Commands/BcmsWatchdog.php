@@ -2,12 +2,14 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Bcms\AuditLog;
 use App\Models\Bcms\NotificationDelivery;
 use App\Models\Bcms\ReminderSchedule;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\NotificationService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use ThirdLine\Platform\Tenancy\TenantContext;
 
@@ -82,6 +84,39 @@ class BcmsWatchdog extends Command
             } finally {
                 TenantContext::clear();
             }
+        }
+
+        // A fourth signal, and the only one that is not about notifications:
+        // audit rows that could not be written.
+        //
+        // BcmsAuditable::writeBcmsAuditRow() catches Throwable on purpose, so a
+        // business write never fails because its audit row would not save. That
+        // is right, and it is also exactly how a too-narrow `event` column
+        // discarded audit rows for the life of the module without anything
+        // noticing (ADR 0014). Widening the column fixed that cause; this
+        // catches every other one — a lock timeout, a full disk, a byte that
+        // will not encode, a future migration narrowing any column on the
+        // table. In a module whose deliverable IS the log, an audit path that
+        // has started failing is worth waking somebody for.
+        $auditFailures = (int) Cache::get(AuditLog::AUDIT_FAILURE_CACHE_KEY, 0);
+
+        if ($auditFailures > 0) {
+            $problems[] = [
+                'organization' => 'ALL TENANTS',
+                'overdue_reminders' => 0,
+                'stuck_deliveries' => 0,
+                'audit_write_failures' => $auditFailures,
+            ];
+
+            $this->error(sprintf(
+                '%d BCMS audit row(s) could not be written since the last check. The audit trail has holes; '.
+                'see the "BCMS audit row could not be written" log entries for the cause.',
+                $auditFailures,
+            ));
+
+            // Cleared so the next run reports only new failures. A count that
+            // never resets stops meaning anything the day after it first fires.
+            Cache::forget(AuditLog::AUDIT_FAILURE_CACHE_KEY);
         }
 
         if ($problems === []) {

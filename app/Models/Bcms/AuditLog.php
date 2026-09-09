@@ -26,6 +26,20 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class AuditLog extends Model
 {
+    /**
+     * Counts audit rows that could not be written, for BcmsWatchdog to report.
+     *
+     * Lives here rather than on BcmsAuditable because a trait constant cannot
+     * be read through the trait's own name, and both the writer and the
+     * watchdog need it. This model is the thing being written, so it is the
+     * honest home for the key that counts failures to write it.
+     *
+     * Not tenant-scoped: a failure can happen before the organisation is known,
+     * and an audit path broken at all is worth waking somebody for regardless
+     * of whose row it was.
+     */
+    public const AUDIT_FAILURE_CACHE_KEY = 'bcms:audit-write-failures';
+
     use BelongsToOrganization;
 
     protected $table = 'bcms_audit_logs';

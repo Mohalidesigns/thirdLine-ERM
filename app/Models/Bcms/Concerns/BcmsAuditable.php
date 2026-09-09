@@ -3,6 +3,7 @@
 namespace App\Models\Bcms\Concerns;
 
 use App\Models\Bcms\AuditLog;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Request;
 
@@ -137,6 +138,24 @@ trait BcmsAuditable
                 'event' => $event,
                 'exception' => $e->getMessage(),
             ]);
+
+            // A log line nothing reads is indistinguishable from silence, and
+            // silence here is what let a too-narrow `event` column discard
+            // audit rows for the life of the module (ADR 0014). The catch is
+            // still correct — a plan activation must not roll back because its
+            // audit row would not write — so instead of failing the write, the
+            // failure is COUNTED where BcmsWatchdog will find it and page
+            // somebody.
+            //
+            // Wrapped again, and deliberately: if the cache is the thing that
+            // is broken, the business write must still succeed. This counter
+            // failing is not worth an outage.
+            try {
+                Cache::add(AuditLog::AUDIT_FAILURE_CACHE_KEY, 0, now()->addDays(30));
+                Cache::increment(AuditLog::AUDIT_FAILURE_CACHE_KEY);
+            } catch (\Throwable) {
+                // Nothing further to do: the Log::error above is the fallback.
+            }
         }
     }
 }

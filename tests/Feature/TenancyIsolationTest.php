@@ -20,6 +20,9 @@ use ThirdLine\Platform\Tenancy\TenantContext;
 
 class TenancyIsolationTest extends TestCase
 {
+    /** Written into a scratch column to prove a cross-tenant write did not land. */
+    private const PROBE_VALUE = 'tenancy-probe';
+
     use RefreshDatabase;
 
     private Organization $orgA;
@@ -325,7 +328,7 @@ class TenancyIsolationTest extends TestCase
         }
 
         foreach (Schema::getColumns($table) as $column) {
-            if (! $column['nullable'] || $column['auto_increment']) {
+            if ($column['auto_increment']) {
                 continue;
             }
 
@@ -337,12 +340,54 @@ class TenancyIsolationTest extends TestCase
                 continue;
             }
 
+            // NOT NULL columns are fine to probe: the update writes a real
+            // value, never null. Requiring nullable was over-cautious and cost
+            // real coverage — `tp_concentration_analyses`'s only string column
+            // (`dimension`, varchar(30) NOT NULL) is not nullable, so this
+            // helper found no candidate, called $this->fail(), and the
+            // cross-tenant UPDATE and DELETE probes for that table never ran at
+            // all. A guard that skips the check it cannot set up is worse than
+            // one that fails, because it reads as a passing test.
+            //
+            // `longtext` stays out of this list deliberately. MariaDB stores a
+            // `json` column as LONGTEXT behind a `json_valid()` CHECK, so
+            // writing 'tenancy-probe' into one is rejected — the same defect
+            // shape that took 50 tests down elsewhere in this suite.
             if (in_array(strtolower($column['type_name']), ['varchar', 'text', 'char', 'string'], true)) {
-                return [$column['name'], 'tenancy-probe'];
+                // Respect the declared width. A probe value longer than the
+                // column is rejected outright by a strict server, which would
+                // look like a tenancy failure rather than a bad fixture.
+                $length = $this->columnLength($table, $column['name']);
+                $value = $length !== null && $length < strlen(self::PROBE_VALUE)
+                    ? substr(self::PROBE_VALUE, 0, $length)
+                    : self::PROBE_VALUE;
+
+                return [$column['name'], $value];
             }
         }
 
         $this->fail("No writable scratch column found on [{$table}] to probe cross-tenant updates.");
+    }
+
+    /**
+     * Declared character length of a string column, or null where the driver
+     * does not report one (SQLite).
+     */
+    private function columnLength(string $table, string $column): ?int
+    {
+        $connection = DB::connection();
+
+        if (! in_array($connection->getDriverName(), ['mysql', 'mariadb'], true)) {
+            return null;
+        }
+
+        $row = $connection->selectOne(
+            'SELECT character_maximum_length AS len FROM information_schema.columns
+             WHERE table_schema = ? AND table_name = ? AND column_name = ?',
+            [$connection->getDatabaseName(), $table, $column]
+        );
+
+        return $row?->len === null ? null : (int) $row->len;
     }
 
     /**

@@ -190,17 +190,6 @@ class TenantFixture
      *
      * MySQL 8 has a native `json` type. MariaDB does not: it stores JSON as
      * LONGTEXT with an auto-generated `CHECK (json_valid(`col`))` constraint,
-     * which is the only thing that distinguishes it from any other text
-     * column — so that constraint is what we read. SQLite enforces neither and
-     * needs no special case.
-     *
-     * @return list<string>
-     */
-    /**
-     * JSON columns of $table, according to the database rather than a list.
-     *
-     * MySQL 8 has a native `json` type. MariaDB does not: it stores JSON as
-     * LONGTEXT with an auto-generated `CHECK (json_valid(`col`))` constraint,
      * which is the only thing distinguishing it from any other text column —
      * so that constraint is what we read. SQLite enforces neither and needs no
      * special case.
@@ -256,7 +245,10 @@ class TenantFixture
             ) as $row) {
                 $r = array_values(get_object_vars($row));
 
-                if (preg_match('/json_valid\\(`(.+?)`\\)/i', (string) $r[1], $m)) {
+                // Tolerant of spacing and of a clause written without
+                // backticks; taken from the same fix on
+                // migration/phase-7-shared-packages.
+                if (preg_match('/json_valid\\s*\\(\\s*`?([A-Za-z0-9_]+)`?\\s*\\)/i', (string) $r[1], $m)) {
                     $map[(string) $r[0]][] = $m[1];
                 }
             }

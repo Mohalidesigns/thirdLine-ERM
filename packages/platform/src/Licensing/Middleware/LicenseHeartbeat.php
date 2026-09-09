@@ -2,13 +2,13 @@
 
 namespace ThirdLine\Platform\Licensing\Middleware;
 
-use ThirdLine\Platform\Licensing\DeviceFingerprint;
-use ThirdLine\Platform\Licensing\LicenseManager;
-use ThirdLine\Platform\Licensing\SyncManager;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Response;
+use ThirdLine\Platform\Licensing\DeviceFingerprint;
+use ThirdLine\Platform\Licensing\LicenseManager;
+use ThirdLine\Platform\Licensing\SyncManager;
 
 class LicenseHeartbeat
 {

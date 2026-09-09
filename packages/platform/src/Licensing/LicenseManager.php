@@ -2,9 +2,9 @@
 
 namespace ThirdLine\Platform\Licensing;
 
-use ThirdLine\Platform\Licensing\Exceptions\LicenseExpiredException;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
+use ThirdLine\Platform\Licensing\Exceptions\LicenseExpiredException;
 
 class LicenseManager
 {

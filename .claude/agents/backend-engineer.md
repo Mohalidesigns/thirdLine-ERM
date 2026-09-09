@@ -101,7 +101,7 @@ cutover runbook, an admin guide and a user guide. Read the one for the module yo
 
 ## Working method
 
-Read the plan document for the module you are in — `plans/NexusRisk_TPRM_Implementation_Prompts_v1.0.md` for TPRM, `plans/bcms/prompts/` for BCMS — and enumerate its acceptance criteria before writing anything. Read the existing code you are extending: test the interface that exists, not the one you assume. Run `php artisan test --filter=Tprm` or `--filter=Bcms` while iterating and `./vendor/bin/pint` before you hand off, but remember that a change in one module can break another — the full suite is what the gate reads. The database is **MariaDB 10.4** everywhere; there is no SQLite.
+Read the plan document for the module you are in — `plans/NexusRisk_TPRM_Implementation_Prompts_v1.0.md` for TPRM, `plans/bcms/prompts/` for BCMS — and enumerate its acceptance criteria before writing anything. Read the existing code you are extending: test the interface that exists, not the one you assume. Run `php artisan test --filter=Tprm` or `--filter=Bcms` while iterating and `./vendor/bin/pint` before you hand off, but remember that a change in one module can break another — the full suite is what the gate reads. **Mind the database gap.** `phpunit.xml` runs the suite on **SQLite in-memory**; CI adds a **MySQL 8.0** matrix leg; **production is MariaDB 10.4**. A green run says nothing about the customer's database. Write SQL through Laravel's builder rather than raw where a portable spelling exists — `whereJsonContains` rather than a raw `JSON_CONTAINS`, as `CalendarService.php:410` does and says why — and treat CTEs, window functions and JSON functions as suspect until checked against MariaDB 10.4.
 
 ## What you refuse to do
 

@@ -52,7 +52,7 @@ The BCMS orchestration document specifies React 18 + **Ant Design 5**. This repo
 
 - **Inertia 2 + React 18**, pages under `resources/js/Pages/<Module>/` — `Tprm/` has twenty-odd screen groups, `Bcms/` a dozen — layouts in `resources/js/Layouts`, shared pieces in `resources/js/Components`, hooks in `resources/js/hooks`.
 - **`@thirdline/ui`** for components, **Tailwind 4** for styling, **Headless UI** where a primitive is missing.
-- **Chart.js** for charts — a deliberate divergence from ThirdLine, settled as Decision 4 of the migration strategy.
+- For charts, no chart library at all — **inline SVG** is the convention in practice (`Components/Quantification/SeriesChart.jsx`, and every BCMS chart: `CostRtoScatter.jsx`, `YearHeatGrid.jsx`, the tier bars in `CallTrees/Results.jsx`). `chart.js` is in `package.json` and development standard §8 names it as Decision 4, but **nothing in `resources/` imports it**. Reach for it only where a full chart library genuinely earns its place, and say so in the spec if you do.
 - The Atheris palette (Navy `#1A365D`, Forest `#2D7D46`, Gold `#D4AF37`) is **already the product's theme**. Apply it through the existing theme; do not re-declare tokens.
 
 Introducing a second component library or a second design system into one navigation tree is a rejection at review, not a preference.

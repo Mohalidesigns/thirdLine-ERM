@@ -90,4 +90,11 @@ alerts default to simulation mode with the "THIS IS AN EXERCISE" prefix; life-sa
 the `bcms-lifesafety` queue and is never throttled; one reminder digest per user per day; persist
 before you dispatch; reuse EA/TPRM/KRI/thirdLine rather than duplicating them.
 
-The database is **MariaDB 10.4** locally, in CI and in production. There is no SQLite.
+**Three databases, and none of them is the one the suite runs on.** `phpunit.xml:41-42` sets
+`DB_CONNECTION=sqlite`, `DB_DATABASE=:memory:`; CI runs a `[sqlite, mysql]` matrix against
+**MySQL 8.0**; production is **MariaDB 10.4**. Nothing in the pipeline touches MariaDB, so a green
+suite is not evidence about the customer's database. The MariaDB test config exists on
+`migration/phase-7-shared-packages` and `fix/parent-cycle-guard` and has not reached this branch.
+Until it does, portable SQL is a correctness requirement, not a style preference — see
+`CalendarService.php:410`, where a raw `JSON_CONTAINS` was deliberately avoided because it "would
+pass every test and fail on the only database a customer runs".

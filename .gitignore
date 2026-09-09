@@ -28,6 +28,13 @@ Thumbs.db
 /plans/
 /erm-update/
 /files_/
+
+# Source material for the BCMS build, not product code: the blueprint, the
+# orchestration document and the phase prompts. Kept out of the repository at
+# the user's instruction (2026-09-10) — it is reference input, and it carries
+# .DS_Store noise. The decisions taken FROM it live in docs/adr/ and
+# docs/bcms/, which are tracked.
+/nexusrisk-bcms-build-pack/
 /_to_delete/
 /migration/
 /risk

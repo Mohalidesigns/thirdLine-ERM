@@ -205,6 +205,65 @@ class CycleAuthorizationTest extends CycleTestCase
             ->assertSessionHasErrors('methodology_id');
     }
 
+    /* ------------------------------------------------------------------ */
+    /*  The scope endpoint — the units a cycle would provision */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function the_scope_endpoint_reports_the_units_and_risk_counts_a_cycle_would_provision(): void
+    {
+        $this->publishedRisk(['risk_no' => 'RETAIL-R1']);
+        $this->publishedRisk(['risk_no' => 'RETAIL-R2']);
+        $this->publishedRisk([
+            'risk_no' => 'TREAS-R1',
+            'business_unit_id' => $this->treasury->id,
+            'process_id' => null,
+            'potential_risk' => 'A risk that belongs to Treasury rather than Retail.',
+        ]);
+        // A draft risk is not part of the universe a cycle would provision, so
+        // it must not inflate either unit's count.
+        $this->makeRisk(['risk_no' => 'RETAIL-DRAFT', 'status' => \App\Models\Rcsa\RcsaRegisterRisk::DRAFT]);
+
+        $cycle = $this->makeCycle();
+
+        $response = $this->actingAs($this->actor)
+            ->getJson(route('rcsa.cycles.scope', $cycle))
+            ->assertOk();
+
+        $units = collect($response->json('units'))->keyBy('name');
+
+        $this->assertSame(2, $units['Retail Banking']['risks']);
+        $this->assertSame(1, $units['Treasury']['risks']);
+        $this->assertCount(2, $units);
+    }
+
+    #[Test]
+    public function the_scope_endpoint_is_refused_without_the_view_permission(): void
+    {
+        $cycle = $this->makeCycle();
+
+        $this->actingAs($this->userWith([]))
+            ->getJson(route('rcsa.cycles.scope', $cycle))
+            ->assertForbidden();
+    }
+
+    #[Test]
+    public function the_scope_endpoint_does_not_reach_another_tenants_cycle(): void
+    {
+        $foreign = TenantContext::bypass(fn () => RcsaCycle::create([
+            'organization_id' => $this->otherOrg->id,
+            'name' => 'Another bank\'s cycle',
+            'period_start' => '2026-01-01',
+            'period_end' => '2026-06-30',
+            'methodology_id' => $this->methodology()->id,
+            'status' => RcsaCycle::DRAFT,
+        ]));
+
+        $this->actingAs($this->actor)
+            ->getJson(route('rcsa.cycles.scope', $foreign->id))
+            ->assertNotFound();
+    }
+
     #[Test]
     public function the_system_methodology_can_be_used_by_any_tenant(): void
     {

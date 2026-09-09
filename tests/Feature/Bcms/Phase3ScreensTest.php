@@ -173,6 +173,61 @@ class Phase3ScreensTest extends TestCase
             ->assertForbidden();
     }
 
+    #[Test]
+    public function the_compare_screen_lists_every_option_against_the_required_rto(): void
+    {
+        $process = $this->processWithBia('BCP-PAY', rto: 1);
+        $selected = $this->strategy($process, achievable: 2, cost: 18_000_000_00);
+
+        app(StrategyService::class)->propose($process, StrategyType::ManualWorkaround, [
+            'title' => 'Paper ledger', 'rto_achievable_hours' => 0.5,
+        ], $this->author()->id);
+
+        $this->actingAs($this->userWith(['bcms.strategy.view', 'bcms.strategy.manage']))
+            ->get(route('bcms.strategy.show', $process))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Bcms/Strategy/Compare')
+                ->where('process.code', 'BCP-PAY')
+                ->where('required.rto_hours', fn ($hours) => (float) $hours === 1.0)
+                ->has('options', 2)
+                ->where(
+                    'options',
+                    fn ($options) => collect($options)->firstWhere('id', $selected->id)['is_selected'] === true
+                        && collect($options)->firstWhere('title', 'Paper ledger')['meets_requirement'] === true
+                )
+                ->where('can.manage', true)
+                ->where('can.approve', false)
+            );
+    }
+
+    #[Test]
+    public function the_compare_screen_needs_the_strategy_view_permission(): void
+    {
+        $process = $this->processWithBia('BCP-NOVIEW', rto: 1);
+
+        $this->actingAs($this->userWith([], 'nobody-strategy@khb.test'))
+            ->get(route('bcms.strategy.show', $process))
+            ->assertForbidden();
+    }
+
+    #[Test]
+    public function the_compare_screen_does_not_reach_another_tenants_process(): void
+    {
+        $other = Organization::create([
+            'name' => 'Other Bank', 'short_name' => 'OB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        TenantContext::set($other->id);
+        $foreign = Process::factory()->create();
+        TenantContext::set($this->organization->id);
+
+        $this->actingAs($this->userWith(['bcms.strategy.view']))
+            ->get(route('bcms.strategy.show', $foreign))
+            ->assertNotFound();
+    }
+
     /* ------------------------------------------------------------------ */
     /*  Plan screens */
     /* ------------------------------------------------------------------ */

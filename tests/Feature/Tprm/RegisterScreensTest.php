@@ -302,6 +302,78 @@ class RegisterScreensTest extends TestCase
     }
 
     #[Test]
+    public function the_edit_form_carries_the_vendors_own_fields_and_the_pick_lists(): void
+    {
+        $category = \App\Models\Tprm\Category::create([
+            'code' => 'EDIT-TEST-CAT', 'name' => 'A category made for this test', 'is_active' => true, 'sort_order' => 1,
+        ]);
+        $vendor = $this->makeThirdParty('Interlink Systems Limited', 'interlink');
+        $vendor->update(['category_id' => $category->id, 'trading_name' => 'Interlink']);
+        $otherVendor = $this->makeThirdParty('Other Possible Parent', 'other-possible-parent');
+
+        $this->actingAs($this->user)
+            ->get(route('tprm.third-parties.edit', $vendor))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Tprm/ThirdParties/Form')
+                ->where('thirdParty.id', $vendor->id)
+                ->where('thirdParty.legal_name', 'Interlink Systems Limited')
+                ->where('thirdParty.trading_name', 'Interlink')
+                ->where('thirdParty.category_id', $category->id)
+                ->where(
+                    'options.categories',
+                    fn ($categories) => collect($categories)->firstWhere('id', $category->id)['name']
+                        === 'A category made for this test',
+                )
+                ->has('options.statuses')
+                ->has('options.entityTypes')
+                // Another vendor is offered as a possible parent...
+                ->where('options.parents', fn ($parents) => collect($parents)->pluck('id')->contains($otherVendor->id))
+                // ...but the vendor being edited must not offer itself as its
+                // own ultimate parent.
+                ->where('options.parents', fn ($parents) => collect($parents)->pluck('id')->doesntContain($vendor->id))
+            );
+    }
+
+    #[Test]
+    public function the_edit_form_is_refused_without_the_edit_permission(): void
+    {
+        $vendor = $this->makeThirdParty('Interlink Systems Limited', 'interlink');
+
+        $viewer = User::create([
+            'name' => 'Viewer', 'email' => 'viewer-edit@khb.test',
+            'password' => Hash::make(Str::random(32)), 'email_verified_at' => now(),
+            'organization_id' => $this->organization->id, 'is_active' => true,
+        ]);
+        $role = Role::findOrCreate('tprm-viewer-edit', 'web');
+        $role->givePermissionTo(Permission::findOrCreate('tprm.view', 'web'));
+        $viewer->assignRole($role);
+
+        $this->actingAs($viewer)
+            ->get(route('tprm.third-parties.edit', $vendor))
+            ->assertForbidden();
+    }
+
+    #[Test]
+    public function the_edit_form_does_not_reach_another_tenants_third_party(): void
+    {
+        $foreignOrg = Organization::create([
+            'name' => 'Another Bank PLC', 'short_name' => 'ABP',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        $foreign = TenantContext::bypass(fn () => ThirdParty::create([
+            'organization_id' => $foreignOrg->id,
+            'legal_name' => "Another bank's vendor", 'slug' => 'another-banks-vendor',
+            'entity_type' => 'company', 'status' => 'active', 'country_of_incorporation' => 'NG',
+        ]));
+
+        $this->actingAs($this->user)
+            ->get(route('tprm.third-parties.edit', $foreign))
+            ->assertNotFound();
+    }
+
+    #[Test]
     public function the_engagement_workspace_renders_the_stored_derivation(): void
     {
         // AC-15's precondition: the panel reads one stored explanation rather

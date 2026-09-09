@@ -21,6 +21,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Inertia\Testing\AssertableInertia;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Spatie\Permission\Models\Permission;
@@ -248,6 +249,94 @@ class OverrideImportRulesetTest extends TestCase
         $this->assertSame(2, $result['deleted']);
         $this->assertSame(0, ThirdParty::count());
         $this->assertSame(ImportBatch::STATUS_ROLLED_BACK, $batch->refresh()->status);
+    }
+
+    #[Test]
+    public function the_show_screen_carries_the_batch_and_its_inspection_before_validation(): void
+    {
+        Storage::fake('local');
+
+        $batch = $this->uploadCsv(
+            "Vendor Name,RC Number,Country\nAlpha Systems Limited,RC-111111,NG\n"
+        );
+
+        $this->actingAs($this->user)
+            ->get(route('tprm.imports.show', $batch))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Tprm/Imports/Show')
+                ->where('batch.id', $batch->id)
+                ->where('batch.status', ImportBatch::STATUS_DRAFT)
+                ->where('batch.can_commit', false)
+                // A draft batch is still readable, so the columns it would map
+                // are inspected live.
+                ->where('inspection.suggestion.legal_name', 'Vendor Name')
+                ->has('columns')
+                ->where('columns', fn ($columns) => collect($columns)->pluck('key')->contains('legal_name'))
+            );
+    }
+
+    #[Test]
+    public function the_show_screen_stops_inspecting_the_file_once_the_batch_is_committed(): void
+    {
+        Storage::fake('local');
+
+        $batch = $this->uploadCsv("Vendor Name\nGamma Systems Limited\n");
+        app(ThirdPartyImporter::class)->dryRun($batch, ['legal_name' => 'Vendor Name']);
+        app(ThirdPartyImporter::class)->commit($batch, $this->user->id);
+
+        $this->actingAs($this->user)
+            ->get(route('tprm.imports.show', $batch->refresh()))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('batch.status', ImportBatch::STATUS_COMMITTED)
+                ->where('batch.created_count', 1)
+                ->where('inspection', null)
+            );
+    }
+
+    #[Test]
+    public function the_import_screens_need_the_create_permission(): void
+    {
+        Storage::fake('local');
+
+        $batch = $this->uploadCsv("Vendor Name\nDelta Systems Limited\n");
+
+        $viewer = User::create([
+            'name' => 'Viewer', 'email' => 'viewer-import@khb.test',
+            'password' => Hash::make(Str::random(32)), 'email_verified_at' => now(),
+            'organization_id' => $this->organization->id, 'is_active' => true,
+        ]);
+        $role = Role::findOrCreate('tprm-viewer-import', 'web');
+        $role->givePermissionTo(Permission::findOrCreate('tprm.view', 'web'));
+        $viewer->assignRole($role);
+
+        $this->actingAs($viewer)
+            ->get(route('tprm.imports.show', $batch))
+            ->assertForbidden();
+    }
+
+    #[Test]
+    public function an_import_batch_from_another_tenant_is_not_found(): void
+    {
+        Storage::fake('local');
+
+        $foreignOrg = Organization::create([
+            'name' => 'Another Bank PLC', 'short_name' => 'ABP',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        $foreignBatch = TenantContext::bypass(fn () => ImportBatch::create([
+            'organization_id' => $foreignOrg->id,
+            'target' => ImportBatch::TARGET_THIRD_PARTIES,
+            'original_filename' => 'theirs.csv',
+            'file_path' => 'tprm/imports/theirs.csv',
+            'status' => ImportBatch::STATUS_DRAFT,
+        ]));
+
+        $this->actingAs($this->user)
+            ->get(route('tprm.imports.show', $foreignBatch))
+            ->assertNotFound();
     }
 
     #[Test]

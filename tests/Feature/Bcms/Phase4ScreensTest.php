@@ -279,6 +279,15 @@ class Phase4ScreensTest extends TestCase
 
         $url = app(IcsFeedBuilder::class)->urlFor($author);
 
+        // The builder's URL has to actually BE the named route, signed — not
+        // some other path that happens to work today. Asserted against
+        // `route()` directly rather than trusted because the request below
+        // succeeds.
+        $this->assertSame(
+            route('bcms.calendar.ics', ['user' => $author->id], false),
+            parse_url($url, PHP_URL_PATH),
+        );
+
         // No `actingAs`: Outlook and Google send no cookie, which is the whole
         // reason this route is outside `auth`.
         $response = $this->get($url);
@@ -353,6 +362,22 @@ class Phase4ScreensTest extends TestCase
         // A signature stays valid until the key rotates, and a subscription
         // keeps fetching long after somebody has left.
         $author->update(['is_active' => false]);
+
+        $this->get($url)->assertNotFound();
+    }
+
+    /**
+     * A DISTINCT branch from the disabled-account check above: an account
+     * with no organisation at all (a platform-level login with nothing to set
+     * `TenantContext` from) must not be able to pull anybody's feed.
+     */
+    #[Test]
+    public function an_account_with_no_organisation_cannot_pull_a_feed(): void
+    {
+        $author = $this->author();
+        $url = app(IcsFeedBuilder::class)->urlFor($author);
+
+        $author->update(['organization_id' => null]);
 
         $this->get($url)->assertNotFound();
     }

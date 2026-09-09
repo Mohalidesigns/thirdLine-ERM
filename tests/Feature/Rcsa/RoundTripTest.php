@@ -3,6 +3,7 @@
 namespace Tests\Feature\Rcsa;
 
 use App\Models\Rcsa\RcsaAssessment;
+use App\Models\Rcsa\RcsaCycle;
 use App\Models\Rcsa\RcsaImportBatch;
 use App\Services\Rcsa\RcsaAssessmentService;
 use App\Services\Rcsa\RcsaCycleService;
@@ -10,8 +11,10 @@ use App\Services\Rcsa\RcsaRoundTripService;
 use App\Services\Rcsa\RcsaWorkbookWriter;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Testing\AssertableInertia;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPUnit\Framework\Attributes\Test;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * §10.4 — the offline round trip.
@@ -109,6 +112,81 @@ class RoundTripTest extends CycleTestCase
             ->assertRedirect();
 
         return RcsaImportBatch::query()->latest('id')->firstOrFail();
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  The conflict-resolution screen itself (GET show) */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function the_show_screen_renders_the_batch_with_its_rows_and_summary(): void
+    {
+        $edited = $this->edit($this->downloadWorkingCopy(), [
+            1 => ['Likelihood (without control)' => 5],
+        ]);
+
+        $batch = $this->upload($edited);
+
+        $this->actingAs($this->actor)
+            ->get(route('rcsa.round-trip.show', [$this->assessment, $batch]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('RcsaRoundTrip/Show')
+                ->where('assessment.id', $this->assessment->id)
+                ->where('batch.id', $batch->id)
+                ->where('batch.original_name', 'working-copy.xlsx')
+                ->where('batch.applied', false)
+                ->has('rows', 3)
+                ->where('summary.total', 3)
+                ->where('summary.changes', 1)
+                ->where('summary.conflicts', 0)
+            );
+    }
+
+    #[Test]
+    public function the_show_screen_is_refused_to_somebody_who_cannot_complete_the_assessment(): void
+    {
+        $batch = $this->upload($this->downloadWorkingCopy());
+
+        $reader = $this->userWith(['rcsa_assessment.view']);
+
+        $this->actingAs($reader)
+            ->get(route('rcsa.round-trip.show', [$this->assessment, $batch]))
+            ->assertForbidden();
+    }
+
+    #[Test]
+    public function a_batch_from_another_tenant_is_not_found(): void
+    {
+        $foreignCycle = TenantContext::bypass(fn () => RcsaCycle::create([
+            'organization_id' => $this->otherOrg->id,
+            'name' => "Another bank's cycle",
+            'period_start' => '2026-01-01',
+            'period_end' => '2026-06-30',
+            'methodology_id' => $this->methodology()->id,
+            'status' => RcsaCycle::OPEN,
+        ]));
+
+        $foreignAssessment = TenantContext::bypass(fn () => RcsaAssessment::create([
+            'organization_id' => $this->otherOrg->id,
+            'cycle_id' => $foreignCycle->id,
+            'business_unit_id' => $this->foreignUnit->id,
+            'status' => RcsaAssessment::IN_PROGRESS,
+        ]));
+
+        $foreignBatch = TenantContext::bypass(fn () => RcsaImportBatch::create([
+            'organization_id' => $foreignAssessment->organization_id,
+            'user_id' => $this->actor->id,
+            'type' => 'assessment',
+            'assessment_id' => $foreignAssessment->id,
+            'file_path' => 'rcsa/round-trip/does-not-matter.xlsx',
+            'original_name' => 'theirs.xlsx',
+            'status' => RcsaImportBatch::QUEUED,
+        ]));
+
+        $this->actingAs($this->actor)
+            ->get(route('rcsa.round-trip.show', [$this->assessment, $foreignBatch]))
+            ->assertNotFound();
     }
 
     /* ------------------------------------------------------------------ */

@@ -125,6 +125,137 @@ class Phase6ScreensTest extends TestCase
     }
 
     #[Test]
+    public function the_versions_endpoint_lists_the_whole_supersession_chain(): void
+    {
+        $tree = $this->tree(approve: true);
+
+        $next = app(CallTreeService::class)->supersede($tree, '2.0', $this->admin()->id);
+
+        $response = $this->actingAs($this->userWith(['bcms.calltree.view']))
+            ->getJson(route('bcms.call-trees.versions', $next));
+
+        $response->assertOk();
+
+        $versions = collect($response->json('versions'));
+
+        $this->assertCount(2, $versions);
+        $this->assertSame(
+            ['1.0', '2.0'],
+            $versions->pluck('version')->sort()->values()->all(),
+        );
+        $old = $versions->firstWhere('version', '1.0');
+        $new = $versions->firstWhere('version', '2.0');
+
+        $this->assertSame('archived', $old['status']);
+        $this->assertFalse($old['is_current']);
+        $this->assertSame('draft', $new['status']);
+        $this->assertTrue($new['is_current']);
+    }
+
+    #[Test]
+    public function the_versions_endpoint_needs_the_calltree_view_permission(): void
+    {
+        $tree = $this->tree();
+
+        $this->actingAs($this->userWith([], 'nobody-versions@khb.test'))
+            ->getJson(route('bcms.call-trees.versions', $tree))
+            ->assertForbidden();
+    }
+
+    #[Test]
+    public function the_versions_endpoint_does_not_reach_another_tenants_tree(): void
+    {
+        $other = Organization::create([
+            'name' => 'Other Bank', 'short_name' => 'OB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        TenantContext::set($other->id);
+        $foreign = CallTree::query()->create([
+            'organization_id' => $other->id, 'name' => 'Theirs',
+            'tree_type' => CallTreeType::Department->value, 'version' => '1.0', 'status' => 'draft',
+            'review_frequency_days' => 180, 'source' => 'manual',
+        ]);
+        TenantContext::set($this->organization->id);
+
+        $this->actingAs($this->userWith(['bcms.calltree.view']))
+            ->getJson(route('bcms.call-trees.versions', $foreign))
+            ->assertNotFound();
+    }
+
+    #[Test]
+    public function the_candidates_endpoint_offers_people_in_the_trees_own_unit(): void
+    {
+        $tree = $this->tree();
+
+        // Somebody in the tree's own department who is not on the tree yet.
+        $available = $this->contact('Available Officer');
+
+        // Somebody in a different department entirely.
+        $otherUnit = BusinessUnit::create([
+            'organization_id' => $this->organization->id, 'code' => 'BU-FIN',
+            'name' => 'Finance', 'is_active' => true,
+        ]);
+        $outOfScope = Contact::query()->create([
+            'organization_id' => $this->organization->id,
+            'source' => ContactSource::Manual->value,
+            'full_name' => 'Finance Officer',
+            'employee_id' => 'S-FIN-1',
+            'business_unit_id' => $otherUnit->id,
+            'title' => 'Finance Officer',
+            'email' => 'finance-officer@khb.test',
+            'mobile_primary' => '+2348001112223',
+            'preferred_language' => 'en',
+            'consent_status' => 'granted',
+            'verification_status' => 'verified',
+            'last_verified_at' => now()->subDays(5),
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->userWith(['bcms.calltree.view']))
+            ->getJson(route('bcms.call-trees.candidates', $tree).'?q=Officer');
+
+        $response->assertOk();
+
+        $names = collect($response->json('contacts'))->pluck('name');
+
+        $this->assertTrue($names->contains('Available Officer'));
+        $this->assertFalse($names->contains('Finance Officer'));
+        $this->assertTrue($response->json('contacts.0')['has_mobile']);
+    }
+
+    #[Test]
+    public function the_candidates_endpoint_needs_the_calltree_view_permission(): void
+    {
+        $tree = $this->tree();
+
+        $this->actingAs($this->userWith([], 'nobody-candidates@khb.test'))
+            ->getJson(route('bcms.call-trees.candidates', $tree))
+            ->assertForbidden();
+    }
+
+    #[Test]
+    public function the_candidates_endpoint_does_not_reach_another_tenants_tree(): void
+    {
+        $other = Organization::create([
+            'name' => 'Other Bank', 'short_name' => 'OB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        TenantContext::set($other->id);
+        $foreign = CallTree::query()->create([
+            'organization_id' => $other->id, 'name' => 'Theirs',
+            'tree_type' => CallTreeType::Department->value, 'version' => '1.0', 'status' => 'draft',
+            'review_frequency_days' => 180, 'source' => 'manual',
+        ]);
+        TenantContext::set($this->organization->id);
+
+        $this->actingAs($this->userWith(['bcms.calltree.view']))
+            ->getJson(route('bcms.call-trees.candidates', $foreign))
+            ->assertNotFound();
+    }
+
+    #[Test]
     public function the_live_map_and_its_polled_payload_agree(): void
     {
         $tree = $this->tree(approve: true);
@@ -207,6 +338,94 @@ class Phase6ScreensTest extends TestCase
     }
 
     #[Test]
+    public function the_scorecard_endpoint_stores_its_result_once_the_cascade_completes(): void
+    {
+        [$test] = $this->brokenCascade();
+
+        $response = $this->actingAs($this->userWith(['bcms.calltree.view']))
+            ->getJson(route('bcms.call-tree-tests.scorecard', $test));
+
+        $response->assertOk();
+        $this->assertTrue($response->json('stored'));
+        $this->assertSame($test->refresh()->scorecard, $response->json('scorecard'));
+        $this->assertArrayHasKey('by_tier', $response->json('scorecard'));
+        $this->assertArrayHasKey('must_reach_missed', $response->json('scorecard'));
+    }
+
+    #[Test]
+    public function the_scorecard_endpoint_computes_live_while_the_cascade_is_still_running(): void
+    {
+        $tree = $this->tree(approve: true);
+        $engine = app(CascadeEngine::class);
+        $test = $engine->schedule($tree, CascadeMode::Automated, true, null, $this->admin()->id);
+        $engine->initiate($test, $this->admin()->id);
+
+        $response = $this->actingAs($this->userWith(['bcms.calltree.view']))
+            ->getJson(route('bcms.call-tree-tests.scorecard', $test));
+
+        $response->assertOk();
+        $this->assertFalse($response->json('stored'));
+        // Nothing is completed yet, so nothing is stored on the record — the
+        // response has to have been computed on the fly.
+        $this->assertEmpty($test->refresh()->scorecard);
+        $this->assertArrayHasKey('nodes_total', $response->json('scorecard'));
+    }
+
+    #[Test]
+    public function the_scorecard_endpoint_needs_the_calltree_view_permission(): void
+    {
+        [$test] = $this->brokenCascade();
+
+        $this->actingAs($this->userWith([], 'nobody-scorecard@khb.test'))
+            ->getJson(route('bcms.call-tree-tests.scorecard', $test))
+            ->assertForbidden();
+    }
+
+    #[Test]
+    public function the_scorecard_endpoint_does_not_reach_another_tenants_test(): void
+    {
+        $foreign = $this->foreignCallTreeTest();
+
+        $this->actingAs($this->userWith(['bcms.calltree.view']))
+            ->getJson(route('bcms.call-tree-tests.scorecard', $foreign))
+            ->assertNotFound();
+    }
+
+    #[Test]
+    public function the_broken_branches_endpoint_reports_the_same_downstream_count_as_the_results_screen(): void
+    {
+        [$test, $expected] = $this->brokenCascade();
+
+        $response = $this->actingAs($this->userWith(['bcms.calltree.view']))
+            ->getJson(route('bcms.call-tree-tests.broken-branches', $test));
+
+        $response->assertOk();
+        $this->assertSame($expected, $response->json('branches.0.downstream_blocked_count'));
+        $this->assertArrayHasKey('headline', $response->json('branches.0'));
+        $this->assertArrayHasKey('remedies', $response->json('branches.0'));
+    }
+
+    #[Test]
+    public function the_broken_branches_endpoint_needs_the_calltree_view_permission(): void
+    {
+        [$test] = $this->brokenCascade();
+
+        $this->actingAs($this->userWith([], 'nobody-branches@khb.test'))
+            ->getJson(route('bcms.call-tree-tests.broken-branches', $test))
+            ->assertForbidden();
+    }
+
+    #[Test]
+    public function the_broken_branches_endpoint_does_not_reach_another_tenants_test(): void
+    {
+        $foreign = $this->foreignCallTreeTest();
+
+        $this->actingAs($this->userWith(['bcms.calltree.view']))
+            ->getJson(route('bcms.call-tree-tests.broken-branches', $foreign))
+            ->assertNotFound();
+    }
+
+    #[Test]
     public function the_acknowledgement_page_needs_no_session_and_leads_with_the_exercise_prefix(): void
     {
         $tree = $this->tree(approve: true);
@@ -279,6 +498,78 @@ class Phase6ScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
+
+    /**
+     * A completed cascade with exactly one broken branch, and the downstream
+     * count that branch is expected to carry — the same fixture
+     * `the_results_screen_ships_the_broken_branch_with_its_count_and_its_fixes`
+     * builds, factored out so the scorecard and broken-branches JSON endpoints
+     * can be asserted against the identical numbers that screen shows.
+     *
+     * @return array{0: \App\Models\Bcms\CallTreeTest, 1: int}
+     */
+    private function brokenCascade(): array
+    {
+        $tree = $this->tree(approve: true, staff: 12);
+
+        $victim = CallTreeNode::query()->where('call_tree_id', $tree->getKey())->where('tier', 1)
+            ->withCount('children')->orderByDesc('children_count')->first();
+        $victim->update(['deputy_contact_id' => null]);
+        $victim->contact?->update(['mobile_primary' => null, 'email' => null]);
+
+        $expected = app(CallTreeService::class)->downstreamCount($victim);
+
+        $engine = app(CascadeEngine::class);
+        $test = $engine->schedule($tree, CascadeMode::Automated, true, null, $this->admin()->id);
+        $engine->initiate($test, $this->admin()->id);
+
+        for ($pass = 0; $pass < 6; $pass++) {
+            $waiting = \App\Models\Bcms\CallTreeTestNode::query()
+                ->where('test_id', $test->getKey())
+                ->where('outcome', \App\Enums\Bcms\CascadeOutcome::Pending->value)
+                ->whereNotNull('contacted_at')->get();
+
+            if ($waiting->isEmpty()) {
+                break;
+            }
+
+            foreach ($waiting as $row) {
+                $engine->acknowledge($row);
+            }
+        }
+
+        $engine->complete($test, $this->admin()->id);
+
+        return [$test->refresh(), $expected];
+    }
+
+    /** A call tree test belonging to a different tenant entirely. */
+    private function foreignCallTreeTest(): \App\Models\Bcms\CallTreeTest
+    {
+        $other = Organization::create([
+            'name' => 'Other Bank', 'short_name' => 'OB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        TenantContext::set($other->id);
+
+        $tree = CallTree::query()->create([
+            'organization_id' => $other->id, 'name' => 'Theirs',
+            'tree_type' => CallTreeType::Department->value, 'version' => '1.0', 'status' => 'approved',
+            'review_frequency_days' => 180, 'source' => 'manual', 'approved_at' => now(),
+        ]);
+
+        $test = \App\Models\Bcms\CallTreeTest::query()->create([
+            'organization_id' => $other->id,
+            'call_tree_id' => $tree->getKey(),
+            'mode' => CascadeMode::Automated->value,
+            'announced' => true,
+        ]);
+
+        TenantContext::set($this->organization->id);
+
+        return $test;
+    }
 
     private function tree(bool $approve = false, int $staff = 5): CallTree
     {

@@ -129,6 +129,91 @@ class Phase7ScreensTest extends TestCase
     }
 
     #[Test]
+    public function the_live_endpoint_matches_the_alert_screens_own_props(): void
+    {
+        $this->contact('Amina');
+        $this->contact('Chidi');
+
+        $alert = $this->alert(AlertSeverity::Urgent);
+        app(AlertService::class)->release($alert, $this->admin()->id);
+
+        $response = $this->actingAs($this->userWith(['bcms.alert.view']))
+            ->getJson(route('bcms.alerts.live', $alert->refresh()));
+
+        $response->assertOk();
+        $response->assertJsonPath('alert.id', $alert->id);
+        $response->assertJsonPath('roll_call.total', 2);
+        $response->assertJsonPath('roll_call.unaccounted_for', 2);
+        $this->assertArrayHasKey('by_department', $response->json('roll_call'));
+    }
+
+    #[Test]
+    public function the_live_endpoint_needs_the_alert_view_permission(): void
+    {
+        $alert = $this->alert(AlertSeverity::Urgent);
+
+        $this->actingAs($this->userWith([], 'nobody-live@khb.test'))
+            ->getJson(route('bcms.alerts.live', $alert))
+            ->assertForbidden();
+    }
+
+    #[Test]
+    public function the_live_endpoint_does_not_reach_another_tenants_alert(): void
+    {
+        $foreign = $this->foreignAlert();
+
+        $this->actingAs($this->userWith(['bcms.alert.view']))
+            ->getJson(route('bcms.alerts.live', $foreign))
+            ->assertNotFound();
+    }
+
+    #[Test]
+    public function the_roll_call_endpoint_separates_silence_from_unreachable(): void
+    {
+        $this->contact('Amina');
+        $this->contact('Chidi');
+
+        $alert = $this->alert(AlertSeverity::Urgent);
+        app(AlertService::class)->release($alert, $this->admin()->id);
+
+        $recipient = \App\Models\Bcms\AlertRecipient::query()
+            ->where('alert_id', $alert->getKey())
+            ->whereHas('contact', fn ($q) => $q->where('full_name', 'Amina'))
+            ->sole();
+
+        app(\App\Services\Bcms\Emns\RollCallService::class)->record($recipient, 'safe', null, 'in_app');
+
+        $response = $this->actingAs($this->userWith(['bcms.alert.view']))
+            ->getJson(route('bcms.alerts.roll-call', $alert->refresh()));
+
+        $response->assertOk();
+        $response->assertJsonPath('total', 2);
+        $response->assertJsonPath('safe', 1);
+        $response->assertJsonPath('silent', 1);
+        $response->assertJsonPath('unaccounted_for', 1);
+    }
+
+    #[Test]
+    public function the_roll_call_endpoint_needs_the_alert_view_permission(): void
+    {
+        $alert = $this->alert(AlertSeverity::Urgent);
+
+        $this->actingAs($this->userWith([], 'nobody-rollcall@khb.test'))
+            ->getJson(route('bcms.alerts.roll-call', $alert))
+            ->assertForbidden();
+    }
+
+    #[Test]
+    public function the_roll_call_endpoint_does_not_reach_another_tenants_alert(): void
+    {
+        $foreign = $this->foreignAlert();
+
+        $this->actingAs($this->userWith(['bcms.alert.view']))
+            ->getJson(route('bcms.alerts.roll-call', $foreign))
+            ->assertNotFound();
+    }
+
+    #[Test]
     public function the_template_library_leads_with_the_language_coverage_gap(): void
     {
         AlertTemplate::query()->create([
@@ -243,6 +328,25 @@ class Phase7ScreensTest extends TestCase
             'channels' => ['sms'],
             'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
         ], $this->admin()->id);
+    }
+
+    /** An alert belonging to a different tenant entirely. */
+    private function foreignAlert(): Alert
+    {
+        $other = Organization::create([
+            'name' => 'Other Bank', 'short_name' => 'OB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        TenantContext::set($other->id);
+        $foreign = Alert::query()->create([
+            'organization_id' => $other->id, 'title' => 'Theirs', 'message' => 'x',
+            'severity' => 'urgent', 'status' => 'draft', 'channels' => ['sms'],
+            'audience_rule' => ['type' => 'org_node', 'id' => 1],
+        ]);
+        TenantContext::set($this->organization->id);
+
+        return $foreign;
     }
 
     private function contact(string $name): Contact

@@ -627,6 +627,64 @@ class Phase3PlanBuilderTest extends TestCase
     }
 
     #[Test]
+    public function the_acknowledgements_export_streams_the_clause_74_evidence(): void
+    {
+        $plan = $this->approvedPlan();
+        app(PlanAcknowledgementService::class)->acknowledge($plan, $this->author, '10.0.0.9');
+
+        $exporter = $this->authorWithPermissions(['bcms.report.export']);
+
+        $response = $this->actingAs($exporter)
+            ->get(route('bcms.plans.acknowledgements.export', $plan));
+
+        $response->assertOk();
+        $csv = $response->streamedContent();
+
+        $this->assertStringContainsString('Acknowledged at', $csv);
+        $this->assertStringContainsString('ISO clause', $csv);
+        $this->assertStringContainsString($this->author->name, $csv);
+        $this->assertStringContainsString('10.0.0.9', $csv);
+        $this->assertStringContainsString('iso22301.7.4', $csv);
+    }
+
+    #[Test]
+    public function the_acknowledgements_export_needs_the_report_export_permission(): void
+    {
+        $plan = $this->approvedPlan();
+        app(PlanAcknowledgementService::class)->acknowledge($plan, $this->author);
+
+        // Seeing the plan is not exporting a clause 7.4 register of names,
+        // roles and IP addresses — that needs its own grant.
+        $viewer = $this->authorWithPermissions(['bcms.plan.view']);
+
+        $this->actingAs($viewer)
+            ->get(route('bcms.plans.acknowledgements.export', $plan))
+            ->assertForbidden();
+    }
+
+    #[Test]
+    public function the_acknowledgements_export_does_not_reach_another_tenants_plan(): void
+    {
+        $other = Organization::create([
+            'name' => 'Other Bank', 'short_name' => 'OB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        TenantContext::set($other->id);
+        $foreign = Plan::query()->create([
+            'plan_type' => PlanType::Bcp->value, 'title' => 'Theirs', 'status' => 'draft',
+            'version' => 1, 'content' => [],
+        ]);
+        TenantContext::set($this->organization->id);
+
+        $exporter = $this->authorWithPermissions(['bcms.report.export']);
+
+        $this->actingAs($exporter)
+            ->get(route('bcms.plans.acknowledgements.export', $foreign))
+            ->assertNotFound();
+    }
+
+    #[Test]
     public function an_acknowledgement_never_counts_as_a_board_attestation(): void
     {
         $plan = $this->approvedPlan();

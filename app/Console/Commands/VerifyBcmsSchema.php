@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -108,10 +109,17 @@ class VerifyBcmsSchema extends Command
     {
         $out = [];
 
-        foreach (Schema::getTableListing() as $table) {
-            // Some drivers qualify the name; take the last segment.
-            $name = str_contains($table, '.') ? substr(strrchr($table, '.'), 1) : $table;
-
+        // SCOPED TO THIS DATABASE, and unqualified names asked for rather
+        // than stripped. `getTableListing()` with no schema does not mean "the
+        // current database" — Laravel compiles it to
+        // `table_schema NOT IN ('information_schema','mysql',...)`, i.e. EVERY
+        // database on the server. Stripping the qualifier off the result then
+        // collapses `otherdb.bcms_alerts` onto `bcms_alerts`, and whichever
+        // schema sorts last silently wins the key. On a developer machine or
+        // any shared server this command was reporting a schema that was not
+        // the tenant's, and Gate G0's manifest diff stopped meaning anything.
+        // CI never saw it: its container hosts one database.
+        foreach (Schema::getTableListing(DB::connection()->getDatabaseName(), false) as $name) {
             if (! str_starts_with($name, 'bcms_')) {
                 continue;
             }

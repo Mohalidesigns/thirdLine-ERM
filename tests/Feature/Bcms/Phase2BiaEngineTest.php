@@ -400,11 +400,11 @@ class Phase2BiaEngineTest extends TestCase
         // The prompt asks for "no duplicated application row anywhere in
         // bcms_*". This product has no EA module, so `bcms_applications` IS the
         // register (ADR 0001) — what matters is that there is exactly one of it.
+        // Scoped to this database. Unscoped, `getTableListing()` returns every
+        // schema on the server, and this assertion saw six copies of
+        // `bcms_applications` on a machine that hosts several BCMS databases.
         $applicationTables = array_values(array_filter(
-            array_map(
-                fn (string $t) => str_contains($t, '.') ? substr(strrchr($t, '.'), 1) : $t,
-                Schema::getTableListing()
-            ),
+            Schema::getTableListing(DB::connection()->getDatabaseName(), false),
             fn (string $t) => str_starts_with($t, 'bcms_') && str_contains($t, 'application')
         ));
 

@@ -160,7 +160,18 @@ class PerformanceAndErmTest extends TestCase
             'metric_code' => 'ODD',
             'metric_name' => 'A metric with a strange operator',
             'unit' => '%',
-            'target_operator' => 'approximately',
+            // '~=' rather than 'approximately'. `tp_slas.target_operator` is
+            // varchar(10) — ample for the five it recognises ('>=', '>', '<=',
+            // '<', '=') — and the old 13-character value made MariaDB reject
+            // the INSERT with 1406 Data too long. The row never existed, so the
+            // assertion below never ran and the criterion this test exists to
+            // prove was unverified on the only database that matters. SQLite
+            // ignores VARCHAR length, which is why it looked fine for months.
+            //
+            // '~=' is also the better probe: it is shaped like an operator, so
+            // it is what someone would actually mistype, rather than a word no
+            // one would ever put in this column.
+            'target_operator' => '~=',
             'target_value' => 99,
             'measurement_window' => 'monthly',
         ]);

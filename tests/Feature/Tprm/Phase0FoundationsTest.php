@@ -16,6 +16,7 @@ use App\Models\Tprm\Engagement;
 use App\Models\Tprm\ScoreRun;
 use App\Models\Tprm\ThirdParty;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -530,8 +531,15 @@ class Phase0FoundationsTest extends TestCase
     /** @return list<string> */
     private function tprmTables(): array
     {
+        // Scoped to this database. `getTables()` with no schema spans every
+        // database on the server, so on a machine hosting another project with
+        // `tp_` tables this counted theirs as ours. Latent rather than failing
+        // when it was written; the same bug took Phase2BiaEngineTest down.
         return array_values(array_filter(
-            array_map(fn (array $t) => $t['name'], Schema::getTables()),
+            array_map(
+                fn (array $t) => $t['name'],
+                Schema::getTables(DB::connection()->getDatabaseName())
+            ),
             fn (string $name) => str_starts_with($name, 'tp_')
         ));
     }

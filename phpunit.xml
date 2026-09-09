@@ -38,8 +38,31 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
+        <!--
+            MariaDB, not SQLite in memory, and not MySQL either.
+
+            Production is MariaDB 10.4 — the hosting panel says "MySQL" and the
+            server does not — and developers run 10.4.28 locally, so this is the
+            engine the suite has to answer for. SQLite in memory was quick and
+            proved the wrong thing; MySQL 8 is worse than useless here, because
+            it has the CTEs, window functions and native JSON type that MariaDB
+            10.4 largely does not, so it goes green on SQL production cannot run.
+            MariaDB stores a `json` column as LONGTEXT behind a `json_valid()`
+            CHECK constraint, and the two engines fail differently.
+
+            It costs speed — minutes rather than ninety seconds — and it makes a
+            running MariaDB a prerequisite for the suite. `DB_DATABASE` is
+            deliberately a SEPARATE database from the development one, because
+            RefreshDatabase drops every table it finds: point this at `risk` and
+            the first test run destroys the developer's working data.
+
+            Credentials are left to `.env` so each developer keeps their own;
+            CI sets them explicitly in `.github/workflows/ci.yml`.
+        -->
+        <env name="DB_CONNECTION" value="mysql"/>
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="3306"/>
+        <env name="DB_DATABASE" value="risk_test"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

@@ -8,17 +8,31 @@ on:
 
 jobs:
   test:
-    name: Lint, guards, build and tests (${{ matrix.database }})
+    name: Lint, guards, build and tests (MariaDB)
     runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: false
-      matrix:
-        database: [sqlite, mysql]
-
     services:
-      mysql:
-        image: mysql:8.0
+      # MariaDB, not MySQL, and 10.4 to match production and what developers
+      # actually run.
+      #
+      # The matrix that used to live here was [sqlite, mysql:8.0], and neither
+      # arm was the customer's database. The sqlite arm was obviously not
+      # production and nobody trusted it; the mysql arm was the dangerous one,
+      # because it looks like real database coverage while having the CTEs,
+      # window functions and native JSON type that MariaDB 10.4 largely does
+      # not — so it went green on SQL production cannot run.
+      #
+      # The two are not interchangeable where it matters here: MariaDB stores a
+      # `json` column as LONGTEXT behind a `json_valid()` CHECK constraint,
+      # MySQL 8 has a native JSON type, and they fail differently.
+      #
+      # `mariadb:10.4` tracks 10.4.x; the machines it is matching are on
+      # 10.4.28. NOTE that 10.4 reached end of life in June 2024, so this pin
+      # follows the estate rather than endorsing it — when the estate upgrades,
+      # this moves with it. The image takes the legacy MYSQL_* variables; the
+      # MARIADB_* names arrived after 10.4.
+      mariadb:
+        image: mariadb:10.4
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: risk_test
@@ -86,18 +100,9 @@ jobs:
         run: php scripts/parity-check.php
 
       - name: Static analysis — PHPStan (Larastan, level 5, baseline)
-        if: matrix.database == 'sqlite'
         run: ./vendor/bin/phpstan analyse --memory-limit=2G --no-progress
 
-      - name: Tests (SQLite)
-        if: matrix.database == 'sqlite'
-        run: php vendor/bin/phpunit
-        env:
-          DB_CONNECTION: sqlite
-          DB_DATABASE: ':memory:'
-
-      - name: Tests (MySQL)
-        if: matrix.database == 'mysql'
+      - name: Tests (MariaDB)
         run: php vendor/bin/phpunit
         env:
           DB_CONNECTION: mysql
@@ -110,8 +115,11 @@ jobs:
       # Legacy dual-path tables must not gain new readers during the port
       # (docs/schema/deprecations.md).
       - name: Guard — deprecated schema paths
-        if: matrix.database == 'sqlite'
         run: php artisan schema:audit-deprecated
         env:
-          DB_CONNECTION: sqlite
-          DB_DATABASE: ':memory:'
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: risk_test
+          DB_USERNAME: root
+          DB_PASSWORD: root

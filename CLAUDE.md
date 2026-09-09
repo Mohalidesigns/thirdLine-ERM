@@ -36,6 +36,10 @@ pack assumes. Where the two disagree — AntD vs `@thirdline/ui` + Tailwind, `te
 `organization_id`, `app/Modules` vs the flat layout, Prism vs `LlmService` — the agents follow
 `docs/DEVELOPMENT_STANDARD.md` and ADR 0007, and so should you.
 
+They are also **product-wide, not BCMS-only**: each carries a module map and per-module sections
+for TPRM and RCSA alongside BCMS, because the four modules share a tenancy layer, a permission
+catalogue and one test suite. Use the same nine, and the same two gates, on TPRM and RCSA work.
+
 ## The per-phase sequence
 
 ```

@@ -24,6 +24,14 @@ largely does not. `app/Services/Bcms/Exercises/CalendarService.php:410` shows th
 outcome and states the reason: a raw `JSON_CONTAINS` "would pass every test and fail on the only
 database a customer runs".
 
+**The fix is two files, not one.** Switching `phpunit.xml` to MariaDB leaves CI still running its
+second leg against `mysql:8.0` — and that arm is the more dangerous of the two, because MySQL 8 has
+the CTEs, window functions and full JSON function set that MariaDB 10.4 largely does not. The
+sqlite arm is obviously not production and nobody trusts it; the mysql arm looks like real database
+coverage and goes green on SQL production cannot run. `ci.yml`'s service image needs to become
+`mariadb:10.4` alongside the `phpunit.xml` change, or CI keeps certifying against a database nobody
+ships.
+
 ## Module work is agent-driven
 
 The nine definitions in `.claude/agents/` are written against **this** repository — its layout,

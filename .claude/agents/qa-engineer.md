@@ -93,6 +93,17 @@ These have all bitten this codebase before. Probe for them every cycle rather th
 - **Enum casts** — a column holding a string the enum cannot cast, usually from a seeder or a factory.
 - **Non-singleton services holding cache** — a service that memoises per-instance and is resolved fresh per call, so the cache never hits.
 - **Scheduled commands that no test ever runs** — every command registered in `routes/console.php` needs a test that invokes it.
+- **Tenancy that is inert because nothing resolved a tenant.** `OrganizationScope` filters nothing
+  when no `TenantContext` is set, so it fails **open**, not closed. The exposed surface is every
+  entry point that is not an authenticated web request: token-authenticated public routes, ICS and
+  feed endpoints, inbound webhooks, queued jobs, and anything a seeder or a command runs inline.
+  In BCMS that is `CascadeAckController`, `CalendarController`, `InboundResponseHandler`,
+  `DispatchAlertChunkJob`, `EscalateAlertRecipientsJob` and `BcmsSettings`; TPRM's portal and its
+  eleven scheduled commands are the same shape. A job that clears `TenantContext` in a `finally`
+  is right for a worker and silently untenants everything after it when something runs it inline.
+  Test each entry point with **no tenant resolved** and assert it returns nothing rather than
+  everything. This family has recurred across phases; if you carry one standing check forward from
+  a phase, carry this one.
 - **Dead reads and dead eager-loads** — data loaded by the controller that the view never uses.
 
 ## Module-specific checks

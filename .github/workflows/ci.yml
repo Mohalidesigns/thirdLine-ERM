@@ -50,7 +50,13 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          # 8.4, matching production (docs/DEPLOYMENT.md: php8.4-fpm, and
+          # deploy.sh restarts it) and matching what composer.lock actually
+          # requires. Pinned to 8.2 this workflow could not `composer install`
+          # at all — symfony/* v8.1 needs >=8.4.1 — so it failed in 30 seconds
+          # and never reached Pint, PHPStan or the suite. Same fix as PR #4 on
+          # migration/phase-7-shared-packages.
+          php-version: '8.4'
           extensions: mbstring, pdo, pdo_sqlite, pdo_mysql, sqlite3, gd, zip, bcmath
           coverage: none
 

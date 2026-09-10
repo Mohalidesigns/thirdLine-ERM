@@ -549,7 +549,17 @@ class Preflight extends Command
     {
         // Path is overridable so the missing-file branch below can be tested
         // without moving a real document around on disk.
-        $handoff = base_path((string) config('preflight.bcms_handoff', self::BCMS_HANDOFF));
+        //
+        // `?:` rather than config()'s own default, because Arr::get() returns
+        // the default ONLY when the key is absent entirely. The day someone
+        // adds config/preflight.php with
+        // 'bcms_handoff' => env('PREFLIGHT_BCMS_HANDOFF') and leaves the env
+        // var unset, the key EXISTS holding null: config() hands back null, the
+        // cast makes it '', base_path('') resolves to the application root,
+        // File::exists() is true for a directory, and File::get() then throws
+        // because it wants is_file(). A release gate would crash instead of
+        // reporting. Found by qa-engineer at gate 1 cycle 5.
+        $handoff = base_path((string) (config('preflight.bcms_handoff') ?: self::BCMS_HANDOFF));
 
         if (! config('features.bcms')) {
             $this->pass('Uncertified modules', 'BCMS is off, as it must be until Phase 7 passes both gates');

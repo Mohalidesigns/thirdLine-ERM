@@ -124,4 +124,31 @@ class PreflightModuleGateTest extends TestCase
             "With BCMS off, a missing certification document is irrelevant and this row must PASS.\n\n".$output
         );
     }
+
+    #[Test]
+    public function a_null_handoff_path_falls_back_instead_of_crashing(): void
+    {
+        Config::set('features.bcms', true);
+        Config::set('preflight.bcms_handoff', null);
+
+        // The shape a future config/preflight.php would produce if it declared
+        // 'bcms_handoff' => env('PREFLIGHT_BCMS_HANDOFF') with the env var
+        // unset: the key EXISTS holding null, so config()'s own default is
+        // never reached. Cast to '' that resolves base_path() to the app root,
+        // File::exists() says true for a directory, and File::get() throws.
+        //
+        // The gate must fall back to the real document and report normally,
+        // not crash. A release gate that dies is not a release gate.
+        Artisan::call('app:preflight', ['--allow-local' => true]);
+        $output = Artisan::output();
+
+        $this->assertMatchesRegularExpression(
+            '/Uncertified modules\s*\|\s*FAIL/',
+            $output,
+            'A null configured path should fall back to the real handoff document, find the uncertified marker '.
+            "and FAIL cleanly.\n\n".$output
+        );
+        $this->assertStringNotContainsString('is missing, so its certification', $output,
+            'It fell through to the missing-file branch, so the fallback did not happen.');
+    }
 }

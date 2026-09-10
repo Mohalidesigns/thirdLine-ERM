@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -72,6 +73,55 @@ class PreflightModuleGateTest extends TestCase
             'The marker is gone from the Phase 7 handoff. If Phase 7 really has passed both gates that is correct '.
             'and this test should be deleted with it — but if the line was tidied away, the deploy gate it drives '.
             'has been silently disarmed.'
+        );
+    }
+
+    #[Test]
+    public function it_fails_rather_than_warns_when_the_certification_document_is_missing(): void
+    {
+        Config::set('features.bcms', true);
+        Config::set('preflight.bcms_handoff', 'docs/bcms/this-document-does-not-exist.md');
+
+        // The first version of this check WARNED here, and `handle()` only
+        // fails a deploy on failures — so deleting, moving or renaming one
+        // markdown file silently turned a hard release gate into a notice
+        // nobody reads. A gate that cannot confirm certification must refuse.
+        //
+        // ASSERT ON THE ROW, NOT ON THE EXIT CODE. Preflight reports many
+        // checks and several others fail in a test environment, so
+        // `assertFailed()` is true whether this check warns or fails — an
+        // earlier version of this test asserted exactly that and passed with
+        // the defect still present. Only the status printed against THIS row
+        // distinguishes the two.
+        Artisan::call('app:preflight', ['--allow-local' => true]);
+        $output = Artisan::output();
+
+        $this->assertMatchesRegularExpression(
+            '/Uncertified modules\s*\|\s*FAIL/',
+            $output,
+            "The missing-document branch did not FAIL.\nA warning does not block a deploy — `handle()` only returns ".
+            'FAILURE when $failures > 0 — so a gate that cannot confirm certification would let an uncertified '.
+            "module be served.\n\nPreflight output was:\n".$output
+        );
+    }
+
+    #[Test]
+    public function a_missing_document_is_harmless_while_the_module_is_off(): void
+    {
+        Config::set('features.bcms', false);
+        Config::set('preflight.bcms_handoff', 'docs/bcms/this-document-does-not-exist.md');
+
+        // Symmetry matters: the gate must not fail a deploy over a document it
+        // has no reason to read. Nothing uncertified is being served, so there
+        // is nothing to confirm. Asserted on the row for the same reason as
+        // above — the overall exit code cannot tell these cases apart.
+        Artisan::call('app:preflight', ['--allow-local' => true]);
+        $output = Artisan::output();
+
+        $this->assertMatchesRegularExpression(
+            '/Uncertified modules\s*\|\s*PASS/',
+            $output,
+            "With BCMS off, a missing certification document is irrelevant and this row must PASS.\n\n".$output
         );
     }
 }

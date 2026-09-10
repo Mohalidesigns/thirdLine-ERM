@@ -37,6 +37,9 @@ class Preflight extends Command
      */
     private const UNCERTIFIED_MARKER = 'THE QA GATE AND THE REVIEW GATE HAVE NOT BEEN RUN';
 
+    /** Where the BCMS Phase 7 certification state is recorded. */
+    private const BCMS_HANDOFF = 'docs/bcms/phase-7-handoff.md';
+
     protected $signature = 'app:preflight {--allow-local : Do not fail merely because APP_ENV is local}';
 
     protected $description = 'Verify this deployment is configured safely before serving traffic';
@@ -544,7 +547,9 @@ class Preflight extends Command
      */
     private function checkUncertifiedModulesAreOff(): void
     {
-        $handoff = base_path('docs/bcms/phase-7-handoff.md');
+        // Path is overridable so the missing-file branch below can be tested
+        // without moving a real document around on disk.
+        $handoff = base_path((string) config('preflight.bcms_handoff', self::BCMS_HANDOFF));
 
         if (! config('features.bcms')) {
             $this->pass('Uncertified modules', 'BCMS is off, as it must be until Phase 7 passes both gates');
@@ -553,7 +558,21 @@ class Preflight extends Command
         }
 
         if (! File::exists($handoff)) {
-            $this->warn_('Uncertified modules', 'BCMS is ON and docs/bcms/phase-7-handoff.md is missing; cannot confirm it was certified');
+            // FAIL, not warn. A gate that cannot confirm certification must
+            // refuse, because the alternative is that deleting, moving or
+            // renaming one markdown file silently downgrades a release gate
+            // into a notice nobody reads — and handle() only fails a deploy on
+            // failures, never on warnings. That is not hypothetical: the
+            // .gitignore commit alongside this one records that the
+            // /plans/ → docs/history move is still outstanding, so documents
+            // in this repository do move.
+            //
+            // Failing open in the check whose whole purpose is to stop
+            // uncertified code being served would be the same defect this
+            // release gate exists to prevent, one level up. Found by
+            // qa-engineer at gate 1 cycle 4.
+            $this->fail_('Uncertified modules', 'BCMS is ON and '.self::BCMS_HANDOFF.' is missing, so its certification '.
+                'cannot be confirmed. Restore the document or turn FEATURE_BCMS off; do not serve an unverifiable module.');
 
             return;
         }

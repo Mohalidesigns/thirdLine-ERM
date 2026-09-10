@@ -59,6 +59,15 @@ which is the only reason it cannot ship silently.
 
 ## Before serving traffic
 
+**`scripts/deploy.sh` runs this automatically**, after migrations and the
+config/route/view caches and *before* restarting php-fpm and the queue worker.
+A non-zero exit aborts the deploy with the services left on the previous
+release. Until 2026-09-10 this section asked a human to remember; every control
+below was therefore worth exactly what remembering was worth.
+
+To run it by hand — on a host you are investigating, or before a manual
+release:
+
 ```bash
 php artisan app:preflight
 ```
@@ -67,6 +76,23 @@ Non-zero exit means do not serve. It checks `APP_ENV`, `APP_DEBUG`, `APP_KEY`,
 HTTPS, session cookie hardening, that no view loads an external CDN, that no
 web installer or dev auto-login remains, that **every** web and api route
 carries an authorization guard, and that the audit hash chain is present.
+
+It also reports three things that are not about hardening:
+
+- **Database engine** — the server's own `version()`, because nothing in a
+  Laravel configuration distinguishes MariaDB from MySQL: `DB_CONNECTION=mysql`
+  names the PDO driver and is correct for both, and hosting panels label both
+  "MySQL". **Run this on the customer's host to settle which engine you are
+  actually on.** A mismatch against what CI pins is a WARNING, not a failure —
+  which engine an estate runs is not a preflight check's decision.
+- **Modules enabled** — which feature-flagged modules this installation serves.
+  Every flag in `config/features.php` defaults to FALSE, so an installation
+  that never sets `FEATURE_TPRM` serves 404 on every TPRM route and the module
+  reads as absent rather than switched off.
+- **Uncertified modules** — FAILS the deploy when `FEATURE_BCMS` is on while
+  `docs/bcms/phase-7-handoff.md` still records that Phase 7 has not passed its
+  gates. **That document must exist on the target host** — the check fails if
+  it is missing, because a gate that cannot confirm certification must refuse.
 
 `schema:audit-deprecated` reports columns and tables scheduled for removal and
 what still writes to them. It is informational and exits zero.

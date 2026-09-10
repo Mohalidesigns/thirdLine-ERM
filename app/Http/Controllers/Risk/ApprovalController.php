@@ -2,107 +2,80 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Approvals\ApproveRequest;
+use App\Http\Requests\Approvals\RejectRequest;
 use App\Models\ApprovalRequest;
+use App\Presenters\GridPresenter;
+use App\Presenters\WorkflowPresenter;
 use App\Services\ApprovalService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class ApprovalController extends Controller
 {
-    protected ApprovalService $approvalService;
-
-    public function __construct(ApprovalService $approvalService)
-    {
-        $this->approvalService = $approvalService;
-    }
+    public function __construct(
+        private readonly ApprovalService $approvals,
+        private readonly WorkflowPresenter $presenter,
+    ) {}
 
     /**
-     * Show pending approvals dashboard
+     * Pending approvals, grouped by the kind of record (migration Phase 3.7).
      */
     public function dashboard()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('viewAny', ApprovalRequest::class);
 
-        $pending = $this->approvalService->getPendingApprovals($orgId);
-        $stats = $this->approvalService->getStatistics($orgId);
+        $organizationId = (int) TenantContext::organizationId();
+        $pending = $this->approvals->getPendingApprovals($organizationId);
 
-        // Group by entity type for better organization
-        $groupedByEntity = $pending->groupBy('entity_type');
-
-        return view('risk.approvals.dashboard', compact('pending', 'groupedByEntity', 'stats'));
+        return Inertia::render('Approvals/Dashboard', [
+            'stats' => $this->approvals->getStatistics($organizationId),
+            'groups' => $pending->groupBy('entity_type')->map(fn ($approvals, $entityType) => [
+                'entity_type' => $entityType,
+                'count' => $approvals->count(),
+                'items' => $approvals->map(fn ($a) => $this->presenter->approval($a))->values()->all(),
+            ])->values()->all(),
+            'canAct' => Gate::allows('approval.act'),
+            'historyUrl' => route('risk.approvals.history'),
+        ]);
     }
 
-    /**
-     * Approve a pending approval request
-     */
-    public function approve(ApprovalRequest $approval, Request $request)
+    public function approve(ApproveRequest $request, ApprovalRequest $approval)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-
-        if ($approval->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this approval.');
-        }
-
-        if (!$approval->isPending()) {
+        if (! $approval->isPending()) {
             return back()->with('error', 'This approval request is no longer pending.');
         }
 
-        $validated = $request->validate([
-            'comments' => 'nullable|string|max:1000',
-        ]);
-
-        $this->approvalService->approve(
-            $approval,
-            auth()->id(),
-            $validated['comments'] ?? null
-        );
+        $this->approvals->approve($approval, $request->user()->id, $request->validated('comments'));
 
         return back()->with('success', 'Approval request has been approved.');
     }
 
-    /**
-     * Reject a pending approval request
-     */
-    public function reject(ApprovalRequest $approval, Request $request)
+    public function reject(RejectRequest $request, ApprovalRequest $approval)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-
-        if ($approval->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this approval.');
-        }
-
-        if (!$approval->isPending()) {
+        if (! $approval->isPending()) {
             return back()->with('error', 'This approval request is no longer pending.');
         }
 
-        $validated = $request->validate([
-            'rejection_reason' => 'required|string|max:1000',
-        ]);
-
-        $this->approvalService->reject(
-            $approval,
-            auth()->id(),
-            $validated['rejection_reason']
-        );
+        $this->approvals->reject($approval, $request->user()->id, $request->validated('rejection_reason'));
 
         return back()->with('success', 'Approval request has been rejected.');
     }
 
     /**
-     * View approval history
+     * WP-09: the history table is the shared data grid
+     * (App\Grids\Definitions\ApprovalsHistoryGrid), which carries the same
+     * approved/rejected/superseded scope getHistoryPaginated applied, plus the
+     * entity-type filter and pagination. The header needs no data.
      */
-    public function history(Request $request)
+    public function history(Request $request, GridPresenter $presenter)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-
-        $entityType = $request->get('entity_type');
-        $history = $this->approvalService->getHistoryPaginated($orgId, $entityType, 25);
-
-        // Get unique entity types for filter
-        $entityTypes = ApprovalRequest::where('organization_id', $orgId)
-            ->distinct()
-            ->pluck('entity_type');
-
-        return view('risk.approvals.history', compact('history', 'entityTypes', 'entityType'));
+        return Inertia::render('Approvals/History', [
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('approvals_history'), $request, $request->user()),
+        ]);
     }
 }

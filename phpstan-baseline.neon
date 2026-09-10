@@ -1,0 +1,1835 @@
+# PHPStan baseline.
+#
+# PRUNED 2026-09-10: 431 entries -> 297. The 134 removed were STALE — patterns
+# suppressing errors that no longer occur, because the code they described was
+# fixed and nobody came back to the baseline. `reportUnmatchedIgnoredErrors`
+# defaults to true, so each stale suppression was itself a hard error: the very
+# first CI run that got as far as PHPStan reported 145 errors, of which 134 were
+# `ignore.unmatched` and only 11 were real.
+#
+# Pruned by matching each unmatched pattern to its entry by (message, path) and
+# deleting exactly those — NOT by regenerating. Regenerating would have swept
+# the 11 deliberately-red errors below into this file, which is the outcome the
+# note at the end of this header exists to prevent, and which has already
+# happened once.
+#
+# MIGRATION PHASE 7.3 drove app/Http/** from 37 entries to 15 and app/Policies/**
+# to zero. What is left is there on purpose, and the reasons matter more than the
+# count:
+#
+#   11  nullsafe.neverNull — PHPStan IS WRONG, AND OBEYING IT WOULD BREAK THE APP.
+#       Every one is `$model->relation?->column ?? $fallback` on a belongsTo whose
+#       FOREIGN KEY IS NULLABLE: a document with no loss event, a task with no
+#       assignee, a dashboard bound to no object type. larastan types a belongsTo
+#       as non-nullable, so it calls the `?->` unnecessary; the database says
+#       otherwise. Deleting the null-safety to satisfy the analyser would turn a
+#       rendered "—" into a fatal on real rows. A @property-read X|null docblock
+#       does not override it either. They stay.
+#
+#    3  method.notFound — a scope resolved off a generic Builder. EnforcesNodeScope
+#       calls ->visibleTo() on $record->newQuery() for any model using
+#       ScopedToGraph, and MyTaskController calls ->getCollection() on the
+#       paginator CONTRACT rather than the concrete class. Both are correct at
+#       runtime; typing them means naming a concrete class the code is
+#       deliberately generic over.
+#
+#    1  return.type — Collection's TValue is invariant, so PHPStan reports the
+#       declared and actual array shapes as different while printing two
+#       identical types. Annotating it more precisely does not help; it was tried.
+#
+# NOT baselined, and deliberately still red: the six long-standing errors in
+# WorkflowPresenter, ApprovalController and MyTaskController. Regenerating this
+# file swept them in and they were stripped back out — they have been the
+# programme's known-red marker since Phase 3 and hiding them here would lose it.
+#
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Argument of an invalid type Illuminate\\Routing\\RouteCollectionInterface supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 1
+			path: app/Console/Commands/Preflight.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/SweepWorkflowSlas.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:role\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Grids/Definitions/AdminUsersGrid.php
+
+		-
+			message: '#^Parameter \#1 \$apply of method App\\Grids\\Filter\:\:apply\(\) expects Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: void, Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: Illuminate\\Database\\Eloquent\\Builder given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Grids/Definitions/AdminUsersGrid.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\User model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/AdminUsersGrid.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Grids/Definitions/ApprovalsHistoryGrid.php
+
+		-
+			message: '#^Relation ''importer'' is not found in App\\Models\\DataImport model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/DataImportsGrid.php
+
+		-
+			message: '#^Parameter \#1 \$apply of method App\\Grids\\Filter\:\:apply\(\) expects Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: void, Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: Illuminate\\Database\\Eloquent\\Builder given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Grids/Definitions/IssuesGrid.php
+
+		-
+			message: '#^Parameter \#1 \$options of method App\\Grids\\Filter\:\:options\(\) expects array\<string, string\>\|Closure, array\{''Level 0 \- None'', ''Level 1'', ''Level 2'', ''Level 3 \- Board''\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Grids/Definitions/IssuesGrid.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\Issue model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/IssuesGrid.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\MeasureBreach\:\:\$measure\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Grids/Definitions/KriBreachesGrid.php
+
+		-
+			message: '#^Parameter \#1 \$apply of method App\\Grids\\Filter\:\:apply\(\) expects Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: void, Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: Illuminate\\Database\\Eloquent\\Builder given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Grids/Definitions/KriBreachesGrid.php
+
+		-
+			message: '#^Relation ''measure'' is not found in App\\Models\\MeasureBreach model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/KriBreachesGrid.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Grids/Definitions/KriBreachesGrid.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>decimal_places" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Grids/Definitions/KriBreachesGrid.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Grids/Definitions/KriBreachesGrid.php
+
+		-
+			message: '#^Parameter \#1 \$apply of method App\\Grids\\Filter\:\:apply\(\) expects Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: void, Closure\(Illuminate\\Database\\Eloquent\\Builder, string\)\: Illuminate\\Database\\Eloquent\\Builder given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Grids/Definitions/KrisGrid.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Grids/Definitions/KrisGrid.php
+
+		-
+			message: '#^Parameter \#1 \$options of method App\\Grids\\Filter\:\:options\(\) expects array\<string, string\>\|Closure, array\{1\: ''Regulatory…'', 0\: ''Not reportable''\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Grids/Definitions/LossEventsGrid.php
+
+		-
+			message: '#^Relation ''businessUnit'' is not found in App\\Models\\NearMiss model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Grids/Definitions/NearMissesGrid.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RiskAssessment\:\:\$previous_overall_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Grids/Definitions/RiskAssessmentsGrid.php
+
+		-
+			message: '#^Parameter \#1 \$options of method App\\Grids\\Filter\:\:options\(\) expects array\<string, string\>\|Closure, array\<int, non\-falsy\-string\> given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Grids/Definitions/RisksGrid.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>key" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Grids/GridDefinition.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/AiIntelligenceController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/ControlController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/DashboardBuilderController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>event_reference" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>issue_reference" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>test_code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/DocumentRepositoryController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Risk\\GlobalSearchController\:\:search\(\) should return Illuminate\\Support\\Collection\<int, array\<string, mixed\>\> but returns Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, code\: string, type\: string\|null, icon\: string\|null, description\: string, url\: string\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/Risk/GlobalSearchController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Http/Controllers/Risk/HqController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>node_code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/LossEventController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\>\:\:getCollection\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/MyTaskController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>start_date" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/PeriodController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Risk/ReportController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Risk/RiskAssessmentController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>type" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Middleware/ResolvePeriod.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between string and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Integrations/Connectors/CsvConnector.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between non\-empty\-list\<string\|null\> and array\{\} will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Integrations/Connectors/CsvConnector.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Jobs/Concerns/TracksJobProgress.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WebhookDelivery\:\:\$subscription\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Jobs/DeliverWebhookJob.php
+
+		-
+			message: '#^Relation ''subscription'' is not found in App\\Models\\WebhookDelivery model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Jobs/DeliverWebhookJob.php
+
+		-
+			message: '#^Call to function method_exists\(\) with \$this\(App\\Jobs\\ProcessDataImportJob\) and ''attempts'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Jobs/ProcessDataImportJob.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\GraphObject\>\:\:orWhereKey\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Jobs/RebuildHierarchyPaths.php
+
+		-
+			message: '#^Call to function method_exists\(\) with \$this\(App\\Jobs\\RunConnectorJob\) and ''attempts'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Jobs/RunConnectorJob.php
+
+		-
+			message: '#^Call to function method_exists\(\) with \$this\(App\\Jobs\\RunSimulationJob\) and ''attempts'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Jobs/RunSimulationJob.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$risks\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Listeners/EscalateRiskOnKriBreach.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$risk_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Listeners/FlagRiskForReview.php
+
+		-
+			message: '#^Method App\\Models\\ApiToken\:\:findToken\(\) should return static\(App\\Models\\ApiToken\)\|null but returns App\\Models\\ApiToken\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/ApiToken.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/ApiToken.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$awaiting_review_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AssessmentCampaign.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AssessmentCampaign\:\:\$completed_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/AssessmentCampaign.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/AssessmentCampaign.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\AssessmentCampaign\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/AssessmentCampaign.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/BusinessProcess.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\BusinessProcess\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/BusinessProcess.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/BusinessUnit.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\BusinessUnit\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/BusinessUnit.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Connector.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Control.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/Control.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\Control\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/Control.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/ControlTest.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\ControlTest\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/ControlTest.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\DomainEvent\:\:\$aggregate_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/DomainEvent.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/EmergingRisk.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\EmergingRisk\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/EmergingRisk.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/Entity.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\Entity\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/Entity.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/Entity.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$closed_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$due_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$identified_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Issue\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\Issue\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/Issue.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/KeyRiskIndicator.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/KeyRiskIndicator.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\KeyRiskIndicator\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/KeyRiskIndicator.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$closed_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$event_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\LossEvent\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Method App\\Models\\LossEvent\:\:grossLossNairaSql\(\) should return Illuminate\\Database\\Query\\Expression but returns Illuminate\\Contracts\\Database\\Query\\Expression\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Method App\\Models\\LossEvent\:\:netLossKoboSql\(\) should return Illuminate\\Database\\Query\\Expression but returns Illuminate\\Contracts\\Database\\Query\\Expression\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Method App\\Models\\LossEvent\:\:netLossNairaSql\(\) should return Illuminate\\Database\\Query\\Expression but returns Illuminate\\Contracts\\Database\\Query\\Expression\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/LossEvent.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:resolved\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/MeasureBreach.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/NearMiss.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\NearMiss\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/NearMiss.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/QuantificationScenario.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\QuantificationScenario\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/QuantificationScenario.php
+
+		-
+			message: '#^Parameter \#1 \$num of function exp expects float, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/QuantificationScenario.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Risk.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/Risk.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\Risk\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/Risk.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/RiskAppetite.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\RiskAppetite\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/RiskAppetite.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/RiskCategory.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\RiskCategory\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/RiskCategory.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/RiskCause.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between int and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Models/ScoringProfile.php
+
+		-
+			message: '#^Variable \$organizationId on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.variable
+			count: 1
+			path: app/Models/ScoringProfile.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/TreatmentPlan.php
+
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\TreatmentPlan\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/TreatmentPlan.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/WorkflowAction.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:open\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/WorkflowTask.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/ApprovalService.php
+
+		-
+			message: '#^Default value of the parameter \#2 \$override \(array\{\}\) of method App\\Services\\AssessmentChainService\:\:applyToAssessment\(\) is incompatible with type array\{likelihood\: int\|null, impact\: int\|null, justification\: string\|null\}\.$#'
+			identifier: parameter.defaultValue
+			count: 1
+			path: app/Services/AssessmentChainService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>design_effectiveness" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/AssessmentChainService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>operating_effectiveness" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/AssessmentChainService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/AuditTrailService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$c\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/BoardPackAssembler.php
+
+		-
+			message: '#^Relation ''owner'' is not found in App\\Models\\Issue model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/BoardPackAssembler.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$event_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Dashboard/CommandCentreService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$gross\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Dashboard/CommandCentreService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\LossEvent\:\:\$net\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Dashboard/CommandCentreService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Dashboard/CommandCentreService.php
+
+		-
+			message: '#^Method App\\Services\\Graph\\GraphQueryService\:\:ancestors\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\GraphObject\> but returns Illuminate\\Support\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Graph/GraphQueryService.php
+
+		-
+			message: '#^Method App\\Services\\Graph\\GraphQueryService\:\:find\(\) should return App\\Models\\GraphObject\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Graph/GraphQueryService.php
+
+		-
+			message: '#^Method App\\Services\\Graph\\GraphQueryService\:\:related\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\GraphObject\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Graph/GraphQueryService.php
+
+		-
+			message: '#^Method App\\Services\\Graph\\GraphQueryService\:\:traverse\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\GraphObject\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Graph/GraphQueryService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:each\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed, Closure\(App\\Models\\GraphObject\)\: void given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Graph/GraphQueryService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:relate\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/Graph/PivotEdgeProjector.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:unrelate\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/Graph/PivotEdgeProjector.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$node_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Integrations/ConnectorRunner.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Integrations/ConnectorRunner.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>node_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Integrations/ConnectorRunner.php
+
+		-
+			message: '#^Offset ''amber''\|''red'' on array\{red\: ''high'', amber\: ''medium'', yellow\: ''low''\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/MeasureService.php
+
+		-
+			message: '#^Relation ''measure'' is not found in App\\Models\\MeasureBreach model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/MyResponsibilitiesService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Services/MyResponsibilitiesService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Period\:\:\$calendar\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PeriodService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/PeriodService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Control\:\:\$coverage_scope\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Control\:\:\$last_tested_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Control\:\:\$test_frequency\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Control\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$risk_category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$threshold_green_upper\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$threshold_red_upper\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$threshold_yellow_upper\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RegulatoryReportService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 7
+			path: app/Services/ReportDataService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between App\\Models\\ApprovalRequest and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Services/ThresholdRebaselineService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Services/ThresholdRebaselineService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Services/Webhooks/WebhookDispatcher.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Webhooks/WebhookDispatcher.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/ResolvedPeriods.php
+
+		-
+			message: '#^Anonymous function should return Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: ''green''\}\> but returns Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: ''green''\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Widgets/Types/ActivityTableResolver.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: string\}, Closure\(App\\Models\\TreatmentPlan\)\: array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: string\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Widgets/Types/ActivityTableResolver.php
+
+		-
+			message: '#^Parameter \#2 \$callback of method Illuminate\\Support\\Collection\<int,array\<string, mixed\>\>\:\:when\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Services/Widgets/Types/ActivityTableResolver.php
+
+		-
+			message: '#^Parameter \#2 \$callback of method Illuminate\\Support\\Collection\<int,array\<string, mixed\>\>\:\:when\(\) expects \(callable\(Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: string\}\>, bool\)\: Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: ''green''\}\>\)\|null, Closure\(mixed\)\: Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string\|null, responsible\: mixed, start\: non\-falsy\-string\|null, end\: non\-falsy\-string\|null, progress_pct\: int, status\: string, rag\: ''green''\}\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Widgets/Types/ActivityTableResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$control_effectiveness_pct\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/BubbleResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$financial_exposure_ngn\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/BubbleResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/BubbleResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$residual_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/BubbleResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/BubbleResolver.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WidgetDefinition\:\:\$measure\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/GaugeResolver.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Risk\:\:\$node_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/HeatmapResolver.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\WidgetDefinition\:\:\$measure\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/KpiTileResolver.php
+
+		-
+			message: '#^Property App\\Services\\Widgets\\Types\\KpiTileResolver\:\:\$periodResolver is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/Widgets/Types/KpiTileResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>percentile_distribution" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/Types/LecCurveResolver.php
+
+		-
+			message: '#^Anonymous function should return Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\}\> but returns Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Widgets/Types/MeasureTableResolver.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\}, Closure\(App\\Models\\Control\)\: array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Widgets/Types/MeasureTableResolver.php
+
+		-
+			message: '#^Parameter \#2 \$callback of method Illuminate\\Support\\Collection\<int,array\<string, mixed\>\>\:\:when\(\) expects \(callable\(Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\}\>, bool\)\: Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\}\>\)\|null, Closure\(mixed\)\: Illuminate\\Support\\Collection\<int, array\{id\: int, name\: string, type\: string\|null, responsible\: mixed, implemented\: bool, glyph\: lowercase\-string\|null\}\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Widgets/Types/MeasureTableResolver.php
+
+		-
+			message: '#^Relation ''relationshipType'' is not found in App\\Models\\ObjectRelationship model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/Widgets/Types/NetworkResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/Types/NetworkResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$action_title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$completed_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$scheduled_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$target_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Property App\\Services\\Widgets\\Types\\TimelineResolver\:\:\$registry is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/Widgets/Types/TimelineResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/Types/TornadoResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>end_date" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/Types/TrendStackedBarResolver.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/WidgetDataService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Widgets/WidgetDataService.php
+
+		-
+			message: '#^Parameter \#1 \$rows of method App\\Services\\Widgets\\WidgetQueryEngine\:\:sortAndLimit\(\) expects Illuminate\\Support\\Collection\<int, object\{key\: mixed, value\: float\|int\}\>, Illuminate\\Support\\Collection\<int, object\{key\: mixed, value\: \(float\|int\)\}&stdClass\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Widgets/WidgetQueryEngine.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>owner_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/AssigneeResolver.php
+
+		-
+			message: '#^Dead catch \- Symfony\\Component\\ExpressionLanguage\\SyntaxError is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 2
+			path: app/Services/Workflow/ConditionEvaluator.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$control\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$control_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$result\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$reviewer_id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$reviewer_notes\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$test_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>control_title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/Subjects/ControlTestBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$car_actual\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cbn_minimum_car\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$period\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$prepared_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$reviewed_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total_qualifying_capital_kobo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total_rwa_kobo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IcaapAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cbn_reportable\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$issue_category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$issue_reference\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$issue_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$potential_loss_kobo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$priority\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$regulatory_reportable\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/IssueClosureBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$basel_level_1\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$current_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$date_of_loss\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$event_reference\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$gross_loss_amount_kobo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$net_loss_amount_kobo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/LossEventBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$bands\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$effective_from\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$measure\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$measure_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$object_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/Subjects/MeasureThresholdBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$inherent_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$node_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$residual_rating\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$residual_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$risk_category_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$risk_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$treatment_strategy\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAcceptanceBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$appetite_level\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$appetite_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$effective_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$max_tolerance\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$risk_category_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$target_max\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$target_min\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAppetiteBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$assessment_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$overall_rating\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$overall_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$residual_score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$reviewer_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$risk\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$risk_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>title" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/Subjects/RiskAssessmentBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cost_estimate_ngn\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/TreatmentPlanBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Workflow/Subjects/TreatmentPlanBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$risk_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/TreatmentPlanBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$strategy\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/TreatmentPlanBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$target_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/TreatmentPlanBinding.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$treatment_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Workflow/Subjects/TreatmentPlanBinding.php
+
+		-
+			message: '#^Generic type Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\> in PHPDoc tag @return does not specify all template types of interface Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\: TKey, TValue$#'
+			identifier: generics.lessTypes
+			count: 1
+			path: app/Services/Workflow/TaskQueryService.php
+
+		-
+			message: '#^Method App\\Services\\Workflow\\TaskQueryService\:\:openFor\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\WorkflowTask\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Workflow/TaskQueryService.php
+
+		-
+			message: '#^Method App\\Services\\Workflow\\TaskQueryService\:\:paginateFor\(\) should return Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\> but returns Illuminate\\Pagination\\LengthAwarePaginator\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Workflow/TaskQueryService.php
+
+		-
+			message: '#^Method App\\Services\\Workflow\\TaskQueryService\:\:workloadFor\(\) should return Illuminate\\Support\\Collection\<int, object\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\WorkflowTask\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Workflow/TaskQueryService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\WorkflowTask\)\: bool given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/Workflow/TaskQueryService.php
+
+		-
+			message: '#^Type App\\Models\\WorkflowTask in generic type Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\> in PHPDoc tag @return is not subtype of template type TKey of \(int\|string\) of interface Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\.$#'
+			identifier: generics.notSubtype
+			count: 1
+			path: app/Services/Workflow/TaskQueryService.php
+
+		-
+			message: '#^PHPDoc tag @param references unknown parameter\: \$_$#'
+			identifier: parameter.notFound
+			count: 1
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>escalation_rules" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 10
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>node_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/WorkflowEngine.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>created_by" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/WorkflowPublisher.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Services/Workflow/WorkflowPublisher.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>organization_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/WorkflowPublisher.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>version" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Workflow/WorkflowPublisher.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between App\\Models\\WorkflowInstance and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Services/Workflow/WorkflowTriggerService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:visibleTo\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Support/Authorization/GraphScope.php
+
+		-
+			message: '#^PHPDoc tag @param for parameter \$entityColumn with type string\|null is not subtype of native type string\.$#'
+			identifier: parameter.phpDocType
+			count: 1
+			path: app/Support/Authorization/GraphScope.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$deleted_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/Graph/ObjectBackfiller.php
+
+		-
+			message: '#^Parameter \#1 \$rows of method App\\Support\\Graph\\OrganisationGraphUnifier\:\:normalisedNameIndex\(\) expects Illuminate\\Support\\Collection\<int, object\>, Illuminate\\Support\\Collection\<int, stdClass\> given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Support/Graph/OrganisationGraphUnifier.php
+
+		-
+			message: '#^Match expression does not handle remaining value\: mixed$#'
+			identifier: match.unhandled
+			count: 1
+			path: database/migrations/2026_02_22_200038_align_schema_with_controllers.php
+
+		-
+			message: '#^Comparison operation "\>\=" between 4\|6\|8\|9\|12 and 20 is always false\.$#'
+			identifier: greaterOrEqual.alwaysFalse
+			count: 1
+			path: database/seeders/DemoDataSeeder.php
+
+		-
+			message: '#^Comparison operation "\>\=" between 75\.0\|78\.0\|80\.0\|82\.0\|85\.0\|88\.0\|90\.0\|91\.0\|92\.0\|95\.0 and 70 is always true\.$#'
+			identifier: greaterOrEqual.alwaysTrue
+			count: 1
+			path: database/seeders/DemoDataSeeder.php
+
+		-
+			message: '#^Result of && is always false\.$#'
+			identifier: booleanAnd.alwaysFalse
+			count: 1
+			path: database/seeders/DemoDataSeeder.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between \-30\|\-10\|15\|30\|45\|60\|90 and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: database/seeders/DemoDataSeeder.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between 9\|10\|11\|13\|14\|17\|21\|24 and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: database/seeders/DemoDataSeeder.php
+
+		-
+			message: '#^Parameter \#2 \.\.\.\$arg1 of function max expects non\-empty\-array, 0 given\.$#'
+			identifier: argument.type
+			count: 1
+			path: database/seeders/EnterpriseGapSeeder.php
+
+		-
+			message: '#^Result of \|\| is always true\.$#'
+			identifier: booleanOr.alwaysTrue
+			count: 1
+			path: database/seeders/EnterpriseGapSeeder.php
+
+		-
+			message: '#^Call to an undefined method TModel of Illuminate\\Database\\Eloquent\\Model\:\:getQualifiedOrganizationIdColumn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: packages/platform/src/Tenancy/OrganizationScope.php
+
+		-
+			message: '#^Call to an undefined method TModel of Illuminate\\Database\\Eloquent\\Model\:\:tenantIncludesGlobalRecords\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: packages/platform/src/Tenancy/OrganizationScope.php
+
+		-
+			message: '#^Match expression does not handle remaining value\: string$#'
+			identifier: match.unhandled
+			count: 1
+			path: packages/reporting/src/DocumentRenderer.php
+
+	# ------------------------------------------------------------------
+	# TPRM module models (Phases 0-2)
+	#
+	# The same two trait-level limitations the baseline already records for
+	# every other tenant-scoped model in the product, one entry per model:
+	# larastan cannot see `getOrganizationIdColumn()` on the Model the
+	# BelongsToOrganization trait types its closure against, nor
+	# `syncObjectIdentity()` on HasObjectIdentity's. Neither is new debt and
+	# neither is fixable from the model — the fix belongs in the traits, and
+	# doing it there would touch all hundred models at once.
+	# ------------------------------------------------------------------
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/Tprm/Engagement.php
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\Tprm\\Engagement\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/Tprm/Engagement.php
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncObjectIdentity\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/Tprm/ThirdParty.php
+		-
+			message: '#^Call to function method_exists\(\) with class\-string\<static\(App\\Models\\Tprm\\ThirdParty\)\> and ''restored'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Models/Tprm/ThirdParty.php

@@ -3,9 +3,16 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Ai\DraftControlDescriptionRequest;
+use App\Http\Requests\Ai\DraftKriDescriptionRequest;
+use App\Http\Requests\Ai\DraftRiskStatementRequest;
+use App\Http\Requests\Ai\DraftTreatmentDescriptionRequest;
+use App\Http\Requests\Ai\SuggestControlsRequest;
+use App\Http\Requests\Ai\SuggestKrisRequest;
 use App\Services\LlmService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * Live AI tools backed by the locally hosted LLM.
@@ -20,8 +27,24 @@ use Illuminate\Http\Request;
  */
 class AiToolsController extends Controller
 {
-    public function __construct(protected LlmService $llm)
+    public function __construct(protected LlmService $llm) {}
+
+    /**
+     * The token and timeout budget for a call of a given shape.
+     *
+     * These were literals at seven call sites — 600/60, 1200/90, 900/90 — and
+     * they are budgets rather than tenant settings, so they live in
+     * `config/services.php` under `llm.budgets`, named for the shape of the
+     * answer being asked for. A tool returning truncated JSON gets its budget
+     * raised there, next to the others it should be compared against.
+     *
+     * @return array{max_tokens: int, timeout: int}
+     */
+    private static function budget(string $shape): array
     {
+        $budgets = config('services.llm.budgets', []);
+
+        return $budgets[$shape] ?? $budgets['short'] ?? ['max_tokens' => 600, 'timeout' => 60];
     }
 
     /**
@@ -32,17 +55,13 @@ class AiToolsController extends Controller
      * POST /risk/ai/tools/risk-statement
      * Body: { scenario: "phishing on tellers" }
      */
-    public function riskStatement(Request $request): JsonResponse
+    public function riskStatement(DraftRiskStatementRequest $request): JsonResponse
     {
         // Local LLM inference on a 3.4B model can exceed PHP's default 30s
         // execution cap. Grant extra budget for this endpoint only.
         @set_time_limit(120);
 
-        $validated = $request->validate([
-            'scenario' => 'required|string|min:3|max:2000',
-            'category' => 'nullable|string|max:100',
-            'business_unit' => 'nullable|string|max:100',
-        ]);
+        $validated = $request->validated();
 
         if (! $this->llm->available()) {
             return response()->json([
@@ -52,7 +71,7 @@ class AiToolsController extends Controller
             ]);
         }
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are a senior risk analyst at a Nigerian commercial bank. You write precise,
 board-ready risk statements using the Cause → Event → Consequence model.
 Use professional English. Reference Nigerian regulators (CBN, NDPC, NFIU, SEC,
@@ -80,7 +99,7 @@ Produce a JSON object with EXACTLY these keys:
 Respond with the JSON object only.
 PROMPT;
 
-        $data = $this->llm->json($prompt, $system, ['max_tokens' => 600, 'timeout' => 60]);
+        $data = $this->llm->json($prompt, $system, self::budget('short'));
 
         $required = ['title', 'cause', 'event', 'consequence', 'description'];
         foreach ($required as $k) {
@@ -114,16 +133,11 @@ PROMPT;
      *
      * POST /risk/ai/tools/control-recommendations
      */
-    public function controlRecommendations(Request $request): JsonResponse
+    public function controlRecommendations(SuggestControlsRequest $request): JsonResponse
     {
         @set_time_limit(120);
 
-        $validated = $request->validate([
-            'risk_id' => 'nullable|exists:risks,id',
-            'title' => 'required_without:risk_id|string|max:500',
-            'description' => 'required_without:risk_id|string|max:3000',
-            'category' => 'nullable|string|max:100',
-        ]);
+        $validated = $request->validated();
 
         if (! $this->llm->available()) {
             return response()->json(['ok' => false, 'fallback' => true, 'error' => $this->llm->lastError()]);
@@ -135,7 +149,7 @@ PROMPT;
 
         if (! empty($validated['risk_id'])) {
             $risk = \App\Models\Risk::with('category')
-                ->where('organization_id', auth()->user()->organization_id ?? 1)
+                ->where('organization_id', TenantContext::organizationId())
                 ->find($validated['risk_id']);
             if ($risk) {
                 $title = $title ?? $risk->title;
@@ -144,7 +158,7 @@ PROMPT;
             }
         }
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are a senior operational risk and controls advisor at a Nigerian commercial
 bank. When proposing controls, map each one to exactly one clause from:
   - CBN Risk-Based Cybersecurity Framework (RBCF)
@@ -175,9 +189,9 @@ produce a JSON object with these fields:
 Return as JSON: { "controls": [ ... ] }.
 PROMPT;
 
-        $cacheKey = 'controls:' . md5(($validated['risk_id'] ?? '') . '|' . $title . '|' . $description);
+        $cacheKey = 'controls:'.md5(($validated['risk_id'] ?? '').'|'.$title.'|'.$description);
         $data = $this->llm->json($prompt, $system, [
-            'max_tokens' => 1200, 'timeout' => 90, 'cache_key' => $cacheKey,
+            ...self::budget('long'), 'cache_key' => $cacheKey,
         ]);
 
         if (empty($data['controls']) || ! is_array($data['controls'])) {
@@ -222,16 +236,11 @@ PROMPT;
      *
      * POST /risk/ai/tools/kri-suggestions
      */
-    public function kriSuggestions(Request $request): JsonResponse
+    public function kriSuggestions(SuggestKrisRequest $request): JsonResponse
     {
         @set_time_limit(120);
 
-        $validated = $request->validate([
-            'risk_id' => 'nullable|exists:risks,id',
-            'title' => 'required_without:risk_id|string|max:500',
-            'description' => 'required_without:risk_id|string|max:3000',
-            'category' => 'nullable|string|max:100',
-        ]);
+        $validated = $request->validated();
 
         if (! $this->llm->available()) {
             return response()->json(['ok' => false, 'fallback' => true, 'error' => $this->llm->lastError()]);
@@ -243,7 +252,7 @@ PROMPT;
 
         if (! empty($validated['risk_id'])) {
             $risk = \App\Models\Risk::with('category')
-                ->where('organization_id', auth()->user()->organization_id ?? 1)
+                ->where('organization_id', TenantContext::organizationId())
                 ->find($validated['risk_id']);
             if ($risk) {
                 $title = $title ?? $risk->title;
@@ -252,7 +261,7 @@ PROMPT;
             }
         }
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are a risk measurement specialist at a Nigerian commercial bank. You design
 Key Risk Indicators that are measurable from existing bank systems (core banking,
 treasury, loan origination, channels, HR, call centre). Always include realistic
@@ -279,9 +288,9 @@ Propose 3 leading and 2 lagging KRIs for this risk. For each KRI produce:
 Return as JSON: { "kris": [ ... ] } with exactly 5 entries.
 PROMPT;
 
-        $cacheKey = 'kris:' . md5(($validated['risk_id'] ?? '') . '|' . $title . '|' . $description);
+        $cacheKey = 'kris:'.md5(($validated['risk_id'] ?? '').'|'.$title.'|'.$description);
         $data = $this->llm->json($prompt, $system, [
-            'max_tokens' => 1200, 'timeout' => 90, 'cache_key' => $cacheKey,
+            ...self::budget('long'), 'cache_key' => $cacheKey,
         ]);
 
         if (empty($data['kris']) || ! is_array($data['kris'])) {
@@ -295,7 +304,9 @@ PROMPT;
 
         $kris = [];
         foreach ($data['kris'] as $k) {
-            if (! is_array($k) || empty($k['name'])) continue;
+            if (! is_array($k) || empty($k['name'])) {
+                continue;
+            }
             $kris[] = [
                 'name' => (string) $k['name'],
                 'type' => strtolower((string) ($k['type'] ?? 'leading')),
@@ -330,7 +341,7 @@ PROMPT;
             return response()->json(['ok' => false, 'fallback' => true, 'error' => $this->llm->lastError()]);
         }
 
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
         $year = now()->year;
 
         $totalActive = \App\Models\Risk::where('organization_id', $orgId)->where('status', 'active')->count();
@@ -339,7 +350,7 @@ PROMPT;
         $redKris = \App\Models\KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'red')->count();
         $amberKris = \App\Models\KeyRiskIndicator::where('organization_id', $orgId)->where('current_status', 'amber')->count();
         $netLoss = (float) \App\Models\LossEvent::where('organization_id', $orgId)
-            ->whereYear('date_of_loss', $year)->sum('net_loss_amount');
+            ->whereYear('date_of_loss', $year)->sum(\App\Models\LossEvent::netLossNairaSql());
         $lossCount = \App\Models\LossEvent::where('organization_id', $orgId)
             ->whereYear('date_of_loss', $year)->count();
         $openIssues = \App\Models\Issue::where('organization_id', $orgId)
@@ -350,10 +361,10 @@ PROMPT;
             ->orderByDesc('residual_score')
             ->limit(5)
             ->get(['risk_code', 'title', 'residual_rating'])
-            ->map(fn($r) => "- {$r->risk_code} [{$r->residual_rating}]: {$r->title}")
+            ->map(fn ($r) => "- {$r->risk_code} [{$r->residual_rating}]: {$r->title}")
             ->implode("\n");
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are the Chief Risk Officer's briefing writer at a Nigerian commercial bank.
 You are writing a one-page narrative for the Board Risk Committee. Be factual —
 every number you cite must come from the data block below. Use measured
@@ -390,9 +401,9 @@ PROMPT;
         // Cache key keyed on *current data fingerprint* so stale caches invalidate
         // automatically when the underlying risk posture changes.
         $fingerprint = md5("$totalActive|$critical|$high|$redKris|$lossCount|$netLoss|$openIssues");
-        $cacheKey = 'narrative:' . $orgId . ':' . $fingerprint;
+        $cacheKey = 'narrative:'.$orgId.':'.$fingerprint;
         $data = $this->llm->json($prompt, $system, [
-            'max_tokens' => 900, 'timeout' => 90,
+            ...self::budget('narrative'),
             'cache_key' => $cacheKey, 'cache_ttl' => 3600,
         ]);
 
@@ -434,17 +445,11 @@ PROMPT;
      *
      * POST /risk/ai/tools/control-description
      */
-    public function controlDescription(Request $request): JsonResponse
+    public function controlDescription(DraftControlDescriptionRequest $request): JsonResponse
     {
         @set_time_limit(120);
 
-        $validated = $request->validate([
-            'name' => 'nullable|string|max:200',
-            'scenario' => 'required|string|min:3|max:2000',
-            'control_type' => 'nullable|string|max:50',
-            'control_nature' => 'nullable|string|max:50',
-            'frequency' => 'nullable|string|max:50',
-        ]);
+        $validated = $request->validated();
 
         if (! $this->llm->available()) {
             return response()->json(['ok' => false, 'fallback' => true, 'error' => $this->llm->lastError()]);
@@ -455,7 +460,7 @@ PROMPT;
         $nature = $validated['control_nature'] ?? 'Not specified';
         $freq = $validated['frequency'] ?? 'Not specified';
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are a senior internal-controls advisor at a Nigerian commercial bank. You
 write precise, audit-ready control descriptions. Describe how the control
 operates, who performs it, when it runs, what evidence it produces, and what
@@ -480,7 +485,7 @@ Produce a JSON object with EXACTLY these keys:
 Respond with the JSON object only.
 PROMPT;
 
-        $data = $this->llm->json($prompt, $system, ['max_tokens' => 600, 'timeout' => 60]);
+        $data = $this->llm->json($prompt, $system, self::budget('short'));
 
         if (empty($data['description']) || ! is_string($data['description'])) {
             return response()->json([
@@ -508,16 +513,11 @@ PROMPT;
      *
      * POST /risk/ai/tools/treatment-description
      */
-    public function treatmentDescription(Request $request): JsonResponse
+    public function treatmentDescription(DraftTreatmentDescriptionRequest $request): JsonResponse
     {
         @set_time_limit(120);
 
-        $validated = $request->validate([
-            'scenario' => 'required|string|min:3|max:2000',
-            'title' => 'nullable|string|max:200',
-            'treatment_type' => 'nullable|string|max:50',
-            'risk_id' => 'nullable|exists:risks,id',
-        ]);
+        $validated = $request->validated();
 
         if (! $this->llm->available()) {
             return response()->json(['ok' => false, 'fallback' => true, 'error' => $this->llm->lastError()]);
@@ -529,7 +529,7 @@ PROMPT;
         $riskDescription = 'Not specified';
 
         if (! empty($validated['risk_id'])) {
-            $risk = \App\Models\Risk::where('organization_id', auth()->user()->organization_id ?? 1)
+            $risk = \App\Models\Risk::where('organization_id', TenantContext::organizationId())
                 ->find($validated['risk_id']);
             if ($risk) {
                 $riskTitle = $risk->title;
@@ -537,7 +537,7 @@ PROMPT;
             }
         }
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are a risk treatment programme manager at a Nigerian commercial bank. You
 draft pragmatic treatment plans for the Board Risk Committee. Each plan must
 state objectives, scope, key activities and the expected outcome. Respect the
@@ -562,7 +562,7 @@ Produce a JSON object with EXACTLY these keys:
 Respond with the JSON object only.
 PROMPT;
 
-        $data = $this->llm->json($prompt, $system, ['max_tokens' => 700, 'timeout' => 60]);
+        $data = $this->llm->json($prompt, $system, self::budget('medium'));
 
         if (empty($data['description']) || ! is_string($data['description'])) {
             return response()->json([
@@ -590,16 +590,11 @@ PROMPT;
      *
      * POST /risk/ai/tools/kri-description
      */
-    public function kriDescription(Request $request): JsonResponse
+    public function kriDescription(DraftKriDescriptionRequest $request): JsonResponse
     {
         @set_time_limit(120);
 
-        $validated = $request->validate([
-            'scenario' => 'required|string|min:3|max:2000',
-            'name' => 'nullable|string|max:200',
-            'category' => 'nullable|string|max:100',
-            'measurement_unit' => 'nullable|string|max:50',
-        ]);
+        $validated = $request->validated();
 
         if (! $this->llm->available()) {
             return response()->json(['ok' => false, 'fallback' => true, 'error' => $this->llm->lastError()]);
@@ -609,7 +604,7 @@ PROMPT;
         $category = $validated['category'] ?? 'Not specified';
         $unit = $validated['measurement_unit'] ?? 'Not specified';
 
-        $system = <<<SYS
+        $system = <<<'SYS'
 You are a risk measurement specialist at a Nigerian commercial bank. You
 describe Key Risk Indicators in plain English — what is measured, where the
 data comes from inside the bank, why the indicator is predictive of underlying
@@ -633,7 +628,7 @@ Produce a JSON object with EXACTLY these keys:
 Respond with the JSON object only.
 PROMPT;
 
-        $data = $this->llm->json($prompt, $system, ['max_tokens' => 600, 'timeout' => 60]);
+        $data = $this->llm->json($prompt, $system, self::budget('short'));
 
         if (empty($data['description']) || ! is_string($data['description'])) {
             return response()->json([
@@ -661,6 +656,7 @@ PROMPT;
     public function health(): JsonResponse
     {
         $ok = $this->llm->available();
+
         return response()->json([
             'ok' => $ok,
             'error' => $ok ? null : $this->llm->lastError(),

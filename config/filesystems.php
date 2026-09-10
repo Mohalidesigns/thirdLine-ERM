@@ -33,7 +33,15 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Serving is off. This disk holds loss-event attachments, issue
+            // attachments and control-test evidence. With 'serve' => true the
+            // framework registers GET and PUT /storage/{path} outside the web
+            // middleware group — they demand a signed URL, but they carry no
+            // authentication, no permission and no tenant check, and nothing in
+            // this application ever mints such a URL. Every download already
+            // goes through an authorized controller action, so the routes are
+            // pure attack surface.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],

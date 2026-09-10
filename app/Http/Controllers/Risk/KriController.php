@@ -2,603 +2,414 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
+use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Kri\AcknowledgeBreachRequest;
+use App\Http\Requests\Kri\RecordKriMeasurementRequest;
+use App\Http\Requests\Kri\ResolveBreachRequest;
+use App\Http\Requests\Kri\StoreKriRequest;
+use App\Http\Requests\Kri\UpdateKriRequest;
+use App\Http\Requests\Kri\UpdateKriThresholdsRequest;
 use App\Models\KeyRiskIndicator;
-use App\Models\KriMeasurement;
+use App\Models\MeasureBreach;
+use App\Models\MeasureValue;
 use App\Models\Risk;
 use App\Models\User;
+use App\Presenters\FormSchemaPresenter;
+use App\Presenters\GridPresenter;
+use App\Services\AuditTrailService;
+use App\Services\Kri\KriService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
+/**
+ * Key risk indicators (migration Phase 4.1).
+ *
+ * Figures come from KriService, authorisation from KeyRiskIndicatorPolicy, and
+ * every write body from a Form Request in App\Http\Requests\Kri. The node-scope
+ * checks the trait used to make are the policy's job now, so EnforcesNodeScope
+ * and its six hand-written organization_id comparisons are gone.
+ */
 class KriController extends Controller
 {
-    /**
-     * KRI monitoring dashboard with traffic lights.
-     */
+    // WP-05 TASK 2 — receives the fields a tenant added through the builder.
+    use PersistsConfiguredAttributes;
+
+    private const OBJECT_TYPE = 'KeyRiskIndicator';
+
+    public function __construct(
+        private readonly KriService $kris,
+        private readonly FormSchemaPresenter $schemas,
+    ) {}
+
+    /* ------------------------------------------------------------------ */
+    /*  Dashboard */
+    /* ------------------------------------------------------------------ */
+
     public function dashboard()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('viewAny', KeyRiskIndicator::class);
 
-        $kris = KeyRiskIndicator::where('organization_id', $orgId)
-            ->with(['risk', 'latestMeasurement'])
-            ->orderByRaw("FIELD(current_status, 'red', 'amber', 'yellow', 'green') ASC")
-            ->get();
+        $kris = $this->kris->trafficLights();
 
-        $totalKris = $kris->count();
-        $redCount = $kris->where('current_status', 'red')->count();
-        $amberCount = $kris->where('current_status', 'amber')->count();
-        $yellowCount = $kris->where('current_status', 'yellow')->count();
-        $greenCount = $kris->where('current_status', 'green')->count();
-        $activeBreaches = $redCount + $amberCount;
-
-        $healthyCount = $greenCount + $yellowCount;
-        $avgHealthScore = $totalKris > 0 ? (int) round(($healthyCount / $totalKris) * 100) : 0;
-
-        $breachedKris = $kris->whereIn('current_status', ['red', 'amber'])->values();
-
-        $recentBreaches = $breachedKris->take(10)->map(function ($kri) {
-            $m = $kri->latestMeasurement;
-            return (object) [
-                'kri_id' => $kri->id,
-                'kri_name' => $kri->name,
+        return Inertia::render('Kri/Dashboard', [
+            'kpis' => $this->kris->kpis($kris),
+            'statusDistribution' => $this->kris->statusDistribution($kris),
+            'breachTrend' => $this->kris->breachTrend(),
+            'breaching' => $this->kris->breaching($kris),
+            'trafficLights' => $kris->map(fn (KeyRiskIndicator $kri) => [
+                'id' => $kri->id,
+                'code' => $kri->kri_code,
                 'name' => $kri->name,
-                'current_value' => $kri->current_value !== null
-                    ? number_format((float) $kri->current_value, 2) . ($kri->unit ?? '')
-                    : '-',
-                'threshold_value' => $kri->red_threshold !== null
-                    ? number_format((float) $kri->red_threshold, 2) . ($kri->unit ?? '')
-                    : '-',
-                'level' => $kri->current_status,
-                'category' => $kri->category,
-                'owner' => optional($kri->risk)->risk_owner_id,
-                'breach_date' => optional($m)->measured_at ?? optional($m)->measurement_date,
-            ];
-        });
-
-        $statusDistData = [
-            'labels' => ['Green', 'Amber', 'Red'],
-            'values' => [$greenCount + $yellowCount, $amberCount, $redCount],
-        ];
-
-        $trendLabels = [];
-        $redTrend = [];
-        $amberTrend = [];
-        for ($i = 11; $i >= 0; $i--) {
-            $month = now()->subMonths($i);
-            $trendLabels[] = $month->format('M');
-            $redTrend[] = KriMeasurement::whereHas('kri', fn($q) => $q->where('organization_id', $orgId))
-                ->whereYear('measurement_date', $month->year)
-                ->whereMonth('measurement_date', $month->month)
-                ->where('status', 'red')
-                ->count();
-            $amberTrend[] = KriMeasurement::whereHas('kri', fn($q) => $q->where('organization_id', $orgId))
-                ->whereYear('measurement_date', $month->year)
-                ->whereMonth('measurement_date', $month->month)
-                ->where('status', 'amber')
-                ->count();
-        }
-        $breachTrendData = ['labels' => $trendLabels, 'red' => $redTrend, 'amber' => $amberTrend];
-
-        return view('risk.kri.dashboard', compact(
-            'kris', 'breachedKris', 'recentBreaches',
-            'totalKris', 'redCount', 'amberCount', 'yellowCount', 'greenCount',
-            'activeBreaches', 'avgHealthScore',
-            'statusDistData', 'breachTrendData'
-        ));
+                'status' => $kri->current_status,
+                'value' => $kri->current_value,
+                'unit' => $kri->unit_of_measure,
+                'trend' => $kri->trend_direction,
+                'url' => route('risk.kri.show', $kri),
+            ])->all(),
+            'canCreate' => Gate::allows('create', KeyRiskIndicator::class),
+        ]);
     }
 
-    /**
-     * Display the KRI library listing.
-     */
-    public function index(Request $request)
+    /* ------------------------------------------------------------------ */
+    /*  List / breach register */
+    /* ------------------------------------------------------------------ */
+
+    public function index(Request $request, GridPresenter $presenter)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        // WP-09: search, filters, sorting and export live inside the shared
+        // data grid (App\Grids\Definitions\KrisGrid); the controller computes
+        // only what the page header still needs.
+        // WP-00: scoped like KrisGrid, so the header total counts the rows the
+        // grid beneath it will show.
+        $scoped = fn () => KeyRiskIndicator::where('organization_id', TenantContext::organizationId())->visibleTo();
 
-        $query = KeyRiskIndicator::where('organization_id', $orgId)
-            ->with(['risk.category', 'owner']);
-
-        if ($request->filled('status')) {
-            $query->where('current_status', $request->status);
-        }
-
-        if ($request->filled('risk_id')) {
-            $query->where('risk_id', $request->risk_id);
-        }
-
-        if ($request->filled('category')) {
-            $query->whereHas('risk.category', fn ($q) => $q->where('name', $request->category));
-        }
-
-        if ($request->filled('frequency')) {
-            $query->where('measurement_frequency', $request->frequency);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('kri_code', 'like', "%{$search}%");
-            });
-        }
-
-        $kris = $query->orderBy('kri_code')->paginate(25)->withQueryString();
-
-        // KRIs have no category column — a KRI's category is that of its linked risk.
-        $kris->getCollection()->each(function ($kri) {
-            $kri->setAttribute('category', $kri->risk?->category?->name);
-            $kri->setAttribute('frequency', $kri->measurement_frequency);
-        });
-
-        // KRIs whose latest measurement pushed them into red breach territory
-        // (current_status is refreshed by recordMeasurement on every entry).
-        $activeBreachCount = KeyRiskIndicator::where('organization_id', $orgId)
-            ->where('current_status', 'red')
-            ->count();
-
-        // Distinct categories across the org's KRIs (via their linked risks)
-        $categories = KeyRiskIndicator::where('key_risk_indicators.organization_id', $orgId)
-            ->join('risks', 'risks.id', '=', 'key_risk_indicators.risk_id')
-            ->join('risk_categories', 'risk_categories.id', '=', 'risks.category_id')
-            ->distinct()
-            ->orderBy('risk_categories.name')
-            ->pluck('risk_categories.name');
-
-        $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
-
-        return view('risk.kri.index', compact('kris', 'risks', 'activeBreachCount', 'categories'));
+        return Inertia::render('Kri/Index', [
+            'total' => $scoped()->count(),
+            'activeBreachCount' => $scoped()->where('current_status', 'red')->count(),
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('kris'), $request, $request->user()),
+        ]);
     }
 
     /**
-     * Show the form for creating a new KRI.
+     * The breach REGISTER, not a filtered list of readings. The table itself —
+     * search, filters, sorting, bulk acknowledge/resolve, export — lives inside
+     * KriBreachesGrid, which this action opens with status=active so the
+     * default stays the work list.
      */
+    public function breaches(Request $request, GridPresenter $presenter)
+    {
+        Gate::authorize('viewAny', KeyRiskIndicator::class);
+
+        if (! $request->has('filters') && ! $request->filled('view')) {
+            $request->query->set('filters', ['status' => 'active']);
+        }
+
+        $orgId = TenantContext::organizationId();
+        $open = MeasureBreach::query()->where('organization_id', $orgId)->open();
+
+        $openBreaches = (clone $open)->get(['breached_at']);
+        $mttrHours = MeasureBreach::meanTimeToResolveHours(
+            MeasureBreach::query()->where('organization_id', $orgId)
+        );
+
+        return Inertia::render('Kri/Breaches', [
+            'activeBreaches' => (clone $open)->count(),
+            'redBreaches' => (clone $open)->where('band_to', 'red')->count(),
+            'amberBreaches' => (clone $open)->where('band_to', 'amber')->count(),
+            'avgDaysInBreach' => $openBreaches->isEmpty()
+                ? 0
+                : (int) round($openBreaches->avg(fn (MeasureBreach $breach) => abs(now()->diffInDays($breach->breached_at)))),
+            'mttrDays' => $mttrHours === null ? null : number_format($mttrHours / 24, 1),
+            'unacknowledged' => (clone $open)->where('measure_breaches.status', 'open')->count(),
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('kri_breaches'), $request, $request->user()),
+        ]);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Create / store */
+    /* ------------------------------------------------------------------ */
+
     public function create()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('create', KeyRiskIndicator::class);
 
-        $risks = Risk::where('organization_id', $orgId)
-            ->where('status', 'active')
-            ->orderBy('risk_code')
-            ->get();
-        $users = User::where('organization_id', $orgId)->orderBy('name')->get();
-
-        return view('risk.kri.create', compact('risks', 'users'));
+        return Inertia::render('Kri/Create', array_merge($this->formOptions(), [
+            'schema' => $this->schemas->form(self::OBJECT_TYPE),
+        ]));
     }
 
-    /**
-     * Store a newly created KRI.
-     */
-    public function store(Request $request)
+    public function store(StoreKriRequest $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $kri = $this->kris->create($request->validated(), $request->user()?->id);
 
-        $validated = $request->validate([
-            'risk_id' => 'required|exists:risks,id',
-            'kri_name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:2000',
-            'measurement_unit' => 'required|string|max:100',
-            'measurement_frequency' => 'required|in:daily,weekly,monthly,quarterly',
-            'data_source' => 'nullable|string|max:255',
-            'kri_owner_id' => 'required|exists:users,id',
-            'green_threshold' => 'nullable|numeric',
-            'amber_threshold' => 'nullable|numeric',
-            'red_threshold' => 'nullable|numeric',
-            'direction' => 'required|in:higher_is_worse,lower_is_worse',
-            'target_value' => 'nullable|numeric',
-            'category' => 'nullable|string|max:100',
-            'formula' => 'nullable|string|max:1000',
-        ]);
-
-        // Verify risk belongs to org
-        Risk::where('id', $validated['risk_id'])
-            ->where('organization_id', $orgId)
-            ->firstOrFail();
-
-        // Map single threshold values to min/max based on direction
-        $direction = $validated['direction'];
-        $green = $validated['green_threshold'] ?? null;
-        $amber = $validated['amber_threshold'] ?? null;
-        $red = $validated['red_threshold'] ?? null;
-        unset($validated['green_threshold'], $validated['amber_threshold'], $validated['red_threshold']);
-
-        if ($direction === 'higher_is_worse') {
-            $validated['green_threshold_max'] = $green;
-            $validated['amber_threshold_min'] = $green;
-            $validated['amber_threshold_max'] = $red;
-            $validated['red_threshold_min'] = $red;
-        } else {
-            $validated['green_threshold_min'] = $green;
-            $validated['amber_threshold_min'] = $red;
-            $validated['amber_threshold_max'] = $green;
-            $validated['red_threshold_max'] = $red;
-        }
-
-        // Map formula to metric_formula column
-        if (isset($validated['formula'])) {
-            $validated['metric_formula'] = $validated['formula'];
-            unset($validated['formula']);
-        }
-
-        // Category is not a DB column, remove before saving
-        unset($validated['category']);
-
-        // Auto-generate KRI code using ReferenceCodeService
-        $kriCode = \App\Services\ReferenceCodeService::generate('key_risk_indicators', 'kri_code', 'KRI');
-
-        $kri = KeyRiskIndicator::create(array_merge($validated, [
-            'organization_id' => $orgId,
-            'kri_code' => $kriCode,
-            'current_status' => 'green',
-            'is_active' => true,
-            'created_by' => auth()->id(),
-            // Populate original NOT NULL columns from alignment columns
-            'name' => $validated['kri_name'],
-            'unit_of_measure' => $validated['measurement_unit'],
-            'owner_id' => $validated['kri_owner_id'],
-            'threshold_direction' => $validated['direction'] === 'higher_is_worse' ? 'higher_worse' : 'lower_worse',
-            'metric_formula' => $validated['metric_formula'] ?? '',
-            'data_source' => $validated['data_source'] ?? '',
-        ]));
-
-        // Audit trail
-        \App\Services\AuditTrailService::record($kri, 'create');
+        $this->saveConfiguredAttributes($request, $kri);
 
         return redirect()->route('risk.kri.show', $kri)
-            ->with('success', "KRI {$kriCode} has been created.");
+            ->with('success', "KRI {$kri->kri_code} has been created.");
     }
 
-    /**
-     * Display the specified KRI with measurement history.
-     */
+    /* ------------------------------------------------------------------ */
+    /*  Show / edit / update / destroy */
+    /* ------------------------------------------------------------------ */
+
     public function show(KeyRiskIndicator $kri)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-
-        if ($kri->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this KRI.');
-        }
+        Gate::authorize('view', $kri);
 
         $kri->load(['risk', 'owner']);
+        $readings = $this->kris->readings($kri);
 
-        $measurements = KriMeasurement::where('kri_id', $kri->id)
-            ->orderByDesc('measurement_date')
-            ->paginate(20);
-
-        // Build chart data from recent measurements (last 12 months)
-        $chartMeasurements = KriMeasurement::where('kri_id', $kri->id)
-            ->orderBy('measurement_date')
-            ->limit(24)
-            ->get();
-
-        $historyData = [
-            'labels' => $chartMeasurements->pluck('measurement_date')->map(fn ($d) => $d?->format('M Y') ?? '')->toArray(),
-            'values' => $chartMeasurements->pluck('value')->map(fn ($v) => (float) $v)->toArray(),
-            'green'  => (float) ($kri->green_threshold_max ?? 0),
-            'amber'  => (float) ($kri->amber_threshold_max ?? 0),
-            'red'    => (float) ($kri->red_threshold_min ?? 0),
-        ];
-
-        return view('risk.kri.show', compact('kri', 'measurements', 'historyData'));
+        return Inertia::render('Kri/Show', [
+            'kri' => $this->detail($kri),
+            'history' => $this->kris->history($kri),
+            'readings' => [
+                'data' => collect($readings->items())->map(fn (MeasureValue $value) => [
+                    'id' => $value->id,
+                    'period' => $value->period?->name,
+                    'value' => $value->value === null ? null : (float) $value->value,
+                    'band' => $value->rag_band,
+                    'enteredBy' => $value->enteredBy?->name,
+                    'recordedAt' => $value->entered_at?->format('d M Y, H:i'),
+                ])->all(),
+                'links' => $readings->linkCollection()->toArray(),
+                'meta' => [
+                    'from' => $readings->firstItem(),
+                    'to' => $readings->lastItem(),
+                    'total' => $readings->total(),
+                ],
+            ],
+            'breaches' => $this->kris->breachesFor($kri)->map(fn (MeasureBreach $breach) => [
+                'id' => $breach->id,
+                'period' => $breach->period?->name,
+                'from' => $breach->band_from,
+                'to' => $breach->band_to,
+                'status' => $breach->status,
+                'breachedAt' => $breach->breached_at?->format('d M Y'),
+                'acknowledgedBy' => $breach->acknowledgedBy?->name,
+            ])->all(),
+            'can' => [
+                'update' => Gate::allows('update', $kri),
+                'delete' => Gate::allows('delete', $kri),
+                'recordMeasurement' => Gate::allows('recordMeasurement', $kri),
+                'acknowledgeBreach' => $kri->id && Gate::allows('kri.acknowledge_breach'),
+            ],
+        ]);
     }
 
-    /**
-     * Show the form for editing the specified KRI.
-     */
     public function edit(KeyRiskIndicator $kri)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('update', $kri);
 
-        if ($kri->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this KRI.');
-        }
-
-        $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
-        $users = User::where('organization_id', $orgId)->orderBy('name')->get();
-
-        return view('risk.kri.edit', compact('kri', 'risks', 'users'));
+        return Inertia::render('Kri/Edit', array_merge($this->formOptions(), [
+            'kri' => [
+                'id' => $kri->id,
+                'code' => $kri->kri_code,
+                'kri_name' => $kri->name,
+                'description' => $kri->description,
+                'measurement_unit' => $kri->unit_of_measure,
+                'measurement_frequency' => $kri->measurement_frequency,
+                'data_source' => $kri->data_source,
+                'kri_owner_id' => $kri->owner_id,
+                'target_value' => $kri->target_value,
+                'formula' => $kri->formula,
+                'is_active' => (bool) $kri->is_active,
+                'direction' => $kri->threshold_direction === 'lower_worse' ? 'lower_is_worse' : 'higher_is_worse',
+                'green_threshold' => $kri->green_threshold,
+                'red_threshold' => $kri->red_threshold,
+            ],
+            'schema' => $this->schemas->form(self::OBJECT_TYPE, $kri, omit: ['risk_id']),
+        ]));
     }
 
-    /**
-     * Update the specified KRI.
-     */
-    public function update(Request $request, KeyRiskIndicator $kri)
+    public function update(UpdateKriRequest $request, KeyRiskIndicator $kri)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $this->kris->update($kri, $request->validated(), $request->user()?->id);
 
-        if ($kri->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this KRI.');
-        }
-
-        $validated = $request->validate([
-            'kri_name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:2000',
-            'measurement_unit' => 'required|string|max:100',
-            'measurement_frequency' => 'required|in:daily,weekly,monthly,quarterly',
-            'data_source' => 'nullable|string|max:255',
-            'kri_owner_id' => 'required|exists:users,id',
-            'green_threshold' => 'nullable|numeric',
-            'amber_threshold' => 'nullable|numeric',
-            'red_threshold' => 'nullable|numeric',
-            'direction' => 'required|in:higher_is_worse,lower_is_worse',
-            'target_value' => 'nullable|numeric',
-            'is_active' => 'nullable|boolean',
-            'formula' => 'nullable|string|max:1000',
-        ]);
-
-        // Map single threshold values to min/max based on direction
-        $direction = $validated['direction'];
-        $green = $validated['green_threshold'] ?? null;
-        $amber = $validated['amber_threshold'] ?? null;
-        $red = $validated['red_threshold'] ?? null;
-        unset($validated['green_threshold'], $validated['amber_threshold'], $validated['red_threshold']);
-
-        if ($direction === 'higher_is_worse') {
-            $validated['green_threshold_max'] = $green;
-            $validated['amber_threshold_min'] = $green;
-            $validated['amber_threshold_max'] = $red;
-            $validated['red_threshold_min'] = $red;
-        } else {
-            $validated['green_threshold_min'] = $green;
-            $validated['amber_threshold_min'] = $red;
-            $validated['amber_threshold_max'] = $green;
-            $validated['red_threshold_max'] = $red;
-        }
-
-        if (isset($validated['formula'])) {
-            $validated['metric_formula'] = $validated['formula'];
-            unset($validated['formula']);
-        }
-
-        $original = $kri->getAttributes();
-
-        $kri->update(array_merge($validated, [
-            'is_active' => $validated['is_active'] ?? $kri->is_active,
-            'updated_by' => auth()->id(),
-            // Keep original NOT NULL columns in sync with alignment columns
-            'name' => $validated['kri_name'],
-            'unit_of_measure' => $validated['measurement_unit'],
-            'owner_id' => $validated['kri_owner_id'],
-            'threshold_direction' => $validated['direction'] === 'higher_is_worse' ? 'higher_worse' : 'lower_worse',
-        ]));
-
-        // Audit trail
-        \App\Services\AuditTrailService::recordChanges($kri, $original);
+        $this->saveConfiguredAttributes($request, $kri);
 
         return redirect()->route('risk.kri.show', $kri)
             ->with('success', "KRI {$kri->kri_code} has been updated.");
     }
 
-    /**
-     * Delete the specified KRI.
-     */
     public function destroy(KeyRiskIndicator $kri)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-
-        if ($kri->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this KRI.');
-        }
+        Gate::authorize('delete', $kri);
 
         $code = $kri->kri_code;
         $kri->delete();
 
-        return redirect()->route('risk.kri.index')
-            ->with('success', "KRI {$code} has been deleted.");
+        return redirect()->route('risk.kri.index')->with('success', "KRI {$code} has been deleted.");
     }
 
-    /**
-     * Record a new KRI measurement.
-     */
-    public function recordMeasurement(Request $request, KeyRiskIndicator $kri)
-    {
-        $orgId = auth()->user()->organization_id ?? 1;
+    /* ------------------------------------------------------------------ */
+    /*  Measurements */
+    /* ------------------------------------------------------------------ */
 
-        if ($kri->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this KRI.');
+    public function recordMeasurement(RecordKriMeasurementRequest $request, KeyRiskIndicator $kri)
+    {
+        $result = $this->kris->recordMeasurement($kri, $request->validated(), $request->user()?->id);
+
+        $band = $result['band'];
+        $message = "Measurement recorded for {$result['period']->name}.";
+
+        if ($band !== null) {
+            $message .= ' Status: '.strtoupper($band).'.';
         }
 
-        $validated = $request->validate([
-            'measurement_date' => 'required|date',
-            'value' => 'required|numeric',
-            'notes' => 'nullable|string|max:1000',
-        ]);
+        if ($result['breach'] !== null && $result['breach']->wasRecentlyCreated) {
+            $message .= ' A breach has been opened for acknowledgement.';
+        }
 
-        // Determine status based on thresholds
-        $status = $this->determineStatus($kri, $validated['value']);
-
-        $measurement = KriMeasurement::create([
-            'kri_id' => $kri->id,
-            'measurement_date' => $validated['measurement_date'],
-            'value' => $validated['value'],
-            'status' => $status,
-            'notes' => $validated['notes'] ?? null,
-            'entered_by' => auth()->id(),
-        ]);
-
-        // Update KRI current status and value
-        $original = $kri->getAttributes();
-
-        $kri->update([
-            'current_value' => $validated['value'],
-            'current_status' => $status,
-            'last_measurement_at' => $validated['measurement_date'],
-            'last_measurement_date' => $validated['measurement_date'],
-        ]);
-
-        // Audit trail
-        \App\Services\AuditTrailService::recordChanges($kri, $original);
-
-        $statusLabel = strtoupper($status);
-        return back()->with('success', "Measurement recorded. Current status: {$statusLabel}.");
+        return back()->with($band === 'red' ? 'warning' : 'success', $message);
     }
 
-    /**
-     * Manage KRI thresholds.
-     */
+    /* ------------------------------------------------------------------ */
+    /*  Thresholds */
+    /* ------------------------------------------------------------------ */
+
     public function thresholds(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('viewAny', KeyRiskIndicator::class);
 
-        $kris = KeyRiskIndicator::where('organization_id', $orgId)
+        $kris = KeyRiskIndicator::where('organization_id', TenantContext::organizationId())
             ->with('risk')
             ->orderBy('kri_code')
             ->paginate(25);
 
-        return view('risk.kri.thresholds', compact('kris'));
+        return Inertia::render('Kri/Thresholds', [
+            'kris' => [
+                'data' => collect($kris->items())->map(fn (KeyRiskIndicator $kri) => [
+                    'id' => $kri->id,
+                    'code' => $kri->kri_code,
+                    'name' => $kri->name,
+                    'unit' => $kri->unit_of_measure,
+                    'status' => $kri->current_status,
+                    'currentValue' => $kri->current_value === null ? null : (float) $kri->current_value,
+                    'direction' => $kri->threshold_direction === 'lower_worse' ? 'lower_is_worse' : 'higher_is_worse',
+                    'green_threshold' => $kri->green_threshold,
+                    'red_threshold' => $kri->red_threshold,
+                    'riskCode' => $kri->risk?->risk_code,
+                ])->all(),
+                'links' => $kris->linkCollection()->toArray(),
+                'meta' => ['from' => $kris->firstItem(), 'to' => $kris->lastItem(), 'total' => $kris->total()],
+            ],
+            'canManage' => Gate::allows('manageThresholds', KeyRiskIndicator::class),
+        ]);
     }
 
-    /**
-     * List all KRI breaches.
-     */
-    public function breaches(Request $request)
+    public function updateThresholds(UpdateKriThresholdsRequest $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $changed = $this->kris->updateThresholds($request->validated()['kris']);
 
-        $query = KriMeasurement::whereHas('kri', function ($q) use ($orgId) {
-                $q->where('organization_id', $orgId);
-            })
-            ->whereIn('status', ['red', 'amber'])
-            ->with(['kri.risk.category', 'kri.owner']);
-
-        if ($request->filled('level')) {
-            $query->where('status', $request->level);
-        }
-
-        if ($request->filled('category')) {
-            $query->whereHas('kri.risk.category', fn ($q) => $q->where('name', $request->category));
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->whereHas('kri', function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('kri_code', 'like', "%{$search}%");
-            });
-        }
-
-        $breaches = $query->orderByDesc('measurement_date')->paginate(25)->withQueryString();
-
-        // Enrich each measurement row with the display fields the table expects.
-        $breaches->getCollection()->transform(function ($m) {
-            $kri = $m->kri;
-            $unit = $kri?->unit_of_measure ?? '';
-            $higherWorse = in_array($kri?->threshold_direction, ['higher_worse', 'higher_is_worse'])
-                || ($kri?->direction === 'higher_is_worse');
-
-            $threshold = $m->status === 'red'
-                ? ($higherWorse ? $kri?->red_threshold_min : $kri?->red_threshold_max)
-                : ($higherWorse ? $kri?->amber_threshold_min : $kri?->amber_threshold_max);
-
-            $m->setAttribute('kri_name', $kri?->name);
-            $m->setAttribute('category', $kri?->risk?->category?->name);
-            $m->setAttribute('current_value', number_format((float) $m->value, 2) . ($unit !== '' ? ' ' . $unit : ''));
-            $m->setAttribute('threshold_value', $threshold !== null
-                ? number_format((float) $threshold, 2) . ($unit !== '' ? ' ' . $unit : '')
-                : null);
-            $m->setAttribute('level', $m->status);
-            $m->setAttribute('days_in_breach', $m->measurement_date
-                ? (int) abs(now()->diffInDays($m->measurement_date))
-                : 0);
-            $m->setAttribute('owner', $kri?->owner?->name);
-            $m->setAttribute('breach_date', $m->measurement_date);
-
-            return $m;
-        });
-
-        // Summary KPIs — KRIs currently in breach (status maintained by recordMeasurement)
-        $redBreaches = KeyRiskIndicator::where('organization_id', $orgId)
-            ->where('current_status', 'red')->count();
-        $amberBreaches = KeyRiskIndicator::where('organization_id', $orgId)
-            ->where('current_status', 'amber')->count();
-
-        // Average days each currently-breached KRI has been in breach: walk back
-        // through its measurement history until the last non-breach reading.
-        $breachedKris = KeyRiskIndicator::where('organization_id', $orgId)
-            ->whereIn('current_status', ['red', 'amber'])
-            ->with('measurements')
-            ->get();
-
-        $breachDays = [];
-        foreach ($breachedKris as $kri) {
-            $breachStart = null;
-            foreach ($kri->measurements->sortByDesc('measurement_date')->values() as $measurement) {
-                if (! in_array($measurement->status, ['red', 'amber'])) {
-                    break;
-                }
-                $breachStart = $measurement->measurement_date;
-            }
-            $breachStart = $breachStart ?? $kri->last_measurement_date ?? $kri->updated_at;
-            if ($breachStart) {
-                $breachDays[] = (int) abs(now()->diffInDays($breachStart));
-            }
-        }
-        $avgDaysInBreach = count($breachDays) > 0
-            ? (int) round(array_sum($breachDays) / count($breachDays))
-            : 0;
-
-        // Distinct categories for the filter dropdown (via linked risks)
-        $categories = KeyRiskIndicator::where('key_risk_indicators.organization_id', $orgId)
-            ->join('risks', 'risks.id', '=', 'key_risk_indicators.risk_id')
-            ->join('risk_categories', 'risk_categories.id', '=', 'risks.category_id')
-            ->distinct()
-            ->orderBy('risk_categories.name')
-            ->pluck('risk_categories.name');
-
-        return view('risk.kri.breaches', compact(
-            'breaches', 'redBreaches', 'amberBreaches', 'avgDaysInBreach', 'categories'
-        ));
+        return redirect()->route('risk.kri.thresholds')->with(
+            'success',
+            $changed === 0
+                ? 'No threshold changes to save.'
+                : $changed.' '.($changed === 1 ? 'indicator' : 'indicators').' updated.',
+        );
     }
 
-    /**
-     * Update KRI thresholds in bulk.
-     */
-    public function updateThresholds(Request $request)
-    {
-        $orgId = auth()->user()->organization_id ?? 1;
+    /* ------------------------------------------------------------------ */
+    /*  Breach lifecycle */
+    /* ------------------------------------------------------------------ */
 
-        foreach ($request->input('thresholds', []) as $kriId => $thresholds) {
-            KeyRiskIndicator::where('id', $kriId)
-                ->where('organization_id', $orgId)
-                ->update([
-                    'green_threshold_min' => $thresholds['green_min'] ?? null,
-                    'green_threshold_max' => $thresholds['green_max'] ?? null,
-                    'amber_threshold_min' => $thresholds['amber_min'] ?? null,
-                    'amber_threshold_max' => $thresholds['amber_max'] ?? null,
-                    'red_threshold_min' => $thresholds['red_min'] ?? null,
-                    'red_threshold_max' => $thresholds['red_max'] ?? null,
-                ]);
+    public function acknowledgeBreach(AcknowledgeBreachRequest $request, MeasureBreach $breach)
+    {
+        if ($breach->status !== 'open') {
+            return back()->with('error', 'Only an open breach can be acknowledged.');
         }
 
-        return redirect()->route('risk.kri.thresholds')->with('success', 'Thresholds updated.');
+        $validated = $request->validated();
+
+        $breach->update([
+            'status' => 'acknowledged',
+            'acknowledged_by' => $request->user()->id,
+            'acknowledged_at' => now(),
+            'note' => $validated['note'] ?? $breach->note,
+            'root_cause' => $validated['root_cause'] ?? $breach->root_cause,
+        ]);
+
+        AuditTrailService::record($breach, 'breach_acknowledged', 'status', 'open', 'acknowledged');
+
+        return back()->with('success', 'Breach acknowledged.');
     }
 
-    /**
-     * Determine KRI status based on thresholds and direction.
-     */
-    private function determineStatus(KeyRiskIndicator $kri, float $value): string
+    public function resolveBreach(ResolveBreachRequest $request, MeasureBreach $breach)
     {
-        if ($kri->direction === 'higher_is_worse') {
-            if ($kri->red_threshold_min !== null && $value >= $kri->red_threshold_min) {
-                return 'red';
-            }
-            if ($kri->amber_threshold_min !== null && $value >= $kri->amber_threshold_min) {
-                return 'amber';
-            }
-            if ($kri->green_threshold_max !== null && $value <= $kri->green_threshold_max) {
-                return 'green';
-            }
-            return 'yellow';
-        } else {
-            // lower_is_worse
-            if ($kri->red_threshold_max !== null && $value <= $kri->red_threshold_max) {
-                return 'red';
-            }
-            if ($kri->amber_threshold_max !== null && $value <= $kri->amber_threshold_max) {
-                return 'amber';
-            }
-            if ($kri->green_threshold_min !== null && $value >= $kri->green_threshold_min) {
-                return 'green';
-            }
-            return 'yellow';
+        if (in_array($breach->status, ['resolved', 'false_positive'], true)) {
+            return back()->with('error', 'This breach is already closed.');
         }
+
+        $validated = $request->validated();
+        $previous = $breach->status;
+
+        $breach->update([
+            'status' => $validated['outcome'],
+            'resolved_at' => now(),
+            'root_cause' => $validated['root_cause'] ?? $breach->root_cause,
+            'note' => $validated['note'] ?? $breach->note,
+        ]);
+
+        AuditTrailService::record($breach, 'breach_closed', 'status', $previous, $validated['outcome']);
+
+        return back()->with('success', 'Breach closed.');
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Presentation */
+    /* ------------------------------------------------------------------ */
+
+    /** @return array<string, mixed> */
+    private function formOptions(): array
+    {
+        $orgId = TenantContext::organizationId();
+
+        return [
+            'risks' => Risk::where('organization_id', $orgId)
+                ->orderBy('risk_code')
+                ->get()
+                ->map(fn (Risk $risk) => ['id' => $risk->id, 'code' => $risk->risk_code, 'title' => $risk->title])
+                ->all(),
+            'users' => User::where('organization_id', $orgId)
+                ->orderBy('name')
+                ->get()
+                ->map(fn (User $user) => ['id' => $user->id, 'name' => $user->name])
+                ->all(),
+            'frequencies' => KeyRiskIndicator::FREQUENCIES,
+            'directions' => KeyRiskIndicator::DIRECTIONS,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function detail(KeyRiskIndicator $kri): array
+    {
+        return [
+            'id' => $kri->id,
+            'code' => $kri->kri_code,
+            'name' => $kri->name,
+            'description' => $kri->description,
+            'unit' => $kri->unit_of_measure,
+            'frequency' => $kri->measurement_frequency,
+            'dataSource' => $kri->data_source,
+            'formula' => $kri->formula,
+            'status' => $kri->current_status,
+            'currentValue' => $kri->current_value === null ? null : (float) $kri->current_value,
+            'targetValue' => $kri->target_value === null ? null : (float) $kri->target_value,
+            'trend' => $kri->trend_direction,
+            'isActive' => (bool) $kri->is_active,
+            'direction' => $kri->threshold_direction,
+            'greenThreshold' => $kri->green_threshold,
+            'redThreshold' => $kri->red_threshold,
+            'owner' => $kri->owner?->name,
+            'risk' => $kri->risk ? [
+                'code' => $kri->risk->risk_code,
+                'title' => $kri->risk->title,
+                'url' => route('risk.register.show', $kri->risk),
+            ] : null,
+        ];
     }
 }

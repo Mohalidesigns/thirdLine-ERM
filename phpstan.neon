@@ -1,0 +1,29 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - phpstan-baseline.neon
+
+parameters:
+    level: 5
+
+    paths:
+        - app
+        - packages
+        - config
+        - database
+        - routes
+
+    # A path package does not install its own require-dev into the root
+    # vendor, so its tests reference a Testbench that is not here. They are
+    # analysed by the package's own `composer test`, where those deps exist.
+    excludePaths:
+        analyse:
+            - packages/*/tests/*
+            # A package ships its own config, and config files are where env()
+            # belongs. larastan scopes that rule to the application config/
+            # directory, which a package config is not.
+            - packages/*/config/*
+
+    # Phase 7 of the migration programme drives the baseline to zero for
+    # app/Http/** and app/Policies/** and raises the level; until then the
+    # baseline is the debt register and CI fails on anything new.
+    treatPhpDocTypesAsCertain: false

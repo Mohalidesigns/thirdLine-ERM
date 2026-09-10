@@ -4,17 +4,33 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 class SimulationRun extends Model
 {
-    use HasFactory;
+    use BelongsToOrganization, HasFactory;
 
     protected $fillable = [
         'organization_id',
         'simulation_reference',
         'status',
+        // WP-06 added progress, completed_iterations, cancel_requested_at and
+        // job_run_id in 2026_08_15_120001 so a run could be observed and
+        // cancelled. None of the four was added to $fillable, so every
+        // update() naming them silently dropped them: the progress bar never
+        // moved, the run never linked to its JobRun, and — because the cancel
+        // handler then looked up JobRun::whereKey(null) — the cancel button
+        // requested nothing of anybody. Found in Phase 5.2 by asserting the
+        // cancellation actually landed rather than that the flash message did.
+        'progress',
+        'completed_iterations',
+        'cancel_requested_at',
+        'job_run_id',
         'iterations',
+        'random_seed',
         'horizon_years',
         'correlation_method',
         'confidence_levels',
@@ -30,10 +46,11 @@ class SimulationRun extends Model
 
     protected $casts = [
         'confidence_levels' => 'array',
-        'scenario_ids'      => 'array',
-        'stress_config'     => 'array',
-        'started_at'        => 'datetime',
-        'completed_at'      => 'datetime',
+        'scenario_ids' => 'array',
+        'stress_config' => 'array',
+        'started_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'cancel_requested_at' => 'datetime',
     ];
 
     protected static function boot(): void
@@ -48,26 +65,29 @@ class SimulationRun extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function organization()
+    /** @return BelongsTo<Organization, $this> */
+    public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }
 
-    public function initiatedBy()
+    /** @return BelongsTo<User, $this> */
+    public function initiatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'initiated_by');
     }
 
-    public function results()
+    /** @return HasMany<SimulationResult, $this> */
+    public function results(): HasMany
     {
         return $this->hasMany(SimulationResult::class);
     }
 
     /* ------------------------------------------------------------------ */
-    /*  View-compatible accessors                                          */
+    /*  View-compatible accessors */
     /* ------------------------------------------------------------------ */
 
     public function getNameAttribute()
@@ -92,38 +112,65 @@ class SimulationRun extends Model
     public function getVar95Attribute()
     {
         $agg = $this->aggregate_result;
+
         return $agg ? round(($agg->var_95_kobo ?? 0) / 100, 2) : 0;
     }
 
     public function getVar99Attribute()
     {
         $agg = $this->aggregate_result;
+
         return $agg ? round(($agg->var_99_kobo ?? 0) / 100, 2) : 0;
     }
 
     public function getVar995Attribute()
     {
         $agg = $this->aggregate_result;
+
         return $agg ? round(($agg->var_99_9_kobo ?? 0) / 100, 2) : 0;
     }
 
     public function getExpectedLossAttribute()
     {
         $agg = $this->aggregate_result;
+
         return $agg ? round(($agg->expected_annual_loss_kobo ?? 0) / 100, 2) : 0;
     }
 
+    /**
+     * Expected shortfall (CVaR) at 95%, in naira.
+     *
+     * This used to read `return round(($agg->var_99_kobo ?? 0) / 100, 2)` under
+     * a comment claiming "ES approximated as average of losses above VaR 95".
+     * Those are two different statistics: VaR(99) is a single order statistic
+     * of the loss sample, ES(95) is the mean of the whole tail beyond VaR(95).
+     * Neither the label nor the comment described what the number was, and it
+     * was rendered as a headline KPI on the quantification dashboard and on the
+     * results page. It is now read from the value MonteCarloService actually
+     * computes from the sorted loss vector.
+     *
+     * Returns null — not 0 — when no ES was stored, which is the case for every
+     * run completed before the es_*_kobo columns existed. A zero would be read
+     * off a dashboard as "this portfolio has no tail loss"; a null lets the
+     * view say the figure was never computed. Callers that still coalesce with
+     * `?? 0` will need updating before the empty state is honest on screen.
+     */
     public function getExpectedShortfallAttribute()
     {
-        // ES approximated as average of losses above VaR 95
         $agg = $this->aggregate_result;
-        return $agg ? round(($agg->var_99_kobo ?? 0) / 100, 2) : 0;
+
+        if (! $agg || $agg->es_95_kobo === null) {
+            return null;
+        }
+
+        return round($agg->es_95_kobo / 100, 2);
     }
 
     public function getMaxLossAttribute()
     {
         $agg = $this->aggregate_result;
         $dist = $agg->percentile_distribution ?? [];
+
         return isset($dist['p99.9']) ? round($dist['p99.9'] / 100, 2) : $this->var_995;
     }
 
@@ -138,6 +185,7 @@ class SimulationRun extends Model
                 $formatted[$label] = round($dist[$key] / 100, 2);
             }
         }
+
         return $formatted;
     }
 

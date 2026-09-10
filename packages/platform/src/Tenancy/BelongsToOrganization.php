@@ -1,0 +1,97 @@
+<?php
+
+namespace ThirdLine\Platform\Tenancy;
+
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+/**
+ * Applied to every model backed by a table carrying organization_id.
+ *
+ * Gives the model three things:
+ *   1. a global scope filtering reads to the current tenant;
+ *   2. a creating() hook stamping organization_id so callers never have to;
+ *   3. bypassTenancy(), the single audited escape hatch for system work.
+ */
+trait BelongsToOrganization
+{
+    public static function bootBelongsToOrganization(): void
+    {
+        static::addGlobalScope(new OrganizationScope);
+
+        // `self`, not `Model`. In a trait `self` resolves to the USING class,
+        // so static analysis can see this trait's own methods on it; `Model`
+        // widens it to the base class and produces one "undefined method
+        // getOrganizationIdColumn()" per model in the application — 117 of them
+        // in the baseline before this line changed, and 57 more the moment a
+        // module was added. A debt register that grows by a module is one
+        // nobody reads.
+        static::creating(function (self $model): void {
+            $column = $model->getOrganizationIdColumn();
+
+            if ($model->getAttribute($column) !== null) {
+                return;
+            }
+
+            if (TenantContext::isBypassed()) {
+                return;
+            }
+
+            $organizationId = TenantContext::organizationIdOrNull();
+
+            if ($organizationId !== null) {
+                $model->setAttribute($column, $organizationId);
+            }
+        });
+    }
+
+    /**
+     * Query this model across every tenant.
+     *
+     * Reserved for system jobs and reports that legitimately span
+     * organizations. Each call is logged by TenantContext.
+     */
+    public static function bypassTenancy(string $reason = 'unspecified'): Builder
+    {
+        return TenantContext::bypass(
+            fn () => static::query()->withoutGlobalScope(OrganizationScope::class),
+            $reason
+        );
+    }
+
+    public function getOrganizationIdColumn(): string
+    {
+        return 'organization_id';
+    }
+
+    public function getQualifiedOrganizationIdColumn(): string
+    {
+        return $this->getTable().'.'.$this->getOrganizationIdColumn();
+    }
+
+    /**
+     * Whether rows with a NULL organization_id are visible to every tenant.
+     *
+     * Models holding shared system content (question library, notification
+     * templates) override the $tenantIncludesGlobal property to true.
+     */
+    public function tenantIncludesGlobalRecords(): bool
+    {
+        return property_exists($this, 'tenantIncludesGlobal') && $this->tenantIncludesGlobal === true;
+    }
+
+    /**
+     * The tenant this record belongs to.
+     *
+     * The model class is configuration, not a constant: this trait was
+     * `App\Models\Concerns\BelongsToOrganization` and named `App\Models\
+     * Organization` outright, which is the one line that stopped it being
+     * shareable. Each application names its own through
+     * `config('platform.tenancy.organization_model')`.
+     */
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(TenancyConfig::organizationModel());
+    }
+}

@@ -2,226 +2,218 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
-use App\Models\Control;
+use App\Http\Requests\Controls\ExecuteControlTestRequest;
+use App\Http\Requests\Controls\ReviewControlTestRequest;
+use App\Http\Requests\Controls\StoreControlTestRequest;
+use App\Http\Requests\Controls\UpdateControlTestRequest;
+use App\Http\Requests\Controls\UploadControlTestEvidenceRequest;
 use App\Models\ControlTest;
 use App\Models\ControlTestEvidence;
-use App\Services\ApprovalService;
-use App\Services\ReferenceCodeService;
+use App\Presenters\GridPresenter;
+use App\Services\Controls\ControlTestService;
+use App\Services\FileUploadService;
+use App\Services\Workflow\ModuleApprovals;
+use App\Support\Authorization\GraphScope;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
+/**
+ * Control testing (migration Phase 3.4). Each action authorises through
+ * ControlTestPolicy, hands the work to ControlTestService, and renders a page.
+ *
+ * The lifecycle guards — "only a test pending review can be reviewed", "only a
+ * rejected test can be resubmitted" — stay here rather than moving into the
+ * policy. They answer with a flash message, not a 403, and
+ * WorkflowEngine::canAct() asks the policy the same question about tasks that
+ * are not yet decided.
+ */
 class ControlTestController extends Controller
 {
-    public function dashboard(Request $request)
+    public function __construct(
+        private readonly ControlTestService $tests,
+        private readonly FileUploadService $uploads,
+    ) {}
+
+    /**
+     * WP-00 node scoping.
+     *
+     * ControlTest carries the tenant global scope, so route-model binding is
+     * tenant-safe; it does NOT use ScopedToGraph, so there is no
+     * binding-level 404 for node scope to inherit. A test is visible exactly
+     * when its control is, and this is where that is enforced — 404 rather
+     * than the policy's 403, because the caller may hold every permission in
+     * the product and leaking the existence of a sibling branch's test is
+     * itself a disclosure. ControlTestPolicy checks the same reach as defence
+     * in depth.
+     *
+     * This is EnforcesNodeScope::abortUnlessNodeVisibleThrough() inlined: the
+     * trait also carries abortUnlessNodeVisible(), which this controller never
+     * calls and which does not type-check for a record whose model is unknown.
+     */
+    private function abortUnlessVisible(ControlTest $test): void
     {
-        $orgId = auth()->user()->organization_id;
+        if (! GraphScope::isSubtreeLimited(request()->user())) {
+            return;
+        }
 
-        $totalTests     = ControlTest::where('organization_id', $orgId)->count();
-        $scheduledTests = ControlTest::where('organization_id', $orgId)->where('status', 'scheduled')->count();
-        $inProgress     = ControlTest::where('organization_id', $orgId)->where('status', 'in_progress')->count();
-        $completedTests = ControlTest::where('organization_id', $orgId)->where('status', 'completed')->count();
+        abort_unless(
+            GraphScope::applyThrough(ControlTest::query()->whereKey($test->getKey()), 'control')->exists(),
+            404
+        );
+    }
 
-        $overdueTests = ControlTest::where('organization_id', $orgId)
-            ->where('status', 'scheduled')
-            ->where('scheduled_date', '<', now())
-            ->count();
+    /* ------------------------------------------------------------------ */
+    /*  Dashboard and index */
+    /* ------------------------------------------------------------------ */
 
-        $passRate = $completedTests > 0
-            ? round(ControlTest::where('organization_id', $orgId)->where('status', 'completed')->where('result', 'effective')->count() / $completedTests * 100, 1)
-            : 0;
+    public function dashboard()
+    {
+        Gate::authorize('viewAny', ControlTest::class);
 
-        $recentTests = ControlTest::where('organization_id', $orgId)
-            ->with(['control', 'tester'])
-            ->latest('updated_at')
-            ->take(10)
-            ->get();
+        return Inertia::render('ControlTests/Dashboard', $this->tests->dashboard());
+    }
 
-        $upcomingTests = ControlTest::where('organization_id', $orgId)
-            ->where('status', 'scheduled')
-            ->with(['control', 'tester'])
-            ->orderBy('scheduled_date')
-            ->take(10)
-            ->get();
+    /**
+     * WP-09: the register itself is the shared data grid — search, filters,
+     * sorting, columns and export all live in
+     * App\Grids\Definitions\ControlTestsGrid. Only the page header is left.
+     */
+    public function index(Request $request, GridPresenter $presenter)
+    {
+        Gate::authorize('viewAny', ControlTest::class);
 
-        return view('risk.controls.testing-dashboard', compact(
-            'totalTests', 'scheduledTests', 'inProgress', 'completedTests',
-            'overdueTests', 'passRate', 'recentTests', 'upcomingTests'
+        $total = ControlTest::where('organization_id', TenantContext::organizationId())->count();
+
+        return Inertia::render('ControlTests/Index', [
+            'total' => $total,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('control_tests'), $request, $request->user()),
+        ]);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Create / Store */
+    /* ------------------------------------------------------------------ */
+
+    public function create(Request $request)
+    {
+        Gate::authorize('create', ControlTest::class);
+
+        return Inertia::render('ControlTests/Create', array_merge(
+            $this->tests->formOptions(),
+            ['controlId' => $request->integer('control_id') ?: null],
         ));
     }
 
-    public function index(Request $request)
+    public function store(StoreControlTestRequest $request)
     {
-        $orgId = auth()->user()->organization_id;
+        $test = $this->tests->create(
+            $request->validated(),
+            TenantContext::organizationId(),
+            $request->user()?->id,
+        );
 
-        $query = ControlTest::where('organization_id', $orgId)->with(['control', 'tester', 'reviewer']);
-
-        if ($request->filled('status'))   $query->where('status', $request->status);
-        if ($request->filled('result'))   $query->where('result', $request->result);
-        if ($request->filled('control'))  $query->where('control_id', $request->control);
-
-        $tests = $query->latest('scheduled_date')->paginate(20);
-        $controls = Control::where('organization_id', $orgId)->orderBy('name')->get();
-
-        return view('risk.controls.tests.index', compact('tests', 'controls'));
+        return redirect()->route('risk.control-tests.show', $test)
+            ->with('success', 'Control test scheduled successfully.');
     }
 
-    public function create()
-    {
-        $orgId    = auth()->user()->organization_id;
-        $controls = Control::where('organization_id', $orgId)->orderBy('name')->get();
-        $users    = \App\Models\User::where('organization_id', $orgId)->where('is_active', true)->orderBy('name')->get();
+    /* ------------------------------------------------------------------ */
+    /*  Show */
+    /* ------------------------------------------------------------------ */
 
-        return view('risk.controls.tests.create', compact('controls', 'users'));
+    public function show(Request $request, ControlTest $controlTest)
+    {
+        $this->abortUnlessVisible($controlTest);
+        Gate::authorize('view', $controlTest);
+
+        $user = $request->user();
+
+        return Inertia::render('ControlTests/Show', array_merge(
+            $this->tests->detail($controlTest),
+            [
+                'can' => [
+                    'update' => $user->can('update', $controlTest)
+                        && in_array($controlTest->status, ['scheduled', 'in_progress'], true),
+                    'start' => $user->can('execute', $controlTest) && $controlTest->status === 'scheduled',
+                    'complete' => $user->can('execute', $controlTest) && $controlTest->status === 'in_progress',
+                    'uploadEvidence' => $user->can('execute', $controlTest),
+                    'review' => $user->can('review', $controlTest) && $controlTest->status === 'pending_review',
+                    'resubmit' => $user->can('resubmit', $controlTest) && $controlTest->status === 'rejected',
+                ],
+            ],
+        ));
     }
 
-    public function store(Request $request)
-    {
-        $orgId = auth()->user()->organization_id;
-
-        $request->validate([
-            'control_id'     => ['required', Rule::exists('controls', 'id')->where('organization_id', $orgId)],
-            'title'          => 'required|string|max:255',
-            'test_type'      => 'required|in:design_effectiveness,operating_effectiveness,walkthrough,substantive',
-            'tester_id'      => ['required', Rule::exists('users', 'id')->where('organization_id', $orgId)],
-            'reviewer_id'    => ['nullable', Rule::exists('users', 'id')->where('organization_id', $orgId)],
-            'scheduled_date' => 'required|date',
-        ]);
-
-        $test = ControlTest::create([
-            'organization_id' => auth()->user()->organization_id,
-            'control_id'      => $request->control_id,
-            'test_code'       => ReferenceCodeService::generate('control_tests', 'test_code', 'CT'),
-            'title'           => $request->title,
-            'description'     => $request->description,
-            'test_type'       => $request->test_type,
-            'tester_id'       => $request->tester_id,
-            'reviewer_id'     => $request->reviewer_id,
-            'scheduled_date'  => $request->scheduled_date,
-            'status'          => 'scheduled',
-            'created_by'      => auth()->id(),
-        ]);
-
-        return redirect()->route('risk.control-tests.show', $test)->with('success', 'Control test scheduled successfully.');
-    }
-
-    public function show(ControlTest $controlTest)
-    {
-        $controlTest->load(['control.risks', 'tester', 'reviewer', 'evidence', 'creator']);
-        return view('risk.controls.tests.show', compact('controlTest'));
-    }
+    /* ------------------------------------------------------------------ */
+    /*  Edit / Update */
+    /* ------------------------------------------------------------------ */
 
     public function edit(ControlTest $controlTest)
     {
-        $orgId    = auth()->user()->organization_id;
-        $controls = Control::where('organization_id', $orgId)->orderBy('name')->get();
-        $users    = \App\Models\User::where('organization_id', $orgId)->where('is_active', true)->orderBy('name')->get();
+        $this->abortUnlessVisible($controlTest);
+        Gate::authorize('update', $controlTest);
 
-        return view('risk.controls.tests.edit', compact('controlTest', 'controls', 'users'));
+        return Inertia::render('ControlTests/Edit', array_merge(
+            $this->tests->formOptions(),
+            ['test' => $this->tests->present($controlTest->load(['tester', 'reviewer']))],
+        ));
     }
 
-    public function update(Request $request, ControlTest $controlTest)
+    public function update(UpdateControlTestRequest $request, ControlTest $controlTest)
     {
-        $request->validate([
-            'title'          => 'required|string|max:255',
-            'test_type'      => 'required',
-            'scheduled_date' => 'required|date',
-        ]);
+        $this->abortUnlessVisible($controlTest);
 
-        $controlTest->update($request->only([
-            'title', 'description', 'test_type', 'tester_id', 'reviewer_id', 'scheduled_date',
-        ]));
+        $this->tests->update($controlTest, $request->validated());
 
-        return redirect()->route('risk.control-tests.show', $controlTest)->with('success', 'Control test updated.');
+        return redirect()->route('risk.control-tests.show', $controlTest)
+            ->with('success', 'Control test updated.');
     }
+
+    /* ------------------------------------------------------------------ */
+    /*  Execution */
+    /* ------------------------------------------------------------------ */
 
     public function startTest(ControlTest $controlTest)
     {
-        $controlTest->update(['status' => 'in_progress', 'started_date' => now()]);
+        $this->abortUnlessVisible($controlTest);
+        Gate::authorize('execute', $controlTest);
+
+        if ($controlTest->status !== 'scheduled') {
+            return back()->with('error', 'Only a scheduled test can be started.');
+        }
+
+        $this->tests->start($controlTest);
+
         return back()->with('success', 'Test started.');
     }
 
-    public function completeTest(Request $request, ControlTest $controlTest, ApprovalService $approvals)
+    public function completeTest(ExecuteControlTestRequest $request, ControlTest $controlTest, ModuleApprovals $approvals)
     {
-        $request->validate([
-            'result'          => 'required|in:effective,partially_effective,ineffective',
-            'findings'        => 'nullable|string',
-            'recommendations' => 'nullable|string',
-            'score'           => 'nullable|integer|min:0|max:100',
-        ]);
+        $this->abortUnlessVisible($controlTest);
 
-        $controlTest->update([
-            'result'          => $request->result,
-            'findings'        => $request->findings,
-            'recommendations' => $request->recommendations,
-            'score'           => $request->score,
-            'completed_date'  => now(),
-            'status'          => $controlTest->reviewer_id ? 'pending_review' : 'completed',
-        ]);
-
-        $controlTest->control->updateTestStats();
-
-        // Open an approval request so the reviewer sees it in their queue and
-        // gets notified (in-app + email placeholder).
-        if ($controlTest->reviewer_id) {
-            $approvals->requestApproval(
-                $controlTest,
-                action: 'approve_control_test',
-                payload: ['result' => $controlTest->result, 'score' => $controlTest->score],
-                reviewerId: $controlTest->reviewer_id,
-            );
-        }
+        $this->tests->complete($controlTest, $request->validated(), $request->user(), $approvals);
 
         return back()->with('success', 'Test submitted'
-            . ($controlTest->reviewer_id ? ' for review. The reviewer has been notified.' : '.'));
+            .($controlTest->reviewer_id ? ' for review. The reviewer has been notified.' : '.'));
     }
 
-    public function reviewTest(Request $request, ControlTest $controlTest, ApprovalService $approvals)
+    public function reviewTest(ReviewControlTestRequest $request, ControlTest $controlTest, ModuleApprovals $approvals)
     {
-        abort_unless(auth()->user()->can('review-control-test', $controlTest), 403,
-            'Only the assigned reviewer or an authorised approver can review this test.');
-
-        $validated = $request->validate([
-            'action'         => 'required|in:approve,reject',
-            'reviewer_notes' => 'nullable|string|max:3000',
-            'rejection_reason' => 'required_if:action,reject|nullable|string|max:2000',
-        ]);
+        $this->abortUnlessVisible($controlTest);
 
         if ($controlTest->status !== 'pending_review') {
             return back()->with('error', 'Only tests pending review can be reviewed.');
         }
 
-        if ($validated['action'] === 'approve') {
-            $controlTest->update([
-                'reviewer_notes' => $validated['reviewer_notes'] ?? null,
-                'reviewed_at'    => now(),
-                'reviewer_id'    => auth()->id(),
-                'status'         => 'completed',
-            ]);
-            $approvals->approve(
-                $approvals->latestPending($controlTest) ?? $approvals->requestApproval($controlTest, 'approve_control_test'),
-                auth()->id(),
-                $validated['reviewer_notes'] ?? null,
-            );
-            $message = 'Test approved.';
-        } else {
-            $controlTest->update([
-                'reviewer_notes' => $validated['reviewer_notes'] ?? null,
-                'reviewed_at'    => now(),
-                'reviewer_id'    => auth()->id(),
-                'status'         => 'rejected',
-            ]);
-            $approvals->reject(
-                $approvals->latestPending($controlTest) ?? $approvals->requestApproval($controlTest, 'approve_control_test'),
-                auth()->id(),
-                $validated['rejection_reason'],
-            );
-            $message = 'Test rejected. The tester has been notified.';
-        }
+        $approved = $this->tests->review($controlTest, $request->validated(), $request->user(), $approvals);
 
-        $controlTest->control->updateTestStats();
-
-        return back()->with('success', $message);
+        return back()->with('success', $approved
+            ? 'Test approved.'
+            : 'Test rejected. The tester has been notified.');
     }
 
     /**
@@ -230,63 +222,90 @@ class ControlTestController extends Controller
      */
     public function resubmit(ControlTest $controlTest)
     {
-        abort_unless(auth()->user()->can('resubmit-control-test', $controlTest), 403,
-            'Only the tester or original creator can resubmit this test.');
+        $this->abortUnlessVisible($controlTest);
+        Gate::authorize('resubmit', $controlTest);
 
         if ($controlTest->status !== 'rejected') {
             return back()->with('error', 'Only rejected tests can be resubmitted.');
         }
 
-        $controlTest->update([
-            'status' => 'in_progress',
-            'result' => null,
-            'reviewer_notes' => null,
-            'reviewed_at' => null,
-        ]);
+        $this->tests->resubmit($controlTest);
 
         return back()->with('success', 'Test returned to in-progress for rework.');
     }
 
-    public function downloadEvidence(ControlTest $controlTest, ControlTestEvidence $evidence)
+    /* ------------------------------------------------------------------ */
+    /*  Evidence */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Accept a piece of evidence against a control test.
+     *
+     * WP-11. Two defects were fixed when this was written, both of them
+     * upload-policy defects that existed because the endpoint hand-rolled its
+     * own policy instead of using the service written for it:
+     *
+     *  1. STORAGE. `$file->store(..., 'public')` put audit evidence in the
+     *     web-served bucket (see downloadEvidence() below). It goes through
+     *     FileUploadService, which can only ever write to the private disk.
+     *
+     *  2. FILE TYPE. `file_type` was the tail of the client-supplied filename.
+     *     A file could be recorded as a `pdf` on the strength of nothing but
+     *     its name, and that string is what the document repository shows an
+     *     auditor. It is derived from the MIME type detected off the bytes.
+     *
+     * The accepted extension list and the 10 MB cap live in
+     * FileUploadService::PROFILE_CONTROL_TEST_EVIDENCE, which is what
+     * UploadControlTestEvidenceRequest validates against, so the request rules
+     * and the storage-time check cannot drift apart.
+     */
+    public function uploadEvidence(UploadControlTestEvidenceRequest $request, ControlTest $controlTest)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-        if ($controlTest->organization_id !== $orgId || $evidence->control_test_id !== $controlTest->id) {
-            abort(403, 'Unauthorized access.');
-        }
+        $this->abortUnlessVisible($controlTest);
 
-        $disk = \Illuminate\Support\Facades\Storage::disk('public');
-        if (! $disk->exists($evidence->file_path)) {
-            abort(404, 'Evidence file not found.');
-        }
-
-        return $disk->download($evidence->file_path, $evidence->file_name);
-    }
-
-    public function uploadEvidence(Request $request, ControlTest $controlTest)
-    {
-        $orgId = auth()->user()->organization_id ?? 1;
-        if ($controlTest->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access.');
-        }
-
-        $request->validate([
-            'file'        => 'required|file|max:10240|mimes:pdf,doc,docx,xls,xlsx,csv,ppt,pptx,txt,png,jpg,jpeg,gif',
-            'description' => 'nullable|string|max:500',
-        ]);
-
-        $file = $request->file('file');
-        $path = $file->store('control-test-evidence/' . $controlTest->id, 'public');
-
-        ControlTestEvidence::create([
-            'control_test_id' => $controlTest->id,
-            'file_name'       => $file->getClientOriginalName(),
-            'file_path'       => $path,
-            'file_type'       => $file->getClientOriginalExtension(),
-            'file_size'       => $file->getSize(),
-            'description'     => $request->description,
-            'uploaded_by'     => auth()->id(),
-        ]);
+        $this->tests->attachEvidence(
+            $controlTest,
+            $request->file('file'),
+            $request->input('description'),
+            $request->user()?->id,
+        );
 
         return back()->with('success', 'Evidence uploaded.');
+    }
+
+    /**
+     * Stream a piece of control-test evidence to an authorised user.
+     *
+     * WP-11. The tenancy check below was always correct and was always
+     * irrelevant, because the bytes it guarded were ALSO being served straight
+     * off the web server: evidence was written to the `public` disk, whose root
+     * is symlinked to `public/storage`, so a guessed URL returned it to anyone
+     * — no session, no permission, no organisation check.
+     *
+     * Evidence now lives on the private `local` disk, which is not
+     * web-reachable, so THIS action is the only way to the bytes and its checks
+     * finally mean something.
+     */
+    public function downloadEvidence(ControlTest $controlTest, ControlTestEvidence $evidence)
+    {
+        $this->abortUnlessVisible($controlTest);
+        Gate::authorize('view', $controlTest);
+
+        abort_unless($evidence->control_test_id === $controlTest->id, 403, 'Unauthorized access.');
+
+        try {
+            return $this->uploads->download($evidence->file_path, $evidence->file_name);
+        } catch (\RuntimeException $e) {
+            // Missing on disk, or a stored path that does not resolve inside
+            // the private disk. Either way the user gets the same answer and
+            // the detail goes to the log, not to the response.
+            Log::warning('Control test evidence could not be served.', [
+                'evidence_id' => $evidence->id,
+                'control_test_id' => $controlTest->id,
+                'reason' => $e->getMessage(),
+            ]);
+
+            abort(404, 'Evidence file not found.');
+        }
     }
 }

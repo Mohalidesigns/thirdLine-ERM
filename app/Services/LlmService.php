@@ -22,10 +22,15 @@ use Throwable;
 class LlmService
 {
     protected string $endpoint;
+
     protected string $model;
+
     protected int $timeout;
+
     protected float $temperature;
+
     protected bool $enabled;
+
     protected ?string $lastError = null;
 
     public function __construct()
@@ -42,16 +47,19 @@ class LlmService
     {
         if (! $this->enabled) {
             $this->lastError = 'LLM is disabled in configuration.';
+
             return false;
         }
         try {
-            $res = Http::timeout(3)->get($this->endpoint . '/api/tags');
+            $res = Http::timeout(3)->get($this->endpoint.'/api/tags');
             if (! $res->successful()) {
-                $this->lastError = 'LLM endpoint returned HTTP ' . $res->status();
+                $this->lastError = 'LLM endpoint returned HTTP '.$res->status();
             }
+
             return $res->successful();
         } catch (Throwable $e) {
-            $this->lastError = 'LLM endpoint unreachable: ' . $e->getMessage();
+            $this->lastError = 'LLM endpoint unreachable: '.$e->getMessage();
+
             return false;
         }
     }
@@ -68,12 +76,13 @@ class LlmService
     {
         if (! $this->enabled) {
             $this->lastError = 'LLM disabled.';
+
             return '';
         }
 
         try {
             $res = Http::timeout($opts['timeout'] ?? $this->timeout)
-                ->post($this->endpoint . '/api/generate', [
+                ->post($this->endpoint.'/api/generate', [
                     'model' => $opts['model'] ?? $this->model,
                     'prompt' => $prompt,
                     'system' => $system,
@@ -86,8 +95,9 @@ class LlmService
                 ]);
 
             if (! $res->successful()) {
-                $this->lastError = 'LLM HTTP ' . $res->status();
+                $this->lastError = 'LLM HTTP '.$res->status();
                 Log::warning('LLM request failed', ['status' => $res->status(), 'body' => $res->body()]);
+
                 return '';
             }
 
@@ -95,6 +105,7 @@ class LlmService
         } catch (Throwable $e) {
             $this->lastError = $e->getMessage();
             Log::warning('LLM request exception', ['err' => $e->getMessage()]);
+
             return '';
         }
     }
@@ -111,17 +122,18 @@ class LlmService
     {
         if (! $this->enabled) {
             $this->lastError = 'LLM disabled.';
+
             return [];
         }
 
         $cacheKey = $opts['cache_key'] ?? null;
-        if ($cacheKey && ($cached = Cache::get('llm:' . $cacheKey)) !== null) {
+        if ($cacheKey && ($cached = Cache::get('llm:'.$cacheKey)) !== null) {
             return $cached;
         }
 
         try {
             $res = Http::timeout($opts['timeout'] ?? $this->timeout)
-                ->post($this->endpoint . '/api/generate', [
+                ->post($this->endpoint.'/api/generate', [
                     'model' => $opts['model'] ?? $this->model,
                     'prompt' => $prompt,
                     'system' => $system,
@@ -134,8 +146,9 @@ class LlmService
                 ]);
 
             if (! $res->successful()) {
-                $this->lastError = 'LLM HTTP ' . $res->status();
-                Log::warning('LlmService completeJson failed: ' . $this->lastError);
+                $this->lastError = 'LLM HTTP '.$res->status();
+                Log::warning('LlmService completeJson failed: '.$this->lastError);
+
                 return [];
             }
 
@@ -143,14 +156,94 @@ class LlmService
             $parsed = $this->parseJson($raw);
 
             if ($cacheKey && ! empty($parsed)) {
-                Cache::put('llm:' . $cacheKey, $parsed, $opts['cache_ttl'] ?? 86400);
+                Cache::put('llm:'.$cacheKey, $parsed, $opts['cache_ttl'] ?? 86400);
             }
 
             return $parsed;
         } catch (Throwable $e) {
             $this->lastError = $e->getMessage();
-            Log::warning('LlmService completeJson exception: ' . $this->lastError);
+            Log::warning('LlmService completeJson exception: '.$this->lastError);
+
             return [];
+        }
+    }
+
+    /**
+     * A JSON completion WITH the backend's own token counts.
+     *
+     * Added for TPRM's extraction pipeline, which must "log model, prompt
+     * version, tokens and cost per call" (TRD §12.1). {@see self::json()}
+     * discards the usage numbers the backend returns, and a cost log built on
+     * an estimate of its own is a cost log nobody can reconcile against a
+     * bill — so the counts come from the response or they are null, never
+     * guessed.
+     *
+     * Deliberately a separate method rather than a change to `json()`: every
+     * existing caller expects that method to return the decoded object itself,
+     * and widening its return type would break each of them.
+     *
+     * @param  array<string, mixed>  $opts
+     * @return array{data: array<mixed>, model: string, prompt_tokens: int|null, completion_tokens: int|null, duration_ms: int, error: string|null}
+     */
+    public function jsonWithUsage(string $prompt, string $system = '', array $opts = []): array
+    {
+        $model = (string) ($opts['model'] ?? $this->model);
+        $startedAt = microtime(true);
+
+        $empty = fn (?string $error) => [
+            'data' => [],
+            'model' => $model,
+            'prompt_tokens' => null,
+            'completion_tokens' => null,
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            'error' => $error,
+        ];
+
+        if (! $this->enabled) {
+            $this->lastError = 'LLM disabled.';
+
+            return $empty($this->lastError);
+        }
+
+        try {
+            $res = Http::timeout($opts['timeout'] ?? $this->timeout)
+                ->post($this->endpoint.'/api/generate', [
+                    'model' => $model,
+                    'prompt' => $prompt,
+                    'system' => $system,
+                    'stream' => false,
+                    'format' => 'json',
+                    'options' => [
+                        'temperature' => $opts['temperature'] ?? $this->temperature,
+                        'num_predict' => $opts['max_tokens'] ?? 768,
+                    ],
+                ]);
+
+            if (! $res->successful()) {
+                $this->lastError = 'LLM HTTP '.$res->status();
+                Log::warning('LlmService jsonWithUsage failed: '.$this->lastError);
+
+                return $empty($this->lastError);
+            }
+
+            $parsed = $this->parseJson((string) ($res->json('response') ?? ''));
+
+            return [
+                'data' => $parsed,
+                'model' => $model,
+                // Ollama's own counters. Absent on a backend that does not
+                // report them, and null rather than zero in that case: zero
+                // tokens is a claim, and "we were not told" is the truth.
+                'prompt_tokens' => $res->json('prompt_eval_count'),
+                'completion_tokens' => $res->json('eval_count'),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'error' => $parsed === [] ? $this->lastError : null,
+            ];
+        } catch (Throwable $e) {
+            $this->lastError = $e->getMessage();
+            Log::warning('LlmService jsonWithUsage exception: '.$this->lastError);
+
+            return $empty($this->lastError);
         }
     }
 
@@ -172,6 +265,7 @@ class LlmService
             }
         }
         $this->lastError = 'LLM returned non-JSON payload.';
+
         return [];
     }
 }

@@ -33,6 +33,32 @@ echo "==> Ensure runtime-writable permissions"
 find storage bootstrap/cache -type d -exec chmod 2775 {} \;
 find storage bootstrap/cache -type f -exec chmod 664 {} \;
 
+# Deliberately AFTER migrate and the config/route/view caches, so preflight
+# inspects the configuration and schema this deploy actually produced rather
+# than the previous one — several checks read the database, and the module gate
+# reads config('features.*') as cached.
+#
+# And deliberately BEFORE the restart. It is the last point where this script
+# can decline to put new workers into service. Not a perfect boundary: the code
+# is already on disk from the git reset above, and php-fpm picks up changed
+# files on its own unless opcache.validate_timestamps=0 — but the queue worker
+# keeps running the old code until it is restarted, and a failed deploy that
+# stops here is far easier to reason about than one that completed.
+#
+# Migrations have already run by this point. That is unavoidable without a
+# more elaborate scheme and is worth knowing: a preflight failure means the
+# schema moved and the services did not.
+echo "==> Preflight"
+if ! php artisan app:preflight; then
+    echo
+    echo "!!  PREFLIGHT FAILED — services were NOT restarted."
+    echo "!!  New code is on disk and migrations have run; the queue worker is still"
+    echo "!!  on the previous release. Fix what preflight reported, then re-run the"
+    echo "!!  deploy. Do not restart the services by hand to 'get it up'."
+    echo
+    exit 1
+fi
+
 echo "==> Restart services"
 sudo /usr/bin/systemctl restart php8.4-fpm
 sudo /usr/bin/systemctl restart risk-queue

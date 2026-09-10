@@ -25,12 +25,12 @@ class Organization extends Model
     ];
 
     protected $casts = [
-        'settings'  => 'array',
+        'settings' => 'array',
         'is_active' => 'boolean',
     ];
 
     /* ------------------------------------------------------------------ */
-    /*  Boot                                                               */
+    /*  Boot */
     /* ------------------------------------------------------------------ */
 
     protected static function boot(): void
@@ -45,7 +45,7 @@ class Organization extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function businessUnits()

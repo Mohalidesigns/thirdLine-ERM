@@ -2,14 +2,13 @@
 
 namespace App\Services;
 
-use App\Models\LossEvent;
 use App\Models\Control;
 use App\Models\KeyRiskIndicator;
 use App\Models\KriMeasurement;
-use App\Models\RiskAppetite;
+use App\Models\LossEvent;
 use App\Models\Risk;
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class RegulatoryReportService
 {
@@ -28,10 +27,17 @@ class RegulatoryReportService
 
         $months = $quarterMonths[strtoupper($quarter)] ?? [1, 2, 3];
 
-        // Get loss events for the quarter
+        // A plain date range rather than MONTH(date_of_loss). MONTH() is a
+        // MySQL builtin that SQLite does not have, so this query threw
+        // "no such function: MONTH" anywhere the app ran on SQLite — including
+        // the whole test suite, which is why the on-screen regulatory report
+        // had no coverage. A BETWEEN over the quarter's own dates is portable
+        // and lets the index on date_of_loss be used.
+        $quarterStart = \Carbon\CarbonImmutable::create($year, $months[0], 1)->startOfDay();
+        $quarterEnd = $quarterStart->addMonths(3)->subDay()->endOfDay();
+
         $lossEvents = LossEvent::where('organization_id', $orgId)
-            ->whereYear('date_of_loss', $year)
-            ->whereIn(DB::raw('MONTH(date_of_loss)'), $months)
+            ->whereBetween('date_of_loss', [$quarterStart->toDateString(), $quarterEnd->toDateString()])
             ->get();
 
         // Group by Basel L1 category
@@ -107,7 +113,7 @@ class RegulatoryReportService
             });
 
         // Severity distribution
-        $severityDist = $lossEvents->groupBy('event_severity')->map(fn($g) => $g->count());
+        $severityDist = $lossEvents->groupBy('event_severity')->map(fn ($g) => $g->count());
 
         $categoryData = [];
         foreach ($byCategory as $cat => $events) {
@@ -268,7 +274,7 @@ class RegulatoryReportService
      */
     public function generateRiskAppetiteComplianceReport(int $orgId): array
     {
-        $appetiteService = new RiskAppetiteService();
+        $appetiteService = new RiskAppetiteService;
         $appetiteData = $appetiteService->getDashboardData($orgId);
 
         $breaches = $appetiteService->getBreaches($orgId);
@@ -307,7 +313,7 @@ class RegulatoryReportService
 
         $latestSimulation = $simulationRuns->first();
 
-        if (!$latestSimulation) {
+        if (! $latestSimulation) {
             return [
                 'report_type' => 'ICAAP_SUMMARY',
                 'organization_id' => $orgId,
@@ -326,11 +332,34 @@ class RegulatoryReportService
         $totalExpectedLoss = $aggregateResult->expected_annual_loss_kobo ?? 0;
         $var95 = $aggregateResult->var_95_kobo ?? 0;
         $var99 = $aggregateResult->var_99_kobo ?? 0;
-        $var999 = $aggregateResult->var_999_kobo ?? 0;
+        // `var_999_kobo` is not a column. The column on simulation_results is
+        // `var_99_9_kobo` (see 2026_02_22_200032_create_simulation_results_table).
+        // The misspelling meant this read resolved to null, `?? 0` turned it
+        // into zero, and every ICAAP summary regulatory report has been
+        // reporting a 99.9% VaR of zero and — via the line below — a capital
+        // requirement of exactly ₦0, silently, for every tenant.
+        $var999 = $aggregateResult->var_99_9_kobo ?? 0;
+        $expectedShortfall99 = $aggregateResult->es_99_kobo;
 
-        // Calculate capital requirements (using simplified approach)
-        // Standard approach: Capital = 12.5 * VaR(99.9%)
-        $capitalRequirement = $var999 * 12.5;
+        // The economic capital requirement for operational risk under an
+        // AMA-style approach IS the 99.9% VaR (over a one-year horizon), so
+        // that is what is reported here.
+        //
+        // The previous line was `$capitalRequirement = $var999 * 12.5` under a
+        // comment reading "Standard approach: Capital = 12.5 * VaR(99.9%)".
+        // That inverts Basel. 12.5 is the reciprocal of the 8% minimum capital
+        // ratio, and it converts a capital CHARGE into a RISK-WEIGHTED ASSET
+        // equivalent — RWA = 12.5 x capital, not capital = 12.5 x VaR. The
+        // figure was therefore twelve and a half times the capital requirement
+        // and labelled as the capital requirement. CBN's Guidelines on
+        // Regulatory Capital (September 2021) apply the same 12.5 multiplier to
+        // derive operational RWA from the Pillar 1 charge.
+        //
+        // Both quantities are now reported, each under its own name, so the
+        // RWA-equivalent can be added to the denominator of a CAR calculation
+        // without anyone mistaking it for capital.
+        $capitalRequirement = $var999;
+        $rwaEquivalent = $var999 * 12.5;
 
         // Risk contributions
         $riskContributions = json_decode($aggregateResult->risk_contributions, true) ?? [];
@@ -344,13 +373,21 @@ class RegulatoryReportService
                 'expected_annual_loss_kobo' => $totalExpectedLoss,
                 'var_95_kobo' => $var95,
                 'var_99_kobo' => $var99,
-                'var_999_kobo' => $var999,
-                'tail_var_kobo' => round(($var999 - $var99) / 2), // Simplified tail estimate
+                'var_99_9_kobo' => $var999,
+                // The tail measure is now the computed mean of the losses beyond
+                // VaR(99), persisted by MonteCarloService, rather than the
+                // previous `($var999 - $var99) / 2` — which was described in a
+                // comment as a "simplified tail estimate" but is the midpoint of
+                // two quantiles and is not an estimate of anything. It is null,
+                // not zero, for runs completed before expected shortfall existed.
+                'expected_shortfall_99_kobo' => $expectedShortfall99,
             ],
             'capital_requirements' => [
-                'calculated_var999_kobo' => $var999,
+                'calculated_var_99_9_kobo' => $var999,
                 'capital_requirement_kobo' => round($capitalRequirement),
-                'methodology' => 'Advanced Measurement Approach (AMA) - Simplified',
+                'rwa_equivalent_kobo' => round($rwaEquivalent),
+                'rwa_multiplier' => 12.5,
+                'methodology' => 'Loss distribution approach, 99.9% one-year VaR',
                 'confidence_level' => '99.9%',
             ],
             'risk_contributions' => $riskContributions,

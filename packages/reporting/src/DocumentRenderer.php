@@ -1,0 +1,415 @@
+<?php
+
+namespace ThirdLine\Reporting;
+
+use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\CarbonImmutable;
+use InvalidArgumentException;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
+use ThirdLine\Reporting\Contracts\ResolvesDocumentBranding;
+
+/**
+ * Turns a Blade view or a tabular dataset into a real document.
+ *
+ * Before this existed the product validated `format in:pdf,excel,html,pptx` and
+ * then wrote a CSV for every one of them — four promises, one delivery. The
+ * board, executive and regulatory "reports" had no document output at all; they
+ * were on-screen Blade views.
+ *
+ * The supported set is now exactly what is delivered: **pdf, xlsx, csv**. An
+ * unsupported format raises rather than silently degrading, because a caller
+ * asking for pptx and receiving a spreadsheet is the same defect in a new coat.
+ * docx and pptx are deliberately not offered — adding them means adding
+ * phpword/phppresentation and building templates worth reading, which is its
+ * own piece of work rather than a footnote to this one.
+ */
+class DocumentRenderer
+{
+    public const FORMAT_PDF = 'pdf';
+
+    public const FORMAT_XLSX = 'xlsx';
+
+    public const FORMAT_CSV = 'csv';
+
+    /**
+     * @param  ResolvesDocumentBranding|null  $branding  how this product names
+     *                                                   the owner of a document. Null is legitimate: a consumer that has
+     *                                                   no branding of its own renders unbranded rather than wrong.
+     */
+    public function __construct(
+        private readonly ?ResolvesDocumentBranding $branding = null,
+    ) {}
+
+    /**
+     * Formats this renderer actually produces.
+     */
+    public const SUPPORTED = [self::FORMAT_PDF, self::FORMAT_XLSX, self::FORMAT_CSV];
+
+    private const MIME = [
+        self::FORMAT_PDF => 'application/pdf',
+        self::FORMAT_XLSX => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        self::FORMAT_CSV => 'text/csv; charset=UTF-8',
+    ];
+
+    /**
+     * Render a document and return its bytes plus the metadata a caller needs
+     * to store or stream it.
+     *
+     * For pdf, $view is rendered through the branded report layout. For xlsx
+     * and csv, $data must carry `headers` and `rows`, because a paginated
+     * report layout has no meaning in a spreadsheet — the caller decides what
+     * the tabular projection of its report looks like.
+     *
+     * @param  array<string,mixed>  $data
+     * @return array{content: string, mime: string, extension: string}
+     */
+    public function render(string $view, array $data, string $format): array
+    {
+        $format = $this->normalise($format);
+
+        return match ($format) {
+            self::FORMAT_PDF => [
+                'content' => $this->pdf($view, $data),
+                'mime' => self::MIME[self::FORMAT_PDF],
+                'extension' => 'pdf',
+            ],
+            self::FORMAT_XLSX => [
+                // `sheets` is the multi-tab form; `headers`/`rows` the single.
+                // A caller that supplies neither still gets the original
+                // error naming `headers`, because that is the mistake it made.
+                'content' => isset($data['sheets'])
+                    ? $this->workbook($this->requireTabular($data, 'sheets'))
+                    : $this->xlsx(
+                        $this->requireTabular($data, 'headers'),
+                        $this->requireTabular($data, 'rows'),
+                        $data['sheet_name'] ?? 'Report',
+                        $data['meta'] ?? []
+                    ),
+                'mime' => self::MIME[self::FORMAT_XLSX],
+                'extension' => 'xlsx',
+            ],
+            self::FORMAT_CSV => [
+                'content' => $this->csv(
+                    $this->requireTabular($data, 'headers'),
+                    $this->requireTabular($data, 'rows'),
+                    $data['meta'] ?? []
+                ),
+                'mime' => self::MIME[self::FORMAT_CSV],
+                'extension' => 'csv',
+            ],
+        };
+    }
+
+    /**
+     * Accepts the aliases the existing UI posts ("excel") and rejects anything
+     * this class cannot actually produce.
+     */
+    public function normalise(string $format): string
+    {
+        $format = strtolower(trim($format));
+
+        $format = match ($format) {
+            'excel', 'xls' => self::FORMAT_XLSX,
+            default => $format,
+        };
+
+        if (! in_array($format, self::SUPPORTED, true)) {
+            throw new InvalidArgumentException(sprintf(
+                'Unsupported document format [%s]. This renderer produces: %s.',
+                $format,
+                implode(', ', self::SUPPORTED)
+            ));
+        }
+
+        return $format;
+    }
+
+    public function mimeFor(string $format): string
+    {
+        return self::MIME[$this->normalise($format)];
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  PDF */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * @param  array<string,mixed>  $data
+     */
+    public function pdf(string $view, array $data): string
+    {
+        $data['branding'] = $data['branding'] ?? $this->branding($data['organization'] ?? null);
+        $data['generatedAt'] = $data['generatedAt'] ?? CarbonImmutable::now();
+
+        $pdf = Pdf::loadView($view, $data)
+            ->setPaper($data['paper'] ?? 'a4', $data['orientation'] ?? 'portrait')
+            ->setOptions([
+                'isRemoteEnabled' => false,       // no outbound fetches from a report
+                'isHtml5ParserEnabled' => true,
+                'defaultFont' => 'DejaVu Sans',   // carries ₦ and the rest of Unicode
+                'dpi' => 96,
+                'chroot' => public_path(),
+            ]);
+
+        return $pdf->output();
+    }
+
+    /**
+     * Branding for the cover page and running header, or an empty array.
+     *
+     * The renderer does not know what an organisation is. It asks whatever the
+     * application bound to ResolvesDocumentBranding; a consumer that binds
+     * nothing gets no branding rather than another product's.
+     *
+     * @return array<string,mixed>
+     */
+    public function branding(mixed $organization): array
+    {
+        if ($organization === null || $this->branding === null) {
+            return [];
+        }
+
+        return $this->branding->for($organization);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Spreadsheets */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * A real .xlsx — a styled header row, frozen panes, auto-sized columns and
+     * an optional metadata block, written by PhpSpreadsheet.
+     *
+     * @param  list<string>  $headers
+     * @param  iterable<array-key, array<array-key, mixed>>  $rows
+     * @param  array<string,string>  $meta  key => value pairs stamped above the table
+     */
+    public function xlsx(array $headers, iterable $rows, string $sheetName = 'Report', array $meta = []): string
+    {
+        return $this->workbook([[
+            'name' => $sheetName,
+            'headers' => $headers,
+            'rows' => $rows,
+            'meta' => $meta,
+        ]]);
+    }
+
+    /**
+     * A multi-sheet workbook.
+     *
+     * Added for regulatory returns that are a workbook by definition rather
+     * than by preference: DORA's Register of Information is fifteen related
+     * tables (RT.01.01–RT.07.01) and a supervisor reads them as one file with
+     * fifteen tabs. Handing that over as fifteen separate downloads, or as one
+     * flattened sheet, is not the artefact that was asked for.
+     *
+     * A sheet with no `headers` is written as plain rows with no header band,
+     * autofilter or frozen pane — which is what a cover sheet is: prose, not a
+     * table, and styling it as a table invites someone to sort it.
+     *
+     * @param  list<array{name?: string, headers?: list<string>, rows?: iterable<array-key, array<array-key, mixed>>, meta?: array<string,string>}>  $sheets
+     */
+    public function workbook(array $sheets): string
+    {
+        if ($sheets === []) {
+            throw new InvalidArgumentException('A workbook needs at least one sheet.');
+        }
+
+        $spreadsheet = new Spreadsheet;
+        // createSheet() below appends; the default sheet would otherwise sit
+        // in front of the cover as an empty first tab.
+        $spreadsheet->removeSheetByIndex(0);
+
+        $taken = [];
+
+        foreach (array_values($sheets) as $index => $spec) {
+            $sheet = $spreadsheet->createSheet();
+            $sheet->setTitle($this->sheetTitle($spec['name'] ?? 'Sheet '.($index + 1), $taken));
+
+            $this->writeSheet(
+                $sheet,
+                array_values($spec['headers'] ?? []),
+                $spec['rows'] ?? [],
+                $spec['meta'] ?? []
+            );
+        }
+
+        $spreadsheet->setActiveSheetIndex(0);
+
+        // PhpSpreadsheet writes to a stream or a path; capture the bytes so the
+        // caller can store or stream them without a temp file of its own.
+        $writer = new XlsxWriter($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
+        $content = ob_get_clean();
+
+        $spreadsheet->disconnectWorksheets();
+
+        return $content;
+    }
+
+    /**
+     * Excel rejects a sheet name over 31 chars or carrying []:*?/\, and
+     * refuses a workbook with two sheets sharing a name. Truncating fifteen
+     * regulatory table titles to 31 characters is exactly the way to produce
+     * that collision, so uniqueness is enforced here rather than left to the
+     * caller to discover from a corrupt-file dialog.
+     *
+     * @param  array<string, true>  $taken
+     */
+    private function sheetTitle(string $name, array &$taken): string
+    {
+        $clean = mb_substr(trim(preg_replace('/[\[\]\*\/\\\?:]/', '-', $name)) ?: 'Sheet', 0, 31);
+
+        $candidate = $clean;
+        $suffix = 2;
+
+        while (isset($taken[mb_strtolower($candidate)])) {
+            $tail = ' ('.$suffix.')';
+            $candidate = mb_substr($clean, 0, 31 - mb_strlen($tail)).$tail;
+            $suffix++;
+        }
+
+        $taken[mb_strtolower($candidate)] = true;
+
+        return $candidate;
+    }
+
+    /**
+     * @param  list<string>  $headers
+     * @param  iterable<array-key, array<array-key, mixed>>  $rows
+     * @param  array<string,string>  $meta
+     */
+    private function writeSheet(Worksheet $sheet, array $headers, iterable $rows, array $meta): void
+    {
+        $row = 1;
+
+        foreach ($meta as $label => $value) {
+            $sheet->setCellValue([1, $row], $label);
+            $sheet->setCellValue([2, $row], $value);
+            $sheet->getStyle([1, $row, 1, $row])->getFont()->setBold(true);
+            $row++;
+        }
+
+        if ($meta !== []) {
+            $row++; // blank spacer between the stamp and the table
+        }
+
+        $headerRow = $row;
+
+        if ($headers !== []) {
+            foreach ($headers as $i => $header) {
+                $sheet->setCellValue([$i + 1, $headerRow], $header);
+            }
+
+            $lastColumn = count($headers);
+            $headerStyle = $sheet->getStyle([1, $headerRow, $lastColumn, $headerRow]);
+            $headerStyle->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+            $headerStyle->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF1A365D');
+            $headerStyle->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getRowDimension($headerRow)->setRowHeight(20);
+
+            $row = $headerRow + 1;
+        }
+
+        $widest = max(1, count($headers));
+
+        foreach ($rows as $dataRow) {
+            $values = array_values((array) $dataRow);
+            $widest = max($widest, count($values));
+
+            foreach ($values as $i => $value) {
+                // setCellValueExplicit is avoided so numbers stay numeric and
+                // sort correctly, but a leading = must never be evaluated:
+                // a risk title starting with "=" would otherwise become a
+                // formula in the recipient's Excel.
+                if (is_string($value) && str_starts_with($value, '=')) {
+                    $value = "'".$value;
+                }
+                $sheet->setCellValue([$i + 1, $row], $value);
+            }
+            $row++;
+        }
+
+        $lastRow = max($headerRow, $row - 1);
+
+        if ($headers !== []) {
+            $lastColumn = count($headers);
+
+            if ($lastRow > $headerRow) {
+                $sheet->getStyle([1, $headerRow, $lastColumn, $lastRow])
+                    ->getBorders()->getAllBorders()
+                    ->setBorderStyle(Border::BORDER_THIN)
+                    ->getColor()->setARGB('FFD9D9D9');
+            }
+
+            $sheet->setAutoFilter([1, $headerRow, $lastColumn, $lastRow]);
+            $sheet->freezePane([1, $headerRow + 1]);
+        }
+
+        for ($column = 1; $column <= $widest; $column++) {
+            $sheet->getColumnDimensionByColumn($column)->setAutoSize(true);
+        }
+    }
+
+    /**
+     * @param  list<string>  $headers
+     * @param  iterable<array-key, array<array-key, mixed>>  $rows
+     * @param  array<string,string>  $meta  key => value pairs written above the
+     *                                      table, the same block the xlsx path stamps. A regulatory return
+     *                                      carries its provenance in every format it is offered in, or the
+     *                                      csv becomes the copy people circulate precisely because it makes
+     *                                      no claim about who prepared it.
+     */
+    public function csv(array $headers, iterable $rows, array $meta = []): string
+    {
+        $handle = fopen('php://temp', 'r+');
+
+        fwrite($handle, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel reads ₦ correctly
+
+        foreach ($meta as $label => $value) {
+            fputcsv($handle, [$label, $value]);
+        }
+
+        if ($meta !== []) {
+            fputcsv($handle, []);
+        }
+
+        fputcsv($handle, $headers);
+
+        foreach ($rows as $row) {
+            fputcsv($handle, array_map(
+                // Same formula-injection guard as the xlsx path.
+                fn ($value) => is_string($value) && preg_match('/^[=+\-@]/', $value) ? "'".$value : $value,
+                array_values((array) $row)
+            ));
+        }
+
+        rewind($handle);
+        $content = stream_get_contents($handle);
+        fclose($handle);
+
+        return $content;
+    }
+
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * @param  array<string,mixed>  $data
+     */
+    private function requireTabular(array $data, string $key): array
+    {
+        if (! array_key_exists($key, $data)) {
+            throw new InvalidArgumentException(
+                "Spreadsheet output requires '{$key}' in the render payload."
+            );
+        }
+
+        return is_array($data[$key]) ? $data[$key] : iterator_to_array($data[$key]);
+    }
+}

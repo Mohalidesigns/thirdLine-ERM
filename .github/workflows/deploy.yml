@@ -1,7 +1,12 @@
 name: Deploy to production
 
+# Migration Phase 0: the deploy is gated on CI. It used to run on every push
+# to main regardless of the suite; now it runs only after the CI workflow for
+# that commit has completed successfully.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -12,6 +17,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy over SSH
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to server

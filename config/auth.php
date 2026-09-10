@@ -40,6 +40,25 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        /*
+         * The vendor portal — TPRM Phase 8, FR-PRT-01.
+         *
+         * A SEPARATE GUARD OVER A SEPARATE TABLE, not a role on `web`. The two
+         * populations never mix: a portal session authenticates only this
+         * guard, so `Auth::check()` on the default guard is false for a vendor
+         * and every internal route refuses them without needing to know the
+         * portal exists. That is what AC-14 tests.
+         *
+         * It carries its OWN SESSION COOKIE too — see
+         * `App\Http\Middleware\Tprm\StartPortalSession`. Sharing the cookie
+         * would mean one browser cannot hold both sessions, and worse, that a
+         * session fixation on one surface reaches the other.
+         */
+        'tprm-portal' => [
+            'driver' => 'session',
+            'provider' => 'tprm-portal-users',
+        ],
     ],
 
     /*
@@ -63,6 +82,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', App\Models\User::class),
+        ],
+
+        'tprm-portal-users' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Tprm\PortalUser::class,
         ],
 
         // 'users' => [

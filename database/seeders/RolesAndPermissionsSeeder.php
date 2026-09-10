@@ -2,181 +2,38 @@
 
 namespace Database\Seeders;
 
+use App\Authorization\RiskPermissionCatalog;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\PermissionRegistrar;
+use ThirdLine\Platform\Authorization\SeedsPermissions;
 
+/**
+ * Apply the permission catalog to a fresh install.
+ *
+ * WHAT THIS FILE USED TO BE, AND WHY IT CHANGED (migration Phase 7.1d). It
+ * held 121 permission strings and nine roles' grants inline, ~480 lines, and
+ * it was the ONLY place they were written down — except for the four
+ * `grant_*_permissions_to_existing_roles` migrations that repeat parts of the
+ * same list, because `Permission::create()` throws on a second run and this
+ * seeder could therefore never reach an already-deployed tenant.
+ *
+ * Two sources that must agree and nothing checking that they do. A permission
+ * added to one and forgotten in the other works on a fresh install and 403s on
+ * every existing customer, discovered months later by one of them.
+ *
+ * Both now read App\Authorization\RiskPermissionCatalog, which also carries
+ * what each permission MEANS — see the catalog for why that is not decoration.
+ *
+ * It is idempotent now, which the old version was not: syncCatalog uses
+ * findOrCreate, so re-running this against a deployed tenant adds what is
+ * missing instead of throwing on the first permission that already exists.
+ * That is what makes a grant migration a thin call rather than a copy.
+ */
 class RolesAndPermissionsSeeder extends Seeder
 {
-    /**
-     * Seed RBAC roles and permissions aligned to the TRD.
-     */
+    use SeedsPermissions;
+
     public function run(): void
     {
-        // Reset cached roles and permissions
-        app()[PermissionRegistrar::class]->forgetCachedPermissions();
-
-        /* ------------------------------------------------------------------ */
-        /*  Permissions – organized by module                                  */
-        /* ------------------------------------------------------------------ */
-
-        $permissions = [
-            // Risk module
-            'risk.view',
-            'risk.create',
-            'risk.edit',
-            'risk.delete',
-            'risk.approve',
-            'risk.admin',
-
-            // Assessment module
-            'assessment.view',
-            'assessment.create',
-            'assessment.submit',
-            'assessment.approve',
-            'assessment.reject',
-
-            // Control module
-            'control.view',
-            'control.create',
-            'control.edit',
-            'control.delete',
-
-            // Treatment module
-            'treatment.view',
-            'treatment.create',
-            'treatment.edit',
-            'treatment.approve',
-
-            // KRI module
-            'kri.view',
-            'kri.create',
-            'kri.edit',
-            'kri.record_measurement',
-
-            // Appetite module
-            'appetite.view',
-            'appetite.manage',
-            'appetite.approve',
-
-            // Loss Event module
-            'loss_event.view',
-            'loss_event.create',
-            'loss_event.edit',
-            'loss_event.approve',
-            'loss_event.cbn_notify',
-
-            // Issue module
-            'issue.view',
-            'issue.create',
-            'issue.edit',
-            'issue.escalate',
-            'issue.close',
-
-            // Quantification module
-            'quantification.view',
-            'quantification.create',
-            'quantification.run_simulation',
-            'quantification.approve_icaap',
-
-            // Report module
-            'report.view',
-            'report.generate',
-            'report.export',
-
-            // Admin module
-            'admin.users',
-            'admin.settings',
-            'admin.organization',
-        ];
-
-        foreach ($permissions as $permission) {
-            Permission::create(['name' => $permission]);
-        }
-
-        /* ------------------------------------------------------------------ */
-        /*  Roles                                                              */
-        /* ------------------------------------------------------------------ */
-
-        // 1. super-admin – gets ALL permissions
-        $superAdmin = Role::create(['name' => 'super-admin']);
-        $superAdmin->givePermissionTo(Permission::all());
-
-        // 2. risk-manager – all risk/assessment/control/treatment/kri/appetite/report permissions
-        $riskManager = Role::create(['name' => 'risk-manager']);
-        $riskManager->givePermissionTo([
-            'risk.view', 'risk.create', 'risk.edit', 'risk.delete', 'risk.approve', 'risk.admin',
-            'assessment.view', 'assessment.create', 'assessment.submit', 'assessment.approve', 'assessment.reject',
-            'control.view', 'control.create', 'control.edit', 'control.delete',
-            'treatment.view', 'treatment.create', 'treatment.edit', 'treatment.approve',
-            'kri.view', 'kri.create', 'kri.edit', 'kri.record_measurement',
-            'appetite.view', 'appetite.manage', 'appetite.approve',
-            'report.view', 'report.generate', 'report.export',
-        ]);
-
-        // 3. risk-owner – limited risk editing + assessment/treatment creation
-        $riskOwner = Role::create(['name' => 'risk-owner']);
-        $riskOwner->givePermissionTo([
-            'risk.view', 'risk.edit',
-            'assessment.create',
-            'treatment.view', 'treatment.create',
-        ]);
-
-        // 4. risk-analyst – view-focused + assessment/kri/report
-        $riskAnalyst = Role::create(['name' => 'risk-analyst']);
-        $riskAnalyst->givePermissionTo([
-            'risk.view',
-            'assessment.view', 'assessment.create',
-            'kri.view', 'kri.record_measurement',
-            'report.view', 'report.generate',
-        ]);
-
-        // 5. chief-risk-officer – risk-manager perms + loss_event.approve, issue.escalate, quantification, appetite.approve
-        $cro = Role::create(['name' => 'chief-risk-officer']);
-        $cro->givePermissionTo([
-            // All risk-manager permissions
-            'risk.view', 'risk.create', 'risk.edit', 'risk.delete', 'risk.approve', 'risk.admin',
-            'assessment.view', 'assessment.create', 'assessment.submit', 'assessment.approve', 'assessment.reject',
-            'control.view', 'control.create', 'control.edit', 'control.delete',
-            'treatment.view', 'treatment.create', 'treatment.edit', 'treatment.approve',
-            'kri.view', 'kri.create', 'kri.edit', 'kri.record_measurement',
-            'appetite.view', 'appetite.manage', 'appetite.approve',
-            'report.view', 'report.generate', 'report.export',
-            // Additional CRO permissions
-            'loss_event.view', 'loss_event.create', 'loss_event.edit', 'loss_event.approve', 'loss_event.cbn_notify',
-            'issue.view', 'issue.create', 'issue.edit', 'issue.escalate', 'issue.close',
-            'quantification.view', 'quantification.create', 'quantification.run_simulation', 'quantification.approve_icaap',
-        ]);
-
-        // 6. compliance-officer – read-focused + loss events and issues
-        $complianceOfficer = Role::create(['name' => 'compliance-officer']);
-        $complianceOfficer->givePermissionTo([
-            'risk.view',
-            'loss_event.view',
-            'issue.view', 'issue.create',
-            'report.view',
-        ]);
-
-        // 7. board-member – read-only
-        $boardMember = Role::create(['name' => 'board-member']);
-        $boardMember->givePermissionTo([
-            'risk.view',
-            'report.view',
-        ]);
-
-        // 8. loss-event-manager – all loss_event + issue view/create
-        $lossEventManager = Role::create(['name' => 'loss-event-manager']);
-        $lossEventManager->givePermissionTo([
-            'loss_event.view', 'loss_event.create', 'loss_event.edit', 'loss_event.approve', 'loss_event.cbn_notify',
-            'issue.view', 'issue.create',
-        ]);
-
-        // 9. issue-manager – all issue + loss_event view
-        $issueManager = Role::create(['name' => 'issue-manager']);
-        $issueManager->givePermissionTo([
-            'issue.view', 'issue.create', 'issue.edit', 'issue.escalate', 'issue.close',
-            'loss_event.view',
-        ]);
+        $this->syncCatalog(new RiskPermissionCatalog);
     }
 }

@@ -1,11 +1,13 @@
 {
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "laravel-dev",
-      "runtimeExecutable": "php",
-      "runtimeArgs": ["artisan", "serve", "--host=127.0.0.1", "--port=8765", "--no-reload"],
-      "port": 8765
-    }
-  ]
+    "version": "0.0.1",
+    "configurations": [
+        {
+            "name": "riskerm",
+            "//": "autoPort lets a second session run alongside the first rather than failing on a port the other holds. Nothing here needs a fixed port — no OAuth callback, webhook or CORS origin is pinned to localhost:8123. The sh wrapper is load-bearing: `php artisan serve` reads SERVER_PORT, not PORT (ServeCommand.php), so simply dropping the flag would leave Laravel on its default 8000 while the harness proxied to the assigned port and found nothing — a server that starts, looks healthy and serves no one.",
+            "runtimeExecutable": "sh",
+            "runtimeArgs": ["-c", "php artisan serve --host=127.0.0.1 --port=${PORT:-8123}"],
+            "port": 8123,
+            "autoPort": true
+        }
+    ]
 }

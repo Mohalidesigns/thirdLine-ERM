@@ -2,16 +2,28 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasObjectIdentity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 class NearMiss extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
 
     protected $table = 'near_misses';
+
+    /**
+     * From LossEventController's inline `in:` rule (migration Phase 4.3).
+     * These are NOT LossEvent::SEVERITIES — a near miss is graded low/medium/
+     * high/critical and a loss event insignificant..catastrophic, which is a
+     * pre-existing divergence rather than something this port introduced.
+     *
+     * @var list<string>
+     */
+    public const SEVERITIES = ['low', 'medium', 'high', 'critical'];
 
     protected $fillable = [
         'organization_id',
@@ -36,8 +48,8 @@ class NearMiss extends Model
     ];
 
     protected $casts = [
-        'date_occurred'          => 'date',
-        'date_reported'          => 'date',
+        'date_occurred' => 'date',
+        'date_reported' => 'date',
         'investigation_deadline' => 'date',
         'control_gap_identified' => 'boolean',
     ];
@@ -62,7 +74,7 @@ class NearMiss extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()

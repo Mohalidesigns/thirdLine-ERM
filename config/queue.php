@@ -68,7 +68,16 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
-            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+
+            // WP-07. retry_after MUST exceed the longest job's timeout. At the
+            // Laravel default of 90 seconds a Monte Carlo run — which takes
+            // minutes — would be handed to a SECOND worker while the first was
+            // still computing it, and both would write results for the same
+            // simulation_run. The symptom is a capital figure that changes
+            // depending on which worker finished last, with nothing anywhere to
+            // say why. 3900 sits above the longest supervisor timeout (bulk,
+            // 3660) with room to spare.
+            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 3900),
             'block_for' => null,
             'after_commit' => false,
         ],

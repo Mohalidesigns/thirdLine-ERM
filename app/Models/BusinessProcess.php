@@ -2,20 +2,23 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasObjectIdentity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 class BusinessProcess extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
 
     protected $table = 'business_processes';
 
     protected $fillable = [
         'organization_id',
         'business_unit_id',
+        'parent_id',
         'code',
         'name',
         'description',
@@ -40,7 +43,7 @@ class BusinessProcess extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()
@@ -61,5 +64,33 @@ class BusinessProcess extends Model
     public function risks()
     {
         return $this->hasMany(Risk::class, 'process_id');
+    }
+
+    /**
+     * The process this one is a sub-process of.
+     *
+     * Added by the RCSA rewrite, whose workbook has separate Process and
+     * Sub-Process columns (C and D). A NULL parent is a top-level process,
+     * which is every row that existed before that migration — nothing about
+     * the risk register's use of this table changes.
+     */
+    public function parent()
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function children()
+    {
+        return $this->hasMany(self::class, 'parent_id')->orderBy('name');
+    }
+
+    /**
+     * Top-level processes only.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
+     */
+    public function scopeTopLevel($query): void
+    {
+        $query->whereNull('parent_id');
     }
 }

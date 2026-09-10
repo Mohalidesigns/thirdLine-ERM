@@ -13,15 +13,39 @@ class CampaignAssignment extends Model
     ];
 
     protected $casts = [
-        'due_date'     => 'date',
-        'started_at'   => 'datetime',
+        'due_date' => 'date',
+        'started_at' => 'datetime',
         'submitted_at' => 'datetime',
-        'reviewed_at'  => 'datetime',
+        'reviewed_at' => 'datetime',
     ];
 
-    public function campaign()     { return $this->belongsTo(AssessmentCampaign::class, 'campaign_id'); }
-    public function businessUnit() { return $this->belongsTo(BusinessUnit::class); }
-    public function respondent()   { return $this->belongsTo(User::class, 'respondent_id'); }
-    public function reviewer()     { return $this->belongsTo(User::class, 'reviewer_id'); }
-    public function responses()    { return $this->hasMany(CampaignResponse::class, 'assignment_id'); }
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<AssessmentCampaign, $this> */
+    public function campaign(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(AssessmentCampaign::class, 'campaign_id');
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<BusinessUnit, $this> */
+    public function businessUnit(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(BusinessUnit::class);
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function respondent(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'respondent_id');
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function reviewer(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewer_id');
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<CampaignResponse, $this> */
+    public function responses(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(CampaignResponse::class, 'assignment_id');
+    }
 }

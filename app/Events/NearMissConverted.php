@@ -2,8 +2,8 @@
 
 namespace App\Events;
 
-use App\Models\NearMiss;
 use App\Models\LossEvent;
+use App\Models\NearMiss;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 

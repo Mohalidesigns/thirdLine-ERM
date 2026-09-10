@@ -25,13 +25,13 @@ class IssueRemediationAction extends Model
     ];
 
     protected $casts = [
-        'evidence_refs'    => 'array',
-        'target_date'      => 'date',
+        'evidence_refs' => 'array',
+        'target_date' => 'date',
         'actual_close_date' => 'date',
     ];
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function issue()
@@ -39,7 +39,8 @@ class IssueRemediationAction extends Model
         return $this->belongsTo(Issue::class);
     }
 
-    public function owner()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function owner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
     }

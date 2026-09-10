@@ -2,63 +2,62 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\StoreUserRequest;
+use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Models\BusinessUnit;
 use App\Models\User;
+use App\Presenters\GridPresenter;
+use App\Support\AssignableRoles;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class UserManagementController extends Controller
 {
     /**
-     * Display a listing of users
+     * Display a listing of users.
+     *
+     * WP-09: search, filters, sorting and pagination moved into the shared data
+     * grid (App\Grids\Definitions\AdminUsersGrid). What remains is the header's
+     * four counters, which the grid does not own.
      */
-    public function index(Request $request)
+    public function index(Request $request, GridPresenter $presenter)
     {
-        $query = User::with(['roles', 'businessUnit']);
+        $orgId = TenantContext::organizationId();
+        $scoped = fn () => User::where('organization_id', $orgId);
 
-        // Search by name or email
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('staff_id', 'like', "%{$search}%");
-            });
-        }
-
-        // Filter by role
-        if ($request->filled('role')) {
-            $query->role($request->input('role'));
-        }
-
-        // Filter by status
-        if ($request->filled('status')) {
-            $status = $request->input('status');
-            if ($status === 'active') {
-                $query->where('is_active', true);
-            } elseif ($status === 'inactive') {
-                $query->where('is_active', false);
-            }
-        }
-
-        // Filter by business unit
-        if ($request->filled('business_unit')) {
-            $query->where('business_unit_id', $request->input('business_unit'));
-        }
-
-        $users = $query->orderBy('name')->paginate(15)->withQueryString();
-        $roles = Role::orderBy('name')->get();
-        $businessUnits = BusinessUnit::orderBy('name')->get();
-
-        return view('admin.users.index', [
-            'users' => $users,
-            'roles' => $roles,
-            'businessUnits' => $businessUnits,
-            'filters' => $request->only(['search', 'role', 'status', 'business_unit']),
+        return Inertia::render('Admin/Users/Index', [
+            'totalUsers' => $scoped()->count(),
+            'activeUsers' => $scoped()->where('is_active', true)->count(),
+            'inactiveUsers' => $scoped()->where('is_active', false)->count(),
+            'mfaEnabled' => $scoped()->where('mfa_enabled', true)->count(),
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('admin_users'), $request, $request->user()),
         ]);
+    }
+
+    /**
+     * The lists both user forms offer.
+     *
+     * The roles list is `Role::all()` filtered to what this actor may hand out,
+     * which removes the last hard-coded role list in the product and is the
+     * same list StoreUserRequest validates against — 4.6's rule: what a form
+     * OFFERS must be what the validator ACCEPTS.
+     *
+     * @return array<string, mixed>
+     */
+    private function formOptions(): array
+    {
+        return [
+            'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name'])->values(),
+            'roles' => AssignableRoles::for(request()->user()),
+        ];
     }
 
     /**
@@ -66,27 +65,17 @@ class UserManagementController extends Controller
      */
     public function create()
     {
-        $businessUnits = BusinessUnit::orderBy('name')->get();
-        $roles = Role::orderBy('name')->get();
+        Gate::authorize('create', User::class);
 
-        return view('admin.users.create', compact('businessUnits', 'roles'));
+        return Inertia::render('Admin/Users/Create', $this->formOptions());
     }
 
     /**
      * Store a newly created user in storage
      */
-    public function store(Request $request)
+    public function store(StoreUserRequest $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users',
-            'staff_id' => 'required|string|unique:users',
-            'job_title' => 'required|string',
-            'department' => 'required|string',
-            'phone' => 'required|string',
-            'roles' => 'required|array|min:1',
-            'business_unit_id' => 'required|exists:business_units,id',
-        ]);
+        $validated = $request->validated();
 
         // Create user with temporary password
         $tempPassword = Str::random(12);
@@ -110,7 +99,7 @@ class UserManagementController extends Controller
         $user->syncRoles($validated['roles']);
 
         return redirect()->route('admin.users.show', $user)
-            ->with('success', 'User created successfully. Temporary password: ' . $tempPassword);
+            ->with('success', 'User created successfully. Temporary password: '.$tempPassword);
     }
 
     /**
@@ -118,10 +107,40 @@ class UserManagementController extends Controller
      */
     public function show(User $user)
     {
+        Gate::authorize('view', $user);
+
         $user->load(['roles.permissions', 'businessUnit', 'organization']);
 
-        return view('admin.users.show', [
-            'user' => $user,
+        // getAllPermissions(), not roles.permissions: a user may hold a
+        // permission directly as well as through a role, and the Blade profile
+        // grouped the effective set. Grouping stays on the server because the
+        // "action module" convention in a permission name is the server's.
+        $permissions = $user->getAllPermissions()
+            ->groupBy(fn ($permission) => explode(' ', $permission->name)[1] ?? $permission->name)
+            ->map(fn ($group) => $group->map(fn ($permission) => explode(' ', $permission->name)[0])->values())
+            ->sortKeys();
+
+        return Inertia::render('Admin/Users/Show', [
+            'subject' => array_merge($user->only([
+                'id', 'name', 'email', 'staff_id', 'job_title', 'department', 'phone',
+                'is_active', 'must_change_password', 'mfa_enabled', 'last_login_at',
+                'password_changed_at', 'last_activity_at', 'locked_until', 'created_at',
+            ]), [
+                'business_unit' => $user->getRelationValue('businessUnit')?->name,
+                'organization' => $user->getRelationValue('organization')?->name,
+                // Carbon::parse rather than the cast: the same shape
+                // AuthenticatedSessionController uses to read this column.
+                'is_locked' => $user->locked_until !== null && Carbon::parse($user->locked_until)->isFuture(),
+                'roles' => $user->roles->map(fn (Role $role) => [
+                    'name' => $role->name,
+                    'permission_count' => $role->permissions->count(),
+                ])->values(),
+                'permissions' => $permissions,
+            ]),
+            'isSelf' => $user->id === request()->user()?->id,
+            'canManage' => Gate::allows('update', $user),
+            'canDeactivate' => Gate::allows('deactivate', $user),
+            'canResetPassword' => Gate::allows('resetPassword', $user),
         ]);
     }
 
@@ -130,31 +149,24 @@ class UserManagementController extends Controller
      */
     public function edit(User $user)
     {
-        $businessUnits = BusinessUnit::orderBy('name')->get();
-        $roles = Role::orderBy('name')->get();
+        Gate::authorize('update', $user);
 
-        return view('admin.users.edit', [
-            'user' => $user,
-            'businessUnits' => $businessUnits,
-            'roles' => $roles,
-        ]);
+        return Inertia::render('Admin/Users/Edit', array_merge($this->formOptions(), [
+            'subject' => array_merge($user->only([
+                'id', 'name', 'email', 'staff_id', 'job_title', 'department', 'phone', 'business_unit_id',
+            ]), ['roles' => $user->roles->pluck('name')->values()]),
+            // The roles field is disabled when an administrator is editing
+            // their own account; UpdateUserRequest refuses the change server-side.
+            'isSelf' => $user->id === request()->user()?->id,
+        ]));
     }
 
     /**
      * Update the specified user in storage
      */
-    public function update(Request $request, User $user)
+    public function update(UpdateUserRequest $request, User $user)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
-            'staff_id' => 'required|string|unique:users,staff_id,' . $user->id,
-            'job_title' => 'required|string',
-            'department' => 'required|string',
-            'phone' => 'required|string',
-            'roles' => 'required|array|min:1',
-            'business_unit_id' => 'required|exists:business_units,id',
-        ]);
+        $validated = $request->validated();
 
         $user->update([
             'name' => $validated['name'],
@@ -178,11 +190,10 @@ class UserManagementController extends Controller
      */
     public function destroy(User $user)
     {
-        // Prevent deactivating yourself
-        if ($user->id === auth()->id()) {
-            return redirect()->route('admin.users.index')
-                ->with('error', 'You cannot deactivate your own account.');
-        }
+        // "Never yourself" is UserPolicy::deactivate's rule now, so the same
+        // answer comes back whether it is asked from here, a form request or a
+        // console command.
+        Gate::authorize('deactivate', $user);
 
         $user->update(['is_active' => false]);
 
@@ -195,17 +206,14 @@ class UserManagementController extends Controller
      */
     public function toggleActive(User $user)
     {
-        // Prevent toggling yourself
-        if ($user->id === auth()->id()) {
-            return back()->with('error', 'You cannot change your own account status.');
-        }
+        Gate::authorize('deactivate', $user);
 
-        $user->update(['is_active' => !$user->is_active]);
+        $user->update(['is_active' => ! $user->is_active]);
 
         $status = $user->is_active ? 'activated' : 'deactivated';
 
         return redirect()->route('admin.users.show', $user)
-            ->with('success', 'User ' . $status . ' successfully.');
+            ->with('success', 'User '.$status.' successfully.');
     }
 
     /**
@@ -213,6 +221,8 @@ class UserManagementController extends Controller
      */
     public function resetPassword(Request $request, User $user)
     {
+        Gate::authorize('resetPassword', $user);
+
         $tempPassword = Str::random(12);
 
         $user->update([
@@ -224,6 +234,6 @@ class UserManagementController extends Controller
         ]);
 
         return redirect()->route('admin.users.show', $user)
-            ->with('success', 'Password reset. New temporary password: ' . $tempPassword);
+            ->with('success', 'Password reset. New temporary password: '.$tempPassword);
     }
 }

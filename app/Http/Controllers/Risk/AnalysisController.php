@@ -3,26 +3,57 @@
 namespace App\Http\Controllers\Risk;
 
 use App\Http\Controllers\Controller;
+use App\Models\BusinessUnit;
+use App\Models\Control;
 use App\Models\Risk;
 use App\Models\RiskCategory;
-use App\Models\RiskAssessment;
-use App\Models\Control;
+use App\Models\RiskCause;
 use App\Models\RiskControlMapping;
-use App\Models\LossEvent;
-use App\Models\KeyRiskIndicator;
-use App\Models\BusinessUnit;
+use App\Services\Analysis\RiskMovementService;
+use App\Services\RiskScoringService;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
+/**
+ * Heat map, bow-tie, correlation and trend analysis.
+ *
+ * WP-00 NODE SCOPING, on the same line this codebase draws on the dashboard:
+ * the queries that put INDIVIDUAL RISKS in front of a caller are scoped, the
+ * ones that compute a TREND OVER TIME are not.
+ *
+ * Scoped: the heat map (one query feeds both the cell counts and the risks
+ * listed in each cell, and the cell drill-through lands on RisksGrid, which is
+ * scoped), the bow-tie's risk selector and its ?risk_id= lookup — a
+ * caller-supplied id, reachable by URL exactly like a show() route — the
+ * correlation scatter, and the movers list.
+ *
+ * NOT scoped, deliberately: everything RiskMovementService computes, and
+ * buildCategoryTrendData. Those return counts and averages per month or quarter
+ * — roll-up calculations with no record in them to disclose, and the kind of
+ * aggregate node scoping is opt-in to avoid narrowing. Full-org roles are
+ * unaffected either way; visibleTo() is a no-op for them.
+ */
 class AnalysisController extends Controller
 {
+    public function __construct(
+        private RiskScoringService $scoring,
+        private RiskMovementService $movement,
+    ) {}
+
     /**
      * Risk heatmap view.
      */
     public function heatmap(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
+        // WP-00 node scoping. One query feeds both the cell counts and the
+        // risks listed inside each cell, so scoping it keeps the map, its
+        // counts and the register drill-through the cell links to (RisksGrid,
+        // also scoped) all describing the same set of risks.
         $query = Risk::where('organization_id', $orgId)
+            ->visibleTo()
             ->where('status', 'active')
             ->with(['category', 'riskOwner', 'businessUnit']);
 
@@ -38,43 +69,80 @@ class AnalysisController extends Controller
 
         $risks = $query->get();
 
-        // Build 5x5 heatmap matrix
+        // WP-05 TASK 3 — the grid is the shape the organisation's scoring
+        // profile says it is, not a hardcoded 5×5, and the band boundaries come
+        // from the same profile that RiskScoringService rates against. This
+        // block previously carried its own copy of `>= 20 is Critical`, which
+        // is how the summary counts and the rating column came to be able to
+        // disagree with each other.
+        $profile = $this->scoring->profileFor(organizationId: $orgId);
+        $rows = $profile->matrix_rows;
+        $cols = $profile->matrix_cols;
+
         $heatmapData = [];
-        for ($likelihood = 1; $likelihood <= 5; $likelihood++) {
-            for ($impact = 1; $impact <= 5; $impact++) {
+        for ($likelihood = 1; $likelihood <= $rows; $likelihood++) {
+            for ($impact = 1; $impact <= $cols; $impact++) {
                 $heatmapData[$likelihood][$impact] = [];
             }
         }
 
         foreach ($risks as $risk) {
             if ($viewType === 'residual' && $risk->residual_likelihood && $risk->residual_impact) {
-                $l = $risk->residual_likelihood;
-                $i = $risk->residual_impact;
+                $l = (int) $risk->residual_likelihood;
+                $i = (int) $risk->residual_impact;
             } else {
-                $l = $risk->inherent_likelihood;
-                $i = $risk->inherent_impact;
+                $l = (int) $risk->inherent_likelihood;
+                $i = (int) $risk->inherent_impact;
             }
-            if ($l >= 1 && $l <= 5 && $i >= 1 && $i <= 5) {
-                $heatmapData[$l][$i][] = $risk;
+
+            if ($l < 1 || $i < 1) {
+                continue;
             }
+
+            // Clamped rather than dropped: after a move to a smaller matrix a
+            // risk still carrying a 5 belongs in the top-right cell, not
+            // missing from a heat map that claims to show every active risk.
+            $heatmapData[min($l, $rows)][min($i, $cols)][] = $risk;
         }
 
         // Score helper honours the active view type so summary counts stay
         // in sync with what the grid displays.
-        $scoreOf = function ($r) use ($viewType) {
+        $scoreOf = function ($r) use ($viewType, $rows, $cols) {
             if ($viewType === 'residual' && $r->residual_likelihood && $r->residual_impact) {
-                return $r->residual_score ?? ($r->residual_likelihood * $r->residual_impact);
+                return $r->residual_score
+                    ?? (min((int) $r->residual_likelihood, $rows) * min((int) $r->residual_impact, $cols));
             }
-            return $r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0));
+
+            return $r->inherent_score
+                ?? (min((int) ($r->inherent_likelihood ?? 0), $rows) * min((int) ($r->inherent_impact ?? 0), $cols));
         };
 
-        $criticalCount = $risks->filter(fn ($r) => $scoreOf($r) >= 20)->count();
-        $highCount     = $risks->filter(fn ($r) => ($s = $scoreOf($r)) >= 12 && $s < 20)->count();
-        $mediumCount   = $risks->filter(fn ($r) => ($s = $scoreOf($r)) >= 5 && $s < 12)->count();
-        $lowCount      = $risks->filter(fn ($r) => $scoreOf($r) < 5 && $scoreOf($r) > 0)->count();
+        // One count per configured band, keyed by band code, so a profile with
+        // three or six bands renders three or six summary tiles.
+        $bandCounts = [];
+
+        foreach ($profile->rating_bands ?? [] as $band) {
+            $bandCounts[$band['code']] = [
+                'label' => $band['label'] ?? $band['code'],
+                'color' => $band['color'] ?? null,
+                'count' => $risks->filter(function ($r) use ($scoreOf, $band) {
+                    $score = $scoreOf($r);
+
+                    return $score > 0 && $score >= ($band['min'] ?? 1) && $score <= ($band['max'] ?? PHP_INT_MAX);
+                })->count(),
+            ];
+        }
+
+        // The four named counters the existing view and its charts read by
+        // name. A profile with different bands simply reports zero for the
+        // ones it does not define; $bandCounts is the general form.
+        $criticalCount = $bandCounts['critical']['count'] ?? 0;
+        $highCount = $bandCounts['high']['count'] ?? 0;
+        $mediumCount = $bandCounts['medium']['count'] ?? 0;
+        $lowCount = $bandCounts['low']['count'] ?? 0;
 
         // Movement data for chart (quarterly trend)
-        $movementData = $this->buildRiskMovementData($orgId);
+        $movementData = $this->movement->quarterly($orgId);
 
         $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
 
@@ -102,10 +170,26 @@ class AnalysisController extends Controller
             'url' => route('risk.register.show', $r->id),
         ])->values();
 
-        return view('risk.analysis.heatmap', compact(
-            'risks', 'risksForJs', 'heatmapData', 'viewType', 'businessUnits', 'categories',
-            'criticalCount', 'highCount', 'mediumCount', 'lowCount', 'movementData'
-        ));
+        return Inertia::render('Analysis/Heatmap', [
+            'cells' => $this->heatmapCells($heatmapData, $rows, $cols),
+            'grid' => [
+                'rows' => $rows,
+                'cols' => $cols,
+                'likelihoodLabels' => $profile->axisLabels('likelihood'),
+                'impactLabels' => $profile->axisLabels('impact'),
+                'bands' => array_values($profile->rating_bands ?? []),
+            ],
+            'bandCounts' => $bandCounts,
+            'movement' => $movementData,
+            'viewType' => $viewType,
+            'total' => $risks->count(),
+            'filters' => [
+                'business_unit_id' => $request->integer('business_unit_id') ?: null,
+                'category_id' => $request->integer('category_id') ?: null,
+            ],
+            'businessUnits' => $businessUnits->map(fn ($u) => ['id' => $u->id, 'name' => $u->name])->values(),
+            'categories' => $categories->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values(),
+        ]);
     }
 
     /**
@@ -115,7 +199,7 @@ class AnalysisController extends Controller
      */
     public function bowtie(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $riskId = $request->get('risk_id');
         $selectedRisk = null;
@@ -126,7 +210,12 @@ class AnalysisController extends Controller
         $controlEffData = ['labels' => ['Effective', 'Partially', 'Ineffective'], 'values' => [0, 0, 0]];
 
         if ($riskId) {
+            // WP-00: ?risk_id= is a caller-supplied id, so the bow-tie is
+            // reachable by URL exactly like a show() route and is scoped the
+            // same way. An out-of-subtree id yields null, and the page renders
+            // its "choose a risk" state rather than another branch's analysis.
             $selectedRisk = Risk::where('id', $riskId)
+                ->visibleTo()
                 ->where('organization_id', $orgId)
                 ->with(['category', 'riskOwner', 'businessUnit', 'controlMappings'])
                 ->first();
@@ -140,16 +229,22 @@ class AnalysisController extends Controller
 
                 // Categorize controls
                 $effectiveCount = 0;
-                $partialCount   = 0;
+                $partialCount = 0;
                 $ineffectiveCount = 0;
+                $unratedCount = 0;
 
                 foreach ($selectedRisk->controlMappings as $control) {
                     $eff = $this->classifyControlEffectiveness($control);
                     $ctrlObj = (object) [
-                        'name'          => $control->name ?? $control->control_id ?? 'Control',
-                        'type'          => $control->control_type ?? 'detective',
+                        'name' => $control->name ?? $control->control_id ?? 'Control',
+                        'type' => $control->control_type ?? 'detective',
                         'effectiveness' => $eff,
-                        'gaps'          => $eff === 'ineffective' ? 'Requires improvement' : ($eff === 'partially' ? 'Minor gaps identified' : 'None'),
+                        'gaps' => match ($eff) {
+                            'ineffective' => 'Requires improvement',
+                            'partially' => 'Minor gaps identified',
+                            'unrated' => 'Not yet rated',
+                            default => 'None',
+                        },
                     ];
 
                     if (in_array($control->control_type ?? '', ['preventive', 'directive'])) {
@@ -161,26 +256,55 @@ class AnalysisController extends Controller
                     match ($eff) {
                         'effective' => $effectiveCount++,
                         'partially' => $partialCount++,
-                        default     => $ineffectiveCount++,
+                        'unrated' => $unratedCount++,
+                        default => $ineffectiveCount++,
                     };
                 }
 
+                // Unrated is its own slice. Folding it into "Ineffective" would
+                // report a control library nobody has tested as a control
+                // library that failed.
                 $controlEffData = [
-                    'labels' => ['Effective', 'Partially', 'Ineffective'],
-                    'values' => [$effectiveCount, $partialCount, $ineffectiveCount],
+                    'labels' => ['Effective', 'Partially', 'Ineffective', 'Unrated'],
+                    'values' => [$effectiveCount, $partialCount, $ineffectiveCount, $unratedCount],
                 ];
             }
         }
 
         $risks = Risk::where('organization_id', $orgId)
+            ->visibleTo()
             ->where('status', 'active')
             ->orderBy('risk_code')
             ->get();
 
-        return view('risk.analysis.bowtie', compact(
-            'selectedRisk', 'risks', 'causes', 'consequences',
-            'preventiveControls', 'mitigatingControls', 'controlEffData'
-        ));
+        return Inertia::render('Analysis/Bowtie', [
+            'risks' => $risks->map(fn (Risk $r) => [
+                'id' => $r->id,
+                'code' => $r->risk_code,
+                'title' => $r->title,
+            ])->values(),
+            'selected' => $selectedRisk === null ? null : [
+                'id' => $selectedRisk->id,
+                'code' => $selectedRisk->risk_code,
+                'title' => $selectedRisk->title,
+                'description' => $selectedRisk->description,
+                'category' => $selectedRisk->category?->name,
+                'inherentScore' => $selectedRisk->inherent_score,
+                'inherentRating' => $selectedRisk->inherent_rating,
+                'residualScore' => $selectedRisk->residual_score,
+                'residualRating' => $selectedRisk->residual_rating,
+                'url' => route('risk.register.show', $selectedRisk->id),
+            ],
+            'causes' => collect($causes)->map(fn ($c) => (array) $c)->values(),
+            'consequences' => collect($consequences)->map(fn ($c) => (array) $c)->values(),
+            // Already flat stdClass with name/type/effectiveness/gaps — built
+            // a few lines up. Re-mapping them through a "row" helper reading
+            // control_code and effectiveness_rating would have invented two
+            // dead columns, which is the defect 4.5 and 3.8 both found.
+            'preventiveControls' => collect($preventiveControls)->map(fn ($c) => (array) $c)->values(),
+            'mitigatingControls' => collect($mitigatingControls)->map(fn ($c) => (array) $c)->values(),
+            'controlEffData' => $controlEffData,
+        ]);
     }
 
     /**
@@ -188,7 +312,7 @@ class AnalysisController extends Controller
      */
     public function trends(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         // Accept explicit from/to dates from the date picker. Fall back to the
         // last 12 months if nothing (or invalid input) is provided.
@@ -231,23 +355,23 @@ class AnalysisController extends Controller
             ->where('status', 'active')
             ->where('created_at', '<', $midpoint)
             ->count();
-        $activeRisksChange    = $totalActiveRisks - $activeRisksOld;
+        $activeRisksChange = $totalActiveRisks - $activeRisksOld;
         $activeRisksDirection = $activeRisksChange >= 0 ? 'up' : 'down';
-        $activeRisksChange    = ($activeRisksChange >= 0 ? '+' : '') . $activeRisksChange;
+        $activeRisksChange = ($activeRisksChange >= 0 ? '+' : '').$activeRisksChange;
 
         $avgScoreOld = Risk::where('organization_id', $orgId)
             ->where('status', 'active')
             ->where('created_at', '<', $midpoint)
             ->avg('inherent_score') ?? 0;
-        $scoreChange      = round($avgRiskScore - $avgScoreOld, 1);
-        $avgScoreChange   = ($scoreChange >= 0 ? '+' : '') . $scoreChange;
+        $scoreChange = round($avgRiskScore - $avgScoreOld, 1);
+        $avgScoreChange = ($scoreChange >= 0 ? '+' : '').$scoreChange;
         $avgScoreDirection = $scoreChange >= 0 ? 'up' : 'down';
 
         // Build trend charts over the selected window.
-        $ratingTrendData    = $this->buildRatingTrendData($orgId, $startDate, $endDate);
-        $scoreTrendData     = $this->buildScoreTrendData($orgId, $startDate, $endDate);
-        $categoryTrendData  = $this->buildCategoryTrendData($orgId, $startDate, $endDate);
-        $treatmentTrendData = $this->buildTreatmentTrendData($orgId, $startDate, $endDate);
+        $ratingTrendData = $this->movement->monthlyRatings($startDate, $endDate, $orgId);
+        $scoreTrendData = $this->movement->monthlyAverageScore($startDate, $endDate, $orgId);
+        $categoryTrendData = $this->buildCategoryTrendData($orgId, $startDate, $endDate);
+        $treatmentTrendData = $this->movement->monthlyTreatmentProgress($startDate, $endDate, $orgId);
 
         // Risk movers
         $riskIncreasers = $this->buildRiskMovers($orgId, 'up');
@@ -256,29 +380,67 @@ class AnalysisController extends Controller
         // Echo the resolved window back to the view so the date picker stays in
         // sync with what was actually applied (handles defaults + swaps).
         $fromValue = $startDate->format('Y-m-d');
-        $toValue   = $endDate->format('Y-m-d');
+        $toValue = $endDate->format('Y-m-d');
 
-        return view('risk.analysis.trends', compact(
-            'totalActiveRisks', 'activeRisksChange', 'activeRisksDirection',
-            'avgRiskScore', 'avgScoreChange', 'avgScoreDirection',
-            'newRisks', 'closedRisks',
-            'ratingTrendData', 'scoreTrendData', 'categoryTrendData', 'treatmentTrendData',
-            'riskIncreasers', 'riskDecreasers',
-            'fromValue', 'toValue'
-        ));
+        return Inertia::render('Analysis/Trends', [
+            'stats' => [
+                'totalActiveRisks' => $totalActiveRisks,
+                'activeRisksChange' => $activeRisksChange,
+                'activeRisksDirection' => $activeRisksDirection,
+                'avgRiskScore' => round((float) $avgRiskScore, 1),
+                'avgScoreChange' => $avgScoreChange,
+                'avgScoreDirection' => $avgScoreDirection,
+                'newRisks' => $newRisks,
+                'closedRisks' => $closedRisks,
+            ],
+            'ratingTrend' => $ratingTrendData,
+            'scoreTrend' => $scoreTrendData,
+            'categoryTrend' => $categoryTrendData,
+            'treatmentTrend' => $treatmentTrendData,
+            'increasers' => collect($riskIncreasers)->map(fn ($m) => (array) $m)->values(),
+            'decreasers' => collect($riskDecreasers)->map(fn ($m) => (array) $m)->values(),
+            'window' => ['from' => $fromValue, 'to' => $toValue],
+        ]);
     }
 
     /**
-     * Risk correlation analysis.
+     * Shared-control analysis: how much of each risk's control set is also
+     * relied on by another risk.
+     *
+     * This page was called "Risk Correlation Analysis" and printed a
+     * "coefficient" to three decimal places with a "Significance" column beside
+     * it. Nothing on it was a correlation. The positive column divided the
+     * count of shared controls by the larger control count and called the
+     * result a coefficient; the negative column was generated by
+     * `buildNegativeCorrelations()`, which took any two risks in different
+     * categories whose inherent scores differed by more than 8 and emitted
+     * -(|s1 - s2| / 25) as a coefficient, with "high" significance above 0.5;
+     * the matrix averaged the shared-control ratio with `1 - |s1 - s2| / 25`
+     * and forced the diagonal to 1.0 so it looked like a correlation matrix.
+     *
+     * A correlation between two risks needs a time series of paired
+     * observations — repeated measurements of both risks over the same periods
+     * — and a coefficient reported with a p-value and an n. This product
+     * collects none of those: there is no risk-level time series anywhere in
+     * the schema, and no Pearson, Spearman or significance test anywhere in the
+     * codebase. Presenting a shared-control ratio as r, to three decimals,
+     * invites a bank to treat control overlap as statistical dependence in
+     * capital or scenario work.
+     *
+     * What survives is the part that was always real and is a legitimate
+     * concentration signal in its own right: two risks that lean on the same
+     * controls fail together when those controls fail. That is what this page
+     * now measures and what it now says it measures.
      */
     public function correlation(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
         $selectedCategoryId = $request->integer('category_id') ?: null;
 
         // Get active risks with scores, optionally narrowed to a single category.
         $risks = Risk::where('organization_id', $orgId)
+            ->visibleTo()
             ->where('status', 'active')
             ->whereNotNull('inherent_score')
             ->when($selectedCategoryId, fn ($q) => $q->where('category_id', $selectedCategoryId))
@@ -291,7 +453,8 @@ class AnalysisController extends Controller
         $categories = RiskCategory::where('organization_id', $orgId)
             ->orderBy('name')->get(['id', 'name']);
 
-        // Build correlation data from shared controls, scoped to the visible risks.
+        // Control mappings for the visible risks. Every figure on this page is
+        // a count of rows in this table — nothing is modelled or estimated.
         $visibleRiskIds = $risks->pluck('id');
         $controlMappings = RiskControlMapping::whereIn('risk_id', $visibleRiskIds)
             ->with(['risk', 'control'])
@@ -299,224 +462,206 @@ class AnalysisController extends Controller
 
         $riskControls = $controlMappings->groupBy('risk_id');
         $riskIds = $riskControls->keys()->toArray();
-        $pairs   = [];
+        $pairs = [];
 
         for ($i = 0; $i < count($riskIds); $i++) {
             for ($j = $i + 1; $j < count($riskIds); $j++) {
-                $risk1Controls = $riskControls[$riskIds[$i]]->pluck('control_id')->toArray();
-                $risk2Controls = $riskControls[$riskIds[$j]]->pluck('control_id')->toArray();
+                $risk1Controls = $riskControls[$riskIds[$i]]->pluck('control_id')->unique()->toArray();
+                $risk2Controls = $riskControls[$riskIds[$j]]->pluck('control_id')->unique()->toArray();
                 $sharedControls = array_intersect($risk1Controls, $risk2Controls);
 
                 if (count($sharedControls) > 0) {
-                    $strength = count($sharedControls) / max(count($risk1Controls), count($risk2Controls));
                     $risk1 = $riskControls[$riskIds[$i]]->first()->risk;
                     $risk2 = $riskControls[$riskIds[$j]]->first()->risk;
 
                     $pairs[] = [
-                        'risk_a'      => $risk1->risk_code ?? 'R-?',
-                        'risk_b'      => $risk2->risk_code ?? 'R-?',
-                        'coefficient' => round($strength, 3),
-                        'significance' => $strength >= 0.7 ? 'high' : ($strength >= 0.4 ? 'medium' : 'low'),
+                        'risk_a' => $risk1->risk_code ?? 'R-?',
+                        'risk_b' => $risk2->risk_code ?? 'R-?',
+                        'shared_controls' => count($sharedControls),
+                        'controls_a' => count($risk1Controls),
+                        'controls_b' => count($risk2Controls),
+                        // Shared controls as a share of the larger of the two
+                        // control sets: 100% means one risk's entire control
+                        // set is also carrying the other risk.
+                        'overlap_pct' => (int) round(
+                            (count($sharedControls) / max(count($risk1Controls), count($risk2Controls))) * 100
+                        ),
                     ];
                 }
             }
         }
 
-        // Sort by coefficient descending
-        usort($pairs, fn($a, $b) => $b['coefficient'] <=> $a['coefficient']);
+        usort(
+            $pairs,
+            fn ($a, $b) => [$b['overlap_pct'], $b['shared_controls']] <=> [$a['overlap_pct'], $a['shared_controls']]
+        );
 
-        // Split into positive and negative correlations (all are positive from shared controls)
-        $positiveCorrelations = collect(array_slice($pairs, 0, 10))
-            ->map(fn($p) => (object) $p);
+        $sharedControlPairs = collect(array_slice($pairs, 0, 10))
+            ->map(fn ($p) => (object) $p);
 
-        // Generate some synthetic negative correlations from inverse score relationships
-        $negativeCorrelations = $this->buildNegativeCorrelations($risks);
+        $overlapMatrix = $this->buildControlOverlapMatrix($risks, $riskControls);
 
-        // Build correlation matrix
-        $correlationMatrix = $this->buildCorrelationMatrix($risks, $riskControls);
-
-        return view('risk.analysis.correlation', compact(
-            'risks', 'categories', 'selectedCategoryId',
-            'positiveCorrelations', 'negativeCorrelations', 'correlationMatrix'
-        ));
+        return Inertia::render('Analysis/SharedControls', [
+            'pairs' => $sharedControlPairs->map(fn ($p) => (array) $p)->values(),
+            'matrix' => $overlapMatrix,
+            'categories' => $categories->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values(),
+            'selectedCategoryId' => $selectedCategoryId,
+            'riskCount' => $risks->count(),
+        ]);
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Private helpers                                                     */
+    /*  Private helpers */
     /* ------------------------------------------------------------------ */
 
     /**
      * Classify control effectiveness based on testing results.
      */
+    /**
+     * The heat map grid as a flat list of cells.
+     *
+     * The Blade template walked a nested `[likelihood][impact]` array and
+     * rendered the risks inside each cell; the page needs the same content in
+     * a shape JSON can carry, so each cell names its coordinates and the risks
+     * that sit in it. Empty cells are included: the grid is the profile's
+     * shape, and a missing cell would collapse the row.
+     *
+     * @param  array<int, array<int, list<Risk>>>  $heatmapData
+     * @return list<array<string, mixed>>
+     */
+    private function heatmapCells(array $heatmapData, int $rows, int $cols): array
+    {
+        $cells = [];
+
+        for ($likelihood = $rows; $likelihood >= 1; $likelihood--) {
+            for ($impact = 1; $impact <= $cols; $impact++) {
+                $inCell = $heatmapData[$likelihood][$impact] ?? [];
+
+                $cells[] = [
+                    'likelihood' => $likelihood,
+                    'impact' => $impact,
+                    'score' => $likelihood * $impact,
+                    'count' => count($inCell),
+                    'risks' => collect($inCell)->take(8)->map(fn (Risk $r) => [
+                        'id' => $r->id,
+                        'code' => $r->risk_code,
+                        'title' => $r->title,
+                        'url' => route('risk.register.show', $r->id),
+                    ])->values()->all(),
+                ];
+            }
+        }
+
+        return $cells;
+    }
+
     private function classifyControlEffectiveness($control): string
     {
         $effectiveness = $control->effectiveness_rating ?? $control->operating_effectiveness ?? null;
         if ($effectiveness) {
             $eff = strtolower($effectiveness);
-            if (in_array($eff, ['effective', 'strong', 'high'])) return 'effective';
-            if (in_array($eff, ['partially', 'moderate', 'medium', 'partially_effective'])) return 'partially';
+            if (in_array($eff, ['effective', 'strong', 'high'])) {
+                return 'effective';
+            }
+            if (in_array($eff, ['partially', 'moderate', 'medium', 'partially_effective'])) {
+                return 'partially';
+            }
+
             return 'ineffective';
         }
-        // Default: random-ish based on ID
-        return match (($control->id ?? 0) % 3) {
-            0 => 'effective',
-            1 => 'partially',
-            default => 'ineffective',
-        };
+
+        // An unrated control is unrated. This used to return a rating derived
+        // from the control's id modulo 3, which put a fabricated effectiveness
+        // on the bow-tie and into its doughnut counts — indistinguishable, on
+        // screen, from a real test result.
+        return 'unrated';
     }
 
     /**
-     * Build causes from risk data.
+     * The left-hand side of the bow-tie: the risk's recorded root causes.
+     *
+     * This used to read `$risk->risk_trigger ?? $risk->root_cause` — two columns
+     * that have never existed on `risks`. The expression therefore always
+     * evaluated to an empty string and every bow-tie in the product fell
+     * through to the same three invented causes ("Human error or negligence by
+     * staff", …), presented as though they were the organization's own
+     * analysis. WP-10a gives causes a real home, so the diagram now draws what
+     * the assessors actually recorded, and draws nothing when they recorded
+     * nothing.
      */
     private function buildCauses(Risk $risk): array
     {
-        $causes = [];
-
-        // Try parsing from risk_trigger or description
-        $triggerText = $risk->risk_trigger ?? $risk->root_cause ?? '';
-        if ($triggerText) {
-            $lines = array_filter(array_map('trim', preg_split('/[\n;,]+/', $triggerText)));
-            foreach ($lines as $line) {
-                if (strlen($line) > 3) {
-                    $causes[] = (object) ['description' => $line];
-                }
-            }
-        }
-
-        // If no causes found, generate from risk type
-        if (empty($causes)) {
-            $defaultCauses = [
-                (object) ['description' => 'Inadequate internal controls and procedures'],
-                (object) ['description' => 'Human error or negligence by staff'],
-                (object) ['description' => 'External threat actors or environmental factors'],
-            ];
-            $causes = $defaultCauses;
-        }
-
-        return $causes;
+        return $risk->causes()
+            ->with('category')
+            ->get()
+            ->map(fn (RiskCause $cause) => (object) [
+                'id' => $cause->id,
+                'description' => $cause->description,
+                'category' => $cause->category?->name,
+                'source' => $cause->source_label,
+                'is_primary' => (bool) $cause->is_primary,
+            ])
+            ->all();
     }
 
     /**
-     * Build consequences from risk data.
+     * The right-hand side of the bow-tie: the consequences the organisation
+     * actually recorded against the risk.
+     *
+     * This used to read `$risk->risk_consequence ?? $risk->impact_description`
+     * — neither column exists on `risks` (impact_description is a column on
+     * `issues`), so the expression was always the empty string and the fallback
+     * below it fired for every risk in the register, emitting the same three
+     * invented consequences ("Financial loss and reduced profitability",
+     * "Reputational damage and loss of customer confidence", "Regulatory
+     * sanctions or penalties") as though they were the organisation's own
+     * analysis. It also read `$risk->financial_exposure`, which does not exist
+     * either — the column is `financial_exposure_ngn` — so the naira figure
+     * attached to the first invented consequence was always absent.
+     *
+     * That is the same defect buildCauses() above documents having fixed on the
+     * cause side, and it is fixed the same way: the wing is drawn from what the
+     * assessors scored, and drawn empty when they scored nothing.
+     *
+     * The source is the risk's recorded impact-dimension ratings — the only
+     * consequence analysis this product stores. Each dimension the assessment
+     * actually rated becomes one consequence, carrying its recorded severity on
+     * the organisation's own configured impact scale. There is no free-text
+     * consequence register in the schema yet; when WP-10a's cause chain gains a
+     * consequence counterpart this method should read that instead.
      */
     private function buildConsequences(Risk $risk): array
     {
+        // The impact scale is whatever the scoring profile governing this risk
+        // says it is, so the "3 of 5" reads correctly under a 4- or 6-point
+        // profile instead of assuming the platform default.
+        $impactScale = $this->scoring->profileForRisk($risk)->matrix_cols;
+
+        $dimensions = [
+            'Financial' => $risk->inherent_impact_financial,
+            'Operational' => $risk->inherent_impact_operational,
+            'Reputational' => $risk->inherent_impact_reputational,
+            'Regulatory' => $risk->inherent_impact_regulatory,
+        ];
+
         $consequences = [];
 
-        $consequenceText = $risk->risk_consequence ?? $risk->impact_description ?? '';
-        if ($consequenceText) {
-            $lines = array_filter(array_map('trim', preg_split('/[\n;,]+/', $consequenceText)));
-            foreach ($lines as $line) {
-                if (strlen($line) > 3) {
-                    $consequences[] = (object) [
-                        'description'      => $line,
-                        'financial_impact'  => null,
-                    ];
-                }
+        foreach ($dimensions as $label => $rating) {
+            if ($rating === null || (int) $rating < 1) {
+                continue;
             }
-        }
 
-        // If no consequences found, generate defaults
-        if (empty($consequences)) {
-            $financialExposure = $risk->financial_exposure ?? 0;
-            $consequences = [
-                (object) ['description' => 'Financial loss and reduced profitability', 'financial_impact' => $financialExposure > 0 ? $financialExposure : null],
-                (object) ['description' => 'Reputational damage and loss of customer confidence', 'financial_impact' => null],
-                (object) ['description' => 'Regulatory sanctions or penalties', 'financial_impact' => null],
+            $consequences[] = (object) [
+                'description' => $label.' impact, rated '.(int) $rating.' of '.$impactScale,
+                // Only the financial dimension carries the recorded exposure,
+                // and only when one was recorded.
+                'financial_impact' => $label === 'Financial' && $risk->financial_exposure_ngn !== null
+                    ? (float) $risk->financial_exposure_ngn
+                    : null,
             ];
         }
 
         return $consequences;
-    }
-
-    /**
-     * Build quarterly risk movement data for heatmap chart.
-     */
-    private function buildRiskMovementData(int $orgId): array
-    {
-        $labels   = [];
-        $critical = [];
-        $high     = [];
-        $medium   = [];
-        $low      = [];
-
-        for ($q = 3; $q >= 0; $q--) {
-            $start = now()->subQuarters($q)->startOfQuarter();
-            $end   = now()->subQuarters($q)->endOfQuarter();
-            $label = 'Q' . $start->quarter . ' ' . $start->format('Y');
-            $labels[] = $label;
-
-            $risksInQuarter = Risk::where('organization_id', $orgId)
-                ->where('status', 'active')
-                ->where('created_at', '<=', $end)
-                ->get();
-
-            $critical[] = $risksInQuarter->filter(fn($r) => ($r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) >= 20)->count();
-            $high[]     = $risksInQuarter->filter(fn($r) => ($s = $r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) >= 12 && $s < 20)->count();
-            $medium[]   = $risksInQuarter->filter(fn($r) => ($s = $r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) >= 5 && $s < 12)->count();
-            $low[]      = $risksInQuarter->filter(fn($r) => ($r->inherent_score ?? (($r->inherent_likelihood ?? 0) * ($r->inherent_impact ?? 0))) < 5)->count();
-        }
-
-        return compact('labels', 'critical', 'high', 'medium', 'low');
-    }
-
-    /**
-     * Build rating trend data (monthly counts by rating).
-     */
-    private function buildRatingTrendData(int $orgId, $startDate, $endDate = null): array
-    {
-        $labels = [];
-        $critical = [];
-        $high = [];
-        $medium = [];
-        $low = [];
-
-        $current = $startDate->copy()->startOfMonth();
-        $end = ($endDate ?? now())->copy()->endOfMonth();
-
-        while ($current <= $end) {
-            $labels[] = $current->format('M Y');
-
-            $risksAtMonth = Risk::where('organization_id', $orgId)
-                ->where('status', 'active')
-                ->where('created_at', '<=', $current->copy()->endOfMonth())
-                ->get();
-
-            $critical[] = $risksAtMonth->filter(fn($r) => strtolower($r->inherent_rating ?? '') === 'critical')->count();
-            $high[]     = $risksAtMonth->filter(fn($r) => strtolower($r->inherent_rating ?? '') === 'high')->count();
-            $medium[]   = $risksAtMonth->filter(fn($r) => strtolower($r->inherent_rating ?? '') === 'medium')->count();
-            $low[]      = $risksAtMonth->filter(fn($r) => strtolower($r->inherent_rating ?? '') === 'low')->count();
-
-            $current->addMonth();
-        }
-
-        return compact('labels', 'critical', 'high', 'medium', 'low');
-    }
-
-    /**
-     * Build avg score trend data (monthly).
-     */
-    private function buildScoreTrendData(int $orgId, $startDate, $endDate = null): array
-    {
-        $labels = [];
-        $values = [];
-
-        $current = $startDate->copy()->startOfMonth();
-        $end = ($endDate ?? now())->copy()->endOfMonth();
-
-        while ($current <= $end) {
-            $labels[] = $current->format('M Y');
-
-            $avg = Risk::where('organization_id', $orgId)
-                ->where('status', 'active')
-                ->where('created_at', '<=', $current->copy()->endOfMonth())
-                ->avg('inherent_score') ?? 0;
-
-            $values[] = round($avg, 1);
-            $current->addMonth();
-        }
-
-        return compact('labels', 'values');
     }
 
     /**
@@ -555,50 +700,38 @@ class AnalysisController extends Controller
     }
 
     /**
-     * Build treatment trend data.
-     */
-    private function buildTreatmentTrendData(int $orgId, $startDate, $endDate = null): array
-    {
-        $labels    = [];
-        $completed = [];
-        $overdue   = [];
-
-        $current = $startDate->copy()->startOfMonth();
-        $end = ($endDate ?? now())->copy()->endOfMonth();
-
-        while ($current <= $end) {
-            $labels[] = $current->format('M Y');
-            $monthEnd = $current->copy()->endOfMonth();
-
-            // Count risks with treatment actions completed in this month
-            $closedInMonth = Risk::where('organization_id', $orgId)
-                ->whereIn('status', ['closed', 'retired'])
-                ->whereBetween('updated_at', [$current->copy()->startOfMonth(), $monthEnd])
-                ->count();
-            $completed[] = $closedInMonth;
-
-            // Count risks overdue (simplified: active risks older than 6 months with high/critical rating)
-            $overdueCount = Risk::where('organization_id', $orgId)
-                ->where('status', 'active')
-                ->whereIn('inherent_rating', ['Critical', 'High'])
-                ->where('created_at', '<', $current->copy()->subMonths(6))
-                ->where('created_at', '<=', $monthEnd)
-                ->count();
-            $overdue[] = $overdueCount;
-
-            $current->addMonth();
-        }
-
-        return compact('labels', 'completed', 'overdue');
-    }
-
-    /**
-     * Build risk movers (risks with biggest score changes).
+     * Risks ranked by how far their controls move them: inherent -> residual.
+     *
+     * WHAT THIS USED TO CLAIM. The method was called buildRiskMovers(), its own
+     * comment said "simulate movement", and the screen presented the output as
+     * "Top Risk Increasers" and "Top Risk Decreasers" with a Previous / Current
+     * / Change table — i.e. movement over time. Nothing in it looked at time.
+     * The figure was `inherent_score - residual_score`, which is the effect of
+     * the control environment as assessed today. Worse, the two ratings were
+     * mapped backwards: the "up" branch labelled the RESIDUAL rating "previous"
+     * and the INHERENT rating "current", so a well-controlled risk was
+     * displayed as having deteriorated. And where a rating was missing the
+     * fallbacks invented one ('low' then 'medium', 'high' then 'medium'), so a
+     * completely unrated risk rendered as a confident Low -> Medium increase.
+     *
+     * WHAT IT REPORTS NOW. The same arithmetic, labelled as what it measures:
+     * the gap between the inherent and residual positions, largest first, with
+     * the inherent and residual ratings named as such and 'unrated' where the
+     * organisation has not rated them (x-risk-badge renders anything it does
+     * not recognise in neutral grey, so an unrated risk reads as unrated
+     * rather than as Medium).
+     *
+     * A genuine period-over-period mover list is buildable — RiskRepository
+     * ::asOf() reconstructs the register at a past period from the measure
+     * engine — but it is a different query against measure_values, not this
+     * one, and inventing it here is what produced the original defect.
+     *
+     * @param  string  $direction  'up' = controls reduce exposure, 'down' = residual exceeds inherent
      */
     private function buildRiskMovers(int $orgId, string $direction): array
     {
-        // Get risks ordered by score, simulate movement
         $risks = Risk::where('organization_id', $orgId)
+            ->visibleTo()
             ->where('status', 'active')
             ->whereNotNull('inherent_score')
             ->orderByDesc('inherent_score')
@@ -607,104 +740,76 @@ class AnalysisController extends Controller
 
         $movers = [];
         foreach ($risks as $risk) {
-            $currentScore = $risk->inherent_score ?? 0;
+            $inherentScore = $risk->inherent_score ?? 0;
             $residualScore = ($risk->residual_likelihood ?? 0) * ($risk->residual_impact ?? 0);
-            $diff = $currentScore - ($residualScore > 0 ? $residualScore : $currentScore);
 
-            if ($direction === 'up' && $diff > 0) {
+            // No residual assessment means no gap to report — not a gap of zero.
+            if ($residualScore <= 0) {
+                continue;
+            }
+
+            $diff = $inherentScore - $residualScore;
+
+            if (($direction === 'up' && $diff > 0) || ($direction === 'down' && $diff < 0)) {
                 $movers[] = (object) [
-                    'risk_code'       => $risk->risk_code,
-                    'previous_rating' => $risk->residual_rating ?? 'low',
-                    'current_rating'  => $risk->inherent_rating ?? 'medium',
-                    'score_change'    => $diff,
-                ];
-            } elseif ($direction === 'down' && $diff < 0) {
-                $movers[] = (object) [
-                    'risk_code'       => $risk->risk_code,
-                    'previous_rating' => $risk->inherent_rating ?? 'high',
-                    'current_rating'  => $risk->residual_rating ?? 'medium',
-                    'score_change'    => $diff,
+                    'risk_code' => $risk->risk_code,
+                    'inherent_rating' => $risk->inherent_rating ?? 'unrated',
+                    'residual_rating' => $risk->residual_rating ?? 'unrated',
+                    'score_change' => $diff,
                 ];
             }
         }
 
-        usort($movers, fn($a, $b) => abs($b->score_change) <=> abs($a->score_change));
+        usort($movers, fn ($a, $b) => abs($b->score_change) <=> abs($a->score_change));
+
         return array_slice($movers, 0, 5);
     }
 
     /**
-     * Build negative correlations from inverse score relationships.
+     * Pairwise shared-control overlap for the top risks, as percentages.
+     *
+     * Replaces buildCorrelationMatrix(), which averaged the shared-control
+     * ratio with `1 - |score_a - score_b| / 25` — a score-similarity term with
+     * no statistical meaning — labelled the result a correlation coefficient,
+     * and forced the diagonal to 1.0 so the grid read as a correlation matrix.
+     *
+     * Cell [i][j] is simply: of the larger of the two risks' control sets, what
+     * share of it is mapped to both risks. The diagonal is null rather than
+     * 100: a risk trivially shares every control with itself, and drawing that
+     * cell only ever existed to complete the look of a correlation matrix.
+     *
+     * @return array{labels: list<string>, data: list<list<int|null>>}
      */
-    private function buildNegativeCorrelations($risks): \Illuminate\Support\Collection
+    private function buildControlOverlapMatrix($risks, $riskControls): array
     {
-        $negCorrs = [];
-        $riskList = $risks->values();
+        $topRisks = $risks->take(8)->values();
+        $labels = $topRisks->pluck('risk_code')->toArray();
+        $size = count($labels);
+        $matrix = array_fill(0, $size, array_fill(0, $size, 0));
 
-        for ($i = 0; $i < min($riskList->count(), 10); $i++) {
-            for ($j = $i + 1; $j < min($riskList->count(), 10); $j++) {
-                $r1 = $riskList[$i];
-                $r2 = $riskList[$j];
-
-                // Synthetic negative correlation: risks in different categories with inverse impact dimensions
-                if (($r1->category_id ?? 0) !== ($r2->category_id ?? 0)) {
-                    $score1 = $r1->inherent_score ?? 0;
-                    $score2 = $r2->inherent_score ?? 0;
-
-                    if ($score1 > 0 && $score2 > 0 && abs($score1 - $score2) > 8) {
-                        $coeff = -1 * round(abs($score1 - $score2) / 25, 3);
-                        if ($coeff < -0.15) {
-                            $negCorrs[] = (object) [
-                                'risk_a'       => $r1->risk_code ?? 'R-?',
-                                'risk_b'       => $r2->risk_code ?? 'R-?',
-                                'coefficient'  => max(-0.9, $coeff),
-                                'significance' => abs($coeff) >= 0.5 ? 'high' : 'medium',
-                            ];
-                        }
-                    }
-                }
-            }
-        }
-
-        usort($negCorrs, fn($a, $b) => $a->coefficient <=> $b->coefficient);
-        return collect(array_slice($negCorrs, 0, 5));
-    }
-
-    /**
-     * Build correlation matrix for chart.
-     */
-    private function buildCorrelationMatrix($risks, $riskControls): array
-    {
-        $topRisks = $risks->take(8);
-        $labels   = $topRisks->pluck('risk_code')->toArray();
-        $size     = count($labels);
-        $matrix   = array_fill(0, $size, array_fill(0, $size, 0));
-
-        // Fill diagonal with 1.0
         for ($i = 0; $i < $size; $i++) {
-            $matrix[$i][$i] = 1.0;
+            $matrix[$i][$i] = null;
         }
 
-        // Calculate correlations based on shared controls
         for ($i = 0; $i < $size; $i++) {
             for ($j = $i + 1; $j < $size; $j++) {
-                $rid1 = $topRisks->values()[$i]->id;
-                $rid2 = $topRisks->values()[$j]->id;
+                $ridA = $topRisks[$i]->id;
+                $ridB = $topRisks[$j]->id;
 
-                $controls1 = isset($riskControls[$rid1]) ? $riskControls[$rid1]->pluck('control_id')->toArray() : [];
-                $controls2 = isset($riskControls[$rid2]) ? $riskControls[$rid2]->pluck('control_id')->toArray() : [];
+                $controlsA = isset($riskControls[$ridA])
+                    ? $riskControls[$ridA]->pluck('control_id')->unique()->toArray()
+                    : [];
+                $controlsB = isset($riskControls[$ridB])
+                    ? $riskControls[$ridB]->pluck('control_id')->unique()->toArray()
+                    : [];
 
-                $shared = count(array_intersect($controls1, $controls2));
-                $total  = max(count($controls1), count($controls2), 1);
-                $corr   = round($shared / $total, 3);
+                $shared = count(array_intersect($controlsA, $controlsB));
+                $largest = max(count($controlsA), count($controlsB));
 
-                // Also factor in score similarity
-                $s1 = $topRisks->values()[$i]->inherent_score ?? 0;
-                $s2 = $topRisks->values()[$j]->inherent_score ?? 0;
-                $scoreSim = 1 - abs($s1 - $s2) / 25;
-                $combined = round(($corr + max(0, $scoreSim)) / 2, 3);
+                $overlap = $largest === 0 ? 0 : (int) round(($shared / $largest) * 100);
 
-                $matrix[$i][$j] = $combined;
-                $matrix[$j][$i] = $combined;
+                $matrix[$i][$j] = $overlap;
+                $matrix[$j][$i] = $overlap;
             }
         }
 

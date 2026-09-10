@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ProjectsGraphEdge;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class LossEventControl extends Model
 {
-    use HasFactory;
+    use HasFactory, ProjectsGraphEdge;
 
     protected $fillable = [
         'loss_event_id',
@@ -17,7 +18,7 @@ class LossEventControl extends Model
     ];
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function lossEvent()
@@ -25,7 +26,8 @@ class LossEventControl extends Model
         return $this->belongsTo(LossEvent::class);
     }
 
-    public function control()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Control, $this> */
+    public function control(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Control::class);
     }

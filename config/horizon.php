@@ -1,0 +1,410 @@
+<?php
+
+use Illuminate\Support\Str;
+use Laravel\Horizon\Http\Middleware\Authenticate;
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Horizon Name
+    |--------------------------------------------------------------------------
+    |
+    | This name appears in notifications and in the Horizon UI. Unique names
+    | can be useful while running multiple instances of Horizon within an
+    | application, allowing you to identify the Horizon you're viewing.
+    |
+    */
+
+    'name' => env('HORIZON_NAME'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Horizon Domain
+    |--------------------------------------------------------------------------
+    |
+    | This is the subdomain where Horizon will be accessible from. If this
+    | setting is null, Horizon will reside under the same domain as the
+    | application. Otherwise, this value will serve as the subdomain.
+    |
+    */
+
+    'domain' => env('HORIZON_DOMAIN'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Horizon Path
+    |--------------------------------------------------------------------------
+    |
+    | This is the URI path where Horizon will be accessible from. Feel free
+    | to change this path to anything you like. Note that the URI will not
+    | affect the paths of its internal API that aren't exposed to users.
+    |
+    */
+
+    'path' => env('HORIZON_PATH', 'horizon'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Horizon Redis Connection
+    |--------------------------------------------------------------------------
+    |
+    | This is the name of the Redis connection where Horizon will store the
+    | meta information required for it to function. It includes the list
+    | of supervisors, failed jobs, job metrics, and other information.
+    |
+    */
+
+    'use' => 'default',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Horizon Redis Prefix
+    |--------------------------------------------------------------------------
+    |
+    | This prefix will be used when storing all Horizon data in Redis. You
+    | may modify the prefix when you are running multiple installations
+    | of Horizon on the same server so that they don't have problems.
+    |
+    */
+
+    'prefix' => env(
+        'HORIZON_PREFIX',
+        Str::slug(env('APP_NAME', 'laravel'), '_').'_horizon:'
+    ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Horizon Route Middleware
+    |--------------------------------------------------------------------------
+    |
+    | These middleware will get attached onto each Horizon route, giving you
+    | the chance to add your own middleware to this list or change any of
+    | the existing middleware. Or, you can simply stick with this list.
+    |
+    */
+
+    /*
+     * `auth` puts the Horizon dashboard behind the platform's own login and
+     * MFA; Authenticate (Horizon's own) then applies the viewHorizon gate,
+     * which this application defines as the admin.queues permission. Stock
+     * Horizon ships with just ['web'], and in a non-local environment that
+     * leaves the gate as the only thing between an unauthenticated visitor and
+     * every job payload on the queue.
+     */
+    'middleware' => ['web', 'auth', Authenticate::class],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Queue Wait Time Thresholds
+    |--------------------------------------------------------------------------
+    |
+    | This option allows you to configure when the LongWaitDetected event
+    | will be fired. Every connection / queue combination may have its
+    | own, unique threshold (in seconds) before this event is fired.
+    |
+    */
+
+    'waits' => [
+        'redis:default' => 60,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Job Trimming Times
+    |--------------------------------------------------------------------------
+    |
+    | Here you can configure for how long (in minutes) you desire Horizon to
+    | persist the recent and failed jobs. Typically, recent jobs are kept
+    | for one hour while all failed jobs are stored for an entire week.
+    |
+    */
+
+    'trim' => [
+        'recent' => 60,
+        'pending' => 60,
+        'completed' => 60,
+        'recent_failed' => 10080,
+        'failed' => 10080,
+        'monitored' => 10080,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Silenced Jobs
+    |--------------------------------------------------------------------------
+    |
+    | Silencing a job will instruct Horizon to not place the job in the list
+    | of completed jobs within the Horizon dashboard. This setting may be
+    | used to fully remove any noisy jobs from the completed jobs list.
+    |
+    */
+
+    'silenced' => [
+        // App\Jobs\ExampleJob::class,
+    ],
+
+    'silenced_tags' => [
+        // 'notifications',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Metrics
+    |--------------------------------------------------------------------------
+    |
+    | Here you can configure how many snapshots should be kept to display in
+    | the metrics graph. This will get used in combination with Horizon's
+    | `horizon:snapshot` schedule to define how long to retain metrics.
+    |
+    */
+
+    'metrics' => [
+        'trim_snapshots' => [
+            'job' => 24,
+            'queue' => 24,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fast Termination
+    |--------------------------------------------------------------------------
+    |
+    | When this option is enabled, Horizon's "terminate" command will not
+    | wait on all of the workers to terminate unless the --wait option
+    | is provided. Fast termination can shorten deployment delay by
+    | allowing a new instance of Horizon to start while the last
+    | instance will continue to terminate each of its workers.
+    |
+    */
+
+    'fast_termination' => false,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Memory Limit (MB)
+    |--------------------------------------------------------------------------
+    |
+    | This value describes the maximum amount of memory the Horizon master
+    | supervisor may consume before it is terminated and restarted. For
+    | configuring these limits on your workers, see the next section.
+    |
+    */
+
+    'memory_limit' => 64,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Queue Worker Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Here you may define the queue worker settings used by your application
+    | in all environments. These supervisors and settings handle all your
+    | queued jobs and will be provisioned by Horizon during deployment.
+    |
+    */
+
+    /*
+     * WP-07 — three supervisors, because the jobs have genuinely different
+     * shapes and one pool would let the slowest starve the rest.
+     *
+     *   interactive  somebody is watching: notifications, webhooks, exports.
+     *                Short timeout, several processes, retried.
+     *   simulations  a Monte Carlo run is minutes of CPU and is NOT retried
+     *                (see RunSimulationJob). One process, long timeout, plenty
+     *                of memory — running two on one box just makes both slower.
+     *   bulk         imports and connector syncs: long, single-attempt, and
+     *                nobody is staring at them.
+     *
+     * A single 'default' pool would put a 30-minute simulation in front of the
+     * notification telling somebody their approval is overdue.
+     */
+    'defaults' => [
+        'interactive' => [
+            'connection' => 'redis',
+            'queue' => ['default', 'notifications', 'webhooks', 'exports'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 2,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 192,
+            'tries' => 3,
+            'timeout' => 120,
+            'nice' => 0,
+        ],
+
+        'simulations' => [
+            'connection' => 'redis',
+            'queue' => ['simulations'],
+            'balance' => 'simple',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            // 10,000 iterations x N scenarios holds the loss array in memory.
+            'memory' => 1024,
+            'tries' => 1,
+            // Must exceed RunSimulationJob::$timeout, or Horizon kills the
+            // worker mid-run and the job is marked failed for no reason.
+            'timeout' => 1860,
+            'nice' => 5,
+        ],
+
+        'bulk' => [
+            'connection' => 'redis',
+            'queue' => ['imports', 'connectors', 'reports'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 512,
+            'tries' => 1,
+            'timeout' => 3660,
+            'nice' => 5,
+        ],
+
+        /*
+         * BCMS — four supervisors, not one, and not folded into 'interactive'.
+         * ADR 0005 has the full reasoning; the short version is that the four
+         * queues fail differently.
+         *
+         * bcms-lifesafety  "Are you safe?", evacuation, crisis activation.
+         *                  ALWAYS WARM, minProcesses never zero, never
+         *                  throttled, never behind anything. A roll-call queued
+         *                  behind five thousand drill reminders is the failure
+         *                  this whole module exists to prevent, and a shared
+         *                  pool with a priority flag is still behind whatever
+         *                  the worker is doing right now.
+         * bcms-alerts      EMNS dispatch, ack chasing, escalation. Bursty: a
+         *                  10,000-recipient dispatch must be queued in under 30
+         *                  seconds (Blueprint §14) without delaying anything
+         *                  else for hours.
+         * bcms-reminders   The T-10 ladder. High volume, low urgency, retried
+         *                  generously — a reminder that arrives twice is a
+         *                  nuisance, one that never arrives is a compliance
+         *                  breach.
+         * bcms-sync        AD/Entra/SCIM sync and contact hygiene. Long,
+         *                  single-attempt, nobody watching. Gate G0 criterion 7
+         *                  backs up 10,000 jobs here and asserts life safety is
+         *                  still picked up.
+         */
+        'bcms-lifesafety' => [
+            'connection' => 'redis',
+            'queue' => ['bcms-lifesafety'],
+            'balance' => 'simple',
+            'autoScalingStrategy' => 'time',
+            'minProcesses' => 1,
+            'maxProcesses' => 2,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 192,
+            // Three tries and a short timeout: a life-safety send that has
+            // failed three times needs the failover path, not a fourth attempt
+            // on the same gateway.
+            'tries' => 3,
+            'timeout' => 60,
+            'nice' => 0,
+        ],
+
+        'bcms-alerts' => [
+            'connection' => 'redis',
+            'queue' => ['bcms-alerts'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 2,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 3,
+            'timeout' => 120,
+            'nice' => 0,
+        ],
+
+        'bcms-reminders' => [
+            'connection' => 'redis',
+            'queue' => ['bcms-reminders'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 5,
+            'timeout' => 300,
+            'nice' => 5,
+        ],
+
+        'bcms-sync' => [
+            'connection' => 'redis',
+            'queue' => ['bcms-sync'],
+            'balance' => 'simple',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 512,
+            // Single attempt: a directory sync that half-ran and is retried
+            // from the top writes the same contacts twice.
+            'tries' => 1,
+            'timeout' => 3600,
+            'nice' => 10,
+        ],
+    ],
+
+    'environments' => [
+        'production' => [
+            'interactive' => [
+                'maxProcesses' => 10,
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 3,
+            ],
+            'simulations' => ['maxProcesses' => 2],
+            'bulk' => ['maxProcesses' => 3],
+
+            // Life safety scales up and never down to zero. Blueprint §14 asks
+            // for a 99.95% dispatch path and the first SMS delivered inside 60
+            // seconds; a cold worker spends the first of those seconds booting.
+            'bcms-lifesafety' => ['minProcesses' => 2, 'maxProcesses' => 6],
+            'bcms-alerts' => ['maxProcesses' => 12, 'balanceMaxShift' => 2, 'balanceCooldown' => 3],
+            'bcms-reminders' => ['maxProcesses' => 4],
+            'bcms-sync' => ['maxProcesses' => 2],
+        ],
+
+        'local' => [
+            'interactive' => ['maxProcesses' => 3],
+            'simulations' => ['maxProcesses' => 1],
+            'bulk' => ['maxProcesses' => 1],
+            'bcms-lifesafety' => ['minProcesses' => 1, 'maxProcesses' => 1],
+            'bcms-alerts' => ['maxProcesses' => 1],
+            'bcms-reminders' => ['maxProcesses' => 1],
+            'bcms-sync' => ['maxProcesses' => 1],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | File Watcher Configuration
+    |--------------------------------------------------------------------------
+    |
+    | The following list of directories and files will be watched when using
+    | the `horizon:listen` command. Whenever any directories or files are
+    | changed, Horizon will automatically restart to apply all changes.
+    |
+    */
+
+    'watch' => [
+        'app',
+        'bootstrap',
+        'config/**/*.php',
+        'database/**/*.php',
+        'public/**/*.php',
+        'resources/**/*.php',
+        'routes',
+        'composer.lock',
+        'composer.json',
+        '.env',
+    ],
+];

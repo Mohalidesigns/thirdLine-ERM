@@ -1,11 +1,485 @@
 @import 'tailwindcss';
+@import './fonts.css';
+
+/* Widget layer: the --viz-* tokens that resources/js/widgets/theme.js reads at
+   render time, plus the panel styles for the chart/treemap/network renderers.
+   Imported again as of the migration programme (Phase 0): Business HQ and the
+   dashboard builder are live surfaces, and the React Widget component (Phase 2)
+   reads the same tokens. */
+@import './widgets.css';
+
+/* Tailwind's form reset, class strategy only: `.form-input`, `.form-select`,
+   `.form-checkbox` and friends opt in. The default (base) strategy restyles
+   every <input> on every screen, which would change the look of the ~140
+   Blade forms this programme has not ported yet. */
+@plugin '@tailwindcss/forms' {
+    strategy: class;
+}
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 @source '../**/*.blade.php';
 @source '../**/*.js';
+@source '../**/*.jsx';
 
+/*
+| The shared interface layer moved to packages/ui in migration Phase 7.1e.
+|
+| These two globs are BELT AND BRACES, not a fix: Tailwind 4's automatic source
+| detection already walks the project root, so the stylesheet built without them
+| is byte-identical (measured — same 119,267 bytes, same content hash). They are
+| here because the alternative failure is silent. Tailwind only generates a class
+| it can see, so a source it stops finding produces a page whose class attributes
+| have no rules behind them — a visual regression that builds cleanly and passes
+| every test in this repository, none of which render CSS.
+*/
+@source '../../packages/ui/src/**/*.jsx';
+@source '../../packages/ui/src/**/*.js';
+
+/*
+| Brand theme
+|--------------------------------------------------------------------------
+|
+| Tailwind 4 is configured in CSS rather than JavaScript: the `@theme` block is
+| the v4 equivalent of tailwind.config.js and is what the build honours.
+|
+| Every colour is emitted as a CSS custom property, which is what makes
+| per-organization branding possible: layouts/partials/branding.blade.php
+| re-declares --color-primary and friends on :root from
+| organizations.settings->branding, and every `bg-primary` / `text-primary`
+| utility follows without a rebuild.
+|
+| The token set is ThirdLine's (internalaudit/resources/css/app.css) merged
+| with this product's. On conflict ThirdLine wins; the three colours that both
+| files define (--color-primary #1a365d, --color-secondary #2d7d46,
+| --color-accent #d4af37) carry the same value in both, so nothing moved.
+*/
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-mono: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --color-primary: #1a365d;
+    --color-secondary: #2d7d46;
+    --color-accent: #d4af37;
+}
+
+@layer base {
+    :root {
+        --color-primary-light: #2a4a7f;
+        --color-primary-dark: #0f2340;
+        --color-secondary-light: #38a169;
+        --color-accent-light: #e2c458;
+        --color-bg: #f7fafc;
+        --color-card: #ffffff;
+        --color-text-primary: #2d3748;
+        --color-text-secondary: #718096;
+        --color-error: #c53030;
+        --color-warning: #dd6b20;
+        --color-info: #319795;
+        --color-success: #2d7d46;
+        --sidebar-width: 260px;
+        --sidebar-collapsed-width: 72px;
+    }
+
+    body {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        color: var(--color-text-primary);
+        background-color: var(--color-bg);
+    }
+}
+
+/*
+| ThirdLine component layer
+|--------------------------------------------------------------------------
+|
+| Converted from ThirdLine's Tailwind 3 `@layer components` block to v4 syntax
+| (same class names, same @apply lists). React pages compose from these; the
+| Blade screens keep their inline utilities until they are ported.
+*/
+@layer components {
+    .sidebar-nav-item {
+        @apply flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200;
+    }
+
+    .sidebar-nav-item.active {
+        @apply bg-white/10 text-white border-l-[3px] border-[var(--color-accent)];
+    }
+
+    .sidebar-nav-item:not(.active) {
+        @apply text-white/70 hover:bg-white/5 hover:text-white;
+    }
+
+    .stat-card {
+        @apply bg-white rounded-xl shadow-sm border border-gray-100 p-5 transition-all duration-200 hover:shadow-md;
+    }
+
+    /* Conflict: this product defined .badge as `padding: 2px 10px` with no
+       ring. ThirdLine's definition wins (px-2.5 py-0.5 is 2px 10px anyway). */
+    .badge {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    }
+
+    .badge-critical { @apply bg-red-100 text-red-800; }
+    .badge-high { @apply bg-orange-100 text-orange-800; }
+    .badge-medium { @apply bg-yellow-100 text-yellow-800; }
+    .badge-low { @apply bg-green-100 text-green-800; }
+
+    .badge-status-draft { @apply bg-gray-100 text-gray-700; }
+    .badge-status-pending { @apply bg-blue-100 text-blue-700; }
+    .badge-status-active { @apply bg-green-100 text-green-700; }
+    .badge-status-completed { @apply bg-purple-100 text-purple-700; }
+    .badge-status-overdue { @apply bg-red-100 text-red-700; }
+
+    .btn-primary {
+        @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[var(--color-primary)] rounded-lg hover:bg-[var(--color-primary-light)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-2;
+    }
+
+    .btn-secondary {
+        @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-[var(--color-primary)] bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200;
+    }
+
+    .btn-success {
+        @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[var(--color-secondary)] rounded-lg hover:bg-[var(--color-secondary-light)] transition-colors duration-200;
+    }
+
+    .btn-danger {
+        @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[var(--color-error)] rounded-lg hover:bg-red-700 transition-colors duration-200;
+    }
+
+    .btn-warning {
+        @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[var(--color-warning)] rounded-lg hover:bg-orange-700 transition-colors duration-200;
+    }
+
+    /* Conflict: this product styled .data-table th/td with explicit px
+       values (10px 12px padding, uppercase 0.75rem headings). ThirdLine's
+       utility-based version wins; the visual difference is a 2px taller
+       cell and a lighter header background. */
+    .data-table {
+        @apply w-full text-sm text-left;
+    }
+
+    .data-table thead th {
+        @apply px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-200;
+    }
+
+    .data-table tbody td {
+        @apply px-4 py-3 border-b border-gray-100;
+    }
+
+    .data-table tbody tr {
+        @apply hover:bg-gray-50 transition-colors;
+    }
+
+    .form-input {
+        @apply w-full rounded-lg border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)] text-sm;
+    }
+
+    .form-label {
+        @apply block text-sm font-medium text-gray-700 mb-1;
+    }
+
+    .form-select {
+        @apply w-full rounded-lg border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)] text-sm;
+    }
+
+    .page-header {
+        @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6;
+    }
+
+    .page-title {
+        @apply text-2xl font-bold text-[var(--color-text-primary)];
+    }
+
+    .card {
+        @apply bg-white rounded-xl shadow-sm border border-gray-100;
+    }
+
+    .card-header {
+        @apply px-6 py-4 border-b border-gray-100;
+    }
+
+    .card-body {
+        @apply px-6 py-4;
+    }
+
+    .progress-bar {
+        @apply h-2 bg-gray-200 rounded-full overflow-hidden;
+    }
+
+    .progress-bar-fill {
+        @apply h-full rounded-full transition-all duration-500;
+    }
+
+    .filter-bar {
+        @apply bg-gray-50/80 rounded-xl border border-gray-200 px-5 py-4 mb-6;
+    }
+
+    .filter-bar-inner {
+        @apply flex flex-wrap items-end gap-4;
+    }
+
+    .filter-group {
+        @apply flex flex-col gap-1.5 min-w-0;
+    }
+
+    .filter-group.flex-1 {
+        flex: 1 1 0%;
+    }
+
+    .filter-label {
+        @apply text-[10px] font-semibold text-gray-400 uppercase tracking-wider;
+    }
+
+    .filter-input {
+        @apply w-full rounded-lg border-0 bg-white shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-[var(--color-primary)] text-sm py-2.5 px-3 text-gray-700 placeholder-gray-400;
+    }
+
+    .filter-select {
+        @apply w-full rounded-lg border-0 bg-white shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-[var(--color-primary)] text-sm py-2.5 px-3 text-gray-700 appearance-none;
+    }
+
+    .filter-reset {
+        @apply px-5 py-2.5 text-sm font-semibold text-gray-600 bg-white rounded-lg ring-1 ring-gray-200 hover:bg-gray-100 hover:text-gray-800 transition-colors duration-200 whitespace-nowrap;
+    }
+}
+
+/*
+| Global styles kept from this product
+|--------------------------------------------------------------------------
+*/
+
+[x-cloak] {
+    display: none !important;
+}
+
+.material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Custom scrollbar (both files defined this identically) */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+}
+
+/* Sidebar scrollbar (ThirdLine) */
+.sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Risk rating badges (this product only — the Blade screens use them) */
+.risk-critical {
+    background: #fed7d7;
+    color: #c53030;
+}
+.risk-high {
+    background: #feebc8;
+    color: #dd6b20;
+}
+.risk-medium {
+    background: #fefcbf;
+    color: #b7791f;
+}
+.risk-low {
+    background: #c6f6d5;
+    color: #2f855a;
+}
+
+/* Trend indicators */
+.trend-up {
+    color: #c53030;
+}
+.trend-down {
+    color: #2d7d46;
+}
+.trend-flat {
+    color: #718096;
+}
+
+/* KPI card (Blade). The React equivalent is .stat-card above. */
+.kpi-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e2e8f0;
+}
+
+/* Tabs */
+.tab-active {
+    border-bottom: 2px solid var(--color-primary);
+    color: var(--color-primary);
+    font-weight: 600;
+}
+.tab-inactive {
+    border-bottom: 2px solid transparent;
+    color: #718096;
+}
+
+.print-only {
+    display: none;
+}
+
+/* Bell ring animation for new notifications (ThirdLine) */
+@keyframes bell-ring {
+    0% { transform: rotate(0deg); }
+    10% { transform: rotate(14deg); }
+    20% { transform: rotate(-14deg); }
+    30% { transform: rotate(10deg); }
+    40% { transform: rotate(-10deg); }
+    50% { transform: rotate(6deg); }
+    60% { transform: rotate(-6deg); }
+    70% { transform: rotate(2deg); }
+    80% { transform: rotate(-2deg); }
+    100% { transform: rotate(0deg); }
+}
+.animate-bell-ring {
+    animation: bell-ring 1s ease-in-out;
+    transform-origin: top center;
+}
+
+@keyframes slide-in {
+    from { opacity: 0; transform: translateX(100%); }
+    to { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in {
+    animation: slide-in 0.3s ease-out;
+}
+
+/* ------------------------------------------------------------------ charts
+
+   Every chart canvas on a Blade screen is placed inside a fixed-height box by
+   window.wrapSizedCanvases (layouts/app.blade.php) before Chart.js sees it.
+   Clipping that box is the structural backstop: a canvas can then never paint
+   over the cards around it, and — more importantly — can never feed its own
+   height back into its parent and start the responsive resize loop that used
+   to grow it without bound. React renderers (Phase 2) own their container and
+   do not need this.                                                          */
+
+[data-chart-wrap] {
+    position: relative;
+    overflow: hidden;
+}
+
+[data-chart-wrap] > canvas {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+/* ---------- Print ----------
+   Strip chrome (sidebar, topbar, breadcrumbs, footer, flash, action buttons,
+   tab nav) so only the report body prints. Add class `no-print` to anything
+   that should never appear in print output. */
+@media print {
+    @page {
+        margin: 14mm 12mm;
+    }
+
+    html,
+    body {
+        background: white !important;
+        color: #000 !important;
+        font-size: 10.5pt;
+    }
+
+    aside#sidebar,
+    aside[data-sidebar],
+    body > header,
+    footer,
+    .no-print,
+    [data-print-hide],
+    [x-cloak],
+    button,
+    .btn,
+    form[method='POST'][action*='logout'],
+    .sticky,
+    .fixed {
+        display: none !important;
+    }
+
+    main > div.px-6.py-3.bg-white,
+    main > div.bg-green-50,
+    main > div.bg-red-50,
+    main > div.bg-yellow-50 {
+        display: none !important;
+    }
+
+    main,
+    main.ml-\[260px\] {
+        margin: 0 !important;
+        padding: 0 !important;
+        min-height: 0 !important;
+    }
+    main > div.p-6 {
+        padding: 0 !important;
+    }
+
+    .bg-white,
+    .rounded-xl,
+    .rounded-lg {
+        background: white !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+
+    table,
+    .data-table {
+        width: 100% !important;
+        page-break-inside: auto !important;
+    }
+    tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+    thead {
+        display: table-header-group;
+    }
+
+    canvas {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+
+    [data-chart-wrap] {
+        height: auto !important;
+        overflow: visible !important;
+    }
+
+    a {
+        color: var(--color-primary) !important;
+        text-decoration: none !important;
+    }
+
+    .print-only {
+        display: block !important;
+    }
 }

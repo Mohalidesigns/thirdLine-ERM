@@ -166,7 +166,7 @@ return new class extends Migration
                         : $t->decimal($name),
                 };
 
-                if (!empty($options['nullable'])) {
+                if (! empty($options['nullable'])) {
                     $column->nullable();
                 }
                 if (array_key_exists('default', $options)) {

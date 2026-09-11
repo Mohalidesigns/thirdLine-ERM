@@ -147,6 +147,78 @@ class BoardPackTest extends TestCase
         $this->assertSame($this->cro->id, $refreshed->narrative_edited_by);
     }
 
+    /**
+     * Gate 1 (TPRM Phase 10), defect 5. Every other narrative assertion in
+     * this file calls `BoardPackService::editNarrative()` directly, which
+     * bypasses the route, `Gate::authorize('tprm.report.export')` and the
+     * form's own validation entirely — a controller wired to the wrong
+     * permission, or a route missing its middleware, would still pass every
+     * test in this file. This one goes through the actual PUT.
+     */
+    #[Test]
+    public function updating_the_narrative_through_the_route_persists_it_and_is_gated(): void
+    {
+        $this->engagement('ENG-1', RiskTier::Critical, 80.0);
+        $pack = app(BoardPackService::class)->prepare('Q1 2027', CarbonImmutable::now(), $this->preparer->id);
+
+        $this->actingAs($this->preparer)
+            ->put(route('tprm.reports.board-packs.narrative', $pack), [
+                'narrative' => 'The committee should note the core banking dependency.',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $pack->refresh();
+        $this->assertSame('The committee should note the core banking dependency.', $pack->narrative);
+        $this->assertSame(BoardPack::SOURCE_EDITED, $pack->narrative_source);
+        $this->assertSame($this->preparer->id, $pack->narrative_edited_by);
+    }
+
+    #[Test]
+    public function updating_the_narrative_is_refused_without_the_report_export_permission(): void
+    {
+        $pack = app(BoardPackService::class)->prepare('Q1 2027', CarbonImmutable::now(), $this->preparer->id);
+
+        $reader = $this->user('Reader', 'reader@ecb.test', ['tprm.report.view']);
+
+        $this->actingAs($reader)
+            ->put(route('tprm.reports.board-packs.narrative', $pack), ['narrative' => 'Anything at all.'])
+            ->assertForbidden();
+
+        $this->assertNull($pack->refresh()->narrative_edited_by);
+    }
+
+    #[Test]
+    public function an_empty_narrative_is_rejected_by_the_route_and_nothing_is_written(): void
+    {
+        $pack = app(BoardPackService::class)->prepare('Q1 2027', CarbonImmutable::now(), $this->preparer->id);
+        $before = $pack->narrative;
+
+        $this->actingAs($this->preparer)
+            ->put(route('tprm.reports.board-packs.narrative', $pack), ['narrative' => ''])
+            ->assertSessionHasErrors('narrative');
+
+        $this->assertSame($before, $pack->refresh()->narrative);
+        $this->assertNull($pack->refresh()->narrative_edited_by);
+    }
+
+    #[Test]
+    public function editing_a_signed_off_packs_narrative_through_the_route_is_refused_with_a_flash_not_a_500(): void
+    {
+        $this->engagement('ENG-1', RiskTier::Critical, 80.0);
+        $service = app(BoardPackService::class);
+        $pack = $service->prepare('Q1 2027', CarbonImmutable::now(), $this->preparer->id);
+        $service->editNarrative($pack, 'Original narrative.', $this->preparer->id);
+        $service->signOff($pack->refresh(), $this->cro->id);
+
+        $response = $this->actingAs($this->preparer)
+            ->put(route('tprm.reports.board-packs.narrative', $pack), ['narrative' => 'A rewritten narrative.']);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error');
+        $this->assertSame('Original narrative.', $pack->refresh()->narrative);
+    }
+
     #[Test]
     public function sign_off_requires_a_narrative(): void
     {
@@ -214,6 +286,76 @@ class BoardPackTest extends TestCase
         $this->assertSame(1, $byTier['Low']['count']);
         // Not found to be low risk — not looked at.
         $this->assertSame(1, $portfolio['untiered']);
+    }
+
+    /**
+     * Gate 1 (TPRM Phase 10), defect 1. Every other test in this file builds
+     * one tenant's portfolio. This builds a second bank's Critical engagement
+     * — the exact shape that would move `by_tier` and the findings count if
+     * it leaked — and proves it never reaches this bank's figures, its
+     * prepared pack, or the front-door tile that reuses the same builder.
+     */
+    #[Test]
+    public function another_tenants_portfolio_does_not_reach_this_banks_figures_or_pack(): void
+    {
+        $this->engagement('ENG-OURS', RiskTier::Low, 10.0);
+
+        $otherBank = Organization::create([
+            'name' => 'Yola Frontier Bank', 'short_name' => 'YFB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+        RiskCategory::create([
+            'organization_id' => $otherBank->id,
+            'code' => 'OR', 'name' => 'Operational Risk', 'level' => 1, 'is_active' => true,
+        ]);
+
+        TenantContext::set($otherBank->id);
+        $this->seed(TprmReferenceSeeder::class);
+        TenantContext::set($otherBank->id);
+
+        $otherVendor = ThirdParty::create([
+            'organization_id' => $otherBank->id,
+            'legal_name' => 'Their Critical Vendor',
+            'slug' => Str::random(12), 'entity_type' => 'company', 'status' => 'active',
+        ]);
+        $otherEngagement = Engagement::create([
+            'organization_id' => $otherBank->id,
+            'third_party_id' => $otherVendor->id,
+            'reference' => 'ENG-THEIRS',
+            'name' => 'Their critical engagement',
+            'engagement_type' => 'ict_service',
+        ]);
+        $otherEngagement->forceFill([
+            'status' => EngagementStatus::Active->value,
+            'effective_tier' => RiskTier::Critical->value,
+            'residual_score' => 95.0,
+            'residual_band' => 'critical',
+        ])->save();
+        Finding::create([
+            'organization_id' => $otherBank->id,
+            'engagement_id' => $otherEngagement->id,
+            'third_party_id' => $otherVendor->id,
+            'source' => 'assessment',
+            'reference' => 'FND-THEIRS',
+            'title' => 'Their finding',
+            'severity' => FindingSeverity::Critical->value,
+            'identified_at' => now()->subDays(5),
+        ]);
+
+        // Back to the tenant under test.
+        TenantContext::set($this->bank->id);
+
+        $portfolio = app(BoardPackBuilder::class)->figures()['portfolio'];
+        $byTier = collect($portfolio['by_tier'])->keyBy('label');
+
+        $this->assertSame(0, $byTier['Critical']['count'] ?? 0, 'The other bank\'s Critical engagement leaked into this bank\'s tier distribution.');
+        $this->assertSame(1, $byTier['Low']['count']);
+
+        $pack = app(BoardPackService::class)->prepare('Q1 2027', CarbonImmutable::now(), $this->preparer->id);
+        $packByTier = collect($pack->figures['portfolio']['by_tier'])->keyBy('label');
+
+        $this->assertSame(0, $packByTier['Critical']['count'] ?? 0);
+        $this->assertSame(1, $packByTier['Low']['count']);
     }
 
     #[Test]

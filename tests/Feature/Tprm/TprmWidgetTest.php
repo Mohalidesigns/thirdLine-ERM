@@ -202,6 +202,78 @@ class TprmWidgetTest extends TestCase
     }
 
     #[Test]
+    public function the_raw_join_fails_closed_when_the_node_belongs_to_another_tenant(): void
+    {
+        // Gate 1, defect 2. `engagementsUnderNodes()` resolves through four
+        // raw DB::table() calls — `objects`, `tp_engagement_functions`,
+        // `tp_business_functions`, `tp_engagements` — against tables whose
+        // primary keys are global auto-increments, so a real node id
+        // belonging to another tenant used to resolve that tenant's own
+        // engagements with nothing to stop it.
+        //
+        // THIS TEST CALLS THE PRIVATE METHOD DIRECTLY, BY REFLECTION, AND
+        // THAT IS DELIBERATE, NOT A SHORTCUT. Every consumer of this method
+        // (`applyScope()`, reached through `baseQuery()`) hands its result to
+        // an Eloquent query on `Engagement`/`Finding`/`Contract`/`Incident`,
+        // and EVERY ONE of those models already carries `BelongsToOrganization`
+        // — so the OUTER query's own global scope silently discards whatever
+        // the inner subquery resolved, and a test through `baseQuery()` (as
+        // `scopedReferences()` does for every other test in this file) passes
+        // identically whether or not this method's own filter exists. That is
+        // exactly the "not exploitable today" the gate's report named — true
+        // only because of a second, independent scope the caller happens to
+        // apply, not because this method is tenant-safe on its own — and it
+        // is why the fix belongs here as well as being incidentally covered
+        // there: a future caller with no Eloquent-scoped outer query (a
+        // report, an export, a raw count) would have inherited the leak with
+        // no test anywhere to catch it.
+        $otherBank = Organization::create([
+            'name' => 'Jos Allied Bank', 'short_name' => 'JAB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+        RiskCategory::create([
+            'organization_id' => $otherBank->id,
+            'code' => 'OR', 'name' => 'Operational Risk', 'level' => 1, 'is_active' => true,
+        ]);
+
+        TenantContext::set($otherBank->id);
+        $otherUnit = BusinessUnit::create([
+            'organization_id' => $otherBank->id, 'name' => 'Treasury', 'code' => 'TRE', 'is_active' => true,
+        ]);
+        $otherEngagement = $this->engagementFor($otherBank, 'ENG-OTHER-BANK');
+        $this->linkToFunctionFor(
+            $otherBank,
+            $otherEngagement,
+            $this->businessFunctionFor($otherBank, 'BF-OTHER', $otherUnit),
+        );
+        $otherNodeId = $this->nodeFor($otherUnit);
+
+        // Back to the tenant under test, asking the raw resolver for the
+        // OTHER bank's real node — the exact id, not a guess.
+        TenantContext::set($this->bank->id);
+
+        $engine = app(WidgetQueryEngine::class);
+        $method = new \ReflectionMethod($engine, 'engagementsUnderNodes');
+        $method->setAccessible(true);
+
+        /** @var \Illuminate\Database\Query\Builder $builder */
+        $builder = $method->invoke($engine, [$otherNodeId]);
+        $resolvedIds = $builder->pluck('id')->all();
+
+        $this->assertSame(
+            [],
+            $resolvedIds,
+            'The raw join resolved another tenant\'s engagement id from another tenant\'s real node — '.
+            'organization_id is not filtering it out.'
+        );
+        $this->assertNotContains(
+            $otherEngagement->getKey(),
+            $resolvedIds,
+            'The other bank\'s own engagement id leaked out of the join.'
+        );
+    }
+
+    #[Test]
     public function an_unscoped_widget_sees_everything(): void
     {
         $this->engagement('ENG-A');
@@ -397,10 +469,64 @@ class TprmWidgetTest extends TestCase
         ]);
     }
 
+    /**
+     * The `businessFunction()`/`linkToFunction()`/`engagement()` trio all
+     * hardcode `$this->bank->id`, which is right for every OTHER test in
+     * this file — they exist to prove the join within one tenant. The
+     * cross-tenant test needs a second tenant's real, functioning data, so
+     * it uses these org-parameterised twins rather than changing the shared
+     * helpers under every other test.
+     */
+    private function businessFunctionFor(Organization $org, string $code, BusinessUnit $unit): BusinessFunction
+    {
+        return BusinessFunction::create([
+            'organization_id' => $org->id,
+            'function_code' => $code,
+            'name' => $code.' function',
+            'owning_business_unit_id' => $unit->getKey(),
+            'criticality' => 'critical',
+        ]);
+    }
+
+    private function engagementFor(Organization $org, string $reference): Engagement
+    {
+        $vendor = ThirdParty::create([
+            'organization_id' => $org->id,
+            'legal_name' => $reference.' provider',
+            'slug' => Str::random(12), 'entity_type' => 'company', 'status' => 'active',
+        ]);
+
+        $engagement = Engagement::create([
+            'organization_id' => $org->id,
+            'third_party_id' => $vendor->id,
+            'reference' => $reference,
+            'name' => 'Service for '.$reference,
+            'engagement_type' => 'ict_service',
+        ]);
+
+        $engagement->forceFill([
+            'status' => EngagementStatus::Active->value,
+            'effective_tier' => RiskTier::High->value,
+        ])->save();
+
+        return $engagement->refresh();
+    }
+
     private function linkToFunction(Engagement $engagement, BusinessFunction $function): void
     {
         EngagementFunction::create([
             'organization_id' => $this->bank->id,
+            'engagement_id' => $engagement->getKey(),
+            'business_function_id' => $function->getKey(),
+            'dependency_level' => 'primary',
+            'reliance_level' => 'high',
+        ]);
+    }
+
+    private function linkToFunctionFor(Organization $org, Engagement $engagement, BusinessFunction $function): void
+    {
+        EngagementFunction::create([
+            'organization_id' => $org->id,
             'engagement_id' => $engagement->getKey(),
             'business_function_id' => $function->getKey(),
             'dependency_level' => 'primary',

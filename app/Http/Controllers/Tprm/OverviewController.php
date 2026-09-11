@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Tprm;
 
+use App\Enums\Tprm\EngagementStatus;
 use App\Enums\Tprm\RiskTier;
 use App\Http\Controllers\Controller;
 use App\Models\Tprm\Alert;
@@ -160,13 +161,24 @@ class OverviewController extends Controller
     }
 
     /**
+     * BOUNDED IN SQL, NOT A FULL-TABLE READ (Gate 1, defect 4). This ran on
+     * every single `/tprm` page view and used to `->get()` every engagement
+     * ever created before filtering to live status and grouping by tier in
+     * PHP — the highest-traffic path in the module reading the whole table
+     * to answer six counts. One `GROUP BY effective_tier`, bounded by the
+     * same `EngagementStatus::liveValues()` `BoardPackBuilder::liveEngagements()`
+     * shares, replaces both the full read and the five-times-over in-memory
+     * filtering.
+     *
      * @return list<array<string, mixed>>
      */
     private function tierDistribution(): array
     {
-        $live = Engagement::query()
-            ->get()
-            ->filter(fn (Engagement $engagement) => $engagement->status->isLive());
+        $counts = Engagement::query()
+            ->whereIn('status', EngagementStatus::liveValues())
+            ->selectRaw('effective_tier, COUNT(*) as tally')
+            ->groupBy('effective_tier')
+            ->pluck('tally', 'effective_tier');
 
         $rows = [];
 
@@ -174,7 +186,7 @@ class OverviewController extends Controller
             $rows[] = [
                 'tier' => $tier->value,
                 'label' => $tier->label(),
-                'count' => $live->where('effective_tier', $tier)->count(),
+                'count' => (int) ($counts[$tier->value] ?? 0),
                 'href' => route('tprm.engagements.index', ['tier' => $tier->value]),
             ];
         }
@@ -184,7 +196,7 @@ class OverviewController extends Controller
         $rows[] = [
             'tier' => null,
             'label' => 'Not tiered',
-            'count' => $live->whereNull('effective_tier')->count(),
+            'count' => (int) ($counts[null] ?? 0),
             'href' => route('tprm.engagements.index'),
         ];
 

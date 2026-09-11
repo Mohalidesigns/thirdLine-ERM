@@ -2,6 +2,7 @@
 
 namespace App\Services\Tprm\Reporting;
 
+use App\Models\Tprm\Assessment;
 use App\Models\Tprm\Contract;
 use App\Models\Tprm\Document;
 use App\Models\Tprm\DueDiligenceChecklist;
@@ -53,6 +54,23 @@ class PciPackBuilder
     public function __construct(private readonly ClauseResolver $clauses) {}
 
     /**
+     * `matrixCounts()`'s batch cache, keyed by the sorted engagement ids of
+     * whichever collection asked for it — NOT by a single call site. This
+     * class is asked twice in one request (`PciPackController::index()`
+     * calls `sections()`, which needs it three times over, THEN calls
+     * `summary()` on a separately-queried collection that happens to select
+     * the same engagements) so a cache keyed on "have I loaded these ids
+     * before" collapses all of that to one query, however many times any of
+     * this class's methods are called with the same set.
+     *
+     * @var array<string, array<int, array<string, int>>>
+     */
+    private array $matrixCountsCache = [];
+
+    /** @var array<string, array<int, string>> */
+    private array $lastValidatedAssessmentCache = [];
+
+    /**
      * @return list<array{code: string, title: string, citation: string, coverage: string, note: ?string, headers: list<string>, rows: list<array<int, mixed>>}>
      */
     public function sections(): array
@@ -75,6 +93,7 @@ class PciPackBuilder
     public function summary(Collection $tpsps): array
     {
         $aoc = $this->attestations($tpsps);
+        $matrices = $this->matrixCountsBatch($tpsps);
 
         return [
             'tpsps' => $tpsps->count(),
@@ -90,7 +109,7 @@ class PciPackBuilder
                 return $reading !== null && $reading['months'] !== null && $reading['months'] > self::CURRENCY_MONTHS;
             })->count(),
             'matrices_unconfirmed' => $tpsps->filter(
-                fn (Engagement $engagement) => $this->matrixCounts($engagement)['unconfirmed'] > 0
+                fn (Engagement $engagement) => ($matrices[$engagement->getKey()]['unconfirmed'] ?? 0) > 0
             )->count(),
             // Not a PCI number. It is the question behind the first one: how
             // many engagements nobody has scoped for PCI at all.
@@ -246,6 +265,7 @@ class PciPackBuilder
     private function monitoringLog(Collection $tpsps): array
     {
         $attestations = $this->attestations($tpsps);
+        $lastValidatedAssessments = $this->lastValidatedAssessmentsBatch($tpsps);
 
         $failing = $tpsps->filter(function (Engagement $engagement) use ($attestations) {
             $reading = $attestations[$engagement->getKey()] ?? null;
@@ -269,7 +289,7 @@ class PciPackBuilder
                 'Service provider', 'Engagement', 'Attestation on file', 'Issued', 'Valid to',
                 'Age (months)', 'Twelve-month test', 'Last assessment validated', 'Next assessment due',
             ],
-            'rows' => $tpsps->map(function (Engagement $engagement) use ($attestations) {
+            'rows' => $tpsps->map(function (Engagement $engagement) use ($attestations, $lastValidatedAssessments) {
                 $reading = $attestations[$engagement->getKey()] ?? null;
 
                 return [
@@ -280,7 +300,7 @@ class PciPackBuilder
                     $reading['valid_to'] ?? '',
                     $reading['months'] ?? 'Unknown',
                     $this->currencyVerdict($reading),
-                    $this->lastValidatedAssessment($engagement),
+                    $lastValidatedAssessments[$engagement->getKey()] ?? 'No validated assessment',
                     $engagement->next_assessment_due?->toDateString() ?? 'Not scheduled',
                 ];
             })->all(),
@@ -293,8 +313,10 @@ class PciPackBuilder
      */
     private function responsibilityMatrices(Collection $tpsps): array
     {
+        $matrices = $this->matrixCountsBatch($tpsps);
+
         $unconfirmed = $tpsps->filter(
-            fn (Engagement $engagement) => $this->matrixCounts($engagement)['unconfirmed'] > 0
+            fn (Engagement $engagement) => ($matrices[$engagement->getKey()]['unconfirmed'] ?? 0) > 0
         );
 
         return [
@@ -314,8 +336,8 @@ class PciPackBuilder
                 'Unconfirmed', 'Provider-owned', 'Entity-owned', 'Shared', 'Not applicable',
                 'Matrix clause in contract',
             ],
-            'rows' => $tpsps->map(function (Engagement $engagement) {
-                $counts = $this->matrixCounts($engagement);
+            'rows' => $tpsps->map(function (Engagement $engagement) use ($matrices) {
+                $counts = $matrices[$engagement->getKey()] ?? $this->emptyMatrixCounts();
 
                 return [
                     $this->labelOf($engagement->thirdParty, 'legal_name', 'Not recorded'),
@@ -476,32 +498,95 @@ class PciPackBuilder
     }
 
     /**
+     * BATCHED, NOT PER ENGAGEMENT (Gate 1, defect 3). `matrixCounts()` used
+     * to run one `PciResponsibility` query per engagement and was called
+     * from three separate places — `summary()`, and twice inside
+     * `responsibilityMatrices()` — so a single `sections()` build ran it up
+     * to 3×N times for N in-scope providers. This loads every row for every
+     * engagement in the collection ONCE and groups in memory, cached by the
+     * sorted set of engagement ids so the SEPARATE `summary($tpsps)` call
+     * `PciPackController::index()` makes (on its own, identically-scoped,
+     * query) does not pay for a second load.
+     *
+     * @param  Collection<int, Engagement>  $tpsps
+     * @return array<int, array<string, int>>
+     */
+    private function matrixCountsBatch(Collection $tpsps): array
+    {
+        if ($tpsps->isEmpty()) {
+            return [];
+        }
+
+        $key = $tpsps->pluck('id')->sort()->implode(',');
+
+        return $this->matrixCountsCache[$key] ??= PciResponsibility::query()
+            ->whereIn('engagement_id', $tpsps->pluck('id')->all())
+            ->get()
+            ->groupBy('engagement_id')
+            ->map(function (\Illuminate\Support\Collection $rows) {
+                $counts = [
+                    'total' => $rows->count(),
+                    'confirmed' => $rows->filter(fn (PciResponsibility $row) => $row->isConfirmed())->count(),
+                ];
+
+                $counts['unconfirmed'] = $counts['total'] - $counts['confirmed'];
+
+                foreach (PciResponsibility::RESPONSIBILITIES as $responsibility) {
+                    $counts[$responsibility] = $rows->where('responsibility', $responsibility)->count();
+                }
+
+                return $counts;
+            })
+            ->all();
+    }
+
+    /**
+     * The shape `matrixCountsBatch()` returns per engagement, for one that
+     * has no rows at all — no query needed, every count is legitimately zero
+     * because there is nothing to count, which is different from "not yet
+     * looked up".
+     *
      * @return array<string, int>
      */
-    private function matrixCounts(Engagement $engagement): array
+    private function emptyMatrixCounts(): array
     {
-        $rows = PciResponsibility::query()
-            ->where('engagement_id', $engagement->getKey())
-            ->get();
-
-        $counts = [
-            'total' => $rows->count(),
-            'confirmed' => $rows->filter(fn (PciResponsibility $row) => $row->isConfirmed())->count(),
-        ];
-
-        $counts['unconfirmed'] = $counts['total'] - $counts['confirmed'];
+        $counts = ['total' => 0, 'confirmed' => 0, 'unconfirmed' => 0];
 
         foreach (PciResponsibility::RESPONSIBILITIES as $responsibility) {
-            $counts[$responsibility] = $rows->where('responsibility', $responsibility)->count();
+            $counts[$responsibility] = 0;
         }
 
         return $counts;
     }
 
-    private function lastValidatedAssessment(Engagement $engagement): string
+    /**
+     * BATCHED, NOT PER ENGAGEMENT (Gate 1, defect 3) — same shape as
+     * `DoraRegisterBuilder::lastAuditDates()` and
+     * `NdpaCarPackBuilder::lastValidatedAssessments()` for the identical
+     * defect: one `MAX(validated_at) ... GROUP BY engagement_id` for every
+     * provider in the collection, cached by the same sorted-id key
+     * `matrixCountsBatch()` uses, for the same reason.
+     *
+     * @param  Collection<int, Engagement>  $tpsps
+     * @return array<int, string>
+     */
+    private function lastValidatedAssessmentsBatch(Collection $tpsps): array
     {
-        $validated = $engagement->assessments()->whereNotNull('validated_at')->max('validated_at');
+        if ($tpsps->isEmpty()) {
+            return [];
+        }
 
-        return $validated ? substr((string) $validated, 0, 10) : 'No validated assessment';
+        $key = $tpsps->pluck('id')->sort()->implode(',');
+
+        return $this->lastValidatedAssessmentCache[$key] ??= Assessment::query()
+            ->whereIn('engagement_id', $tpsps->pluck('id')->all())
+            ->whereNotNull('validated_at')
+            ->selectRaw('engagement_id, MAX(validated_at) as validated_at')
+            ->groupBy('engagement_id')
+            ->get()
+            ->mapWithKeys(fn ($row) => [
+                (int) $row->engagement_id => substr((string) $row->validated_at, 0, 10),
+            ])
+            ->all();
     }
 }

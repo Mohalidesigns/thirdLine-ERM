@@ -6,6 +6,7 @@ use App\Models\WidgetDefinition;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * WP-08 TASK 1 — executes a widget definition's declarative `query` block.
@@ -13,8 +14,19 @@ use InvalidArgumentException;
  * The block is {source, filters[], group_by, aggregate, sort, limit}. Every
  * name in it is checked against WidgetSourceRegistry before it touches the
  * builder; an unknown source, column or operator throws, and the widget
- * renders its error state rather than guessing. Tenancy comes from the source
- * models' own global scopes — there is no DB::table() entry point here.
+ * renders its error state rather than guessing. Tenancy on `baseQuery()`
+ * itself comes from the source models' own global scopes.
+ *
+ * `engagementsUnderNodes()` IS THE ONE EXCEPTION, AND THIS SENTENCE USED TO
+ * SAY THERE WAS NONE (Gate 1, defect 2). It resolves TPRM's `engagement_functions`
+ * node-scope kind through four raw `DB::table()` calls — `objects`,
+ * `tp_engagement_functions`, `tp_business_functions`, `tp_engagements` — none
+ * of which carries Eloquent's global scope, and each now filters
+ * `organization_id` to `TenantContext::organizationId()` explicitly. Before
+ * this the join was closed only because every one of those tables' primary
+ * keys is a global auto-increment and the caller's `$nodeIds` were already
+ * tenant-scoped — an argument about today's schema, not a guarantee, and one
+ * the class's own docblock contradicted.
  *
  * The engine also applies the two context dimensions:
  *   scope   WidgetScope, as a node_id IN (…) restriction (shape depends on
@@ -185,11 +197,14 @@ class WidgetQueryEngine
      */
     private function engagementsUnderNodes(array $nodeIds): \Illuminate\Database\Query\Builder
     {
+        $organizationId = TenantContext::organizationId();
+
         // Business units whose graph object is one of the nodes in scope, or
         // hangs off one. `objects.source_model_type` is the morph alias the
         // sync service writes.
         $unitIds = \Illuminate\Support\Facades\DB::table('objects')
             ->select('source_model_id')
+            ->where('organization_id', $organizationId)
             ->where('source_model_type', 'business_unit')
             ->whereNull('deleted_at')
             ->where(function ($query) use ($nodeIds) {
@@ -204,11 +219,14 @@ class WidgetQueryEngine
                 'tp_engagement_functions.business_function_id'
             )
             ->select('tp_engagement_functions.engagement_id')
+            ->where('tp_engagement_functions.organization_id', $organizationId)
+            ->where('tp_business_functions.organization_id', $organizationId)
             ->whereIn('tp_business_functions.owning_business_unit_id', $unitIds)
             ->whereNull('tp_business_functions.deleted_at');
 
         return \Illuminate\Support\Facades\DB::table('tp_engagements')
             ->select('id')
+            ->where('organization_id', $organizationId)
             ->whereNull('deleted_at')
             ->where(function ($query) use ($viaFunctions, $unitIds) {
                 $query->whereIn('id', $viaFunctions)

@@ -119,6 +119,69 @@ class KriPublicationTest extends TestCase
         $this->assertSame(0.0, $evidence['value']);
     }
 
+    /**
+     * Gate 1 (TPRM Phase 10), defect 1. Every other test in this file builds
+     * one tenant's estate. This builds a second bank with a genuinely
+     * overdue finding — the exact shape that would move `overdue_findings`
+     * off zero if it leaked — and proves this bank's own KRI reading, and
+     * its published measurement, both stay at zero.
+     */
+    #[Test]
+    public function another_tenants_overdue_finding_does_not_move_this_banks_kri(): void
+    {
+        $otherBank = Organization::create([
+            'name' => 'Nsukka Community Bank', 'short_name' => 'NCB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+        RiskCategory::create([
+            'organization_id' => $otherBank->id,
+            'code' => 'OR', 'name' => 'Operational Risk', 'level' => 1, 'is_active' => true,
+        ]);
+
+        TenantContext::set($otherBank->id);
+        $this->seed(TprmReferenceSeeder::class);
+        TenantContext::set($otherBank->id);
+
+        $otherVendor = ThirdParty::create([
+            'organization_id' => $otherBank->id,
+            'legal_name' => 'Their Overdue Vendor',
+            'slug' => Str::random(12), 'entity_type' => 'company', 'status' => 'active',
+        ]);
+        $otherEngagement = Engagement::create([
+            'organization_id' => $otherBank->id,
+            'third_party_id' => $otherVendor->id,
+            'reference' => 'ENG-THEIRS',
+            'name' => 'Their engagement',
+            'engagement_type' => 'ict_service',
+        ]);
+        $otherEngagement->forceFill(['status' => EngagementStatus::Active->value])->save();
+
+        Finding::create([
+            'organization_id' => $otherBank->id,
+            'engagement_id' => $otherEngagement->id,
+            'third_party_id' => $otherEngagement->third_party_id,
+            'source' => 'assessment',
+            'reference' => 'FND-THEIRS',
+            'title' => 'Their overdue gap',
+            'severity' => FindingSeverity::High->value,
+            'identified_at' => now()->subDays(100),
+            'target_date' => now()->subDays(10)->toDateString(),
+        ]);
+
+        // Back to the tenant under test.
+        TenantContext::set($this->bank->id);
+
+        $reading = app(KriCalculator::class)->compute('overdue_findings');
+        $this->assertSame(0.0, $reading['value'], 'The other tenant\'s overdue finding leaked into this tenant\'s reading.');
+
+        app(KriPublisher::class)->adopt($this->admin->id);
+        app(KriPublisher::class)->publish();
+
+        // TPRM-04 is 'overdue_findings' in KriCatalogue.
+        $kri = KeyRiskIndicator::query()->where('kri_code', 'TPRM-04')->firstOrFail();
+        $this->assertSame(0.0, (float) $kri->current_value);
+    }
+
     #[Test]
     public function assurance_depth_declines_to_report_over_unscored_engagements(): void
     {

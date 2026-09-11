@@ -273,6 +273,33 @@ class RegulatoryPacksTest extends TestCase
         $this->assertStringContainsString('NDPA §41(2)', $csv);
     }
 
+    /**
+     * Gate 1 (TPRM Phase 10), defect 3. `NdpaCarPackBuilder::lastValidatedAssessment()`
+     * used to query per processor inside `technicalAndOrganisationalMeasures()`'s
+     * `map()`. `lastValidatedAssessments()` batches it.
+     */
+    #[Test]
+    public function the_ndpa_screen_does_not_scale_its_query_count_with_processors(): void
+    {
+        foreach (range(1, 3) as $i) {
+            $this->processor("ENG-BASE-{$i}", "Processor {$i}");
+        }
+
+        $baseline = $this->countQueriesFor(route('tprm.reports.ndpa-car'));
+
+        foreach (range(4, 15) as $i) {
+            $this->processor("ENG-MORE-{$i}", "Processor {$i}");
+        }
+
+        $larger = $this->countQueriesFor(route('tprm.reports.ndpa-car'));
+
+        $this->assertLessThanOrEqual(
+            $baseline + 2,
+            $larger,
+            "The NDPA pack cost {$larger} queries for 15 processors and {$baseline} for 3 — it is scaling with rows."
+        );
+    }
+
     /* ================================================================== */
     /*  PCI 12.8 pack */
     /* ================================================================== */
@@ -370,6 +397,102 @@ class RegulatoryPacksTest extends TestCase
             );
     }
 
+    /**
+     * Gate 1 (TPRM Phase 10), defect 3. `PciPackBuilder::matrixCounts()` used
+     * to query `PciResponsibility` once per engagement, called from three
+     * separate places in one build — `summary()`, and twice inside
+     * `responsibilityMatrices()`. `lastValidatedAssessment()` had the same
+     * per-engagement shape. Both are batched now.
+     */
+    #[Test]
+    public function the_pci_screen_does_not_scale_its_query_count_with_providers(): void
+    {
+        foreach (range(1, 3) as $i) {
+            $this->tpsp("ENG-BASE-{$i}", "Provider {$i}");
+        }
+
+        $baseline = $this->countQueriesFor(route('tprm.reports.pci-pack'));
+
+        foreach (range(4, 15) as $i) {
+            $this->tpsp("ENG-MORE-{$i}", "Provider {$i}");
+        }
+
+        $larger = $this->countQueriesFor(route('tprm.reports.pci-pack'));
+
+        $this->assertLessThanOrEqual(
+            $baseline + 2,
+            $larger,
+            "The PCI pack cost {$larger} queries for 15 providers and {$baseline} for 3 — it is scaling with rows."
+        );
+    }
+
+    /**
+     * Gate 1 (TPRM Phase 10), defect 1. Every other NDPA/PCI test in this
+     * file builds one tenant. This builds two and proves the other bank's
+     * processor, provider, DPA reading and attestation never reach either
+     * pack — through the raw builder AND through both screens.
+     */
+    #[Test]
+    public function another_tenants_processors_and_providers_do_not_reach_either_pack(): void
+    {
+        $this->processor('ENG-OURS-NDPA', 'Our own processor');
+        $this->tpsp('ENG-OURS-PCI', 'Our own card processor');
+
+        $otherBank = Organization::create([
+            'name' => 'Aba Regional Bank', 'short_name' => 'ARB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+        RiskCategory::create([
+            'organization_id' => $otherBank->id,
+            'code' => 'OR', 'name' => 'Operational Risk', 'level' => 1, 'is_active' => true,
+        ]);
+
+        TenantContext::set($otherBank->id);
+        $this->seed(TprmReferenceSeeder::class);
+
+        $otherVendor = ThirdParty::create([
+            'organization_id' => $otherBank->id,
+            'legal_name' => 'Other Bank Processor Limited',
+            'slug' => Str::random(12), 'entity_type' => 'company', 'status' => 'active',
+        ]);
+        $otherEngagement = Engagement::create([
+            'organization_id' => $otherBank->id,
+            'third_party_id' => $otherVendor->id,
+            'reference' => 'ENG-THEIRS',
+            'name' => 'Their processor',
+            'engagement_type' => 'ict_service',
+        ]);
+        $otherEngagement->forceFill([
+            'status' => EngagementStatus::Active->value,
+            'processes_personal_data' => true,
+            'pci_in_scope' => true,
+        ])->save();
+        $this->attestation($otherEngagement, now()->subMonth());
+
+        // Back to the tenant under test.
+        TenantContext::set($this->bank->id);
+
+        $ndpaProcessors = collect($this->ndpaSection('CAR-7')['rows'])->pluck(0)->all();
+        $this->assertNotContains('Other Bank Processor Limited', $ndpaProcessors);
+
+        $pciProviders = collect($this->pciSection('12.8.4')['rows'])->pluck(0)->all();
+        $this->assertNotContains('Other Bank Processor Limited', $pciProviders);
+
+        // CAR-7 counts every personal-data-processing engagement, and this
+        // bank has two of its own (the NDPA processor and the PCI-scoped
+        // engagement both set processes_personal_data) — the assertion that
+        // matters is that the OTHER bank's third one is not among them.
+        $ndpaResponse = $this->actingAs($this->user)->get(route('tprm.reports.ndpa-car'));
+        $ndpaResponse->assertOk();
+        $ndpaSection = collect($ndpaResponse->original->getData()['page']['props']['sections'])->firstWhere('code', 'CAR-7');
+        $this->assertSame(2, $ndpaSection['row_count']);
+
+        $pciResponse = $this->actingAs($this->user)->get(route('tprm.reports.pci-pack'));
+        $pciResponse->assertOk();
+        $pciSummary = $pciResponse->original->getData()['page']['props']['summary'];
+        $this->assertSame(1, $pciSummary['tpsps']);
+    }
+
     #[Test]
     public function both_packs_are_readable_without_the_permission_to_export_them(): void
     {
@@ -395,6 +518,23 @@ class RegulatoryPacksTest extends TestCase
     }
 
     /* ================================================================== */
+
+    /** Same shape as RegisterScreensTest::countQueriesFor(). */
+    private function countQueriesFor(string $url): int
+    {
+        $this->actingAs($this->user)->get($url)->assertOk();
+
+        $count = 0;
+        \Illuminate\Support\Facades\DB::listen(function () use (&$count) {
+            $count++;
+        });
+
+        $this->actingAs($this->user)->get($url)->assertOk();
+
+        \Illuminate\Support\Facades\DB::getEventDispatcher()->forget(\Illuminate\Database\Events\QueryExecuted::class);
+
+        return $count;
+    }
 
     /**
      * @return array<string, mixed>

@@ -3,6 +3,7 @@
 namespace App\Services\Tprm\Reporting;
 
 use App\Enums\Tprm\DocumentExtractor;
+use App\Models\Tprm\Assessment;
 use App\Models\Tprm\Document;
 use App\Models\Tprm\DocumentExtraction;
 use App\Models\Tprm\Engagement;
@@ -383,6 +384,7 @@ class NdpaCarPackBuilder
     private function technicalAndOrganisationalMeasures(Collection $processors): array
     {
         $evidence = $this->assuranceEvidence($processors);
+        $lastValidatedAssessments = $this->lastValidatedAssessments($processors);
 
         return [
             'code' => 'CAR-7',
@@ -396,7 +398,7 @@ class NdpaCarPackBuilder
                 'Processor', 'Engagement', 'Assurance evidence held', 'Current', 'Expired',
                 'Assurance coverage', 'Evidence confidence', 'Last validated assessment',
             ],
-            'rows' => $processors->map(function (Engagement $engagement) use ($evidence) {
+            'rows' => $processors->map(function (Engagement $engagement) use ($evidence, $lastValidatedAssessments) {
                 $held = $evidence[$engagement->getKey()] ?? ['titles' => [], 'current' => 0, 'expired' => 0];
 
                 return [
@@ -411,7 +413,7 @@ class NdpaCarPackBuilder
                     $engagement->evidence_confidence !== null
                         ? round((float) $engagement->evidence_confidence * 100).'%'
                         : 'Not scored',
-                    $this->lastValidatedAssessment($engagement),
+                    $lastValidatedAssessments[$engagement->getKey()] ?? 'No validated assessment',
                 ];
             })->all(),
         ];
@@ -626,11 +628,31 @@ class NdpaCarPackBuilder
             : 'Notified within the window';
     }
 
-    private function lastValidatedAssessment(Engagement $engagement): string
+    /**
+     * BATCHED, NOT PER ENGAGEMENT (Gate 1, defect 3) — one
+     * `MAX(validated_at) ... GROUP BY engagement_id` for every processor in
+     * the section, keyed by engagement id, instead of a query per row inside
+     * `technicalAndOrganisationalMeasures()`'s `map()`.
+     *
+     * @param  Collection<int, Engagement>  $processors
+     * @return array<int, string>
+     */
+    private function lastValidatedAssessments(Collection $processors): array
     {
-        $validated = $engagement->assessments()->whereNotNull('validated_at')->max('validated_at');
+        if ($processors->isEmpty()) {
+            return [];
+        }
 
-        return $validated ? substr((string) $validated, 0, 10) : 'No validated assessment';
+        return Assessment::query()
+            ->whereIn('engagement_id', $processors->pluck('id')->all())
+            ->whereNotNull('validated_at')
+            ->selectRaw('engagement_id, MAX(validated_at) as validated_at')
+            ->groupBy('engagement_id')
+            ->get()
+            ->mapWithKeys(fn ($row) => [
+                (int) $row->engagement_id => substr((string) $row->validated_at, 0, 10),
+            ])
+            ->all();
     }
 
     private function categories(Engagement $engagement): string

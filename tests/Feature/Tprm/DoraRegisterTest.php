@@ -304,6 +304,127 @@ class DoraRegisterTest extends TestCase
         $this->assertStringContainsString('Identification code', $csv);
     }
 
+    /**
+     * Gate 1 (TPRM Phase 10), defect 3. `rt0701()` used to call a
+     * single-engagement `lastAuditDate()` inside its own `map()` — one query
+     * per critical-function engagement. `lastAuditDates()` batches it.
+     */
+    #[Test]
+    public function the_register_screen_does_not_scale_its_query_count_with_engagements(): void
+    {
+        foreach (range(1, 3) as $i) {
+            $this->ictEngagement("ENG-BASE-{$i}", "Vendor {$i}", ['supports_critical_function' => true]);
+        }
+
+        $baseline = $this->countQueriesFor(route('tprm.reports.dora-register'));
+
+        foreach (range(4, 15) as $i) {
+            $this->ictEngagement("ENG-MORE-{$i}", "Vendor {$i}", ['supports_critical_function' => true]);
+        }
+
+        $larger = $this->countQueriesFor(route('tprm.reports.dora-register'));
+
+        // Not exact equality — see RegisterScreensTest's identical pattern for
+        // why. The invariant is that twelve extra engagements, each of which
+        // used to cost one extra query in rt0701() alone, must not scale the
+        // total.
+        $this->assertLessThanOrEqual(
+            $baseline + 2,
+            $larger,
+            "The register cost {$larger} queries for 15 engagements and {$baseline} for 3 — it is scaling with rows."
+        );
+    }
+
+    /**
+     * Gate 1 (TPRM Phase 10), defect 1. Every other test in this file builds
+     * one tenant. This builds two, with a second bank's engagement, contract,
+     * business function, sub-processor edge and unset identity all real, and
+     * proves none of it reaches the first bank's register.
+     */
+    #[Test]
+    public function another_tenants_engagements_do_not_reach_this_banks_register(): void
+    {
+        $this->ictEngagement('ENG-OURS', 'Our own hosting', ['supports_critical_function' => true]);
+
+        $otherBank = Organization::create([
+            'name' => 'Kano Allied Bank', 'short_name' => 'KAB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+            'rc_number' => 'RC999999',
+        ]);
+        RiskCategory::create([
+            'organization_id' => $otherBank->id,
+            'code' => 'OR', 'name' => 'Operational Risk', 'level' => 1, 'is_active' => true,
+        ]);
+
+        TenantContext::set($otherBank->id);
+        $this->seed(TprmReferenceSeeder::class);
+        TprmSetting::forOrganization($otherBank->id)->forceFill([
+            'lei' => '959800ABCDEFGHIJ123',
+            'country' => 'NG',
+            'competent_authority' => 'Central Bank of Nigeria',
+            'reporting_currency' => 'NGN',
+        ])->save();
+
+        $otherVendor = ThirdParty::create([
+            'organization_id' => $otherBank->id,
+            'legal_name' => 'Other Bank Hosting Provider',
+            'slug' => Str::random(12), 'entity_type' => 'company', 'status' => 'active',
+        ]);
+        $otherEngagement = Engagement::create([
+            'organization_id' => $otherBank->id,
+            'third_party_id' => $otherVendor->id,
+            'reference' => 'ENG-THEIRS',
+            'name' => 'Their own hosting',
+            'engagement_type' => 'ict_service',
+        ]);
+        $otherEngagement->forceFill([
+            'status' => EngagementStatus::Active->value,
+            'supports_critical_function' => true,
+        ])->save();
+        Contract::create([
+            'organization_id' => $otherBank->id,
+            'engagement_id' => $otherEngagement->id,
+            'contract_type' => 'msa',
+            'reference' => 'CTR-THEIRS',
+            'title' => 'Their own hosting agreement',
+        ]);
+        BusinessFunction::create([
+            'organization_id' => $otherBank->id,
+            'function_code' => 'BF-THEIRS',
+            'name' => 'Their clearing function',
+            'criticality' => 'critical',
+        ]);
+
+        // Back to the tenant under test.
+        TenantContext::set($this->bank->id);
+
+        $rt0101 = $this->table('RT.01.01');
+        $this->assertCount(1, $rt0101['rows']);
+        $this->assertNotContains('959800ABCDEFGHIJ123', $rt0101['rows'][0]);
+
+        $rt0501 = $this->table('RT.05.01');
+        $providerNames = collect($rt0501['rows'])->pluck(0)->all();
+        $this->assertNotContains('Other Bank Hosting Provider', $providerNames);
+
+        $rt0601 = $this->table('RT.06.01');
+        $functionCodes = collect($rt0601['rows'])->pluck(0)->all();
+        $this->assertNotContains('BF-THEIRS', $functionCodes);
+
+        $rt0701 = $this->table('RT.07.01');
+        $references = collect($rt0701['rows'])->pluck(1)->all();
+        $this->assertSame(['ENG-OURS'], $references);
+
+        // The screen itself, not only the raw builder.
+        $response = $this->actingAs($this->user)->get(route('tprm.reports.dora-register'));
+        $response->assertOk();
+
+        $tables = collect($response->original->getData()['page']['props']['tables']);
+        $screenRt0701 = $tables->firstWhere('code', 'RT.07.01');
+
+        $this->assertSame(1, $screenRt0701['row_count']);
+        $this->assertSame(['ENG-OURS'], collect($screenRt0701['preview'])->pluck(1)->all());
+    }
+
     #[Test]
     public function the_screen_declares_coverage_and_gates_export_separately(): void
     {
@@ -333,6 +454,23 @@ class DoraRegisterTest extends TestCase
         $this->assertNotNull($table, "No table {$code} in the register.");
 
         return $table;
+    }
+
+    /** Same shape as RegisterScreensTest::countQueriesFor(). */
+    private function countQueriesFor(string $url): int
+    {
+        $this->actingAs($this->user)->get($url)->assertOk();
+
+        $count = 0;
+        \Illuminate\Support\Facades\DB::listen(function () use (&$count) {
+            $count++;
+        });
+
+        $this->actingAs($this->user)->get($url)->assertOk();
+
+        \Illuminate\Support\Facades\DB::getEventDispatcher()->forget(\Illuminate\Database\Events\QueryExecuted::class);
+
+        return $count;
     }
 
     private function ictEngagement(string $reference, string $name, array $attributes = [], array $vendorAttributes = []): Engagement

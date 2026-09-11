@@ -315,6 +315,55 @@ class MaturityTest extends TestCase
         $this->assertSame(5, $score->refresh()->current_level);
     }
 
+    /**
+     * Gate 1 (TPRM Phase 10), defect 1. Every other test in this file builds
+     * one tenant's programme. This builds a second bank's assessment — open,
+     * scored and approved, exactly like this bank's own — and proves it
+     * never reaches this bank's trend or its own assessment list.
+     */
+    #[Test]
+    public function another_tenants_maturity_assessment_does_not_reach_this_banks_trend_or_list(): void
+    {
+        $service = app(MaturityService::class);
+        $ours = $service->open('H1 2027', CarbonImmutable::now(), $this->admin->id);
+        $service->score($ours->scores->firstWhere('category_code', 'VRMMM-01'), ['current_level' => 3], $this->admin->id);
+        $service->approve($ours->refresh(), $this->admin->id);
+
+        $otherBank = Organization::create([
+            'name' => 'Warri Delta Bank', 'short_name' => 'WDB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+        RiskCategory::create([
+            'organization_id' => $otherBank->id,
+            'code' => 'OR', 'name' => 'Operational Risk', 'level' => 1, 'is_active' => true,
+        ]);
+
+        TenantContext::set($otherBank->id);
+        $this->seed(TprmReferenceSeeder::class);
+        TenantContext::set($otherBank->id);
+        $otherAdmin = User::create([
+            'name' => 'Their Owner', 'email' => 'owner@wdb.test',
+            'password' => Hash::make(Str::random(32)), 'email_verified_at' => now(),
+            'organization_id' => $otherBank->id, 'is_active' => true,
+        ]);
+
+        $theirs = $service->open('H1 2027', CarbonImmutable::now(), $otherAdmin->id);
+        $service->score($theirs->scores->firstWhere('category_code', 'VRMMM-01'), ['current_level' => 5], $otherAdmin->id);
+        $service->approve($theirs->refresh(), $otherAdmin->id);
+
+        // Back to the tenant under test.
+        TenantContext::set($this->bank->id);
+
+        $trend = $service->trend();
+        $this->assertCount(1, $trend['periods'], 'The other tenant\'s approved period leaked into this trend.');
+        $vrmmm01 = collect($trend['categories'])->firstWhere('category_code', 'VRMMM-01');
+        $this->assertSame([3], $vrmmm01['levels'], 'The other tenant\'s score of 5 replaced or joined this tenant\'s 3.');
+
+        $response = $this->actingAs($this->admin)->get(route('tprm.reports.maturity'));
+        $response->assertOk();
+        $this->assertCount(1, $response->original->getData()['page']['props']['assessments']);
+    }
+
     #[Test]
     public function the_screens_hand_the_pages_the_props_they_read(): void
     {

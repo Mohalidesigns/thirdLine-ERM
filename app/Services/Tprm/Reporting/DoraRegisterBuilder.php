@@ -4,6 +4,7 @@ namespace App\Services\Tprm\Reporting;
 
 use App\Models\Entity;
 use App\Models\Organization;
+use App\Models\Tprm\Assessment;
 use App\Models\Tprm\BusinessFunction;
 use App\Models\Tprm\Contract;
 use App\Models\Tprm\Engagement;
@@ -633,6 +634,8 @@ class DoraRegisterBuilder
         $engagements = $this->engagements()
             ->filter(fn (Engagement $engagement) => (bool) $engagement->supports_critical_function);
 
+        $lastAuditDates = $this->lastAuditDates($engagements);
+
         return [
             'code' => 'RT.07.01',
             'title' => 'Assessments of services supporting critical functions',
@@ -645,7 +648,7 @@ class DoraRegisterBuilder
                 'Existence of an exit plan', 'Exit plan last tested', 'Possibility of reintegration',
                 'Impact of discontinuation', 'Effective tier', 'Residual score',
             ],
-            'rows' => $engagements->map(function (Engagement $engagement) {
+            'rows' => $engagements->map(function (Engagement $engagement) use ($lastAuditDates) {
                 $plan = $engagement->exitPlan;
 
                 return [
@@ -658,7 +661,7 @@ class DoraRegisterBuilder
                         ? ($plan?->residual_risk_during_transition ?: 'Not recorded')
                         : '',
                     $engagement->time_to_replace_months ?? 'Not assessed',
-                    $this->lastAuditDate($engagement),
+                    $lastAuditDates[$engagement->getKey()] ?? 'No validated assessment',
                     $plan ? 'Yes' : 'No',
                     $plan?->last_tested_at?->toDateString() ?? ($plan ? 'Never tested' : ''),
                     $plan?->in_house_option ? 'In-house option recorded' : 'Not recorded',
@@ -836,14 +839,33 @@ class DoraRegisterBuilder
      * submitted-but-unreviewed questionnaire is the vendor's own account of
      * itself, and reporting it as an audit date is the misstatement the
      * validate-before-score rule exists to prevent.
+     *
+     * BATCHED, NOT PER ENGAGEMENT (Gate 1, defect 3). `rt0701()` used to call
+     * a single-engagement version of this inside its own `map()`, which is a
+     * query per row. One `MAX(validated_at) ... GROUP BY engagement_id` for
+     * every engagement in the section, keyed by id, is the same shape
+     * `CbnRegisterBuilder::evidenceCurrency()` already uses for the same
+     * problem.
+     *
+     * @param  Collection<int, Engagement>  $engagements
+     * @return array<int, string>
      */
-    private function lastAuditDate(Engagement $engagement): string
+    private function lastAuditDates(Collection $engagements): array
     {
-        $validated = $engagement->assessments()
-            ->whereNotNull('validated_at')
-            ->max('validated_at');
+        if ($engagements->isEmpty()) {
+            return [];
+        }
 
-        return $validated ? substr((string) $validated, 0, 10) : 'No validated assessment';
+        return Assessment::query()
+            ->whereIn('engagement_id', $engagements->pluck('id')->all())
+            ->whereNotNull('validated_at')
+            ->selectRaw('engagement_id, MAX(validated_at) as validated_at')
+            ->groupBy('engagement_id')
+            ->get()
+            ->mapWithKeys(fn ($row) => [
+                (int) $row->engagement_id => substr((string) $row->validated_at, 0, 10),
+            ])
+            ->all();
     }
 
     private function annualSpendFor(ThirdParty $provider): ?int

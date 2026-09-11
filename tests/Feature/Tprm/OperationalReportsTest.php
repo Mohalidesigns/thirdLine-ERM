@@ -176,6 +176,58 @@ class OperationalReportsTest extends TestCase
         $this->assertContains('No cadence set', $rows[0]);
     }
 
+    /**
+     * Gate 1 (TPRM Phase 10), defect 1. Every other test in this file builds
+     * one tenant. This builds a second bank's engagement and proves it does
+     * not become a row in this bank's assessment-status report — through the
+     * registry directly and through the report screen.
+     */
+    #[Test]
+    public function another_tenants_engagement_is_not_a_row_in_this_banks_report(): void
+    {
+        $this->engagement('ENG-OURS');
+
+        $otherBank = Organization::create([
+            'name' => 'Minna Capital Bank', 'short_name' => 'MCB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+        RiskCategory::create([
+            'organization_id' => $otherBank->id,
+            'code' => 'OR', 'name' => 'Operational Risk', 'level' => 1, 'is_active' => true,
+        ]);
+
+        TenantContext::set($otherBank->id);
+        $this->seed(TprmReferenceSeeder::class);
+        TenantContext::set($otherBank->id);
+
+        $otherVendor = ThirdParty::create([
+            'organization_id' => $otherBank->id,
+            'legal_name' => 'Their Provider',
+            'slug' => Str::random(12), 'entity_type' => 'company', 'status' => 'active',
+        ]);
+        $otherEngagement = Engagement::create([
+            'organization_id' => $otherBank->id,
+            'third_party_id' => $otherVendor->id,
+            'reference' => 'ENG-THEIRS',
+            'name' => 'Their engagement',
+            'engagement_type' => 'ict_service',
+        ]);
+        $otherEngagement->forceFill(['status' => EngagementStatus::Active->value])->save();
+
+        // Back to the tenant under test.
+        TenantContext::set($this->bank->id);
+
+        $rows = app(OperationalReportRegistry::class)->find('assessment-status')->rows();
+
+        $this->assertCount(1, $rows, 'The other bank\'s engagement leaked into this bank\'s report.');
+        $this->assertContains('ENG-OURS', $rows[0]);
+        $this->assertNotContains('ENG-THEIRS', $rows[0]);
+
+        $response = $this->actingAs($this->full)->get(route('tprm.reports.operational.show', 'assessment-status'));
+        $response->assertOk();
+        $this->assertSame(1, $response->original->getData()['page']['props']['report']['row_count']);
+    }
+
     #[Test]
     public function a_contract_whose_notice_window_passed_says_it_has_auto_renewed(): void
     {

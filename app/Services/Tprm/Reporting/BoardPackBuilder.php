@@ -2,6 +2,7 @@
 
 namespace App\Services\Tprm\Reporting;
 
+use App\Enums\Tprm\EngagementStatus;
 use App\Enums\Tprm\FindingSeverity;
 use App\Enums\Tprm\RiskTier;
 use App\Models\Tprm\Document;
@@ -474,6 +475,13 @@ class BoardPackBuilder
     }
 
     /**
+     * BOUNDED IN SQL, NOT FILTERED IN PHP (Gate 1, defect 4). This used to
+     * `->get()` every engagement ever created, eager loads and all, then
+     * discard the terminal and pre-live ones in memory — an unbounded
+     * full-table read for a report most tenants run monthly. `EngagementStatus::
+     * liveValues()` is the single source the enum's own `isLive()` and this
+     * `whereIn` now share.
+     *
      * @return Collection<int, Engagement>
      */
     private function liveEngagements(): Collection
@@ -484,8 +492,7 @@ class BoardPackBuilder
                 'thirdParty.category:id,name',
                 'businessFunctions',
             ])
-            ->get()
-            ->filter(fn (Engagement $engagement) => $engagement->status->isLive())
-            ->values();
+            ->whereIn('status', EngagementStatus::liveValues())
+            ->get();
     }
 }

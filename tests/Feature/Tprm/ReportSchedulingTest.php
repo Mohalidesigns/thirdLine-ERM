@@ -161,6 +161,98 @@ class ReportSchedulingTest extends TestCase
         $this->assertSame(0, $schedule->consecutive_failures);
     }
 
+    /**
+     * Gate 1 (TPRM Phase 10), defect 1. `dispatchDue()` already iterates
+     * `TenantContext::actingAs()` per organization, but nothing tested that
+     * a SECOND tenant's own schedule and engagements produce a report about
+     * only that tenant — a report emailed to one bank's procurement mailbox
+     * with a row count that grew because another bank's engagements were
+     * counted in the same run would be silent to every existing test here,
+     * which builds one tenant only.
+     */
+    #[Test]
+    public function each_tenants_scheduled_report_counts_only_its_own_rows(): void
+    {
+        // setUp() already gave this bank one engagement (ENG-1) and this
+        // schedule now makes it due.
+        $this->schedule(['frequency' => 'daily']);
+
+        $otherBank = Organization::create([
+            'name' => 'Gombe Frontier Bank', 'short_name' => 'GFB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+        RiskCategory::create([
+            'organization_id' => $otherBank->id,
+            'code' => 'OR', 'name' => 'Operational Risk', 'level' => 1, 'is_active' => true,
+        ]);
+
+        TenantContext::set($otherBank->id);
+        $this->seed(TprmReferenceSeeder::class);
+        TenantContext::set($otherBank->id);
+
+        $otherOwner = User::create([
+            'name' => 'Their Schedule Owner', 'email' => 'owner@gfb.test',
+            'password' => Hash::make(Str::random(32)), 'email_verified_at' => now(),
+            'organization_id' => $otherBank->id, 'is_active' => true,
+        ]);
+        $role = Role::findOrCreate('gfb-scheduler', 'web');
+        foreach (['tprm.view', 'tprm.report.view', 'tprm.report.export', 'tprm.assessment.view'] as $permission) {
+            $role->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+        }
+        $otherOwner->assignRole($role);
+
+        // Two engagements for the other bank — if a leak folded them into
+        // this bank's count, ENG-1's report would show 3 rows, not 1.
+        foreach (['ENG-OTHER-1', 'ENG-OTHER-2'] as $reference) {
+            $vendor = ThirdParty::create([
+                'organization_id' => $otherBank->id,
+                'legal_name' => $reference.' provider',
+                'slug' => Str::random(12), 'entity_type' => 'company', 'status' => 'active',
+            ]);
+            $engagement = Engagement::create([
+                'organization_id' => $otherBank->id,
+                'third_party_id' => $vendor->id,
+                'reference' => $reference,
+                'name' => 'Service for '.$reference,
+                'engagement_type' => 'ict_service',
+            ]);
+            $engagement->forceFill(['status' => EngagementStatus::Active->value])->save();
+        }
+
+        ReportSchedule::create([
+            'organization_id' => $otherBank->id,
+            'report_key' => 'assessment-status',
+            'name' => 'Their schedule',
+            'frequency' => 'daily',
+            'send_at' => '07:00',
+            'format' => 'xlsx',
+            'recipients' => ['risk@gfb.example'],
+            'owner_id' => $otherOwner->id,
+            'is_active' => true,
+        ]);
+
+        // Back to the tenant under test before dispatching — dispatchDue()
+        // itself switches tenant per organization, but the schedules must
+        // exist under their own organization_id regardless of which context
+        // is active when dispatchDue() is called.
+        TenantContext::set($this->bank->id);
+
+        $totals = app(ScheduledReportDispatcher::class)->dispatchDue(CarbonImmutable::parse('2027-01-06'));
+
+        $this->assertSame(2, $totals['sent'], 'Both tenants\' due schedules should have run.');
+
+        $rowCounts = [];
+        Mail::assertSent(ScheduledReport::class, 2);
+        Mail::assertSent(ScheduledReport::class, function (ScheduledReport $mail) use (&$rowCounts) {
+            $rowCounts[$mail->organizationName] = $mail->rowCount;
+
+            return true;
+        });
+
+        $this->assertSame(1, $rowCounts['Owerri Savings Bank'] ?? null, 'This bank\'s report picked up rows from another tenant.');
+        $this->assertSame(2, $rowCounts['Gombe Frontier Bank'] ?? null);
+    }
+
     #[Test]
     public function a_schedule_whose_owner_lost_the_permission_stops_and_says_why(): void
     {

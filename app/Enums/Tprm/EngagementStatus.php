@@ -121,4 +121,25 @@ enum EngagementStatus: string
     {
         return in_array($this, [self::Terminated, self::Archived], true);
     }
+
+    /**
+     * The `isLive()` set, as string values a `whereIn('status', ...)` can
+     * push into SQL — Gate 1 (TPRM Phase 10), defect 4. `BoardPackBuilder`
+     * and `OverviewController` used to `->get()` every engagement ever
+     * created and filter to live status in PHP, which is an unbounded
+     * full-table read on `OverviewController::tierDistribution()`'s path —
+     * every `/tprm` page view. One source of truth for the set, so the SQL
+     * filter and `isLive()` itself cannot drift the way the seeder's own
+     * hardcoded list and this enum already needed a test
+     * (`the_seeders_live_status_list_matches_the_enum`) to keep in step.
+     *
+     * @return list<string>
+     */
+    public static function liveValues(): array
+    {
+        return array_values(array_map(
+            fn (self $status) => $status->value,
+            array_filter(self::cases(), fn (self $status) => $status->isLive()),
+        ));
+    }
 }

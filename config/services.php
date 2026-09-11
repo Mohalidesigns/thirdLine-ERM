@@ -71,6 +71,31 @@ return [
             // A list of recommendations with rationale for each, which is the
             // longest thing any of these tools asks for.
             'long' => ['max_tokens' => 1200, 'timeout' => 90],
+
+            /*
+             * TPRM evidence extraction — a WHOLE DOCUMENT, not a paragraph,
+             * and the only budget here measured against a local model rather
+             * than a hosted one.
+             *
+             * It was taking the bare `llm.timeout` of 20 seconds, which no
+             * extraction has ever completed in: granite4:micro needed 26-69s
+             * for a 1,100-word synthetic SOC 2 (2,272 prompt tokens, 931
+             * completion) across five runs on 2026-09-09. Twenty seconds was
+             * not a tight budget, it was a guaranteed failure, and it
+             * presented as `cURL error 28` rather than as a configuration
+             * problem.
+             *
+             * 120 SECONDS IS BOUNDED BY THE REQUEST, NOT BY THE MODEL.
+             * `ExtractionDispatcher` runs inline in the HTTP request from
+             * `DocumentController`, and the document text is sent UNCAPPED —
+             * so a real 90-page SOC 2 will exhaust PHP-FPM or the proxy long
+             * before any timeout set here is reached. Raising this number
+             * further would not fix that; moving extraction onto a queue
+             * would, and that is the actual fix. This value makes the small
+             * and medium documents work and leaves the large-document
+             * problem visible instead of disguised as a timeout.
+             */
+            'extraction' => ['max_tokens' => 2048, 'timeout' => 120],
         ],
     ],
 

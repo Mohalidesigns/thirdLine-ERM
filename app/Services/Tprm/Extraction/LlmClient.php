@@ -110,10 +110,19 @@ class LlmClient
             );
         }
 
+        /*
+         * The budget comes from `services.llm.budgets`, where every other
+         * model call in this product already gets one, rather than from a
+         * literal here. Extraction had neither: it passed a `max_tokens`
+         * literal and NO timeout, so it inherited `llm.timeout` — twenty
+         * seconds, which no extraction has ever finished inside.
+         */
+        $budget = (array) config('services.llm.budgets.extraction', ['max_tokens' => 2048, 'timeout' => 120]);
+
         $response = $this->llm->jsonWithUsage(
             $renderedPrompt,
             $prompt['system'],
-            ['max_tokens' => 2048],
+            $budget,
         );
 
         $this->log($promptKey, $prompt['version'], $response, $organizationId);

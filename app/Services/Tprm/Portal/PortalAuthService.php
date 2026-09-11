@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use RuntimeException;
 
@@ -239,12 +240,55 @@ class PortalAuthService
 
         $clientName = Organization::query()->find($user->organization_id)->name ?? config('app.name');
 
-        Mail::to($user->email)->send(new PortalSignInCode(
-            $user,
-            $code,
-            (string) $clientName,
-            PortalUser::CODE_TTL_MINUTES,
-        ));
+        /*
+         * THE SEND IS GUARDED, AND A FAILURE CLEARS THE COOLDOWN.
+         *
+         * This line ran unguarded and synchronously, AFTER the code hash and
+         * `mfa_code_sent_at` were written. So an SMTP outage gave a vendor a
+         * 500 — and then refused them another code for the resend window,
+         * because the cooldown had already started for a message nobody sent.
+         * MFA is mandatory by construction on this portal, so that is a
+         * lockout with no way round it.
+         *
+         * `sendEmailCode()` already has a `sent => false` contract and
+         * `MfaController::resend()` already renders it. The transport failure
+         * simply never used it.
+         *
+         * The cooldown is cleared and the HASH IS LEFT ALONE: if the message
+         * did go out before the transport failed, the code the vendor is
+         * holding still works, and it expires on its own anyway.
+         */
+        try {
+            Mail::to($user->email)->send(new PortalSignInCode(
+                $user,
+                $code,
+                (string) $clientName,
+                PortalUser::CODE_TTL_MINUTES,
+            ));
+        } catch (\Throwable $exception) {
+            $user->forceFill(['mfa_code_sent_at' => null])->save();
+
+            // The operator needs the transport error; the vendor must not see
+            // it. A mail host and a rejected credential are not a vendor's
+            // business, and an SMTP message quoted into a browser is an
+            // information leak as well as a confusing one.
+            Log::error('Portal sign-in code could not be sent', [
+                'portal_user_id' => $user->getKey(),
+                'organization_id' => $user->organization_id,
+                'message' => $exception->getMessage(),
+            ]);
+
+            $this->audit($user->organization_id, PortalUser::class, $user->getKey(), 'portal_mfa_code_send_failed', [
+                'email' => $user->email,
+            ]);
+
+            return [
+                'sent' => false,
+                'reason' => 'We could not send your code just now. Please try again in a moment, and contact '
+                    .'your client\'s third-party risk team if it keeps happening.',
+                'retry_after' => 0,
+            ];
+        }
 
         /*
          * The audit records that a code was SENT, never the code. An audit

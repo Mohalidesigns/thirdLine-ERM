@@ -78,6 +78,39 @@ class PortalEmailMfaTest extends TestCase
     }
 
     #[Test]
+    public function a_mail_outage_does_not_lock_the_vendor_out(): void
+    {
+        Mail::fake();
+        $this->login();
+
+        // `login()` has already sent one, and the resend throttle would
+        // refuse the next call before it ever reached the transport — so the
+        // cooldown is cleared to put the send path itself under test.
+        $user = $this->vendor->refresh();
+        $user->forceFill(['mfa_code_sent_at' => null])->save();
+
+        // The transport is down. MFA is mandatory by construction on this
+        // portal, so an unguarded failure here is a lockout: the vendor gets
+        // a 500, and the resend cooldown has already started for a message
+        // nobody sent.
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('SMTP connection refused'));
+
+        $result = app(PortalAuthService::class)->sendEmailCode($user);
+
+        $this->assertFalse($result['sent']);
+        $this->assertStringContainsString('could not send your code', (string) $result['reason']);
+
+        // The cooldown is cleared, so they may ask again straight away.
+        $this->assertSame(0, $result['retry_after']);
+        $this->assertNull($user->refresh()->mfa_code_sent_at);
+
+        // And the vendor is never shown the transport error. A mail host or a
+        // rejected credential is not a vendor's business.
+        $this->assertStringNotContainsString('SMTP', (string) $result['reason']);
+        $this->assertStringNotContainsString('refused', (string) $result['reason']);
+    }
+
+    #[Test]
     public function the_code_is_hashed_at_rest_and_never_stored_in_the_clear(): void
     {
         Mail::fake();

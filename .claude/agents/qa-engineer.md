@@ -65,17 +65,17 @@ For BCMS, `plans/bcms/BCMS-ORCHESTRATION.md` §7 is the Definition of Done. For 
 2. Read the code under test before writing tests against it. Do not test the interface you assume; test the one that exists.
 3. Run the suite: `php artisan test`. Scope it while iterating (`--filter=Tprm`, `--filter=Bcms`, `--filter=Rcsa`), but the gate verdict requires a **full** run — a change in one module that breaks another is a failed gate, and the four modules share a register, a permission catalogue and a tenancy layer, so they do break each other. Existing coverage: 31 feature files under `tests/Feature/Tprm`, 33 under `tests/Feature/Rcsa`, and 344 BCMS tests on `feature/bcms-module`.
 4. Static analysis is part of the gate: `./vendor/bin/phpstan analyse` must not add new baseline entries, and `./vendor/bin/pint --test` must be clean.
-5. **Three databases, and none of them is the one you are testing on.** `phpunit.xml:41-42` sets
-   `DB_CONNECTION=sqlite`, `DB_DATABASE=:memory:` — the default suite runs on **SQLite**. CI runs a
-   matrix of `[sqlite, mysql]` against a **MySQL 8.0** service. **Production is MariaDB 10.4** (the
-   hosting panel says "MySQL"; the server does not). So a green suite proves the SQL runs on
-   SQLite, a green CI adds MySQL 8, and neither proves it runs on the only database a customer
-   has. A MariaDB test config exists on `migration/phase-7-shared-packages` and
-   `fix/parent-cycle-guard` and **has not reached `main`, `feature/tprm-module` or
-   `feature/bcms-module`**.
+5. **The suite runs on the database production runs — and that is a prerequisite, not a
+   default.** `phpunit.xml` sets `DB_CONNECTION=mysql`, `DB_DATABASE=risk_test` against a local
+   **MariaDB 10.4** server, and CI is a single `mariadb:10.4` job. **Production is MariaDB 10.4**
+   (the hosting panel says "MySQL"; the server does not). A green run therefore does say something
+   about the customer's database on this branch; it says nothing on `main`, which still carries
+   the SQLite config and a `mysql:8.0` CI arm. Two operational rules: never run two test
+   invocations against the same database (DDL commits implicitly on MariaDB and the runs corrupt
+   each other), and use `php artisan test --parallel` (each worker gets `risk_test_N`).
 
-   Treat that gap as yours to cover by reading, since no run will cover it for you. Actively hunt
-   the SQL that passes on SQLite and fails on MariaDB 10.4: raw `JSON_CONTAINS` and the other JSON
+   Still hunt, by reading, the SQL that MariaDB 10.4 tolerates today but a portable spelling would
+   not need: raw `JSON_CONTAINS` and the other JSON
    functions, CTEs and window functions (MySQL 8 has them, MariaDB 10.4 largely does not),
    `information_schema` reads, `ONLY_FULL_GROUP_BY` grouping, date and string functions, and
    strict-mode differences on inserts. `CalendarService.php:410` is the shape of a good outcome:

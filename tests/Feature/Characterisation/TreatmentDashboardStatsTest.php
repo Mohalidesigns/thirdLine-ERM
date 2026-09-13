@@ -50,7 +50,7 @@ class TreatmentDashboardStatsTest extends TestCase
     {
         $sequence = ++$this->sequence;
 
-        return TreatmentPlan::create(array_merge([
+        $plan = TreatmentPlan::create(array_merge([
             'organization_id' => $this->organization->id,
             'risk_id' => $this->makeRisk()->id,
             'treatment_code' => sprintf('TP-CHR-%04d', $sequence),
@@ -62,6 +62,20 @@ class TreatmentDashboardStatsTest extends TestCase
             'status' => 'in_progress',
             'created_by' => $this->actor->id,
         ], $attributes));
+
+        // `recentActivity` orders by `updated_at` DESC, and four plans created
+        // inside one wall-clock second tie on it — MariaDB then returns them in
+        // whatever order the engine likes, so "Plan 1 is the most recent
+        // activity" held only while all four landed in the same second. The
+        // fixture now says what it means: Plan 1 is the NEWEST (one minute
+        // ago), Plan 4 the oldest. Written through the query builder — the
+        // same shape as ControlTestingDashboardTest — so no model event fires
+        // from a fixture, and the tenant scope still applies because it goes
+        // through TreatmentPlan::query() rather than DB::table().
+        TreatmentPlan::query()->whereKey($plan->getKey())
+            ->update(['updated_at' => now()->subMinutes($sequence)]);
+
+        return $plan->refresh();
     }
 
     private function seedPlans(): void

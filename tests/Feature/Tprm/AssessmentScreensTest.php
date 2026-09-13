@@ -303,6 +303,49 @@ class AssessmentScreensTest extends TestCase
         $this->assertSame('1.000', $assessment->ec);
     }
 
+    /**
+     * The review screen's own action URLs, read from its props rather than
+     * hand-built with `route()` — `Assessment` route-binds on its `uuid`
+     * (`HasTprmUuid`), and `Review.jsx` used to post the numeric `assessment.id`
+     * against it, which 404s.
+     */
+    #[Test]
+    public function the_review_screens_own_props_carry_working_validate_clarify_and_review_urls(): void
+    {
+        $service = app(AssessmentService::class);
+        $assessment = $this->issued();
+
+        $assessment->responses()->update([
+            'compliance' => ComplianceLevel::Compliant->value,
+            'assurance_level' => AssuranceLevel::Validated->value,
+            'reviewer_status' => AssessmentResponse::REVIEW_ACCEPTED,
+        ]);
+
+        $service->send($assessment);
+        $service->transition($assessment, AssessmentStatus::InProgress);
+        $service->submit($assessment);
+        $service->transition($assessment, AssessmentStatus::UnderReview);
+
+        $props = $this->actingAs($this->reviewer)
+            ->get(route('tprm.assessments.show', $assessment))
+            ->assertOk()
+            ->viewData('page')['props'];
+
+        $this->assertSame(route('tprm.assessments.validate', $assessment), $props['assessment']['validate_url']);
+        $this->assertSame(route('tprm.assessments.clarify', $assessment), $props['assessment']['clarify_url']);
+
+        $response = $assessment->responses()->first();
+        $reviewUrl = collect($props['sections'])
+            ->flatMap(fn (array $section) => $section['responses'])
+            ->firstWhere('id', $response->id)['review_url'];
+
+        $this->assertSame(route('tprm.assessments.review', [$assessment, $response]), $reviewUrl);
+
+        // And posting to the URL the props actually carried does the thing.
+        $this->actingAs($this->reviewer)->post($props['assessment']['validate_url'])->assertRedirect();
+        $this->assertSame(AssessmentStatus::Scored, $assessment->fresh()->status);
+    }
+
     /* ------------------------------------------------------------------ */
     /*  The builder */
     /* ------------------------------------------------------------------ */

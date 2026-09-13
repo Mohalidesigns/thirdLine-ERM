@@ -260,6 +260,83 @@ class FindingScreensTest extends TestCase
         $this->assertSame(FindingStatus::ClosedRiskAccepted, $finding->fresh()->status);
     }
 
+    /**
+     * The whole remediation lifecycle driven by the DETAIL SCREEN'S OWN
+     * props — `Finding` route-binds on its `uuid` (`HasTprmUuid`), and
+     * `Show.jsx` used to build `tprm.findings.plan`/`.verify`/`.close` from
+     * `finding.id`, the numeric key, which 404s.
+     */
+    #[Test]
+    public function the_detail_screens_own_props_carry_the_whole_remediation_lifecycle(): void
+    {
+        $finding = app(FindingService::class)->raise(
+            $this->engagement, 'manual', FindingSeverity::Medium, 'A gap', [], $this->manager->id,
+        );
+
+        $props = fn () => $this->actingAs($this->manager)
+            ->get(route('tprm.findings.show', $finding))
+            ->assertOk()
+            ->viewData('page')['props']['finding'];
+
+        $finding1 = $props();
+        $this->assertSame(route('tprm.findings.plan', $finding), $finding1['plan_url']);
+        $this->assertSame(route('tprm.findings.verify', $finding), $finding1['verify_url']);
+        $this->assertSame(route('tprm.findings.close', $finding), $finding1['close_url']);
+        $this->assertSame(route('tprm.findings.accept-risk', $finding), $finding1['accept_risk_url']);
+
+        $this->actingAs($this->manager)->post($finding1['plan_url'], [
+            'remediation_plan' => 'The vendor will deploy multi-factor authentication by March.',
+        ])->assertRedirect();
+        $this->assertSame(FindingStatus::InRemediation, $finding->fresh()->status);
+
+        $this->actingAs($this->manager)->post($finding1['verify_url'])->assertRedirect();
+        $this->assertSame(FindingStatus::UnderVerification, $finding->fresh()->status);
+
+        $this->actingAs($this->manager)->post($finding1['close_url'], [
+            'closure_type' => 'remediated',
+        ])->assertRedirect()->assertSessionHas('success');
+        $this->assertSame(FindingStatus::ClosedRemediated, $finding->fresh()->status);
+    }
+
+    /**
+     * The withdraw action on an in-force acceptance, from the SAME props the
+     * screen reads — `RiskAcceptance` is not `HasTprmUuid`, but its parent
+     * `Finding` is, and `Show.jsx` used to build
+     * `tprm.findings.acceptances.withdraw` from `[finding.id, acceptance.id]`.
+     */
+    #[Test]
+    public function the_detail_screens_own_props_carry_a_working_acceptance_withdraw_url(): void
+    {
+        $finding = app(FindingService::class)->raise(
+            $this->engagement, 'manual', FindingSeverity::High, 'A gap', [], $this->manager->id,
+        );
+
+        $this->actingAs($this->manager)->post(route('tprm.findings.accept-risk', $finding), [
+            'justification' => 'The vendor is being replaced next quarter and the exposure is bounded by '
+                .'the compensating monitoring already in place.',
+            'expires_at' => now()->addMonths(3)->toDateString(),
+            'approver_role' => 'Chief Risk Officer',
+        ])->assertRedirect();
+
+        $this->assertSame(FindingStatus::ClosedRiskAccepted, $finding->fresh()->status);
+
+        $acceptance = $this->actingAs($this->manager)
+            ->get(route('tprm.findings.show', $finding))
+            ->assertOk()
+            ->viewData('page')['props']['acceptances'][0];
+
+        $this->assertSame(
+            route('tprm.findings.acceptances.withdraw', [$finding, $acceptance['id']]),
+            $acceptance['withdraw_url'],
+        );
+
+        $this->actingAs($this->manager)->post($acceptance['withdraw_url'], [
+            'reason' => 'The vendor replacement was cancelled; the gap needs remediating after all.',
+        ])->assertRedirect();
+
+        $this->assertSame(FindingStatus::Open, $finding->fresh()->status);
+    }
+
     #[Test]
     public function a_user_without_the_risk_permission_cannot_accept(): void
     {

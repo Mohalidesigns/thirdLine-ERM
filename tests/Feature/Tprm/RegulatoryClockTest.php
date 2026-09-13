@@ -494,6 +494,45 @@ class RegulatoryClockTest extends TestCase
                 ->where('settings.has_materiality_basis', false));
     }
 
+    /**
+     * The incident screen's own approve/submit buttons, driven by the
+     * DRAFT PANEL's props — `NotificationDraft` route-binds on its `uuid`
+     * (`HasTprmUuid`), and `Show.jsx` used to build
+     * `tprm.incidents.drafts.approve`/`.submit` from `draft.id`, the numeric
+     * key, which 404s.
+     */
+    #[Test]
+    public function the_draft_panels_own_props_carry_working_approve_and_submit_urls(): void
+    {
+        $incident = $this->reportBreach();
+        app(ObligationClockService::class)->assess($incident);
+        $draft = app(NotificationDraftService::class)->build($incident->refresh(), Regulator::Ndpc);
+
+        $officer = $this->permitted();
+
+        $draftProp = fn () => collect(
+            $this->actingAs($officer)
+                ->get(route('tprm.incidents.show', $incident->uuid))
+                ->assertOk()
+                ->viewData('page')['props']['drafts']
+        )->firstWhere('id', $draft->getKey());
+
+        $before = $draftProp();
+        $this->assertSame(route('tprm.incidents.drafts.approve', $draft), $before['approve_url']);
+        $this->assertSame(route('tprm.incidents.drafts.submit', $draft), $before['submit_url']);
+
+        $this->actingAs($officer)->post($before['approve_url'])->assertRedirect()->assertSessionHas('success');
+
+        $submitUrl = $draftProp()['submit_url'];
+
+        $this->actingAs($officer)
+            ->post($submitUrl, ['reference' => 'NDPC/2026/9'])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertNotNull($incident->refresh()->ndpc_reported_at);
+    }
+
     #[Test]
     public function the_register_renders_and_the_settings_gap_is_stated_on_it(): void
     {

@@ -220,6 +220,11 @@ class AssessmentController extends Controller
         return [
             'id' => $assessment->getKey(),
             'uuid' => $assessment->uuid,
+            // Built here rather than from `id`: `Assessment` route-binds on
+            // its `uuid` (HasTprmUuid), and the numeric key this payload
+            // otherwise carries would 404 against these routes.
+            'validate_url' => route('tprm.assessments.validate', $assessment),
+            'clarify_url' => route('tprm.assessments.clarify', $assessment),
             'status' => $assessment->status->value,
             'status_label' => $assessment->status->label(),
             'type' => $assessment->assessment_type,
@@ -281,6 +286,10 @@ class AssessmentController extends Controller
 
             $sections[$code]['responses'][] = [
                 'id' => $response->getKey(),
+                // The route needs both parents: `{assessment}` binds on
+                // `uuid`, `{response}` on its numeric key — built here so the
+                // screen never assembles the pair itself.
+                'review_url' => route('tprm.assessments.review', [$assessment, $response]),
                 'question_code' => $response->question->code,
                 'question' => $response->question->text,
                 'help_text' => $response->question->help_text,

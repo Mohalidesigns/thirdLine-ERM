@@ -363,6 +363,35 @@ class ContractScreensTest extends TestCase
         $this->assertStringContainsString('Service provider', $csv);
     }
 
+    /**
+     * The matrix's own action URLs, read from its props — `Engagement`
+     * route-binds on its `uuid` (`HasTprmUuid`), and `Matrix.jsx` used to
+     * build `tprm.pci-matrix.prepopulate`/`.export`/`.confirm` from
+     * `matrix.engagement.id`, which is the numeric key and 404s.
+     */
+    #[Test]
+    public function the_matrix_screens_own_props_carry_working_prepopulate_export_and_confirm_urls(): void
+    {
+        $props = $this->actingAs($this->manager)
+            ->get(route('tprm.pci-matrix.show', $this->engagement))
+            ->assertOk()
+            ->viewData('page')['props'];
+
+        $this->assertSame(route('tprm.pci-matrix.prepopulate', $this->engagement), $props['prepopulateUrl']);
+        $this->assertSame(route('tprm.pci-matrix.export', $this->engagement), $props['exportUrl']);
+
+        $row = PciResponsibility::query()->where('pci_requirement', '3')->firstOrFail();
+        $confirmUrl = collect($props['matrix']['rows'])->firstWhere('requirement', '3')['confirm_url'];
+        $this->assertSame(route('tprm.pci-matrix.confirm', [$this->engagement, $row]), $confirmUrl);
+
+        $this->actingAs($this->manager)->post($confirmUrl, [
+            'responsibility' => 'tpsp',
+            'notes' => 'The provider stores the PAN.',
+        ])->assertRedirect();
+
+        $this->assertTrue($row->fresh()->isConfirmed());
+    }
+
     /* ------------------------------------------------------------------ */
     /*  The clause library */
     /* ------------------------------------------------------------------ */

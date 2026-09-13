@@ -4,7 +4,6 @@ import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
 import TierBadge from '@/Components/Tprm/TierBadge';
-import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
  * The Intake Queue — the approver's view (FR-INT-04).
@@ -70,7 +69,7 @@ export default function Index({ queue, can = {} }) {
                                     <td className="px-4 py-3 text-right">
                                         {can.approve && (
                                             <div className="flex items-center justify-end gap-2">
-                                                <ApproveButton engagementId={row.id} />
+                                                <ApproveButton url={row.approve_url} />
                                                 <button type="button" onClick={() => setRejecting(row)}
                                                     className="text-xs font-medium text-red-700 hover:underline">
                                                     Reject
@@ -96,7 +95,7 @@ export default function Index({ queue, can = {} }) {
     );
 }
 
-function ApproveButton({ engagementId }) {
+function ApproveButton({ url }) {
     const [busy, setBusy] = useState(false);
 
     return (
@@ -105,7 +104,7 @@ function ApproveButton({ engagementId }) {
             disabled={busy}
             onClick={() => {
                 setBusy(true);
-                router.post(tryRoute('tprm.intake.approve', engagementId), {}, {
+                router.post(url, {}, {
                     preserveScroll: true,
                     onFinish: () => setBusy(false),
                 });
@@ -125,7 +124,7 @@ function RejectDialog({ row, onClose }) {
     // actions, which this dialog does not.
     const submit = (event) => {
         event.preventDefault();
-        post(tryRoute('tprm.intake.reject', row.id), { preserveScroll: true, onSuccess: onClose });
+        post(row.reject_url, { preserveScroll: true, onSuccess: onClose });
     };
 
     return (

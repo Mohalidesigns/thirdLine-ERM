@@ -272,6 +272,29 @@ class MonitoringScreensTest extends TestCase
             ->assertSessionHas('success');
     }
 
+    /**
+     * The history screen's own "Screen now" button, driven by its props —
+     * `ThirdParty` route-binds on its `uuid` (`HasTprmUuid`), and
+     * `History.jsx` used to build `tprm.screening.run` from `thirdParty.id`,
+     * the numeric key, which 404s.
+     */
+    #[Test]
+    public function the_screen_now_button_uses_the_screens_own_third_party_url_not_its_numeric_id(): void
+    {
+        $runUrl = $this->actingAs($this->officer)
+            ->get(route('tprm.screening.history', $this->vendor))
+            ->assertOk()
+            ->viewData('page')['props']['thirdParty']['run_url'];
+
+        $this->assertSame(route('tprm.screening.run', $this->vendor), $runUrl);
+
+        $before = ScreeningCheck::where('subject_id', $this->vendor->id)->count();
+
+        $this->actingAs($this->officer)->post($runUrl)->assertRedirect();
+
+        $this->assertGreaterThan($before, ScreeningCheck::where('subject_id', $this->vendor->id)->count());
+    }
+
     #[Test]
     public function the_history_screen_exposes_the_providers_own_answer(): void
     {
@@ -303,6 +326,29 @@ class MonitoringScreensTest extends TestCase
     /* ------------------------------------------------------------------ */
     /*  Due diligence */
     /* ------------------------------------------------------------------ */
+
+    /**
+     * The "no checklist yet" state's own generate button, driven by the
+     * SCREEN's props — `Engagement` route-binds on its `uuid` (`HasTprmUuid`),
+     * and `Show.jsx` used to build `tprm.due-diligence.generate` from
+     * `engagement.id`, the numeric key, which 404s.
+     */
+    #[Test]
+    public function the_generate_button_uses_the_screens_own_engagement_url_not_its_numeric_id(): void
+    {
+        $generateUrl = $this->actingAs($this->officer)
+            ->get(route('tprm.due-diligence.show', $this->engagement))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('checklist', null))
+            ->viewData('page')['props']['engagement']['generate_url'];
+
+        $this->assertSame(route('tprm.due-diligence.generate', $this->engagement), $generateUrl);
+
+        $this->actingAs($this->officer)
+            ->post($generateUrl)
+            ->assertRedirect()
+            ->assertSessionHas('success');
+    }
 
     #[Test]
     public function the_checklist_is_scoped_by_tier_and_names_its_blockers(): void

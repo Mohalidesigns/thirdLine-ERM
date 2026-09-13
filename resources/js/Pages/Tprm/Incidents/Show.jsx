@@ -236,7 +236,7 @@ function Draft({ draft, can }) {
                         <button
                             type="button"
                             className="btn btn-sm btn-primary"
-                            onClick={() => router.post(route('tprm.incidents.drafts.approve', draft.id))}
+                            onClick={() => router.post(draft.approve_url)}
                         >
                             Approve the wording
                         </button>
@@ -271,7 +271,7 @@ function SubmissionDialog({ draft, onClose }) {
                 className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl"
                 onSubmit={(event) => {
                     event.preventDefault();
-                    form.post(route('tprm.incidents.drafts.submit', draft.id), { onSuccess: onClose });
+                    form.post(draft.submit_url, { onSuccess: onClose });
                 }}
             >
                 <h2 className="text-base font-semibold text-gray-900">Record the submission</h2>

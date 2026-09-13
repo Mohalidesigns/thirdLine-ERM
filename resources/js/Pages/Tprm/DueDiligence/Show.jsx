@@ -33,7 +33,7 @@ export default function Show({ engagement, checklist, can = {} }) {
                     </p>
                     {can.manage && (
                         <button type="button" className="btn btn-primary mt-4"
-                            onClick={() => router.post(route('tprm.due-diligence.generate', engagement.id))}>
+                            onClick={() => router.post(engagement.generate_url)}>
                             Generate the checklist
                         </button>
                     )}

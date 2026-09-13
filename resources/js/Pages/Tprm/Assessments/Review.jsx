@@ -4,7 +4,6 @@ import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import TierBadge from '@/Components/Tprm/TierBadge';
-import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
  * The Assessment Review screen — TRD §11's split view, and where the module's
@@ -186,7 +185,7 @@ export default function Review({ assessment, sections = [], liveScore = {}, scop
                                     type="button"
                                     disabled={pending > 0}
                                     title={pending > 0 ? 'Review every answer first.' : undefined}
-                                    onClick={() => router.post(tryRoute('tprm.assessments.validate', assessment.id), {}, { preserveScroll: true })}
+                                    onClick={() => router.post(assessment.validate_url, {}, { preserveScroll: true })}
                                     className="btn-primary mt-4 w-full text-sm disabled:opacity-50"
                                 >
                                     Validate and score
@@ -196,7 +195,7 @@ export default function Review({ assessment, sections = [], liveScore = {}, scop
                             {can.review && (
                                 <button
                                     type="button"
-                                    onClick={() => router.post(tryRoute('tprm.assessments.clarify', assessment.id), {}, { preserveScroll: true })}
+                                    onClick={() => router.post(assessment.clarify_url, {}, { preserveScroll: true })}
                                     className="btn-secondary mt-2 w-full text-sm"
                                 >
                                     Return flagged answers to the vendor
@@ -264,7 +263,7 @@ function Answer({ assessment, response, messages, options, canReview, open, onTo
 
     const submit = (event) => {
         event.preventDefault();
-        post(tryRoute('tprm.assessments.review', [assessment.id, response.id]), {
+        post(response.review_url, {
             preserveScroll: true,
             onSuccess: onToggle,
         });

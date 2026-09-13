@@ -209,6 +209,10 @@ class PciMatrixBuilder
                 'confirmed_by' => $row?->confirmer?->name,
                 'confirmed_at' => $row?->last_confirmed_at?->toDateString(),
                 'id' => $row?->getKey(),
+                // `PciResponsibility` route-binds on its numeric key, but
+                // `{engagement}` binds on `uuid` — built here so the screen
+                // never has to reach for `engagement.id`.
+                'confirm_url' => $row === null ? null : route('tprm.pci-matrix.confirm', [$engagement, $row]),
             ];
         }
 

@@ -34,6 +34,11 @@ class PciMatrixController extends Controller
         return Inertia::render('Tprm/Pci/Matrix', [
             'matrix' => $this->builder->matrix($engagement),
             'engagementUrl' => route('tprm.engagements.show', $engagement),
+            // Built here rather than from `matrix.engagement.id`: `Engagement`
+            // route-binds on its `uuid` (HasTprmUuid), and the id the matrix
+            // payload carries for CSV/display purposes is the numeric key.
+            'prepopulateUrl' => route('tprm.pci-matrix.prepopulate', $engagement),
+            'exportUrl' => route('tprm.pci-matrix.export', $engagement),
             'can' => [
                 'manage' => $request->user()->can('tprm.contract.manage'),
             ],

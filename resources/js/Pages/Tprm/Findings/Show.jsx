@@ -197,7 +197,7 @@ function RemediationPanel({ finding, can }) {
                 <form
                     onSubmit={(event) => {
                         event.preventDefault();
-                        planForm.post(route('tprm.findings.plan', finding.id));
+                        planForm.post(finding.plan_url);
                     }}
                     className="mt-3 space-y-3"
                 >
@@ -236,7 +236,7 @@ function RemediationPanel({ finding, can }) {
                             <button
                                 type="button"
                                 className="btn btn-secondary text-xs"
-                                onClick={() => router.post(route('tprm.findings.verify', finding.id))}
+                                onClick={() => router.post(finding.verify_url)}
                             >
                                 Send for verification
                             </button>
@@ -253,7 +253,7 @@ function RemediationPanel({ finding, can }) {
                 <form
                     onSubmit={(event) => {
                         event.preventDefault();
-                        closeForm.post(route('tprm.findings.close', finding.id));
+                        closeForm.post(finding.close_url);
                     }}
                     className="mt-5 border-t border-gray-100 pt-4"
                 >
@@ -327,10 +327,7 @@ function AcceptanceHistory({ finding, acceptances, can }) {
                                 onClick={() => {
                                     const reason = window.prompt('Why is the acceptance being withdrawn?');
                                     if (reason) {
-                                        router.post(
-                                            route('tprm.findings.acceptances.withdraw', [finding.id, acceptance.id]),
-                                            { reason },
-                                        );
+                                        router.post(acceptance.withdraw_url, { reason });
                                     }
                                 }}
                             >
@@ -355,7 +352,7 @@ function AcceptanceDialog({ finding, limits, onClose }) {
 
     const submit = (event) => {
         event.preventDefault();
-        form.post(route('tprm.findings.accept-risk', finding.id), { onSuccess: onClose });
+        form.post(finding.accept_risk_url, { onSuccess: onClose });
     };
 
     return (

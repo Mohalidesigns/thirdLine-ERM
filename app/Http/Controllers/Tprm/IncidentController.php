@@ -235,6 +235,10 @@ class IncidentController extends Controller
                 'submitted_at' => $draft->submitted_at?->toDayDateTimeString(),
                 'submission_reference' => $draft->submission_reference,
                 'can_submit' => $draft->canBeSubmitted(),
+                // Built here rather than from `id`: `NotificationDraft`
+                // route-binds on its `uuid` (HasTprmUuid).
+                'approve_url' => route('tprm.incidents.drafts.approve', $draft),
+                'submit_url' => route('tprm.incidents.drafts.submit', $draft),
             ])->values()->all();
     }
 

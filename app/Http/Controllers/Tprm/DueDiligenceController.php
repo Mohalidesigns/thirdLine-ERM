@@ -42,6 +42,9 @@ class DueDiligenceController extends Controller
                 'tier' => $engagement->effectiveTier()?->value,
                 'tier_label' => $engagement->effectiveTier()?->label(),
                 'url' => route('tprm.engagements.show', $engagement),
+                // Built here rather than from `id`: `Engagement` route-binds
+                // on its `uuid` (HasTprmUuid).
+                'generate_url' => route('tprm.due-diligence.generate', $engagement),
             ],
             'checklist' => $checklist === null ? null : [
                 'id' => $checklist->getKey(),

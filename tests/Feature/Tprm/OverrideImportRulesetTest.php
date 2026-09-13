@@ -180,6 +180,41 @@ class OverrideImportRulesetTest extends TestCase
         $this->assertNull($engagement->refresh()->tier_override);
     }
 
+    /**
+     * The workspace's own prop, not a hand-built URL — `Engagement`
+     * route-binds on its `uuid` (`HasTprmUuid`), and `Show.jsx` used to post
+     * the numeric `engagement.id` against both the override route and its
+     * clear counterpart, which 404s.
+     */
+    #[Test]
+    public function the_workspaces_own_tier_override_url_sets_and_clears_the_override(): void
+    {
+        $engagement = $this->makeEngagement(RiskTier::Moderate);
+
+        $engagementProp = $this->actingAs($this->user)
+            ->get(route('tprm.engagements.show', $engagement))
+            ->assertOk()
+            ->viewData('page')['props']['engagement'];
+
+        $this->assertSame(route('tprm.engagements.tier-override', $engagement), $engagementProp['tier_override_url']);
+
+        $this->actingAs($this->user)
+            ->post($engagementProp['tier_override_url'], [
+                'tier' => 'critical',
+                'rationale' => 'Concentration on this provider group is above the committee threshold.',
+                'expires_at' => now()->addDays(20)->toDateString(),
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(RiskTier::Critical, $engagement->fresh()->tier_override);
+
+        $this->actingAs($this->user)
+            ->delete($engagementProp['tier_override_url'])
+            ->assertRedirect();
+
+        $this->assertNull($engagement->fresh()->tier_override);
+    }
+
     #[Test]
     public function the_override_register_lists_what_is_in_force(): void
     {

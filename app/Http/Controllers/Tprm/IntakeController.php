@@ -69,6 +69,12 @@ class IntakeController extends Controller
             'approval_chain' => $this->intake->approvalChainFor($engagement),
             'submitted_at' => $engagement->created_at?->toDayDateTimeString(),
             'url' => route('tprm.engagements.show', $engagement),
+            // Built here rather than from the row's numeric `id`: `Engagement`
+            // route-binds on its `uuid` (HasTprmUuid), and a client posting
+            // the id it was handed 404s. One home for the URL means a route-
+            // key change can never break this screen again.
+            'approve_url' => route('tprm.intake.approve', $engagement),
+            'reject_url' => route('tprm.intake.reject', $engagement),
         ]);
 
         return Inertia::render('Tprm/Intake/Index', [

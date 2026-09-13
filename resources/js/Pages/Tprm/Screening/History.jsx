@@ -24,7 +24,7 @@ export default function History({ thirdParty, status = {}, checks = [], retentio
                 subtitle={<Link className="underline" href={thirdParty.url}>{thirdParty.legal_name}</Link>}
                 actions={can.decide ? (
                     <button type="button" className="btn btn-primary"
-                        onClick={() => router.post(route('tprm.screening.run', thirdParty.id))}>
+                        onClick={() => router.post(thirdParty.run_url)}>
                         Screen now
                     </button>
                 ) : null}

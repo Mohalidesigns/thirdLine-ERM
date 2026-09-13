@@ -5,7 +5,6 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import ScorePanel from '@/Components/Tprm/ScorePanel';
 import TierBadge from '@/Components/Tprm/TierBadge';
-import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
  * The Engagement Workspace — "the most important screen" (TRD §11).
@@ -269,7 +268,7 @@ export default function Show({ engagement, derivation, inherentVersion, history 
                                     </div>
                                     <p className="text-gray-700">{engagement.tier_override_reason}</p>
                                     <button type="button"
-                                        onClick={() => router.delete(tryRoute('tprm.engagements.tier-override.clear', engagement.id), { preserveScroll: true })}
+                                        onClick={() => router.delete(engagement.tier_override_url, { preserveScroll: true })}
                                         className="font-medium text-red-700 hover:underline">
                                         Remove the override
                                     </button>
@@ -327,7 +326,7 @@ function OverrideForm({ engagement, onClose }) {
 
     const submit = (event) => {
         event.preventDefault();
-        post(tryRoute('tprm.engagements.tier-override', engagement.id), {
+        post(engagement.tier_override_url, {
             preserveScroll: true,
             onSuccess: onClose,
         });

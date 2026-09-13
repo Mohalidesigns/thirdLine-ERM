@@ -139,6 +139,9 @@ class ScreeningController extends Controller
                 'legal_name' => $thirdParty->legal_name,
                 'url' => route('tprm.third-parties.show', $thirdParty),
                 'last_screened_at' => $thirdParty->last_screened_at?->toDateString(),
+                // Built here rather than from `id`: `ThirdParty` route-binds
+                // on its `uuid` (HasTprmUuid).
+                'run_url' => route('tprm.screening.run', $thirdParty),
             ],
             'status' => $this->dispatcher->statusFor($thirdParty),
             'checks' => $checks->map(fn (ScreeningCheck $check) => [

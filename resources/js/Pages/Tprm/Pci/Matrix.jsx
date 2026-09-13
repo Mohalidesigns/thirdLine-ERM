@@ -15,7 +15,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
  * quietly assign duties to us. A matrix that hid the distinction would be
  * worse than none, because a QSA relies on it.
  */
-export default function Matrix({ matrix, engagementUrl, can = {} }) {
+export default function Matrix({ matrix, engagementUrl, prepopulateUrl, exportUrl, can = {} }) {
     const [editing, setEditing] = useState(null);
 
     return (
@@ -35,12 +35,12 @@ export default function Matrix({ matrix, engagementUrl, can = {} }) {
                             <button
                                 type="button"
                                 className="btn btn-secondary"
-                                onClick={() => router.post(route('tprm.pci-matrix.prepopulate', matrix.engagement.id))}
+                                onClick={() => router.post(prepopulateUrl)}
                             >
                                 Pull the vendor&rsquo;s view
                             </button>
                         )}
-                        <a href={route('tprm.pci-matrix.export', matrix.engagement.id)} className="btn btn-primary">
+                        <a href={exportUrl} className="btn btn-primary">
                             Export for the QSA
                         </a>
                     </div>
@@ -124,7 +124,6 @@ export default function Matrix({ matrix, engagementUrl, can = {} }) {
 
             {editing && (
                 <ConfirmDialog
-                    engagementId={matrix.engagement.id}
                     row={editing}
                     onClose={() => setEditing(null)}
                 />
@@ -144,12 +143,12 @@ function ResponsibilityChip({ value, label }) {
     return <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${tone}`}>{label}</span>;
 }
 
-function ConfirmDialog({ engagementId, row, onClose }) {
+function ConfirmDialog({ row, onClose }) {
     const form = useForm({ responsibility: row.responsibility, notes: row.notes ?? '' });
 
     const submit = (event) => {
         event.preventDefault();
-        form.post(route('tprm.pci-matrix.confirm', [engagementId, row.id]), { onSuccess: onClose });
+        form.post(row.confirm_url, { onSuccess: onClose });
     };
 
     return (

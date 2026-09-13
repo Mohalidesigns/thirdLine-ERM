@@ -121,6 +121,9 @@ class FindingController extends Controller
                 'days_remaining' => $acceptance->daysRemaining(),
                 'status' => $acceptance->status,
                 'in_force' => $acceptance->isInForce(),
+                // `{finding}` route-binds on `uuid`; built here for the same
+                // reason as the card's own action URLs above.
+                'withdraw_url' => route('tprm.findings.acceptances.withdraw', [$finding, $acceptance]),
             ])->values(),
             'acceptanceLimits' => [
                 'permission' => RiskAcceptance::requiredPermissionFor($finding->severity),
@@ -316,6 +319,13 @@ class FindingController extends Controller
             'acceptance_expires' => $finding->acceptance?->expires_at?->toDateString(),
             'escalation_level' => $this->findings->escalationLevelFor($finding),
             'url' => route('tprm.findings.show', $finding),
+            // Built here rather than from `id`: `Finding` route-binds on its
+            // `uuid` (HasTprmUuid), and the numeric key this card otherwise
+            // carries would 404 against these routes.
+            'plan_url' => route('tprm.findings.plan', $finding),
+            'verify_url' => route('tprm.findings.verify', $finding),
+            'close_url' => route('tprm.findings.close', $finding),
+            'accept_risk_url' => route('tprm.findings.accept-risk', $finding),
         ];
     }
 

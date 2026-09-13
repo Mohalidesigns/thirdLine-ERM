@@ -280,6 +280,10 @@ class EngagementController extends Controller
             'tier_override' => $engagement->tier_override?->value,
             'tier_override_reason' => $engagement->tier_override_reason,
             'tier_override_expires_at' => $engagement->tier_override_expires_at?->toDateString(),
+            // Built here rather than from `id`: `Engagement` route-binds on
+            // its `uuid` (HasTprmUuid). One URL serves both the POST that
+            // sets an override and the DELETE that clears it.
+            'tier_override_url' => route('tprm.engagements.tier-override', $engagement),
             // Phase 5 fills these. Null is "not yet computed", which the page
             // renders as such rather than as a score of zero.
             'residual_score' => $engagement->residual_score,

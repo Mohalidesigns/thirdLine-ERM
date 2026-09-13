@@ -7,7 +7,7 @@
             "runtimeExecutable": "sh",
             "runtimeArgs": [
                 "-c",
-                "php artisan serve --host=127.0.0.1 --port=${PORT:-8123}"
+                "export PATH=\"/Users/mac/Library/Application Support/Herd/bin:$PATH\" && php artisan serve --host=127.0.0.1 --port=${PORT:-8123}"
             ],
             "port": 8123,
             "autoPort": true

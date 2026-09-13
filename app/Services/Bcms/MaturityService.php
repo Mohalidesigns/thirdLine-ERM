@@ -6,6 +6,7 @@ use App\Enums\Bcms\CorrectiveActionStatus;
 use App\Enums\Bcms\MaturityClauseGroup;
 use App\Enums\Bcms\PlanType;
 use App\Enums\Bcms\RaciRole;
+use App\Models\Bcms\Aar;
 use App\Models\Bcms\BiaAssessment;
 use App\Models\Bcms\CorrectiveAction;
 use App\Models\Bcms\ExerciseOccurrence;
@@ -16,11 +17,13 @@ use App\Models\Bcms\MaturityAssessment;
 use App\Models\Bcms\MaturityScore;
 use App\Models\Bcms\Objective;
 use App\Models\Bcms\Plan;
+use App\Models\Bcms\PlanSection;
 use App\Models\Bcms\Process;
 use App\Models\Bcms\Programme;
 use App\Models\Bcms\ProgrammeObligation;
 use App\Models\Bcms\ProgrammeScopeItem;
 use App\Models\Bcms\RaciAssignment;
+use App\Models\Bcms\Strategy;
 use App\Models\Bcms\TrainingRecord;
 use Illuminate\Support\Facades\DB;
 
@@ -348,17 +351,16 @@ class MaturityService
             return $this->none('No process has been tiered 1 or 2, so there is no strategy coverage to measure.');
         }
 
-        $withStrategy = DB::table('bcms_strategies')
-            ->whereNull('deleted_at')
+        // Eloquent, not DB::table() — `Strategy` carries `BelongsToOrganization`
+        // and `SoftDeletes`; a raw table query passes through neither, which is
+        // how a tenant with no strategies at all was scoring off a neighbour's.
+        $withStrategy = Strategy::query()->distinct()->count('process_id');
+        $selected = Strategy::query()->where('is_selected', true)->distinct()->count('process_id');
+        $approved = Strategy::query()
+            ->where('is_selected', true)->where('approval_status', 'approved')
             ->distinct()->count('process_id');
-        $selected = DB::table('bcms_strategies')
-            ->whereNull('deleted_at')->where('is_selected', true)
-            ->distinct()->count('process_id');
-        $approved = DB::table('bcms_strategies')
-            ->whereNull('deleted_at')->where('is_selected', true)->where('approval_status', 'approved')
-            ->distinct()->count('process_id');
-        $gapClosed = DB::table('bcms_strategies')
-            ->whereNull('deleted_at')->where('is_selected', true)
+        $gapClosed = Strategy::query()
+            ->where('is_selected', true)
             ->where(fn ($q) => $q->whereNull('gap_vs_required_hours')->orWhere('gap_vs_required_hours', '<=', 0))
             ->distinct()->count('process_id');
 
@@ -398,9 +400,14 @@ class MaturityService
         $current = Plan::query()
             ->where('plan_type', '!=', PlanType::Policy->value)
             ->where('status', 'approved')
-            ->where(fn ($q) => $q->whereNull('next_review_date')->orWhereDate('next_review_date', '>=', now()->toDateString()))
+            // `next_review_date` is already a `date` column; wrapping it in
+            // `whereDate()` rules out the index on it for no gain.
+            ->where(fn ($q) => $q->whereNull('next_review_date')->orWhere('next_review_date', '>=', now()->toDateString()))
             ->count();
-        $bound = DB::table('bcms_plan_sections')->where('is_overridden', false)->whereNotNull('source_binding')->distinct()->count('plan_id');
+        // Eloquent, not DB::table() — see the note on `scoreStrategy()` above;
+        // `PlanSection` carries `BelongsToOrganization` and this count was
+        // mixing in every other tenant's bound sections.
+        $bound = PlanSection::query()->where('is_overridden', false)->whereNotNull('source_binding')->distinct()->count('plan_id');
 
         $score = match (true) {
             $approved === 0 => 2,
@@ -428,16 +435,32 @@ class MaturityService
     /** Clause 8.5 — the exercise programme, and whether it was actually delivered. */
     private function scoreExercises(): array
     {
+        // A closed date range rather than `whereYear()`: `scheduled_date` is
+        // already a `date` column, and wrapping it in a function on every row
+        // rules out the index on it (development standard's MariaDB note).
+        $yearStart = now()->startOfYear()->toDateString();
+        $yearEnd = now()->endOfYear()->toDateString();
+
         $programmes = ExerciseProgramme::query()->where('year', now()->year)->count();
-        $planned = ExerciseOccurrence::query()->whereYear('scheduled_date', now()->year)->count();
+        $planned = ExerciseOccurrence::query()->whereBetween('scheduled_date', [$yearStart, $yearEnd])->count();
 
         if ($programmes === 0 && $planned === 0) {
             return $this->none('No exercise programme exists for this year, so clause 8.5 has nothing to evidence.');
         }
 
-        $completed = ExerciseOccurrence::query()->whereYear('scheduled_date', now()->year)->where('status', 'completed')->count();
-        $missed = ExerciseOccurrence::query()->whereYear('scheduled_date', now()->year)->whereIn('status', ['missed', 'cancelled'])->count();
-        $withAar = DB::table('bcms_aars')->whereNull('deleted_at')->where('status', 'final')->count();
+        $completed = ExerciseOccurrence::query()->whereBetween('scheduled_date', [$yearStart, $yearEnd])->where('status', 'completed')->count();
+        $missed = ExerciseOccurrence::query()->whereBetween('scheduled_date', [$yearStart, $yearEnd])->whereIn('status', ['missed', 'cancelled'])->count();
+        // Eloquent, not DB::table() — `Aar` carries `BelongsToOrganization`
+        // and this count was mixing in every other tenant's after-action
+        // reports. It also had NO year filter while `$completed` above is
+        // filtered to this year (defect 13): an organisation with six final
+        // AARs from last year and five unreported exercises this year scored
+        // as if every exercise had one. Scoped to occurrences in the same
+        // window `$completed` uses.
+        $withAar = Aar::query()
+            ->where('status', 'final')
+            ->whereHas('occurrence', fn ($q) => $q->whereBetween('scheduled_date', [$yearStart, $yearEnd]))
+            ->count();
         $approvedProgramme = ExerciseProgramme::query()->where('year', now()->year)->where('status', '!=', 'draft')->exists();
 
         $score = match (true) {

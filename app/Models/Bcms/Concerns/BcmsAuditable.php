@@ -3,6 +3,7 @@
 namespace App\Models\Bcms\Concerns;
 
 use App\Models\Bcms\AuditLog;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Request;
@@ -136,7 +137,8 @@ trait BcmsAuditable
                 'model' => static::class,
                 'id' => $this->getKey(),
                 'event' => $event,
-                'exception' => $e->getMessage(),
+                'exception' => get_class($e),
+                ...$this->bcmsAuditFailureDiagnostics($e),
             ]);
 
             // A log line nothing reads is indistinguishable from silence, and
@@ -157,5 +159,50 @@ trait BcmsAuditable
                 // Nothing further to do: the Log::error above is the fallback.
             }
         }
+    }
+
+    /**
+     * Bounded, value-free context for a failed audit write — never
+     * `$e->getMessage()`.
+     *
+     * THIS IS THE SAME DEFECT THE CHANNEL ADAPTERS ALREADY HAD FIXED TWICE
+     * THIS PHASE (`HttpChannel`, `SmsGatewayChannel`), and here it is worse:
+     * `$before`/`$after` on this call are a BCMS model's own attributes —
+     * for a call-tree contact or an alert recipient that is a name, a
+     * mobile number, an email. `Illuminate\Database\QueryException::
+     * getMessage()` appends the fully bound SQL (`formatMessage()` replaces
+     * every `?` with its bound value before building the message), so a
+     * constraint failure while auditing one of those models would write the
+     * row's own contact details into the application log — the one sink
+     * with no declared retention or residency, on the exact path that
+     * exists to make the write accountable.
+     *
+     * What reaches the log instead is the SQLSTATE and the driver-specific
+     * error number, both integers/short codes from a closed vocabulary with
+     * no capacity to carry a value: `$e->errorInfo[2]` (the driver's own
+     * message text) is deliberately never read, because for a duplicate-key
+     * violation on a unique contact column it repeats the value itself —
+     * exactly the shape `getMessage()` already leaked. The pair that is
+     * logged is enough to tell a duplicate key (23000/1062) from a lock
+     * wait timeout (HY000/1205) or a missing column (42S22/1054) at 3am,
+     * which is what actually needs diagnosing, without the value.
+     *
+     * A non-`QueryException` throwable (the cache counter's own catch has
+     * one path, this does not re-use it) logs only its built-in `getCode()`
+     * — a small, programmer-set integer on nearly every exception class,
+     * not data derived from this row.
+     *
+     * @return array<string, mixed>
+     */
+    protected function bcmsAuditFailureDiagnostics(\Throwable $e): array
+    {
+        if (! $e instanceof QueryException) {
+            return ['code' => $e->getCode() ?: null];
+        }
+
+        return [
+            'sqlstate' => $e->getCode() ?: ($e->errorInfo[0] ?? null),
+            'driver_error_code' => $e->errorInfo[1] ?? null,
+        ];
     }
 }

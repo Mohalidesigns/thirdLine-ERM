@@ -4,12 +4,15 @@ namespace Tests\Feature\Bcms;
 
 use App\Enums\Bcms\AlertSeverity;
 use App\Enums\Bcms\ContactSource;
+use App\Jobs\Bcms\DispatchAlertChunkJob;
 use App\Models\Bcms\Alert;
+use App\Models\Bcms\AlertRecipient;
 use App\Models\Bcms\AlertTemplate;
 use App\Models\Bcms\Contact;
 use App\Models\BusinessUnit;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Bcms\Emns\AlertDispatcher;
 use App\Services\Bcms\Emns\AlertService;
 use Database\Seeders\Bcms\BcmsReferenceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -276,6 +279,52 @@ class Phase7ScreensTest extends TestCase
             ->assertForbidden();
     }
 
+    /**
+     * Defect 5 (Gate 1): the `alerts.escalate-live` route is what makes
+     * `AlertController::dispatchAlert()`'s `bcms.alert.life_safety` branch
+     * reachable at all — before it existed, nothing could set
+     * `is_simulation = false` on an exercise-linked alert, so that branch was
+     * dead code. The service-level rule (unconditional dual approval once
+     * escalated) is tested in `Phase7EmnsTest`; this is the permission gate.
+     */
+    #[Test]
+    public function the_escalate_live_route_needs_the_life_safety_permission(): void
+    {
+        $alert = $this->exerciseAlert(AlertSeverity::Advisory);
+
+        $this->actingAs($this->userWith(['bcms.alert.view', 'bcms.alert.dispatch'], 'no-life-safety@khb.test'))
+            ->post(route('bcms.alerts.escalate-live', $alert))
+            ->assertForbidden();
+
+        $this->assertTrue((bool) $alert->refresh()->is_simulation, 'Refused: still a simulation.');
+    }
+
+    #[Test]
+    public function escalating_over_the_route_flips_the_flag_but_still_needs_dual_approval_before_dispatch(): void
+    {
+        $alert = $this->exerciseAlert(AlertSeverity::Advisory);
+
+        $this->actingAs($this->userWith(['bcms.alert.view', 'bcms.alert.life_safety'], 'escalator@khb.test'))
+            ->post(route('bcms.alerts.escalate-live', $alert))
+            ->assertRedirect();
+
+        $this->assertFalse((bool) $alert->refresh()->is_simulation);
+        $this->assertTrue(app(AlertService::class)->requiresDualApproval($alert->refresh()));
+
+        // Escalating does not dispatch anything by itself: one signature is
+        // still not dual approval. `life_safety` is required on `dispatch()`
+        // too now that the alert is exercise-linked and no longer a
+        // simulation, so the dispatcher here needs it to reach that far.
+        $dispatcher = $this->userWith(
+            ['bcms.alert.view', 'bcms.alert.dispatch', 'bcms.alert.life_safety'],
+            'dispatcher@khb.test',
+        );
+
+        $this->actingAs($dispatcher)
+            ->post(route('bcms.alerts.dispatch', $alert))
+            ->assertSessionHasErrors('dispatch');
+    }
+
     #[Test]
     public function the_evidence_export_streams_a_csv_an_examiner_can_read(): void
     {
@@ -293,6 +342,107 @@ class Phase7ScreensTest extends TestCase
         $this->assertStringContainsString('All times are UTC.', $body);
         $this->assertStringContainsString('Provider message id', $body);
         $this->assertStringContainsString('Amina', $body);
+    }
+
+    /**
+     * GATE 2 DEFECT 7, PERMANENT REGRESSION TESTS — the route-level half of
+     * the two-tier evidence export. `bcms.report.export` alone is the floor
+     * and gets the redacted pack, never a 403; both permissions together get
+     * the full pack; neither gets refused outright. `EvidenceExport`'s own
+     * mechanics (columns/rows/preamble/filename) are covered in
+     * `Phase7EmnsTest::the_redacted_pack_omits_address_and_response_text_and_says_so_on_its_face`
+     * — this is the permission wiring in `AlertController::evidence()`.
+     *
+     * One-line change that would make this fail: `Gate::allows('bcms.contact.export')`
+     * hard-coded to `true` (or the export permission check removed) in
+     * `AlertController::evidence()`.
+     */
+    #[Test]
+    public function report_export_alone_streams_the_redacted_pack_never_a_403(): void
+    {
+        $recipient = $this->contact('Amina');
+        $recipient->update(['mobile_primary' => '+2348000009999']);
+        $alert = $this->alert(AlertSeverity::Urgent);
+        app(AlertService::class)->release($alert, $this->admin()->id);
+        $this->dispatchAll($alert);
+
+        $response = $this->actingAs($this->userWith(['bcms.report.export']))
+            ->get(route('bcms.alerts.evidence', $alert->refresh()));
+
+        $response->assertOk();
+        $body = $response->streamedContent();
+
+        $this->assertStringContainsString(
+            'REDACTED', $body,
+            'The withholding must be declared on the pack\'s own face.',
+        );
+        $this->assertStringNotContainsString('+2348000009999', $body);
+
+        $headerLine = collect(explode("\n", $body))->first(fn ($line) => str_contains($line, 'Alert reference'));
+        $this->assertNotNull($headerLine);
+        $this->assertNotContains('Address', str_getcsv((string) $headerLine));
+        $this->assertNotContains('Response text', str_getcsv((string) $headerLine));
+
+        $this->assertStringContainsString(
+            'evidence-redacted.csv',
+            $response->headers->get('content-disposition') ?? '',
+        );
+    }
+
+    #[Test]
+    public function both_permissions_together_stream_the_full_unredacted_pack(): void
+    {
+        $recipient = $this->contact('Amina');
+        $recipient->update(['mobile_primary' => '+2348000009999']);
+        $alert = $this->alert(AlertSeverity::Urgent);
+        app(AlertService::class)->release($alert, $this->admin()->id);
+        $this->dispatchAll($alert);
+
+        $response = $this->actingAs($this->userWith(['bcms.report.export', 'bcms.contact.export']))
+            ->get(route('bcms.alerts.evidence', $alert->refresh()));
+
+        $response->assertOk();
+        $body = $response->streamedContent();
+
+        $this->assertStringNotContainsString('REDACTED', $body);
+        $this->assertStringContainsString('+2348000009999', $body);
+
+        $this->assertStringContainsString(
+            'bcms-alert-'.$alert->uuid.'-evidence.csv',
+            $response->headers->get('content-disposition') ?? '',
+        );
+        $this->assertStringNotContainsString(
+            'evidence-redacted.csv',
+            $response->headers->get('content-disposition') ?? '',
+        );
+    }
+
+    #[Test]
+    public function neither_permission_is_refused_the_export_outright(): void
+    {
+        $this->contact('Amina');
+        $alert = $this->alert(AlertSeverity::Urgent);
+        app(AlertService::class)->release($alert, $this->admin()->id);
+
+        $this->actingAs($this->userWith(['bcms.alert.view']))
+            ->get(route('bcms.alerts.evidence', $alert->refresh()))
+            ->assertForbidden();
+    }
+
+    /**
+     * `bcms.contact.export` alone, without `bcms.report.export`, is still
+     * refused — the floor is the export permission, not the contact one.
+     */
+    #[Test]
+    public function contact_export_alone_without_report_export_is_still_refused(): void
+    {
+        $this->contact('Amina');
+        $alert = $this->alert(AlertSeverity::Urgent);
+        app(AlertService::class)->release($alert, $this->admin()->id);
+
+        $this->actingAs($this->userWith(['bcms.contact.export']))
+            ->get(route('bcms.alerts.evidence', $alert->refresh()))
+            ->assertForbidden();
     }
 
     #[Test]
@@ -316,7 +466,56 @@ class Phase7ScreensTest extends TestCase
             ->assertNotFound();
     }
 
+    /**
+     * Defect 4 (Gate 1): `Alert` had a cross-tenant test for `show`,
+     * `live.json` and `roll-call`; `AlertRecipient` (the `respond` route) and
+     * `AlertTemplate` (`update`, `activate`) did not. Both use
+     * `BelongsToOrganization`, so the mechanism is probably sound — but
+     * "probably" is what these tests exist to remove.
+     */
+    #[Test]
+    public function the_respond_route_does_not_reach_another_tenants_recipient(): void
+    {
+        [$foreignAlert, $foreignRecipient] = $this->foreignAlertWithRecipient();
+
+        $this->actingAs($this->userWith(['bcms.alert.view']))
+            ->post(route('bcms.alerts.respond', [$foreignAlert, $foreignRecipient]), ['response' => 'safe'])
+            ->assertNotFound();
+    }
+
+    #[Test]
+    public function the_template_update_route_does_not_reach_another_tenants_template(): void
+    {
+        $foreign = $this->foreignTemplate();
+
+        $this->actingAs($this->userWith(['bcms.alert.template.manage']))
+            ->patch(route('bcms.alert-templates.update', $foreign), ['body' => 'Rewritten.'])
+            ->assertNotFound();
+    }
+
+    #[Test]
+    public function the_template_activate_route_does_not_reach_another_tenants_template(): void
+    {
+        $foreign = $this->foreignTemplate();
+
+        $this->actingAs($this->userWith(['bcms.alert.template.manage']))
+            ->post(route('bcms.alert-templates.activate', $foreign))
+            ->assertNotFound();
+    }
+
     /* ------------------------------------------------------------------ */
+
+    /** Run every queued chunk inline, so a delivery row (and its Address) exists. */
+    private function dispatchAll(Alert $alert): void
+    {
+        $ids = AlertRecipient::query()->where('alert_id', $alert->getKey())
+            ->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        foreach (array_chunk($ids, 200) as $chunk) {
+            (new DispatchAlertChunkJob((int) $alert->getKey(), (int) $alert->organization_id, $chunk))
+                ->handle(app(AlertDispatcher::class));
+        }
+    }
 
     private function alert(AlertSeverity $severity): Alert
     {
@@ -328,6 +527,48 @@ class Phase7ScreensTest extends TestCase
             'channels' => ['sms'],
             'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
         ], $this->admin()->id);
+    }
+
+    /** An exercise-linked alert — defaults to simulation, per criterion 5. */
+    private function exerciseAlert(AlertSeverity $severity): Alert
+    {
+        return app(AlertService::class)->compose([
+            'organization_id' => $this->organization->id,
+            'title' => 'Test exercise alert',
+            'message' => 'Please respond.',
+            'severity' => $severity->value,
+            'channels' => ['sms'],
+            'occurrence_id' => $this->occurrence(),
+            'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
+        ], $this->admin()->id);
+    }
+
+    private function occurrence(): int
+    {
+        $programme = \App\Models\Bcms\ExerciseProgramme::query()->create([
+            'organization_id' => $this->organization->id,
+            'year' => (int) now()->year,
+            'name' => 'Programme',
+            'status' => 'draft',
+        ]);
+
+        $type = \App\Models\Bcms\ExerciseType::query()->first();
+
+        $definition = \App\Models\Bcms\ExerciseDefinition::query()->create([
+            'organization_id' => $this->organization->id,
+            'exercise_programme_id' => $programme->getKey(),
+            'exercise_type_id' => $type?->getKey(),
+            'name' => 'Evacuation drill',
+            'frequency_per_year' => 1,
+        ]);
+
+        return (int) \App\Models\Bcms\ExerciseOccurrence::query()->create([
+            'organization_id' => $this->organization->id,
+            'definition_id' => $definition->getKey(),
+            'sequence_no' => 1,
+            'scheduled_date' => now()->addDay()->toDateString(),
+            'status' => \App\Enums\Bcms\OccurrenceStatus::Planned->value,
+        ])->getKey();
     }
 
     /** An alert belonging to a different tenant entirely. */
@@ -344,6 +585,77 @@ class Phase7ScreensTest extends TestCase
             'severity' => 'urgent', 'status' => 'draft', 'channels' => ['sms'],
             'audience_rule' => ['type' => 'org_node', 'id' => 1],
         ]);
+        TenantContext::set($this->organization->id);
+
+        return $foreign;
+    }
+
+    /**
+     * A dispatched alert and its recipient row, both belonging to a
+     * different tenant entirely.
+     *
+     * @return array{0: Alert, 1: \App\Models\Bcms\AlertRecipient}
+     */
+    private function foreignAlertWithRecipient(): array
+    {
+        $other = Organization::create([
+            'name' => 'Other Bank', 'short_name' => 'OB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        TenantContext::set($other->id);
+
+        $foreignAlert = Alert::query()->create([
+            'organization_id' => $other->id, 'title' => 'Theirs', 'message' => 'x',
+            'severity' => 'urgent', 'status' => 'dispatching', 'channels' => ['sms'],
+            'audience_rule' => ['type' => 'org_node', 'id' => 1],
+        ]);
+
+        $foreignContact = Contact::query()->create([
+            'organization_id' => $other->id,
+            'source' => ContactSource::Manual->value,
+            'full_name' => 'Theirs',
+            'employee_id' => 'OB-1',
+            'email' => 'theirs@ob.test',
+            'mobile_primary' => '+2348009990000',
+            'preferred_language' => 'en',
+            'consent_status' => 'granted',
+            'verification_status' => 'verified',
+            'last_verified_at' => now(),
+            'is_active' => true,
+        ]);
+
+        $foreignRecipient = \App\Models\Bcms\AlertRecipient::query()->create([
+            'organization_id' => $other->id,
+            'alert_id' => $foreignAlert->getKey(),
+            'contact_id' => $foreignContact->getKey(),
+            'resolved_channels' => ['sms'],
+            'contact_name_snapshot' => $foreignContact->full_name,
+            'status' => \App\Enums\Bcms\RecipientStatus::Queued->value,
+        ]);
+
+        TenantContext::set($this->organization->id);
+
+        return [$foreignAlert, $foreignRecipient];
+    }
+
+    /** A template belonging to a different tenant entirely (not a global one). */
+    private function foreignTemplate(): AlertTemplate
+    {
+        $other = Organization::create([
+            'name' => 'Other Bank', 'short_name' => 'OB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        TenantContext::set($other->id);
+
+        $foreign = AlertTemplate::query()->create([
+            'organization_id' => $other->id,
+            'code' => 'THEIRS', 'name' => 'Theirs', 'locale' => 'en',
+            'body' => 'This belongs to another tenant.',
+            'severity' => 'urgent', 'is_active' => true, 'is_system_default' => false,
+        ]);
+
         TenantContext::set($this->organization->id);
 
         return $foreign;

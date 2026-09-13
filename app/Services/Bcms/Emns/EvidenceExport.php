@@ -29,13 +29,31 @@ use Illuminate\Support\Collection;
  * IT IS IMMUTABLE BY CONSTRUCTION, not by a flag: nothing in the module updates
  * a delivery row after its terminal status, and the inbound handler refuses to
  * move one backwards.
+ *
+ * `Address` and `Response text` sit behind `bcms.contact.export`, not just
+ * `bcms.report.export`, and `$includeContactData` is how the caller says which
+ * it holds. `Address` is the recipient's mobile number or email — the same
+ * bulk contact-export material the offline plan bundle already gates behind
+ * `bcms.contact.export` (see `PlanSectionSource::isPersonalData()`). `Response
+ * text` is worse: the inbound parser's help vocabulary is `injured`, `hurt`,
+ * `trapped` and their Hausa, Yoruba, Igbo and Pidgin equivalents, so this
+ * column predictably collects health data about the sender and personal data
+ * about named third parties ("Musa is trapped on the third floor"). A holder
+ * of `bcms.report.export` alone — compliance-officer is exactly this case —
+ * gets every other column: who was told, on what, when, and whether it
+ * worked. What they do not get is the address it went to or the free text
+ * that came back. Withholding is on the pack's face, in `preamble()`, never
+ * silent.
  */
 class EvidenceExport
 {
+    /** Columns that require `bcms.contact.export` in addition to `bcms.report.export`. */
+    private const RESTRICTED_COLUMNS = ['Address', 'Response text'];
+
     /** @return list<string> */
-    public function columns(): array
+    public function columns(bool $includeContactData = true): array
     {
-        return [
+        $columns = [
             'Alert reference', 'Alert title', 'Severity', 'Simulation', 'Dispatched at (UTC)',
             'Recipient', 'Department', 'Site', 'Channel', 'Address', 'Provider',
             'Provider message id', 'Status', 'Attempts', 'Queued at (UTC)', 'Sent at (UTC)',
@@ -43,12 +61,16 @@ class EvidenceExport
             'Acknowledged at (UTC)', 'Response', 'Response text',
             'Escalated at (UTC)', 'Escalated to', 'Cost (minor units)', 'Currency',
         ];
+
+        return $includeContactData
+            ? $columns
+            : array_values(array_diff($columns, self::RESTRICTED_COLUMNS));
     }
 
     /**
      * @return list<list<string>>
      */
-    public function rows(Alert $alert): array
+    public function rows(Alert $alert, bool $includeContactData = true): array
     {
         /** @var Collection<int, AlertRecipient> $recipients */
         $recipients = AlertRecipient::query()
@@ -69,7 +91,7 @@ class EvidenceExport
 
         foreach ($deliveries as $delivery) {
             $recipient = $recipients->get($delivery->recipient_contact_id);
-            $rows[] = $this->row($alert, $recipient, $delivery);
+            $rows[] = $this->filterRow($this->row($alert, $recipient, $delivery), $includeContactData);
         }
 
         /*
@@ -86,14 +108,31 @@ class EvidenceExport
                 continue;
             }
 
-            $rows[] = $this->row($alert, $recipient, null);
+            $rows[] = $this->filterRow($this->row($alert, $recipient, null), $includeContactData);
         }
 
         return $rows;
     }
 
     /**
+     * Strips the columns `$includeContactData` says the caller may not have —
+     * keyed removal, not a positional slice, so a reordering of {@see columns()}
+     * can never desynchronise which value is dropped from which header.
+     *
+     * @param  array<string, string>  $row
      * @return list<string>
+     */
+    private function filterRow(array $row, bool $includeContactData): array
+    {
+        if (! $includeContactData) {
+            $row = array_diff_key($row, array_flip(self::RESTRICTED_COLUMNS));
+        }
+
+        return array_values($row);
+    }
+
+    /**
+     * @return array<string, string>
      */
     private function row(Alert $alert, ?AlertRecipient $recipient, ?NotificationDelivery $delivery): array
     {
@@ -113,7 +152,7 @@ class EvidenceExport
             default => '',
         };
 
-        return array_map('strval', [
+        return array_combine($this->columns(), array_map('strval', [
             $alert->uuid,
             $alert->title,
             $alert->severity->value,
@@ -149,12 +188,19 @@ class EvidenceExport
             // it was free.
             $delivery === null || $delivery->cost_minor === null ? '' : (string) $delivery->cost_minor,
             $delivery === null ? '' : (string) $delivery->currency,
-        ]);
+        ]));
     }
 
-    public function filename(Alert $alert): string
+    /**
+     * The redacted pack is a different artefact, not the same file with fewer
+     * columns and the same name — an examiner who has been handed both must be
+     * able to tell them apart without opening either.
+     */
+    public function filename(Alert $alert, bool $includeContactData = true): string
     {
-        return 'bcms-alert-'.$alert->uuid.'-evidence.csv';
+        $suffix = $includeContactData ? 'evidence' : 'evidence-redacted';
+
+        return 'bcms-alert-'.$alert->uuid.'-'.$suffix.'.csv';
     }
 
     /**
@@ -163,9 +209,9 @@ class EvidenceExport
      *
      * @return list<list<string>>
      */
-    public function preamble(Alert $alert): array
+    public function preamble(Alert $alert, bool $includeContactData = true): array
     {
-        return [
+        $lines = [
             ['Business continuity — emergency notification evidence'],
             ['ISO 22301 clause', (string) ($alert->iso_clause_ref ?? '8.4.3')],
             ['Alert', (string) $alert->title],
@@ -177,7 +223,18 @@ class EvidenceExport
             ['Note', 'One row per recipient per channel. A recipient with no reachable channel appears '
                 .'once with the reason. Delivery and read timestamps are present only where the gateway '
                 .'reports them — email, Teams and Slack do not.'],
-            [],
         ];
+
+        if (! $includeContactData) {
+            $lines[] = ['REDACTED', 'The "Address" and "Response text" columns have been withheld from '
+                .'this export. They require bcms.contact.export in addition to bcms.report.export: '
+                .'Address is the recipient\'s mobile number or email, and Response text is free-text '
+                .'that can name a person\'s condition or location. Ask a holder of bcms.contact.export '
+                .'for the full pack.'];
+        }
+
+        $lines[] = [];
+
+        return $lines;
     }
 }

@@ -148,4 +148,38 @@ return [
         'voice-tts' => env('BCMS_WEBHOOK_SECRET_VOICE'),
         'ussd-aggregator' => env('BCMS_WEBHOOK_SECRET_USSD'),
     ],
+
+    /*
+    | ADR 0016 §4 / phase-7-inbound-token-contract.md §3. GATE 2 DEFECT 5's
+    | fix — the roll-call route must never carry the tighter of the two
+    | limits — is preserved, but the single shared
+    | `webhook_rate_limit_per_minute` it introduced is gone: gate 2 tested the
+    | reasoning behind that number ("HMAC+timestamp verification rejects an
+    | unauthenticated caller cheaply before business logic runs") and it
+    | failed on the ACCEPTED path, which runs a cross-tenant scan over every
+    | open recipient product-wide until ADR 0016 §1 lands. A shared 10,000/min
+    | ceiling was ten times more of that scan than anything asked for it.
+    |
+    | THESE ARE INTERIM VALUES, NOT A RESTING STATE. 600/min is what the
+    | MORE dangerous of the two EMNS routes already carried before Gate 2's
+    | remediation, so this is a regression on neither route — but it does not
+    | meet criterion 1 (1,000 people answering inside 60 seconds) at any
+    | ceiling, because no number bounds a scan into acceptability. Only ADR
+    | 0016 §1 (`recipientForToken()` / `nodeForToken()` fetching one row by id
+    | instead of cursoring every open row) does that. The raise to 2,000 /
+    | 10,000, derived in the ADR, is a SEPARATE commit gated on §1's tests
+    | passing — shipping the fix and the raise together would make the raise
+    | unfalsifiable.
+    |
+    | Two keys, not one, because the two routes serve different criteria and
+    | the invariant that matters is not "they are equal" — it is "the
+    | life-safety route's ceiling is never below criterion 1's demand".
+    | Read by two named limiters in AppServiceProvider
+    | (`bcms-alert-reply`, `bcms-provider-status`), keyed on `{provider}+ip`.
+    | `bcms/cascade-inbound` — the second instance of the same scan,
+    | CascadeEngine::nodeForToken() — keeps its bare `throttle:60,1` in
+    | routes/bcms-webhooks.php for the same reason and is not read from here.
+    */
+    'alert_reply_rate_limit_per_minute' => (int) env('BCMS_ALERT_REPLY_RATE_LIMIT_PER_MINUTE', 600),
+    'provider_status_rate_limit_per_minute' => (int) env('BCMS_PROVIDER_STATUS_RATE_LIMIT_PER_MINUTE', 600),
 ];

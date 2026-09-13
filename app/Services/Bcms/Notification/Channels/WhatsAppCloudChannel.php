@@ -91,15 +91,33 @@ class WhatsAppCloudChannel extends HttpChannel
         $body = is_array($body) ? $body : [];
 
         if ($response->failed()) {
+            // GATE 2, THIRD ROUND (advisory 11, one adapter along). This used
+            // to append Meta's own `error.message` verbatim to `failed_reason`
+            // — some Meta Cloud API errors (e.g. "Recipient phone number not
+            // in allowed list") echo the destination MSISDN in that text, and
+            // `redact()` cannot reach a value inside free text. `error.code`
+            // is kept: it is Meta's own numeric error code, a bounded field
+            // with no capacity to carry an address, same reasoning as the SMTP
+            // reply code elsewhere in this file's siblings. `error.message`
+            // itself is classified (see `HttpChannel::classifyProviderError()`
+            // for exactly what that catches) rather than embedded, and is
+            // nulled out of `raw_response` below so it cannot reappear there.
             $error = data_get($body, 'error.message');
             $code = data_get($body, 'error.code');
+            $category = is_string($error) && $error !== '' ? $this->classifyProviderError($error) : null;
+
+            $reason = match (true) {
+                $code !== null && $category !== null => 'WhatsApp rejected the message (code '.$code.', '.$category.').',
+                $code !== null => 'WhatsApp rejected the message (code '.$code.').',
+                $category !== null => 'WhatsApp rejected the message ('.$category.').',
+                is_string($error) && $error !== '' => 'WhatsApp rejected the message (reason not classified).',
+                default => 'WhatsApp returned HTTP '.$response->status().'.',
+            };
 
             return DeliveryReceipt::failed(
                 $this->provider(),
-                is_string($error) && $error !== ''
-                    ? 'WhatsApp rejected the message'.($code ? ' (code '.$code.')' : '').': '.$error
-                    : 'WhatsApp returned HTTP '.$response->status().'.',
-                $this->safeResponse($response),
+                $reason,
+                $this->safeResponse($response, ['error.message']),
             );
         }
 

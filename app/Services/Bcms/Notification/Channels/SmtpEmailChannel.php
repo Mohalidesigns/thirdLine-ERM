@@ -84,7 +84,49 @@ class SmtpEmailChannel implements Configurable, NotificationChannel
             // Never throws for a provider failure — rule 2 of the frozen
             // interface. A refused mailbox must not abort a thousand-recipient
             // dispatch.
-            return DeliveryReceipt::failed($this->provider(), 'Mail transport error: '.$e->getMessage());
+            //
+            // GATE 2 ADVISORY 11 (round 1). `$e->getMessage()` used to go
+            // straight into `failed_reason`, a regulator-facing column kept
+            // for years. `redact()` strips known keys out of a structured
+            // array and has nothing to match in free text, so moving it out
+            // of that column was correct and stands.
+            //
+            // GATE 2, ROUND 2 (blocking defect 2). Logging the same message
+            // was not a fix. Symfony Mailer's `RfcComplianceException` message
+            // *is* the offending address — "<ade.okon@bank.ng>: Recipient
+            // address rejected" is the whole exception — and
+            // `SocketStream`/`TransportException` messages can carry the SMTP
+            // host and, on some transports, DSN fragments. None of that has a
+            // declared retention or residency once it is in the application
+            // log, and a deployment that wires Sentry or a log aggregator
+            // turns it into an eleventh processor nobody registered.
+            //
+            // What is logged instead: the exception class, which already
+            // separates a malformed address (`RfcComplianceException`,
+            // resolved before any network call) from a transport failure
+            // (`TransportException` and its `UnexpectedResponseException`
+            // subclass) from a misconfigured DSN (`IncompleteDsnException`,
+            // `UnsupportedSchemeException`) without reading a single
+            // character of message text; and, for the transport-failure
+            // branch, `getCode()` — which Symfony sets to the *numeric SMTP
+            // reply code* for both an authentication failure
+            // (`EsmtpTransport`: 535/504) and a rejected-recipient failure
+            // (`SmtpTransport::assertResponseCode`: e.g. 550, 421). That is a
+            // structured protocol field the library already provides, not a
+            // pattern match against prose, and it is exactly the bounded
+            // status code that tells an operator "our credential is wrong"
+            // (535) from "that mailbox does not exist" (550) from "temporary,
+            // try again" (421) apart from a bare "the gateway is down". A code
+            // of 0 means the transport did not set one (e.g. a socket-level
+            // failure before any SMTP reply) — reported as absent, not
+            // invented.
+            \Illuminate\Support\Facades\Log::warning('BCMS mail transport error', [
+                'transport' => config('mail.default'),
+                'exception' => get_class($e),
+                'smtp_code' => $e->getCode() ?: null,
+            ]);
+
+            return DeliveryReceipt::failed($this->provider(), 'Mail transport error.');
         }
 
         return DeliveryReceipt::sent(

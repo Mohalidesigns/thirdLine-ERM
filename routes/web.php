@@ -2650,10 +2650,21 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.alert.compose')->name('alerts.estimate');
         Route::post('alerts/{alert}/approve', [BcmsAlertController::class, 'approve'])
             ->middleware('permission:bcms.alert.approve')->name('alerts.approve');
+        Route::post('alerts/{alert}/escalate-live', [BcmsAlertController::class, 'escalateLive'])
+            ->middleware('permission:bcms.alert.life_safety')->name('alerts.escalate-live');
         Route::post('alerts/{alert}/dispatch', [BcmsAlertController::class, 'dispatchAlert'])
             ->middleware(['permission:bcms.alert.dispatch', 'mfa'])->name('alerts.dispatch');
         Route::post('alerts/{alert}/recipients/{recipient}/respond', [BcmsAlertController::class, 'respond'])
             ->middleware('permission:bcms.alert.view')->name('alerts.respond');
+        /*
+         * `bcms.report.export` is the floor for this route, not the whole
+         * gate. The controller separately checks `bcms.contact.export` and
+         * withholds `Address` and `Response text` — the same bulk-contact and
+         * free-text material `bcms.contact.export` already gates on the
+         * offline plan bundle above — from anyone who does not hold it. Keep
+         * this middleware and the controller's `Gate::authorize()` on the
+         * same permission; the two-tier decision belongs to the controller.
+         */
         Route::get('alerts/{alert}/evidence', [BcmsAlertController::class, 'evidence'])
             ->middleware('permission:bcms.report.export')->name('alerts.evidence');
 
@@ -2704,49 +2715,36 @@ Route::middleware(['signed', 'feature:bcms'])
     ->name('bcms.calendar.ics');
 
 /* ---------------------------------------------------------------------- */
-/*  Cascade acknowledgement — the other two routes outside `auth`. */
+/*  Cascade acknowledgement — the web-facing half. */
 /* ---------------------------------------------------------------------- */
 /*
  * A branch teller with a feature phone at three in the morning does not log
- * into a GRC platform to say "received". Criterion 3 wants three ways in and
- * two of them arrive with no session: the signed link in the message, and an
- * inbound reply posted by a gateway.
+ * into a GRC platform to say "received". Criterion 3 wants three ways in:
+ * the app, the signed link in the message (these two routes — a real browser
+ * session, real cookies, a real CSRF token on the form `store` submits), and
+ * an inbound reply posted by a gateway. That third way in has NO session and
+ * never will, so it is not here — see routes/bcms-webhooks.php, registered
+ * outside the `web` group in bootstrap/app.php, for it and for the two EMNS
+ * provider-callback routes that were living in this same group.
  *
- * The credential is an HMAC of the node id, compared with `hash_equals`. The
- * controller sets `TenantContext` from the resolved node before it reads
- * anything else — `OrganizationScope` is inert untenanted, and this is the
- * second route in the product where that matters.
+ * GATE 2, BCMS PHASE 7 DEFECT 1: `bcms/cascade-inbound`, `bcms/alert-reply`
+ * and `bcms/provider-status` were declared inside THIS group, which put them
+ * behind `ValidateCsrfToken` like every other route in `web`. A gateway posts
+ * no `_token` and no session cookie, so every one of those requests 419'd
+ * before the controller — and therefore the HMAC check — ever ran. That is
+ * the entire inbound half of EMNS, roll-call acknowledgement included, dead
+ * on arrival. Moving them out is the fix; the credential was never the
+ * session, it was the HMAC in the body.
+ *
+ * The credential on `show`/`store` here is the signed token in the URL, an
+ * HMAC of the node id compared with `hash_equals`. The controller sets
+ * `TenantContext` from the resolved node before it reads anything else —
+ * `OrganizationScope` is inert untenanted, and this is the second route in
+ * the product where that matters.
  */
 Route::middleware(['feature:bcms'])->group(function () {
     Route::get('bcms/cascade/{token}', [\App\Http\Controllers\Bcms\CascadeAckController::class, 'show'])
         ->name('bcms.cascade.ack');
     Route::post('bcms/cascade/{token}', [\App\Http\Controllers\Bcms\CascadeAckController::class, 'store'])
         ->name('bcms.cascade.ack.store');
-    /*
-     * Throttled, because it is the one route here a gateway posts to and
-     * nothing about it can carry a per-user credential. Phase 7 adds each
-     * provider's own signature scheme with its adapter; until then the rate
-     * limit and the in-body token are what stand between this and a stranger.
-     */
-    Route::post('bcms/cascade-inbound', [\App\Http\Controllers\Bcms\CascadeAckController::class, 'inbound'])
-        ->middleware('throttle:60,1')
-        ->name('bcms.cascade.inbound');
-
-    /*
-     * EMNS provider callbacks (Phase 7). A gateway posting a delivery receipt
-     * has no session and never will. What stands in for a login: a per-provider
-     * shared secret compared with `hash_equals`, a rate limit, and the rule that
-     * the body may never name a recipient — a reply carries a token this system
-     * minted, a receipt carries a message id this system stored. Both are
-     * throttled generously rather than tightly: a thousand-recipient dispatch
-     * produces a thousand delivery receipts within a minute or two, and
-     * rate-limiting our own evidence away would be worse than the abuse it
-     * prevents.
-     */
-    Route::post('bcms/alert-reply', [\App\Http\Controllers\Bcms\AlertWebhookController::class, 'reply'])
-        ->middleware('throttle:600,1')
-        ->name('bcms.alerts.reply');
-    Route::post('bcms/provider-status/{provider}', [\App\Http\Controllers\Bcms\AlertWebhookController::class, 'status'])
-        ->middleware('throttle:3000,1')
-        ->name('bcms.alerts.provider-status');
 });

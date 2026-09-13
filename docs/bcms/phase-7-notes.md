@@ -125,14 +125,144 @@ descendants.
 
 ## 5. Defects found
 
-- **A digit keyword matched inside the acknowledgement token.** `not_on_site`
-  was matched on the bare string `'3'` with `str_contains`, and the token is
-  sixteen hex characters — roughly two in three contain a 3. So a person
-  replying **"SAFE 8a3f…" was recorded as NOT ON SITE**: a false negative in a
-  roll-call, which is the direction that leaves somebody in a building. The
+- **GATE 2, THIRD ROUND, ADVISORY 11 — ONE ADAPTER SHORT, THEN FIVE MORE
+  CHECKED.** Rounds 1 and 2 closed the exception-message leak into the
+  application log; they did not touch `failed_reason`/`raw_response` on
+  `bcms_notification_deliveries` itself, which is a *different* sink — one
+  §6.1 of the NDPA register proposes retaining for **seven years** and
+  exporting to a regulator. `SmsGatewayChannel::reasonFrom()` took the
+  provider's own error string verbatim out of the response body
+  (`config('bcms-gateways.sms.*.response.error')` — `message` for Termii,
+  `SMSMessageData.Message` for Africa's Talking, `requestError.serviceException.text`
+  for Infobip) and returned it as `failed_reason`. Nigerian gateways routinely
+  echo the recipient in that string — "Invalid recipient 2348031234567", "DND
+  active for 234803…" — so an MSISDN landed on the regulator-facing record.
+  `redact()` cannot reach it: the number is a *value* inside free text, not a
+  keyed field, and `redact()` only matches keys.
+  **Auditing the other eight adapters for the same shape found two more,
+  neither on the list handed over:** `VoiceTtsChannel::interpret()` returned
+  the provider's `message` field verbatim on a rejected call, same defect,
+  same reasoning (a dialled number can appear in a voice gateway's rejection
+  text exactly as an MSISDN can in an SMS gateway's); and
+  `WhatsAppCloudChannel::interpret()` appended Meta's `error.message` to
+  `failed_reason` — some Meta Cloud API errors (e.g. "Recipient phone number
+  not in allowed list") name the destination directly. `UssdChannel`,
+  `WebPushChannel` and `WebhookChannel` were checked and are clean: every
+  `DeliveryReceipt::failed()` reason in those three is either a fixed string
+  or built only from `$response->status()`, never from response-body content.
+  `FailoverSmsChannel` needed no separate fix: it only relays each gateway's
+  own `failedReason` into its aggregated reason and `rawResponse.attempts`, so
+  it inherits the fix. `MockChannel`'s two failure strings are fixed literals
+  — confirmed, not assumed.
+  **`raw_response` carried the same string a second way and would have kept
+  doing so even after `failed_reason` was fixed** — `safeResponse()`'s
+  `redact()` only nulls known secret *keys*, so the provider's `message` /
+  `error` *value*, MSISDN included, would have passed straight through into
+  the JSON column sitting beside the now-fixed `failed_reason`, on the same
+  retained, exported row. Fixed together: `safeResponse()` takes an optional
+  list of dot-paths whose *value* (not key) is provider free text, and nulls
+  each one to `[see failed_reason category]` before the body is stored.
+  For the `failed_reason` string itself, the fix is classification, not
+  scrubbing — `HttpChannel::classifyProviderError()` matches the provider's
+  text against a short, closed, documented list of category labels (see its
+  docblock for exactly what is and is not caught) and returns one label or
+  `null`; the method never returns any part of its input, so a keyword it
+  does not recognise costs a diagnosis ("reason not classified" plus the HTTP
+  status), not a leak. Meta's own numeric `error.code` is kept as-is in
+  `failed_reason` alongside the category — it is Meta's bounded protocol
+  field, the same reasoning as the SMTP reply code in blocking defect 2 below.
+  Verified by constructing each shape directly (Termii/Africa's Talking-style
+  flat and nested JSON, and Meta's `error.message`/`error.code`) and asserting
+  neither the classifier nor `safeResponse()`'s redacted body ever contains
+  the seeded MSISDN.
+  **Two more sites were reported by the compliance-analyst as unassessed
+  rather than cleared, and are out of scope for this file:**
+  `MaterialiseReminderLadder` and `BcmsAuditable` both log `$e->getMessage()`
+  verbatim. Neither handles an address or a body directly, but
+  `BcmsAuditable::writeBcmsAuditRow()` passes a model's `$before`/`$after`
+  attribute arrays into `AuditLog::create()`, and Laravel's `QueryException`
+  appends the fully bound SQL to `getMessage()` — so a DB-level failure while
+  auditing a contact-bearing BCMS model would echo that contact's fields into
+  `Log::error()`. That is the same defect shape as this round, arguably with
+  a more direct path to personal data than the reminder-ladder listener,
+  which writes only schedule/readiness rows. Both were then fixed in the
+  same pass after all: each now logs the exception class and `getCode()` /
+  the SQLSTATE only, never `getMessage()`, and
+  `tests/Feature/Bcms/Phase7AuditFailureLoggingTest.php` holds that closed
+  (Gate 1, 2026-09-12, corrected this sentence — an earlier draft recorded
+  them as reported-not-fixed).
+- **GATE 2, SECOND ROUND, BLOCKING DEFECT 2.** Advisory 11's first-round fix
+  moved `$e->getMessage()` out of `failed_reason` (a 7-year regulator-facing
+  column) and into `Log::warning()`, in `HttpChannel::send()` and
+  `SmtpEmailChannel::send()`. That relocated the personal data rather than
+  removing it: Guzzle's `ConnectException` message and `getHandlerContext()`
+  both carry the full request URI — on an aggregator that puts the API key and
+  destination MSISDN in the query string, that is a credential and a phone
+  number — and Symfony Mailer's `RfcComplianceException` message *is* the
+  envelope recipient's address. The application log has no declared retention
+  or residency, and a deployment that wires Sentry or a log aggregator turns
+  it into an eleventh processor nobody registered.
+  Fixed by logging structured, bounded fields instead of any exception
+  message: `get_class($e)` plus provider/transport, plus — where the
+  underlying library already exposes one — a numeric protocol code rather
+  than parsed prose. For `HttpChannel`, that is the wrapped
+  `GuzzleHttp\Exception\ConnectException`'s `getHandlerContext()['errno']`
+  (a bare libcurl integer: 6 = could not resolve host, 7 = could not connect,
+  28 = timed out, 35 = SSL — never the context's `url`/`error` strings). For
+  `SmtpEmailChannel`, that is `$e->getCode()`, which Symfony's `SmtpTransport`
+  and `EsmtpTransport` already set to the numeric SMTP reply code (550 for a
+  rejected recipient, 535/504 for an auth failure) independently of the
+  message text — confirmed by constructing both exception types directly and
+  reading `getCode()` without ever calling `getMessage()`. Exactly what now
+  reaches the log from these two files, field by field, is in the handoff
+  report for this round; the NDPA register is being corrected to match by the
+  compliance-analyst.
+- **GATE 2 ADVISORY 10, DECIDED.** `AlertWebhookController::reply()` and
+  `status()` read `$request->json()->all()` unconditionally. Twilio, Africa's
+  Talking and most Nigerian aggregators post
+  `application/x-www-form-urlencoded`; the signature still verifies for them
+  (it is computed over `getContent()`, the raw body, regardless of content
+  type), so a form-encoded callback would pass the signature check and then
+  422 on `required:body` — reading as a signing problem when it is a parsing
+  one. Fixed rather than deferred: both routes now go through one private
+  `signedBody()` that reads `$request->request` (Symfony's parsed-POST-body
+  bag — never the query string, which lives only in `$request->query`) for a
+  form-encoded `Content-Type`, and `$request->json()` otherwise, so the two
+  content types cannot silently drift into different rules and
+  `$request->all()` — the exact query-string admission Gate 2 defect 1 closed
+  — is never called.
+  **Testing note for whoever writes the permanent test:** `Illuminate\Http\
+  Request::create()` (and therefore the plain `$this->post($uri, $data)` test
+  helper) puts `$data` straight into the request bag and leaves `getContent()`
+  empty — it does not serialise `$data` into a raw body the way a real
+  form-encoded POST arrives. A test asserting the form-encoded path must pass
+  **both** the parsed array as `$parameters` (so `$request->request` is
+  populated the way production's `$_POST` would be) **and** the matching
+  `http_build_query($data)` string as the explicit raw `$content` (so
+  `getContent()` — what the HMAC actually covers — matches what was signed);
+  `$this->call('POST', $uri, $data, [], [], $server, http_build_query($data))`
+  does this correctly, confirmed against this fix. Passing only one or the
+  other test-passes for the wrong reason: content-only leaves the request bag
+  empty and still 422s; parameters-only leaves `getContent()` empty and the
+  signature verifies against the wrong (empty) string.
+
+- **CORRECTED PER GATE 2 ADVISORY 13.** This entry previously claimed that a
+  digit keyword matched *inside* the acknowledgement token, and that a person
+  replying "SAFE 8a3f…" was recorded as NOT ON SITE. That was never how
+  `interpret()` matched — `MENU_CODES` (the keypad codes, including `'3'` for
+  not-on-site) is compared with `array_key_exists()` against the **whole**
+  normalised message, never with `str_contains`, so free-text "SAFE" plus a
+  token was never at risk of colliding with a bare "3". The actual defect was
+  in the token strip that now runs first in `interpret()`: without it, a
+  USSD-style reply of `"1 <token>"` where the token contains hex digits fails
+  to exact-match any `MENU_CODES` key or any keyword below, once the token
+  itself is part of the compared string, and falls through to `null` — a
+  **dropped** acknowledgement, not a misfiled one. Both are bad for a
+  roll-call, but a dropped answer reads as "never responded" while a misfiled
+  one reads as a false negative, and they call for different mitigations. The
   token is now stripped before interpretation and keypad codes match only the
-  whole message. Found by writing the test against the real token format rather
-  than a tidy fixture.
+  whole message. Found by writing the test against the real token format
+  rather than a tidy fixture.
 - **`EscalationService` took two dependencies it never used.** Harmless today;
   the kind of thing that makes the next person think escalation renders its own
   templates.
@@ -183,3 +313,25 @@ log driver and ships on-prem.
   liability.
 - **The AI alert composer is still off** (`bcms.ai.capabilities.alert_composer`),
   like every other AI capability. Phase 12.
+
+## 8. A MariaDB testing trap, for whoever forces a `QueryException` next
+
+Gate 1 needed a genuine `QueryException` for a defect-verification test and reached
+for a schema change inside the test to provoke one. On MariaDB 10.4 this does not
+do what it does on SQLite: **DDL implicitly commits.** `RefreshDatabase` wraps each
+test in a transaction and rolls it back at teardown, but a `Schema::table(...)` /
+`ALTER TABLE` run inside that transaction commits immediately and is *not* undone
+by the rollback — the transaction wrapper only ever covered DML. The column
+altered that way is left mutated for every test that runs afterwards against the
+same database, on this run and any later one that reuses it without a fresh
+migration.
+
+That is what happened here: forcing the exception this way corrupted a column in
+`risk_test_bcms7`, silently, until it was traced back and the database was rebuilt
+with `migrate:fresh`. **Do not force a `QueryException` with a schema change inside
+a `RefreshDatabase` test on MariaDB.** Provoke it a different way — a constraint
+violation on existing DML (a duplicate on a unique index, a foreign key pointing
+nowhere, a `NOT NULL` violation), or a mocked/partial connection — none of which
+commit outside the transaction. If a schema-level trigger is genuinely unavoidable,
+run it against a database nobody else's tests share and rebuild that database
+afterwards rather than trusting the rollback to have undone it.

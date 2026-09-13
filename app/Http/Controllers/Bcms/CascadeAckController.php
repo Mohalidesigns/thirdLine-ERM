@@ -176,11 +176,16 @@ class CascadeAckController extends Controller
         return $node;
     }
 
+    /**
+     * ADR 0016. Matches only the cascade namespace's shape,
+     * `c-{decimal node id}-{16 hex tag}` — an `r-…` alert-recipient token
+     * posted here is treated as no token at all, rejected by shape before
+     * any lookup, not as a failed scan.
+     */
     private function extractToken(string $body): ?string
     {
-        // Sixteen lowercase hex characters, anywhere in the message.
-        if (preg_match('/\b([0-9a-f]{16})\b/i', $body, $matches) === 1) {
-            return strtolower($matches[1]);
+        if (preg_match('/\bc-(\d{1,12})-([0-9a-f]{16})\b/i', $body, $matches) === 1) {
+            return 'c-'.$matches[1].'-'.strtolower($matches[2]);
         }
 
         return null;

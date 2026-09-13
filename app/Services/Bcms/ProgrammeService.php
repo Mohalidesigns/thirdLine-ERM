@@ -2,9 +2,14 @@
 
 namespace App\Services\Bcms;
 
+use App\Enums\Bcms\FindingClassification;
 use App\Enums\Bcms\IsoClauseRef;
 use App\Models\Bcms\ClauseRef;
+use App\Models\Bcms\CorrectiveAction;
+use App\Models\Bcms\ExerciseOccurrence;
+use App\Models\Bcms\Finding;
 use App\Models\Bcms\ManagementReview;
+use App\Models\Bcms\Plan;
 use App\Models\Bcms\Process;
 use App\Models\Bcms\Programme;
 use App\Models\Bcms\ProgrammeObligation;
@@ -12,7 +17,6 @@ use App\Models\Bcms\ProgrammeScopeItem;
 use App\Models\BusinessUnit;
 use App\Services\ReferenceCodeService;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
@@ -222,6 +226,18 @@ class ProgrammeService
     {
         $maturity = $this->maturity->latest();
 
+        // Eloquent, not DB::table(), for every one of these. `Finding`,
+        // `CorrectiveAction`, `ExerciseOccurrence` and `Plan` all carry
+        // `BelongsToOrganization`'s global scope and `SoftDeletes`;
+        // `DB::table()` passes through neither, in a request context or out
+        // of one. That combination is what let one tenant's minuted clause
+        // 9.3 record be computed off every other tenant's rows — the
+        // `whereNull('deleted_at')` calls this replaced existed only because
+        // `DB::table()` also bypassed soft-deletes, which is the tell that
+        // the wrong tool was reached for in the first place.
+        $yearStart = now()->startOfYear()->toDateString();
+        $yearEnd = now()->endOfYear()->toDateString();
+
         $review->update([
             'inputs' => [
                 'captured_at' => now()->toIso8601String(),
@@ -231,24 +247,30 @@ class ProgrammeService
                     'method_version' => $maturity->method_version,
                 ],
                 'findings' => [
-                    'open' => DB::table('bcms_findings')->whereNull('deleted_at')->where('status', 'open')->count(),
-                    'nonconformities_open' => DB::table('bcms_findings')->whereNull('deleted_at')
-                        ->where('status', 'open')->where('classification', 'nonconformity')->count(),
+                    'open' => Finding::query()->where('status', 'open')->count(),
+                    'nonconformities_open' => Finding::query()
+                        ->where('status', 'open')
+                        ->where('classification', FindingClassification::Nonconformity->value)
+                        ->count(),
                 ],
                 'corrective_actions' => [
-                    'open' => DB::table('bcms_corrective_actions')->whereNull('deleted_at')->whereIn('status', ['open', 'in_progress'])->count(),
-                    'overdue' => DB::table('bcms_corrective_actions')->whereNull('deleted_at')->where('status', 'overdue')->count(),
-                    'verified' => DB::table('bcms_corrective_actions')->whereNull('deleted_at')->where('status', 'verified')->count(),
+                    'open' => CorrectiveAction::query()->whereIn('status', ['open', 'in_progress'])->count(),
+                    'overdue' => CorrectiveAction::query()->where('status', 'overdue')->count(),
+                    'verified' => CorrectiveAction::query()->where('status', 'verified')->count(),
                 ],
                 'exercises' => [
-                    'planned' => DB::table('bcms_exercise_occurrences')->whereNull('deleted_at')->whereYear('scheduled_date', now()->year)->count(),
-                    'completed' => DB::table('bcms_exercise_occurrences')->whereNull('deleted_at')->whereYear('scheduled_date', now()->year)->where('status', 'completed')->count(),
-                    'missed' => DB::table('bcms_exercise_occurrences')->whereNull('deleted_at')->whereYear('scheduled_date', now()->year)->whereIn('status', ['missed', 'cancelled'])->count(),
+                    // A closed date range rather than `whereYear()`: the
+                    // column is already `date`-cast, and wrapping it in a
+                    // function on every row rules out the index on it
+                    // (development standard's MariaDB note).
+                    'planned' => ExerciseOccurrence::query()->whereBetween('scheduled_date', [$yearStart, $yearEnd])->count(),
+                    'completed' => ExerciseOccurrence::query()->whereBetween('scheduled_date', [$yearStart, $yearEnd])->where('status', 'completed')->count(),
+                    'missed' => ExerciseOccurrence::query()->whereBetween('scheduled_date', [$yearStart, $yearEnd])->whereIn('status', ['missed', 'cancelled'])->count(),
                 ],
                 'plans' => [
-                    'approved' => DB::table('bcms_plans')->whereNull('deleted_at')->where('status', 'approved')->count(),
-                    'review_overdue' => DB::table('bcms_plans')->whereNull('deleted_at')->where('status', 'approved')
-                        ->whereNotNull('next_review_date')->whereDate('next_review_date', '<', now()->toDateString())->count(),
+                    'approved' => Plan::query()->where('status', 'approved')->count(),
+                    'review_overdue' => Plan::query()->where('status', 'approved')
+                        ->whereNotNull('next_review_date')->where('next_review_date', '<', now()->toDateString())->count(),
                 ],
             ],
             'inputs_captured_at' => now(),

@@ -24,6 +24,12 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  * had the alert on every channel they have; a seventh copy is what teaches
  * people to ignore the sixth. The manager is the one who can physically go and
  * find them, which in an evacuation is the only thing that helps.
+ *
+ * TENANCY RESTORES THE CALLER'S CONTEXT RATHER THAN CLEARING IT — see
+ * `DispatchAlertChunkJob` for the full reasoning. A real queue worker starts
+ * untenanted, so this costs nothing there; run inline (a seeder, `sync`, a
+ * test) it stops the caller silently losing its own tenant the moment this
+ * job returns.
  */
 class EscalateAlertRecipientsJob implements ShouldQueue
 {
@@ -40,9 +46,7 @@ class EscalateAlertRecipientsJob implements ShouldQueue
 
     public function handle(EscalationService $escalation): void
     {
-        TenantContext::set($this->organizationId);
-
-        try {
+        TenantContext::actingAs($this->organizationId, function () use ($escalation): void {
             $alert = Alert::query()->find($this->alertId);
 
             if ($alert === null || ! $alert->escalation_enabled) {
@@ -50,8 +54,6 @@ class EscalateAlertRecipientsJob implements ShouldQueue
             }
 
             $escalation->escalateUnacknowledged($alert);
-        } finally {
-            TenantContext::clear();
-        }
+        });
     }
 }

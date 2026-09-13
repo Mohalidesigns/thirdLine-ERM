@@ -472,37 +472,74 @@ class CascadeEngine
     }
 
     /**
-     * The token that lets a web link or an SMS reply identify one node without
-     * the responder being logged in.
+     * ADR 0016. `c-{decimal node id}-{16 hex tag}` — the `c` namespace, so a
+     * recipient token (`r-…`) posted to a cascade route is rejected by shape,
+     * before any lookup. The tag itself is unchanged: an HMAC comparable in
+     * constant time, so it cannot be recovered a character at a time.
      */
     public function tokenFor(CallTreeTestNode $testNode): string
     {
-        return substr(hash_hmac('sha256', 'bcms-cascade-'.$testNode->getKey(), (string) config('app.key')), 0, 16);
+        $id = (int) $testNode->getKey();
+
+        return 'c-'.$id.'-'.$this->tagFor($id);
     }
 
+    /**
+     * The tag alone, for a given node id — including a sentinel id naming no
+     * real row. `nodeForToken()` computes this on the not-found path too, so
+     * "no such node" costs exactly what a real lookup costs (ADR 0016 §3).
+     */
+    public function tagFor(int $id): string
+    {
+        return substr(hash_hmac('sha256', 'bcms-cascade-'.$id, (string) config('app.key')), 0, 16);
+    }
+
+    /**
+     * ADR 0016. `{prefix}-{decimal row id}-{16 hex tag}`, matched
+     * case-insensitively. Only a `c-…` shape is recognised here — an `r-…`
+     * recipient token is treated as no token at all, not as a failed lookup.
+     */
+    private const TOKEN_PATTERN = '/\bc-(\d{1,12})-([0-9a-f]{16})\b/i';
+
+    /** A node id that names no real row (ids are auto-increment from 1). */
+    private const SENTINEL_NODE_ID = 0;
+
+    /**
+     * ADR 0016 §1 and §3. One indexed fetch by primary key, with the
+     * eligibility predicate applied INSIDE the query, then a tag comparison
+     * that always runs — never an early return between the fetch and the
+     * compare, so "no such node", "wrong tag" and "closed cascade" cost the
+     * same and answer the same.
+     *
+     * Scoped to cascades that are still OPEN rather than to nodes that are
+     * still pending. A node that has already answered has to keep resolving,
+     * or the second tap on the link in a message — which is what people do
+     * when they are not sure the first one worked — would tell them the link
+     * was dead rather than that their answer was recorded.
+     */
     public function nodeForToken(string $token): ?CallTreeTestNode
     {
-        // Scoped to cascades that are still OPEN rather than to nodes that are
-        // still pending. A node that has already answered has to keep
-        // resolving, or the second tap on the link in a message — which is what
-        // people do when they are not sure the first one worked — would tell
-        // them the link was dead rather than that their answer was recorded.
-        // A closed cascade is genuinely no longer live and stops resolving,
-        // which is also what bounds this scan: hundreds of rows, not millions.
+        if (preg_match(self::TOKEN_PATTERN, $token, $m) !== 1) {
+            return null;
+        }
+
+        $id = (int) $m[1];
+        $presentedTag = strtolower($m[2]);
+
         $open = CallTreeTest::query()
             ->whereNotNull('initiated_at')
             ->whereNull('completed_at')
             ->select('id');
 
-        // Compared in constant time, so a token cannot be recovered a character
-        // at a time.
-        foreach (CallTreeTestNode::query()->whereIn('test_id', $open)->cursor() as $candidate) {
-            if (hash_equals($this->tokenFor($candidate), $token)) {
-                return $candidate;
-            }
-        }
+        $row = CallTreeTestNode::query()
+            ->whereKey($id)
+            ->whereIn('test_id', $open)
+            ->first();
 
-        return null;
+        $expectedTag = $this->tagFor($row !== null ? (int) $row->getKey() : self::SENTINEL_NODE_ID);
+        $tagMatches = hash_equals($expectedTag, $presentedTag);
+
+        return $row !== null && $tagMatches ? $row : null;
     }
 
     /* ------------------------------------------------------------------ */

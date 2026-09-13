@@ -288,13 +288,16 @@ class Preflight extends Command
             // category again. A gateway posting a delivery receipt has no
             // session and never will; a person replying "SAFE" from a feature
             // phone has none either. What stands in for a login: a per-provider
-            // shared secret compared with `hash_equals` on the status route, a
-            // rate limit on both, and the rule that the body may never name a
-            // recipient — a reply carries a token this system minted and a
-            // receipt carries a message id this system stored. A payload that
-            // could say "recipient 4192 is safe" is a payload that can mark a
-            // whole branch safe from the public internet.
-            'bcms/alert-reply',
+            // shared secret compared with `hash_equals`, a rate limit on both,
+            // and the rule that the body may never name a recipient — a reply
+            // carries a token this system minted and a receipt carries a
+            // message id this system stored. A payload that could say
+            // "recipient 4192 is safe" is a payload that can mark a whole
+            // branch safe from the public internet, which is why `reply()`
+            // (unlike `status()`) REFUSES an unsigned callback rather than
+            // accepting one when no secret is configured — see
+            // `AlertWebhookController`'s docblock.
+            'bcms/alert-reply/{provider}',
             'bcms/provider-status/{provider}',
 
             // Livewire's two framework endpoints were here — upload-file and

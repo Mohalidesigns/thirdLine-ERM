@@ -33,6 +33,18 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  * hit on the ICS feed and Phase 6 hit on cascade acknowledgement. Without this
  * line a worker would read every organisation's recipients.
  *
+ * IT RESTORES THE CALLER'S TENANT RATHER THAN CLEARING IT. A real queue worker
+ * starts every job with no tenant resolved, so `actingAs()` and a bare
+ * `clear()` behave identically there — the previous context is already null.
+ * They differ only when this job is run inline: a seeder, a `sync` queue
+ * driver, or a test that already has a tenant active. `clear()` would wipe
+ * that caller's tenant the moment this job returns, so the NEXT line in the
+ * SAME caller silently loses its own tenant — the exact defect that cost a
+ * failed maturity assessment before it was found (see `Phase7EmnsTest`).
+ * `actingAs()` costs nothing in the worker case and fixes the inline one.
+ * `App\Services\Tprm\Reporting\ScheduledReportDispatcher` uses the same
+ * primitive for the same reason.
+ *
  * IT IS IDEMPOTENT ON RECIPIENT STATUS. A retried chunk re-selects only rows
  * still `queued`, so a worker that died halfway does not send the first half
  * twice. Sending an evacuation notice twice is survivable; sending it twice to
@@ -65,9 +77,7 @@ class DispatchAlertChunkJob implements ShouldQueue
 
     public function handle(AlertDispatcher $dispatcher): void
     {
-        TenantContext::set($this->organizationId);
-
-        try {
+        TenantContext::actingAs($this->organizationId, function () use ($dispatcher): void {
             $alert = Alert::query()->find($this->alertId);
 
             if ($alert === null) {
@@ -85,9 +95,7 @@ class DispatchAlertChunkJob implements ShouldQueue
             }
 
             $dispatcher->dispatchBatch($alert, $recipients);
-        } finally {
-            TenantContext::clear();
-        }
+        });
     }
 
     /** @return list<string> */

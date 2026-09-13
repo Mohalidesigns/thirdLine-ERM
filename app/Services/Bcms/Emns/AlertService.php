@@ -200,11 +200,33 @@ class AlertService
      * A SIMULATION NEVER NEEDS APPROVAL. It reaches nobody outside the sandbox,
      * and requiring a second authoriser to run a training exercise is how
      * operators learn to route around the control.
+     *
+     * AN EXERCISE ESCALATED TO A LIVE DISPATCH ALWAYS NEEDS IT, unconditionally
+     * — not "if it also trips the severity or headcount threshold". Standing
+     * rule: exercise-linked traffic defaults to simulation, and the one way off
+     * that default (`AlertController::escalateLive()`, gated on
+     * `bcms.alert.life_safety`) must never be a single person's decision. The
+     * only way an alert reaches this check with `occurrence_id` set and
+     * `is_simulation` false is via that escalation — `compose()` always
+     * defaults an exercise-linked alert to simulation.
+     *
+     * `$recipientCount`, WHEN GIVEN, MUST BE A FRESHLY RESOLVED COUNT, NOT THE
+     * STORED COLUMN. `bcms_alerts.recipient_count` is only ever written by
+     * `estimate()` — an optional, manually-triggered step — and by `release()`
+     * itself. Falling back to the stored value here is correct for advisory
+     * reads (a dashboard showing "would this need approval"); `release()` must
+     * never take that fallback, because an alert nobody estimated reads as
+     * zero recipients, and zero is "nobody counted", not "the audience is
+     * small".
      */
     public function requiresDualApproval(Alert $alert, ?int $recipientCount = null): bool
     {
         if ($alert->is_simulation) {
             return false;
+        }
+
+        if ($alert->occurrence_id !== null) {
+            return true;
         }
 
         if ($alert->template?->requires_dual_approval) {
@@ -234,10 +256,112 @@ class AlertService
         return $severityTrips || $count >= $countThreshold;
     }
 
+    /**
+     * Turn an exercise-linked alert off simulation, so it reaches its real
+     * audience for real.
+     *
+     * THE PERMISSION CHECK IS THE CALLER'S JOB (`bcms.alert.life_safety`,
+     * enforced in `AlertController`), not this method's — the same split
+     * `approve()` and `release()` already use. What this method owns is the
+     * state change and the fact that `requiresDualApproval()` will now return
+     * true unconditionally for it, so `release()` refuses the alert until two
+     * different people have approved it, same as any other dual-approval
+     * alert. There is deliberately no separate "un-escalate": going back to
+     * simulation is a new draft, not an undo of a safety decision.
+     *
+     * ANY APPROVAL ALREADY ON THE RECORD WAS GIVEN FOR THE DRILL, NOT FOR A
+     * LIVE DISPATCH, AND IS WITHDRAWN HERE. Two signatures collected while
+     * `requiresDualApproval()` returned false for a simulation cannot be
+     * allowed to satisfy the unconditional requirement this method is about to
+     * switch on — `isDispatchable()` must not read stale approvals as consent
+     * to something nobody was asked to consent to. `approved_by`,
+     * `approved_at`, `second_approved_by` and `second_approved_at` are nulled
+     * and `status` is reset to `draft` in the same state change, and the
+     * withdrawal — what was cleared, and why — is recorded in the audit entry
+     * rather than silently disappearing from the record.
+     */
+    public function escalateLive(Alert $alert, User $actor): Alert
+    {
+        if ($alert->occurrence_id === null) {
+            throw new InvalidArgumentException(
+                'Only an alert linked to an exercise can be escalated to a live dispatch.'
+            );
+        }
+
+        if (! $alert->is_simulation) {
+            throw new InvalidArgumentException('This alert already targets a live dispatch.');
+        }
+
+        if ($alert->status === 'dispatched' || $alert->status === 'dispatching') {
+            throw new InvalidArgumentException('This alert has already been dispatched as a simulation.');
+        }
+
+        $withdrawn = [
+            'status' => $alert->status,
+            'approved_by' => $alert->approved_by,
+            'approved_at' => $alert->approved_at?->toIso8601String(),
+            'second_approved_by' => $alert->second_approved_by,
+            'second_approved_at' => $alert->second_approved_at?->toIso8601String(),
+        ];
+
+        $hadApprovals = $alert->approved_by !== null || $alert->second_approved_by !== null;
+
+        $alert->forceFill([
+            'is_simulation' => false,
+            'status' => 'draft',
+            'approved_by' => null,
+            'approved_at' => null,
+            'second_approved_by' => null,
+            'second_approved_at' => null,
+            'updated_by' => $actor->getKey(),
+        ])->save();
+
+        $alert->recordAudit('alert.exercise_escalated_live', [
+            'escalated_by' => $actor->name,
+            'severity' => $alert->severity->value,
+            'occurrence_id' => $alert->occurrence_id,
+            'approvals_withdrawn' => $hadApprovals,
+            'withdrawn' => $withdrawn,
+            'reason' => 'Signatures given for a simulation do not carry over to a live dispatch; '
+                .'both authorisers must approve again.',
+        ]);
+
+        return $alert->refresh();
+    }
+
     public function approve(Alert $alert, User $approver): Alert
     {
         if ($alert->status === 'dispatched') {
             throw new InvalidArgumentException('This alert has already been dispatched.');
+        }
+
+        // A SIMULATION CANNOT BE "APPROVED". `requiresDualApproval()` is false
+        // for every simulation by design (a drill reaches nobody outside the
+        // sandbox), so without this guard a simulation could collect two
+        // signatures that mean nothing at the moment they are given, and only
+        // become live approvals later if the alert is escalated — which is
+        // exactly how a drill's paperwork turns into a live evacuation's
+        // authorisation. `escalateLive()` withdraws any approval already on
+        // the record for the same reason; this stops one from being recorded
+        // in the first place.
+        //
+        // THE GUARD CHECKS `is_simulation` DIRECTLY, NOT `requiresDualApproval()`.
+        // The full predicate also depends on `recipient_count`, which
+        // `estimate()` — an optional, manually-triggered button — may never
+        // have populated. Guarding on the full predicate would let a real,
+        // high-volume alert nobody had estimated read as "does not require
+        // approval" here while `release()` (which always resolves the real
+        // audience before deciding) correctly demands that same approval a
+        // moment later — an alert `approve()` says needs nothing and
+        // `release()` refuses to send, told to the same operator in the same
+        // incident. `approve()` and `release()` must never disagree about
+        // whether an alert needs a second signature, so the guard here is
+        // narrowed to the one condition that is true regardless of any count:
+        // a simulation never needs it, full stop.
+        if ($alert->is_simulation) {
+            throw new InvalidArgumentException(
+                'A simulation does not require approval and cannot be approved.'
+            );
         }
 
         // THE SECOND AUTHORISER CANNOT BE THE FIRST. A dual-approval control
@@ -268,14 +392,21 @@ class AlertService
         return $alert->refresh();
     }
 
-    /** Is this alert cleared to go out? */
-    public function isDispatchable(Alert $alert): bool
+    /**
+     * Is this alert cleared to go out?
+     *
+     * `$recipientCount`, WHEN GIVEN, MUST BE A FRESHLY RESOLVED COUNT. See
+     * `requiresDualApproval()` — this method only forwards it. Callers showing
+     * an advisory state (the dashboard) may omit it and take the stored
+     * column; `release()` must never omit it.
+     */
+    public function isDispatchable(Alert $alert, ?int $recipientCount = null): bool
     {
         if ($alert->status === 'dispatched') {
             return false;
         }
 
-        if (! $this->requiresDualApproval($alert)) {
+        if (! $this->requiresDualApproval($alert, $recipientCount)) {
             return true;
         }
 
@@ -297,15 +428,23 @@ class AlertService
      */
     public function release(Alert $alert, ?int $userId = null): Collection
     {
-        if (! $this->isDispatchable($alert)) {
+        // THE AUDIENCE IS RESOLVED BEFORE THE DUAL-APPROVAL CHECK, NOT AFTER.
+        // `recipient_count` is only ever written by `estimate()` — an optional,
+        // manually-triggered button — and by this method itself, so reading
+        // the stored column here would let an alert nobody estimated dispatch
+        // as if it had zero recipients. A rate, or a count, over "nobody
+        // looked" is undefined, not zero, and the blast-radius threshold this
+        // gate exists to enforce must be checked against the real audience,
+        // not against whether an operator happened to click a button first.
+        $rule = $alert->audience_rule ? AudienceRule::fromArray($alert->audience_rule) : null;
+        $contacts = $this->audience->resolve($rule);
+
+        if (! $this->isDispatchable($alert, $contacts->count())) {
             throw new InvalidArgumentException(
                 'This alert needs a second authoriser before it can be dispatched. '
                 .'The attempt has been recorded.'
             );
         }
-
-        $rule = $alert->audience_rule ? AudienceRule::fromArray($alert->audience_rule) : null;
-        $contacts = $this->audience->resolve($rule);
 
         if ($contacts->isEmpty()) {
             throw new InvalidArgumentException(

@@ -64,14 +64,38 @@ class InboundResponseHandler
     private const OFF_SITE_WORDS = ['not on site', 'off site', 'offsite', 'not here', 'on leave', 'away'];
 
     /**
+     * ADR 0016. `r-{decimal recipient id}-{16 hex tag}`, matched
+     * case-insensitively (some gateways upcase message bodies, and a USSD
+     * keypad has no case at all) and lower-cased before comparison. Matches
+     * ONLY this namespace's prefix — a `c-…` cascade token posted here is
+     * rejected by shape, with no lookup, rather than failing a scan.
+     */
+    private const TOKEN_PATTERN = '/\br-(\d{1,12})-([0-9a-f]{16})\b/i';
+
+    /**
+     * A row id that names no real recipient (ids are auto-increment from 1).
+     * Used only to give the "no token" and "unknown id" paths something to
+     * compute a tag against, so they cost exactly what a real lookup costs.
+     */
+    private const SENTINEL_RECIPIENT_ID = 0;
+
+    /**
      * The USSD keypad menu. THESE ARE MATCHED ONLY AS THE WHOLE MESSAGE.
      *
-     * A single digit compared with `str_contains` is a live hazard, not a
-     * theoretical one: the acknowledgement token is sixteen hex characters and
-     * roughly two in three contain a "3", so a person replying "SAFE 8a3f…"
-     * was being recorded as NOT ON SITE — a false negative in a roll-call,
-     * which is the direction that gets somebody left in a building. Found by a
-     * test on the real token format rather than on a tidy fixture.
+     * CORRECTED PER GATE 2 ADVISORY 13 — a previous version of this comment
+     * claimed a reply of "SAFE 8a3f…" was being misfiled as NOT ON SITE. That
+     * was never true: `MENU_CODES` is matched with `array_key_exists()`
+     * against the WHOLE normalised message below, never with `str_contains`,
+     * so a free-text "SAFE" plus a token was never at risk of colliding with
+     * the digit "3" here. The real hazard was in the token strip at the top
+     * of `interpret()`: without it, a token containing a "3" survives into
+     * the normalised string, "1 8a3f…" is not an exact match for any
+     * `MENU_CODES` key OR any word below, and the reply falls through every
+     * branch to `null` — a DROPPED acknowledgement, not a misfiled one. A
+     * dropped USSD "1 <token>" reads as "never answered", not "reported not
+     * on site"; both are bad, but they are not the same defect, and a fix
+     * aimed at the wrong one would have left the token strip untested. See
+     * the test on the real token format below rather than a tidy fixture.
      *
      * @var array<int|string, string>
      */
@@ -124,8 +148,15 @@ class InboundResponseHandler
      */
     public function interpret(string $body): ?string
     {
-        // The token is stripped FIRST. It is sixteen hex characters of noise
-        // that will otherwise be matched against every keyword below.
+        // The token is stripped FIRST — otherwise it is noise that gets
+        // matched against every keyword below. ADR 0016 put a decimal row id
+        // into the token ("r-3-…"), so a strip that removed only the trailing
+        // sixteen hex characters would leave "r 3" behind and break a
+        // whole-message MENU_CODES match exactly the way a bare token
+        // containing a "3" once did (see the regression test on this class).
+        // Both shapes are stripped: the current prefixed token, and the bare
+        // sixteen-hex form for anything that still produces one.
+        $body = preg_replace('/\b[rc]-\d{1,12}-[0-9a-f]{16}\b/i', ' ', $body) ?? $body;
         $body = preg_replace('/\b[0-9a-f]{16}\b/i', ' ', $body) ?? $body;
 
         $normalised = trim(mb_strtolower(preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $body) ?? $body));
@@ -182,7 +213,23 @@ class InboundResponseHandler
             return null;
         }
 
+        /*
+         * GATE 2 DEFECT 2. `$provider` was resolved by the controller and
+         * never used here — matching on `provider_message_id` ALONE. Before
+         * this gate, a simulation's id was `'sim-'.$delivery->getKey()`, a
+         * global auto-increment every simulated delivery in the product
+         * shares, so an unauthenticated caller could walk sim-1..sim-N and
+         * move ANY tenant's delivery row forward, stamping `delivered_at` or
+         * `read_at` on a record `EvidenceExport` hands to a regulator. Binding
+         * the query to `$provider` closes the cross-tenant path even for a
+         * guessed id, because a caller would additionally have to name the
+         * provider that actually sent that message — and it turns this into
+         * an index-covered lookup on `(provider, provider_message_id)`
+         * instead of a full scan on the second column alone, which is what
+         * the migration actually indexes.
+         */
         $delivery = NotificationDelivery::query()
+            ->where('provider', $provider)
             ->where('provider_message_id', $messageId)
             ->first();
 
@@ -247,24 +294,47 @@ class InboundResponseHandler
         };
     }
 
+    /**
+     * Returns the whole matched token (e.g. `r-48213-9f2c1ab77d0e4b31`), or
+     * null when the body carries nothing of this namespace's shape — which
+     * includes a `c-…` cascade token, rejected by shape rather than by a
+     * failed lookup (ADR 0016 §1).
+     */
     public function extractToken(string $body): ?string
     {
-        return preg_match('/\b([0-9a-f]{16})\b/i', $body, $m) === 1 ? strtolower($m[1]) : null;
+        return preg_match(self::TOKEN_PATTERN, $body, $m) === 1
+            ? 'r-'.$m[1].'-'.strtolower($m[2])
+            : null;
     }
 
     /**
-     * Scoped to alerts still awaiting answers, which bounds the scan and makes
-     * "no longer live" a real answer rather than a lookup failure.
+     * ADR 0016 §1 and §3. One indexed fetch by primary key, with the
+     * eligibility window applied INSIDE the query (`openRecipients()`), then
+     * a tag comparison that runs unconditionally — never an early return
+     * between the fetch and the compare.
+     *
+     * When no row matches the id, the tag is still computed and compared,
+     * against a fixed sentinel id, and the result is discarded. That is what
+     * makes "no such recipient", "wrong tag for a real recipient", "closed
+     * alert" and "malformed token" indistinguishable in both timing and
+     * response — an early `if ($row === null) return null;` here is exactly
+     * the oracle this method exists to close.
      */
     private function recipientForToken(string $token): ?AlertRecipient
     {
-        foreach ($this->openRecipients()->cursor() as $candidate) {
-            if (hash_equals($this->dispatcher->tokenFor($candidate), $token)) {
-                return $candidate;
-            }
+        if (preg_match(self::TOKEN_PATTERN, $token, $m) !== 1) {
+            return null;
         }
 
-        return null;
+        $id = (int) $m[1];
+        $presentedTag = strtolower($m[2]);
+
+        $row = $this->openRecipients()->whereKey($id)->first();
+
+        $expectedTag = $this->dispatcher->tagFor($row !== null ? (int) $row->getKey() : self::SENTINEL_RECIPIENT_ID);
+        $tagMatches = hash_equals($expectedTag, $presentedTag);
+
+        return $row !== null && $tagMatches ? $row : null;
     }
 
     /**

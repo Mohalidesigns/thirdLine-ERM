@@ -112,6 +112,34 @@ class AlertController extends Controller
         return response()->json($this->alerts->estimate($alert));
     }
 
+    /**
+     * Take an exercise off simulation, so it targets a live dispatch.
+     *
+     * Gated on `bcms.alert.life_safety` — the same permission
+     * `dispatchAlert()` already demands for exactly this state (occurrence_id
+     * set, not a simulation), which until this route existed was a branch
+     * nothing could reach. Escalating does not dispatch anything: it only
+     * makes `requiresDualApproval()` trip unconditionally, so `approve()`
+     * still needs two different people before `dispatchAlert()` will release
+     * it — standing rule 5's "requires dual approval", not a single person's
+     * say-so.
+     */
+    public function escalateLive(Request $request, Alert $alert): RedirectResponse
+    {
+        Gate::authorize('bcms.alert.life_safety');
+
+        try {
+            $this->alerts->escalateLive($alert, $request->user());
+        } catch (InvalidArgumentException $e) {
+            throw ValidationException::withMessages(['escalate' => $e->getMessage()]);
+        }
+
+        return back()->with(
+            'success',
+            'This alert now targets a LIVE dispatch. A second authoriser must approve it before it can be sent.',
+        );
+    }
+
     public function approve(Request $request, Alert $alert): RedirectResponse
     {
         Gate::authorize('bcms.alert.approve');
@@ -216,13 +244,24 @@ class AlertController extends Controller
         return back()->with('success', 'Response recorded.');
     }
 
+    /**
+     * `bcms.report.export` is the floor: it is enough to see who was told,
+     * on what, and when. `Address` and `Response text` are contact-export
+     * material — see {@see EvidenceExport} — so they are included only when
+     * the requester also holds `bcms.contact.export`. Anyone stopped at the
+     * floor gets the redacted pack, never a 403: this route's whole purpose
+     * is to hand an examiner delivery evidence, and the two columns it
+     * withholds from that holder are declared on the pack's own face.
+     */
     public function evidence(Request $request, Alert $alert): StreamedResponse
     {
         Gate::authorize('bcms.report.export');
 
-        $preamble = $this->evidence->preamble($alert);
-        $columns = $this->evidence->columns();
-        $rows = $this->evidence->rows($alert);
+        $includeContactData = Gate::allows('bcms.contact.export');
+
+        $preamble = $this->evidence->preamble($alert, $includeContactData);
+        $columns = $this->evidence->columns($includeContactData);
+        $rows = $this->evidence->rows($alert, $includeContactData);
 
         return response()->streamDownload(function () use ($preamble, $columns, $rows): void {
             $out = fopen('php://output', 'wb');
@@ -238,7 +277,7 @@ class AlertController extends Controller
             }
 
             fclose($out);
-        }, $this->evidence->filename($alert), ['Content-Type' => 'text/csv']);
+        }, $this->evidence->filename($alert, $includeContactData), ['Content-Type' => 'text/csv']);
     }
 
     /** @return array<string, bool> */

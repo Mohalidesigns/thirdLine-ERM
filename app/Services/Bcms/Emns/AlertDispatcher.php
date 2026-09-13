@@ -141,10 +141,23 @@ class AlertDispatcher
          * the audit cannot mistake it for a real send.
          */
         if ($alert->is_simulation) {
+            /*
+             * GATE 2 DEFECT 2. This used to be `'sim-'.$delivery->getKey()` —
+             * a global auto-increment, trivially enumerable as sim-1, sim-2,
+             * sim-3 … across every tenant's simulations. `handleStatusReceipt`
+             * matches on `provider_message_id` and, before this gate, on
+             * nothing else, so walking that sequence let an unauthenticated
+             * caller move any tenant's delivery row to delivered/read/failed
+             * and stamp `delivered_at`/`read_at` on a record `EvidenceExport`
+             * hands to a regulator. 16 bytes of `random_bytes` cannot be
+             * enumerated; combined with `handleStatusReceipt` now also
+             * requiring `provider` to match, guessing a live id is no longer
+             * a search space a caller can walk.
+             */
             $delivery->forceFill([
                 'status' => DeliveryStatus::Sent->value,
                 'provider' => 'simulation',
-                'provider_message_id' => 'sim-'.$delivery->getKey(),
+                'provider_message_id' => 'sim-'.bin2hex(random_bytes(16)),
                 'attempts' => 1,
                 'sent_at' => now(),
                 'raw_response' => [
@@ -210,15 +223,40 @@ class AlertDispatcher
      * The token an SMS reply, a WhatsApp reply, a USSD session or a web link
      * carries back, identifying one recipient of one alert.
      *
-     * An HMAC rather than a stored column: the schema is frozen, the value is
-     * derivable, and `hash_equals` compares it in constant time so it cannot be
-     * recovered a character at a time. The same shape Phase 6 uses for cascade
-     * acknowledgement, deliberately.
+     * ADR 0016. The token is `r-{decimal recipient id}-{16 hex tag}`, not a
+     * bare tag: the id lets `InboundResponseHandler::recipientForToken()`
+     * fetch the one row by primary key instead of cursoring every open
+     * recipient product-wide. The `r` prefix is the recipient namespace —
+     * `CascadeEngine::tokenFor()` mints `c-…` for a call-tree node — so a
+     * token presented to the wrong handler is rejected by shape, before any
+     * lookup.
+     *
+     * The tag itself is unchanged: an HMAC rather than a stored column,
+     * because the schema is frozen, the value is derivable, and
+     * `hash_equals` compares it in constant time so it cannot be recovered a
+     * character at a time. Do not alter the tag's input, key or length —
+     * see ADR 0016 §1 and §2 for why this is the last cheap moment to change
+     * the format and why the id in the token is not a weakening.
      */
     public function tokenFor(AlertRecipient $recipient): string
     {
+        $id = (int) $recipient->getKey();
+
+        return 'r-'.$id.'-'.$this->tagFor($id);
+    }
+
+    /**
+     * The tag alone, for a given recipient id — including a sentinel id that
+     * names no real row. `InboundResponseHandler::recipientForToken()` calls
+     * this on the sentinel path so that "no such recipient" and "wrong tag
+     * for a real recipient" perform the identical `hash_hmac` +
+     * `hash_equals` work, closing the timing oracle ADR 0016 §3 exists to
+     * prevent.
+     */
+    public function tagFor(int $id): string
+    {
         return substr(
-            hash_hmac('sha256', 'bcms-alert-'.$recipient->getKey(), (string) config('app.key')),
+            hash_hmac('sha256', 'bcms-alert-'.$id, (string) config('app.key')),
             0,
             16,
         );

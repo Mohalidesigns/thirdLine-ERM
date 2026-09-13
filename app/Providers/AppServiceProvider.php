@@ -112,6 +112,8 @@ class AppServiceProvider extends ServiceProvider
         // Super-admin bypass: any `can()` check short-circuits true.
         Gate::before(fn (?User $user, string $ability) => $user?->hasRole('super-admin') ? true : null);
 
+        $this->registerBcmsWebhookRateLimiters();
+
         // Migration Phase 3.8. The only policy registered by hand: RCSA has no
         // model for Laravel to discover one from — it is four screens over
         // Risk, Control and RiskControlMapping plus a write into the campaign
@@ -119,8 +121,6 @@ class AppServiceProvider extends ServiceProvider
         // See App\Support\Rcsa\RcsaProgramme.
         Gate::policy(\App\Support\Rcsa\RcsaProgramme::class, \App\Policies\RcsaPolicy::class);
 
-        // Migration Phase 2: the data grid endpoints are guarded per grid.
-        // `can:view-grid,grid` on the route hands the {grid} name here, and
         // Phase 11a. BCMS has no service provider of its own (ADR 0007
         // deviation 2) — its routes are in routes/web.php, its morph map is
         // above, and its AI policy registration is here for the same reason:
@@ -129,6 +129,8 @@ class AppServiceProvider extends ServiceProvider
         // registry rather than the gateway reading bcms_settings directly.
         \App\Services\Llm\ModuleAiPolicyRegistry::register('bcms', \App\Services\Bcms\Ai\BcmsAiPolicy::class);
 
+        // Migration Phase 2: the data grid endpoints are guarded per grid.
+        // `can:view-grid,grid` on the route hands the {grid} name here, and
         // the definition's own permission decides.
         Gate::define('view-grid', function (User $user, string $grid) {
             try {
@@ -163,6 +165,56 @@ class AppServiceProvider extends ServiceProvider
         // hyphenated name because WorkflowEngine::canAct() asks
         // `can('approve-loss-event', $event)` through LossEventBinding::gate(),
         // and Laravel resolves that to the camel-cased approveLossEvent().
+    }
+
+    /**
+     * GATE 2 DEFECT 5 — the EMNS webhook routes' rate limiters, registered
+     * here because BCMS has no service provider of its own (ADR 0007
+     * deviation 2; see the morph-map and AI-policy registrations above for
+     * the same pattern) and a named `RateLimiter::for()` closure has to run at
+     * boot, not from `routes/web.php` — a route-cached deployment never
+     * re-executes the routes file, so registering it there would work in
+     * `php artisan serve` and silently vanish the moment `route:cache` runs.
+     *
+     * `bcms/alert-reply/{provider}` (the roll-call) and
+     * `bcms/provider-status/{provider}` (delivery receipts) previously used
+     * the bare `throttle:600,1` / `throttle:3000,1` middleware, bucketed on IP
+     * alone. Gateways post from a small, stable set of source IPs, so that
+     * was effectively one shared bucket per provider ACROSS EVERY TENANT —
+     * and the roll-call, a person's life-safety acknowledgement, got the
+     * *tighter* of the two limits. A 429 on that route is a dropped
+     * acknowledgement, not a retried request.
+     *
+     * ADR 0016 §4 / phase-7-inbound-token-contract.md §3 replaced the single
+     * shared `webhook_rate_limit_per_minute` with two keys — one per route —
+     * because the two routes serve different acceptance criteria and the
+     * invariant that actually matters is not "the two numbers are equal" but
+     * "the life-safety route's ceiling is never below criterion 1's demand".
+     * Both are INTERIM values (600/min each) until ADR 0016 §1 lands and its
+     * tests pass; the raise to 2,000 / 10,000 is a separate, later commit.
+     * Both stay keyed on {provider}+ip — not ip alone — so one provider's
+     * volume cannot exhaust another provider's bucket, the same reasoning
+     * TPRM's portal limiters use
+     * (`TprmServiceProvider::registerPortalRateLimiter()`).
+     */
+    private function registerBcmsWebhookRateLimiters(): void
+    {
+        $alertReplyPerMinute = (int) config('bcms-gateways.alert_reply_rate_limit_per_minute', 600);
+        $providerStatusPerMinute = (int) config('bcms-gateways.provider_status_rate_limit_per_minute', 600);
+
+        \Illuminate\Support\Facades\RateLimiter::for('bcms-alert-reply', function (\Illuminate\Http\Request $request) use ($alertReplyPerMinute) {
+            $provider = (string) ($request->route('provider') ?? 'unknown');
+
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute($alertReplyPerMinute)
+                ->by('bcms-alert-reply:'.$provider.':'.$request->ip());
+        });
+
+        \Illuminate\Support\Facades\RateLimiter::for('bcms-provider-status', function (\Illuminate\Http\Request $request) use ($providerStatusPerMinute) {
+            $provider = (string) ($request->route('provider') ?? 'unknown');
+
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute($providerStatusPerMinute)
+                ->by('bcms-provider-status:'.$provider.':'.$request->ip());
+        });
     }
 
     /**

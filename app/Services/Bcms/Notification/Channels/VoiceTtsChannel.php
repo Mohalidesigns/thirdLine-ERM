@@ -66,12 +66,27 @@ class VoiceTtsChannel extends HttpChannel
         $body = is_array($body) ? $body : [];
 
         if ($response->failed()) {
+            // GATE 2, THIRD ROUND (advisory 11, one adapter along). This used
+            // to return the provider's own `message` field verbatim as
+            // `failed_reason` — a voice gateway's rejection text can name the
+            // dialled number the same way an SMS gateway's does ("Invalid
+            // destination 2348031234567"), and `redact()` cannot reach a value
+            // inside free text. See `HttpChannel::classifyProviderError()` for
+            // exactly what is matched and what is not; either way the string
+            // itself never reaches `failed_reason`, and the same field is
+            // nulled out of `raw_response` below so the number cannot
+            // reappear there instead.
             $reason = data_get($body, 'message');
+            $category = is_string($reason) && $reason !== '' ? $this->classifyProviderError($reason) : null;
 
             return DeliveryReceipt::failed(
                 $this->provider(),
-                is_string($reason) && $reason !== '' ? $reason : 'Voice gateway returned HTTP '.$response->status().'.',
-                $this->safeResponse($response),
+                match (true) {
+                    $category !== null => 'Voice gateway rejected the call ('.$category.'); HTTP '.$response->status().'.',
+                    is_string($reason) && $reason !== '' => 'Voice gateway rejected the call (reason not classified); HTTP '.$response->status().'.',
+                    default => 'Voice gateway returned HTTP '.$response->status().'.',
+                },
+                $this->safeResponse($response, ['message']),
             );
         }
 

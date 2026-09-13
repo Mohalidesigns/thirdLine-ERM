@@ -81,11 +81,13 @@ class SmsGatewayChannel extends HttpChannel
         $body = $response->json();
         $body = is_array($body) ? $body : [];
 
+        $errorPath = (string) ($this->config['response']['error'] ?? 'message');
+
         if ($response->failed()) {
             return DeliveryReceipt::failed(
                 $this->provider(),
-                $this->reasonFrom($response, $body),
-                $this->safeResponse($response),
+                $this->reasonFrom($response, $body, $errorPath),
+                $this->safeResponse($response, [$errorPath]),
             );
         }
 
@@ -113,16 +115,39 @@ class SmsGatewayChannel extends HttpChannel
     }
 
     /**
+     * GATE 2, THIRD ROUND (advisory 11, one adapter along). This used to
+     * return `$reason` verbatim — the gateway's own error string — straight
+     * into `failed_reason`, a column proposed for seven years' retention and
+     * export to a regulator. Termii, Africa's Talking and Infobip routinely
+     * echo the recipient in that string ("Invalid recipient 2348031234567",
+     * "DND active for 234803…"), so the number rode along on a regulator-facing
+     * record. `redact()` cannot reach it: the number is a value inside free
+     * text, not a keyed field.
+     *
+     * Fixed by never returning the string itself. `classifyProviderError()`
+     * (see `HttpChannel` for exactly what it catches and does not) turns it
+     * into one of a fixed set of category labels or `null`; either way, what
+     * reaches `failed_reason` is built only from `provider()`, the HTTP
+     * status and that label — never the gateway's prose. The same
+     * `$errorPath` is also used by the caller to null the matching value out
+     * of `raw_response` (`safeResponse()`'s `$textValuePaths`), so the number
+     * cannot reappear one JSON key over.
+     *
      * @param  array<array-key, mixed>  $body
      */
-    private function reasonFrom(Response $response, array $body): string
+    private function reasonFrom(Response $response, array $body, string $errorPath): string
     {
-        $key = $this->config['response']['error'] ?? 'message';
-        $reason = data_get($body, $key);
+        $reason = data_get($body, $errorPath);
 
-        return is_string($reason) && $reason !== ''
-            ? $reason
-            : 'Gateway returned HTTP '.$response->status().'.';
+        if (! is_string($reason) || $reason === '') {
+            return 'Gateway returned HTTP '.$response->status().'.';
+        }
+
+        $category = $this->classifyProviderError($reason);
+
+        return $category !== null
+            ? 'Gateway rejected the message ('.$category.'); HTTP '.$response->status().'.'
+            : 'Gateway rejected the message (reason not classified); HTTP '.$response->status().'.';
     }
 
     /**

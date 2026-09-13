@@ -34,6 +34,16 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->prefix('vendor-portal')
                 ->name('tprm-portal.')
                 ->group(__DIR__.'/../routes/tprm-portal.php');
+
+            // BCMS Phase 7, Gate 2 defect 1. The gateway-facing webhooks
+            // (cascade-inbound, alert-reply, provider-status) used to live in
+            // routes/web.php and inherit the full `web` group — CSRF and all —
+            // for traffic that can never present a session. See
+            // routes/bcms-webhooks.php for the incident and the reasoning; this
+            // registration is deliberately the same shape as `tprm-portal`
+            // above, not a bolt-on to `web`.
+            \Illuminate\Support\Facades\Route::middleware('bcms-webhook')
+                ->group(__DIR__.'/../routes/bcms-webhooks.php');
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
@@ -126,6 +136,74 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\Tprm\HandlePortalInertiaRequests::class,
             \ThirdLine\Platform\Http\Middleware\SetSecurityHeaders::class,
+        ]);
+
+        /*
+         * BCMS gateway webhooks — assembled empty on purpose, not thinned
+         * down from `web`.
+         *
+         * BCMS Phase 7, Gate 2 defect 1. `bcms/cascade-inbound`,
+         * `bcms/alert-reply/{provider}` and `bcms/provider-status/{provider}`
+         * were declared in routes/web.php and so inherited the whole `web`
+         * group, `ValidateCsrfToken` included. A gateway posts no `_token`
+         * and no session cookie, so every one of those requests 419'd before
+         * the controller — and its HMAC check — ever ran. That silently
+         * killed the entire inbound half of EMNS, including roll-call
+         * acknowledgement.
+         *
+         * None of `web`'s other members belong here either, and each is
+         * absent for a specific reason rather than by omission:
+         *   - EncryptCookies / StartSession: a gateway carries no cookie and
+         *     mints no session. Worse than merely useless — `StartSession`
+         *     runs ahead of the per-route throttle in `web`'s resolved
+         *     stack, and config/session.php defaults the driver to
+         *     `database`, so every request the limiter is about to reject
+         *     would first write a session row to MariaDB on a credential-
+         *     less endpoint. Leaving these routes in `web` keeps that
+         *     amplification even after the CSRF fix.
+         *   - HandleInertiaRequests / SetSecurityHeaders / LicenseHeartbeat:
+         *     these render or decorate an HTML page; every route here
+         *     returns JSON to a machine.
+         *
+         * Clearing the ambient tenant IS kept, and deliberately: without it
+         * this group is `[]`, and the `web` group's own tenant-clearing —
+         * which would otherwise have cleared the tenant on every prior
+         * unauthenticated request — is the only reason `TenantContext` is
+         * ever empty here. That is an absence, not a guard: an ambient
+         * tenant left set by whatever ran earlier in the process (test
+         * infrastructure, a future Octane worker reusing the container, a
+         * queued/inline execution path) would scope
+         * `InboundResponseHandler::recipientForNumber()`'s cross-tenant
+         * uniqueness scan to one organization and let it silently return
+         * the wrong tenant's recipient — recording a false SAFE against
+         * someone who never replied. Both controllers still set
+         * `TenantContext` explicitly afterwards from the record the HMAC
+         * resolves to, exactly as the signed calendar feed does; this just
+         * guarantees the slate is clean before they do.
+         *
+         * BCMS Phase 7, Gate 2 ROUND 3 defect 1. `ResolveTenant` used to sit
+         * here for that clearing, but `ResolveTenant::handle()` opens with
+         * `Auth::user()` unconditionally — and with `EncryptCookies` also
+         * removed from this group (correctly: a gateway carries no cookie),
+         * a forged `remember_me` cookie is no longer guaranteed to decrypt to
+         * garbage before it reaches `SessionGuard::recaller()`. That put one
+         * `users` SELECT ahead of the per-route throttle on every request,
+         * including every one the limiter was about to reject — the same
+         * amplification shape ADR 0016 §4 forbids ahead of this throttle, one
+         * step smaller than the `StartSession` write it replaced.
+         * `App\Http\Middleware\Bcms\ClearAmbientTenantContext` replaces it:
+         * it does the one thing this group ever needed —
+         * `TenantContext::clear()` — and reads no auth guard, no cookie, no
+         * session, no database.
+         *
+         * What stands in for a login on every route in routes/bcms-webhooks.php
+         * is an HMAC compared with `hash_equals`, checked inside the
+         * controller — see AlertWebhookController::signatureOk() and
+         * CascadeAckController's class docblock — plus the per-route
+         * throttle already declared there.
+         */
+        $middleware->group('bcms-webhook', [
+            \App\Http\Middleware\Bcms\ClearAmbientTenantContext::class,
         ]);
 
         // ResolveTenant is REMOVED from the api group in WP-07. It reads the

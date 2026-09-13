@@ -81,12 +81,17 @@ class RouteAuthorizationTest extends TestCase
         // again. A gateway posting a delivery receipt has no session and never
         // will; a person replying "SAFE" from a feature phone has none either.
         // What stands in for a login: a per-provider shared secret compared
-        // with `hash_equals` on the status route, a rate limit on both, and the
-        // rule that the body may never name a recipient — a reply carries a
-        // token this system minted and a receipt carries a message id this
-        // system stored. A payload that could say "recipient 4192 is safe" is a
-        // payload that can mark a whole branch safe from the public internet.
-        'bcms/alert-reply',
+        // with `hash_equals`, a rate limit on both, and the rule that the body
+        // may never name a recipient — a reply carries a token this system
+        // minted and a receipt carries a message id this system stored. A
+        // payload that could say "recipient 4192 is safe" is a payload that
+        // can mark a whole branch safe from the public internet, which is why
+        // `reply()` (unlike `status()`) REFUSES an unsigned callback rather
+        // than accepting one when no secret is configured for `{provider}` —
+        // see `AlertWebhookController`'s docblock. Gate 1 found `reply()`
+        // reachable from a bare public POST with no signature check at all;
+        // this is the fix.
+        'bcms/alert-reply/{provider}',
         'bcms/provider-status/{provider}',
     ];
 
@@ -223,7 +228,7 @@ class RouteAuthorizationTest extends TestCase
             // BCMS Phase 7. The same category once more: gateway callbacks and
             // an inbound reply, neither of which can carry a session. The
             // argument is in the constant above.
-            'bcms/alert-reply',
+            'bcms/alert-reply/{provider}',
             'bcms/provider-status/{provider}'];
 
         $this->assertSame(

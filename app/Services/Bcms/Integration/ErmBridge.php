@@ -6,10 +6,12 @@ use App\Enums\Bcms\FindingClassification;
 use App\Models\Bcms\CorrectiveAction;
 use App\Models\Bcms\Finding;
 use App\Models\Issue;
+use App\Services\Bcms\Findings\FindingService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 
 /**
  * Where BCMS stops being a module beside the ERM programme and becomes part of
@@ -164,23 +166,57 @@ class ErmBridge
      * model would make every issue save in the product pay for a BCMS lookup,
      * in a deployment that may not have BCMS switched on at all.
      *
+     * `$organizationId` IS REQUIRED, NOT DEFAULTED. A bare call used to mean
+     * "every tenant" through `withoutGlobalScopes()` on both `Finding` and
+     * `Issue` — a cross-tenant write reachable by omitting an argument. The
+     * one real caller, `bcms:sweep-actions`, already loops over organisations
+     * one at a time under `TenantContext::set()`; there is no legitimate
+     * caller that wants every tenant at once, so that mode has been removed
+     * rather than guarded.
+     *
+     * CLOSURE IS ROUTED THROUGH `FindingService::close()`, not a `forceFill`.
+     * That method is where clause 10.1's guard lives — a nonconformity
+     * refuses to close while any corrective action against it is unverified
+     * — and the person who closed the mirrored ERM issue may hold no BCMS
+     * grant at all and has no way to know that guarantee exists. A finding
+     * the guard refuses stays open here too: an ERM register that shows
+     * CLOSED against a BCMS register that still shows OPEN is a smaller
+     * problem than silently closing a nonconformity clause 10.1 says must
+     * not close yet, and it is logged so the mismatch does not sit
+     * unnoticed. Resolved from the container rather than injected, because
+     * `FindingService` already depends on `ErmBridge` — a constructor cycle.
+     *
      * @return Collection<int, Finding>
      */
-    public function pullClosedIssues(?int $organizationId = null): Collection
+    public function pullClosedIssues(int $organizationId): Collection
     {
-        $closed = Finding::query()
-            ->withoutGlobalScopes()
-            ->when($organizationId !== null, fn ($q) => $q->where('organization_id', $organizationId))
+        $candidates = Finding::query()
+            ->where('organization_id', $organizationId)
             ->whereIn('status', ['open', 'in_progress'])
             ->whereNotNull('erm_issue_id')
-            ->whereIn('erm_issue_id', Issue::query()->withoutGlobalScopes()->where('issue_status', 'CLOSED')->select('id'))
+            ->whereIn('erm_issue_id', Issue::query()
+                ->where('organization_id', $organizationId)
+                ->where('issue_status', 'CLOSED')
+                ->select('id'))
             ->get();
 
-        foreach ($closed as $finding) {
-            $finding->forceFill([
-                'status' => 'closed',
-                'closed_at' => now(),
-            ])->save();
+        $findings = app(FindingService::class);
+        $closed = new Collection;
+
+        foreach ($candidates as $finding) {
+            try {
+                $closed->push($findings->close($finding));
+            } catch (InvalidArgumentException $e) {
+                Log::warning(
+                    'An ERM issue closed but its mirrored BCMS finding could not follow: '
+                    .'the clause 10.1 guard refused it.',
+                    [
+                        'finding_id' => $finding->getKey(),
+                        'organization_id' => $organizationId,
+                        'reason' => $e->getMessage(),
+                    ]
+                );
+            }
         }
 
         return $closed;

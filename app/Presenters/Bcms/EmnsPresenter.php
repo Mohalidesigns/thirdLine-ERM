@@ -106,7 +106,14 @@ class EmnsPresenter
      */
     public function alert(Alert $alert): array
     {
-        $alert->loadMissing(['template:id,code,name,locale', 'initiator:id,name', 'approver:id,name']);
+        // `template:id,code,name,locale` used to omit `requires_dual_approval`,
+        // a column `requiresDualApproval()` (AlertService::232) reads directly
+        // off the relation. The select never fetched it, so the property was
+        // always null and the console silently disagreed with `release()`,
+        // which reads the same flag through the same relation and refuses to
+        // dispatch. Any column a predicate below reads off `template` must be
+        // in this list — see BCMS Phase 7 Gate 2 round 3 defect 5.
+        $alert->loadMissing(['template:id,code,name,locale,requires_dual_approval', 'initiator:id,name', 'approver:id,name']);
 
         return [
             'alert' => array_merge($this->summary($alert), [

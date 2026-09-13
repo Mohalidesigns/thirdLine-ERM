@@ -11,6 +11,7 @@ use App\Enums\Bcms\ChannelKey;
 use App\Enums\Bcms\ContactSource;
 use App\Enums\Bcms\DeliveryStatus;
 use App\Jobs\Bcms\DispatchAlertChunkJob;
+use App\Jobs\Bcms\EscalateAlertRecipientsJob;
 use App\Models\Bcms\Alert;
 use App\Models\Bcms\AlertRecipient;
 use App\Models\Bcms\AlertTemplate;
@@ -355,6 +356,264 @@ class Phase7EmnsTest extends TestCase
         }
     }
 
+    /**
+     * Defect 5 (Gate 1): criterion 5's other half — "a live dispatch from an
+     * exercise context requires dual approval" — had no test, and no endpoint
+     * could reach it: `store()` never accepted `is_simulation`, so
+     * `AlertController::dispatchAlert()`'s `bcms.alert.life_safety` branch was
+     * dead code. `AlertService::escalateLive()` and the `alerts.escalate-live`
+     * route are what closes that. This tests the service; the permission gate
+     * on the route is tested in `Phase7ScreensTest`.
+     */
+    #[Test]
+    public function escalating_an_exercise_to_live_trips_dual_approval_unconditionally(): void
+    {
+        $this->contacts(2);
+        $occurrence = $this->occurrence();
+
+        $alert = $this->alertOn($occurrence, AlertSeverity::Advisory, ['email']);
+        $this->assertTrue((bool) $alert->is_simulation);
+
+        // An advisory to two people trips neither the severity nor the
+        // headcount threshold — proving the "unconditional" half of the rule,
+        // not the ordinary dual-approval path criterion 4 already covers.
+        $this->assertFalse(app(AlertService::class)->requiresDualApproval($alert));
+
+        $alert = app(AlertService::class)->escalateLive($alert, $this->operator);
+
+        $this->assertFalse((bool) $alert->is_simulation);
+        $this->assertTrue(
+            app(AlertService::class)->requiresDualApproval($alert),
+            'Standing rule 5: a live dispatch from an exercise context always needs a second pair of '
+                .'eyes, whatever the severity or the headcount.',
+        );
+
+        // One authoriser is not dual approval.
+        $this->assertThrows(
+            fn () => app(AlertService::class)->release($alert, $this->operator->id),
+            InvalidArgumentException::class,
+        );
+
+        $second = User::create([
+            'organization_id' => $this->organization->id, 'name' => 'Second Authoriser',
+            'email' => 'second-escalate@khb.test', 'password' => bcrypt('secret'), 'is_active' => true,
+        ]);
+
+        app(AlertService::class)->approve($alert, $this->operator);
+        app(AlertService::class)->approve($alert->refresh(), $second);
+
+        $this->assertTrue(app(AlertService::class)->isDispatchable($alert->refresh()));
+
+        $captured = [];
+        $this->captureChannel(ChannelKey::Email, $captured);
+
+        app(AlertService::class)->release($alert->refresh(), $second->id);
+        $this->dispatchAll($alert);
+
+        $this->assertNotEmpty($captured, 'Escalated to live: it must actually reach the adapter.');
+
+        foreach ($captured as $sent) {
+            $this->assertStringStartsNotWith(
+                RenderedMessage::EXERCISE_PREFIX,
+                (string) $sent['message']->body,
+                'Once escalated, the message reaching people is the real one, not the exercise one.',
+            );
+        }
+    }
+
+    #[Test]
+    public function escalating_live_is_refused_off_an_exercise_context_or_off_an_already_live_alert(): void
+    {
+        $service = app(AlertService::class);
+
+        // Only an alert linked to an exercise can be escalated.
+        $routine = $this->alert(AlertSeverity::Advisory, ['email']);
+        $this->assertThrows(
+            fn () => $service->escalateLive($routine, $this->operator),
+            InvalidArgumentException::class,
+        );
+
+        $occurrence = $this->occurrence();
+        $exercise = $this->alertOn($occurrence, AlertSeverity::Advisory, ['email']);
+        $live = $service->escalateLive($exercise, $this->operator);
+
+        // Escalating an alert that is already live is refused rather than
+        // silently repeated.
+        $this->assertThrows(
+            fn () => $service->escalateLive($live->refresh(), $this->operator),
+            InvalidArgumentException::class,
+        );
+    }
+
+    /**
+     * GATE 2 DEFECT 3, PERMANENT REGRESSION TEST. Alice approves the exercise,
+     * Bob approves, Carol escalates — both signatures were already on the row
+     * at that point, so before this fix the alert was instantly dispatchable
+     * the moment it went live, with nobody having signed off on a LIVE
+     * dispatch at all.
+     *
+     * `approve()` on a simulation now throws (see the guard's own
+     * commentary), so the two signatures here are forced onto the row with
+     * `forceFill` rather than collected through `approve()` — reproducing the
+     * exact shape the defect described (signatures present on a
+     * still-simulated alert) regardless of which code path could have put
+     * them there. What this test certifies is `escalateLive()`'s side of the
+     * contract: it must withdraw whatever is on the record, unconditionally,
+     * rather than trust that nothing could be there.
+     *
+     * One-line change that would make this fail: deleting the four
+     * `forceFill` nulls in `AlertService::escalateLive()`.
+     */
+    #[Test]
+    public function escalating_a_drill_that_already_carries_approvals_withdraws_them(): void
+    {
+        $this->contacts(2);
+        $occurrence = $this->occurrence();
+        $alert = $this->alertOn($occurrence, AlertSeverity::Advisory, ['email']);
+        $this->assertTrue((bool) $alert->is_simulation);
+
+        $alice = $this->operator;
+        $bob = User::create([
+            'organization_id' => $this->organization->id, 'name' => 'Bob',
+            'email' => 'bob@khb.test', 'password' => bcrypt('secret'), 'is_active' => true,
+        ]);
+        $carol = User::create([
+            'organization_id' => $this->organization->id, 'name' => 'Carol',
+            'email' => 'carol@khb.test', 'password' => bcrypt('secret'), 'is_active' => true,
+        ]);
+
+        // Alice and Bob's signatures land on the row while it is still a
+        // simulation — the state the defect actually found in the wild.
+        $alert->forceFill([
+            'approved_by' => $alice->id, 'approved_at' => now(),
+            'second_approved_by' => $bob->id, 'second_approved_at' => now(),
+        ])->save();
+
+        $this->assertTrue(
+            app(AlertService::class)->isDispatchable($alert->refresh(), 2),
+            'Sanity check: two signatures on a simulation read as dispatchable before Carol escalates — '
+                .'this is exactly the state that must not survive the escalation.',
+        );
+
+        // Carol escalates.
+        $live = app(AlertService::class)->escalateLive($alert->refresh(), $carol);
+
+        $this->assertFalse((bool) $live->is_simulation);
+        $this->assertNull($live->approved_by, "Alice's signature must not carry over to a live dispatch.");
+        $this->assertNull($live->approved_at);
+        $this->assertNull($live->second_approved_by, "Bob's signature must not carry over either.");
+        $this->assertNull($live->second_approved_at);
+        $this->assertSame('draft', $live->status);
+
+        $this->assertFalse(
+            app(AlertService::class)->isDispatchable($live, 2),
+            'Two signatures given for a drill must not authorise a live dispatch the instant it goes live.',
+        );
+
+        $this->assertThrows(
+            fn () => app(AlertService::class)->release($live, $carol->id),
+            InvalidArgumentException::class,
+        );
+
+        // The withdrawal is on the record, not silently vanished.
+        $entry = \App\Models\Bcms\AuditLog::query()
+            ->where('auditable_type', Alert::class)
+            ->where('auditable_id', $live->getKey())
+            ->where('event', 'alert.exercise_escalated_live')
+            ->latest('id')->first();
+        $this->assertNotNull($entry, 'The escalation must be on the audit record.');
+        $this->assertTrue($entry->after['approvals_withdrawn']);
+    }
+
+    /**
+     * GATE 2 DEFECT 4, PERMANENT REGRESSION TEST. `release()` used to read
+     * `recipient_count`, which is written only by the optional, manually
+     * triggered `estimate()` button — skip it and the column is `0`, so a
+     * huge advisory could dispatch with no second authoriser at all because
+     * the threshold check saw zero recipients.
+     *
+     * One-line change that would make this fail: `release()` reading
+     * `$alert->recipient_count` instead of `$contacts->count()` for the
+     * dual-approval check.
+     */
+    #[Test]
+    public function a_high_volume_advisory_released_without_ever_calling_estimate_is_refused(): void
+    {
+        $this->contacts(501);
+
+        $alert = $this->alert(AlertSeverity::Advisory, ['email'])->refresh();
+        $this->assertSame(0, $alert->recipient_count, '`estimate()` was never called: the column is still zero.');
+
+        $this->assertThrows(
+            fn () => app(AlertService::class)->release($alert, $this->operator->id),
+            InvalidArgumentException::class,
+        );
+
+        $this->assertSame('draft', $alert->refresh()->status, 'A refused release must not move the alert forward.');
+        $this->assertSame(0, AlertRecipient::query()->where('alert_id', $alert->getKey())->count());
+    }
+
+    /**
+     * GATE 2's SEVENTH DEFECT, PERMANENT REGRESSION TEST — the deadlock
+     * introduced fixing defect 3 and fixed again. The old `approve()` guard
+     * read `! requiresDualApproval($alert)`, which itself read the unreliable
+     * stored `recipient_count` column: a live, below-severity, unestimated
+     * 9,000-person advisory read as "does not require approval" to `approve()`
+     * (so it refused to record a signature — "there is nothing to approve")
+     * while `release()`, which always resolves the real audience, refused to
+     * dispatch it for the opposite reason ("approval required"). Neither
+     * endpoint could move the alert.
+     *
+     * `approve()` and `release()` must never disagree about whether the same
+     * alert needs a second signature. This is that invariant, exercised at
+     * the exact volume and severity that broke it.
+     *
+     * One-line change that would make this fail: reintroducing
+     * `! $this->requiresDualApproval($alert)` (no count argument) as
+     * `approve()`'s guard.
+     */
+    #[Test]
+    public function approve_and_release_never_disagree_about_a_high_volume_unestimated_advisory(): void
+    {
+        $this->contacts(501);
+
+        $alert = $this->alert(AlertSeverity::Advisory, ['email'])->refresh();
+        $this->assertSame(0, $alert->recipient_count, '`estimate()` was never called.');
+
+        $service = app(AlertService::class);
+
+        // Reading the stored (zero) count, this alert looks like it needs no
+        // approval — the exact reading the old buggy `approve()` guard used.
+        $this->assertFalse(
+            $service->requiresDualApproval($alert),
+            'Sanity check: the STORED count under-reports the real audience, same as the live incident.',
+        );
+
+        // Both signatures must be collectable — `approve()` no longer refuses
+        // on the stale reading.
+        $second = User::create([
+            'organization_id' => $this->organization->id, 'name' => 'Second Authoriser',
+            'email' => 'second-deadlock@khb.test', 'password' => bcrypt('secret'), 'is_active' => true,
+        ]);
+
+        $service->approve($alert, $this->operator);
+        $service->approve($alert->refresh(), $second);
+
+        $this->assertNotNull($alert->refresh()->approved_by);
+        $this->assertNotNull($alert->refresh()->second_approved_by);
+
+        // And now release() — which resolves the real, 501-strong audience —
+        // must agree the two signatures already collected are sufficient,
+        // rather than demand a third that could never be given.
+        $captured = [];
+        $this->captureChannel(ChannelKey::Email, $captured);
+
+        $contacts = $service->release($alert->refresh(), $second->id);
+
+        $this->assertSame(501, $contacts->count());
+        $this->assertSame('dispatching', $alert->refresh()->status);
+    }
+
     /* ================================================================== */
     /*  Criterion 6 — roll-call and manager escalation.
     /* ================================================================== */
@@ -483,11 +742,11 @@ class Phase7EmnsTest extends TestCase
         foreach ([['sms', 'SAFE'], ['whatsapp', 'I am safe'], ['ussd', '1']] as $i => [$channel, $body]) {
             $token = $dispatcher->tokenFor($recipients[$i]);
 
-            $this->postJson(route('bcms.alerts.reply'), [
+            $this->signedReplyPost([
                 'from' => '+2348000000'.$i,
                 'body' => $body.' '.$token,
                 'channel' => $channel,
-            ])->assertOk()->assertJson(['matched' => true, 'response' => RollCallService::SAFE]);
+            ], 'termii')->assertOk()->assertJson(['matched' => true, 'response' => RollCallService::SAFE]);
         }
 
         $this->assertSame(3, app(RollCallService::class)->summary($alert->refresh())['safe']);
@@ -495,8 +754,144 @@ class Phase7EmnsTest extends TestCase
         // An unmatched reply is a 200 with matched:false — a gateway that gets
         // an error retries, and a retried unmatched reply is a loop that costs
         // money.
-        $this->postJson(route('bcms.alerts.reply'), ['body' => 'who is this'])
+        $this->signedReplyPost(['body' => 'who is this'], 'termii')
             ->assertOk()->assertJson(['matched' => false]);
+    }
+
+    /* ================================================================== */
+    /*  Gate 1 defect — an unauthenticated, cross-tenant safety-status spoof.
+    /*
+    /*  `reply()` had no signature check at all: a bare public POST with a
+    /*  guessed or known phone number could mark ANY tenant's open recipient
+    /*  safe, with no token, no credential and no tenant boundary. Fixed by
+    /*  making `reply()` fail closed on an unconfigured or absent signature —
+    /*  the opposite default to `status()`, and deliberately so: see
+    /*  `AlertWebhookController`'s docblock for the asymmetry.
+    /* ================================================================== */
+
+    #[Test]
+    public function an_unsigned_reply_is_refused_even_with_a_valid_token(): void
+    {
+        // This is the product's actual state today: no channel is live, so no
+        // provider secret is configured for anyone. Before this fix, that
+        // state made `reply()` accept ANY caller. It must now refuse.
+        $this->contacts(1);
+        $alert = $this->alert(AlertSeverity::LifeSafety, ['sms']);
+        app(AlertService::class)->release($this->cleared($alert), $this->operator->id);
+
+        $recipient = AlertRecipient::query()->where('alert_id', $alert->getKey())->firstOrFail();
+        $token = app(AlertDispatcher::class)->tokenFor($recipient);
+
+        $this->postJson(route('bcms.alerts.reply', ['provider' => 'termii']), [
+            'from' => $recipient->contact->mobile_primary,
+            'body' => 'SAFE '.$token,
+        ])->assertStatus(403);
+
+        $this->assertNull(
+            $recipient->refresh()->acknowledged_at,
+            'An unsigned callback must never be able to change a roll-call status.'
+        );
+
+        // A secret IS now configured for the provider, but the caller still
+        // presents no signature header at all. A provider that has a secret
+        // and simply forgets to sign one callback is not a reason to accept
+        // it — the same rule `status()` already enforces once a secret exists.
+        config()->set('bcms-gateways.webhook_secrets.termii', 'a-real-secret');
+
+        $this->postJson(route('bcms.alerts.reply', ['provider' => 'termii']), [
+            'from' => $recipient->contact->mobile_primary,
+            'body' => 'SAFE '.$token,
+        ])->assertStatus(403);
+
+        $this->assertNull($recipient->refresh()->acknowledged_at);
+    }
+
+    #[Test]
+    public function a_signed_reply_with_a_valid_token_still_works(): void
+    {
+        $this->contacts(1);
+        $alert = $this->alert(AlertSeverity::LifeSafety, ['sms']);
+        app(AlertService::class)->release($this->cleared($alert), $this->operator->id);
+
+        $recipient = AlertRecipient::query()->where('alert_id', $alert->getKey())->firstOrFail();
+        $token = app(AlertDispatcher::class)->tokenFor($recipient);
+
+        $this->signedReplyPost([
+            'from' => $recipient->contact->mobile_primary,
+            'body' => 'SAFE '.$token,
+        ], 'termii')->assertOk()->assertJson(['matched' => true, 'response' => RollCallService::SAFE]);
+
+        $this->assertNotNull($recipient->refresh()->acknowledged_at);
+    }
+
+    #[Test]
+    public function the_number_only_fallback_cannot_reach_another_tenants_recipient(): void
+    {
+        // A second, unrelated tenant with an open recipient that happens to
+        // share a mobile number with ours — the exact shape Gate 1 named:
+        // "matches purely on the last 9 digits ... across every tenant in the
+        // database". `OrganizationScope` cannot help here (it is inert until a
+        // reply is matched, same as `CascadeAckController`), so the only thing
+        // standing between this and a cross-tenant false SAFE is the existing
+        // "exactly one match, or refuse" rule in `recipientForNumber` — this
+        // is the first test that ever exercises it with two tenants in play.
+        $sharedNumber = '+2347099999999';
+
+        $other = Organization::create([
+            'name' => 'Lagos Trust MFB', 'short_name' => 'LTM',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        TenantContext::set($other->id);
+        $this->seed(BcmsReferenceSeeder::class);
+        TenantContext::set($other->id);
+
+        $otherUnit = BusinessUnit::create([
+            'organization_id' => $other->id, 'code' => 'BU-OPS', 'name' => 'Operations', 'is_active' => true,
+        ]);
+        $otherOperator = User::create([
+            'organization_id' => $other->id, 'name' => 'Other Crisis Manager',
+            'email' => 'crisis@ltm.test', 'password' => bcrypt('secret'), 'is_active' => true,
+        ]);
+        $otherContactUser = User::create([
+            'organization_id' => $other->id, 'name' => 'Shared Number Person',
+            'email' => 'shared@ltm.test', 'password' => bcrypt('secret'), 'is_active' => false,
+        ]);
+        Contact::query()->create([
+            'organization_id' => $other->id, 'user_id' => $otherContactUser->id,
+            'source' => ContactSource::Manual->value, 'full_name' => 'Shared Number Person',
+            'employee_id' => 'LTM-1', 'business_unit_id' => $otherUnit->id,
+            'email' => 'sharedcontact@ltm.test', 'mobile_primary' => $sharedNumber,
+            'preferred_language' => 'en', 'consent_status' => 'granted',
+            'verification_status' => 'verified', 'last_verified_at' => now(), 'is_active' => true,
+        ]);
+        $otherAlert = app(AlertService::class)->compose([
+            'organization_id' => $other->id, 'title' => 'Other bank alert', 'message' => 'Please respond.',
+            'severity' => AlertSeverity::Advisory->value, 'channels' => ['sms'],
+            'audience_rule' => ['type' => 'org_node', 'id' => $otherUnit->id, 'include_descendants' => true],
+        ], $otherOperator->id);
+        app(AlertService::class)->release($otherAlert, $otherOperator->id);
+        $otherRecipient = AlertRecipient::query()->where('alert_id', $otherAlert->getKey())->firstOrFail();
+
+        TenantContext::set($this->organization->id);
+
+        // Our own tenant's open recipient, deliberately given the SAME number.
+        $mine = $this->contact('Colliding Number Person');
+        $mine->forceFill(['mobile_primary' => $sharedNumber])->save();
+        $alert = $this->alert(AlertSeverity::Advisory, ['sms']);
+        app(AlertService::class)->release($alert, $this->operator->id);
+        $mineRecipient = AlertRecipient::query()->where('alert_id', $alert->getKey())
+            ->whereHas('contact', fn ($q) => $q->where('mobile_primary', $sharedNumber))
+            ->firstOrFail();
+
+        // Signed, so it passes the gate that stopped the unsigned case above —
+        // this proves the collision is refused by the matching rule itself,
+        // not merely by the signature check.
+        $this->signedReplyPost(['from' => $sharedNumber, 'body' => 'safe'], 'termii')
+            ->assertOk()->assertJson(['matched' => false]);
+
+        $this->assertNull($otherRecipient->refresh()->acknowledged_at, "Another tenant's recipient must not move.");
+        $this->assertNull($mineRecipient->refresh()->acknowledged_at, 'Nor may an ambiguous match settle our own.');
     }
 
     #[Test]
@@ -516,6 +911,71 @@ class Phase7EmnsTest extends TestCase
         $this->assertNull($handler->interpret('call me'), 'Unclear is an acknowledgement, not a status.');
     }
 
+    /**
+     * Gate 1 defect 3 — the regression test for "a digit keyword matched
+     * inside the acknowledgement token" was PROBABILISTIC, not deterministic.
+     *
+     * It used a live `AlertDispatcher::tokenFor()`, which is an HMAC and
+     * therefore roughly a coin flip on whether it contains a "3" — the exact
+     * digit `not_on_site`'s menu code is. This test pins a 16-hex-character
+     * token that DOES contain a "3", by construction, so it fails every time
+     * the token-strip in `interpret()` is removed rather than about a third
+     * of the time.
+     *
+     * Verified by temporarily reverting the `preg_replace` strip in
+     * `InboundResponseHandler::interpret()`: this test failed on every run
+     * (asserting NOT_ON_SITE instead of SAFE), where the old live-token test
+     * would have passed roughly two times in three. Restored immediately
+     * after confirming the failure.
+     */
+    #[Test]
+    public function a_token_containing_a_three_is_stripped_before_keyword_matching(): void
+    {
+        $handler = app(InboundResponseHandler::class);
+
+        // Sixteen lowercase hex characters, chosen to contain a "3" — exactly
+        // the shape `AlertDispatcher::tokenFor()` produces, and exactly the
+        // shape the original bug report used ("SAFE 8a3f…").
+        $tokenWithThree = 'a1b2c3d4e5f60718';
+        $this->assertStringContainsString('3', $tokenWithThree);
+
+        // FREE-TEXT REPLIES. Verified by direct inspection AND by reverting
+        // the strip: a free-text "SAFE <token>" is protected twice over —
+        // `MENU_CODES` only ever matches the WHOLE normalised message
+        // (`array_key_exists`, not `str_contains`), so a "3" buried inside a
+        // 16-character token next to the word "safe" was never going to reach
+        // it even with the strip removed. These two assertions hold with or
+        // without the strip; they are pinned here as an invariant, not as the
+        // regression proof — that is the keypad case below.
+        $this->assertSame(RollCallService::SAFE, $handler->interpret('SAFE '.$tokenWithThree));
+        $this->assertSame(RollCallService::SAFE, $handler->interpret($tokenWithThree.' I am safe'));
+
+        // THE KEYPAD CASE IS THE ONE THE STRIP ACTUALLY GUARDS, and this is
+        // where the previous, probabilistic test's real regression risk sits:
+        // a USSD confirmation carries the keypad digit AND the token in one
+        // body ("1 a1b2c3d4e5f60718"), and `MENU_CODES` needs the message
+        // reduced to the bare digit to match at all. Verified by temporarily
+        // removing the `preg_replace` strip in `interpret()`: this assertion
+        // failed on every run — `SAFE` became `null` (the reply went
+        // unmatched, not misfiled as `NOT_ON_SITE`, because the whole-message
+        // exact match simply stopped matching anything) — where the old
+        // live-token test would only have caught a break roughly a third of
+        // the time, and never this failure mode at all. Restored immediately
+        // after confirming the failure.
+        $this->assertSame(
+            RollCallService::SAFE,
+            $handler->interpret('1 '.$tokenWithThree),
+            'A USSD SAFE selection ("1") plus a token containing a 3 must still register as SAFE, '
+            .'not go unmatched — a dropped acknowledgement is a person who reported in and was not heard.'
+        );
+
+        // The digit-3 keypad code itself must still mean NOT ON SITE, alone
+        // or paired with a token, and a token containing a 3 must not corrupt
+        // that either.
+        $this->assertSame(RollCallService::NOT_ON_SITE, $handler->interpret('3'));
+        $this->assertSame(RollCallService::NOT_ON_SITE, $handler->interpret('3 '.$tokenWithThree));
+    }
+
     #[Test]
     public function a_delivery_receipt_never_moves_a_record_backwards(): void
     {
@@ -525,7 +985,15 @@ class Phase7EmnsTest extends TestCase
         $this->dispatchAll($alert);
 
         $delivery = NotificationDelivery::query()->where('alert_id', $alert->getKey())->first();
-        $delivery->forceFill(['provider_message_id' => 'msg-1'])->save();
+        // GATE 2 DEFECT 2 fixture: `handleStatusReceipt` now binds its query to
+        // `(provider, provider_message_id)`, not the message id alone — see
+        // `InboundResponseHandler`. `dispatchAll()` sends through the mock
+        // adapter, whose provider is `mock-sms`, not `termii`; without setting
+        // `provider` here to match the provider name the test calls
+        // `handleStatusReceipt` with, the query would find no row and every
+        // assertion below would be observing a delivery that never moved,
+        // which would pass for the wrong reason.
+        $delivery->forceFill(['provider' => 'termii', 'provider_message_id' => 'msg-1'])->save();
 
         $handler = app(InboundResponseHandler::class);
 
@@ -539,6 +1007,285 @@ class Phase7EmnsTest extends TestCase
 
         $handler->handleStatusReceipt('termii', ['message_id' => 'msg-1', 'status' => 'read']);
         $this->assertSame(DeliveryStatus::Read, $delivery->refresh()->status);
+    }
+
+    /**
+     * GATE 2 DEFECT 2, PERMANENT REGRESSION TEST — a `sim-` id under the wrong
+     * provider must never match, and under the right provider must. Before
+     * this gate the id alone was the whole query; combined with a global
+     * auto-increment simulation id, that meant any provider name reaching the
+     * status endpoint with a guessed `sim-N` could move it. Binding the query
+     * to `(provider, provider_message_id)` closes that even for a correctly
+     * guessed id.
+     *
+     * One-line change that would make this fail: dropping the
+     * `->where('provider', $provider)` clause from `handleStatusReceipt()`.
+     */
+    #[Test]
+    public function a_simulation_delivery_id_only_matches_under_its_own_provider(): void
+    {
+        $this->contacts(1);
+
+        $alert = app(AlertService::class)->compose([
+            'organization_id' => $this->organization->id,
+            'title' => 'Simulation id binding test',
+            'message' => 'Please respond.',
+            'severity' => AlertSeverity::Advisory->value,
+            'channels' => ['sms'],
+            'is_simulation' => true,
+            'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
+        ], $this->operator->id);
+
+        app(AlertService::class)->release($alert, $this->operator->id);
+        $this->dispatchAll($alert);
+
+        $delivery = NotificationDelivery::query()->where('alert_id', $alert->getKey())->firstOrFail();
+        $this->assertSame('simulation', $delivery->provider);
+        $this->assertMatchesRegularExpression(
+            '/^sim-[0-9a-f]{32}$/',
+            $delivery->provider_message_id,
+            '128 bits of `random_bytes`, not the auto-increment key — an enumerable id is the whole defect.',
+        );
+
+        $handler = app(InboundResponseHandler::class);
+
+        // The exact id, but the wrong provider: no match at all.
+        $result = $handler->handleStatusReceipt('termii', [
+            'message_id' => $delivery->provider_message_id, 'status' => 'delivered',
+        ]);
+        $this->assertNull($result, 'The right id under the wrong provider must not resolve to any delivery.');
+        $this->assertSame(DeliveryStatus::Sent, $delivery->refresh()->status, 'And must not have moved it.');
+
+        // The same id, the right provider: matches and moves forward.
+        $handler->handleStatusReceipt('simulation', [
+            'message_id' => $delivery->provider_message_id, 'status' => 'delivered',
+        ]);
+        $this->assertSame(DeliveryStatus::Delivered, $delivery->refresh()->status);
+    }
+
+    /**
+     * GATE 2 DEFECT 1, PERMANENT REGRESSION TEST (fix 2 of 3) — a query string
+     * on a request whose BODY carries a genuinely valid signature must still
+     * be refused. `$request->validate()` validates `all()` (body ∪ query),
+     * while the signature only ever covered the body — so `?from=<anything>`
+     * riding alongside an honestly-signed `{"body":"safe"}` used to reach
+     * `handleReply()` with an attacker-chosen `from`.
+     *
+     * One-line change that would make this fail: deleting the
+     * `getQueryString()` check in `AlertWebhookController::signatureOk()`.
+     */
+    #[Test]
+    public function a_query_string_on_a_validly_signed_reply_body_is_refused(): void
+    {
+        $this->contacts(1);
+        $alert = $this->alert(AlertSeverity::LifeSafety, ['sms']);
+        app(AlertService::class)->release($this->cleared($alert), $this->operator->id);
+
+        $victim = AlertRecipient::query()->where('alert_id', $alert->getKey())->firstOrFail();
+
+        config()->set('bcms-gateways.webhook_secrets.termii', 'qs-secret');
+
+        $payload = ['body' => 'received, thanks'];
+        $timestamp = (string) time();
+        $signature = hash_hmac('sha256', $timestamp.'.'.json_encode($payload), 'qs-secret');
+
+        // The query string is the attack: an attacker names ANY recipient's
+        // number here, riding on a signature that only ever covered the body.
+        $uri = route('bcms.alerts.reply', ['provider' => 'termii']).'?from='.urlencode((string) $victim->contact->mobile_primary);
+
+        $this->postJson($uri, $payload, [
+            'X-BCMS-Signature' => $signature,
+            'X-BCMS-Timestamp' => $timestamp,
+        ])->assertStatus(403);
+
+        $this->assertNull($victim->refresh()->acknowledged_at, 'The query string must never reach the handler at all.');
+    }
+
+    /**
+     * GATE 2 DEFECT 1, PERMANENT REGRESSION TEST (fix 3 of 3) — the replay
+     * window. Nothing in the signed material used to expire, so a captured
+     * request stayed valid forever; a signature computed honestly over a
+     * stale timestamp is now refused.
+     *
+     * One-line change that would make this fail: widening or deleting
+     * `SIGNATURE_WINDOW_SECONDS` in `AlertWebhookController`.
+     */
+    #[Test]
+    public function a_signature_over_an_hour_old_timestamp_is_refused(): void
+    {
+        $this->contacts(1);
+        $alert = $this->alert(AlertSeverity::LifeSafety, ['sms']);
+        app(AlertService::class)->release($this->cleared($alert), $this->operator->id);
+
+        $recipient = AlertRecipient::query()->where('alert_id', $alert->getKey())->firstOrFail();
+        $token = app(AlertDispatcher::class)->tokenFor($recipient);
+
+        config()->set('bcms-gateways.webhook_secrets.termii', 'replay-secret');
+
+        $payload = ['body' => 'SAFE '.$token];
+        $staleTimestamp = (string) (time() - 3600);
+        $signature = hash_hmac('sha256', $staleTimestamp.'.'.json_encode($payload), 'replay-secret');
+
+        $this->postJson(route('bcms.alerts.reply', ['provider' => 'termii']), $payload, [
+            'X-BCMS-Signature' => $signature,
+            'X-BCMS-Timestamp' => $staleTimestamp,
+        ])->assertStatus(403);
+
+        $this->assertNull($recipient->refresh()->acknowledged_at, 'A replayed hour-old capture must never settle a roll-call status.');
+
+        // Sanity: the same construction, freshly timestamped, works — proving
+        // the previous 403 was the window and nothing else about the request.
+        $freshTimestamp = (string) time();
+        $freshSignature = hash_hmac('sha256', $freshTimestamp.'.'.json_encode($payload), 'replay-secret');
+
+        $this->postJson(route('bcms.alerts.reply', ['provider' => 'termii']), $payload, [
+            'X-BCMS-Signature' => $freshSignature,
+            'X-BCMS-Timestamp' => $freshTimestamp,
+        ])->assertOk()->assertJson(['matched' => true]);
+    }
+
+    /**
+     * GATE 2 DEFECT 1, PERMANENT REGRESSION TEST (fix 1 of 3) — `{provider}`
+     * must name a real gateway before either trust model is even consulted.
+     * An unrecognised segment used to fall through to "no secret configured",
+     * which `status()` treats as an unsigned-but-acceptable callback —
+     * letting a caller pick any string at all to land on the permissive
+     * branch.
+     *
+     * One-line change that would make this fail: deleting the
+     * `array_key_exists($provider, $secrets)` check in `signatureOk()`.
+     */
+    #[Test]
+    public function an_unrecognised_provider_segment_is_refused_on_both_routes(): void
+    {
+        $this->postJson(route('bcms.alerts.provider-status', ['provider' => 'not-a-real-gateway']), [
+            'message_id' => 'whatever', 'status' => 'delivered',
+        ])->assertStatus(403);
+
+        $this->postJson(route('bcms.alerts.reply', ['provider' => 'not-a-real-gateway']), [
+            'body' => 'safe',
+        ])->assertStatus(403);
+    }
+
+    /**
+     * REWRITTEN, GATE 1, THIS CYCLE. ADR 0016 §4 / phase-7-inbound-token-
+     * contract.md §4 AC 10 replaced the single shared
+     * `webhook_rate_limit_per_minute` this test used to read (deleted) with
+     * two independent keys, because gate 2 found that a SHARED ceiling was
+     * itself the defect: the "equal buckets" invariant let the roll-call
+     * route (a person's life-safety acknowledgement) inherit whatever number
+     * the receipt route needed, and vice versa. The invariant that actually
+     * matters, per the ADR, is not "the two numbers are equal" — it is that
+     * **the life-safety route's ceiling is never below the receipt route's**,
+     * because a 429 on the reply route is a dropped acknowledgement and a 429
+     * on the receipt route is, at worst, a delayed evidence write. Asserting
+     * numeric equality (the old assertion) would now PASS on the interim
+     * values by coincidence (600 == 600) and PASS AGAIN if a future
+     * deployment set the reply route's ceiling to 1 and the status route's to
+     * 1 — the old test could not tell "safe" from "both wrong the same way".
+     *
+     * This test asserts three things AC 10 actually requires:
+     *   1. Both keys exist, are configured, and are the documented interim
+     *      value (600) — not the deleted key.
+     *   2. `webhook_rate_limit_per_minute` (deleted) is not read by either
+     *      limiter closure — proven by changing IT and observing NEITHER
+     *      limit moves, which the old shared-config test could never show
+     *      because it read that same deleted key itself.
+     *   3. The invariant: alert-reply's ceiling is never lower than
+     *      provider-status's, keyed independently per `{provider}+ip` so one
+     *      provider's volume cannot exhaust another's bucket.
+     */
+    #[Test]
+    public function the_life_safety_reply_routes_ceiling_is_never_below_the_receipt_routes(): void
+    {
+        $replyPerMinute = (int) config('bcms-gateways.alert_reply_rate_limit_per_minute');
+        $statusPerMinute = (int) config('bcms-gateways.provider_status_rate_limit_per_minute');
+
+        $this->assertSame(600, $replyPerMinute, 'ADR 0016 §3: the documented interim value.');
+        $this->assertSame(600, $statusPerMinute, 'ADR 0016 §3: the documented interim value.');
+
+        // The deleted key must be inert: setting it must move neither
+        // limiter, proving neither closure still reads it.
+        config()->set('bcms-gateways.webhook_rate_limit_per_minute', 1);
+
+        $limiter = app(\Illuminate\Cache\RateLimiter::class);
+
+        $replyRequest = \Illuminate\Http\Request::create('/bcms/alert-reply/termii', 'POST');
+        $replyRequest->setRouteResolver(fn () => new class
+        {
+            public function parameter($name)
+            {
+                return 'termii';
+            }
+        });
+
+        $statusRequest = \Illuminate\Http\Request::create('/bcms/provider-status/africastalking', 'POST');
+        $statusRequest->setRouteResolver(fn () => new class
+        {
+            public function parameter($name)
+            {
+                return 'africastalking';
+            }
+        });
+
+        $replyLimit = call_user_func($limiter->limiter('bcms-alert-reply'), $replyRequest);
+        $statusLimit = call_user_func($limiter->limiter('bcms-provider-status'), $statusRequest);
+
+        $this->assertNotSame(1, $replyLimit->maxAttempts, 'The reply limiter must not have read the deleted shared key.');
+        $this->assertNotSame(1, $statusLimit->maxAttempts, 'The status limiter must not have read the deleted shared key.');
+
+        // THE INVARIANT ITSELF: never "equal", always "not below".
+        $this->assertGreaterThanOrEqual(
+            $statusLimit->maxAttempts,
+            $replyLimit->maxAttempts,
+            "The life-safety reply route's ceiling must never be below the receipt route's."
+        );
+
+        // Keyed per-provider-plus-ip: a different provider gets a different
+        // bucket, so one provider's volume cannot exhaust another's.
+        $this->assertStringContainsString('termii', $replyLimit->key);
+        $this->assertStringContainsString('africastalking', $statusLimit->key);
+        $this->assertNotSame($replyLimit->key, $statusLimit->key);
+    }
+
+    /**
+     * AC 10's other half: nothing in the codebase still READS the deleted
+     * key as config — as opposed to naming it in a comment, which every file
+     * that made this change legitimately does, to explain what replaced it.
+     * A grep-based guard rather than a config assertion, because the
+     * closures are registered once at boot and closing over a value read at
+     * boot time would make a config-only check blind to a stray read
+     * anywhere else in the module. Matched narrowly on the two shapes an
+     * actual read or a live definition would take
+     * (`config('bcms-gateways.webhook_rate_limit_per_minute')` or an array
+     * key `'webhook_rate_limit_per_minute' =>`), not on the bare string,
+     * which the docblocks above are entitled to contain.
+     */
+    #[Test]
+    public function nothing_reads_the_deleted_shared_rate_limit_key(): void
+    {
+        $hits = [];
+        $pattern = '/(config\(\s*[\'"]bcms-gateways\.webhook_rate_limit_per_minute[\'"]|'
+            .'[\'"]webhook_rate_limit_per_minute[\'"]\s*=>)/';
+
+        foreach (['app', 'routes', 'config'] as $dir) {
+            $path = base_path($dir);
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
+
+            foreach ($iterator as $file) {
+                if ($file->getExtension() !== 'php') {
+                    continue;
+                }
+
+                $contents = file_get_contents($file->getPathname());
+
+                if ($contents !== false && preg_match($pattern, $contents) === 1) {
+                    $hits[] = $file->getPathname();
+                }
+            }
+        }
+
+        $this->assertSame([], $hits, 'The deleted config key must not be read or defined anywhere: '.implode(', ', $hits));
     }
 
     /* ================================================================== */
@@ -719,6 +1466,74 @@ class Phase7EmnsTest extends TestCase
         $this->assertTrue(collect($flat)->contains(fn (string $r) => str_contains($r, 'Amina')));
     }
 
+    /**
+     * GATE 2 DEFECT 7, PERMANENT REGRESSION TEST — the export used to sit
+     * behind `bcms.report.export` alone and hand out `Address` and
+     * `Response text` unconditionally. `Response text` predictably collects
+     * health data and named third parties, because the inbound parser's own
+     * help vocabulary is `injured`, `hurt`, `trapped`. This is the mechanics
+     * `EvidenceExport` itself owns; the permission split at the route is
+     * `Phase7ScreensTest`.
+     *
+     * One-line change that would make this fail: `filterRow()` returning
+     * `$row` unchanged regardless of `$includeContactData`.
+     */
+    #[Test]
+    public function the_redacted_pack_omits_address_and_response_text_and_says_so_on_its_face(): void
+    {
+        $this->contacts(1);
+        $alert = $this->alert(AlertSeverity::Urgent, ['sms']);
+        app(AlertService::class)->release($this->cleared($alert), $this->operator->id);
+        $this->dispatchAll($alert);
+
+        $recipient = AlertRecipient::query()->where('alert_id', $alert->getKey())->firstOrFail();
+        app(RollCallService::class)->record(
+            $recipient, RollCallService::NEEDS_HELP,
+            'Musa is trapped on the third floor, send help', 'sms',
+        );
+
+        $export = app(EvidenceExport::class);
+
+        $fullColumns = $export->columns(true);
+        $redactedColumns = $export->columns(false);
+        $this->assertContains('Address', $fullColumns);
+        $this->assertContains('Response text', $fullColumns);
+        $this->assertNotContains('Address', $redactedColumns, 'Column and value must be dropped together.');
+        $this->assertNotContains('Response text', $redactedColumns);
+
+        $fullRows = implode('|', array_map(fn (array $r) => implode('|', $r), $export->rows($alert->refresh(), true)));
+        $redactedRows = implode('|', array_map(fn (array $r) => implode('|', $r), $export->rows($alert->refresh(), false)));
+
+        $this->assertStringContainsString((string) $recipient->contact->mobile_primary, $fullRows);
+        $this->assertStringContainsString('trapped on the third floor', $fullRows);
+        $this->assertStringNotContainsString((string) $recipient->contact->mobile_primary, $redactedRows);
+        $this->assertStringNotContainsString('trapped on the third floor', $redactedRows);
+
+        // The withholding is declared on the pack's own face, not silent.
+        $fullPreamble = $export->preamble($alert, true);
+        $redactedPreamble = $export->preamble($alert, false);
+        $this->assertFalse(
+            collect($fullPreamble)->contains(fn (array $line) => ($line[0] ?? null) === 'REDACTED'),
+        );
+        $this->assertTrue(
+            collect($redactedPreamble)->contains(fn (array $line) => ($line[0] ?? null) === 'REDACTED'),
+        );
+
+        // THE NO-ARGUMENT DEFAULT IS THE FULL SHAPE. The permission gate is the
+        // controller's job (`Phase7ScreensTest`); a defensive narrow default
+        // here would just be a second, undocumented place the same decision is
+        // made, and the two could drift.
+        $this->assertSame($fullColumns, $export->columns());
+        $this->assertSame($export->rows($alert->refresh(), true), $export->rows($alert->refresh()));
+        $this->assertSame($fullPreamble, $export->preamble($alert));
+
+        // Distinct filenames: an examiner holding both must be able to tell
+        // them apart without opening either.
+        $this->assertNotSame($export->filename($alert, true), $export->filename($alert, false));
+        $this->assertStringContainsString('redacted', $export->filename($alert, false));
+        $this->assertStringNotContainsString('redacted', $export->filename($alert, true));
+    }
+
     /* ================================================================== */
     /*  Criterion 13 — MFA on dispatch.
     /* ================================================================== */
@@ -814,6 +1629,153 @@ class Phase7EmnsTest extends TestCase
     }
 
     /* ================================================================== */
+    /*  Regression — tenancy on inline job invocation.
+    /*
+    /*  `DispatchAlertChunkJob` and `EscalateAlertRecipientsJob` both used to
+    /*  clear `TenantContext` in a `finally`, which is correct for a real
+    /*  queue worker (it always starts untenanted) but silently untenants
+    /*  everything after the job when a seeder or a test calls `->handle()`
+    /*  directly — the family the Phase 4 ICS feed and the Phase 6 cascade
+    /*  acknowledgement route already belong to: `OrganizationScope` is
+    /*  INERT with no tenant resolved (see
+    /*  `TenancyIsolationTest::the_scope_is_inert_when_no_tenant_is_resolved`,
+    /*  which proves it returns EVERY organisation's rows unfiltered, not
+    /*  nothing). Both jobs now use `TenantContext::actingAs()` to restore the
+    /*  caller's tenant instead of clearing it, matching
+    /*  `App\Services\Tprm\Reporting\ScheduledReportDispatcher`.
+    /* ================================================================== */
+
+    #[Test]
+    public function the_dispatch_chunk_job_leaves_no_tenant_resolved_when_none_was_active_before_it_ran(): void
+    {
+        $this->contacts(3);
+        $alert = $this->alert(AlertSeverity::Urgent, ['sms']);
+        app(AlertService::class)->release($this->cleared($alert), $this->operator->id);
+        $ids = AlertRecipient::query()->where('alert_id', $alert->getKey())
+            ->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        // The true queue-worker starting state: nothing resolved. This is the
+        // scenario `TenantContext`'s own docblock names as legitimate for
+        // "console and system contexts".
+        TenantContext::clear();
+
+        (new DispatchAlertChunkJob((int) $alert->getKey(), (int) $this->organization->id, $ids))
+            ->handle(app(AlertDispatcher::class));
+
+        $this->assertNull(
+            TenantContext::organizationIdOrNull(),
+            'actingAs(previous: null) restores to null, same as the old clear() — a worker\'s baseline.',
+        );
+
+        // The property that matters is never "another tenant's rows". A bare
+        // `AlertRecipient::query()->get()` would not prove that here —
+        // OrganizationScope is INERT with nothing resolved, so it adds no
+        // filter at all and would show every organisation's recipients
+        // unfiltered if more than one existed. What is asserted instead is
+        // the realistic downstream shape: code (reports, presenters, a raw
+        // query) that explicitly asks for "the current tenant's rows"
+        // without re-establishing one first. `where('organization_id', null)`
+        // becomes `whereNull`, which matches nothing — every recipient row is
+        // stamped with an organization_id on creation — so this fails closed
+        // rather than silently answering with whichever tenant last ran.
+        $rows = AlertRecipient::query()
+            ->where('organization_id', TenantContext::organizationIdOrNull())
+            ->get();
+
+        $this->assertCount(0, $rows, 'Fails closed: nothing, not another tenant\'s rows.');
+    }
+
+    #[Test]
+    public function the_dispatch_chunk_job_restores_the_callers_tenant_rather_than_leaking_another_ones_rows(): void
+    {
+        // A second, genuinely different, tenant with its own alert and
+        // recipient — the data a `clear()`-then-inert-scope defect would be
+        // able to leak into, and the data `actingAs()` must never show.
+        $other = Organization::create([
+            'name' => 'Other Bank', 'short_name' => 'OB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        TenantContext::set($other->id);
+        $this->seed(BcmsReferenceSeeder::class);
+        TenantContext::set($other->id);
+        $otherUnit = BusinessUnit::create([
+            'organization_id' => $other->id, 'code' => 'BU-OPS', 'name' => 'Operations', 'is_active' => true,
+        ]);
+        $otherOperator = User::create([
+            'organization_id' => $other->id, 'name' => 'Other Ops',
+            'email' => 'ops@ob.test', 'password' => bcrypt('secret'), 'is_active' => true,
+        ]);
+        Contact::query()->create([
+            'organization_id' => $other->id, 'source' => ContactSource::Manual->value,
+            'full_name' => 'Their Officer', 'employee_id' => 'OB-1', 'business_unit_id' => $otherUnit->id,
+            'email' => 'officer@ob.test', 'mobile_primary' => '+2348009990000',
+            'preferred_language' => 'en', 'consent_status' => 'granted', 'verification_status' => 'verified',
+            'last_verified_at' => now(), 'is_active' => true,
+        ]);
+        $otherAlert = app(AlertService::class)->compose([
+            'organization_id' => $other->id, 'title' => 'Theirs', 'message' => 'x',
+            'severity' => AlertSeverity::Urgent->value, 'channels' => ['sms'],
+            'audience_rule' => ['type' => 'org_node', 'id' => $otherUnit->id, 'include_descendants' => true],
+        ], $otherOperator->id);
+        app(AlertService::class)->release($otherAlert, $otherOperator->id);
+
+        // Back to my own tenant, with my own alert to dispatch.
+        TenantContext::set($this->organization->id);
+        $this->contacts(2);
+        $alert = $this->alert(AlertSeverity::Urgent, ['sms']);
+        app(AlertService::class)->release($this->cleared($alert), $this->operator->id);
+        $ids = AlertRecipient::query()->where('alert_id', $alert->getKey())
+            ->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        // Run the job the way a seeder or a `sync`-driver caller would:
+        // directly, with a tenant already active — and, the point of this
+        // test, WITHOUT re-establishing it afterward, unlike the old
+        // `dispatchAll()` helper's masking re-set.
+        (new DispatchAlertChunkJob((int) $alert->getKey(), (int) $this->organization->id, $ids))
+            ->handle(app(AlertDispatcher::class));
+
+        $this->assertSame(
+            $this->organization->id,
+            TenantContext::organizationIdOrNull(),
+            'actingAs() restores the caller\'s own tenant; it must not still be the job\'s.',
+        );
+
+        // Never another tenant's rows, whatever the design: a plain read
+        // right after the job, with nothing re-established, shows only mine.
+        $visible = AlertRecipient::query()->pluck('organization_id')->unique()->values()->all();
+        $this->assertSame([$this->organization->id], $visible);
+    }
+
+    #[Test]
+    public function the_escalation_job_leaves_no_tenant_resolved_when_none_was_active_before_it_ran(): void
+    {
+        $manager = $this->contact('Line Manager');
+        $this->contact('Amina', managerUserId: $manager->user_id);
+
+        $alert = $this->alert(AlertSeverity::Urgent, ['sms']);
+        $alert->forceFill(['ack_window_minutes' => 5])->save();
+        app(AlertService::class)->release($this->cleared($alert), $this->operator->id);
+        $this->dispatchAll($alert);
+
+        $this->travel(10)->minutes();
+        TenantContext::clear();
+
+        (new EscalateAlertRecipientsJob((int) $alert->getKey(), (int) $this->organization->id))
+            ->handle(app(EscalationService::class));
+
+        $this->travelBack();
+
+        $this->assertNull(TenantContext::organizationIdOrNull());
+
+        $rows = AlertRecipient::query()
+            ->where('organization_id', TenantContext::organizationIdOrNull())
+            ->get();
+
+        $this->assertCount(0, $rows, 'Fails closed: nothing, not another tenant\'s rows.');
+    }
+
+    /* ================================================================== */
     /*  Helpers
     /* ================================================================== */
 
@@ -851,6 +1813,20 @@ class Phase7EmnsTest extends TestCase
             'message' => 'Please respond.',
             'severity' => $severity->value,
             'channels' => $channels,
+            'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
+        ], $this->operator->id);
+    }
+
+    /** An exercise-linked alert — defaults to simulation, per criterion 5. */
+    private function alertOn(int $occurrenceId, AlertSeverity $severity, array $channels): Alert
+    {
+        return app(AlertService::class)->compose([
+            'organization_id' => $this->organization->id,
+            'title' => 'Test exercise alert',
+            'message' => 'Please respond.',
+            'severity' => $severity->value,
+            'channels' => $channels,
+            'occurrence_id' => $occurrenceId,
             'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
         ], $this->operator->id);
     }
@@ -925,12 +1901,54 @@ class Phase7EmnsTest extends TestCase
         ])->getKey();
     }
 
+    /**
+     * Post to `reply()` the way a genuinely signed provider callback would —
+     * configuring a secret for `$provider` and presenting the same HMAC the
+     * controller computes, over the same JSON body `postJson` sends. Every
+     * test that expects `reply()` to succeed must go through this; only the
+     * tests for defect 1 itself post unsigned.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function signedReplyPost(array $payload, string $provider, string $secret = 'test-provider-secret')
+    {
+        config()->set('bcms-gateways.webhook_secrets.'.$provider, $secret);
+
+        // The signed material is `timestamp.body`, not the body alone —
+        // `AlertWebhookController::signatureOk()` binds a timestamp into the
+        // HMAC and rejects a signature computed without one. `json_encode`
+        // here must match byte-for-byte what `postJson` sends as the request
+        // body, since the controller signs `$request->getContent()` verbatim.
+        $timestamp = (string) time();
+        $body = json_encode($payload);
+        $signature = hash_hmac('sha256', $timestamp.'.'.$body, $secret);
+
+        return $this->postJson(
+            route('bcms.alerts.reply', ['provider' => $provider]),
+            $payload,
+            [
+                'X-BCMS-Signature' => $signature,
+                'X-BCMS-Timestamp' => $timestamp,
+            ],
+        );
+    }
+
     private function message(): RenderedMessage
     {
         return new RenderedMessage(body: 'Evacuate now.', subject: 'Evacuate');
     }
 
-    /** Run every queued chunk inline. */
+    /**
+     * Run every queued chunk inline.
+     *
+     * No trailing `TenantContext::set()` here any more. That re-set used to
+     * mask the job's `finally`-clear — see
+     * `running_the_dispatch_chunk_job_inline_restores_the_callers_tenant()`
+     * below for why it is gone: the job now restores the tenant that was
+     * active before it ran (`TenantContext::actingAs()`), which is this
+     * test's own organisation throughout, so nothing needs repairing after
+     * the loop.
+     */
     private function dispatchAll(Alert $alert): void
     {
         $ids = AlertRecipient::query()->where('alert_id', $alert->getKey())
@@ -940,8 +1958,6 @@ class Phase7EmnsTest extends TestCase
             (new DispatchAlertChunkJob((int) $alert->getKey(), (int) $alert->organization_id, $chunk))
                 ->handle(app(AlertDispatcher::class));
         }
-
-        TenantContext::set($this->organization->id);
     }
 
     /** @param list<array{to: Recipient, message: RenderedMessage}> $captured */

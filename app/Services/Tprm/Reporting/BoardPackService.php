@@ -61,7 +61,15 @@ class BoardPackService
             ]);
 
             $figures = $this->builder->figures($asAt);
-            $draft = $this->narrative->draft($figures);
+            $draft = $this->narrative->draft($figures, $userId);
+
+            // Gate 2, TPRM Phase 11a, defect 1b. `figures` is the existing
+            // JSON column that already holds "every figure the pack prints"
+            // (schema note above) — reused here rather than adding a column,
+            // since the freeze holds at 0 for this phase. `narrative_meta` is
+            // read by `BoardPack::narrativeProvenance()` below, never
+            // recomputed on the page.
+            $figures['narrative_meta'] = ['truncated' => $draft['truncated']];
 
             $pack->forceFill([
                 'as_at' => $asAt->toDateString(),

@@ -1,7 +1,8 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import useJobProgress from '@thirdline/ui/hooks/useJobProgress';
 
 /**
  * The document workspace — the viewer beside the extraction panel.
@@ -19,7 +20,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
  * information, and a single "Accept" would collapse them.
  */
 export default function Show({
-    document, extractions = [], soc2, proposals, scopeCheck, capabilities = {}, can = {},
+    document, extractions = [], soc2, proposals, scopeCheck, capabilities = {}, can = {}, extractionJobRunId = null,
 }) {
     const latest = extractions[0] ?? null;
     const pending = extractions.find((extraction) => extraction.status === 'pending') ?? null;
@@ -55,6 +56,7 @@ export default function Show({
                         pending={pending}
                         capabilities={capabilities}
                         can={can}
+                        extractionJobRunId={extractionJobRunId}
                     />
 
                     {soc2 && <Soc2Panel soc2={soc2} />}
@@ -146,6 +148,7 @@ function Banner({ tone, children }) {
         critical: 'border-red-200 bg-red-50 text-red-900',
         warn: 'border-amber-200 bg-amber-50 text-amber-900',
         neutral: 'border-gray-200 bg-gray-50 text-gray-800',
+        success: 'border-green-200 bg-green-50 text-green-900',
     }[tone];
 
     return <div className={`mb-6 rounded-md border p-4 text-sm ${classes}`}>{children}</div>;
@@ -208,9 +211,93 @@ function DocumentFacts({ document }) {
 /*  The FIRST confirmation                                             */
 /* ------------------------------------------------------------------ */
 
-function ExtractionPanel({ document, extractions, pending, capabilities, can }) {
+function ExtractionPanel({ document, extractions, pending, capabilities, can, extractionJobRunId }) {
     const [manual, setManual] = useState(false);
     const canExtract = capabilities.ai_enabled && document.extractor && document.extractor !== 'generic';
+
+    /**
+     * Progress for the extraction job dispatched by `DocumentController::extract()`
+     * (Phase 11a, ADR 0015 §6a). `extractionJobRunId` is a normal Inertia prop —
+     * `show()` recomputes it fresh on every visit, including the one Inertia
+     * makes automatically after `extract()`'s `back()` redirect — so it is
+     * already correct the moment this component mounts with it, with nothing
+     * extra to read from the flash bag.
+     *
+     * (`extract()` also flashes `job_run_id` onto the session, but
+     * `HandleInertiaRequests::platformProps()` only forwards
+     * success/error/warning/info from the session into the `flash` prop — that
+     * key never reaches the browser. It is not needed here because
+     * `extractionJobRunId` already carries the same fact more reliably, but it
+     * is worth a report: as written, that flash value is unreachable dead
+     * data.)
+     */
+    const [jobOutcome, setJobOutcome] = useState(null);
+    const activeJob = useRef({ id: null, handled: false, countBefore: extractions.length });
+
+    const hasActiveJobId = extractionJobRunId !== null && extractionJobRunId !== undefined;
+    // Once the job has a recorded outcome (succeeded, produced nothing, or
+    // failed — including the refresh-itself-failed case below), it is no
+    // longer "extracting" even though `extractionJobRunId` — a plain prop
+    // recomputed by the server — has not necessarily gone back to null yet.
+    // Without `jobOutcome` in this condition, a `router.reload` whose
+    // `onError` fires would leave the spinner rendered forever alongside the
+    // failure banner it is supposed to have replaced.
+    const isExtracting = hasActiveJobId && jobOutcome === null;
+    const { progress, finished, error: pollError } = useJobProgress(extractionJobRunId, { enabled: isExtracting });
+
+    // Only trust `progress` once it names the job we are currently polling —
+    // otherwise a stale response from the PREVIOUS job (still resolving when
+    // a new one starts) can be read as this one having already finished.
+    const progressMatchesCurrentJob = isExtracting && progress?.id === extractionJobRunId;
+
+    // A newly-dispatched (or newly-revisited) job: forget the previous one's
+    // outcome and remember how many extractions existed before this one could
+    // possibly add to them.
+    useEffect(() => {
+        if (extractionJobRunId == null) {
+            activeJob.current = { id: null, handled: false, countBefore: extractions.length };
+            return;
+        }
+
+        if (activeJob.current.id !== extractionJobRunId) {
+            activeJob.current = { id: extractionJobRunId, handled: false, countBefore: extractions.length };
+            setJobOutcome(null);
+        }
+        // extractions.length is read only at the moment a new job id appears, not on every change.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [extractionJobRunId]);
+
+    // The job finished: find out how (succeeded, found nothing, or failed)
+    // and refresh the page's own props so the extraction it produced — if
+    // any — appears without the user reloading by hand.
+    useEffect(() => {
+        if (!progressMatchesCurrentJob || !finished) return;
+        if (activeJob.current.id !== extractionJobRunId || activeJob.current.handled) return;
+
+        activeJob.current.handled = true;
+
+        const status = progress.status;
+        const message = status === 'failed'
+            ? (progress.error ?? 'No error was recorded.')
+            : progress.message;
+        const countBefore = activeJob.current.countBefore;
+
+        router.reload({
+            only: ['document', 'extractions', 'extractionJobRunId', 'soc2', 'proposals', 'scopeCheck'],
+            onSuccess: (page) => setJobOutcome({
+                status: status === 'failed' ? 'failed' : 'completed',
+                message,
+                producedExtraction: (page.props.extractions?.length ?? 0) > countBefore,
+            }),
+            // A spinner that never resolves is the defect this exists to fix —
+            // if even the refresh fails, say so rather than sitting silent.
+            onError: () => setJobOutcome({
+                status: 'failed',
+                message: 'The document was read, but this page could not refresh itself. Reload to see the result.',
+                producedExtraction: false,
+            }),
+        });
+    }, [progressMatchesCurrentJob, finished, extractionJobRunId, progress]);
 
     return (
         <div className="card p-5">
@@ -229,9 +316,10 @@ function ExtractionPanel({ document, extractions, pending, capabilities, can }) 
                             <button
                                 type="button"
                                 className="btn btn-secondary"
+                                disabled={isExtracting}
                                 onClick={() => router.post(route('tprm.documents.extract', document.uuid))}
                             >
-                                Read the document
+                                {isExtracting ? 'Reading…' : 'Read the document'}
                             </button>
                         )}
                         <button type="button" className="btn btn-secondary" onClick={() => setManual(true)}>
@@ -248,8 +336,58 @@ function ExtractionPanel({ document, extractions, pending, capabilities, can }) 
                 </p>
             )}
 
-            {extractions.length === 0 && (
-                <p className="mt-4 text-sm text-gray-500">Nothing has been recorded from this document yet.</p>
+            {isExtracting && (
+                <div className="mt-4 rounded-md border border-gray-200 p-4" role="status" aria-live="polite">
+                    <div className="mb-2 flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-[#1A365D]">
+                            {progressMatchesCurrentJob && progress.status === 'queued'
+                                ? 'Queued to read this document'
+                                : 'Reading the document now'}
+                        </h4>
+                        {progressMatchesCurrentJob && (
+                            <span className="text-xs text-gray-500">{progress.progress ?? 0}%</span>
+                        )}
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                        <div
+                            className="h-2 bg-[#1A365D] transition-all"
+                            style={{ width: `${Math.max(3, progressMatchesCurrentJob ? (progress.progress ?? 0) : 0)}%` }}
+                        />
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                        This can take a minute or two on a large report. The extracted fields — or the reason
+                        there are none — appear here as soon as it finishes; you do not need to reload.
+                    </p>
+                    {pollError && (
+                        <p className="mt-2 text-xs text-amber-700">
+                            Could not reach the progress check just now. Still trying — this does not mean the
+                            reading itself has failed.
+                        </p>
+                    )}
+                </div>
+            )}
+
+            {jobOutcome && !jobOutcome.producedExtraction && (
+                <div role="status" aria-live="polite">
+                    <Banner tone={jobOutcome.status === 'failed' ? 'critical' : 'neutral'}>
+                        {jobOutcome.status === 'failed' ? (
+                            <>
+                                <span className="font-medium">This document could not be read.</span>{' '}
+                                {jobOutcome.message} Enter the details by hand, or try reading it again.
+                            </>
+                        ) : (
+                            <>
+                                <span className="font-medium">The document was read, and nothing was recorded from it.</span>{' '}
+                                {jobOutcome.message ?? 'No reason was given.'} Enter the details by hand if they are
+                                needed.
+                            </>
+                        )}
+                    </Banner>
+                </div>
+            )}
+
+            {extractions.length === 0 && !isExtracting && !jobOutcome && (
+                <NoExtractionYet status={document.extraction_status} />
             )}
 
             {extractions.map((extraction) => (
@@ -272,12 +410,57 @@ function ExtractionPanel({ document, extractions, pending, capabilities, can }) 
     );
 }
 
+/**
+ * `jobOutcome` only exists for the duration of the browser session that
+ * dispatched the job — a reload throws it away. Without this, a document
+ * whose last attempt failed, or read cleanly and found nothing, looks
+ * identical after a refresh to one nobody has ever attempted: all three
+ * would otherwise fall through to "Nothing has been recorded from this
+ * document yet." `document.extraction_status` is persisted server-side
+ * (`ExtractionDispatcher::markStatus()`) and survives the reload; it is
+ * already shipped in the payload and already read by the documents grid
+ * (`TprmDocumentsGrid`), so this only extends that same fact to this screen.
+ */
+function NoExtractionYet({ status }) {
+    if (status === 'failed') {
+        return (
+            <div role="status" aria-live="polite">
+                <Banner tone="critical">
+                    <span className="font-medium">The last attempt to read this document failed.</span>{' '}
+                    Enter the details by hand, or try reading it again.
+                </Banner>
+            </div>
+        );
+    }
+
+    if (status === 'unavailable') {
+        return (
+            <div role="status" aria-live="polite">
+                <Banner tone="neutral">
+                    <span className="font-medium">The document was read, and nothing was recorded from it.</span>{' '}
+                    Enter the details by hand if they are needed.
+                </Banner>
+            </div>
+        );
+    }
+
+    return <p className="mt-4 text-sm text-gray-500">Nothing has been recorded from this document yet.</p>;
+}
+
 function ExtractionCard({ document, extraction, isPending, can }) {
     const meta = extraction.extracted?._meta ?? {};
     const check = meta.citation_check ?? {};
     const fields = Object.entries(extraction.extracted ?? {}).filter(([key]) => key !== '_meta');
     const quoteFor = (field) => (check.verified ?? []).find((entry) => entry.field === field)?.quote;
     const rejectedFor = (field) => (check.rejected ?? []).find((entry) => entry.field === field);
+    // ADR 0015 §7: the model is measurably unreliable on these specific
+    // fields (e.g. `subservice_method`, wrong in 4 of 5 runs on a real SOC 2)
+    // and that cannot be fixed in code. The badge below is the mitigation —
+    // not a styling difference, a named reason to check this field's quote
+    // before confirming.
+    const lowTrustFields = meta.low_trust_fields ?? [];
+    const truncation = meta.document_truncated ?? null;
+    const contextWindow = meta.context_window ?? null;
 
     return (
         <div className="mt-4 rounded-md border border-gray-200 p-4">
@@ -304,17 +487,69 @@ function ExtractionCard({ document, extraction, isPending, can }) {
                 </p>
             )}
 
+            {/*
+             * ADR 0015 §6b, verbatim: "Text over the cap is truncated at a
+             * paragraph boundary and `_meta.document_truncated` records the
+             * fact, the cap and the original length. The confirmation screen
+             * prints it." A clean-looking extraction from a report the model
+             * only read a third of is indistinguishable on screen from one it
+             * read in full unless this is said out loud.
+             *
+             * When `truncation` is null this says nothing about
+             * completeness — Ollama's default context is well under the
+             * configured cap, so the absence of OUR truncation is not
+             * evidence the model read the whole thing. Never claim otherwise
+             * here.
+             */}
+            {truncation && (
+                <div className="mt-3" role="status">
+                    <Banner tone="warn">
+                        <span className="font-medium">This document was too long and was cut before reading.</span>{' '}
+                        Only the first {truncation.cap.toLocaleString()} of {truncation.original_length.toLocaleString()}{' '}
+                        characters were sent to the model. Fields below may be missing, or wrong, because they were
+                        only in the part it did not read.
+                    </Banner>
+                </div>
+            )}
+
+            {/*
+             * ADR 0015 §6d / phase-11a-ai-contract.md §7.5. `document_truncated`
+             * (above) says whether OUR cap cut the text; `context_window.fitted`
+             * (computed server-side, in ExtractionDispatcher::contextWindowMeta())
+             * says whether the SERVER's own window held everything we sent. They
+             * are different facts about different stages and must not be
+             * collapsed into one statement — a document we did not cut can still
+             * exceed the model's window, and this banner only ever appears when
+             * `truncation` above is null, so the two never contradict on screen.
+             *
+             * `fitted` is read here, never recomputed: it is the one comparison
+             * that must never drift from what the export shows.
+             */}
+            {!truncation && <CompletenessBanner contextWindow={contextWindow} />}
+
             <dl className="mt-3 space-y-2">
                 {fields.map(([key, value]) => {
                     const rejected = rejectedFor(key);
                     const quote = quoteFor(key);
+                    const lowTrust = lowTrustFields.includes(key);
 
                     return (
                         <div key={key} className="text-sm">
-                            <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                            <dt className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-500">
                                 {key.replace(/_/g, ' ')}
+                                {lowTrust && (
+                                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-amber-800">
+                                        Check this field
+                                    </span>
+                                )}
                             </dt>
                             <dd className="text-gray-900">{renderValue(value)}</dd>
+                            {lowTrust && (
+                                <p className="mt-0.5 text-xs text-amber-700">
+                                    The model is known to get this field wrong — check it against the quoted text
+                                    below before confirming.
+                                </p>
+                            )}
                             {quote && (
                                 <p className="mt-0.5 border-l-2 border-gray-200 pl-2 text-xs italic text-gray-600">
                                     “{quote}”
@@ -361,6 +596,71 @@ function ExtractionCard({ document, extraction, isPending, can }) {
                     </button>
                 </div>
             )}
+        </div>
+    );
+}
+
+/**
+ * ADR 0015 §6d / phase-11a-ai-contract.md §7.5, the two states that apply
+ * once OUR cap did not cut the document (the caller only renders this when
+ * `document_truncated` is null). `fitted` is read verbatim from
+ * `_meta.context_window` — never recomputed — because it is the one
+ * comparison the screen must never be able to get subtly different from an
+ * export.
+ *
+ * Binding wording rules (§7.5): never "read in full" / "the model read" —
+ * delivery is provable, attention is not. "Sent whole" only in the confirmed
+ * state, only beside both numbers. No percentage or derived share. An absent
+ * number reads "not reported", never 0 or blank. The confirmed and
+ * unconfirmed states must look different, not just read different.
+ */
+function CompletenessBanner({ contextWindow }) {
+    if (!contextWindow) {
+        // No context-window meta was ever recorded for this extraction (an
+        // older run, or a manually-entered one). There is nothing measured
+        // to say, so nothing is said — a screen is not the place to guess.
+        return null;
+    }
+
+    const { num_ctx: numCtx, prompt_tokens: promptTokens, fitted } = contextWindow;
+
+    if (fitted === true) {
+        return (
+            <div className="mt-3" role="status">
+                <Banner tone="success">
+                    <span className="font-medium">This document was not cut, and sent whole.</span>{' '}
+                    The model reported {promptTokens.toLocaleString()} prompt tokens against a declared window of{' '}
+                    {numCtx.toLocaleString()}.
+                </Banner>
+            </div>
+        );
+    }
+
+    if (fitted === false) {
+        return (
+            <div className="mt-3" role="status">
+                <Banner tone="neutral">
+                    <span className="font-medium">This document was not cut before reading.</span>{' '}
+                    The model reported {promptTokens.toLocaleString()} prompt tokens against a declared window of{' '}
+                    {numCtx.toLocaleString()} — at or above that window, so it may have received less than we sent.
+                </Banner>
+            </div>
+        );
+    }
+
+    // fitted === null: nothing was declared, or nothing was reported back.
+    // That is an absence of evidence, not evidence of a problem, so this
+    // states only what IS known — our own cap did not cut it — and says
+    // nothing about completeness either way.
+    return (
+        <div className="mt-3" role="status">
+            <Banner tone="neutral">
+                <span className="font-medium">This document was not cut before reading.</span>{' '}
+                {numCtx === null
+                    ? 'No context window was declared for this run, so there is nothing to check completeness against.'
+                    : `A window of ${numCtx.toLocaleString()} was declared, but the extraction did not report how many `
+                      + 'tokens it used (not reported), so there is nothing to check completeness against.'}
+            </Banner>
         </div>
     );
 }

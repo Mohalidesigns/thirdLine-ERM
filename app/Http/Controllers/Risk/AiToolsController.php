@@ -48,6 +48,44 @@ class AiToolsController extends Controller
     }
 
     /**
+     * Raise THIS REQUEST's execution budget for a synchronous model call —
+     * but only where a finite budget already exists.
+     *
+     * Every action below calls the locally hosted model in-request. The widest
+     * budget in `services.llm.budgets` is 90 seconds, on top of a 3 second
+     * availability probe, so PHP-FPM's customary 30 second `max_execution_time`
+     * would kill the request before the client timeout that is supposed to bound
+     * it ever fires. Raising the limit there is correct and is why these calls
+     * exist.
+     *
+     * IT MUST NOT FIRE UNDER THE CLI SAPI. `max_execution_time` is PROCESS
+     * GLOBAL, not per-request, and the CLI default is 0 — unlimited. `php artisan
+     * test` runs the entire suite in ONE process, so a bare `set_time_limit(120)`
+     * there raises nothing: it INTRODUCES a 120 second deadline, restarted from
+     * that moment and inherited by every test that runs afterwards. One test
+     * posting to `risk.ai.tools.executive-narrative` and waiting ~33 seconds on a
+     * real model was enough to collapse later, unrelated tests into `Maximum
+     * execution time of 120 seconds exceeded` fatals — a failure that reads as a
+     * broken suite rather than as a controller reaching for a process global.
+     *
+     * The condition is deliberately written against the INVARIANT rather than
+     * against the SAPI (`PHP_SAPI`, `runningInConsole()`), because nothing in
+     * this repository pins `max_execution_time` for FPM — there is no `.user.ini`,
+     * no `php_value` in `public/.htaccess` and no container image, so the
+     * deployed value is whatever the host ships. Two rules hold for any value:
+     * never introduce a deadline where the operator has none, and never shrink
+     * one the operator has set wider than we need.
+     */
+    private static function raiseRequestTimeLimit(int $seconds = 120): void
+    {
+        $current = (int) ini_get('max_execution_time');
+
+        if ($current > 0 && $current < $seconds) {
+            @set_time_limit($seconds);
+        }
+    }
+
+    /**
      * Risk Statement Builder — transforms a terse user scenario into a
      * structured Cause → Event → Consequence risk statement plus a concise
      * title and a board-ready description.
@@ -57,9 +95,7 @@ class AiToolsController extends Controller
      */
     public function riskStatement(DraftRiskStatementRequest $request): JsonResponse
     {
-        // Local LLM inference on a 3.4B model can exceed PHP's default 30s
-        // execution cap. Grant extra budget for this endpoint only.
-        @set_time_limit(120);
+        self::raiseRequestTimeLimit();
 
         $validated = $request->validated();
 
@@ -135,7 +171,7 @@ PROMPT;
      */
     public function controlRecommendations(SuggestControlsRequest $request): JsonResponse
     {
-        @set_time_limit(120);
+        self::raiseRequestTimeLimit();
 
         $validated = $request->validated();
 
@@ -238,7 +274,7 @@ PROMPT;
      */
     public function kriSuggestions(SuggestKrisRequest $request): JsonResponse
     {
-        @set_time_limit(120);
+        self::raiseRequestTimeLimit();
 
         $validated = $request->validated();
 
@@ -335,7 +371,7 @@ PROMPT;
      */
     public function executiveNarrative(Request $request): JsonResponse
     {
-        @set_time_limit(120);
+        self::raiseRequestTimeLimit();
 
         if (! $this->llm->available()) {
             return response()->json(['ok' => false, 'fallback' => true, 'error' => $this->llm->lastError()]);
@@ -447,7 +483,7 @@ PROMPT;
      */
     public function controlDescription(DraftControlDescriptionRequest $request): JsonResponse
     {
-        @set_time_limit(120);
+        self::raiseRequestTimeLimit();
 
         $validated = $request->validated();
 
@@ -515,7 +551,7 @@ PROMPT;
      */
     public function treatmentDescription(DraftTreatmentDescriptionRequest $request): JsonResponse
     {
-        @set_time_limit(120);
+        self::raiseRequestTimeLimit();
 
         $validated = $request->validated();
 
@@ -592,7 +628,7 @@ PROMPT;
      */
     public function kriDescription(DraftKriDescriptionRequest $request): JsonResponse
     {
-        @set_time_limit(120);
+        self::raiseRequestTimeLimit();
 
         $validated = $request->validated();
 

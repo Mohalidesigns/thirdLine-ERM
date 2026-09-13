@@ -144,6 +144,14 @@ Schedule::command('tprm:publish-kris')->dailyAt('08:15')->withoutOverlapping();
 // anybody wants to compare under three hundred near-identical rows.
 Schedule::command('tprm:run-concentration')->weeklyOn(1, '04:30');
 
+// Phase 11a, phase-11a-ai-contract.md §7.4. PLATFORM-LEVEL, not TPRM-only:
+// llm_usage_events is written by every module through LlmGateway, so this
+// command is flat here rather than dailyAt'd inside the TPRM block above —
+// it is telemetry retention for the gateway, not a TPRM sweep. No tenant
+// governance depends on it: tp_audit_logs and bcms_audit_logs hold the
+// governance events, this table only holds the traffic.
+Schedule::command('llm:prune-usage')->daily();
+
 /*
 |--------------------------------------------------------------------------
 | BCMS

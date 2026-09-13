@@ -53,6 +53,7 @@ use App\Models\RiskAppetite;
 use App\Models\RiskAssessment;
 use App\Models\RiskCategory;
 use App\Models\SimulationRun;
+use App\Models\Tprm\Document;
 use App\Models\Tprm\ThirdParty;
 use App\Models\TreatmentPlan;
 use App\Models\User;
@@ -132,6 +133,12 @@ class MorphTypes
             'bcms_programme' => BcmsProgramme::class,
             'bcms_site' => BcmsSite::class,
             'tprm_third_party' => ThirdParty::class,
+            // Phase 11a. RunTprmDocumentExtraction::track() names a Document
+            // as its JobRun subject, and llm_usage_events.subject_type traces
+            // a usage spike back to the document that caused it (contract
+            // §3.1) — both are morphs, and enforceMorphMap() refuses a model
+            // with no alias.
+            'tprm_document' => Document::class,
             'business_process' => BusinessProcess::class,
             'business_unit' => BusinessUnit::class,
             // WP-07. The integration surface is audited and job-tracked, so

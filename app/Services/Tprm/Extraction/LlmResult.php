@@ -25,6 +25,12 @@ class LlmResult
         public readonly int $durationMs = 0,
         public readonly ?string $message = null,
         public readonly bool $wasAvailable = true,
+        // ADR 0015 §6d, phase-11a-ai-contract.md §2.3/§2.5. Trailing and
+        // optional so no existing call site breaks. The `num_ctx` the
+        // gateway actually sent for this call; null when none was sent
+        // (either the budget declares none, or the call never reached
+        // `attemptGenerate()` at all).
+        public readonly ?int $contextWindow = null,
     ) {}
 
     public static function unavailable(string $promptVersion, string $message): self

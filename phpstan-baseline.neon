@@ -42,8 +42,46 @@
 # file swept them in and they were stripped back out — they have been the
 # programme's known-red marker since Phase 3 and hiding them here would lose it.
 #
+# THE COUNT IS TWELVE FROM TPRM PHASE 11a, NOT ELEVEN. `TracksJobProgress.php:95`
+# (`method_exists($this, 'attempts')`, function.alreadyNarrowedType) is reported
+# ONCE PER CLASS THAT USES THE TRAIT, and `RunTprmDocumentExtraction` (ADR 0015
+# §6a) is its second consumer after `ProcessRcsaImportJob`. Same line, same
+# reason, same decision: the guard is there for a job that does not use the
+# `Queueable` trait, and PHPStan cannot see that this trait is written for
+# more than the two classes that happen to use it today. ci.yml's step is
+# reporting-only and compares against the base branch, so the number to
+# expect there is now 12.
+#
 parameters:
 	ignoreErrors:
+		# ------------------------------------------------------------------
+		# TPRM Phase 11a (ADR 0015) — two more instances of the ONE return.type
+		# category the header already documents ("Collection's TValue is
+		# invariant ... printing two identical types. Annotating it more
+		# precisely does not help; it was tried"). Re-tried at Gate 1 on
+		# 2026-09-12 with a throwaway probe, so the claim is measured rather
+		# than inherited: a `Collection<int, array{a: int}>` return passes; the
+		# same shape with ANY nullable member (`b: string|null`, `null|string`,
+		# `?string`, in the public @return, the private mapper's @return, an
+		# inline `@var`, or a closure return) is reported as "should return X
+		# but returns X" every time. The two shapes below each carry one
+		# nullable member (`tokens: int|null`, `share: float|null`) that ADR
+		# 0015 §4 requires — "a share of nothing is undefined, not zero" — so
+		# the nullability is not negotiable and the analyser's equality check
+		# is what is wrong. The phase's THIRD entry, a nullsafe.neverNull on
+		# TprmAiUsageEventsGrid, was a real finding and was fixed in code.
+		# ------------------------------------------------------------------
+		-
+			message: '#^Method App\\Services\\Llm\\UsageReporter\:\:byService\(\) should return Illuminate\\Support\\Collection\<int, array\{service\: string, calls\: int, succeeded\: int, refused\: int, tokens\: int\|null, calls_missing_tokens\: int, avg_duration_ms\: float\}\> but returns Illuminate\\Support\\Collection\<int, array\{service\: string, calls\: int, succeeded\: int, refused\: int, tokens\: int\|null, calls_missing_tokens\: int, avg_duration_ms\: float\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Llm/UsageReporter.php
+		-
+			message: '#^Method App\\Services\\Llm\\UsageReporter\:\:byOutcome\(\) should return Illuminate\\Support\\Collection\<int, array\{outcome\: string, label\: string, count\: int, share\: float\|null\}\> but returns Illuminate\\Support\\Collection\<int, array\{outcome\: string, label\: string, count\: int, share\: float\|null\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Llm/UsageReporter.php
+
 		-
 			message: '#^Argument of an invalid type Illuminate\\Routing\\RouteCollectionInterface supplied for foreach, only iterables are supported\.$#'
 			identifier: foreach.nonIterable

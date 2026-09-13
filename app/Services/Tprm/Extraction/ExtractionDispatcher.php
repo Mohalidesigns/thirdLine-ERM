@@ -5,6 +5,9 @@ namespace App\Services\Tprm\Extraction;
 use App\Enums\Tprm\DocumentExtractor;
 use App\Models\Tprm\Document;
 use App\Models\Tprm\DocumentExtraction;
+use App\Services\Llm\CircuitBreaker;
+use App\Services\Llm\EndpointResolver;
+use App\Services\Tprm\Ai\TprmAiPolicy;
 use App\Services\Tprm\Evidence\CitationVerifier;
 use App\Services\Tprm\Evidence\ExtractionGuard;
 use App\Services\Tprm\Extraction\Extractors\BcpTestExtractor;
@@ -54,6 +57,10 @@ class ExtractionDispatcher
         private readonly LlmClient $llm,
         private readonly SchemaValidator $validator,
         private readonly CitationVerifier $citations,
+        private readonly PromptRegistry $prompts,
+        private readonly TprmAiPolicy $policy,
+        private readonly EndpointResolver $endpoints,
+        private readonly CircuitBreaker $breaker,
     ) {}
 
     /**
@@ -93,8 +100,15 @@ class ExtractionDispatcher
 
     /**
      * Run extraction for a document.
+     *
+     * `$userId` — Gate 2 blocking defect 3. `RunTprmDocumentExtraction` has
+     * the actor on its own `JobRun` (`$jobRun->created_by`, set from the
+     * uploader/requester at dispatch time or `auth()->id()` for an inline
+     * trigger); threading it here is what lets `llm_usage_events.user_id`
+     * distinguish a person's extraction from a genuinely unattended one
+     * instead of leaving every extraction to print as "Scheduled".
      */
-    public function dispatch(Document $document): ExtractionOutcome
+    public function dispatch(Document $document, ?int $userId = null): ExtractionOutcome
     {
         $document->loadMissing('documentType');
 
@@ -106,7 +120,7 @@ class ExtractionDispatcher
             );
         }
 
-        if (! $this->llm->enabled()) {
+        if (! $this->llm->enabled(LlmClient::EVIDENCE_EXTRACTION, $document->organization_id)) {
             $this->markStatus($document, 'unavailable');
 
             return ExtractionOutcome::skipped(
@@ -125,10 +139,40 @@ class ExtractionDispatcher
 
         $sanitised = $this->guard->sanitise($read['text']);
 
+        // Phase 11a, ADR 0015 §6b: rendered once here — not inside
+        // `LlmClient::extract()` — so the truncation fact and the prompt's
+        // declared `low_trust_fields` are both available to `persist()`
+        // without widening `LlmClient`'s own return type.
+        $promptKey = $extractor->extractor()->value;
+        $rendered = $this->prompts->renderWithMeta($promptKey, $sanitised->text);
+
         $errors = [];
 
         for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
-            $result = $this->llm->extract($extractor->extractor(), $sanitised->text, $document->organization_id);
+            if ($attempt > 1 && $this->breakerIsOpen($document->organization_id)) {
+                // ADR 0015 §6: the schema retry and the gateway's transport
+                // retry must not multiply. Extraction now runs on the queue
+                // (§6a), so a DIFFERENT worker's calls can trip the breaker
+                // between this job's first and second attempt; there is no
+                // reason to build and send a second prompt to a box the
+                // breaker has already given up on for this minute.
+                $this->markStatus($document, 'failed');
+
+                return ExtractionOutcome::failed(
+                    'The extraction service failed repeatedly and is temporarily paused, so only one attempt '
+                    .'was made. Every field on this document can be entered by hand.'
+                );
+            }
+
+            $result = $this->llm->run(
+                $promptKey,
+                $rendered['text'],
+                LlmClient::EVIDENCE_EXTRACTION,
+                $document->organization_id,
+                $document->getMorphClass(),
+                $document->getKey(),
+                $userId,
+            );
 
             if (! $result->succeeded()) {
                 $this->markStatus($document, 'failed');
@@ -136,7 +180,7 @@ class ExtractionDispatcher
                 return ExtractionOutcome::failed((string) $result->message);
             }
 
-            $payload = $result->data;
+            $payload = $this->validator->coerce($result->data, $extractor->schema());
             $errors = $this->validator->validate($payload, $extractor->schema());
 
             if ($errors !== []) {
@@ -144,7 +188,7 @@ class ExtractionDispatcher
             }
 
             return ExtractionOutcome::extracted(
-                $this->persist($document, $extractor, $payload, $result, $sanitised->flags, $read['text'])
+                $this->persist($document, $extractor, $payload, $result, $sanitised->flags, $read['text'], $rendered)
             );
         }
 
@@ -163,6 +207,7 @@ class ExtractionDispatcher
     /**
      * @param  array<string, mixed>  $payload
      * @param  list<string>  $injectionFlags
+     * @param  array{text: string, document_truncated: array{cap: int, original_length: int}|null, low_trust_fields: list<string>}  $rendered
      */
     private function persist(
         Document $document,
@@ -171,6 +216,7 @@ class ExtractionDispatcher
         LlmResult $result,
         array $injectionFlags,
         string $documentText,
+        array $rendered,
     ): DocumentExtraction {
         $citations = $this->citationsFrom($payload);
         $verification = $this->citations->verify($citations, $documentText);
@@ -199,6 +245,19 @@ class ExtractionDispatcher
                         'completion' => $result->completionTokens,
                     ],
                     'duration_ms' => $result->durationMs,
+                    // ADR 0015 §6b: declared, never silent. A null
+                    // `document_truncated` means only that OUR cap did not
+                    // cut it — it says nothing about whether the server's own
+                    // context window did. `context_window` below is what
+                    // answers that question, and only that question.
+                    'document_truncated' => $rendered['document_truncated'],
+                    'low_trust_fields' => $rendered['low_trust_fields'],
+                    // ADR 0015 §6d, phase-11a-ai-contract.md §2.5. `fitted`
+                    // is computed HERE, server-side, and nowhere else — never
+                    // in JavaScript — because it is the one comparison the
+                    // confirmation screen must never be able to get subtly
+                    // different from an export.
+                    'context_window' => $this->contextWindowMeta($result),
                 ],
             ],
             'confidence' => $confidence,
@@ -209,6 +268,38 @@ class ExtractionDispatcher
         $this->markStatus($document, 'extracted');
 
         return $extraction;
+    }
+
+    /**
+     * ADR 0015 §6d, phase-11a-ai-contract.md §2.5 — the exact three-valued
+     * truth table. `fitted` is `true` ONLY when both a declared window and a
+     * reported prompt-token count exist and the count strictly clears the
+     * window: a truncated prompt fills it. `>=` proves nothing (it is
+     * indistinguishable from a much larger prompt cut down to fit) and a
+     * missing count proves nothing either — both cases are `null`, never
+     * `false`. "We checked and it fits" must never look like "we could not
+     * check", so a missing `prompt_tokens` or `num_ctx` is NEVER coerced to 0
+     * and NEVER defaulted to `false`.
+     *
+     * @return array{num_ctx: int|null, prompt_tokens: int|null, fitted: bool|null}
+     */
+    private function contextWindowMeta(LlmResult $result): array
+    {
+        $numCtx = $result->contextWindow;
+        $promptTokens = $result->promptTokens;
+
+        $fitted = match (true) {
+            $numCtx === null => null,
+            $promptTokens === null => null,
+            $promptTokens < $numCtx => true,
+            default => false,
+        };
+
+        return [
+            'num_ctx' => $numCtx,
+            'prompt_tokens' => $promptTokens,
+            'fitted' => $fitted,
+        ];
     }
 
     /**
@@ -249,5 +340,20 @@ class ExtractionDispatcher
     private function markStatus(Document $document, string $status): void
     {
         $document->forceFill(['extraction_status' => $status])->save();
+    }
+
+    /**
+     * A PURE READ — never `CircuitBreaker::allows()`, which transitions an
+     * expired OPEN breaker to HALF_OPEN and admits exactly one probe as a
+     * side effect. Calling that here to decide whether to SKIP an attempt
+     * would consume the one admitted probe on a call that is then never
+     * made, leaving the breaker stuck half-open with nothing to resolve it.
+     */
+    private function breakerIsOpen(int $organizationId): bool
+    {
+        $snapshot = $this->policy->snapshot($organizationId, LlmClient::EVIDENCE_EXTRACTION);
+        $profile = $this->endpoints->resolve($snapshot->endpointProfileKey);
+
+        return $this->breaker->state($profile->key) === 'open';
     }
 }

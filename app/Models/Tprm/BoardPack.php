@@ -121,15 +121,38 @@ class BoardPack extends Model
 
     /**
      * How the narrative should be labelled to a reader.
+     *
+     * Gate 2, TPRM Phase 11a, defect 1b: an AI-assisted narrative drafted from
+     * a truncated summary gets the caveat appended here, read from
+     * `figures.narrative_meta.truncated` (§6b's fact, carried through
+     * `BoardNarrativeWriter::draft()`) rather than restated or recomputed —
+     * the same rule `ExtractionDispatcher`'s `_meta.document_truncated`
+     * follows.
      */
     public function narrativeProvenance(): string
     {
-        return match ($this->narrative_source) {
+        $label = match ($this->narrative_source) {
             self::SOURCE_AI_ASSISTED => 'Drafted with AI assistance from the figures in this pack, and not yet edited.',
             self::SOURCE_EDITED => 'Edited by '.($this->narrativeEditor === null ? 'a reviewer' : $this->narrativeEditor->name).'.',
             self::SOURCE_DETERMINISTIC => 'Assembled from the figures in this pack. No model was used.',
             default => 'No narrative has been drafted.',
         };
+
+        $truncated = $this->narrative_source === self::SOURCE_AI_ASSISTED
+            ? ($this->figures['narrative_meta']['truncated'] ?? null)
+            : null;
+
+        if ($truncated === null) {
+            return $label;
+        }
+
+        return $label.sprintf(
+            ' The assembled summary this was rewritten from was cut at %s of %s characters before the model '
+            .'saw it, so a later paragraph may not have been carried into this draft — check it against the '
+            .'figures below.',
+            number_format((int) ($truncated['cap'] ?? 0)),
+            number_format((int) ($truncated['original_length'] ?? 0)),
+        );
     }
 
     /** @param  Builder<self>  $query */

@@ -3,6 +3,7 @@
 namespace App\Services\Tprm\Contracts;
 
 use App\Enums\Tprm\ClausePresence;
+use App\Models\Tprm\AuditLog;
 use App\Models\Tprm\ClauseLibraryEntry;
 use App\Models\Tprm\Contract;
 use App\Models\Tprm\ContractClause;
@@ -12,6 +13,7 @@ use App\Services\Tprm\Extraction\DocumentTextExtractor;
 use App\Services\Tprm\Extraction\LlmClient;
 use App\Services\Tprm\Extraction\PromptRegistry;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Clause detection — TRD §12.3.
@@ -99,11 +101,33 @@ class ClauseAnalyzer
 
         $sanitised = $this->guard->sanitise($read['text']);
 
+        // Gate 2, TPRM Phase 11a, defect 1: `renderKey()` discards the
+        // truncation fact `renderWithMeta()` reports. `clause_analysis` is
+        // capped at 4,800 characters (config/tprm_prompts.php) and this
+        // prompt's own instructions tell the model to return "absent" for a
+        // clause it does not see — so a discarded flag here is not a missing
+        // footnote, it is a regulatory gap report built on a document the
+        // model read a fraction of, with nothing anywhere to say so.
+        $rendered = $this->prompts->renderWithMeta(
+            self::PROMPT_KEY,
+            $sanitised->text,
+            $this->clauseList($applicable),
+        );
+
         $result = $this->llm->run(
             self::PROMPT_KEY,
-            $this->prompts->renderKey(self::PROMPT_KEY, $sanitised->text, $this->clauseList($applicable)),
+            $rendered['text'],
             LlmClient::CLAUSE_ANALYSIS,
             $contract->organization_id,
+            null,
+            null,
+            // Gate 2 blocking defect 3: `$userId` arrives on this method
+            // (the controller already passes `$request->user()->id`) but was
+            // never forwarded to the model call, so every clause analysis
+            // recorded a null actor. `subjectType`/`subjectId` are left null
+            // rather than the contract, because `$result` here is one call
+            // covering every clause on the document, not one call per clause.
+            $userId,
         );
 
         if (! $result->succeeded()) {
@@ -115,10 +139,89 @@ class ClauseAnalyzer
 
         $detected = $this->persist($contract, $applicable, $result->data, $read['text']);
 
-        $contract->forceFill(['clause_analysis_status' => 'analysed'])->save();
+        $truncated = $rendered['document_truncated'];
+
+        // Judgement call the reviewer asked for, stated rather than left
+        // silent: a contract the model read only part of is NOT "analysed"
+        // in the sense the activation gate and the clause gap report both
+        // read that word to mean. `analysed` is refused; `analysed_partial`
+        // records the same completion — a determination on every applicable
+        // clause, a full reviewer queue — without asserting a coverage the
+        // read did not achieve. `tp_contracts.clause_analysis_status` is a
+        // free-form status column wide enough for the new value, so this
+        // needs no schema change.
+        $contract->forceFill([
+            'clause_analysis_status' => $truncated === null
+                ? Contract::CLAUSE_ANALYSIS_ANALYSED
+                : Contract::CLAUSE_ANALYSIS_ANALYSED_PARTIAL,
+        ])->save();
+
+        // ADR 0015 §6e (deviation 10): the qualitative fact lives on the
+        // status column above; the quantitative one — how partial, and
+        // against what prompt version — belongs to an event, not to the
+        // contract's current state, so it goes to this module's append-only,
+        // hash-chained ledger rather than to a `_meta` column on a register
+        // row. Written after the status save and before the gap count is
+        // refreshed, so the chain reads causally: the change, then why, then
+        // the recomputed count. `auditable_type` is the FQCN, not a morph
+        // alias — this column stores `static::class` (`TprmAuditable`) and
+        // `Contract::auditLogs()` joins on it, so an alias would make the row
+        // invisible to the one relation that would ever read it.
+        if ($truncated !== null) {
+            try {
+                AuditLog::create([
+                    'organization_id' => $contract->organization_id,
+                    'auditable_type' => Contract::class,
+                    'auditable_id' => $contract->getKey(),
+                    'event' => 'clause_analysis_partial',
+                    'actor_type' => $userId !== null ? 'user' : 'system',
+                    'actor_id' => $userId,
+                    'before' => null,
+                    'after' => [
+                        'prompt_key' => self::PROMPT_KEY,
+                        'prompt_version' => $this->prompts->forKey(self::PROMPT_KEY)['version'],
+                        'cap' => $truncated['cap'],
+                        'original_length' => $truncated['original_length'],
+                        'detected' => $detected,
+                        'applicable' => $applicable->count(),
+                    ],
+                    'ip' => request()?->ip(),
+                    'user_agent' => substr((string) request()?->userAgent(), 0, 500) ?: null,
+                ]);
+            } catch (\Throwable $exception) {
+                // Auditing never fails the write (TprmAuditable's rule). By
+                // this line the clause rows and the status are already
+                // persisted, so throwing here would 500 a completed analysis.
+                // A swallowed failure loses only the QUANTITY; the
+                // QUALITATIVE fact is already durable in
+                // `clause_analysis_status`, which ADR 0015 §6e ruled
+                // sufficient for every screen. It cannot degrade into
+                // silence — logged loudly instead.
+                Log::error('TPRM clause-analysis truncation event failed to write', [
+                    'contract_id' => $contract->getKey(),
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        // Still refreshed when truncated, deliberately. The count stays SAFE
+        // under a partial read even though it is not complete: every clause
+        // the model marks `absent` fails `ContractClause::isSatisfied()`
+        // regardless of whether the absence is real or merely unread, so a
+        // truncated basis can only ever count a gap that later turns out not
+        // to be one — it cannot miss a real gap by manufacturing a
+        // truncation-caused false "present", because `persist()` verifies
+        // every quote against the FULL extracted text (`$read['text']`, not
+        // the truncated prompt) and demotes an unverifiable one back to
+        // absent before this line runs. An over-count that forces a human to
+        // look is safer here than no count, so this is not skipped — but the
+        // gap report and the screen must say the basis is partial, which is
+        // why the status above is not simply `analysed`.
         app(ContractService::class)->refreshBlockingGapCount($contract);
 
-        return ClauseAnalysisOutcome::analysed($detected, $applicable->count(), $sanitised->flags);
+        return $truncated === null
+            ? ClauseAnalysisOutcome::analysed($detected, $applicable->count(), $sanitised->flags)
+            : ClauseAnalysisOutcome::analysedPartial($detected, $applicable->count(), $sanitised->flags, $truncated);
     }
 
     /**

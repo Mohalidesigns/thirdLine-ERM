@@ -42,6 +42,20 @@ abstract class TestCase extends BaseTestCase
 
     protected function tearDown(): void
     {
+        // A NET, NOT THE FIX. `max_execution_time` is process global and the CLI
+        // default is 0 (unlimited), so ONE `set_time_limit($n)` anywhere in app
+        // code hands the REST OF THE SUITE a shared $n-second countdown restarted
+        // from that moment — and the suite then dies of `Maximum execution time
+        // exceeded` on tests unrelated to whatever set it. That happened:
+        // `Risk\AiToolsController` called `set_time_limit(120)` in seven actions,
+        // and `LlmGatewayNumCtxTest` posts to one of them and waits ~33s on a real
+        // model. The controller is fixed (it now only raises a limit that already
+        // exists, so it is inert under CLI); this line bounds the blast radius of
+        // the NEXT one to a single test. It is silent by nature, so it must not be
+        // what keeps the class out of the codebase — a guard test that fails on an
+        // unguarded process-global mutation in app/ is what does that.
+        @set_time_limit(0);
+
         foreach ($this->licenseFileSnapshot as $path => $contents) {
             if ($contents === null) {
                 @unlink($path);

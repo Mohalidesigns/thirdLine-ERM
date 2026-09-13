@@ -61,6 +61,24 @@ class Contract extends Model
     /** @var list<string> */
     public const RENEWAL_TYPES = ['none', 'auto', 'manual', 'evergreen'];
 
+    public const CLAUSE_ANALYSIS_NOT_STARTED = 'not_started';
+
+    public const CLAUSE_ANALYSIS_ANALYSED = 'analysed';
+
+    /**
+     * Gate 2, TPRM Phase 11a (defect 1). Recorded instead of
+     * `CLAUSE_ANALYSIS_ANALYSED` when `ClauseAnalyzer` had to truncate the
+     * contract text before sending it to the model (ADR 0015 §6b). Every
+     * "absent" verdict on a clause the model never reached is unproven, not
+     * confirmed — the prompt's own instructions tell it to return absent
+     * rather than guess, so a clause genuinely present past the cut reads
+     * identically to one that truly is not there. `analysed` is refused
+     * because it would tell the activation gate and the clause gap report
+     * that the whole contract was read, which is exactly the claim §6b
+     * exists to stop this module making silently.
+     */
+    public const CLAUSE_ANALYSIS_ANALYSED_PARTIAL = 'analysed_partial';
+
     protected $fillable = [
         'organization_id', 'engagement_id', 'parent_contract_id', 'contract_type',
         'reference', 'title', 'counterparty_signatory', 'internal_signatory_id',

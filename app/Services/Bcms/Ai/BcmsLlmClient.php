@@ -3,8 +3,10 @@
 namespace App\Services\Bcms\Ai;
 
 use App\Services\Bcms\BcmsSettings;
+use App\Services\Llm\LlmCall;
+use App\Services\Llm\LlmGateway;
 use App\Services\LlmService;
-use Illuminate\Support\Facades\Log;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The one place BCMS talks to a model — ADR 0010.
@@ -47,6 +49,7 @@ class BcmsLlmClient
     public function __construct(
         private LlmService $llm,
         private BcmsSettings $settings,
+        private LlmGateway $gateway,
     ) {}
 
     /**
@@ -104,40 +107,78 @@ class BcmsLlmClient
     /**
      * Ask for a JSON answer.
      *
+     * PHASE 11A: routes through the platform `LlmGateway` instead of calling
+     * `LlmService::json()` directly — ADR 0015 §9. `BiaAiDrafter`,
+     * `PlanAiDrafter` and `ProgrammeAdvisor` call this method exactly as
+     * before; its PUBLIC API AND RETURN SHAPE ARE UNCHANGED. What changed
+     * internally: BCMS calls now carry transport retry, a circuit breaker and
+     * a recorded `llm_usage_events` row, the same as TPRM's.
+     *
+     * `$context` remains unused by this method (kept for API compatibility —
+     * BCMS's own prompt builders already fold context into `$prompt` before
+     * calling this) and is logged nowhere any more: the gateway's own usage
+     * row is the log.
+     *
+     * `$userId` — Gate 2 blocking defect 3, ADDITIVE AND TRAILING so `json()`'s
+     * public API stays exactly as the phase-11a docblock above promises.
+     * Defaults to `auth()->id()` because every current caller —
+     * `BiaAiDrafter`, `PlanAiDrafter`, `ProgrammeAdvisor` — runs inside a
+     * controller action on the request's own authenticated user; a future
+     * caller running outside a request (a job, a console command) would get
+     * `null` from `auth()->id()` there and should pass the real actor
+     * explicitly rather than rely on this default.
+     *
      * @param  array<string, mixed>  $context
      * @return array{ok: bool, data: array<string, mixed>, reason: ?string}
      */
-    public function json(string $capability, string $prompt, array $context = [], ?int $organizationId = null): array
+    public function json(string $capability, string $prompt, array $context = [], ?int $organizationId = null, ?int $userId = null): array
     {
+        $organizationId ??= TenantContext::organizationIdOrNull();
+        $userId ??= auth()->id();
+
         $reason = $this->unavailableReason($capability, $organizationId);
 
         if ($reason !== null) {
             return ['ok' => false, 'data' => [], 'reason' => $reason];
         }
 
-        $started = microtime(true);
-        $data = $this->llm->json($prompt);
+        // unavailableReason() above already confirmed a non-null
+        // organisation (it returns non-null when ai_enabled cannot be
+        // resolved for one), but PHPStan cannot see that across two methods,
+        // so this is asserted rather than re-checked.
+        if ($organizationId === null) {
+            return ['ok' => false, 'data' => [], 'reason' => 'No organisation context is available.'];
+        }
 
-        Log::info('BCMS AI call', [
-            'capability' => $capability,
-            'organization_id' => $organizationId,
-            'model' => config('services.llm.model'),
-            'ms' => (int) ((microtime(true) - $started) * 1000),
-            'ok' => $data !== [],
-            'context_keys' => array_keys($context),
-        ]);
+        $call = new LlmCall(
+            organizationId: $organizationId,
+            module: 'bcms',
+            service: $capability,
+            promptKey: $capability,
+            // BCMS does not version its AI prompts the way TPRM's
+            // PromptRegistry does — its three drafters are untouched by this
+            // phase (ADR 0015 §9) and this column exists for TPRM's
+            // reproducibility requirement, not BCMS's.
+            promptVersion: 'unversioned',
+            prompt: $prompt,
+            budget: 'medium',
+            userId: $userId,
+        );
 
-        if ($data === []) {
+        $outcome = $this->gateway->call($call);
+
+        if (! $outcome->succeeded()) {
             return [
                 'ok' => false,
                 'data' => [],
                 // Deliberately not "the model failed": on a locally hosted model
                 // an unparseable answer is the commonest outcome and the user's
                 // next step is the same either way.
-                'reason' => 'The model did not return an answer this screen could use. Fill the assessment in by hand, or try again.',
+                'reason' => $outcome->reason ?? 'The model did not return an answer this screen could use. '
+                    .'Fill the assessment in by hand, or try again.',
             ];
         }
 
-        return ['ok' => true, 'data' => $data, 'reason' => null];
+        return ['ok' => true, 'data' => $outcome->data, 'reason' => null];
     }
 }

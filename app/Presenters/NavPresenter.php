@@ -131,6 +131,10 @@ class NavPresenter
                     ['label' => 'Tiering Rulesets', 'route' => 'tprm.rulesets.index', 'permission' => 'tprm.ruleset.manage', 'feature' => 'tprm'],
                     ['label' => 'Clause Library', 'route' => 'tprm.clauses.index', 'permission' => 'tprm.contract.view', 'feature' => 'tprm'],
                     ['label' => 'Programme Settings', 'route' => 'tprm.settings.programme', 'permission' => 'tprm.admin', 'feature' => 'tprm'],
+                    // Phase 11a. Same gate as Programme Settings above —
+                    // ADR 0015 §8.
+                    ['label' => 'AI Settings', 'route' => 'tprm.settings.ai', 'permission' => 'tprm.admin', 'feature' => 'tprm'],
+                    ['label' => 'AI Usage Report', 'route' => 'tprm.settings.ai.usage', 'permission' => 'tprm.admin', 'feature' => 'tprm'],
                 ],
             ],
 

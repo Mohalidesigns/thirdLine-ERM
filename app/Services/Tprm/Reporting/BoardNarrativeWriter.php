@@ -40,21 +40,39 @@ class BoardNarrativeWriter
     ) {}
 
     /**
+     * `$userId` — Gate 2 blocking defect 3. `BoardPackService::prepare()`
+     * already takes the preparing user; threading it through here is what
+     * lets the board pack's own AI call show up against a person on the
+     * usage report rather than as "Scheduled".
+     *
      * @param  array<string, mixed>  $figures
-     * @return array{text: string, source: string}
+     * @return array{text: string, source: string, truncated: array{cap: int, original_length: int}|null}
      */
-    public function draft(array $figures): array
+    public function draft(array $figures, ?int $userId = null): array
     {
         $deterministic = $this->assemble($figures);
 
         if (! $this->llm->available(LlmClient::NARRATIVE_GENERATION)) {
-            return ['text' => $deterministic, 'source' => BoardPack::SOURCE_DETERMINISTIC];
+            return ['text' => $deterministic, 'source' => BoardPack::SOURCE_DETERMINISTIC, 'truncated' => null];
         }
+
+        // Gate 2, TPRM Phase 11a, defect 1b — same discard as `ClauseAnalyzer`,
+        // lower severity: the input here is our own deterministic text, not a
+        // vendor document, and `board_narrative` is capped at 9,800 characters
+        // (config/tprm_prompts.php), the largest of the ten. Still fixed in
+        // the same pass, and still recorded, because a rewrite of only part of
+        // the assembled draft can drop the closing disclaimer paragraph below
+        // without anyone being told.
+        $rendered = $this->prompts->renderWithMeta(self::PROMPT_KEY, $deterministic);
 
         $result = $this->llm->run(
             self::PROMPT_KEY,
-            $this->prompts->renderKey(self::PROMPT_KEY, $deterministic),
+            $rendered['text'],
             LlmClient::NARRATIVE_GENERATION,
+            null,
+            null,
+            null,
+            $userId,
         );
 
         $rewritten = $result->succeeded() ? ($result->data['narrative'] ?? null) : null;
@@ -62,10 +80,14 @@ class BoardNarrativeWriter
         // A model that returned nothing usable does not get to blank the
         // section. The assembled text stands, and the pack says so.
         if (! is_string($rewritten) || trim($rewritten) === '') {
-            return ['text' => $deterministic, 'source' => BoardPack::SOURCE_DETERMINISTIC];
+            return ['text' => $deterministic, 'source' => BoardPack::SOURCE_DETERMINISTIC, 'truncated' => null];
         }
 
-        return ['text' => trim($rewritten), 'source' => BoardPack::SOURCE_AI_ASSISTED];
+        return [
+            'text' => trim($rewritten),
+            'source' => BoardPack::SOURCE_AI_ASSISTED,
+            'truncated' => $rendered['document_truncated'],
+        ];
     }
 
     /**

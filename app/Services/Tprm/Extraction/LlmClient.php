@@ -3,11 +3,14 @@
 namespace App\Services\Tprm\Extraction;
 
 use App\Enums\Tprm\DocumentExtractor;
-use App\Services\LlmService;
-use Illuminate\Support\Facades\Log;
+use App\Services\Llm\LlmCall;
+use App\Services\Llm\LlmGateway;
+use App\Services\Tprm\Ai\TprmAiPolicy;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
- * The one place TPRM talks to a model — TRD §12.1.
+ * The one place TPRM talks to a model — TRD §12.1, phase-11a-ai-contract.md
+ * §2.3.
  *
  * THE KILL SWITCH IS CHECKED HERE AND NOWHERE ELSE, which is what makes AC-16
  * ("with every AI service disabled, all workflows complete manually")
@@ -17,17 +20,18 @@ use Illuminate\Support\Facades\Log;
  * optional service is not an error condition, and a screen that 500s when AI
  * is off has failed AC-16 as surely as one that calls the model anyway.
  *
- * TWO FLAGS, BOTH OF WHICH MUST BE ON. `tprm.ai.enabled` is the tenant-level
- * master switch; `tprm.ai.services.<service>` is the per-service one — there
- * are seven, and evidence extraction and clause analysis are separate because
- * an institution may well trust a model to read a certificate's expiry date
- * and not to read its contracts. Either flag being off is enough to stop the
- * call, so an operator who turns off the master switch during an incident does
- * not have to find all seven.
+ * PHASE 11A: `run()` no longer talks to `App\Services\LlmService` directly.
+ * It builds an `App\Services\Llm\LlmCall` and hands it to the platform
+ * `LlmGateway`, which owns retry, the circuit breaker, per-tenant endpoint
+ * selection and the usage ledger. `enabled()`/`available()` stay network-free
+ * probes — they answer through `TprmAiPolicy`, the SAME resolver the gateway
+ * itself consults via `ModuleAiPolicyRegistry`, so the cheap check an
+ * `ExtractionDispatcher` makes before reading a document's text can never
+ * disagree with what the gateway would actually do.
  *
- * EVERY CALL IS LOGGED with the model, the prompt version and the backend's
- * own token counts. Not an estimate: a cost log built on our own arithmetic is
- * one nobody can reconcile against a bill.
+ * THIS CLASS'S OWN `log()` IS GONE. The gateway writes exactly one
+ * `llm_usage_events` row per call, including refusals — a second, private log
+ * here would be a second ledger that can drift from the first.
  */
 class LlmClient
 {
@@ -43,38 +47,108 @@ class LlmClient
     public const NARRATIVE_GENERATION = 'narrative_generation';
 
     public function __construct(
-        private readonly LlmService $llm,
         private readonly PromptRegistry $prompts,
+        private readonly LlmGateway $gateway,
+        private readonly TprmAiPolicy $policy,
     ) {}
 
     /**
-     * Whether extraction may run at all.
-     *
-     * Note the order: the config switches are checked before the endpoint is
-     * probed, so a deployment with AI switched off never makes a network call
-     * to discover that it is switched off.
+     * Whether extraction may run at all. NO NETWORK CALL — contract §5: steps
+     * 1-5 are config and tenant switches only, so a deployment with AI off
+     * never contacts a box to discover that it is off.
      */
-    public function enabled(string $service = self::EVIDENCE_EXTRACTION): bool
+    public function enabled(string $service = self::EVIDENCE_EXTRACTION, ?int $organizationId = null): bool
     {
-        return (bool) config('tprm.ai.enabled')
-            && (bool) config('tprm.ai.services.'.$service);
+        $organizationId ??= TenantContext::organizationIdOrNull();
+
+        if ($organizationId === null) {
+            return false;
+        }
+
+        if (! config('services.llm.enabled')) {
+            return false;
+        }
+
+        $snapshot = $this->policy->snapshot($organizationId, $service);
+
+        if (! $snapshot->moduleEnabled) {
+            return false;
+        }
+
+        if ($snapshot->tenantMasterEnabled === false) {
+            return false;
+        }
+
+        if (! $snapshot->serviceDeploymentEnabled) {
+            return false;
+        }
+
+        return $snapshot->tenantServiceEnabled !== false;
     }
 
-    public function available(string $service = self::EVIDENCE_EXTRACTION): bool
+    /**
+     * WAS: `$this->llm->available()` — the deployment-default endpoint,
+     * regardless of what the tenant has chosen (Gate 2 advisory 9, the same
+     * root cause as blocking defect 1: two spellings of "the endpoint that
+     * applies to this call", eleven lines apart in the gateway, and this
+     * class had a third). `LlmGateway::availability()` resolves the SAME
+     * tenant profile a real `call()` would use and probes THAT endpoint, so
+     * a probe here can never say "available" for a box the tenant's own
+     * calls do not actually go to.
+     */
+    public function available(string $service = self::EVIDENCE_EXTRACTION, ?int $organizationId = null): bool
     {
-        return $this->enabled($service) && $this->llm->available();
+        $organizationId ??= TenantContext::organizationIdOrNull();
+
+        if ($organizationId === null) {
+            return false;
+        }
+
+        if (! $this->enabled($service, $organizationId)) {
+            return false;
+        }
+
+        return $this->gateway->availability($organizationId, 'tprm', $service)->allowed;
     }
 
     /**
      * Run an extraction prompt against document text.
+     *
+     * HAS NO CALLER TODAY (Gate 2 advisory). `ExtractionDispatcher` calls
+     * `run()` directly so it can read `PromptRegistry::renderWithMeta()`'s
+     * truncation fact and low-trust-field list before sending the prompt,
+     * neither of which this method's `LlmResult` return type has anywhere to
+     * put. `$subjectType`/`$subjectId`/`$userId` are threaded through so a
+     * future caller does not silently lose subject or actor attribution the
+     * way it would have before this fix — but a caller that also needs the
+     * truncation declaration should call `run()` with `renderWithMeta()`'s
+     * text directly, the way `ExtractionDispatcher` does, rather than this
+     * convenience method.
+     *
+     * Gate 2, Phase 11a, defect 1's third discard site was
+     * `PromptRegistry::render(DocumentExtractor, ...)`, this method's own
+     * former dependency — removed rather than fixed in place, since it had
+     * no caller besides this one and this one has none of its own. `extract()`
+     * now calls `renderKey()` directly; the discard this method's docblock
+     * already warns about is unchanged, but there is one fewer method that
+     * could quietly grow a second caller and inherit it.
      */
-    public function extract(DocumentExtractor $extractor, string $documentText, ?int $organizationId = null): LlmResult
-    {
+    public function extract(
+        DocumentExtractor $extractor,
+        string $documentText,
+        ?int $organizationId = null,
+        ?string $subjectType = null,
+        ?int $subjectId = null,
+        ?int $userId = null,
+    ): LlmResult {
         return $this->run(
             $extractor->value,
-            $this->prompts->render($extractor, $documentText),
+            $this->prompts->renderKey($extractor->value, $documentText),
             self::EVIDENCE_EXTRACTION,
             $organizationId,
+            $subjectType,
+            $subjectId,
+            $userId,
         );
     }
 
@@ -82,19 +156,50 @@ class LlmClient
      * Run any configured prompt, already rendered.
      *
      * The one door. `extract()` and the clause analyser both come through
-     * here, so the kill switch, the availability probe and the per-call log
-     * exist once rather than once per caller — and a new caller cannot forget
-     * any of the three.
+     * here, so the kill switch and the usage ledger exist once rather than
+     * once per caller — and a new caller cannot forget either.
+     *
+     * `$subjectType`/`$subjectId`/`$userId` ARE ADDITIVE, TRAILING AND
+     * OPTIONAL — every existing call site keeps working unchanged. They exist
+     * so `llm_usage_events.subject_type`/`.subject_id`/`.user_id` (contract
+     * §3.1: "tracing a usage spike back to the document that caused it", and
+     * to the person who caused it) can actually be populated for the caller
+     * that has the clearest use for it. Pass a registered morph ALIAS
+     * (`App\Support\MorphTypes`), never a raw FQCN — `enforceMorphMap()` is
+     * on, and a stored FQCN is unreadable by every later query the same way
+     * `App\Support\MorphTypes`'s own docblock describes for every other
+     * polymorphic column in this product.
+     *
+     * `$userId` WAS UNWIRED (Gate 2 blocking defect 3): the column existed,
+     * `UsageRecorder` wrote it, and nothing ever passed it, so every
+     * user-initiated call recorded a null actor that the usage grid then
+     * printed as "Scheduled" — an absence rendered as a false claim. Every
+     * caller that runs inside an authenticated action now passes the actor
+     * through here.
      */
     public function run(
         string $promptKey,
         string $renderedPrompt,
         string $service = self::EVIDENCE_EXTRACTION,
         ?int $organizationId = null,
+        ?string $subjectType = null,
+        ?int $subjectId = null,
+        ?int $userId = null,
     ): LlmResult {
         $prompt = $this->prompts->forKey($promptKey);
+        $organizationId ??= TenantContext::organizationIdOrNull();
 
-        if (! $this->enabled($service)) {
+        // Contract §5 / §8.10: a call with no tenant context is refused and
+        // writes NOTHING — there is no organisation to attribute a usage row
+        // to, and `llm_usage_events.organization_id` is never null.
+        if ($organizationId === null) {
+            return LlmResult::unavailable(
+                $prompt['version'],
+                'No organisation context is available, so nothing was sent to the model.'
+            );
+        }
+
+        if (! $this->enabled($service, $organizationId)) {
             return LlmResult::unavailable(
                 $prompt['version'],
                 'AI extraction is switched off for this installation. Every field on this document can be '
@@ -102,59 +207,51 @@ class LlmClient
             );
         }
 
-        if (! $this->llm->available()) {
+        $call = new LlmCall(
+            organizationId: $organizationId,
+            module: 'tprm',
+            service: $service,
+            promptKey: $promptKey,
+            promptVersion: $prompt['version'],
+            prompt: $renderedPrompt,
+            system: $prompt['system'],
+            budget: $this->budgetFor($service),
+            subjectType: $subjectType,
+            subjectId: $subjectId,
+            userId: $userId,
+        );
+
+        $outcome = $this->gateway->call($call);
+
+        if (! $outcome->succeeded()) {
             return LlmResult::unavailable(
                 $prompt['version'],
-                'The extraction service is not reachable right now: '.($this->llm->lastError() ?? 'no detail given')
-                .'. Every field on this document can be entered by hand.'
+                ($outcome->reason ?? 'The extraction service is not reachable right now.')
+                .' Every field on this document can be entered by hand.'
             );
         }
 
-        /*
-         * The budget comes from `services.llm.budgets`, where every other
-         * model call in this product already gets one, rather than from a
-         * literal here. Extraction had neither: it passed a `max_tokens`
-         * literal and NO timeout, so it inherited `llm.timeout` — twenty
-         * seconds, which no extraction has ever finished inside.
-         */
-        $budget = (array) config('services.llm.budgets.extraction', ['max_tokens' => 2048, 'timeout' => 120]);
-
-        $response = $this->llm->jsonWithUsage(
-            $renderedPrompt,
-            $prompt['system'],
-            $budget,
-        );
-
-        $this->log($promptKey, $prompt['version'], $response, $organizationId);
-
-        if ($response['data'] === []) {
-            return LlmResult::failed($prompt['version'], $response['model'], $response['error'] ?? 'The model returned nothing usable.');
-        }
-
         return new LlmResult(
-            data: $response['data'],
+            data: $outcome->data,
             promptVersion: $prompt['version'],
-            model: $response['model'],
-            promptTokens: $response['prompt_tokens'],
-            completionTokens: $response['completion_tokens'],
-            durationMs: $response['duration_ms'],
+            model: $outcome->model,
+            promptTokens: $outcome->promptTokens,
+            completionTokens: $outcome->completionTokens,
+            durationMs: $outcome->durationMs,
+            contextWindow: $outcome->contextWindow,
         );
     }
 
     /**
-     * @param  array{model: string, prompt_tokens: int|null, completion_tokens: int|null, duration_ms: int, error: string|null}  $response
+     * Which `services.llm.budgets` entry applies. Not a caller-supplied
+     * argument — `run()`'s signature is unchanged by Phase 11a — so the
+     * mapping lives here, next to the three services it serves.
      */
-    private function log(string $promptKey, string $promptVersion, array $response, ?int $organizationId): void
+    private function budgetFor(string $service): string
     {
-        Log::channel(config('logging.default'))->info('TPRM model call', [
-            'organization_id' => $organizationId,
-            'prompt_key' => $promptKey,
-            'prompt_version' => $promptVersion,
-            'model' => $response['model'],
-            'prompt_tokens' => $response['prompt_tokens'],
-            'completion_tokens' => $response['completion_tokens'],
-            'duration_ms' => $response['duration_ms'],
-            'error' => $response['error'],
-        ]);
+        return match ($service) {
+            self::NARRATIVE_GENERATION => 'narrative',
+            default => 'extraction',
+        };
     }
 }

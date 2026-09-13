@@ -87,6 +87,8 @@ use App\Http\Controllers\Risk\TreatmentPlanController;
 use App\Http\Controllers\Risk\WidgetController;
 use App\Http\Controllers\Risk\WorkflowController;
 use App\Http\Controllers\Tprm\AccessController as TprmAccessController;
+use App\Http\Controllers\Tprm\AiSettingsController as TprmAiSettingsController;
+use App\Http\Controllers\Tprm\AiUsageController as TprmAiUsageController;
 use App\Http\Controllers\Tprm\AssessmentController as TprmAssessmentController;
 use App\Http\Controllers\Tprm\ClauseLibraryController as TprmClauseLibraryController;
 use App\Http\Controllers\Tprm\ConcentrationController as TprmConcentrationController;
@@ -2143,6 +2145,21 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:tprm.admin')->name('settings.programme');
         Route::put('settings/programme', [TprmProgrammeSettingsController::class, 'update'])
             ->middleware('permission:tprm.admin')->name('settings.programme.update');
+
+        /*
+         * AI settings and usage report — Phase 11a, ADR 0015 §8,
+         * phase-11a-ai-contract.md §7. `tprm.admin`, same as Programme
+         * settings above and for the same reason: not folded into
+         * ProgrammeSettingsController, which is about regulatory identity —
+         * a two-purpose settings screen is how one of the two ends up
+         * unmaintained. NO POLICY: TprmServiceProvider::POLICIES stays exact.
+         */
+        Route::get('settings/ai', [TprmAiSettingsController::class, 'edit'])
+            ->middleware('permission:tprm.admin')->name('settings.ai');
+        Route::put('settings/ai', [TprmAiSettingsController::class, 'update'])
+            ->middleware('permission:tprm.admin')->name('settings.ai.update');
+        Route::get('settings/ai/usage', [TprmAiUsageController::class, 'index'])
+            ->middleware('permission:tprm.admin')->name('settings.ai.usage');
 
         /* Connections, access grants and the reconciliation report — FR-ACC. */
         Route::get('access', [TprmAccessController::class, 'index'])

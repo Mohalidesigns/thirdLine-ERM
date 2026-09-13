@@ -82,6 +82,33 @@ class NoFabricatedNumbersTest extends TestCase
          * exists to stop invented metrics, and a credential is not a metric.
          */
         'app/Services/Tprm/Portal/PortalAuthService.php',
+
+        /*
+         * A THIRD SHAPE, distinct from both above. The transport retry's
+         * backoff jitters its sleep — ADR 0015 §6 / config/llm.php:
+         * "jittered backoff 1 s then 3 s" is part of the frozen contract, so
+         * this cannot simply be removed. It needs neither the Monte Carlo
+         * case's reproducibility (nobody ever re-derives a past retry delay
+         * from a stored seed) nor the credential case's unpredictability
+         * (there is no adversary who benefits from guessing a sleep
+         * duration). It is admissible for a third reason: the number this
+         * produces is never seen, stored, or reasoned about by anyone — it
+         * only changes how many milliseconds a background job sleeps
+         * between two attempts at the same call, which is not a figure this
+         * rule exists to guard.
+         *
+         * THE ENTRY NAMES `RetryBackoff.php`, NOT `LlmGateway.php` (ruled
+         * 2026-09-11, ADR 0015 §6c). The allowlist matches per FILE, and
+         * `LlmGateway` is the file that computes `total_tokens` from two
+         * nullable halves, carries `duration_ms`, and prices a call via
+         * `costFor()` — every figure the usage report prints. A file-level
+         * exemption there would put this guard to sleep over precisely the
+         * file most able to fabricate one of the numbers it exists to catch.
+         * The jitter was extracted into its own one-purpose file for exactly
+         * this reason, so the exemption can be as narrow as the two lines of
+         * sleep arithmetic it actually covers.
+         */
+        'app/Services/Llm/RetryBackoff.php',
     ];
 
     private const RNG_PATTERN = '/\b(mt_rand|rand|random_int|shuffle|str_shuffle|array_rand|uniqid)\s*\(/';
@@ -477,13 +504,15 @@ class NoFabricatedNumbersTest extends TestCase
     public function the_allowlists_have_not_grown(): void
     {
         $this->assertCount(
-            2,
+            3,
             self::RNG_ALLOWLIST,
             'A file was added to the RNG allowlist. A user-facing figure produced by a '
             .'random number generator is not a figure. If a new simulation engine genuinely '
             .'needs one, it must be seeded and reproducible — say so here and raise this count. '
-            .'A CREDENTIAL is the one other admissible case, and it is admissible for the '
-            .'opposite reason: it must be unpredictable and must never be replayable.'
+            .'A CREDENTIAL is one other admissible case, admissible for the opposite reason: it '
+            .'must be unpredictable and must never be replayable. NETWORK JITTER on a retry '
+            .'backoff is the third: the number it produces is never shown, stored or reasoned '
+            .'about by anyone, only slept on.'
         );
 
         $this->assertCount(

@@ -219,6 +219,27 @@ return [
      *
      * A single 'default' pool would put a 30-minute simulation in front of the
      * notification telling somebody their approval is overdue.
+     *
+     * TPRM PHASE 11a: `tprm-extraction` (RunTprmDocumentExtraction) FOLDED
+     * INTO 'bulk' RATHER THAN GIVEN ITS OWN SUPERVISOR. Gate 2 caught that
+     * `App\Jobs\RunTprmDocumentExtraction::onQueue('tprm-extraction')`
+     * dispatched to a queue nothing consumed — enqueued and never picked up,
+     * in every environment, which converted a working synchronous feature
+     * into one that never completes. A person watching the upload screen's
+     * `useJobProgress` poll IS "somebody staring at it" in the sense 'bulk's
+     * name suggests otherwise, but the job's OWN execution profile is
+     * identical to what already lives here: `$tries = 1` (the gateway owns
+     * transport retry and the dispatcher owns schema retry — see
+     * RunTprmDocumentExtraction's own docblock for why a third layer here
+     * would multiply both) and `$timeout = 900`, which 'bulk's existing
+     * 3660s comfortably exceeds without a new number to invent, where
+     * 'interactive's 120s would kill the worker mid-extraction. A fourth,
+     * single-queue supervisor for one job type was rejected: 'bulk' already
+     * exists for exactly this shape (long, single-attempt, not urgent), and
+     * a real workload of imports/connectors/reports competing with
+     * extraction for the same worker pool is the trade a bank's own
+     * infrastructure sizing can absorb far more cheaply than an eighth
+     * supervisor process would cost to provision and monitor.
      */
     'defaults' => [
         'interactive' => [
@@ -254,7 +275,7 @@ return [
 
         'bulk' => [
             'connection' => 'redis',
-            'queue' => ['imports', 'connectors', 'reports'],
+            'queue' => ['imports', 'connectors', 'reports', 'tprm-extraction'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 1,

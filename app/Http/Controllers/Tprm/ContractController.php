@@ -179,17 +179,37 @@ class ContractController extends Controller
 
         $outcome = $this->analyzer->analyse($contract, $request->user()->id);
 
-        return $outcome->succeeded()
-            ? back()->with('success', sprintf(
-                'The contract was read and %d of %d applicable clause(s) have a proposed determination. Each '
-                .'needs accepting before it counts — an unreviewed detection does not open the activation gate.',
+        if (! $outcome->succeeded()) {
+            // Not an error flash. AI off, a scanned PDF or no document
+            // attached are the module working as configured, and the clause
+            // list is on the page either way.
+            return back()->with('info', $outcome->message);
+        }
+
+        if ($outcome->partial()) {
+            // §7.5 wording rules: state the cap and the original length as
+            // measured facts, never claim the document was read in full, and
+            // say nothing affirmative about the coverage of the "absent"
+            // verdicts below the cut — they are unproven, not confirmed.
+            return back()->with('warning', sprintf(
+                'This document was too long for the automated reader: only the first %s of %s characters were '
+                .'sent, so %d of %d applicable clause(s) have a proposed determination made from part of the '
+                .'contract. A clause marked absent below that point has not been confirmed absent — it may '
+                .'simply be further into the document than the reader reached. Check any absent, blocking '
+                .'clause against the document by hand before accepting it.',
+                number_format($outcome->documentTruncated['cap']),
+                number_format($outcome->documentTruncated['original_length']),
                 $outcome->detected,
                 $outcome->applicable,
-            ))
-            // Not an error flash. AI off, a scanned PDF or no document attached
-            // are the module working as configured, and the clause list is on
-            // the page either way.
-            : back()->with('info', $outcome->message);
+            ));
+        }
+
+        return back()->with('success', sprintf(
+            'The contract was read and %d of %d applicable clause(s) have a proposed determination. Each '
+            .'needs accepting before it counts — an unreviewed detection does not open the activation gate.',
+            $outcome->detected,
+            $outcome->applicable,
+        ));
     }
 
     /** Record a determination by hand, or accept/correct a machine one. */

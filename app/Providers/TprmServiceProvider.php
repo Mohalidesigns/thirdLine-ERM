@@ -6,6 +6,8 @@ use App\Models\Tprm\BusinessFunction;
 use App\Models\Tprm\Category;
 use App\Models\Tprm\Engagement;
 use App\Models\Tprm\ThirdParty;
+use App\Services\Llm\ModuleAiPolicyRegistry;
+use App\Services\Tprm\Ai\TprmAiPolicy;
 use App\Support\Tprm\RuleEvaluator;
 use Illuminate\Support\ServiceProvider;
 
@@ -51,6 +53,13 @@ class TprmServiceProvider extends ServiceProvider
         // it is bound as a transient rather than a singleton. A shared instance
         // would let one screen's unresolved facts leak into another's preview.
         $this->app->bind(RuleEvaluator::class, fn () => new RuleEvaluator);
+
+        // Phase 11a Gate 2 fix: shared per request/job so its `tp_settings`
+        // read is memoised across every consumer — see TprmAiPolicy's own
+        // docblock for why `scoped()`, not `singleton()`, is what keeps a
+        // long-running queue worker from serving one tenant's stale AI switch
+        // state to the next job.
+        $this->app->scoped(TprmAiPolicy::class);
     }
 
     public function boot(): void
@@ -80,6 +89,14 @@ class TprmServiceProvider extends ServiceProvider
 
         $this->registerPortalRateLimiter();
         $this->registerPortalUploadLimiter();
+
+        // Phase 11a. This is the ONLY place TPRM tells the platform gateway
+        // how to read this module's own settings — ADR 0015 §2:
+        // "the gateway takes resolved settings as an argument and reads no
+        // settings table itself." App\Services\Llm\ never imports
+        // App\Models\Tprm directly; it asks this registry for a policy
+        // instead, and TprmAiPolicy is the class that actually does.
+        ModuleAiPolicyRegistry::register('tprm', TprmAiPolicy::class);
     }
 
     /**

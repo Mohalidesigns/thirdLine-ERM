@@ -85,15 +85,29 @@ return [
              * presented as `cURL error 28` rather than as a configuration
              * problem.
              *
-             * 120 SECONDS IS BOUNDED BY THE REQUEST, NOT BY THE MODEL.
-             * `ExtractionDispatcher` runs inline in the HTTP request from
-             * `DocumentController`, and the document text is sent UNCAPPED —
-             * so a real 90-page SOC 2 will exhaust PHP-FPM or the proxy long
-             * before any timeout set here is reached. Raising this number
-             * further would not fix that; moving extraction onto a queue
-             * would, and that is the actual fix. This value makes the small
-             * and medium documents work and leaves the large-document
-             * problem visible instead of disguised as a timeout.
+             * THIS COMMENT USED TO SAY "120 seconds is bounded by the request,
+             * not by the model" and that `ExtractionDispatcher` runs inline in
+             * the HTTP request with the document text sent UNCAPPED. Neither
+             * is true any more: §6a moved extraction onto the queue for
+             * exactly the PHP-FPM/proxy-exhaustion reason that paragraph
+             * described, and §6b capped the document text per prompt
+             * (`config/tprm_prompts.php` → `max_document_chars`, declared to
+             * the confirmation screen via `_meta.document_truncated` rather
+             * than silently discarded — TPRM Phase 11a Gate 2, defect 1). This
+             * value still exists because a queued worker can still exceed it
+             * on a large document; it now bounds the WORKER's call, not an
+             * HTTP request nothing here still makes inline.
+             *
+             * `num_ctx` is NOT a budget key (ADR 0015 §6d deviation 9,
+             * phase-11a-ai-contract.md §4.4). It lives in `config/llm.php`
+             * -> `context.num_ctx` instead: `Risk\AiToolsController` spreads
+             * a whole budget array into a direct `LlmService` call, so a key
+             * placed here would leak the declared window to ERM's
+             * grandfathered callers (ADR 0015 §1), which derive no cap
+             * and have no usage row or `fitted` signal to report the loss
+             * on. `config/llm.php` is read by `LlmGateway` and by no module
+             * caller, which is what makes the declaration reach only the
+             * calls it is meant for.
              */
             'extraction' => ['max_tokens' => 2048, 'timeout' => 120],
         ],

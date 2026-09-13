@@ -140,9 +140,29 @@ trait TprmAuditable
         }
     }
 
-    /** @return \Illuminate\Database\Eloquent\Relations\MorphMany<AuditLog, $this> */
+    /**
+     * The audit rows for this record.
+     *
+     * NOT `morphMany()`. Every row this trait writes stores `auditable_type`
+     * as the literal FQCN (`static::class`, above), never a morph-map alias —
+     * that is deliberate (ADR 0002's alias rule governs new columns with no
+     * rows; this one has production rows already written as FQCNs, and an
+     * alias would make them unreadable). But Eloquent's `morphMany()` builds
+     * its constraint from `$parent->getMorphClass()` UNCONDITIONALLY, even
+     * when the type column is given explicitly, and `enforceMorphMap()` is on
+     * product-wide: for a model with no alias (e.g. `Contract`) that throws
+     * `ClassMorphViolationException`; for a model WITH one (e.g. `ThirdParty`,
+     * `Document`) it silently constrains on the alias while every row holds
+     * the FQCN, so the relation would run, return nothing, and look like an
+     * empty audit trail. A plain `hasMany()` constrained on the literal
+     * `static::class` matches what is actually stored, for every model this
+     * trait is applied to, mapped or not.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<AuditLog, $this>
+     */
     public function auditLogs()
     {
-        return $this->morphMany(AuditLog::class, 'auditable', 'auditable_type', 'auditable_id');
+        return $this->hasMany(AuditLog::class, 'auditable_id')
+            ->where('auditable_type', static::class);
     }
 }

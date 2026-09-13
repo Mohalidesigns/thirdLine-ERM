@@ -39,6 +39,7 @@ class GridRegistry
         'tprm_documents' => Definitions\TprmDocumentsGrid::class,
         'tprm_contracts' => Definitions\TprmContractsGrid::class,
         'tprm_obligations' => Definitions\TprmObligationsGrid::class,
+        'tprm_ai_usage_events' => Definitions\TprmAiUsageEventsGrid::class,
     ];
 
     public static function resolve(string $name): GridDefinition

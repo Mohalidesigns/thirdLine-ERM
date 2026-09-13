@@ -40,6 +40,20 @@ ALLOWLIST=(
     # to MonteCarloService: that one is seeded so a figure is reproducible, this
     # one must never be. A credential is not a figure.
     "app/Services/Tprm/Portal/PortalAuthService.php"
+    # RetryBackoff's transport-retry jitter (ADR 0015 §6 / config/llm.php:
+    # "jittered backoff 1 s then 3 s", part of the frozen Phase 11a contract).
+    # A third admissible shape, distinct from both above: it needs neither
+    # reproducibility nor unpredictability, because the number it produces is
+    # never shown, stored or reasoned about by anyone — it only changes how
+    # long a background job sleeps between two attempts at the same call.
+    # NAMES RetryBackoff.php, NEVER LlmGateway.php (ruled 2026-09-11, ADR
+    # 0015 §6c): LlmGateway is the file that computes total_tokens,
+    # duration_ms and unit_cost_minor — every figure the usage report
+    # prints — so a file-level exemption there would cover the one file most
+    # able to fabricate a number, not the two lines of sleep arithmetic that
+    # actually need one. The jitter lives in its own one-purpose file so the
+    # exemption can be exactly that narrow.
+    "app/Services/Llm/RetryBackoff.php"
 )
 
 # mt_rand, rand, random_int, shuffle, str_shuffle, array_rand, uniqid.

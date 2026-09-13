@@ -196,6 +196,33 @@ function ClausePanel({ contract, clauses, capabilities, can }) {
                 )}
             </div>
 
+            {/*
+             * Gate 2, TPRM Phase 11a, defect 1. `analysed_partial` is a
+             * distinct, persisted state (`Contract::CLAUSE_ANALYSIS_ANALYSED_PARTIAL`)
+             * from `analysed`, not a decoration on it — the document was too
+             * long for the reader to finish, so any row below marked absent
+             * is unproven rather than confirmed. This has to be read from
+             * `contract.clause_analysis_status` rather than the flash from
+             * the run that produced it, because the exact cap and length are
+             * not persisted on this row — they live in `tp_audit_logs` as a
+             * `clause_analysis_partial` event (ADR 0015 §6e) — only the fact
+             * that the read was partial survives a page reload here.
+             *
+             * ADR 0015 §6e / contract §2.6.3 bans §7.5 rule 1's phrasing
+             * here too, in any state: we can prove what was SENT, never
+             * what the model attended to.
+             */}
+            {contract.clause_analysis_status === 'analysed_partial' && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
+                    <p className="font-medium">Only the first part of this contract's document was sent to the automated reader.</p>
+                    <p className="mt-1">
+                        Any clause below marked absent has not been confirmed absent — it may simply be further
+                        into the document than the automated reader reached. Check any absent, blocking clause
+                        against the document by hand before accepting it or waiving it.
+                    </p>
+                </div>
+            )}
+
             {(clauses.unresolvable ?? []).length > 0 && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                     <p className="font-medium">Some clauses could not be assessed.</p>

@@ -46,6 +46,30 @@
             {{ $blocking->count() }} of the gaps below are conditions of activation.
         </div>
 
+        {{--
+            Gate 2, TPRM Phase 11a, defect 1. `analysed_partial` means the
+            automated reader was cut off before the end of the document
+            (ADR 0015 §6b) — every clause below marked absent past that point
+            is unproven, not confirmed, and this report is the artefact that
+            goes to the vendor and can feed a CBN/DORA gap submission. The
+            caveat states only what is known (the analysis was partial); it
+            does not restate a cap or a length this table does not carry —
+            the two numbers live in `tp_audit_logs` as a
+            `clause_analysis_partial` event (ADR 0015 §6e), not on this row.
+
+            ADR 0015 §6e / contract §2.6.3 bans §7.5 rule 1's phrasing here
+            too, in any state: we can prove what was SENT, never what the
+            model attended to.
+        --}}
+        @if ($contract && $contract->clause_analysis_status === \App\Models\Tprm\Contract::CLAUSE_ANALYSIS_ANALYSED_PARTIAL)
+            <div class="note">
+                <strong>This analysis is partial.</strong> The contract document was longer than the automated
+                reader's limit, so only its first part was sent, and any clause below marked absent has not been
+                confirmed absent — it may appear further into the document than the reader reached. Verify every
+                absent, blocking clause against the source document before relying on this report.
+            </div>
+        @endif
+
         @if ($blocking->isEmpty() && $other->isEmpty())
             <div class="note">
                 Every clause required of this engagement is present in the contract and has been reviewed.

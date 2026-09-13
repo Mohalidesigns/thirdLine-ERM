@@ -2,6 +2,7 @@
 
 namespace App\Models\Tprm;
 
+use App\Models\Tprm\Concerns\TprmAuditable;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,10 +21,23 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * guess — an incident silently assessed as non-reportable is a missed
  * twenty-four-hour deadline that nobody knows they have missed until the
  * supervisor asks.
+ *
+ * PHASE 11A ADDS `TprmAuditable`. It did not carry the trait before, so every
+ * change ever made to the shareholders'-funds figure and the DORA identity
+ * fields until now went unaudited — and stays that way: the trait audits
+ * PROSPECTIVELY, from the moment it is added, not retroactively. Nothing
+ * before this phase is recovered, and a reader asking "who set the
+ * shareholders'-funds figure to X, and when" for any change before this one
+ * has no answer `tp_audit_logs` can supply — the figure that sets the CBN
+ * materiality threshold has that gap in its history permanently. Going
+ * forward, at no schema cost, because `tp_audit_logs` already exists: who
+ * turned AI on for a tenant, and when, is exactly the kind of question a
+ * model-risk function asks (contract §7.2), and now has an answer for every
+ * change from here on.
  */
 class TprmSetting extends Model
 {
-    use BelongsToOrganization;
+    use BelongsToOrganization, TprmAuditable;
 
     protected $table = 'tp_settings';
 
@@ -35,11 +49,17 @@ class TprmSetting extends Model
         // CBN institution code and an RC number — Nigerian registrations, and
         // not any of these.
         'lei', 'country', 'competent_authority', 'reporting_currency',
+        // Phase 11a — ADR 0015 §2, §3, §4, contract §3.2.
+        'ai_enabled', 'ai_services', 'ai_endpoint_profile', 'ai_monthly_token_cap', 'ai_monthly_call_cap',
     ];
 
     protected $casts = [
         'shareholders_funds_minor' => 'integer',
         'shareholders_funds_as_at' => 'date',
+        'ai_enabled' => 'boolean',
+        'ai_services' => 'array',
+        'ai_monthly_token_cap' => 'integer',
+        'ai_monthly_call_cap' => 'integer',
     ];
 
     /** @return BelongsTo<User, $this> */

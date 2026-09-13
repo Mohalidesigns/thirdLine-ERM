@@ -424,17 +424,30 @@ return [
         ],
 
         /*
+         * Phase 11a, ADR 0015 §4.2. Three of the seven services above have
+         * code behind them — evidence_extraction, clause_analysis and
+         * narrative_generation. `subprocessor_discovery`, `response_quality`,
+         * `adverse_media_triage` and `scoping_assistant` have NO
+         * implementation anywhere in `app/`. Listed here rather than folded
+         * into the `services` booleans above, so every existing reader of a
+         * plain `services.<key>` boolean keeps working unchanged, and
+         * `App\Services\Tprm\Ai\TprmAiPolicy` is the one place both facts are
+         * combined: a service is usable only when it is BOTH implemented AND
+         * switched on. The AI settings screen renders any key absent from
+         * this list as "Not built in this release" rather than a switch that
+         * would silently do nothing.
+         */
+        'implemented_services' => [
+            'evidence_extraction',
+            'clause_analysis',
+            'narrative_generation',
+        ],
+
+        /*
          * An extraction below this confidence is routed to the confirmation
          * queue flagged low-confidence rather than presented as a proposal.
          */
         'confidence_threshold' => 0.70,
-
-        /*
-         * Monthly spend cap per tenant, in minor units of the tenant's billing
-         * currency. Null means uncapped, which is deliberately not the default
-         * anywhere a client can reach.
-         */
-        'monthly_spend_cap_minor' => env('TPRM_AI_SPEND_CAP', null),
     ],
 
 ];

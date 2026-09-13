@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Tprm;
 
 use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
+use App\Jobs\RunTprmDocumentExtraction;
+use App\Models\JobRun;
 use App\Models\Tprm\Document;
 use App\Models\Tprm\DocumentExtraction;
 use App\Models\Tprm\DocumentType;
@@ -17,7 +19,6 @@ use App\Services\Tprm\Evidence\Soc2Cascade;
 use App\Services\Tprm\Evidence\Soc2CascadeApplier;
 use App\Services\Tprm\Extraction\DocumentTextExtractor;
 use App\Services\Tprm\Extraction\ExtractionConfirmer;
-use App\Services\Tprm\Extraction\ExtractionDispatcher;
 use App\Services\Tprm\Extraction\LlmClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -40,7 +41,6 @@ class DocumentController extends Controller
 {
     public function __construct(
         private readonly EvidenceService $evidence,
-        private readonly ExtractionDispatcher $dispatcher,
         private readonly ExtractionConfirmer $confirmer,
     ) {}
 
@@ -74,6 +74,12 @@ class DocumentController extends Controller
 
         return Inertia::render('Tprm/Documents/Show', [
             'document' => $this->payload($document),
+            // The most recent extraction job for this document that has not
+            // finished, so a screen re-visited mid-extraction (a refresh, a
+            // second tab) still has something to poll with useJobProgress
+            // instead of only the response that triggered the original
+            // dispatch.
+            'extractionJobRunId' => $this->outstandingExtractionJobRunId($document),
             'extractions' => $document->extractions
                 ->sortByDesc('id')
                 ->map(fn (DocumentExtraction $extraction) => [
@@ -184,17 +190,70 @@ class DocumentController extends Controller
         );
     }
 
-    /** Run extraction. Writes a pending row; applies nothing. */
+    /**
+     * Queue extraction. Writes a pending row; applies nothing.
+     *
+     * ADR 0015 §6a: this used to call `ExtractionDispatcher::dispatch()`
+     * inline and hold the request open for the model's own 26-69 second
+     * response time. It now only dispatches `RunTprmDocumentExtraction` and
+     * returns immediately; the upload screen polls the job's progress with
+     * `hooks/useJobProgress` against the job run this creates.
+     *
+     * ALREADY-QUEUED GUARD (Gate 2 advisory). A double-click — or a second
+     * tab, or a slow connection retried — used to queue a second model call
+     * minutes apart from the first, on the same document, with nobody
+     * having asked for two. `show()` already computes the same outstanding
+     * run for the poller; this reuses it rather than checking twice.
+     */
     public function extract(Request $request, Document $document)
     {
-        $outcome = $this->dispatcher->dispatch($document);
+        $outstanding = $this->outstandingExtractionJobRunId($document);
 
-        return $outcome->succeeded()
-            ? back()->with('success', 'The document was read. Check each field against the quoted text before confirming.')
-            // Not an error flash: with AI off, or on a scanned PDF, this is
-            // the module working as configured and the manual form is right
-            // there.
-            : back()->with('info', $outcome->message);
+        if ($outstanding !== null) {
+            return back()->with([
+                'info' => 'Already reading this document — nothing new was queued.',
+                'job_run_id' => $outstanding,
+            ]);
+        }
+
+        $jobRun = RunTprmDocumentExtraction::track(
+            label: 'Reading '.$document->title,
+            subject: $document,
+            organizationId: $document->organization_id,
+            creator: $request->user(),
+        );
+
+        RunTprmDocumentExtraction::dispatch($document->getKey(), $jobRun->id);
+
+        return back()->with([
+            'info' => 'Reading the document now. This can take a minute or two on a large report.',
+            'job_run_id' => $jobRun->id,
+        ]);
+    }
+
+    /**
+     * The most recent extraction job for this document that has not
+     * finished, or null.
+     *
+     * NO withoutGlobalScopes() (Gate 2, blocking defect 2). `JobRun` uses
+     * `BelongsToOrganization`; the row is created with
+     * `organizationId: $document->organization_id`, so the ordinary
+     * tenant-scoped query matches it anyway. Stripping the scope and relying
+     * on `$document` arriving tenant-scoped through route-model binding is
+     * the same "safe only because of a second, independent constraint"
+     * argument Gate 1 refused for `WidgetQueryEngine::engagementsUnderNodes()`
+     * — see that class's own docblock, rewritten in this phase for exactly
+     * this reason.
+     */
+    private function outstandingExtractionJobRunId(Document $document): ?int
+    {
+        return JobRun::query()
+            ->where('job_class', RunTprmDocumentExtraction::class)
+            ->where('subject_type', $document->getMorphClass())
+            ->where('subject_id', $document->getKey())
+            ->whereIn('status', [JobRun::STATUS_QUEUED, JobRun::STATUS_RUNNING])
+            ->latest('id')
+            ->value('id');
     }
 
     /**

@@ -56,6 +56,17 @@ class AppServiceProvider extends ServiceProvider
          */
         $this->app->singleton(\App\Services\Bcms\Notification\ChannelRegistry::class);
 
+        /*
+         * Phase 11a — ADR 0015 §8. `LlmGateway` is bound TRANSIENT, not a
+         * singleton: it carries per-call state (the resolved endpoint, the
+         * last transport error) and a singleton in a queue worker would leak
+         * one tenant's endpoint and error into the next tenant's job. The
+         * circuit breaker's own state lives in the shared cache store
+         * precisely so a transient gateway still shares it — the same
+         * reasoning as `RuleEvaluator` in `TprmServiceProvider`.
+         */
+        $this->app->bind(\App\Services\Llm\LlmGateway::class);
+
         // How this product names the owner of a rendered document. The
         // renderer lives in thirdline/reporting and deliberately does not know
         // what an organisation is — see OrganizationBranding for why a Central
@@ -110,6 +121,14 @@ class AppServiceProvider extends ServiceProvider
 
         // Migration Phase 2: the data grid endpoints are guarded per grid.
         // `can:view-grid,grid` on the route hands the {grid} name here, and
+        // Phase 11a. BCMS has no service provider of its own (ADR 0007
+        // deviation 2) — its routes are in routes/web.php, its morph map is
+        // above, and its AI policy registration is here for the same reason:
+        // App\Services\Llm\ must not import App\Models\Bcms, so BCMS tells the
+        // platform gateway how to read its own settings through this
+        // registry rather than the gateway reading bcms_settings directly.
+        \App\Services\Llm\ModuleAiPolicyRegistry::register('bcms', \App\Services\Bcms\Ai\BcmsAiPolicy::class);
+
         // the definition's own permission decides.
         Gate::define('view-grid', function (User $user, string $grid) {
             try {

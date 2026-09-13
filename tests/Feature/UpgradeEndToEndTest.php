@@ -2,37 +2,42 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use App\Models\User;
-use App\Models\Organization;
-use App\Models\BusinessUnit;
-use App\Models\Risk;
-use App\Models\RiskCategory;
-use App\Models\Control;
-use App\Models\ControlTest;
 use App\Models\AssessmentCampaign;
+use App\Models\BusinessUnit;
 use App\Models\CampaignAssignment;
 use App\Models\CampaignResponse;
+use App\Models\Control;
+use App\Models\ControlTest;
+use App\Models\Organization;
+use App\Models\Question;
 use App\Models\Questionnaire;
 use App\Models\QuestionnaireSection;
-use App\Models\Question;
+use App\Models\RegulatoryCircular;
+use App\Models\RegulatoryDeadline;
+use App\Models\Risk;
+use App\Models\RiskCategory;
+use App\Models\RiskTaxonomy;
+use App\Models\User;
 use App\Models\WorkflowDefinition;
 use App\Models\WorkflowInstance;
-use App\Models\RegulatoryDeadline;
-use App\Models\RegulatoryCircular;
-use App\Models\RiskTaxonomy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Tests\TestCase;
 
 class UpgradeEndToEndTest extends TestCase
 {
     use RefreshDatabase;
 
     private User $admin;
+
     private User $riskOfficer;
+
     private User $buManager;
+
     private Organization $org;
+
     private BusinessUnit $bu;
+
     private RiskCategory $category;
 
     protected function setUp(): void
@@ -90,6 +95,14 @@ class UpgradeEndToEndTest extends TestCase
             'business_unit_id' => $this->bu->id,
             'is_active' => true,
         ]);
+
+        // WP-00 TASK 2 put a `permission:` guard on every route, so these
+        // fixtures now need roles to reach the screens they assert on.
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+
+        $this->admin->assignRole('super-admin');
+        $this->riskOfficer->assignRole('risk-manager');
+        $this->buManager->assignRole('risk-owner');
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -341,7 +354,7 @@ class UpgradeEndToEndTest extends TestCase
         $assignment->refresh();
         $this->assertEquals('approved', $assignment->status);
         $campaign->refresh();
-        $this->assertEquals(100, (int)$campaign->completion_pct);
+        $this->assertEquals(100, (int) $campaign->completion_pct);
 
         echo "\n✅ Scenario 3 PASSED: Assessment campaign lifecycle (create→assign→launch→respond→review) works.";
     }
@@ -405,25 +418,57 @@ class UpgradeEndToEndTest extends TestCase
     // SCENARIO 5: Workflow Engine
     // ══════════════════════════════════════════════════════════════════
 
+    /**
+     * WP-06 rewrote this scenario. It used to post a linear list of stages and
+     * assert a cursor advanced — the mechanism the work package replaces. It
+     * now draws a two-step graph, publishes it, and asserts the decisions land
+     * on the right people's queues, because that is what the engine promises
+     * and the stage cursor never could.
+     */
     public function test_scenario_5_workflow_engine(): void
     {
         $this->actingAs($this->admin);
 
-        // Create workflow definition
         $response = $this->post(route('risk.workflows.store-definition'), [
+            'code' => 'risk_approval_workflow',
             'name' => 'Risk Approval Workflow',
             'description' => 'Two-stage risk approval',
             'entity_type' => 'risk',
-            'stages' => [
-                ['name' => 'Risk Officer Review', 'approver_role' => 'risk-officer'],
-                ['name' => 'CRO Approval', 'approver_role' => 'chief-risk-officer'],
+            'definition' => [
+                'nodes' => [
+                    ['code' => 'start', 'type' => 'start', 'name' => 'Submitted'],
+                    [
+                        'code' => 'officer_review', 'type' => 'approval', 'name' => 'Risk Officer Review',
+                        'assignee_rule' => 'role', 'assignee_config' => ['roles' => ['risk-manager']],
+                        'sla_hours' => 48,
+                    ],
+                    [
+                        'code' => 'cro_approval', 'type' => 'approval', 'name' => 'CRO Approval',
+                        'assignee_rule' => 'role', 'assignee_config' => ['roles' => ['chief-risk-officer']],
+                        'sla_hours' => 48,
+                    ],
+                    ['code' => 'approved', 'type' => 'end', 'name' => 'Approved', 'outcome' => 'approved'],
+                    ['code' => 'rejected', 'type' => 'end', 'name' => 'Rejected', 'outcome' => 'rejected'],
+                ],
+                'edges' => [
+                    ['from' => 'start', 'to' => 'officer_review'],
+                    ['from' => 'officer_review', 'to' => 'rejected', 'when' => "outcome == 'reject'"],
+                    ['from' => 'officer_review', 'to' => 'cro_approval'],
+                    ['from' => 'cro_approval', 'to' => 'rejected', 'when' => "outcome == 'reject'"],
+                    ['from' => 'cro_approval', 'to' => 'approved'],
+                ],
             ],
         ]);
         $response->assertStatus(302);
-        $definition = WorkflowDefinition::first();
-        $this->assertEquals(2, count($definition->stages));
 
-        // Create a risk and start workflow
+        $definition = WorkflowDefinition::where('code', 'risk_approval_workflow')->first();
+        $this->assertNotNull($definition);
+        $this->assertCount(5, $definition->graph()->nodes());
+
+        // A draft cannot be started; publishing is where correctness is demanded.
+        $this->post(route('risk.workflows.publish-definition', $definition));
+        $this->assertTrue($definition->fresh()->is_published);
+
         $risk = Risk::create([
             'organization_id' => $this->org->id,
             'risk_code' => 'RSK-WF-001',
@@ -437,16 +482,19 @@ class UpgradeEndToEndTest extends TestCase
         ]);
 
         $this->post(route('risk.workflows.start'), [
-            'definition_id' => $definition->id,
+            'definition_id' => $definition->fresh()->id,
             'entity_type' => 'risk',
             'entity_id' => $risk->id,
         ]);
 
         $instance = WorkflowInstance::first();
-        $this->assertEquals('active', $instance->status);
-        $this->assertEquals(0, $instance->current_stage);
+        $this->assertSame('active', $instance->status->value);
+        $this->assertSame(['officer_review'], $instance->currentNodeCodes());
 
-        // Stage 1: Approve
+        $task = $instance->openTasks()->first();
+        $this->assertSame('risk-manager', $task->assignee_role, 'The step is offered to the role that must decide it.');
+
+        // Stage 1: the risk officer approves; the instance moves to the CRO.
         $this->actingAs($this->riskOfficer);
         $this->post(route('risk.workflows.act', $instance), [
             'action' => 'approve',
@@ -454,17 +502,44 @@ class UpgradeEndToEndTest extends TestCase
         ]);
 
         $instance->refresh();
-        $this->assertEquals(1, $instance->current_stage);
+        $this->assertSame(['cro_approval'], $instance->currentNodeCodes());
+        $this->assertTrue($instance->isOpen());
 
-        // Stage 2: Approve (final)
+        // Stage 2: the CRO closes it.
+        //
+        // Note that super-admin is NOT enough here. Gate::before lets a
+        // super-admin past every ability check, but a task is still only
+        // actionable by the person or role it was offered to — an administrator
+        // silently recording a decision as though they were the CRO is exactly
+        // the kind of entry a board approval must never contain. An admin who
+        // needs to unblock a stuck task delegates it first, which is recorded.
+        $cro = User::create([
+            'name' => 'Chief Risk Officer',
+            'email' => 'cro@testbank.com',
+            'password' => Hash::make('password'),
+            'organization_id' => $this->org->id,
+            'is_active' => true,
+        ]);
+        $cro->assignRole('chief-risk-officer');
+
         $this->actingAs($this->admin);
+        $this->post(route('risk.workflows.act', $instance), [
+            'action' => 'approve',
+            'comments' => 'Administrator cannot decide a step offered to the CRO.',
+        ])->assertSessionHas('error');
+
+        $this->assertTrue($instance->fresh()->isOpen());
+
+        $this->actingAs($cro);
         $this->post(route('risk.workflows.act', $instance), [
             'action' => 'approve',
             'comments' => 'Approved for inclusion in register',
         ]);
 
         $instance->refresh();
-        $this->assertEquals('completed', $instance->status);
+        $this->assertSame('completed', $instance->status->value);
+        $this->assertSame('approved', $instance->outcome);
+        $this->assertCount(0, $instance->openTasks()->get());
 
         echo "\n✅ Scenario 5 PASSED: Workflow engine (create definition→start→approve stages→complete) works.";
     }
@@ -703,11 +778,11 @@ class UpgradeEndToEndTest extends TestCase
                     $failed[] = "{$route} returned {$response->status()}";
                 }
             } catch (\Exception $e) {
-                $failed[] = "{$route}: " . $e->getMessage();
+                $failed[] = "{$route}: ".$e->getMessage();
             }
         }
 
-        $this->assertEmpty($failed, "Failed views: " . implode(', ', $failed));
+        $this->assertEmpty($failed, 'Failed views: '.implode(', ', $failed));
         echo "\n✅ Scenario 9 PASSED: All {$passed}/{$passed} new views render with HTTP 200.";
     }
 

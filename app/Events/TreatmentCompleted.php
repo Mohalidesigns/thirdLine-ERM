@@ -2,8 +2,8 @@
 
 namespace App\Events;
 
-use App\Models\TreatmentPlan;
 use App\Models\Risk;
+use App\Models\TreatmentPlan;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 

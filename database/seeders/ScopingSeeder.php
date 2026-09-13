@@ -15,8 +15,9 @@ class ScopingSeeder extends Seeder
     public function run(): void
     {
         $org = Organization::first();
-        if (!$org) {
+        if (! $org) {
             $this->command->warn('No organization found. Skipping ScopingSeeder.');
+
             return;
         }
 
@@ -35,7 +36,7 @@ class ScopingSeeder extends Seeder
 
         $this->command->info('Scoping module seeded successfully!');
         $this->command->info("  - {$types->count()} entity types");
-        $this->command->info("  - " . count($entities) . " entities");
+        $this->command->info('  - '.count($entities).' entities');
     }
 
     private function seedEntityTypes(int $orgId)
@@ -57,8 +58,8 @@ class ScopingSeeder extends Seeder
                 ['organization_id' => $orgId, 'code' => $td['code']],
                 array_merge($td, [
                     'organization_id' => $orgId,
-                    'uuid'            => (string) Str::uuid(),
-                    'is_active'       => true,
+                    'uuid' => (string) Str::uuid(),
+                    'is_active' => true,
                 ])
             );
         }
@@ -75,7 +76,7 @@ class ScopingSeeder extends Seeder
             return sprintf('ENT-%04d', $codeCounter++);
         };
 
-        $getUser = function ($index = 0) use ($users, $defaultUserId) {
+        $getUser = function ($index = 0) use ($users) {
             return $users[$index] ?? $users->first() ?? null;
         };
 
@@ -137,11 +138,11 @@ class ScopingSeeder extends Seeder
         // L2: Divisions & Departments (under FirstBank Nigeria)
         // ──────────────────────────────────────────────────
         $divisions = [
-            'retail'     => ['name' => 'Retail Banking Division',            'type' => 'DIVISION',   'desc' => 'Consumer banking operations including deposits, personal lending, cards, and digital channels across all regions.', 'appetite' => 'cautious'],
-            'corporate'  => ['name' => 'Corporate Banking Division',         'type' => 'DIVISION',   'desc' => 'Corporate relationship management, trade finance, structured lending, and cash management services.', 'appetite' => 'open'],
-            'treasury'   => ['name' => 'Treasury & Investment Banking',      'type' => 'DIVISION',   'desc' => 'Treasury operations, foreign exchange, fixed income, equities, and investment advisory services.', 'appetite' => 'open'],
-            'ops_tech'   => ['name' => 'Operations & Technology',            'type' => 'DIVISION',   'desc' => 'Core banking operations, IT infrastructure, digital transformation, and technology risk management.', 'appetite' => 'minimal'],
-            'risk_mgmt'  => ['name' => 'Risk Management Department',         'type' => 'DEPARTMENT', 'desc' => 'Enterprise risk management, credit risk, market risk, and operational risk oversight functions.', 'appetite' => 'averse'],
+            'retail' => ['name' => 'Retail Banking Division',            'type' => 'DIVISION',   'desc' => 'Consumer banking operations including deposits, personal lending, cards, and digital channels across all regions.', 'appetite' => 'cautious'],
+            'corporate' => ['name' => 'Corporate Banking Division',         'type' => 'DIVISION',   'desc' => 'Corporate relationship management, trade finance, structured lending, and cash management services.', 'appetite' => 'open'],
+            'treasury' => ['name' => 'Treasury & Investment Banking',      'type' => 'DIVISION',   'desc' => 'Treasury operations, foreign exchange, fixed income, equities, and investment advisory services.', 'appetite' => 'open'],
+            'ops_tech' => ['name' => 'Operations & Technology',            'type' => 'DIVISION',   'desc' => 'Core banking operations, IT infrastructure, digital transformation, and technology risk management.', 'appetite' => 'minimal'],
+            'risk_mgmt' => ['name' => 'Risk Management Department',         'type' => 'DEPARTMENT', 'desc' => 'Enterprise risk management, credit risk, market risk, and operational risk oversight functions.', 'appetite' => 'averse'],
             'compliance' => ['name' => 'Compliance Department',              'type' => 'DEPARTMENT', 'desc' => 'Regulatory compliance, AML/CFT, KYC, and sanctions screening operations.', 'appetite' => 'averse'],
         ];
 
@@ -170,9 +171,9 @@ class ScopingSeeder extends Seeder
         // L3: Regions (under Retail Banking Division)
         // ──────────────────────────────────────────────────
         $regions = [
-            'lagos'  => ['name' => 'Lagos Region',          'desc' => 'Lagos metropolitan area branches covering Victoria Island, Ikeja, Lekki, and surrounding areas.'],
-            'abuja'  => ['name' => 'Abuja Region',          'desc' => 'Federal Capital Territory branches covering Garki, Wuse, Maitama, and surrounding areas.'],
-            'ph'     => ['name' => 'Port Harcourt Region',  'desc' => 'Rivers State branches covering the Oil & Gas corridor and surrounding Niger Delta areas.'],
+            'lagos' => ['name' => 'Lagos Region',          'desc' => 'Lagos metropolitan area branches covering Victoria Island, Ikeja, Lekki, and surrounding areas.'],
+            'abuja' => ['name' => 'Abuja Region',          'desc' => 'Federal Capital Territory branches covering Garki, Wuse, Maitama, and surrounding areas.'],
+            'ph' => ['name' => 'Port Harcourt Region',  'desc' => 'Rivers State branches covering the Oil & Gas corridor and surrounding Niger Delta areas.'],
         ];
 
         foreach ($regions as $key => $reg) {
@@ -220,7 +221,7 @@ class ScopingSeeder extends Seeder
         // L4: Branches (under Lagos Region)
         // ──────────────────────────────────────────────────
         $branches = [
-            'vi_branch'    => 'Victoria Island Branch',
+            'vi_branch' => 'Victoria Island Branch',
             'ikeja_branch' => 'Ikeja Branch',
             'lekki_branch' => 'Lekki Branch',
         ];
@@ -255,6 +256,7 @@ class ScopingSeeder extends Seeder
 
         if ($risks->isEmpty()) {
             $this->command->info('  - No existing risks to link.');
+
             return;
         }
 

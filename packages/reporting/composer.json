@@ -1,0 +1,43 @@
+{
+    "name": "thirdline/reporting",
+    "description": "Document rendering shared by the ThirdLine GRC products: branded PDF and XLSX output from one renderer.",
+    "type": "library",
+    "license": "proprietary",
+    "version": "0.1.0",
+    "require": {
+        "php": "^8.2",
+        "barryvdh/laravel-dompdf": "^3.0",
+        "illuminate/contracts": "^11.0|^12.0",
+        "illuminate/support": "^11.0|^12.0",
+        "phpoffice/phpspreadsheet": "^1.29|^2.0|^3.0|^4.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0|^10.0",
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "ThirdLine\\Reporting\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "ThirdLine\\Reporting\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "ThirdLine\\Reporting\\ReportingServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

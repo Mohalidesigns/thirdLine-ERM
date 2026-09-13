@@ -2,356 +2,252 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
+use App\Http\Controllers\Concerns\EnforcesNodeScope;
 use App\Http\Controllers\Controller;
-use App\Models\Risk;
+use App\Http\Requests\Assessments\ApproveRiskAssessmentRequest;
+use App\Http\Requests\Assessments\PreviewAssessmentRequest;
+use App\Http\Requests\Assessments\RejectRiskAssessmentRequest;
+use App\Http\Requests\Assessments\StoreAssessmentRequest;
+use App\Http\Requests\Assessments\UpdateAssessmentRequest;
 use App\Models\RiskAssessment;
-use App\Models\RiskAuditTrail;
 use App\Models\User;
-use App\Services\ApprovalService;
+use App\Presenters\GridPresenter;
+use App\Services\AssessmentChainService;
+use App\Services\Assessments\AssessmentService;
 use App\Services\NotificationService;
+use App\Services\Workflow\ModuleApprovals;
+use App\Support\Authorization\GraphScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
+/**
+ * The risk assessment journey (migration Phase 3.3).
+ *
+ * WP-10a rebuilt this around the chain a risk expert's review set as canonical:
+ *
+ *   Risk → Root Cause → Likelihood → Impact → Inherent Risk →
+ *   Existing Controls → Control Effectiveness → Residual Risk →
+ *   Risk Treatment → Action Plan → Owner → Due Date → KRI
+ *
+ * The chain itself now lives in AssessmentService (the journey) and
+ * AssessmentChainService (the arithmetic). Each action here authorises through
+ * RiskAssessmentPolicy, hands the work to one of them, and renders a page.
+ *
+ * The lifecycle guards — "only a draft can be edited", "only an in-review
+ * assessment can be approved" — stay here rather than moving into the policy.
+ * They answer with a flash message, not a 403, and WorkflowEngine::canAct()
+ * asks the policy the same question about tasks that are not yet decided.
+ */
 class RiskAssessmentController extends Controller
 {
+    // WP-00 node scoping. RiskAssessment does not use ScopedToGraph, so unlike
+    // a Risk there is no route-binding 404 to inherit: an assessment inherits
+    // its visibility from the risk it assesses, and this is where that is
+    // enforced. 404 rather than the policy's 403, deliberately — the caller
+    // may hold every permission in the product, and leaking the existence of
+    // a sibling branch's assessment is itself a disclosure. The policy checks
+    // the same reach as defence in depth for callers holding the model some
+    // other way.
+    use EnforcesNodeScope;
+
+    public function __construct(
+        private readonly AssessmentService $assessments,
+        private readonly AssessmentChainService $chain,
+    ) {}
+
+    /* ------------------------------------------------------------------ */
+    /*  Index */
+    /* ------------------------------------------------------------------ */
+
     /**
-     * List all assessments with filters.
+     * List all assessments. Search, filters, sorting and pagination all moved
+     * into the shared data grid (WP-09) — see
+     * App\Grids\Definitions\RiskAssessmentsGrid.
      */
-    public function index(Request $request)
+    public function index(Request $request, GridPresenter $presenter)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('viewAny', RiskAssessment::class);
 
-        $query = RiskAssessment::where('organization_id', $orgId)
-            ->with(['risk', 'assessor']);
+        // WP-00: scoped through the risk, matching RiskAssessmentsGrid.
+        $total = GraphScope::applyThrough(
+            RiskAssessment::where('organization_id', TenantContext::organizationId()),
+            'risk'
+        )->count();
 
-        if ($request->filled('risk_id')) {
-            $query->where('risk_id', $request->risk_id);
-        }
-
-        if ($request->filled('assessment_type')) {
-            $query->where('assessment_type', $request->assessment_type);
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('date_from')) {
-            $query->where('assessment_date', '>=', $request->date_from);
-        }
-
-        if ($request->filled('date_to')) {
-            $query->where('assessment_date', '<=', $request->date_to);
-        }
-
-        $assessments = $query->orderByDesc('assessment_date')->paginate(25)->withQueryString();
-
-        $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
-
-        return view('risk.assessments.index', compact('assessments', 'risks'));
+        return Inertia::render('Assessments/Index', [
+            'total' => $total,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('assessments'), $request, $request->user()),
+        ]);
     }
 
+    /* ------------------------------------------------------------------ */
+    /*  Create / Store */
+    /* ------------------------------------------------------------------ */
+
     /**
-     * Show the create assessment form.
+     * Show the assessment form.
+     *
+     * Step 1 — the risk — is chosen before the rest of the chain can be drawn:
+     * which controls to rate and which causes to review are properties of the
+     * risk, so without one there is no form to render. A request with no
+     * `risk_id` therefore gets the risk picker rather than a form full of
+     * empty selects.
      */
     public function create(Request $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('create', RiskAssessment::class);
 
-        $risks = Risk::where('organization_id', $orgId)
-            ->where('status', 'active')
-            ->orderBy('risk_code')
-            ->get();
+        $risk = $request->filled('risk_id')
+            ? \App\Models\Risk::where('organization_id', TenantContext::organizationId())
+                ->visibleTo()
+                ->find($request->integer('risk_id'))
+            : null;
 
-        $selectedRiskId = $request->get('risk_id');
-        $users = User::where('organization_id', $orgId)->orderBy('name')->get();
-
-        return view('risk.assessments.create', compact('risks', 'selectedRiskId', 'users'));
-    }
-
-    /**
-     * Store a new assessment.
-     */
-    public function store(Request $request)
-    {
-        $orgId = auth()->user()->organization_id ?? 1;
-
-        $validated = $request->validate([
-            'risk_id' => 'required|exists:risks,id',
-            'assessment_type' => 'required|in:initial,periodic,event_driven,triggered,annual',
-            'assessment_date' => 'required|date',
-            'likelihood' => 'required|integer|min:1|max:5',
-            'impact_financial' => 'required|integer|min:1|max:5',
-            'impact_operational' => 'required|integer|min:1|max:5',
-            'impact_reputational' => 'required|integer|min:1|max:5',
-            'impact_regulatory' => 'required|integer|min:1|max:5',
-            'impact_strategic' => 'nullable|integer|min:1|max:5',
-            'residual_likelihood' => 'nullable|integer|min:1|max:5',
-            'residual_impact' => 'nullable|integer|min:1|max:5',
-            'rationale' => 'required|string|max:5000',
-            'recommendations' => 'nullable|string|max:5000',
-            'action' => 'nullable|in:draft,submit',
-        ]);
-
-        // Verify risk belongs to org
-        Risk::where('id', $validated['risk_id'])
-            ->where('organization_id', $orgId)
-            ->firstOrFail();
-
-        return DB::transaction(function () use ($validated, $orgId, $request) {
-            $impactScore = max(
-                (int) $validated['impact_financial'],
-                (int) $validated['impact_operational'],
-                (int) $validated['impact_reputational'],
-                (int) $validated['impact_regulatory'],
-                (int) ($validated['impact_strategic'] ?? 0),
-            );
-            $overallScore = (int) $validated['likelihood'] * $impactScore;
-            $overallRating = $this->calculateRating($overallScore);
-
-            $residualScore = null;
-            $residualRating = null;
-            if (!empty($validated['residual_likelihood']) && !empty($validated['residual_impact'])) {
-                $residualScore = (int) $validated['residual_likelihood'] * (int) $validated['residual_impact'];
-                $residualRating = $this->calculateRating($residualScore);
-            }
-
-            $notes = trim(
-                ($validated['rationale'] ?? '')
-                . (!empty($validated['recommendations']) ? "\n\nRecommendations:\n" . $validated['recommendations'] : '')
-            );
-
-            $assessment = RiskAssessment::create([
-                'organization_id' => $orgId,
-                'risk_id' => $validated['risk_id'],
-                'assessment_type' => $validated['assessment_type'],
-                'assessment_date' => $validated['assessment_date'],
-                'assessor_id' => auth()->id(),
-                'likelihood_score' => (int) $validated['likelihood'],
-                'impact_financial' => (int) $validated['impact_financial'],
-                'impact_operational' => (int) $validated['impact_operational'],
-                'impact_reputational' => (int) $validated['impact_reputational'],
-                'impact_regulatory' => (int) $validated['impact_regulatory'],
-                'impact_strategic' => isset($validated['impact_strategic']) ? (int) $validated['impact_strategic'] : null,
-                'impact_score' => $impactScore,
-                'overall_score' => $overallScore,
-                'overall_rating' => $overallRating,
-                'residual_likelihood' => $validated['residual_likelihood'] ?? null,
-                'residual_impact' => $validated['residual_impact'] ?? null,
-                'residual_score' => $residualScore,
-                'residual_rating' => $residualRating,
-                'assessment_notes' => $notes ?: null,
-                'status' => $request->input('action') === 'submit' ? 'in_review' : 'draft',
+        if ($risk === null) {
+            return Inertia::render('Assessments/SelectRisk', [
+                'risks' => $this->assessments->selectableRisks(),
             ]);
+        }
 
-            return redirect()->route('risk.assessments.show', $assessment)
-                ->with('success', 'Risk assessment saved.');
-        });
+        return Inertia::render('Assessments/Create', $this->assessments->formData($risk));
     }
 
-    /**
-     * Display assessment detail with comparison to previous.
-     */
-    public function show(RiskAssessment $assessment)
+    public function store(StoreAssessmentRequest $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $risk = $request->assessedRisk();
+        $validated = $request->validated();
 
-        if ($assessment->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this assessment.');
-        }
+        $assessment = DB::transaction(fn () => $this->assessments->persistChain(
+            new RiskAssessment([
+                'risk_id' => $risk->id,
+                'assessor_id' => $request->user()?->id,
+                'status' => 'draft',
+            ]),
+            $validated,
+            $risk,
+            $request->user()?->id,
+        ));
 
-        $assessment->load(['risk.category', 'risk.riskOwner', 'assessor']);
+        return redirect()->route('risk.assessments.show', $assessment)
+            ->with('success', ($validated['action'] ?? null) === 'submit'
+                ? 'Risk assessment submitted for review.'
+                : 'Risk assessment saved as a draft.');
+    }
 
-        // Get previous assessment for comparison
-        $previousAssessment = RiskAssessment::where('risk_id', $assessment->risk_id)
-            ->where('organization_id', $orgId)
-            ->where('assessment_date', '<', $assessment->assessment_date)
-            ->where('status', 'approved')
-            ->orderByDesc('assessment_date')
-            ->first();
+    /* ------------------------------------------------------------------ */
+    /*  The live preview (Decision 5b) */
+    /* ------------------------------------------------------------------ */
 
-        // Full assessment history for this risk, with per-assessment score change
-        // computed against the chronologically preceding assessment.
-        $history = RiskAssessment::where('risk_id', $assessment->risk_id)
-            ->where('organization_id', $orgId)
-            ->with('assessor')
-            ->orderBy('assessment_date')
-            ->orderBy('id')
-            ->get();
+    /**
+     * Score the chain as the form currently holds it.
+     *
+     * The only endpoint on this controller that returns JSON rather than a
+     * page: it is called on a debounce while the assessor works, and swapping
+     * the whole page for every keystroke is not what Inertia is for.
+     */
+    public function preview(PreviewAssessmentRequest $request)
+    {
+        return response()->json(
+            $this->chain->preview($request->assessedRisk(), $request->validated())
+        );
+    }
 
-        $previousScore = null;
-        foreach ($history as $item) {
-            $item->setAttribute(
-                'score_change',
-                $previousScore === null ? 0 : ((int) $item->overall_score - $previousScore)
-            );
-            $previousScore = (int) $item->overall_score;
-        }
+    /* ------------------------------------------------------------------ */
+    /*  Show */
+    /* ------------------------------------------------------------------ */
 
-        $assessmentHistory = $history->sortByDesc('assessment_date')->values();
+    public function show(Request $request, RiskAssessment $assessment)
+    {
+        $this->abortUnlessNodeVisibleThrough($assessment, 'risk');
+        Gate::authorize('view', $assessment);
 
-        // Mirror the computed change onto the assessment shown in the KPI cards
-        $currentInHistory = $history->firstWhere('id', $assessment->id);
-        $assessment->setAttribute('score_change', $currentInHistory?->score_change ?? 0);
+        $user = $request->user();
 
-        // Radar chart: impact dimension scores, current vs previous
-        $dimensionData = [
-            'labels' => ['Financial', 'Operational', 'Reputational', 'Regulatory', 'Strategic'],
-            'current' => [
-                (int) $assessment->impact_financial,
-                (int) $assessment->impact_operational,
-                (int) $assessment->impact_reputational,
-                (int) $assessment->impact_regulatory,
-                (int) ($assessment->impact_strategic ?? 0),
+        return Inertia::render('Assessments/Show', array_merge(
+            $this->assessments->detail($assessment),
+            [
+                'can' => [
+                    'update' => $user->can('update', $assessment)
+                        && in_array($assessment->status, ['draft', 'rejected'], true),
+                    'submit' => $user->can('submit', $assessment)
+                        && in_array($assessment->status, ['draft', 'rejected'], true),
+                    'decide' => $user->can('approve', $assessment) && $assessment->status === 'in_review',
+                    'resubmit' => $user->can('resubmit', $assessment) && $assessment->status === 'rejected',
+                ],
             ],
-            'previous' => $previousAssessment ? [
-                (int) $previousAssessment->impact_financial,
-                (int) $previousAssessment->impact_operational,
-                (int) $previousAssessment->impact_reputational,
-                (int) $previousAssessment->impact_regulatory,
-                (int) ($previousAssessment->impact_strategic ?? 0),
-            ] : [0, 0, 0, 0, 0],
-        ];
-
-        // Bar chart: side-by-side comparison with the previous assessment
-        $comparisonData = [
-            'labels' => ['Likelihood', 'Financial', 'Operational', 'Reputational', 'Regulatory', 'Strategic'],
-            'current' => [
-                (int) $assessment->likelihood_score,
-                (int) $assessment->impact_financial,
-                (int) $assessment->impact_operational,
-                (int) $assessment->impact_reputational,
-                (int) $assessment->impact_regulatory,
-                (int) ($assessment->impact_strategic ?? 0),
-            ],
-            'previous' => $previousAssessment ? [
-                (int) $previousAssessment->likelihood_score,
-                (int) $previousAssessment->impact_financial,
-                (int) $previousAssessment->impact_operational,
-                (int) $previousAssessment->impact_reputational,
-                (int) $previousAssessment->impact_regulatory,
-                (int) ($previousAssessment->impact_strategic ?? 0),
-            ] : [0, 0, 0, 0, 0, 0],
-        ];
-
-        return view('risk.assessments.show', compact(
-            'assessment', 'previousAssessment',
-            'assessmentHistory', 'dimensionData', 'comparisonData'
         ));
     }
 
-    /**
-     * Update an assessment (only if draft or in_review).
-     */
-    public function update(Request $request, RiskAssessment $assessment)
-    {
-        $orgId = auth()->user()->organization_id ?? 1;
+    /* ------------------------------------------------------------------ */
+    /*  Edit / Update */
+    /* ------------------------------------------------------------------ */
 
-        if ($assessment->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this assessment.');
+    /** Edit a draft — the same thirteen-step form, pre-filled. */
+    public function edit(RiskAssessment $assessment)
+    {
+        $this->abortUnlessNodeVisibleThrough($assessment, 'risk');
+        Gate::authorize('update', $assessment);
+
+        if (! in_array($assessment->status, ['draft', 'rejected'], true)) {
+            return redirect()->route('risk.assessments.show', $assessment)
+                ->with('error', 'Only draft or rejected assessments can be edited.');
         }
 
-        if (!in_array($assessment->status, ['draft', 'in_review'])) {
+        return Inertia::render('Assessments/Create', $this->assessments->formData($assessment->risk, $assessment));
+    }
+
+    public function update(UpdateAssessmentRequest $request, RiskAssessment $assessment)
+    {
+        $this->abortUnlessNodeVisibleThrough($assessment, 'risk');
+
+        if (! in_array($assessment->status, ['draft', 'in_review', 'rejected'], true)) {
             return back()->with('error', 'Only draft or in-review assessments can be updated.');
         }
 
-        $validated = $request->validate([
-            'assessment_type' => 'required|in:initial,periodic,event_driven,triggered,annual',
-            'assessment_date' => 'required|date',
-            'likelihood' => 'required|integer|min:1|max:5',
-            'impact_financial' => 'required|integer|min:1|max:5',
-            'impact_operational' => 'required|integer|min:1|max:5',
-            'impact_reputational' => 'required|integer|min:1|max:5',
-            'impact_regulatory' => 'required|integer|min:1|max:5',
-            'impact_strategic' => 'nullable|integer|min:1|max:5',
-            'residual_likelihood' => 'nullable|integer|min:1|max:5',
-            'residual_impact' => 'nullable|integer|min:1|max:5',
-            'rationale' => 'required|string|max:5000',
-            'recommendations' => 'nullable|string|max:5000',
-        ]);
-
-        $impactScore = max(
-            (int) $validated['impact_financial'],
-            (int) $validated['impact_operational'],
-            (int) $validated['impact_reputational'],
-            (int) $validated['impact_regulatory'],
-            (int) ($validated['impact_strategic'] ?? 0),
-        );
-        $overallScore = (int) $validated['likelihood'] * $impactScore;
-        $overallRating = $this->calculateRating($overallScore);
-
-        $residualScore = null;
-        $residualRating = null;
-        if (!empty($validated['residual_likelihood']) && !empty($validated['residual_impact'])) {
-            $residualScore = (int) $validated['residual_likelihood'] * (int) $validated['residual_impact'];
-            $residualRating = $this->calculateRating($residualScore);
-        }
-
-        $notes = trim(
-            ($validated['rationale'] ?? '')
-            . (!empty($validated['recommendations']) ? "\n\nRecommendations:\n" . $validated['recommendations'] : '')
-        );
-
-        $assessment->update([
-            'assessment_type' => $validated['assessment_type'],
-            'assessment_date' => $validated['assessment_date'],
-            'likelihood_score' => (int) $validated['likelihood'],
-            'impact_financial' => (int) $validated['impact_financial'],
-            'impact_operational' => (int) $validated['impact_operational'],
-            'impact_reputational' => (int) $validated['impact_reputational'],
-            'impact_regulatory' => (int) $validated['impact_regulatory'],
-            'impact_strategic' => isset($validated['impact_strategic']) ? (int) $validated['impact_strategic'] : null,
-            'impact_score' => $impactScore,
-            'overall_score' => $overallScore,
-            'overall_rating' => $overallRating,
-            'residual_likelihood' => $validated['residual_likelihood'] ?? null,
-            'residual_impact' => $validated['residual_impact'] ?? null,
-            'residual_score' => $residualScore,
-            'residual_rating' => $residualRating,
-            'assessment_notes' => $notes ?: null,
-        ]);
+        DB::transaction(fn () => $this->assessments->persistChain(
+            $assessment,
+            $request->validated(),
+            $assessment->risk,
+            $request->user()?->id,
+        ));
 
         return redirect()->route('risk.assessments.show', $assessment)
-            ->with('success', 'Assessment updated successfully.');
+            ->with('success', 'Assessment updated.');
     }
 
-    /**
-     * Submit assessment from draft to in_review.
-     */
-    public function submit(RiskAssessment $assessment, ApprovalService $approvals)
+    /* ------------------------------------------------------------------ */
+    /*  Lifecycle */
+    /* ------------------------------------------------------------------ */
+
+    public function submit(Request $request, RiskAssessment $assessment, ModuleApprovals $approvals)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $this->abortUnlessNodeVisibleThrough($assessment, 'risk');
+        Gate::authorize('submit', $assessment);
 
-        if ($assessment->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this assessment.');
-        }
-
-        if (! in_array($assessment->status, ['draft', 'rejected'])) {
+        if (! in_array($assessment->status, ['draft', 'rejected'], true)) {
             return back()->with('error', 'Only draft or rejected assessments can be submitted for review.');
         }
 
-        $assessment->update(['status' => 'in_review']);
+        $orgId = TenantContext::organizationId();
 
-        $approvals->requestApproval(
-            $assessment,
-            'approve_risk_assessment',
-            payload: ['overall_score' => $assessment->overall_score, 'residual_score' => $assessment->residual_score],
-            reviewerId: $assessment->reviewer_id,
-        );
+        // WP-06. The workflow engine raises the task, resolves the reviewer and
+        // notifies them. Where a tenant has not published the definition yet,
+        // the status change below is what it always was.
+        if (! $approvals->submit('risk_assessment_approval', $assessment, [], $request->user())) {
+            $approvals->markSubmitted($assessment);
 
-        // If no specific reviewer assigned, notify everyone with the approver role.
-        if (! $assessment->reviewer_id) {
-            $approvers = User::role(['risk-manager', 'chief-risk-officer'])
-                ->where('organization_id', $orgId)
-                ->get();
-            foreach ($approvers as $approver) {
+            foreach (User::role(['risk-manager', 'chief-risk-officer'])->where('organization_id', $orgId)->get() as $approver) {
                 NotificationService::send(
                     $orgId,
                     $approver->id,
                     'approval_request',
-                    "Risk assessment awaiting review: ASS-" . str_pad($assessment->id, 4, '0', STR_PAD_LEFT),
+                    'Risk assessment awaiting review: ASS-'.str_pad((string) $assessment->id, 4, '0', STR_PAD_LEFT),
                     "Assessment for risk {$assessment->risk?->risk_code} has been submitted for review.",
-                    ['entity_type' => 'RiskAssessment', 'entity_id' => $assessment->id]
+                    ['entity_type' => 'risk_assessment', 'entity_id' => $assessment->id]
                 );
             }
         }
@@ -360,124 +256,69 @@ class RiskAssessmentController extends Controller
             ->with('success', 'Assessment submitted for review.');
     }
 
-    /**
-     * Approve assessment and update parent risk scores.
-     */
-    public function approve(Request $request, RiskAssessment $assessment, ApprovalService $approvals)
+    public function approve(ApproveRiskAssessmentRequest $request, RiskAssessment $assessment, ModuleApprovals $approvals)
     {
-        abort_unless(auth()->user()->can('approve-risk-assessment', $assessment), 403,
-            'Only the assigned reviewer or a risk-manager/CRO can approve this assessment.');
+        $this->abortUnlessNodeVisibleThrough($assessment, 'risk');
+        Gate::authorize('approve', $assessment);
 
         if ($assessment->status !== 'in_review') {
             return back()->with('error', 'Only in-review assessments can be approved.');
         }
 
-        $validated = $request->validate([
-            'comments' => 'nullable|string|max:1000',
-        ]);
+        $validated = $request->validated();
 
-        return DB::transaction(function () use ($assessment, $approvals, $validated) {
-            $assessment->update([
-                'status' => 'approved',
-                'approved_by' => auth()->id(),
-                'approved_date' => now()->toDateString(),
-            ]);
+        // WP-06. Pushing the approved scores onto the parent risk and firing
+        // AssessmentApproved now lives in RiskAssessmentBinding, so it happens
+        // however the decision was reached — this screen, My Tasks, the API, or
+        // an SLA auto-approval — rather than only when this method runs.
+        if (! $approvals->decide($assessment, 'approve', $request->user(), $validated)) {
+            DB::transaction(fn () => $approvals->decideDirectly(
+                $assessment, 'approve', $request->user(), $validated['comments'] ?? null
+            ));
+        }
 
-            $pending = $approvals->latestPending($assessment) ?? $approvals->requestApproval($assessment, 'approve_risk_assessment');
-            $approvals->approve($pending, auth()->id(), $validated['comments'] ?? null);
-
-            // Update parent risk with approved assessment scores
-            $risk = $assessment->risk;
-            $updateData = [
-                'inherent_likelihood' => $assessment->likelihood_score,
-                'inherent_impact' => $assessment->impact_score,
-                'inherent_score' => $assessment->overall_score,
-                'inherent_rating' => $assessment->overall_rating,
-                'last_assessment_date' => $assessment->assessment_date,
-            ];
-
-            if ($assessment->residual_score !== null) {
-                $updateData['residual_likelihood'] = $assessment->residual_likelihood;
-                $updateData['residual_impact'] = $assessment->residual_impact;
-                $updateData['residual_score'] = $assessment->residual_score;
-                $updateData['residual_rating'] = $assessment->residual_rating;
-            }
-
-            $risk->update($updateData);
-
-            \App\Events\AssessmentApproved::dispatch($assessment, $risk);
-
-            return redirect()->route('risk.assessments.show', $assessment)
-                ->with('success', 'Assessment approved and risk scores updated.');
-        });
+        return redirect()->route('risk.assessments.show', $assessment)
+            ->with('success', 'Assessment approved and risk scores updated.');
     }
 
-    /**
-     * Reject assessment with comments.
-     */
-    public function reject(Request $request, RiskAssessment $assessment, ApprovalService $approvals)
+    public function reject(RejectRiskAssessmentRequest $request, RiskAssessment $assessment, ModuleApprovals $approvals)
     {
-        abort_unless(auth()->user()->can('approve-risk-assessment', $assessment), 403,
-            'Only the assigned reviewer or a risk-manager/CRO can reject this assessment.');
+        $this->abortUnlessNodeVisibleThrough($assessment, 'risk');
+        Gate::authorize('reject', $assessment);
 
         if ($assessment->status !== 'in_review') {
             return back()->with('error', 'Only in-review assessments can be rejected.');
         }
 
-        $validated = $request->validate([
-            'rejection_reason' => 'required|string|max:2000',
+        $validated = $request->validated();
+
+        // The reason lands on review_comments either way — the binding writes
+        // it — and the decision timeline now lives on the workflow instance
+        // rather than in approval_requests.
+        $decided = $approvals->decide($assessment, 'reject', $request->user(), [
+            'comments' => $validated['rejection_reason'],
         ]);
 
-        // `review_comments` is the existing text column; reuse it to stash the
-        // reviewer's rejection reason on the assessment row (the canonical
-        // audit trail lives in approval_requests).
-        $assessment->update([
-            'status' => 'rejected',
-            'review_comments' => $validated['rejection_reason'],
-            'reviewer_id' => $assessment->reviewer_id ?: auth()->id(),
-            'review_date' => now()->toDateString(),
-        ]);
-
-        $pending = $approvals->latestPending($assessment) ?? $approvals->requestApproval($assessment, 'approve_risk_assessment');
-        $approvals->reject($pending, auth()->id(), $validated['rejection_reason']);
+        if (! $decided) {
+            $approvals->decideDirectly($assessment, 'reject', $request->user(), $validated['rejection_reason']);
+        }
 
         return redirect()->route('risk.assessments.show', $assessment)
             ->with('success', 'Assessment rejected. The assessor has been notified.');
     }
 
-    /**
-     * Assessor resubmits a rejected assessment — status moves back to draft.
-     */
+    /** Assessor resubmits a rejected assessment — status moves back to draft. */
     public function resubmit(RiskAssessment $assessment)
     {
-        abort_unless(auth()->user()->can('resubmit-risk-assessment', $assessment), 403,
-            'Only the original assessor can resubmit.');
+        $this->abortUnlessNodeVisibleThrough($assessment, 'risk');
+        Gate::authorize('resubmit', $assessment);
 
         if ($assessment->status !== 'rejected') {
             return back()->with('error', 'Only rejected assessments can be resubmitted.');
         }
 
-        $assessment->update([
-            'status' => 'draft',
-            'review_comments' => null,
-        ]);
+        $assessment->update(['status' => 'draft', 'review_comments' => null]);
 
         return back()->with('success', 'Assessment returned to draft. Edit and submit again for review.');
-    }
-
-    /**
-     * Calculate risk rating based on score.
-     */
-    private function calculateRating(int $score): string
-    {
-        if ($score >= 20) {
-            return 'Critical';
-        } elseif ($score >= 12) {
-            return 'High';
-        } elseif ($score >= 6) {
-            return 'Medium';
-        } else {
-            return 'Low';
-        }
     }
 }

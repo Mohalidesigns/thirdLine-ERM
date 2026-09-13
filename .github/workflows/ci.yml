@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Lint, guards, build and tests (MariaDB)
+    runs-on: ubuntu-latest
+
+    services:
+      # MariaDB, not MySQL, and 10.4 to match production and what developers
+      # actually run.
+      #
+      # The matrix that used to live here was [sqlite, mysql:8.0], and neither
+      # arm was the customer's database. The sqlite arm was obviously not
+      # production and nobody trusted it; the mysql arm was the dangerous one,
+      # because it looks like real database coverage while having the CTEs,
+      # window functions and native JSON type that MariaDB 10.4 largely does
+      # not — so it went green on SQL production cannot run.
+      #
+      # The two are not interchangeable where it matters here: MariaDB stores a
+      # `json` column as LONGTEXT behind a `json_valid()` CHECK constraint,
+      # MySQL 8 has a native JSON type, and they fail differently.
+      #
+      # `mariadb:10.4` tracks 10.4.x; the machines it is matching are on
+      # 10.4.28. NOTE that 10.4 reached end of life in June 2024, so this pin
+      # follows the estate rather than endorsing it — when the estate upgrades,
+      # this moves with it. The image takes the legacy MYSQL_* variables; the
+      # MARIADB_* names arrived after 10.4.
+      mariadb:
+        image: mariadb:10.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: risk_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          # 8.4, matching production (docs/DEPLOYMENT.md: php8.4-fpm, and
+          # deploy.sh restarts it) and matching what composer.lock actually
+          # requires. Pinned to 8.2 this workflow could not `composer install`
+          # at all — symfony/* v8.1 needs >=8.4.1 — so it failed in 30 seconds
+          # and never reached Pint, PHPStan or the suite. Same fix as PR #4 on
+          # migration/phase-7-shared-packages.
+          php-version: '8.4'
+          extensions: mbstring, pdo, pdo_sqlite, pdo_mysql, sqlite3, gd, zip, bcmath
+          coverage: none
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # Runs before the test suite: a fabricated figure is a product defect, and
+      # it should be the first thing a reviewer sees fail.
+      - name: Guard — no RNG in user-facing code
+        run: ./scripts/check-no-rng.sh
+
+      - name: Lint — Pint
+        run: ./vendor/bin/pint --test
+
+      # The React bundle must build and its entry must land in the manifest.
+      #
+      # Phase 0 asserted TWO entries here — app.js for Livewire and app.jsx for
+      # Inertia. Phase 6.8 deleted app.js with the rest of the Livewire tree and
+      # did not update this line, so the check has been asserting the presence
+      # of a file the same commit removed. Caught in 7.4 while adding the parity
+      # guard below it.
+      - name: Build front-end
+        run: |
+          npm ci
+          npm run build
+          node -e "const m=require('./public/build/manifest.json'); for (const k of ['resources/js/app.jsx','resources/css/app.css']) { if (!m[k]) { console.error('manifest missing '+k); process.exit(1); } } if (m['resources/js/app.js']) { console.error('resources/js/app.js is back in the manifest; Livewire was removed in Phase 6.8'); process.exit(1); }"
+
+      - name: Guard — migration parity
+        run: php scripts/parity-check.php
+
+      # REPORTING, NOT BLOCKING — the same decision migration/phase-7-shared-packages
+      # reached, for the same reason, and this branch had drifted from it.
+      #
+      # phpstan-baseline.neon's header keeps eleven errors DELIBERATELY RED and
+      # deliberately un-baselined: four `nullsafe.neverNull` in WorkflowPresenter
+      # where "PHPStan IS WRONG, AND OBEYING IT WOULD BREAK THE APP" (nullsafe
+      # reads on belongsTo relations whose foreign key is nullable — deleting the
+      # `?->` turns a rendered "—" into a fatal on real rows), plus long-standing
+      # ones in ApprovalController, MyTaskController, SsoSettingResolver,
+      # Branding, ObjectDetailSchema and TracksJobProgress. They have been the
+      # programme's known-red marker since Phase 3.
+      #
+      # A repository cannot both keep errors deliberately red AND fail the build
+      # on any error. Blocking here would leave exactly two ways out: bury the
+      # eleven in the baseline, losing the marker, or delete null-safety to
+      # satisfy an analyser that is wrong. Both are worse than a step that
+      # reports.
+      #
+      # The count still carries information, and after the 2026-09-10 prune it
+      # carries more: eleven is the number. Compare against the base branch, not
+      # against the six the header was written around — RCSA v2 brought the rest.
+      - name: Static analysis — PHPStan (Larastan, level 5, baseline)
+        continue-on-error: true
+        run: ./vendor/bin/phpstan analyse --memory-limit=2G --no-progress
+
+      - name: Tests (MariaDB)
+        run: php vendor/bin/phpunit
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: risk_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+
+      # Legacy dual-path tables must not gain new readers during the port
+      # (docs/schema/deprecations.md).
+      - name: Guard — deprecated schema paths
+        run: php artisan schema:audit-deprecated
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: risk_test
+          DB_USERNAME: root
+          DB_PASSWORD: root

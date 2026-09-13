@@ -2,154 +2,164 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Imports\ProcessImportRequest;
+use App\Http\Requests\Imports\UploadImportFileRequest;
+use App\Jobs\ProcessDataImportJob;
 use App\Models\DataImport;
-use App\Models\Risk;
-use App\Models\Control;
-use App\Models\LossEvent;
-use App\Models\Issue;
-use App\Models\KeyRiskIndicator;
+use App\Presenters\GridPresenter;
+use App\Services\FileUploadService;
+use App\Services\SpreadsheetReader;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class DataImportController extends Controller
 {
-    public function index()
-    {
-        $orgId = auth()->user()->organization_id;
-        $imports = DataImport::where('organization_id', $orgId)
-            ->with('importer')
-            ->latest()
-            ->paginate(20);
+    public function __construct(
+        private readonly SpreadsheetReader $reader,
+        private readonly FileUploadService $uploads,
+    ) {}
 
-        return view('risk.imports.index', compact('imports'));
+    /**
+     * WP-09: the history table is the shared data grid — see
+     * App\Grids\Definitions\DataImportsGrid.
+     */
+    public function index(Request $request, GridPresenter $presenter)
+    {
+        $total = DataImport::where('organization_id', TenantContext::organizationId())->count();
+
+        return Inertia::render('Imports/Index', [
+            'total' => $total,
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('imports'), $request, $request->user()),
+        ]);
     }
 
     public function create()
     {
-        return view('risk.imports.create');
+        Gate::authorize('create', DataImport::class);
+
+        return Inertia::render('Imports/Create', [
+            'types' => DataImport::TYPE_LABELS,
+            'accepts' => FileUploadService::PROFILE_DATA_IMPORT,
+        ]);
     }
 
-    public function upload(Request $request)
+    /**
+     * Accept a spreadsheet for bulk import.
+     *
+     * WP-11. `$file->store(..., 'public')` wrote the uploaded workbook into
+     * `storage/app/public/imports/{organizationId}/`, and that directory is
+     * symlinked to `public/storage`, so the file was served straight off the
+     * web server at `GET /storage/imports/{organizationId}/{name}.xlsx` with no
+     * session, no `import.create` permission and no tenant check. A bulk risk
+     * register import is the customer's ENTIRE register — every risk, owner and
+     * rating in one file — and the directory name is the organisation id, so
+     * the URL space was trivially enumerable across tenants.
+     *
+     * The file now goes to the private `local` disk via FileUploadService,
+     * which is not web-reachable. Note that nothing in the application serves
+     * this file back to a user: there is no download route for a DataImport and
+     * no view links to one. It is written here and read once by
+     * ProcessDataImportJob. The only reader that ever existed was the web
+     * server, which is precisely the problem being fixed.
+     *
+     * The accepted types (csv/xlsx/xls) and the 10 MB cap are unchanged; they
+     * now live in FileUploadService::PROFILE_DATA_IMPORT so that the request
+     * rules and the storage-time check come from one definition.
+     */
+    public function upload(UploadImportFileRequest $request)
     {
-        $request->validate([
-            'file'        => 'required|file|mimes:csv,xlsx,xls|max:10240',
-            'import_type' => 'required|in:risks,controls,loss_events,issues,kris',
-        ]);
 
         $file = $request->file('file');
-        $path = $file->store('imports/' . auth()->user()->organization_id, 'public');
+
+        // storeAs() streams the temp file rather than moving it, so
+        // $file->getPathname() below still points at a readable upload.
+        $stored = $this->uploads->store(
+            $file,
+            'imports/'.auth()->user()->organization_id,
+            FileUploadService::PROFILE_DATA_IMPORT,
+        );
 
         $import = DataImport::create([
             'organization_id' => auth()->user()->organization_id,
-            'import_type'     => $request->import_type,
-            'file_name'       => $file->getClientOriginalName(),
-            'file_path'       => $path,
-            'status'          => 'pending',
-            'imported_by'     => auth()->id(),
+            'import_type' => $request->import_type,
+            // Sanitised server-side: this string is rendered in the import
+            // history and used as a job label, and it arrives from the client.
+            'file_name' => $stored['file_name'],
+            'file_path' => $stored['storage_path'],
+            'status' => 'pending',
+            'imported_by' => auth()->id(),
         ]);
 
-        // Parse CSV headers for mapping
-        $headers = [];
-        if (($handle = fopen($file->getPathname(), 'r')) !== false) {
-            $headers = fgetcsv($handle);
-            $totalRows = 0;
-            while (fgetcsv($handle) !== false) $totalRows++;
-            fclose($handle);
-            $import->update(['total_rows' => $totalRows]);
-        }
-
-        $systemFields = $this->getFieldsForType($request->import_type);
-
-        return view('risk.imports.mapping', compact('import', 'headers', 'systemFields'));
-    }
-
-    public function processImport(Request $request, DataImport $import)
-    {
-        $request->validate([
-            'column_mapping' => 'required|array',
-        ]);
-
-        $import->update([
-            'column_mapping' => $request->column_mapping,
-            'status'         => 'processing',
-        ]);
-
-        $filePath = storage_path('app/public/' . $import->file_path);
-        $mapping  = $request->column_mapping;
-
-        $successCount = 0;
-        $errorCount   = 0;
-        $errors       = [];
-
-        if (! is_readable($filePath)) {
+        // Read headers with a parser chosen by what the file actually is. This
+        // previously used fgetcsv() for every accepted type, so an .xlsx —
+        // which is a ZIP archive — was parsed as text and produced garbage
+        // headers, then garbage records.
+        try {
+            $headers = $this->reader->headers($file->getPathname());
+            $import->update(['total_rows' => count($this->reader->dataRows($file->getPathname()))]);
+        } catch (\RuntimeException $e) {
             $import->update([
                 'status' => 'failed',
-                'errors' => ['Uploaded file could not be read from storage.'],
+                'errors' => [$e->getMessage()],
                 'completed_at' => now(),
             ]);
 
-            return redirect()->route('risk.imports.index')
-                ->with('error', 'Import failed: the uploaded file could not be read.');
+            return redirect()->route('risk.imports.create')
+                ->with('error', 'That file could not be read: '.$e->getMessage());
         }
 
-        if (($handle = fopen($filePath, 'r')) !== false) {
-            $headers = fgetcsv($handle);
-            $rowNum  = 1;
+        return Inertia::render('Imports/Mapping', [
+            'import' => $import->only(['id', 'import_type', 'file_name', 'total_rows']),
+            'headers' => $headers,
+            // The same list ProcessImportRequest accepts. It used to live on
+            // this controller alone, with nothing checking the mapping against
+            // it on the way back in.
+            'systemFields' => DataImport::fieldsFor($import->import_type),
+            'typeLabel' => DataImport::TYPE_LABELS[$import->import_type] ?? $import->import_type,
+        ]);
+    }
 
-            while (($row = fgetcsv($handle)) !== false) {
-                $rowNum++;
-                try {
-                    $data = [];
-                    foreach ($mapping as $systemField => $csvIndex) {
-                        if ($csvIndex !== '' && isset($row[(int)$csvIndex])) {
-                            $data[$systemField] = trim($row[(int)$csvIndex]);
-                        }
-                    }
-                    $data['organization_id'] = $import->organization_id;
-
-                    $this->createRecordForType($import->import_type, $data);
-                    $successCount++;
-                } catch (\Exception $e) {
-                    $errorCount++;
-                    $errors[] = "Row {$rowNum}: " . $e->getMessage();
-                }
-            }
-            fclose($handle);
-        }
-
+    /**
+     * Start the import with the column mapping the user chose.
+     *
+     * TWO THINGS HAD TO BE FIXED BEFORE THIS COULD RUN AT ALL, both introduced
+     * by WP-07 when the row loop moved onto a queue and neither caught because
+     * this route had no test:
+     *
+     *   - `data_imports.status` was an enum of four and this writes `queued`,
+     *     so MySQL answered every call with "Data truncated for column
+     *     'status'" (migration 2026_09_05_140000);
+     *   - `DataImport` had no morph alias, and ProcessDataImportJob::track()
+     *     stores its subject as a morph, so getMorphClass() threw.
+     *
+     * The mapping's KEYS are validated by ProcessImportRequest — see the note
+     * there for what an unvalidated key could reach.
+     */
+    public function processImport(ProcessImportRequest $request, DataImport $import)
+    {
         $import->update([
-            'success_count' => $successCount,
-            'error_count'   => $errorCount,
-            'errors'        => $errors,
-            'status'        => 'completed',
-            'completed_at'  => now(),
+            'column_mapping' => $request->validated('column_mapping'),
+            'status' => 'queued',
         ]);
 
-        return redirect()->route('risk.imports.index')->with('success', "Import completed: {$successCount} records imported, {$errorCount} errors.");
-    }
+        // WP-07. This used to loop the whole spreadsheet inside the request. A
+        // fifty-thousand-row file was a timeout with several thousand rows
+        // already written and no record of where it stopped — and re-uploading
+        // then duplicated everything it had managed before dying.
+        $jobRun = ProcessDataImportJob::track(
+            label: 'Import '.$import->file_name,
+            subject: $import,
+            organizationId: $import->organization_id,
+            creator: $request->user(),
+        );
 
-    private function getFieldsForType(string $type): array
-    {
-        return match($type) {
-            'risks'       => ['title', 'description', 'category_id', 'inherent_likelihood', 'inherent_impact', 'residual_likelihood', 'residual_impact', 'risk_owner_id', 'status'],
-            'controls'    => ['name', 'description', 'control_type', 'control_nature', 'frequency', 'automation_level', 'effectiveness_rating', 'status'],
-            'loss_events' => ['title', 'description', 'date_of_loss', 'gross_loss_amount_kobo', 'basel_l1_category', 'event_severity'],
-            'issues'      => ['title', 'description', 'issue_source', 'issue_category', 'priority', 'issue_status', 'remediation_due_date'],
-            'kris'        => ['name', 'description', 'measurement_frequency', 'baseline_value', 'green_threshold', 'amber_threshold', 'red_threshold'],
-            default       => [],
-        };
-    }
+        ProcessDataImportJob::dispatch($import->id, $jobRun->id);
 
-    private function createRecordForType(string $type, array $data): void
-    {
-        match($type) {
-            'risks'       => Risk::create(array_merge($data, ['risk_code' => \App\Services\ReferenceCodeService::generate('risks', 'risk_code', 'RK'), 'created_by' => auth()->id()])),
-            'controls'    => Control::create(array_merge($data, ['control_code' => \App\Services\ReferenceCodeService::generate('controls', 'control_code', 'CTL'), 'created_by' => auth()->id()])),
-            'loss_events' => LossEvent::create(array_merge($data, ['event_reference' => \App\Services\ReferenceCodeService::generate('loss_events', 'event_reference', 'LE'), 'current_status' => 'open', 'date_reported' => now()])),
-            'issues'      => Issue::create(array_merge($data, ['issue_code' => \App\Services\ReferenceCodeService::generate('issues', 'issue_code', 'ISS'), 'created_by' => auth()->id()])),
-            'kris'        => KeyRiskIndicator::create(array_merge($data, ['kri_code' => \App\Services\ReferenceCodeService::generate('key_risk_indicators', 'kri_code', 'KRI')])),
-            default       => throw new \Exception("Unknown import type: {$type}"),
-        };
+        return redirect()->route('risk.imports.index')
+            ->with('success', 'Import queued. Its progress is shown on this page.');
     }
 }

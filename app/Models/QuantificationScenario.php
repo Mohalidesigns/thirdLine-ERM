@@ -2,14 +2,41 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasObjectIdentity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 class QuantificationScenario extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, SoftDeletes;
+
+    /**
+     * The values `quantification_scenarios.scenario_type` takes.
+     *
+     * The column is `string(50)` NOT NULL WITH NO DEFAULT, and until Phase 5.2
+     * neither the create form nor the library import set it — so every attempt
+     * to create a scenario through the interface, by either route, ended in a
+     * NOT NULL violation and a 500. QuantificationSeeder has used
+     * `single_event` since it was written, and QuantificationController's
+     * stress report finds stress scenarios with
+     * `LOWER(scenario_type) = 'stress'`; those two plus DemoDataSeeder's
+     * `single_risk` are the vocabulary that is actually in the data.
+     *
+     * @var list<string>
+     */
+    public const TYPES = ['single_event', 'single_risk', 'stress', 'aggregate'];
+
+    /**
+     * What a scenario is when nobody said.
+     *
+     * A library template and a hand-entered scenario both describe one loss
+     * event with a frequency and a severity, which is what `single_event`
+     * means and what the seeder has always written.
+     */
+    public const DEFAULT_TYPE = 'single_event';
 
     protected $fillable = [
         'organization_id',
@@ -48,11 +75,11 @@ class QuantificationScenario extends Model
     ];
 
     protected $casts = [
-        'frequency_lambda'       => 'decimal:4',
-        'severity_mu'            => 'decimal:6',
-        'severity_sigma'         => 'decimal:6',
-        'calibration_date'       => 'date',
-        'approval_date'          => 'date',
+        'frequency_lambda' => 'decimal:4',
+        'severity_mu' => 'decimal:6',
+        'severity_sigma' => 'decimal:6',
+        'calibration_date' => 'date',
+        'approval_date' => 'date',
     ];
 
     protected static function boot(): void
@@ -67,7 +94,7 @@ class QuantificationScenario extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()
@@ -96,7 +123,7 @@ class QuantificationScenario extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  View-compatible accessors (blade views expect these properties)     */
+    /*  View-compatible accessors (blade views expect these properties) */
     /* ------------------------------------------------------------------ */
 
     public function getRiskCategoryAttribute()
@@ -123,8 +150,10 @@ class QuantificationScenario extends Model
             // Standard deviation of lognormal: sqrt((exp(sigma^2)-1) * exp(2*mu + sigma^2))
             $mu = (float) $this->severity_mu;
             $sigma = (float) $this->severity_sigma;
+
             return round(sqrt((exp($sigma ** 2) - 1) * exp(2 * $mu + $sigma ** 2)) / 100, 2);
         }
+
         return 0;
     }
 
@@ -153,6 +182,7 @@ class QuantificationScenario extends Model
         if ($this->expected_annual_loss_kobo) {
             return round($this->expected_annual_loss_kobo / 100, 2);
         }
+
         return round(($this->frequency_per_year ?? 0) * ($this->mean ?? 0), 2);
     }
 }

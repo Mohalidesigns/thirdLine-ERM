@@ -25,12 +25,12 @@ class RcaRemediationAction extends Model
     ];
 
     protected $casts = [
-        'target_date'       => 'date',
+        'target_date' => 'date',
         'actual_close_date' => 'date',
     ];
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function rca()

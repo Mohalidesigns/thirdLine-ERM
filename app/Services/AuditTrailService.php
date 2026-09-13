@@ -1,8 +1,10 @@
 <?php
+
 namespace App\Services;
 
 use App\Models\RiskAuditTrail;
 use Illuminate\Database\Eloquent\Model;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class AuditTrailService
 {
@@ -18,20 +20,30 @@ class AuditTrailService
         ?string $reason = null
     ): void {
         RiskAuditTrail::create([
-            'organization_id' => $entity->organization_id ?? (auth()->user()->organization_id ?? 1),
-            'entity_type' => class_basename($entity),
+            // The audited row's own organization is authoritative; fall back to
+            // the request tenant only for entities that carry no organization.
+            'organization_id' => $entity->organization_id ?? TenantContext::organizationId(),
+            // The morph alias, not class_basename(). This service used to
+            // write "Risk" while Risk::auditTrail() queried "risk", so the
+            // relationship returned nothing for every change recorded here.
+            'entity_type' => $entity->getMorphClass(),
             'entity_id' => $entity->id,
             'action_type' => $actionType,
             'field_changed' => $fieldChanged,
             'old_value' => is_array($oldValue) ? json_encode($oldValue) : (string) $oldValue,
             'new_value' => is_array($newValue) ? json_encode($newValue) : (string) $newValue,
-            'changed_by' => auth()->id() ?? 1,
+            // No fallback actor. A change made by a system process records NULL
+            // rather than being attributed to whichever user happens to be id 1
+            // — a compliance trail naming the wrong person is worse than one
+            // that admits it does not know. (changed_by is widened to nullable
+            // by the audit hash-chain migration.)
+            'changed_by' => auth()->id(),
             'changed_at' => now(),
             'ip_address' => request()->ip(),
             'change_reason' => $reason,
         ]);
     }
-    
+
     /**
      * Record all changed fields from a model update
      */
@@ -39,7 +51,7 @@ class AuditTrailService
     {
         $changes = $entity->getChanges();
         unset($changes['updated_at']);
-        
+
         foreach ($changes as $field => $newValue) {
             $oldValue = $original[$field] ?? null;
             if ($oldValue != $newValue) {

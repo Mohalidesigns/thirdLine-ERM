@@ -21,11 +21,11 @@ class KriMeasurement extends Model
 
     protected $casts = [
         'measurement_date' => 'date',
-        'value'            => 'decimal:4',
+        'value' => 'decimal:4',
     ];
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function kri()

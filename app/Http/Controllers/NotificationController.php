@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class NotificationController extends Controller
 {
@@ -14,15 +15,38 @@ class NotificationController extends Controller
     public function index(Request $request)
     {
         $userId = auth()->id();
+        $filter = $request->query('filter') === 'unread' ? 'unread' : 'all';
+
         $query = DB::table('notifications_log')->where('user_id', $userId);
 
-        if ($request->filled('filter') && $request->filter === 'unread') {
+        if ($filter === 'unread') {
             $query->whereNull('read_at');
         }
 
-        $notifications = $query->orderByDesc('created_at')->paginate(30);
+        $notifications = $query->orderByDesc('created_at')->paginate(30)->withQueryString();
 
-        return view('notifications.index', compact('notifications'));
+        $notifications->getCollection()->transform(function ($row) {
+            $row->metadata = is_string($row->metadata) ? (json_decode($row->metadata, true) ?: []) : ($row->metadata ?? []);
+            $row->is_unread = $row->read_at === null;
+
+            return $row;
+        });
+
+        return Inertia::render('Notifications/Index', [
+            'notifications' => $notifications,
+            'unreadCount' => NotificationService::getUnreadCount($userId),
+            'filter' => $filter,
+        ]);
+    }
+
+    /**
+     * The unread count as JSON — polled by the React topbar bell.
+     */
+    public function unreadCount()
+    {
+        return response()->json([
+            'unread_count' => NotificationService::getUnreadCount(auth()->id()),
+        ]);
     }
 
     /**
@@ -41,8 +65,14 @@ class NotificationController extends Controller
             NotificationService::markAsRead($id);
         }
 
-        return $n->action_url
-            ? redirect()->to($n->action_url)
+        // Normalised again on the way out, not only on the way in: rows written
+        // before the path-only rule still carry a host, and this value is
+        // handed straight to redirect(). Stripping it here means a notification
+        // can only ever send someone to a page on this application.
+        $target = NotificationService::normaliseActionUrl($n->action_url);
+
+        return $target
+            ? redirect()->to($target)
             : redirect()->route('notifications.index');
     }
 
@@ -52,6 +82,7 @@ class NotificationController extends Controller
     public function readAll()
     {
         NotificationService::markAllAsRead(auth()->id());
+
         return back()->with('success', 'All notifications marked as read.');
     }
 }

@@ -1,18 +1,36 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "thirdline/risk",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "Atheris ERM \u2014 the ThirdLine risk product.",
+    "keywords": [
+        "laravel",
+        "framework"
+    ],
     "license": "MIT",
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
+        "barryvdh/laravel-dompdf": "^3.1",
+        "dedoc/scramble": "^0.13.39",
+        "firebase/php-jwt": "^7.1",
+        "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.0",
+        "laravel/horizon": "^5.48",
+        "laravel/sanctum": "^4.3",
+        "laravel/socialite": "^5.29",
         "laravel/tinker": "^2.10.1",
-        "spatie/laravel-permission": "^7.2"
+        "maatwebsite/excel": "^3.1",
+        "onelogin/php-saml": "^4.3",
+        "spatie/laravel-permission": "^7.2",
+        "symfony/expression-language": "^8.1",
+        "tightenco/ziggy": "^2.0",
+        "thirdline/platform": "@dev",
+        "thirdline/reporting": "@dev"
     },
     "require-dev": {
+        "brianium/paratest": "^7.8",
         "fakerphp/faker": "^1.23",
+        "larastan/larastan": "^3.9",
         "laravel/pail": "^1.2.2",
         "laravel/pint": "^1.24",
         "laravel/sail": "^1.41",
@@ -83,5 +101,21 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "repositories": [
+        {
+            "type": "path",
+            "url": "packages/platform",
+            "options": {
+                "symlink": true
+            }
+        },
+        {
+            "type": "path",
+            "url": "packages/reporting",
+            "options": {
+                "symlink": true
+            }
+        }
+    ]
 }

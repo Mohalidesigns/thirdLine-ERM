@@ -1,0 +1,292 @@
+<?php
+
+namespace App\Support\Migration;
+
+use Illuminate\Support\Facades\Route;
+
+/**
+ * Which routes render through Inertia today. Since Phase 6.8: all of them.
+ *
+ * While the application had two renderers, a link had to know which one was on
+ * the other end — an Inertia <Link> to a Blade page got a non-Inertia HTML
+ * response and showed it in an error modal, and a Blade `wire:navigate` to an
+ * Inertia page swapped in a document whose React bundle never booted. Both
+ * sidebars consulted this list so a link crossing the boundary was a plain
+ * full-page navigation.
+ *
+ * THE BOUNDARY IS GONE. Phase 6.8 deleted the Blade side, so
+ * `NavPresenter`'s `inertia` flag is now true for every navigable route and
+ * the React layout's `<Link>`-or-`<a>` branch has one live arm.
+ *
+ * IT IS KEPT FOR PHASE 7, NOT FOR RUNTIME. The list is still the migration's
+ * own record of what was ported and when, and it is what
+ * `AuthPagesTest::every_ported_route_exists_and_the_nav_marks_exactly_those_as_inertia`
+ * checks the navigation against. Retiring it means deleting the prop, the
+ * layout branch and the assertions in ten test files together — a coherent
+ * change, and not one to bury in the commit that removes Livewire. Listed in
+ * docs/migration/phase-6-notes/decommission.md as Phase 7 work.
+ */
+final class Ported
+{
+    /** @var list<string> */
+    public const ROUTES = [
+        // Phase 0
+        'my.index',
+        'admin.license',
+        // Phase 1
+        'login',
+        'password.request',
+        'password.reset',
+        'mfa.setup',
+        'mfa.verify',
+        'profile.edit',
+        'notifications.index',
+        'search.index',
+        // Phase 2
+        'risk.scoping.index',
+        'hq.index',
+        'hq.show',
+        'risk.dashboards.index',
+        'risk.dashboards.edit',
+        'risk.controls.index',
+        'risk.register.index',
+        'risk.treatments.index',
+        'risk.issues.index',
+        'risk.loss-events.index',
+        'risk.loss-events.near-misses',
+        'risk.kri.index',
+        'risk.kri.breaches',
+        'risk.assessments.index',
+        'risk.control-tests.index',
+        'risk.campaigns.index',
+        'risk.questionnaires.index',
+        'risk.questionnaires.library',
+        'risk.imports.index',
+        // Phase 5.5
+        'risk.imports.create',
+        'risk.documents.index',
+        // Phase 5.6
+        'risk.ai.predictive',
+        'risk.ai.radar',
+        'risk.ai.regulatory-pulse',
+        // Phase 5 criterion 7 — the Command Centre
+        'risk.dashboard',
+        'admin.users.index',
+        // Phase 6.1 — users and roles
+        'admin.users.create',
+        'admin.users.show',
+        'admin.users.edit',
+        // Phase 6.2 — organisation and single sign-on settings
+        'admin.settings',
+        'admin.settings.sso',
+        // Phase 6.3 — metadata builders
+        'admin.builder',
+        'admin.builder.object-types',
+        'admin.builder.attributes',
+        'admin.builder.relationship-types',
+        'admin.builder.lifecycles',
+        // Phase 6.4 — scoring profiles
+        'admin.builder.scoring-profiles',
+        'admin.scoring-profiles.create',
+        'admin.scoring-profiles.edit',
+        // Phase 6.5 — the workflow designer, and the last Livewire screen
+        'risk.workflows.create-definition',
+        'risk.workflows.edit-definition',
+        // Phase 6.6 — configuration bundles
+        'admin.configuration',
+        // Phase 6.7 — integrations
+        'admin.webhooks.index',
+        'admin.webhooks.deliveries',
+        'admin.api-tokens.index',
+        'admin.connectors.index',
+        'admin.connectors.show',
+        'admin.jobs.index',
+        'risk.emerging.index',
+        'risk.reports.library',
+        // Phase 5.4
+        'risk.reports.executive',
+        'risk.reports.board',
+        'risk.reports.regulatory',
+        'risk.reports.custom',
+        'risk.reports.status',
+        'risk.reports.board-pack.sections',
+        'risk.approvals.history',
+        'risk.regulatory.circulars',
+        // Phase 5.3
+        'risk.regulatory.dashboard',
+        'risk.regulatory.calendar',
+        'risk.regulatory.deadlines',
+        'risk.regulatory.create-deadline',
+        'risk.regulatory.create-circular',
+        'risk.regulatory.show-circular',
+        'risk.regulatory.taxonomy',
+        // Phase 3 — appetite
+        'risk.appetite.index',
+        // Phase 3 — scoping
+        'risk.scoping.dashboard',
+        'risk.scoping.create',
+        'risk.scoping.show',
+        'risk.scoping.edit',
+        // Phase 3 — risk register
+        'risk.register.create',
+        'risk.register.show',
+        'risk.register.edit',
+        // Phase 3 — assessments
+        'risk.assessments.create',
+        'risk.assessments.show',
+        'risk.assessments.edit',
+        // Phase 3 — controls and control testing
+        'risk.controls.create',
+        'risk.controls.show',
+        'risk.controls.edit',
+        'risk.control-tests.dashboard',
+        'risk.control-tests.create',
+        'risk.control-tests.show',
+        'risk.control-tests.edit',
+        // Phase 3 — treatment plans ('risk.treatments.index' is above, from
+        // Phase 2's grid work)
+        'risk.treatments.dashboard',
+        'risk.treatments.review',
+        'risk.treatments.create',
+        'risk.treatments.show',
+        'risk.treatments.edit',
+        // Phase 4 — KRI ('risk.kri.index' and '.breaches' are above, from
+        // Phase 2's grid work)
+        'risk.kri.dashboard',
+        'risk.kri.create',
+        'risk.kri.show',
+        'risk.kri.edit',
+        'risk.kri.thresholds',
+        // Phase 4 — issues ('risk.issues.index' is above, from Phase 2's
+        // grid work)
+        'risk.issues.dashboard',
+        'risk.issues.create',
+        'risk.issues.show',
+        'risk.issues.edit',
+        'risk.issues.ageing',
+        'risk.issues.closure',
+        // Phase 4 — loss events ('risk.loss-events.index' and '.near-misses'
+        // are above, from Phase 2's grid work)
+        'risk.loss-events.dashboard',
+        'risk.loss-events.create',
+        'risk.loss-events.show',
+        'risk.loss-events.edit',
+        'risk.loss-events.approvals',
+        'risk.loss-events.rca',
+        'risk.loss-events.reports',
+        'risk.loss-events.create-near-miss',
+        // Phase 4 — periods and threshold re-baselining
+        'risk.periods.index',
+        'risk.thresholds.rebaseline',
+        // Phase 4 — campaigns and questionnaires ('risk.campaigns.index',
+        // 'risk.questionnaires.index' and '.library' are above, from Phase 2's
+        // grid work)
+        'risk.campaigns.dashboard',
+        'risk.campaigns.create',
+        'risk.campaigns.show',
+        'risk.campaigns.respond',
+        'risk.campaigns.submission',
+        'risk.questionnaires.create',
+        'risk.questionnaires.show',
+        'risk.questionnaires.edit',
+        // Phase 4 — emerging risks ('risk.emerging.index' is above, from
+        // Phase 2's grid work)
+        'risk.emerging.create',
+        'risk.emerging.edit',
+        // Phase 5 — analysis
+        'risk.analysis.heatmap',
+        'risk.analysis.bowtie',
+        'risk.analysis.trends',
+        'risk.analysis.correlation',
+        // Phase 5 — quantification reports
+        'risk.quantification.reports',
+        'risk.quantification.reports.capital-adequacy',
+        'risk.quantification.reports.stress-testing',
+        'risk.quantification.reports.risk-contribution',
+        'risk.quantification.reports.regulatory-pack',
+        // Phase 5 — quantification scenarios, runs and settings
+        'risk.quantification.scenarios',
+        'risk.quantification.create-scenario',
+        'risk.quantification.edit-scenario',
+        'risk.quantification.show-scenario',
+        'risk.quantification.simulate',
+        'risk.quantification.results',
+        'risk.quantification.show-results',
+        'risk.quantification.icaap',
+        'risk.quantification.library',
+        'risk.quantification.settings',
+        'risk.quantification.dashboard',
+        // Phase 3 — RCSA
+        'risk.rcsa.dashboard',
+        'risk.rcsa.worksheet',
+        'risk.rcsa.controls',
+        'risk.rcsa.matrix',
+        // Phase 3 — workflow
+        'risk.approvals.dashboard',
+        'risk.my-tasks.index',
+        'risk.my-tasks.show',
+        'risk.workflows.dashboard',
+        'risk.workflows.definitions',
+        'risk.workflows.show-instance',
+
+        // RCSA v2 (a rewrite, not a port — listed because the registry is what
+        // the navigation consults to decide whether a link is an Inertia
+        // <Link>, and this page is Inertia. It reaches the navigation only when
+        // `features.rcsa_v2` is on.)
+        'rcsa.universe.index',
+        'rcsa.imports.show',
+        'rcsa.cycles.index',
+        'rcsa.cycles.show',
+        'rcsa.assessments.index',
+        'rcsa.assessments.show',
+    ];
+
+    public static function isRoute(string $name): bool
+    {
+        return in_array($name, self::ROUTES, true);
+    }
+
+    /**
+     * Is this URL path served by an Inertia page? Matches parameterless
+     * routes only, which is every entry the Blade sidebar links to.
+     */
+    public static function isPath(string $path): bool
+    {
+        $path = '/'.trim((string) parse_url($path, PHP_URL_PATH), '/');
+
+        return in_array($path, self::paths(), true);
+    }
+
+    /**
+     * The `wire:navigate` attribute for a Blade link, or nothing when the
+     * destination is an Inertia page.
+     */
+    public static function navigateAttribute(string $path): string
+    {
+        return self::isPath($path) ? '' : 'wire:navigate';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function paths(): array
+    {
+        static $paths = null;
+
+        if ($paths !== null) {
+            return $paths;
+        }
+
+        $paths = [];
+
+        foreach (self::ROUTES as $name) {
+            $route = Route::getRoutes()->getByName($name);
+
+            if ($route !== null && ! str_contains($route->uri(), '{')) {
+                $paths[] = '/'.trim($route->uri(), '/');
+            }
+        }
+
+        return $paths;
+    }
+}

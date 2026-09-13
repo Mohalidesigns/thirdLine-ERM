@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/** @property-read QuestionnaireSection|null $section */
 class Question extends Model
 {
     protected $fillable = [
@@ -12,12 +13,16 @@ class Question extends Model
     ];
 
     protected $casts = [
-        'options'           => 'array',
-        'scoring_rules'     => 'array',
+        'options' => 'array',
+        'scoring_rules' => 'array',
         'conditional_logic' => 'array',
-        'is_required'       => 'boolean',
-        'weight'            => 'decimal:2',
+        'is_required' => 'boolean',
+        'weight' => 'decimal:2',
     ];
 
-    public function section() { return $this->belongsTo(QuestionnaireSection::class, 'section_id'); }
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<QuestionnaireSection, $this> */
+    public function section(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(QuestionnaireSection::class, 'section_id');
+    }
 }

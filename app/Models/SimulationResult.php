@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SimulationResult extends Model
 {
@@ -18,26 +19,34 @@ class SimulationResult extends Model
         'var_95_kobo',
         'var_99_kobo',
         'var_99_9_kobo',
+        // Expected shortfall (CVaR). Added because the model accessor that
+        // published "Expected Shortfall" was returning var_99_kobo — a
+        // quantile, not a tail mean. There is nowhere else to put it: the loss
+        // vector is discarded at the end of MonteCarloService::runSimulation().
+        'es_95_kobo',
+        'es_99_kobo',
         'std_deviation_kobo',
         'risk_contributions',
         'percentile_distribution',
     ];
 
     protected $casts = [
-        'risk_contributions'      => 'array',
+        'risk_contributions' => 'array',
         'percentile_distribution' => 'array',
     ];
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
-    public function simulationRun()
+    /** @return BelongsTo<SimulationRun, $this> */
+    public function simulationRun(): BelongsTo
     {
         return $this->belongsTo(SimulationRun::class);
     }
 
-    public function scenario()
+    /** @return BelongsTo<QuantificationScenario, $this> */
+    public function scenario(): BelongsTo
     {
         return $this->belongsTo(QuantificationScenario::class, 'scenario_id');
     }

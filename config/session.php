@@ -2,6 +2,47 @@
 
 use Illuminate\Support\Str;
 
+/*
+|--------------------------------------------------------------------------
+| Session cookie hardening
+|--------------------------------------------------------------------------
+|
+| Two settings below were left at values that are safe on a laptop and wrong on
+| a bank's network, and both were reachable only by remembering to set an
+| environment variable that no .env.example documents:
+|
+|   'secure'   was env('SESSION_SECURE_COOKIE') with NO DEFAULT, i.e. null. A
+|              null Secure flag means the session cookie is sent over plain HTTP.
+|              On an internal network with a TLS-terminating load balancer that
+|              is a session identifier travelling in clear on the last hop, and
+|              any downgrade — a stray http:// link, a captive portal, an
+|              attacker on the LAN forcing one plain request — hands over a live
+|              authenticated session for a Chief Risk Officer.
+|
+|   'encrypt'  was env('SESSION_ENCRYPT', false). With the file or database
+|              driver the payload sits on disk in the clear, and this
+|              application's session payload is not inert: it holds the resolved
+|              tenant, flashed messages containing record contents, and (once the
+|              MFA rebuild lands) the pending-user identifier of a half-completed
+|              sign-in.
+|
+| Both are now FORCED ON outside local and testing, rather than defaulted on.
+| A default can be overridden by an environment variable, and the environment
+| variable is exactly what nobody sets. There is no supported way to run this
+| platform in production over plain HTTP — if a deployment cannot terminate TLS
+| at the application, it terminates it at a proxy on the same host and the
+| application still speaks HTTPS to the browser.
+|
+| AppServiceProvider::assertSessionCookieIsHardened() re-checks both at boot and
+| refuses to start if either is off, which is what catches the case this file
+| cannot: a config cache built in one environment and shipped to another.
+|
+| SESSION_SECURE_COOKIE and SESSION_ENCRYPT still work in local and testing, so
+| a developer can reproduce production behaviour by setting them, and the test
+| suite (which runs over an unencrypted synthetic request) is unaffected.
+*/
+$sessionIsDevelopment = in_array(env('APP_ENV', 'production'), ['local', 'testing'], true);
+
 return [
 
     /*
@@ -47,7 +88,13 @@ return [
     |
     */
 
-    'encrypt' => env('SESSION_ENCRYPT', false),
+    // Forced on outside local/testing. See the note at the top of this file:
+    // the session payload carries the resolved tenant and flashed record
+    // contents, and with the file or database driver it is otherwise stored in
+    // the clear.
+    'encrypt' => $sessionIsDevelopment
+        ? env('SESSION_ENCRYPT', false)
+        : true,
 
     /*
     |--------------------------------------------------------------------------
@@ -169,7 +216,13 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    // Forced on outside local/testing. Previously env('SESSION_SECURE_COOKIE')
+    // with no default, which is null — the session cookie was not marked Secure
+    // in any environment where nobody had set the variable, so a single plain
+    // HTTP request leaked a live session identifier.
+    'secure' => $sessionIsDevelopment
+        ? env('SESSION_SECURE_COOKIE')
+        : true,
 
     /*
     |--------------------------------------------------------------------------

@@ -12,6 +12,15 @@ class QuestionnaireSection extends Model
 
     protected $casts = ['weight' => 'decimal:2'];
 
-    public function questionnaire() { return $this->belongsTo(Questionnaire::class); }
-    public function questions()     { return $this->hasMany(Question::class, 'section_id')->orderBy('sort_order'); }
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Questionnaire, $this> */
+    public function questionnaire(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Questionnaire::class);
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<Question, $this> */
+    public function questions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Question::class, 'section_id')->orderBy('sort_order');
+    }
 }

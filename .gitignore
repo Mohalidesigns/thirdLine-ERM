@@ -22,3 +22,39 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Scratch and planning directories that must not ship (migration Phase 0).
+# Kept on disk; git rm --cached + docs/history move happens in Phase 7.
+/plans/
+/erm-update/
+/files_/
+
+# Source material for the BCMS build, not product code: the blueprint, the
+# orchestration document and the phase prompts. Kept out of the repository at
+# the user's instruction (2026-09-10) — it is reference input, and it carries
+# .DS_Store noise. The decisions taken FROM it live in docs/adr/ and
+# docs/bcms/, which are tracked.
+/nexusrisk-bcms-build-pack/
+/_to_delete/
+/migration/
+/risk
+*.tgz
+*.zip
+/storage/licensing/*
+!/storage/licensing/.gitignore
+
+# ─────────────────────────────────────────────────────────────────
+# Migration Phase 7.3 — untracked, kept on disk.
+#
+# /risk, /plans/ and /erm-update/ were ALREADY listed above and still tracked:
+# .gitignore does not untrack what is already in the index, so a 916K SQLite
+# database, a 3.4M competitor marketing PDF and eleven product screenshots sat
+# in every clone regardless. `git rm --cached` is what actually removed them.
+#
+# The PROSE from both folders moved to docs/history/ and is tracked there — the
+# ERM remodel master plan and the WP-00..WP-08 execution pack are why the code
+# is shaped the way it is, and that is worth keeping.
+# ─────────────────────────────────────────────────────────────────
+/Atheris_ERM_Demo_Guide_IT_Risk.docx
+/Competitive_Analysis_Risk_ERM.xlsx.py
+.~lock.*#

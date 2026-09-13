@@ -20,17 +20,18 @@ class CheckOverdueIssues extends Command
 
         // Find all open issues that have passed their target resolution date
         $overdueIssues = Issue::whereNotIn('issue_status', ['CLOSED', 'PENDING_CLOSURE'])
-            ->whereNotNull('target_resolution_date')
-            ->whereDate('target_resolution_date', '<', now())
+            ->whereNotNull('remediation_due_date')
+            ->whereDate('remediation_due_date', '<', now())
             ->get();
 
         if ($overdueIssues->isEmpty()) {
             $this->info('No overdue issues found.');
+
             return self::SUCCESS;
         }
 
         foreach ($overdueIssues as $issue) {
-            $daysOverdue = (int) now()->diffInDays($issue->target_resolution_date, true);
+            $daysOverdue = (int) now()->diffInDays($issue->remediation_due_date, true);
 
             // Dispatch the event
             IssueOverdue::dispatch($issue, $daysOverdue);

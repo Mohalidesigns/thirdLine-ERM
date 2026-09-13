@@ -99,7 +99,8 @@
       "Bash(git commit -m \"$\\(cat <<'EOF'\nInitial commit: GRC Risk Management Platform\n\nLaravel-based risk management module with risk assessment, controls,\nKRI monitoring, loss events, issues tracking, treatments, and reporting.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git config user.name \"atherislimited\" && git config user.email \"dev@atherislimited.com\")",
       "Bash(git remote add origin git@github.com:atherislimited/risk-management.git && git branch -M main && git push -u origin main)",
-      "Bash(git remote set-url origin https://github.com/atherislimited/risk-management.git && git push -u origin main)"
+      "Bash(git remote set-url origin https://github.com/atherislimited/risk-management.git && git push -u origin main)",
+      "Bash(gh pr *)"
     ]
   }
 }

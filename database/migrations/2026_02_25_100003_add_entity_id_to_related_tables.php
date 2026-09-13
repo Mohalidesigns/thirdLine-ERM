@@ -11,7 +11,7 @@ return new class extends Migration
         $tables = ['risks', 'controls', 'issues', 'loss_events', 'key_risk_indicators'];
 
         foreach ($tables as $tableName) {
-            if (Schema::hasTable($tableName) && !Schema::hasColumn($tableName, 'entity_id')) {
+            if (Schema::hasTable($tableName) && ! Schema::hasColumn($tableName, 'entity_id')) {
                 Schema::table($tableName, function (Blueprint $table) {
                     $table->foreignId('entity_id')->nullable()->after('organization_id')->constrained('entities')->nullOnDelete();
                 });
@@ -25,7 +25,7 @@ return new class extends Migration
 
         foreach ($tables as $tableName) {
             if (Schema::hasTable($tableName) && Schema::hasColumn($tableName, 'entity_id')) {
-                Schema::table($tableName, function (Blueprint $table) use ($tableName) {
+                Schema::table($tableName, function (Blueprint $table) {
                     $table->dropConstrainedForeignId('entity_id');
                 });
             }

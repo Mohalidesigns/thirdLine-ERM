@@ -2,152 +2,79 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Grids\GridRegistry;
+use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Issues\CompleteRemediationActionRequest;
+use App\Http\Requests\Issues\RejectIssueClosureRequest;
+use App\Http\Requests\Issues\RequestIssueClosureRequest;
+use App\Http\Requests\Issues\StoreIssueRequest;
+use App\Http\Requests\Issues\StoreProgressUpdateRequest;
+use App\Http\Requests\Issues\StoreRemediationActionRequest;
+use App\Http\Requests\Issues\UpdateIssueRequest;
+use App\Http\Requests\Issues\UpdateIssueStatusRequest;
+use App\Http\Requests\Issues\UploadIssueAttachmentRequest;
+use App\Models\BusinessUnit;
 use App\Models\Issue;
 use App\Models\IssueAttachment;
-use App\Models\IssueRemediationAction;
 use App\Models\IssueProgressUpdate;
-use App\Models\IssueEscalationLog;
+use App\Models\IssueRemediationAction;
 use App\Models\Risk;
-use App\Models\BusinessUnit;
 use App\Models\User;
+use App\Presenters\FormSchemaPresenter;
+use App\Presenters\GridPresenter;
+use App\Services\Issues\IssueAgeingService;
+use App\Services\Issues\IssueDashboardService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 class IssueController extends Controller
 {
+    /** The object type the create and edit forms render from. */
+    private const OBJECT_TYPE = 'Issue';
+
+    public function __construct(
+        private readonly IssueDashboardService $figures,
+        private readonly IssueAgeingService $ageing,
+        private readonly FormSchemaPresenter $schemas,
+    ) {}
+
+    // WP-05 TASK 2 — receives the fields a tenant added through the
+    // builder. Without it, a configured field would render on the form,
+    // accept what was typed, and discard it on submit.
+    use PersistsConfiguredAttributes;
+
     /**
      * Issues dashboard with statistics.
      */
     public function dashboard()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('viewAny', Issue::class);
 
-        $stats = [
-            'total' => Issue::where('organization_id', $orgId)->count(),
-            'open' => Issue::where('organization_id', $orgId)->where('issue_status', 'OPEN')->count(),
-            'in_progress' => Issue::where('organization_id', $orgId)->where('issue_status', 'IN_PROGRESS')->count(),
-            'overdue' => Issue::where('organization_id', $orgId)->where('issue_status', 'OVERDUE')->count(),
-            'pending_closure' => Issue::where('organization_id', $orgId)->where('issue_status', 'PENDING_CLOSURE')->count(),
-            'closed' => Issue::where('organization_id', $orgId)->where('issue_status', 'CLOSED')->count(),
-            'critical_priority' => Issue::where('organization_id', $orgId)->where('priority', 'critical')->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->count(),
-            'high_priority' => Issue::where('organization_id', $orgId)->where('priority', 'high')->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->count(),
-        ];
-
-        // Ageing summary
-        $ageingSummary = [
-            '0_30' => Issue::where('organization_id', $orgId)
-                ->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])
-                ->where('created_at', '>=', now()->subDays(30))
-                ->count(),
-            '31_60' => Issue::where('organization_id', $orgId)
-                ->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])
-                ->whereBetween('created_at', [now()->subDays(60), now()->subDays(30)])
-                ->count(),
-            '61_90' => Issue::where('organization_id', $orgId)
-                ->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])
-                ->whereBetween('created_at', [now()->subDays(90), now()->subDays(60)])
-                ->count(),
-            '90_plus' => Issue::where('organization_id', $orgId)
-                ->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])
-                ->where('created_at', '<', now()->subDays(90))
-                ->count(),
-        ];
-
-        $overdueIssuesList = Issue::where('organization_id', $orgId)
-            ->where('issue_status', 'OVERDUE')
-            ->with(['issueOwner', 'businessUnit'])
-            ->orderBy('target_resolution_date')
-            ->limit(10)
-            ->get();
-
-        // Variables expected by the blade template
-        $openIssues = $stats['open'] + $stats['in_progress'];
-        $overdueIssues = $stats['overdue'];
-        $cbnFindings = Issue::where('organization_id', $orgId)
-            ->where('issue_source', 'cbn_examination')
-            ->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])
-            ->count();
-        $avgDaysToClose = (int) Issue::where('organization_id', $orgId)
-            ->where('issue_status', 'CLOSED')
-            ->whereNotNull('closed_at')
-            ->avg(DB::raw('DATEDIFF(closed_at, created_at)')) ?? 0;
-
-        // Chart data
-        $priorityData = [
-            'labels' => ['Critical', 'High', 'Medium', 'Low'],
-            'values' => [
-                $stats['critical_priority'],
-                $stats['high_priority'],
-                Issue::where('organization_id', $orgId)->where('priority', 'medium')->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->count(),
-                Issue::where('organization_id', $orgId)->where('priority', 'low')->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])->count(),
-            ],
-        ];
-
-        $ageingData = [
-            'labels' => ['0-30 days', '31-60 days', '61-90 days', '90+ days'],
-            'values' => [$ageingSummary['0_30'], $ageingSummary['31_60'], $ageingSummary['61_90'], $ageingSummary['90_plus']],
-        ];
-
-        return view('risk.issues.dashboard', compact(
-            'stats', 'ageingSummary', 'overdueIssuesList',
-            'openIssues', 'overdueIssues', 'cbnFindings', 'avgDaysToClose',
-            'priorityData', 'ageingData'
-        ));
+        return Inertia::render('Issues/Dashboard', [
+            'stats' => $this->figures->stats(),
+            'ageing' => $this->figures->ageing(),
+            'overdueIssues' => $this->figures->overdueIssues(),
+            'canCreate' => Gate::allows('create', Issue::class),
+        ]);
     }
 
     /**
      * Display issue listing with filters.
      */
-    public function index(Request $request)
+    public function index(Request $request, GridPresenter $presenter)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-
-        $query = Issue::where('organization_id', $orgId)
-            ->with(['issueOwner', 'businessUnit']);
-
-        if ($request->filled('status')) {
-            $query->where('issue_status', $request->status);
-        }
-
-        if ($request->filled('priority')) {
-            $query->where('priority', $request->priority);
-        }
-
-        if ($request->filled('source')) {
-            $query->where('issue_source', $request->source);
-        }
-
-        if ($request->filled('overdue')) {
-            if ($request->boolean('overdue')) {
-                $query->where('issue_status', 'OVERDUE');
-            }
-        }
-
-        if ($request->filled('escalation_level')) {
-            $query->where('escalation_level', $request->escalation_level);
-        }
-
-        if ($request->filled('business_unit_id')) {
-            $query->where('business_unit_id', $request->business_unit_id);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('issue_reference', 'like', "%{$search}%")
-                  ->orWhere('title', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
-            });
-        }
-
-        $issues = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
-
-        $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
-        $users = User::where('organization_id', $orgId)->orderBy('name')->get();
-
-        return view('risk.issues.index', compact('issues', 'businessUnits', 'users'));
+        // WP-09: filtering, search, sorting, pagination and export moved into
+        // the shared data grid (App\Grids\Definitions\IssuesGrid), which also
+        // resolves the old issueOwner-loaded/owner-rendered N+1 by loading
+        // and reading the same relation.
+        return Inertia::render('Issues/Index', [
+            'grid' => fn () => $presenter->present(GridRegistry::resolve('issues'), $request, $request->user()),
+        ]);
     }
 
     /**
@@ -155,11 +82,9 @@ class IssueController extends Controller
      */
     public function create()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('create', Issue::class);
 
-        $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
-        $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
-        $users = User::where('organization_id', $orgId)->orderBy('name')->get();
+        $orgId = TenantContext::organizationId();
 
         $defaultCategories = [
             'Process Deficiency', 'Control Weakness', 'Policy Non-Compliance', 'System Issue',
@@ -174,41 +99,40 @@ class IssueController extends Controller
             ->sort()
             ->values();
 
-        return view('risk.issues.create', compact('risks', 'businessUnits', 'users', 'categories'));
+        return Inertia::render('Issues/Create', array_merge($this->formOptions(), [
+            'categories' => $categories->values()->all(),
+            // WP-05 TASK 2 — the issue form is rendered FROM the Issue object
+            // type, exactly as the Blade page's <x-dynamic-form> was, so a
+            // field a tenant added through the builder appears here and a
+            // conditional one carries its rule to the client.
+            'schema' => $this->schemas->form(
+                self::OBJECT_TYPE,
+                sections: ['Details', 'Classification', 'Ownership', 'Analysis'],
+                defaults: ['risk_register_id' => request('risk_id')],
+            ),
+        ]));
     }
 
     /**
      * Store a newly created issue.
      */
-    public function store(Request $request)
+    public function store(StoreIssueRequest $request)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        $orgId = TenantContext::organizationId();
 
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'required|string|max:5000',
-            'issue_source' => 'required|in:audit,risk_assessment,incident,regulatory,self_identified,customer_complaint,other',
-            'priority' => 'required|in:critical,high,medium,low',
-            'business_unit_id' => 'required|exists:business_units,id',
-            'responsible_owner_id' => 'required|exists:users,id',
-            'risk_id' => 'nullable|exists:risks,id',
-            'target_resolution_date' => 'required|date|after:today',
-            'root_cause' => 'nullable|string|max:3000',
-            'impact_description' => 'nullable|string|max:2000',
-            'recommended_action' => 'nullable|string|max:3000',
-            'source_reference' => 'nullable|string|max:255',
-            'category' => 'nullable|string|max:100',
-        ]);
+        $validated = $request->validated();
 
-        return DB::transaction(function () use ($validated, $orgId) {
+        return DB::transaction(function () use ($request, $validated, $orgId) {
             // Auto-generate issue reference using ReferenceCodeService
             $issueReference = \App\Services\ReferenceCodeService::generate('issues', 'issue_reference', 'ISS');
 
-            $issueCategory = $validated['category'] ?? null;
-            unset($validated['category']);
+            $issueCategory = $validated['issue_category'] ?? $validated['category'] ?? null;
+            unset($validated['category'], $validated['issue_category']);
 
-            // Map form field risk_id to actual DB column risk_register_id
-            $validated['risk_register_id'] = $validated['risk_id'] ?? null;
+            // Map the legacy form field risk_id onto the real column.
+            $validated['risk_register_id'] = $validated['risk_register_id']
+                ?? $validated['risk_id']
+                ?? null;
             unset($validated['risk_id']);
 
             $issue = Issue::create(array_merge($validated, [
@@ -216,9 +140,12 @@ class IssueController extends Controller
                 'issue_reference' => $issueReference,
                 'issue_category' => $issueCategory,
                 'issue_status' => 'OPEN',
-                'escalation_level' => 0,
+                'current_escalation_level' => 0,
                 'created_by' => auth()->id(),
             ]));
+
+            // Fields the tenant added through the builder, if any.
+            $this->saveConfiguredAttributes($request, $issue);
 
             // Audit trail
             \App\Services\AuditTrailService::record($issue, 'create');
@@ -233,11 +160,7 @@ class IssueController extends Controller
      */
     public function show(Issue $issue)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-
-        if ($issue->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this issue.');
-        }
+        Gate::authorize('view', $issue);
 
         $issue->load([
             'issueOwner',
@@ -255,7 +178,26 @@ class IssueController extends Controller
             'attachments',
         ]);
 
-        return view('risk.issues.show', compact('issue'));
+        return Inertia::render('Issues/Show', [
+            'issue' => $this->detail($issue),
+            'can' => [
+                'update' => Gate::allows('update', $issue),
+                'delete' => Gate::allows('delete', $issue),
+                'close' => Gate::allows('close', $issue),
+                'escalate' => Gate::allows('escalate', $issue),
+                'recordProgress' => Gate::allows('recordProgress', $issue),
+            ],
+            'options' => [
+                'statuses' => Issue::STATUSES,
+                'updateTypes' => ['progress', 'milestone', 'escalation', 'note'],
+            ],
+            // The remediation-action form assigns an owner.
+            'users' => User::where('organization_id', TenantContext::organizationId())
+                ->orderBy('name')
+                ->get()
+                ->map(fn (User $user) => ['id' => $user->id, 'name' => $user->name])
+                ->all(),
+        ]);
     }
 
     /**
@@ -263,52 +205,25 @@ class IssueController extends Controller
      */
     public function edit(Issue $issue)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('update', $issue);
 
-        if ($issue->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this issue.');
-        }
-
-        $risks = Risk::where('organization_id', $orgId)->orderBy('risk_code')->get();
-        $businessUnits = BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get();
-        $users = User::where('organization_id', $orgId)->orderBy('name')->get();
-
-        return view('risk.issues.edit', compact('issue', 'risks', 'businessUnits', 'users'));
+        return Inertia::render('Issues/Edit', array_merge($this->formOptions(), [
+            'issue' => $this->editable($issue),
+            // `recommended_action` is omitted on edit, as it was: the
+            // recommendation is what the finding said, not something the owner
+            // revises while remediating it.
+            'schema' => $this->schemas->form(self::OBJECT_TYPE, $issue, omit: ['recommended_action']),
+        ]));
     }
 
     /**
      * Update the specified issue.
      */
-    public function update(Request $request, Issue $issue)
+    public function update(UpdateIssueRequest $request, Issue $issue)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('update', $issue);
 
-        if ($issue->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this issue.');
-        }
-
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'required|string|max:5000',
-            'issue_source' => 'nullable|string|max:255',
-            'priority' => 'required|string|max:50',
-            'business_unit_id' => 'required|exists:business_units,id',
-            'responsible_owner_id' => 'required|exists:users,id',
-            'risk_register_id' => 'nullable|exists:risks,id',
-            'issue_category' => 'nullable|string|max:100',
-            'target_resolution_date' => 'required|date',
-            'management_response_due' => 'nullable|date',
-            'root_cause' => 'nullable|string|max:3000',
-            'impact_description' => 'nullable|string|max:2000',
-            'action_plan' => 'nullable|string|max:5000',
-            'management_response' => 'nullable|string|max:5000',
-            'interim_controls' => 'nullable|string|max:3000',
-            'cbn_examination_finding' => 'nullable|boolean',
-            'examination_ref' => 'nullable|string|max:255',
-            'cbn_response_deadline' => 'nullable|date',
-            'ndpa_breach_type' => 'nullable|string|max:255',
-            'regulatory_reportable' => 'nullable|boolean',
-        ]);
+        $validated = $request->validated();
 
         // Handle checkbox defaults
         $validated['cbn_examination_finding'] = $request->has('cbn_examination_finding') ? 1 : 0;
@@ -320,6 +235,8 @@ class IssueController extends Controller
             'updated_by' => auth()->id(),
         ]));
 
+        $this->saveConfiguredAttributes($request, $issue);
+
         // Audit trail
         \App\Services\AuditTrailService::recordChanges($issue, $original);
 
@@ -330,18 +247,11 @@ class IssueController extends Controller
     /**
      * Update issue status (transition).
      */
-    public function updateStatus(Request $request, Issue $issue)
+    public function updateStatus(UpdateIssueStatusRequest $request, Issue $issue)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('update', $issue);
 
-        if ($issue->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this issue.');
-        }
-
-        $validated = $request->validate([
-            'issue_status' => 'required|in:OPEN,IN_PROGRESS,OVERDUE,PENDING_CLOSURE,CLOSED,CANCELLED,REOPENED',
-            'status_notes' => 'nullable|string|max:1000',
-        ]);
+        $validated = $request->validated();
 
         $allowedTransitions = [
             'OPEN' => ['IN_PROGRESS', 'CANCELLED'],
@@ -356,7 +266,7 @@ class IssueController extends Controller
         $current = $issue->issue_status;
         $new = $validated['issue_status'];
 
-        if (!isset($allowedTransitions[$current]) || !in_array($new, $allowedTransitions[$current])) {
+        if (! isset($allowedTransitions[$current]) || ! in_array($new, $allowedTransitions[$current])) {
             return back()->with('error', "Cannot transition issue from '{$current}' to '{$new}'.");
         }
 
@@ -372,7 +282,7 @@ class IssueController extends Controller
         IssueProgressUpdate::create([
             'issue_id' => $issue->id,
             'update_type' => 'status_change',
-            'content' => "Status changed from {$current} to {$new}. " . ($validated['status_notes'] ?? ''),
+            'content' => "Status changed from {$current} to {$new}. ".($validated['status_notes'] ?? ''),
             'created_by' => auth()->id(),
         ]);
 
@@ -385,21 +295,11 @@ class IssueController extends Controller
     /**
      * Add a remediation action to an issue.
      */
-    public function addRemediationAction(Request $request, Issue $issue)
+    public function addRemediationAction(StoreRemediationActionRequest $request, Issue $issue)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('recordProgress', $issue);
 
-        if ($issue->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this issue.');
-        }
-
-        $validated = $request->validate([
-            'description' => 'required|string|max:3000',
-            'owner_id' => 'required|exists:users,id',
-            'target_date' => 'required|date|after:today',
-            'priority' => 'required|in:critical,high,medium,low',
-            'department' => 'nullable|string|max:255',
-        ]);
+        $validated = $request->validated();
 
         // Auto-generate action number
         $lastAction = IssueRemediationAction::where('issue_id', $issue->id)->orderByDesc('action_number')->first();
@@ -420,22 +320,27 @@ class IssueController extends Controller
     /**
      * Mark a remediation action as complete.
      */
-    public function completeAction(Request $request, Issue $issue, IssueRemediationAction $action)
+    public function completeAction(CompleteRemediationActionRequest $request, Issue $issue, IssueRemediationAction $action)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('recordProgress', $issue);
 
-        if ($issue->organization_id !== $orgId || $action->issue_id !== $issue->id) {
-            abort(403, 'Unauthorized access.');
-        }
+        // Not authorisation: the action has to belong to the issue in the URL,
+        // or the two ids address different things.
+        abort_unless($action->issue_id === $issue->id, 404);
 
-        $validated = $request->validate([
-            'completion_notes' => 'nullable|string|max:2000',
-        ]);
+        $validated = $request->validated();
 
+        // `completed_at` and `completed_by` are NOT columns on
+        // issue_remediation_actions and are not in its $fillable, so Eloquent
+        // dropped them silently: an action was marked complete with no record
+        // of WHEN. The real column is `actual_close_date`.
+        //
+        // Who completed it still is not recorded — there is no column for it.
+        // `verified_by` is the only candidate and it means something else, so
+        // it is left alone rather than filled with a claim nobody made.
         $action->update([
             'status' => 'completed',
-            'completed_at' => now(),
-            'completed_by' => auth()->id(),
+            'actual_close_date' => now()->toDateString(),
             'completion_notes' => $validated['completion_notes'] ?? null,
         ]);
 
@@ -459,19 +364,11 @@ class IssueController extends Controller
     /**
      * Add a progress update to an issue.
      */
-    public function addProgressUpdate(Request $request, Issue $issue)
+    public function addProgressUpdate(StoreProgressUpdateRequest $request, Issue $issue)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('recordProgress', $issue);
 
-        if ($issue->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this issue.');
-        }
-
-        $validated = $request->validate([
-            'description' => 'required|string|max:3000',
-            'update_type' => 'required|in:progress,milestone,escalation,note',
-            'progress_pct' => 'nullable|integer|min:0|max:100',
-        ]);
+        $validated = $request->validated();
 
         IssueProgressUpdate::create([
             'issue_id' => $issue->id,
@@ -481,7 +378,7 @@ class IssueController extends Controller
         ]);
 
         // Update issue progress if provided
-        if (!empty($validated['progress_pct'])) {
+        if (! empty($validated['progress_pct'])) {
             $issue->update(['progress_percentage' => $validated['progress_pct']]);
         }
 
@@ -491,22 +388,15 @@ class IssueController extends Controller
     /**
      * Request closure of an issue.
      */
-    public function requestClosure(Request $request, Issue $issue)
+    public function requestClosure(RequestIssueClosureRequest $request, Issue $issue, \App\Services\Workflow\ModuleApprovals $approvals)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('update', $issue);
 
-        if ($issue->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this issue.');
-        }
-
-        if (!in_array($issue->issue_status, ['IN_PROGRESS', 'OVERDUE'])) {
+        if (! in_array($issue->issue_status, ['IN_PROGRESS', 'OVERDUE'])) {
             return back()->with('error', 'Only in-progress or overdue issues can be submitted for closure.');
         }
 
-        $validated = $request->validate([
-            'closure_justification' => 'required|string|max:3000',
-            'evidence_of_resolution' => 'nullable|string|max:2000',
-        ]);
+        $validated = $request->validated();
 
         $original = $issue->getAttributes();
 
@@ -518,10 +408,16 @@ class IssueController extends Controller
             'closure_requested_by' => auth()->id(),
         ]);
 
+        // WP-06. Raises the approval task against the issue-manager role, and
+        // the compliance sign-off step behind it for a regulatory issue. Where
+        // the tenant has no published definition the status change above is the
+        // whole of it, exactly as before.
+        $approvals->submit('issue_closure_approval', $issue, [], $request->user());
+
         IssueProgressUpdate::create([
             'issue_id' => $issue->id,
             'update_type' => 'milestone',
-            'content' => 'Closure requested: ' . $validated['closure_justification'],
+            'content' => 'Closure requested: '.$validated['closure_justification'],
             'created_by' => auth()->id(),
         ]);
 
@@ -534,74 +430,49 @@ class IssueController extends Controller
     /**
      * Approve closure of an issue.
      */
-    public function approveClosure(Request $request, Issue $issue)
+    public function approveClosure(Request $request, Issue $issue, \App\Services\Workflow\ModuleApprovals $approvals)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-
-        if ($issue->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this issue.');
-        }
+        Gate::authorize('close', $issue);
 
         if ($issue->issue_status !== 'PENDING_CLOSURE') {
             return back()->with('error', 'Only issues pending closure can be approved.');
         }
 
         $original = $issue->getAttributes();
+        $comments = $request->string('comments')->toString() ?: null;
 
-        $issue->update([
-            'issue_status' => 'CLOSED',
-            'actual_resolution_date' => now()->toDateString(),
-            'closed_at' => now(),
-            'closed_by' => auth()->id(),
-        ]);
+        // WP-06. A regulatory issue picks up a compliance sign-off step it never
+        // had: closing a CBN examination finding was previously one click by
+        // whoever happened to open the screen.
+        if (! $approvals->decide($issue, 'approve', $request->user(), ['comments' => $comments])) {
+            $approvals->decideDirectly($issue, 'approve', $request->user(), $comments);
+        }
 
-        IssueProgressUpdate::create([
-            'issue_id' => $issue->id,
-            'update_type' => 'milestone',
-            'content' => 'Issue closure approved.',
-            'created_by' => auth()->id(),
-        ]);
+        \App\Services\AuditTrailService::recordChanges($issue->refresh(), $original);
 
-        // Audit trail
-        \App\Services\AuditTrailService::recordChanges($issue, $original);
-
-        return back()->with('success', "Issue {$issue->issue_reference} has been closed.");
+        return back()->with('success', $issue->issue_status === 'CLOSED'
+            ? "Issue {$issue->issue_reference} has been closed."
+            : "Recorded. Issue {$issue->issue_reference} has moved to the next approval step.");
     }
 
     /**
      * Reject closure of an issue.
      */
-    public function rejectClosure(Request $request, Issue $issue)
+    public function rejectClosure(RejectIssueClosureRequest $request, Issue $issue, \App\Services\Workflow\ModuleApprovals $approvals)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-
-        if ($issue->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this issue.');
-        }
+        Gate::authorize('close', $issue);
 
         if ($issue->issue_status !== 'PENDING_CLOSURE') {
             return back()->with('error', 'Only issues pending closure can be rejected.');
         }
 
-        $validated = $request->validate([
-            'rejection_reason' => 'required|string|max:2000',
-        ]);
+        $validated = $request->validated();
 
-        $issue->update([
-            'issue_status' => 'IN_PROGRESS',
-            'closure_rejection_reason' => $validated['rejection_reason'],
-            'closure_rejected_at' => now(),
-            'closure_rejected_by' => auth()->id(),
-        ]);
+        if (! $approvals->decide($issue, 'reject', $request->user(), ['comments' => $validated['rejection_reason']])) {
+            $approvals->decideDirectly($issue, 'reject', $request->user(), $validated['rejection_reason']);
+        }
 
-        IssueProgressUpdate::create([
-            'issue_id' => $issue->id,
-            'update_type' => 'milestone',
-            'content' => 'Closure rejected: ' . $validated['rejection_reason'],
-            'created_by' => auth()->id(),
-        ]);
-
-        return back()->with('success', "Issue closure has been rejected. Issue moved back to IN_PROGRESS.");
+        return back()->with('success', 'Issue closure has been rejected. Issue moved back to IN_PROGRESS.');
     }
 
     /**
@@ -609,68 +480,17 @@ class IssueController extends Controller
      */
     public function ageingReport()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('viewAny', Issue::class);
 
-        $issues = Issue::where('organization_id', $orgId)
-            ->whereNotIn('issue_status', ['CLOSED', 'CANCELLED'])
-            ->with(['issueOwner', 'businessUnit'])
-            ->orderBy('created_at')
-            ->get()
-            ->map(function ($issue) {
-                $issue->age_days = (int) $issue->created_at->diffInDays(now());
-                $issue->age_bucket = $this->getAgeBucket($issue->age_days);
-                return $issue;
-            });
+        $issues = $this->ageing->openIssues();
 
-        $bands = ['0-30', '31-60', '61-90', '90+'];
-        $priorities = ['critical', 'high', 'medium', 'low'];
-        $ageingMatrix = [];
-        foreach ($priorities as $p) {
-            $ageingMatrix[$p] = array_fill_keys($bands, 0);
-        }
-        foreach ($issues as $issue) {
-            $p = strtolower($issue->issue_priority ?? $issue->priority ?? 'medium');
-            $p = in_array($p, $priorities) ? $p : 'medium';
-            if (isset($ageingMatrix[$p][$issue->age_bucket])) {
-                $ageingMatrix[$p][$issue->age_bucket]++;
-            }
-        }
-
-        $ageingByPriorityData = [
-            'labels' => $bands,
-            'datasets' => [
-                ['label' => 'Critical', 'data' => array_values($ageingMatrix['critical']), 'backgroundColor' => '#dc2626'],
-                ['label' => 'High',     'data' => array_values($ageingMatrix['high']),     'backgroundColor' => '#f97316'],
-                ['label' => 'Medium',   'data' => array_values($ageingMatrix['medium']),   'backgroundColor' => '#eab308'],
-                ['label' => 'Low',      'data' => array_values($ageingMatrix['low']),      'backgroundColor' => '#16a34a'],
-            ],
-        ];
-
-        $trendLabels = [];
-        $openedSeries = [];
-        $closedSeries = [];
-        for ($i = 5; $i >= 0; $i--) {
-            $m = now()->subMonths($i);
-            $trendLabels[] = $m->format('M');
-            $openedSeries[] = Issue::where('organization_id', $orgId)
-                ->whereYear('created_at', $m->year)->whereMonth('created_at', $m->month)->count();
-            $closedSeries[] = Issue::where('organization_id', $orgId)
-                ->where('issue_status', 'CLOSED')
-                ->whereYear('updated_at', $m->year)->whereMonth('updated_at', $m->month)->count();
-        }
-        $ageingTrendData = [
-            'labels' => $trendLabels,
-            'opened' => $openedSeries,
-            'closed' => $closedSeries,
-        ];
-
-        $agedIssues = $issues->sortByDesc('age_days')->take(15)->values();
-        $bucketSummary = $issues->groupBy('age_bucket')->map->count();
-
-        return view('risk.issues.ageing', compact(
-            'issues', 'bucketSummary', 'ageingMatrix',
-            'ageingByPriorityData', 'ageingTrendData', 'agedIssues'
-        ));
+        return Inertia::render('Issues/Ageing', [
+            'bands' => $this->ageing->bandSummary($issues),
+            'matrix' => $this->ageing->matrix($issues),
+            'trend' => $this->ageing->trend(),
+            'oldest' => $this->ageing->oldest($issues),
+            'total' => $issues->count(),
+        ]);
     }
 
     /**
@@ -678,7 +498,9 @@ class IssueController extends Controller
      */
     public function closureList()
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('viewAny', Issue::class);
+
+        $orgId = TenantContext::organizationId();
 
         $pendingClosures = Issue::where('organization_id', $orgId)
             ->where('issue_status', 'PENDING_CLOSURE')
@@ -700,44 +522,44 @@ class IssueController extends Controller
             ->where('issue_status', '!=', 'CLOSED')
             ->count();
 
-        $avgClosureTime = (int) round(Issue::where('organization_id', $orgId)
-            ->where('issue_status', 'CLOSED')
-            ->whereNotNull('closed_at')
-            ->selectRaw('AVG(DATEDIFF(closed_at, created_at)) as avg_days')
-            ->value('avg_days') ?? 0);
+        // DATEDIFF() is MySQL-only; the service computes it portably, which
+        // is what lets this screen be tested at all.
+        $avgClosureTime = $this->figures->averageDaysToClose();
 
-        return view('risk.issues.closure', compact(
-            'pendingClosures', 'pendingClosureCount', 'closedThisMonth', 'returnedCount', 'avgClosureTime'
-        ));
-    }
-
-    /**
-     * Determine age bucket for ageing report.
-     */
-    private function getAgeBucket(int $days): string
-    {
-        if ($days <= 30) return '0-30 days';
-        if ($days <= 60) return '31-60 days';
-        if ($days <= 90) return '61-90 days';
-        return '90+ days';
+        return Inertia::render('Issues/Closure', [
+            'stats' => [
+                'pending' => $pendingClosureCount,
+                'closedThisMonth' => $closedThisMonth,
+                'returned' => $returnedCount,
+                'avgClosureTime' => $avgClosureTime,
+            ],
+            'pending' => [
+                'data' => collect($pendingClosures->items())->map(fn (Issue $issue) => [
+                    'id' => $issue->id,
+                    'reference' => $issue->issue_reference,
+                    'title' => $issue->title,
+                    'priority' => $issue->priority,
+                    'owner' => $issue->issueOwner?->name,
+                    'businessUnit' => $issue->businessUnit?->name,
+                    'requestedAt' => $issue->closure_requested_at?->format('d M Y'),
+                    'justification' => $issue->closure_justification,
+                    'canDecide' => Gate::allows('close', $issue),
+                    'url' => route('risk.issues.show', $issue),
+                ])->all(),
+                'links' => $pendingClosures->linkCollection()->toArray(),
+                'meta' => ['from' => $pendingClosures->firstItem(), 'to' => $pendingClosures->lastItem(), 'total' => $pendingClosures->total()],
+            ],
+        ]);
     }
 
     /**
      * Upload an attachment to an issue.
      */
-    public function uploadAttachment(Request $request, Issue $issue)
+    public function uploadAttachment(UploadIssueAttachmentRequest $request, Issue $issue)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
+        Gate::authorize('recordProgress', $issue);
 
-        if ($issue->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this issue.');
-        }
-
-        $validated = $request->validate([
-            'file' => 'required|file|max:10240|mimes:pdf,doc,docx,xls,xlsx,csv,png,jpg,jpeg,txt,msg,eml,zip',
-            'document_type' => 'nullable|string|max:50',
-            'is_regulatory' => 'nullable|boolean',
-        ]);
+        $validated = $request->validated();
 
         $file = $request->file('file');
         $path = $file->store("issue-attachments/{$issue->id}", 'local');
@@ -761,14 +583,7 @@ class IssueController extends Controller
      */
     public function destroy(Issue $issue)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-
-        if ($issue->organization_id !== $orgId) {
-            abort(403, 'Unauthorized access to this issue.');
-        }
-
-        abort_unless(auth()->user()->can('issue.close') || auth()->user()->hasRole('super-admin'), 403,
-            'You do not have permission to delete issues.');
+        Gate::authorize('delete', $issue);
 
         \App\Services\AuditTrailService::record($issue, 'delete');
 
@@ -780,10 +595,9 @@ class IssueController extends Controller
 
     public function downloadAttachment(Issue $issue, IssueAttachment $attachment)
     {
-        $orgId = auth()->user()->organization_id ?? 1;
-        if ($issue->organization_id !== $orgId || $attachment->issue_id !== $issue->id) {
-            abort(403, 'Unauthorized access.');
-        }
+        Gate::authorize('view', $issue);
+
+        abort_unless($attachment->issue_id === $issue->id, 404);
 
         $disk = Storage::disk('local');
         if (! $disk->exists($attachment->storage_path)) {
@@ -791,5 +605,148 @@ class IssueController extends Controller
         }
 
         return $disk->download($attachment->storage_path, $attachment->file_name);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Presentation */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * The lookups every issue form needs.
+     *
+     * @return array<string, mixed>
+     */
+    private function formOptions(): array
+    {
+        $orgId = TenantContext::organizationId();
+
+        return [
+            'risks' => Risk::where('organization_id', $orgId)->orderBy('risk_code')->get()
+                ->map(fn (Risk $risk) => ['id' => $risk->id, 'code' => $risk->risk_code, 'title' => $risk->title])->all(),
+            'businessUnits' => BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get()
+                ->map(fn (BusinessUnit $unit) => ['id' => $unit->id, 'name' => $unit->name])->all(),
+            'users' => User::where('organization_id', $orgId)->orderBy('name')->get()
+                ->map(fn (User $user) => ['id' => $user->id, 'name' => $user->name])->all(),
+            'sources' => Issue::SOURCES,
+            'priorities' => Issue::PRIORITIES,
+        ];
+    }
+
+    /**
+     * An issue as the edit form's initial values.
+     *
+     * @return array<string, mixed>
+     */
+    private function editable(Issue $issue): array
+    {
+        return [
+            'id' => $issue->id,
+            'reference' => $issue->issue_reference,
+            'title' => $issue->title,
+            'description' => $issue->description,
+            'issue_source' => $issue->issue_source,
+            'issue_category' => $issue->issue_category,
+            'priority' => $issue->priority,
+            'business_unit_id' => $issue->business_unit_id,
+            'responsible_owner_id' => $issue->responsible_owner_id,
+            'risk_id' => $issue->risk_register_id,
+            'department' => $issue->department,
+            'remediation_due_date' => $issue->remediation_due_date?->toDateString(),
+            'management_response_due' => $issue->management_response_due?->toDateString(),
+            'root_cause' => $issue->root_cause,
+            'impact_description' => $issue->impact_description,
+            'recommended_action' => $issue->recommended_action,
+            'management_response' => $issue->management_response,
+            'action_plan' => $issue->action_plan,
+        ];
+    }
+
+    /**
+     * The show page's issue, with everything its tabs render.
+     *
+     * @return array<string, mixed>
+     */
+    private function detail(Issue $issue): array
+    {
+        return [
+            'id' => $issue->id,
+            'reference' => $issue->issue_reference,
+            'title' => $issue->title,
+            'description' => $issue->description,
+            'status' => $issue->issue_status,
+            'priority' => $issue->priority,
+            'source' => $issue->issue_source,
+            'category' => $issue->issue_category,
+            'owner' => $issue->issueOwner?->name,
+            'businessUnit' => $issue->businessUnit?->name,
+            'department' => $issue->department,
+            'dueDate' => $issue->remediation_due_date?->format('d M Y'),
+            // The show page has always READ `is_overdue` and it never existed;
+            // the accessor on the model computes it now. See the module notes.
+            'isOverdue' => $issue->is_overdue,
+            'daysOverdue' => $issue->is_overdue && $issue->remediation_due_date
+                ? (int) $issue->remediation_due_date->startOfDay()->diffInDays(now()->startOfDay())
+                : null,
+            'managementResponseDue' => $issue->management_response_due?->format('d M Y'),
+            'escalationLevel' => $issue->current_escalation_level,
+            'progressPct' => (int) ($issue->progress_percentage ?? 0),
+            'rootCause' => $issue->root_cause,
+            'impactDescription' => $issue->impact_description,
+            'recommendedAction' => $issue->recommended_action,
+            'managementResponse' => $issue->management_response,
+            'actionPlan' => $issue->action_plan,
+            'interimControls' => $issue->interim_controls,
+            'closureJustification' => $issue->closure_justification,
+            'examinationRef' => $issue->examination_ref,
+            'regulatoryReportable' => (bool) $issue->regulatory_reportable,
+            'cbnReportable' => (bool) $issue->cbn_reportable,
+            // The Blade page read `cbn_regulatory_deadline`, which is not a
+            // column — the real one is `cbn_response_deadline`, so that banner
+            // never rendered.
+            'cbnResponseDeadline' => $issue->cbn_response_deadline?->format('d M Y'),
+            'createdAt' => $issue->created_at?->format('d M Y'),
+            'risk' => $issue->risk ? [
+                'code' => $issue->risk->risk_code,
+                'title' => $issue->risk->title,
+                'url' => route('risk.register.show', $issue->risk),
+            ] : null,
+            'remediationActions' => $issue->remediationActions->map(fn ($action) => [
+                'id' => $action->id,
+                'number' => $action->action_number,
+                'description' => $action->description,
+                'owner' => $action->owner?->name,
+                'targetDate' => $action->target_date?->format('d M Y'),
+                'status' => $action->status,
+                'completedAt' => $action->actual_close_date?->format('d M Y'),
+                'completionNotes' => $action->completion_notes,
+            ])->all(),
+            'progressUpdates' => $issue->progressUpdates->map(fn ($update) => [
+                'id' => $update->id,
+                'type' => $update->update_type,
+                'content' => $update->content,
+                // Progress is a property of the ISSUE, not of an update —
+                // addProgressUpdate() writes it to issues.progress_percentage.
+                // issue_progress_updates has no such column.
+                'author' => $update->createdBy?->name,
+                'createdAt' => $update->created_at?->format('d M Y, H:i'),
+            ])->all(),
+            'escalationLogs' => $issue->escalationLogs->map(fn ($log) => [
+                'id' => $log->id,
+                // The table records the level REACHED, not a from/to pair.
+                'level' => $log->escalation_level,
+                'escalatedTo' => $log->escalated_to_role,
+                'isAutomatic' => (bool) $log->is_auto,
+                'reason' => $log->reason,
+                'escalatedAt' => $log->escalated_at?->format('d M Y, H:i'),
+            ])->all(),
+            'attachments' => $issue->attachments->map(fn ($attachment) => [
+                'id' => $attachment->id,
+                'name' => $attachment->file_name,
+                'documentType' => $attachment->document_type,
+                'isRegulatory' => (bool) $attachment->is_regulatory,
+                'size' => $attachment->file_size_bytes,
+                'downloadUrl' => route('risk.issues.download-attachment', [$issue, $attachment]),
+            ])->all(),
+        ];
     }
 }

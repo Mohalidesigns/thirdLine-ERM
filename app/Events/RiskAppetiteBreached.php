@@ -2,8 +2,8 @@
 
 namespace App\Events;
 
-use App\Models\RiskCategory;
 use App\Models\RiskAppetite;
+use App\Models\RiskCategory;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 

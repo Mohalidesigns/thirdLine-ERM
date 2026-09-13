@@ -2,16 +2,50 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasObjectIdentity;
+use App\Models\Concerns\ScopedToGraph;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
+/**
+ * The columns 2026_02_22_200038_align_schema_with_controllers adds through its
+ * own addColumns() helper. Larastan reads schema from Schema::create/table
+ * calls it can see statically, so a column added in a loop is invisible to it
+ * and every read of one is reported as an undefined property.
+ *
+ * @property string|null $kri_name
+ * @property string|null $measurement_unit
+ * @property string|null $direction
+ * @property float|null $target_value
+ * @property int|null $kri_owner_id
+ * @property int|null $risk_id
+ * @property bool $is_active
+ * @property \Illuminate\Support\Carbon|null $last_measurement_date
+ */
 class KeyRiskIndicator extends Model
 {
-    use HasFactory, SoftDeletes;
+    use BelongsToOrganization, HasFactory, HasObjectIdentity, ScopedToGraph, SoftDeletes;
 
     protected $table = 'key_risk_indicators';
+
+    /**
+     * How often a reading is expected, from KriController's inline
+     * `in:daily,weekly,monthly,quarterly` rule (migration Phase 4.1).
+     *
+     * @var list<string>
+     */
+    public const FREQUENCIES = ['daily', 'weekly', 'monthly', 'quarterly'];
+
+    /**
+     * Which way is bad. The FORM's spelling, which the service maps onto the
+     * `threshold_direction` column's `higher_worse` / `lower_worse`.
+     *
+     * @var list<string>
+     */
+    public const DIRECTIONS = ['higher_is_worse', 'lower_is_worse'];
 
     protected $fillable = [
         // Original migration columns
@@ -51,11 +85,11 @@ class KeyRiskIndicator extends Model
     ];
 
     protected $casts = [
-        'automation_config'    => 'array',
-        'is_automated'         => 'boolean',
-        'last_measurement_at'  => 'datetime',
+        'automation_config' => 'array',
+        'is_automated' => 'boolean',
+        'last_measurement_at' => 'datetime',
         'last_measurement_date' => 'date',
-        'is_active'            => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     protected static function boot(): void
@@ -70,7 +104,7 @@ class KeyRiskIndicator extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
+    /*  Relationships */
     /* ------------------------------------------------------------------ */
 
     public function organization()
@@ -83,7 +117,8 @@ class KeyRiskIndicator extends Model
         return $this->belongsTo(Entity::class);
     }
 
-    public function owner()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
+    public function owner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
     }
@@ -96,6 +131,8 @@ class KeyRiskIndicator extends Model
     public function risks()
     {
         return $this->belongsToMany(Risk::class, 'risk_kri_mapping', 'kri_id', 'risk_id')
+            ->using(RiskKriMapping::class)
+            ->withPivot('correlation_type')
             ->withTimestamps();
     }
 
@@ -106,7 +143,8 @@ class KeyRiskIndicator extends Model
      * - belongsTo(Risk, 'risk_id') for direct single assignment (kept for backward compatibility)
      * Controllers may still use this single relationship; prefer risks() for new code.
      */
-    public function risk()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Risk, $this> */
+    public function risk(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Risk::class, 'risk_id');
     }
@@ -119,5 +157,68 @@ class KeyRiskIndicator extends Model
     public function latestMeasurement()
     {
         return $this->hasOne(KriMeasurement::class, 'kri_id')->latestOfMany('measurement_date');
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Form-facing accessors */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * WP-05 TASK 2 — the single threshold values the form posts.
+     *
+     * The table stores a min and a max per band; the form collects one number
+     * per band and KriController fans it out according to `direction`. These
+     * accessors fold it back, so the edit form is prefilled with the number
+     * the user originally typed rather than blank.
+     *
+     * Which end holds it depends on the direction, which is the whole reason
+     * the controller has to fan it out in the first place: on a
+     * higher-is-worse indicator green is a ceiling, on a lower-is-worse one it
+     * is a floor.
+     */
+    public function getGreenThresholdAttribute(): ?float
+    {
+        return $this->thresholdEdge('green');
+    }
+
+    public function getAmberThresholdAttribute(): ?float
+    {
+        // Amber's outer edge is the red boundary at both directions; its inner
+        // edge is green's. The form's single "amber" number is the red one.
+        return $this->thresholdEdge('red');
+    }
+
+    public function getRedThresholdAttribute(): ?float
+    {
+        return $this->thresholdEdge('red');
+    }
+
+    private function thresholdEdge(string $band): ?float
+    {
+        $column = $this->threshold_direction === 'lower_worse'
+            ? "{$band}_threshold_min"
+            : "{$band}_threshold_max";
+
+        // red_threshold on a higher-is-worse indicator is the point at which
+        // red STARTS, which is its minimum, not its maximum.
+        if ($band === 'red') {
+            $column = $this->threshold_direction === 'lower_worse'
+                ? 'red_threshold_max'
+                : 'red_threshold_min';
+        }
+
+        $value = $this->getAttributes()[$column] ?? null;
+
+        return $value === null ? null : (float) $value;
+    }
+
+    /**
+     * `formula` is what both the create and edit forms post; metric_formula is
+     * the column. KriController maps one onto the other on the way in — this
+     * maps it back on the way out.
+     */
+    public function getFormulaAttribute(): ?string
+    {
+        return $this->getAttributes()['metric_formula'] ?? null;
     }
 }

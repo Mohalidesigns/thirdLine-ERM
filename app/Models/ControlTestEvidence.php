@@ -13,8 +13,19 @@ class ControlTestEvidence extends Model
         'description', 'uploaded_by',
     ];
 
-    public function controlTest() { return $this->belongsTo(ControlTest::class); }
-    public function uploader()    { return $this->belongsTo(User::class, 'uploaded_by'); }
+    public function controlTest()
+    {
+        return $this->belongsTo(ControlTest::class);
+    }
+
+    public function uploader()
+    {
+        return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
     // Alias used by the unified DocumentRepository.
-    public function uploadedBy()  { return $this->uploader(); }
+    public function uploadedBy()
+    {
+        return $this->uploader();
+    }
 }

@@ -1,0 +1,1935 @@
+{
+    "_meta": {
+        "title": "RCSA calculation truth table — SB_RCSA Template 2026",
+        "purpose": "The shared fixture for App\\Services\\Rcsa\\RcsaCalculationService (PHP) and resources/js/lib/rcsa-calc.js (browser). Both are run over every case by tests/Unit/Rcsa/RcsaCalculationTest, so the client mirror cannot drift from the server engine.",
+        "derivation": "Written from section 3.3 of the RCSA Module Implementation Plan, independently of either implementation, so that the test compares two readings of the spec rather than one implementation with itself. VERIFIED against the workbook itself on 2026-09-07: all 100 cases (5 likelihood x 5 impact x 4 control effectiveness) reproduce the formulas in 'plans/SB _RCSA Template 2026 - Template.xlsx', RCSA Sheet row 3, exactly. tests/Unit/Rcsa/RcsaWorkbookParityTest re-derives them from the transcribed formulas on every run.",
+        "methodology": {
+            "code": "sb-rcsa-2026",
+            "residualMode": "calculated",
+            "residualFloor": 0,
+            "appetiteCeilingLevel": "low"
+        },
+        "formulas": {
+            "inherentScore": "likelihood * impact",
+            "band": "s <= 2 very_low; s <= 4 low; s <= 9 medium; s <= 16 high; else very_high",
+            "ceModifier": "Fully Achieved 100; Mostly Achieved 75; Partially Achieved 50; Not Achieved 25",
+            "residualScore": "MAX(inherentScore * (1 - ceModifier / 100), residualFloor)",
+            "riskTreatment": "{very_high, high} treat; medium mitigate; {low, very_low} accept",
+            "actionPlanRequired": "appetiteStatus starts with \"Above risk appetite\""
+        },
+        "caseCount": 100,
+        "workbookFormulas": {
+            "source": "plans/SB _RCSA Template 2026 - Template.xlsx, sheet 'RCSA Sheet', row 3",
+            "L_riskScore": "=CHOOSE(MATCH(J3,{\"Rare\",\"Unlikely\",\"Possible\",\"Likely\",\"Almost certain\"},0),1,2,3,4,5) * CHOOSE(MATCH(K3,{\"Very Low\",\"Low\",\"Medium\",\"High\",\"Very High\"},0),1,2,3,4,5)",
+            "M_inherentLevel": "=IF(L3<=2,\"VERY LOW\",IF(L3<=4,\"LOW\",IF(L3<=9,\"MEDIUM\",IF(L3<=16,\"HIGH\",\"VERY HIGH\"))))",
+            "P_ceModifier": "=CHOOSE(MATCH(O3,{\"Fully Achieved\",\"Mostly Achieved\",\"Partially Achieved\",\"Not Achieved\"},0),100,75,50,25)",
+            "Q_residual": "=L3*(1-P3/100)",
+            "R_residualLevel": "same bands as M, applied to Q",
+            "S_treatment": "=IF(R3=\"VERY HIGH\",\"TREAT\",IF(R3=\"HIGH\",\"TREAT\",IF(R3=\"MEDIUM\",\"MITIGATE\",IF(R3=\"LOW\",\"ACCEPT\",IF(R3=\"VERY LOW\",\"ACCEPT\")))))",
+            "T_appetite": "=IF(S3=\"ACCEPT\",\"Within risk appetite: Continue routine monitoring\",IF(S3=\"MITIGATE\",\"Above risk appetite:mitigate\",IF(S3=\"TREAT\",\"Above risk appetite:Treat\")))",
+            "note": "The workbook contradicts itself in two places and the FORMULA wins, because the formula is what calculates. Its Risk Matrix sheet calls impact level 3 'Moderate' while the L formula matches on 'Medium'; its Control effectiveness grid spells the ratings lower-case ('Fully achieved') while the P formula matches on 'Fully Achieved'."
+        }
+    },
+    "cases": [
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 1,
+                "inherentLevel": "very_low",
+                "inherentLabel": "Very Low",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 1,
+                "inherentLevel": "very_low",
+                "inherentLabel": "Very Low",
+                "ceModifier": 75,
+                "residualScore": 0.25,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 1,
+                "inherentLevel": "very_low",
+                "inherentLabel": "Very Low",
+                "ceModifier": 50,
+                "residualScore": 0.5,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 1,
+                "inherentLevel": "very_low",
+                "inherentLabel": "Very Low",
+                "ceModifier": 25,
+                "residualScore": 0.75,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 2,
+                "inherentLevel": "very_low",
+                "inherentLabel": "Very Low",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 2,
+                "inherentLevel": "very_low",
+                "inherentLabel": "Very Low",
+                "ceModifier": 75,
+                "residualScore": 0.5,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 2,
+                "inherentLevel": "very_low",
+                "inherentLabel": "Very Low",
+                "ceModifier": 50,
+                "residualScore": 1,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 2,
+                "inherentLevel": "very_low",
+                "inherentLabel": "Very Low",
+                "ceModifier": 25,
+                "residualScore": 1.5,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 3,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 3,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 75,
+                "residualScore": 0.75,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 3,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 50,
+                "residualScore": 1.5,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 3,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 25,
+                "residualScore": 2.25,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 4,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 4,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 75,
+                "residualScore": 1,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 4,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 50,
+                "residualScore": 2,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 4,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 25,
+                "residualScore": 3,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 5,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 5,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 75,
+                "residualScore": 1.25,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 5,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 50,
+                "residualScore": 2.5,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 1,
+            "likelihoodLabel": "Rare",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 5,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 25,
+                "residualScore": 3.75,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 2,
+                "inherentLevel": "very_low",
+                "inherentLabel": "Very Low",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 2,
+                "inherentLevel": "very_low",
+                "inherentLabel": "Very Low",
+                "ceModifier": 75,
+                "residualScore": 0.5,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 2,
+                "inherentLevel": "very_low",
+                "inherentLabel": "Very Low",
+                "ceModifier": 50,
+                "residualScore": 1,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 2,
+                "inherentLevel": "very_low",
+                "inherentLabel": "Very Low",
+                "ceModifier": 25,
+                "residualScore": 1.5,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 4,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 4,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 75,
+                "residualScore": 1,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 4,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 50,
+                "residualScore": 2,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 4,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 25,
+                "residualScore": 3,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 6,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 6,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 75,
+                "residualScore": 1.5,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 6,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 50,
+                "residualScore": 3,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 6,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 25,
+                "residualScore": 4.5,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 8,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 8,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 75,
+                "residualScore": 2,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 8,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 50,
+                "residualScore": 4,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 8,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 25,
+                "residualScore": 6,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 10,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 10,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 75,
+                "residualScore": 2.5,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 10,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 50,
+                "residualScore": 5,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 2,
+            "likelihoodLabel": "Unlikely",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 10,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 25,
+                "residualScore": 7.5,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 3,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 3,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 75,
+                "residualScore": 0.75,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 3,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 50,
+                "residualScore": 1.5,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 3,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 25,
+                "residualScore": 2.25,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 6,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 6,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 75,
+                "residualScore": 1.5,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 6,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 50,
+                "residualScore": 3,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 6,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 25,
+                "residualScore": 4.5,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 9,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 9,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 75,
+                "residualScore": 2.25,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 9,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 50,
+                "residualScore": 4.5,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 9,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 25,
+                "residualScore": 6.75,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 12,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 12,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 75,
+                "residualScore": 3,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 12,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 50,
+                "residualScore": 6,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 12,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 25,
+                "residualScore": 9,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 15,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 15,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 75,
+                "residualScore": 3.75,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 15,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 50,
+                "residualScore": 7.5,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 3,
+            "likelihoodLabel": "Possible",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 15,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 25,
+                "residualScore": 11.25,
+                "residualLevel": "high",
+                "residualLabel": "High",
+                "riskTreatment": "treat",
+                "appetiteStatus": "Above risk appetite: Treat",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 4,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 4,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 75,
+                "residualScore": 1,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 4,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 50,
+                "residualScore": 2,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 4,
+                "inherentLevel": "low",
+                "inherentLabel": "Low",
+                "ceModifier": 25,
+                "residualScore": 3,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 8,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 8,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 75,
+                "residualScore": 2,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 8,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 50,
+                "residualScore": 4,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 8,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 25,
+                "residualScore": 6,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 12,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 12,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 75,
+                "residualScore": 3,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 12,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 50,
+                "residualScore": 6,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 12,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 25,
+                "residualScore": 9,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 16,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 16,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 75,
+                "residualScore": 4,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 16,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 50,
+                "residualScore": 8,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 16,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 25,
+                "residualScore": 12,
+                "residualLevel": "high",
+                "residualLabel": "High",
+                "riskTreatment": "treat",
+                "appetiteStatus": "Above risk appetite: Treat",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 20,
+                "inherentLevel": "very_high",
+                "inherentLabel": "Very High",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 20,
+                "inherentLevel": "very_high",
+                "inherentLabel": "Very High",
+                "ceModifier": 75,
+                "residualScore": 5,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 20,
+                "inherentLevel": "very_high",
+                "inherentLabel": "Very High",
+                "ceModifier": 50,
+                "residualScore": 10,
+                "residualLevel": "high",
+                "residualLabel": "High",
+                "riskTreatment": "treat",
+                "appetiteStatus": "Above risk appetite: Treat",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 4,
+            "likelihoodLabel": "Likely",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 20,
+                "inherentLevel": "very_high",
+                "inherentLabel": "Very High",
+                "ceModifier": 25,
+                "residualScore": 15,
+                "residualLevel": "high",
+                "residualLabel": "High",
+                "riskTreatment": "treat",
+                "appetiteStatus": "Above risk appetite: Treat",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 5,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 5,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 75,
+                "residualScore": 1.25,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 5,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 50,
+                "residualScore": 2.5,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 1,
+            "impactLabel": "Very Low",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 5,
+                "inherentLevel": "medium",
+                "inherentLabel": "Medium",
+                "ceModifier": 25,
+                "residualScore": 3.75,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 10,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 10,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 75,
+                "residualScore": 2.5,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 10,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 50,
+                "residualScore": 5,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 2,
+            "impactLabel": "Low",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 10,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 25,
+                "residualScore": 7.5,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 15,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 15,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 75,
+                "residualScore": 3.75,
+                "residualLevel": "low",
+                "residualLabel": "Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 15,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 50,
+                "residualScore": 7.5,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 3,
+            "impactLabel": "Medium",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 15,
+                "inherentLevel": "high",
+                "inherentLabel": "High",
+                "ceModifier": 25,
+                "residualScore": 11.25,
+                "residualLevel": "high",
+                "residualLabel": "High",
+                "riskTreatment": "treat",
+                "appetiteStatus": "Above risk appetite: Treat",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 20,
+                "inherentLevel": "very_high",
+                "inherentLabel": "Very High",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 20,
+                "inherentLevel": "very_high",
+                "inherentLabel": "Very High",
+                "ceModifier": 75,
+                "residualScore": 5,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 20,
+                "inherentLevel": "very_high",
+                "inherentLabel": "Very High",
+                "ceModifier": 50,
+                "residualScore": 10,
+                "residualLevel": "high",
+                "residualLabel": "High",
+                "riskTreatment": "treat",
+                "appetiteStatus": "Above risk appetite: Treat",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 4,
+            "impactLabel": "High",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 20,
+                "inherentLevel": "very_high",
+                "inherentLabel": "Very High",
+                "ceModifier": 25,
+                "residualScore": 15,
+                "residualLevel": "high",
+                "residualLabel": "High",
+                "riskTreatment": "treat",
+                "appetiteStatus": "Above risk appetite: Treat",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Fully Achieved",
+            "expected": {
+                "inherentScore": 25,
+                "inherentLevel": "very_high",
+                "inherentLabel": "Very High",
+                "ceModifier": 100,
+                "residualScore": 0,
+                "residualLevel": "very_low",
+                "residualLabel": "Very Low",
+                "riskTreatment": "accept",
+                "appetiteStatus": "Within risk appetite: Continue routine monitoring",
+                "actionPlanRequired": false
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Mostly Achieved",
+            "expected": {
+                "inherentScore": 25,
+                "inherentLevel": "very_high",
+                "inherentLabel": "Very High",
+                "ceModifier": 75,
+                "residualScore": 6.25,
+                "residualLevel": "medium",
+                "residualLabel": "Medium",
+                "riskTreatment": "mitigate",
+                "appetiteStatus": "Above risk appetite: Mitigate",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Partially Achieved",
+            "expected": {
+                "inherentScore": 25,
+                "inherentLevel": "very_high",
+                "inherentLabel": "Very High",
+                "ceModifier": 50,
+                "residualScore": 12.5,
+                "residualLevel": "high",
+                "residualLabel": "High",
+                "riskTreatment": "treat",
+                "appetiteStatus": "Above risk appetite: Treat",
+                "actionPlanRequired": true
+            }
+        },
+        {
+            "likelihood": 5,
+            "likelihoodLabel": "Almost Certain",
+            "impact": 5,
+            "impactLabel": "Very High",
+            "controlEffectiveness": "Not Achieved",
+            "expected": {
+                "inherentScore": 25,
+                "inherentLevel": "very_high",
+                "inherentLabel": "Very High",
+                "ceModifier": 25,
+                "residualScore": 18.75,
+                "residualLevel": "very_high",
+                "residualLabel": "Very High",
+                "riskTreatment": "treat",
+                "appetiteStatus": "Above risk appetite: Treat",
+                "actionPlanRequired": true
+            }
+        }
+    ]
+}

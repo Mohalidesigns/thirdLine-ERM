@@ -48,7 +48,7 @@ export default function Workspace({
     const warnings = validation?.warnings ?? [];
     const editable = assessment.editable && can.edit;
 
-    const post = (name, arg, data = {}) => router.post(tryRoute(name, arg), data, { preserveScroll: true });
+    const postTo = (url, data = {}) => router.post(url, data, { preserveScroll: true });
 
     return (
         <AppLayout title={`BIA — ${process.name ?? ''}`}>
@@ -63,19 +63,19 @@ export default function Workspace({
                             <button type="button" className="btn-secondary text-sm"
                                 title={ai.available ? undefined : ai.reason}
                                 disabled={!ai.available}
-                                onClick={() => post('bcms.bia.ai-draft', assessment.id)}>
+                                onClick={() => postTo(assessment.ai_draft_url)}>
                                 Draft with AI
                             </button>
                         )}
                         {editable && (
                             <button type="button" className="btn-primary text-sm" disabled={blocking.length > 0}
-                                onClick={() => post('bcms.bia.submit', assessment.id)}>
+                                onClick={() => postTo(assessment.submit_url)}>
                                 Submit for review
                             </button>
                         )}
                         {assessment.status === 'submitted' && can.approve_this && (
                             <button type="button" className="btn-primary text-sm"
-                                onClick={() => post('bcms.bia.approve', assessment.id)}>
+                                onClick={() => postTo(assessment.approve_url)}>
                                 Approve
                             </button>
                         )}
@@ -221,7 +221,7 @@ export default function Workspace({
                             ))}
                         </ul>
 
-                        {editable && <AddDependency assessmentId={assessment.id} options={options} />}
+                        {editable && <AddDependency dependenciesUrl={assessment.dependencies_url} options={options} />}
                     </div>
                 </section>
 
@@ -236,7 +236,7 @@ export default function Workspace({
                                 <p className="mt-1 text-xs text-gray-600">{derivedMtpd.rationale}</p>
                                 {editable && (
                                     <button type="button" className="btn-secondary mt-3 text-xs"
-                                        onClick={() => post('bcms.bia.accept-mtpd', assessment.id)}>
+                                        onClick={() => postTo(assessment.accept_mtpd_url)}>
                                         Use this as the MTPD
                                     </button>
                                 )}
@@ -302,7 +302,7 @@ export default function Workspace({
 
             {cell && (
                 <ImpactCellEditor
-                    assessmentId={assessment.id}
+                    impactsUrl={assessment.impacts_url}
                     cell={cell}
                     onClose={() => setCell(null)}
                 />
@@ -311,7 +311,7 @@ export default function Workspace({
     );
 }
 
-function ImpactCellEditor({ assessmentId, cell, onClose }) {
+function ImpactCellEditor({ impactsUrl, cell, onClose }) {
     const form = useForm({
         impact_category: cell.category,
         horizon: cell.horizon,
@@ -325,7 +325,7 @@ function ImpactCellEditor({ assessmentId, cell, onClose }) {
             <form
                 onSubmit={(e) => {
                     e.preventDefault();
-                    form.post(tryRoute('bcms.bia.impacts.store', assessmentId), { preserveScroll: true, onSuccess: onClose });
+                    form.post(impactsUrl, { preserveScroll: true, onSuccess: onClose });
                 }}
                 className="w-full max-w-lg space-y-4 rounded-lg bg-white p-6 shadow-lg"
             >
@@ -371,7 +371,7 @@ function ImpactCellEditor({ assessmentId, cell, onClose }) {
     );
 }
 
-function AddDependency({ assessmentId, options }) {
+function AddDependency({ dependenciesUrl, options }) {
     const form = useForm({
         dependable_type: options.types[0]?.value ?? '',
         dependable_id: '',
@@ -386,7 +386,7 @@ function AddDependency({ assessmentId, options }) {
 
     return (
         <form
-            onSubmit={(e) => { e.preventDefault(); form.post(tryRoute('bcms.bia.dependencies.store', assessmentId), { preserveScroll: true, onSuccess: () => form.reset('dependable_id', 'recovery_notes') }); }}
+            onSubmit={(e) => { e.preventDefault(); form.post(dependenciesUrl, { preserveScroll: true, onSuccess: () => form.reset('dependable_id', 'recovery_notes') }); }}
             className="mt-4 space-y-3 rounded border border-dashed border-gray-300 p-3"
         >
             <div className="flex flex-wrap gap-2">

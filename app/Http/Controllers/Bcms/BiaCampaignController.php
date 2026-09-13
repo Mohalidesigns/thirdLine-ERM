@@ -43,6 +43,14 @@ class BiaCampaignController extends Controller
                 'closes_at' => $c->closes_at?->toDateString(),
                 // The rate is frozen at close; before that it is live.
                 'response_rate' => $c->response_rate === null ? null : (float) $c->response_rate,
+                // Built here rather than from the row's numeric `id`:
+                // `BiaCampaign` route-binds on its `uuid` (HasBcmsUuid), and a
+                // client posting the id it was handed 404s. One home for the
+                // URL means a route-key change can never break this screen
+                // again (the TPRM Intake Queue defect, 2026-09-13).
+                'distribute_url' => route('bcms.bia-campaigns.distribute', $c),
+                'chase_url' => route('bcms.bia-campaigns.chase', $c),
+                'close_url' => route('bcms.bia-campaigns.close', $c),
             ])->all(),
             'selected' => $campaign?->getKey(),
             'progress' => $campaign === null ? null : $this->campaigns->progress($campaign),

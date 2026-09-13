@@ -79,6 +79,17 @@ class BiaWorkspacePresenter
                 'approver' => $assessment->approver?->name,
                 'assessor' => $assessment->assessor?->name,
                 'assessor_id' => $assessment->assessor_id,
+                // Built here rather than from the row's numeric `id`:
+                // `BiaAssessment` route-binds on its `uuid` (HasBcmsUuid), and
+                // a client posting the id it was handed 404s. One home for
+                // the URL means a route-key change can never break this
+                // screen again (the TPRM Intake Queue defect, 2026-09-13).
+                'ai_draft_url' => route('bcms.bia.ai-draft', $assessment),
+                'submit_url' => route('bcms.bia.submit', $assessment),
+                'approve_url' => route('bcms.bia.approve', $assessment),
+                'accept_mtpd_url' => route('bcms.bia.accept-mtpd', $assessment),
+                'impacts_url' => route('bcms.bia.impacts.store', $assessment),
+                'dependencies_url' => route('bcms.bia.dependencies.store', $assessment),
             ],
             'process' => [
                 'id' => $assessment->process?->getKey(),

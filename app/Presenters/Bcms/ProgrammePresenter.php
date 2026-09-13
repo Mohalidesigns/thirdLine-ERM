@@ -50,6 +50,11 @@ class ProgrammePresenter
             'obligations' => $programme === null ? [] : $this->obligations($programme),
             'policy' => $policy === null ? null : $this->policy($policy),
             'maturity' => $latestMaturity === null ? null : $this->maturity($latestMaturity),
+            // Not built from `$programme` — the maturity engine scores the
+            // whole organisation's artefacts, not one programme record, so
+            // `bcms.maturity.assess` takes no route parameter and this URL is
+            // the same whether or not a programme exists yet.
+            'maturity_assess_url' => route('bcms.maturity.assess'),
             'reviews' => $programme === null ? [] : $this->reviews($programme),
             'raci_gaps' => $this->raci->processGaps(),
             'can' => [
@@ -76,6 +81,14 @@ class ProgrammePresenter
             'owner' => $programme->owner?->name,
             'approved_by' => $programme->approver?->name,
             'approved_at' => $programme->approved_at?->toDateString(),
+            // Built here rather than from the row's numeric `id`: `Programme`
+            // route-binds on its `uuid` (HasBcmsUuid), and a client posting
+            // the id it was handed 404s. One home for the URL means a
+            // route-key change can never break this screen again (the TPRM
+            // Intake Queue defect, 2026-09-13).
+            'approve_url' => route('bcms.programme.approve', $programme),
+            'activate_url' => route('bcms.programme.activate', $programme),
+            'obligations_seed_url' => route('bcms.programme.obligations.seed', $programme),
         ];
     }
 

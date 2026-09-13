@@ -19,6 +19,7 @@ import tryRoute from '@thirdline/ui/lib/tryRoute';
 export default function Index({
     programme, objectives = [], scope = [], obligations = [], policy, maturity,
     reviews = [], raci_gaps: gaps, can = {}, business_units: units = [], processes = [],
+    maturity_assess_url: maturityAssessUrl,
 }) {
     const create = useForm({ name: '', year: new Date().getFullYear(), scope_statement: '', out_of_scope_statement: '' });
 
@@ -67,7 +68,7 @@ export default function Index({
         );
     }
 
-    const post = (name, arg) => router.post(tryRoute(name, arg), {}, { preserveScroll: true });
+    const postTo = (url) => router.post(url, {}, { preserveScroll: true });
 
     return (
         <AppLayout title="Programme governance">
@@ -80,11 +81,11 @@ export default function Index({
                     <div className="flex gap-2">
                         {can.approve && programme.status === 'draft' && (
                             <button type="button" className="btn-primary text-sm"
-                                onClick={() => post('bcms.programme.approve', programme.id)}>Approve</button>
+                                onClick={() => postTo(programme.approve_url)}>Approve</button>
                         )}
                         {can.approve && programme.status === 'approved' && (
                             <button type="button" className="btn-primary text-sm"
-                                onClick={() => post('bcms.programme.activate', programme.id)}>Activate</button>
+                                onClick={() => postTo(programme.activate_url)}>Activate</button>
                         )}
                     </div>
                 }
@@ -175,7 +176,7 @@ export default function Index({
                             <h2 className="text-sm font-semibold text-gray-900">Regulatory obligations</h2>
                             {can.manage && (
                                 <button type="button" className="btn-secondary text-sm"
-                                    onClick={() => post('bcms.programme.obligations.seed', programme.id)}>
+                                    onClick={() => postTo(programme.obligations_seed_url)}>
                                     {obligations.length === 0 ? 'Load the register' : 'Check for new obligations'}
                                 </button>
                             )}
@@ -213,7 +214,7 @@ export default function Index({
                         <div className="flex items-center justify-between">
                             <h2 className="text-sm font-semibold text-gray-900">Maturity</h2>
                             <button type="button" className="text-xs text-gray-600 underline"
-                                onClick={() => post('bcms.maturity.assess')}>Re-assess</button>
+                                onClick={() => postTo(maturityAssessUrl)}>Re-assess</button>
                         </div>
                         {!maturity ? (
                             <p className="mt-2 text-sm text-gray-500">

@@ -204,7 +204,7 @@ export default function Index({ findings, filters = {}, summary = {}, options = 
                             ))}
 
                             {can.manage && f.status === 'open' && (
-                                <AddAction findingId={f.id} users={options.users ?? []} />
+                                <AddAction storeActionUrl={f.store_action_url} users={options.users ?? []} />
                             )}
                         </div>
 
@@ -225,12 +225,12 @@ export default function Index({ findings, filters = {}, summary = {}, options = 
     );
 }
 
-function AddAction({ findingId, users }) {
+function AddAction({ storeActionUrl, users }) {
     const form = useForm({ title: '', owner_id: '', due_date: '', priority: 'medium' });
 
     return (
         <form
-            onSubmit={(e) => { e.preventDefault(); form.post(tryRoute('bcms.actions.store', findingId), { preserveScroll: true, onSuccess: () => form.reset() }); }}
+            onSubmit={(e) => { e.preventDefault(); form.post(storeActionUrl, { preserveScroll: true, onSuccess: () => form.reset() }); }}
             className="flex flex-wrap items-end gap-2 rounded border border-dashed border-gray-300 p-3"
         >
             <input className="min-w-48 flex-1 rounded border-gray-300 text-sm" placeholder="Corrective action"

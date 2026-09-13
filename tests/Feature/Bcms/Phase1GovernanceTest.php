@@ -35,8 +35,11 @@ use Database\Seeders\Bcms\BcmsReferenceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Inertia\Testing\AssertableInertia;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 use ThirdLine\Platform\Tenancy\TenantContext;
 
@@ -97,6 +100,20 @@ class Phase1GovernanceTest extends TestCase
             'organization_id' => $this->organization->id,
             'is_active' => true,
         ]);
+    }
+
+    /** @param  list<string>  $permissions */
+    private function userWith(array $permissions, string $email, string $roleName): User
+    {
+        $user = $this->user($email);
+
+        $role = Role::findOrCreate($roleName, 'web');
+        foreach ($permissions as $permission) {
+            $role->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+        }
+        $user->assignRole($role);
+
+        return $user;
     }
 
     private function programme(): Programme
@@ -968,5 +985,379 @@ class Phase1GovernanceTest extends TestCase
             "Another tenant's corrective action leaked across the boundary."
         );
         $this->assertSame(0, Finding::query()->count());
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  The 2026-09-13 route-key defect (BCMS twin of the TPRM one, 9e9f1de) */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * `Programme` route-binds on its `uuid` (`HasBcmsUuid`), but
+     * `Programme/Index.jsx` built `post('bcms.programme.approve',
+     * programme.id)` from the row's numeric id — a 404 verified over HTTP,
+     * because the model resolves nothing at that key. `ProgrammePresenter`
+     * now ships the URL itself, so the screen never has to guess it.
+     */
+    #[Test]
+    public function the_programme_screen_ships_approve_activate_and_obligations_seed_urls_bound_to_its_own_uuid(): void
+    {
+        $programme = $this->programme();
+        $viewer = $this->userWith(['bcms.view'], 'viewer@khb.test', 'bcms-viewer');
+
+        $this->actingAs($viewer)
+            ->get(route('bcms.programme.index'))
+            ->assertOk()
+            ->assertInertia(function (AssertableInertia $page) use ($programme) {
+                $page->component('Bcms/Programme/Index');
+
+                $row = $page->toArray()['props']['programme'];
+
+                $this->assertSame(route('bcms.programme.approve', $programme), $row['approve_url']);
+                $this->assertSame(route('bcms.programme.activate', $programme), $row['activate_url']);
+                $this->assertSame(route('bcms.programme.obligations.seed', $programme), $row['obligations_seed_url']);
+
+                // The defect this test exists to catch: the numeric id the
+                // row also carries is NOT what the route resolves against.
+                $this->assertNotSame((string) $programme->getKey(), (string) $programme->uuid);
+                $this->assertStringContainsString((string) $programme->uuid, $row['approve_url']);
+                $this->assertStringNotContainsString('/programme/'.$programme->getKey().'/', $row['approve_url']);
+            });
+    }
+
+    /**
+     * Gate 2, 2026-09-13: `Index.jsx` used to spend `bcms.maturity.assess`
+     * through a local `post(name, arg)` helper — `router.post(tryRoute(name,
+     * arg), ...)` — whose route NAME was itself a variable. That shape is
+     * invisible to a guard that only reads a literal string inside
+     * `route()`/`tryRoute()`, and it is exactly what let the pre-fix numeric
+     * `programme.id` calls (`post('bcms.programme.approve', programme.id)`)
+     * hide behind an indirection layer instead of being caught directly. The
+     * route itself takes no parameter (the maturity engine scores the whole
+     * organisation, not one programme), so there was never an id to spend —
+     * but the helper survived only because nothing needed it to spend one.
+     * Removed entirely: `maturity_assess_url` now comes from the presenter,
+     * same as every other action on this screen.
+     */
+    #[Test]
+    public function the_programme_screen_ships_a_maturity_assess_url_that_takes_no_programme_parameter(): void
+    {
+        $viewer = $this->userWith(['bcms.view', 'bcms.report.view'], 'maturity-viewer@khb.test', 'bcms-maturity-viewer');
+
+        $this->actingAs($viewer)
+            ->get(route('bcms.programme.index'))
+            ->assertOk()
+            ->assertInertia(function (AssertableInertia $page) {
+                $page->component('Bcms/Programme/Index');
+
+                $this->assertSame(route('bcms.maturity.assess'), $page->toArray()['props']['maturity_assess_url']);
+            });
+    }
+
+    #[Test]
+    public function posting_to_the_props_maturity_assess_url_records_a_maturity_assessment(): void
+    {
+        $assessor = $this->userWith(['bcms.view', 'bcms.report.view'], 'maturity-assessor@khb.test', 'bcms-maturity-assessor');
+
+        $this->assertSame(0, \App\Models\Bcms\MaturityAssessment::query()->count());
+
+        $maturityAssessUrl = $this->actingAs($assessor)
+            ->get(route('bcms.programme.index'))
+            ->viewData('page')['props']['maturity_assess_url'];
+
+        $this->actingAs($assessor)
+            ->post($maturityAssessUrl)
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(1, \App\Models\Bcms\MaturityAssessment::query()->count());
+    }
+
+    #[Test]
+    public function posting_to_the_props_approve_url_approves_the_programme(): void
+    {
+        $programme = $this->programme();
+        $manager = $this->userWith(['bcms.view', 'bcms.programme.approve'], 'programme-approver@khb.test', 'bcms-programme-approver');
+
+        $approveUrl = $this->actingAs($manager)
+            ->get(route('bcms.programme.index'))
+            ->viewData('page')['props']['programme']['approve_url'];
+
+        $this->actingAs($manager)
+            ->post($approveUrl)
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame('approved', $programme->fresh()->status);
+
+        $audit = AuditLog::where('auditable_type', Programme::class)
+            ->where('auditable_id', $programme->getKey())
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($audit);
+        $this->assertSame('approved', $audit->after['status'] ?? null);
+    }
+
+    #[Test]
+    public function posting_to_the_props_activate_url_activates_an_approved_programme(): void
+    {
+        $programme = $this->programme();
+        $manager = $this->userWith(['bcms.view', 'bcms.programme.approve'], 'programme-activator@khb.test', 'bcms-programme-activator');
+        app(ProgrammeService::class)->approve($programme, $this->approver->id);
+
+        $activateUrl = $this->actingAs($manager)
+            ->get(route('bcms.programme.index'))
+            ->viewData('page')['props']['programme']['activate_url'];
+
+        $this->actingAs($manager)
+            ->post($activateUrl)
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame('active', $programme->fresh()->status);
+
+        $audit = AuditLog::where('auditable_type', Programme::class)
+            ->where('auditable_id', $programme->getKey())
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($audit);
+        $this->assertSame('active', $audit->after['status'] ?? null);
+    }
+
+    #[Test]
+    public function posting_to_the_props_obligations_seed_url_seeds_the_register(): void
+    {
+        $programme = $this->programme();
+        $manager = $this->userWith(['bcms.view', 'bcms.programme.manage'], 'obligations-manager@khb.test', 'bcms-obligations-manager');
+
+        $this->assertSame(0, ProgrammeObligation::query()->where('programme_id', $programme->getKey())->count());
+
+        $seedUrl = $this->actingAs($manager)
+            ->get(route('bcms.programme.index'))
+            ->viewData('page')['props']['programme']['obligations_seed_url'];
+
+        $this->actingAs($manager)
+            ->post($seedUrl)
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertGreaterThan(0, ProgrammeObligation::query()->where('programme_id', $programme->getKey())->count());
+
+        // Documented gap, not an oversight of this test: `ProgrammeObligation`
+        // carries no `BcmsAuditable` (see app/Models/Bcms/ProgrammeObligation.php),
+        // so seeding the register writes NO audit row anywhere today —
+        // tracked follow-up: add BcmsAuditable to BiaImpact, Dependency,
+        // ProgrammeObligation.
+        $this->assertSame(
+            0,
+            AuditLog::where('auditable_type', ProgrammeObligation::class)->count(),
+            'ProgrammeObligation has no BcmsAuditable — asserted explicitly so a future audit trail add updates this test.'
+        );
+    }
+
+    #[Test]
+    public function a_user_of_another_tenant_posting_to_the_same_shipped_programme_approve_url_gets_404(): void
+    {
+        $programme = $this->programme();
+        $manager = $this->userWith(['bcms.view', 'bcms.programme.approve'], 'cross-tenant-approver@khb.test', 'bcms-cross-tenant-approver');
+
+        $approveUrl = $this->actingAs($manager)
+            ->get(route('bcms.programme.index'))
+            ->viewData('page')['props']['programme']['approve_url'];
+
+        $foreignOrg = Organization::create([
+            'name' => 'Another Bank PLC', 'short_name' => 'ABP',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        $foreignUser = User::create([
+            'name' => 'Foreign Approver', 'email' => 'approver@abp.test',
+            'password' => Hash::make(Str::random(32)), 'email_verified_at' => now(),
+            'organization_id' => $foreignOrg->id, 'is_active' => true,
+        ]);
+        $role = Role::findOrCreate('bcms-foreign-approver', 'web');
+        $role->givePermissionTo(Permission::findOrCreate('bcms.programme.approve', 'web'));
+        $role->givePermissionTo(Permission::findOrCreate('bcms.view', 'web'));
+        $foreignUser->assignRole($role);
+
+        $this->actingAs($foreignUser)
+            ->post($approveUrl)
+            ->assertNotFound();
+
+        $this->assertSame(
+            'draft',
+            $programme->fresh()->status,
+            'A cross-tenant post to the shipped approve_url must not approve the programme.'
+        );
+    }
+
+    #[Test]
+    public function a_user_of_another_tenant_posting_to_the_same_shipped_programme_activate_url_gets_404(): void
+    {
+        $programme = $this->programme();
+        app(ProgrammeService::class)->approve($programme, $this->approver->id);
+        $manager = $this->userWith(['bcms.view', 'bcms.programme.approve'], 'cross-tenant-activator@khb.test', 'bcms-cross-tenant-activator');
+
+        $activateUrl = $this->actingAs($manager)
+            ->get(route('bcms.programme.index'))
+            ->viewData('page')['props']['programme']['activate_url'];
+
+        $foreignOrg = Organization::create([
+            'name' => 'Fifth Bank PLC', 'short_name' => 'FBP2',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+        $foreignUser = User::create([
+            'name' => 'Foreign Activator', 'email' => 'activator@fbp2.test',
+            'password' => Hash::make(Str::random(32)), 'email_verified_at' => now(),
+            'organization_id' => $foreignOrg->id, 'is_active' => true,
+        ]);
+        $role = Role::findOrCreate('bcms-foreign-activator', 'web');
+        $role->givePermissionTo(Permission::findOrCreate('bcms.programme.approve', 'web'));
+        $role->givePermissionTo(Permission::findOrCreate('bcms.view', 'web'));
+        $foreignUser->assignRole($role);
+
+        $this->actingAs($foreignUser)
+            ->post($activateUrl)
+            ->assertNotFound();
+
+        $this->assertSame(
+            'approved',
+            $programme->fresh()->status,
+            'A cross-tenant post to the shipped activate_url must not activate the programme.'
+        );
+    }
+
+    #[Test]
+    public function a_user_of_another_tenant_posting_to_the_same_shipped_obligations_seed_url_gets_404(): void
+    {
+        $programme = $this->programme();
+        $manager = $this->userWith(['bcms.view', 'bcms.programme.manage'], 'cross-tenant-obligations-manager@khb.test', 'bcms-cross-tenant-obligations-manager');
+
+        $seedUrl = $this->actingAs($manager)
+            ->get(route('bcms.programme.index'))
+            ->viewData('page')['props']['programme']['obligations_seed_url'];
+
+        $foreignOrg = Organization::create([
+            'name' => 'Sixth Bank PLC', 'short_name' => 'SBP',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+        $foreignUser = User::create([
+            'name' => 'Foreign Obligations Manager', 'email' => 'obligations@sbp.test',
+            'password' => Hash::make(Str::random(32)), 'email_verified_at' => now(),
+            'organization_id' => $foreignOrg->id, 'is_active' => true,
+        ]);
+        $role = Role::findOrCreate('bcms-foreign-obligations-manager', 'web');
+        $role->givePermissionTo(Permission::findOrCreate('bcms.programme.manage', 'web'));
+        $role->givePermissionTo(Permission::findOrCreate('bcms.view', 'web'));
+        $foreignUser->assignRole($role);
+
+        $this->actingAs($foreignUser)
+            ->post($seedUrl)
+            ->assertNotFound();
+
+        $this->assertSame(
+            'draft',
+            $programme->fresh()->status,
+            'A cross-tenant post to the shipped obligations_seed_url must not touch the programme.'
+        );
+        $this->assertSame(
+            0,
+            ProgrammeObligation::query()->where('programme_id', $programme->getKey())->count(),
+            'A cross-tenant post to the shipped obligations_seed_url must not seed the register.'
+        );
+    }
+
+    /**
+     * `Finding` route-binds on its `uuid` (`HasBcmsUuid`), but
+     * `Findings/Index.jsx` built `form.post(tryRoute('bcms.actions.store',
+     * findingId))` from the row's numeric id via an intermediate `findingId`
+     * prop (`findingId={f.id}`) — a 404 verified over HTTP, indirection the
+     * first sweep missed because the identifier travels through a variable
+     * rather than sitting inline. `FindingController::shape()` now ships
+     * `store_action_url` itself.
+     */
+    #[Test]
+    public function the_findings_screen_ships_a_store_action_url_bound_to_the_findings_own_uuid(): void
+    {
+        $finding = $this->raiseNonconformity();
+        $viewer = $this->userWith(['bcms.finding.view'], 'findings-viewer@khb.test', 'bcms-findings-viewer');
+
+        $this->actingAs($viewer)
+            ->get(route('bcms.findings.index'))
+            ->assertOk()
+            ->assertInertia(function (AssertableInertia $page) use ($finding) {
+                $page->component('Bcms/Findings/Index')->has('findings.data', 1);
+
+                $row = $page->toArray()['props']['findings']['data'][0];
+
+                $this->assertSame(route('bcms.actions.store', $finding), $row['store_action_url']);
+                $this->assertNotSame((string) $finding->getKey(), (string) $finding->uuid);
+                $this->assertStringContainsString((string) $finding->uuid, $row['store_action_url']);
+                $this->assertStringNotContainsString('/findings/'.$finding->getKey().'/', $row['store_action_url']);
+            });
+    }
+
+    #[Test]
+    public function posting_to_the_props_store_action_url_raises_a_corrective_action(): void
+    {
+        $finding = $this->raiseNonconformity();
+        $manager = $this->userWith(['bcms.finding.view', 'bcms.finding.manage'], 'action-manager@khb.test', 'bcms-action-manager');
+
+        $storeActionUrl = $this->actingAs($manager)
+            ->get(route('bcms.findings.index'))
+            ->viewData('page')['props']['findings']['data'][0]['store_action_url'];
+
+        $this->actingAs($manager)
+            ->post($storeActionUrl, ['title' => 'Diversify the network path', 'owner_id' => $this->doer->id])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(
+            1,
+            \App\Models\Bcms\CorrectiveAction::query()->where('finding_id', $finding->getKey())->count()
+        );
+
+        $action = \App\Models\Bcms\CorrectiveAction::query()->where('finding_id', $finding->getKey())->firstOrFail();
+        $audit = AuditLog::where('auditable_type', \App\Models\Bcms\CorrectiveAction::class)
+            ->where('auditable_id', $action->getKey())
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($audit, 'CorrectiveAction carries BcmsAuditable; creating one must write a row.');
+        $this->assertSame('created', $audit->event);
+    }
+
+    #[Test]
+    public function a_user_of_another_tenant_posting_to_the_same_shipped_store_action_url_gets_404(): void
+    {
+        $finding = $this->raiseNonconformity();
+        $manager = $this->userWith(['bcms.finding.view', 'bcms.finding.manage'], 'cross-tenant-action-manager@khb.test', 'bcms-cross-tenant-action-manager');
+
+        $storeActionUrl = $this->actingAs($manager)
+            ->get(route('bcms.findings.index'))
+            ->viewData('page')['props']['findings']['data'][0]['store_action_url'];
+
+        $foreignOrg = Organization::create([
+            'name' => 'Third Bank PLC', 'short_name' => 'TBP',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        $foreignUser = User::create([
+            'name' => 'Foreign Manager', 'email' => 'manager@tbp.test',
+            'password' => Hash::make(Str::random(32)), 'email_verified_at' => now(),
+            'organization_id' => $foreignOrg->id, 'is_active' => true,
+        ]);
+        $role = Role::findOrCreate('bcms-foreign-action-manager', 'web');
+        $role->givePermissionTo(Permission::findOrCreate('bcms.finding.manage', 'web'));
+        $role->givePermissionTo(Permission::findOrCreate('bcms.finding.view', 'web'));
+        $foreignUser->assignRole($role);
+
+        $this->actingAs($foreignUser)
+            ->post($storeActionUrl, ['title' => 'Not our finding to act on'])
+            ->assertNotFound();
+
+        $this->assertSame(
+            0,
+            \App\Models\Bcms\CorrectiveAction::query()->where('finding_id', $finding->getKey())->count(),
+            'A cross-tenant post to the shipped store_action_url must not create a corrective action.'
+        );
     }
 }

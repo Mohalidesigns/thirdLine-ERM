@@ -12,6 +12,7 @@ use App\Models\Bcms\Dependency;
 use App\Models\Bcms\Process;
 use App\Models\Bcms\Site;
 use App\Models\BusinessUnit;
+use App\Models\LlmUsageEvent;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Bcms\BcmsSettings;
@@ -24,10 +25,14 @@ use Database\Seeders\Bcms\BcmsReferenceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Inertia\Testing\AssertableInertia;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 use ThirdLine\Platform\Tenancy\TenantContext;
 
@@ -92,6 +97,20 @@ class Phase2BiaEngineTest extends TestCase
             'password' => Hash::make(Str::random(32)), 'email_verified_at' => now(),
             'organization_id' => $this->organization->id, 'is_active' => true,
         ]);
+    }
+
+    /** @param  list<string>  $permissions */
+    private function userWith(array $permissions, string $email, string $roleName): User
+    {
+        $user = $this->user($email);
+
+        $role = Role::findOrCreate($roleName, 'web');
+        foreach ($permissions as $permission) {
+            $role->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+        }
+        $user->assignRole($role);
+
+        return $user;
     }
 
     /** @param array<string, mixed> $attributes */
@@ -1146,6 +1165,565 @@ class Phase2BiaEngineTest extends TestCase
         // still see (bcms_applications is per-tenant, so this also confirms
         // the application itself does not leak).
         $this->assertNull(Application::query()->find($theirApp->id));
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  The 2026-09-13 route-key defect (BCMS twin of the TPRM one, 9e9f1de) */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * `BiaAssessment` route-binds on its `uuid` (`HasBcmsUuid`), but
+     * `Bia/Workspace.jsx` built every action button — Draft with AI, Submit,
+     * Approve, "Use this as the MTPD" — from the row's numeric `assessment.id`,
+     * and the impact-cell editor and the add-dependency form from an
+     * `assessmentId` prop fed by that same `.id` — a 404 verified over HTTP.
+     * `BiaWorkspacePresenter` now ships every one of these URLs itself.
+     */
+    #[Test]
+    public function the_bia_workspace_ships_action_urls_bound_to_the_assessments_own_uuid(): void
+    {
+        $assessment = $this->assessment($this->process('BCP-URLS'));
+        $viewer = $this->userWith(['bcms.bia.view'], 'bia-viewer@khb.test', 'bcms-bia-viewer');
+
+        $this->actingAs($viewer)
+            ->get(route('bcms.bia.show', $assessment))
+            ->assertOk()
+            ->assertInertia(function (AssertableInertia $page) use ($assessment) {
+                $page->component('Bcms/Bia/Workspace');
+
+                $row = $page->toArray()['props']['assessment'];
+
+                $this->assertSame(route('bcms.bia.ai-draft', $assessment), $row['ai_draft_url']);
+                $this->assertSame(route('bcms.bia.submit', $assessment), $row['submit_url']);
+                $this->assertSame(route('bcms.bia.approve', $assessment), $row['approve_url']);
+                $this->assertSame(route('bcms.bia.accept-mtpd', $assessment), $row['accept_mtpd_url']);
+                $this->assertSame(route('bcms.bia.impacts.store', $assessment), $row['impacts_url']);
+                $this->assertSame(route('bcms.bia.dependencies.store', $assessment), $row['dependencies_url']);
+
+                // The defect this test exists to catch: the numeric id the
+                // row also carries is NOT what any of these routes resolve
+                // against.
+                $this->assertNotSame((string) $assessment->getKey(), (string) $assessment->uuid);
+                foreach (['ai_draft_url', 'submit_url', 'approve_url', 'accept_mtpd_url', 'impacts_url', 'dependencies_url'] as $key) {
+                    $this->assertStringContainsString((string) $assessment->uuid, $row[$key]);
+                    $this->assertStringNotContainsString('/'.$assessment->getKey().'/', $row[$key]);
+                }
+            });
+    }
+
+    #[Test]
+    public function posting_to_the_props_submit_url_submits_the_assessment(): void
+    {
+        $assessment = $this->assessment($this->process('BCP-SUBMIT-URL'));
+        app(BiaAssessmentService::class)->save($assessment, ['mtpd_hours' => 24, 'rto_hours' => 4]);
+        $completer = $this->userWith(['bcms.bia.view', 'bcms.bia.complete'], 'submit-url-user@khb.test', 'bcms-submit-url-user');
+
+        $submitUrl = $this->actingAs($completer)
+            ->get(route('bcms.bia.show', $assessment))
+            ->viewData('page')['props']['assessment']['submit_url'];
+
+        $this->actingAs($completer)
+            ->post($submitUrl)
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(BiaAssessmentStatus::Submitted, $assessment->fresh()->status);
+
+        $audit = \App\Models\Bcms\AuditLog::where('auditable_type', BiaAssessment::class)
+            ->where('auditable_id', $assessment->getKey())
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($audit);
+        $this->assertSame(BiaAssessmentStatus::Submitted->value, $audit->after['status'] ?? null);
+    }
+
+    #[Test]
+    public function posting_to_the_props_impacts_url_scores_an_impact(): void
+    {
+        $assessment = $this->assessment($this->process('BCP-IMPACTS-URL'));
+        $completer = $this->userWith(['bcms.bia.view', 'bcms.bia.complete'], 'impacts-url-user@khb.test', 'bcms-impacts-url-user');
+
+        $impactsUrl = $this->actingAs($completer)
+            ->get(route('bcms.bia.show', $assessment))
+            ->viewData('page')['props']['assessment']['impacts_url'];
+
+        $this->actingAs($completer)
+            ->post($impactsUrl, [
+                'impact_category' => ImpactCategory::Customer->value,
+                'horizon' => ImpactHorizon::W2->value,
+                'severity_score' => 3,
+                'narrative' => 'Customers notice within two weeks.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $impact = $assessment->impacts()->where('impact_category', ImpactCategory::Customer->value)
+            ->where('horizon', ImpactHorizon::W2->value)->first();
+        $this->assertNotNull($impact);
+        $this->assertSame(3, $impact->severity_score);
+
+        // Documented gap, not an oversight of this test: `BiaImpact` carries
+        // no `BcmsAuditable` (see app/Models/Bcms/BiaImpact.php), and a single
+        // sub-threshold score does not move `BiaAssessment::derived_mtpd_hours`
+        // either, so scoring an impact writes NO audit row anywhere today —
+        // tracked follow-up: add BcmsAuditable to BiaImpact, Dependency,
+        // ProgrammeObligation.
+        $this->assertSame(
+            0,
+            \App\Models\Bcms\AuditLog::where('auditable_type', \App\Models\Bcms\BiaImpact::class)->count(),
+            'BiaImpact has no BcmsAuditable — asserted explicitly so a future audit trail add updates this test.'
+        );
+    }
+
+    #[Test]
+    public function posting_to_the_props_dependencies_url_attaches_a_dependency(): void
+    {
+        $assessment = $this->assessment($this->process('BCP-DEPS-URL'));
+        $application = Application::query()->create(['code' => 'APP-DEP-URL', 'name' => 'Core Banking']);
+        $completer = $this->userWith(['bcms.bia.view', 'bcms.bia.complete'], 'deps-url-user@khb.test', 'bcms-deps-url-user');
+
+        $dependenciesUrl = $this->actingAs($completer)
+            ->get(route('bcms.bia.show', $assessment))
+            ->viewData('page')['props']['assessment']['dependencies_url'];
+
+        $this->actingAs($completer)
+            ->post($dependenciesUrl, [
+                'dependable_type' => DependencyType::Applications->value,
+                'dependable_id' => $application->getKey(),
+                'dependency_type' => 'upstream',
+                'criticality' => 'critical',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(
+            1,
+            Dependency::query()->where('assessment_id', $assessment->getKey())
+                ->where('dependable_type', DependencyType::Applications->value)
+                ->where('dependable_id', $application->getKey())
+                ->count()
+        );
+
+        // Documented gap, not an oversight of this test: `Dependency` carries
+        // no `BcmsAuditable` (see app/Models/Bcms/Dependency.php), and
+        // `DependencyService::attach()` touches nothing else, so attaching a
+        // dependency writes NO audit row anywhere today — tracked follow-up:
+        // add BcmsAuditable to BiaImpact, Dependency, ProgrammeObligation.
+        $this->assertSame(
+            0,
+            \App\Models\Bcms\AuditLog::where('auditable_type', Dependency::class)->count(),
+            'Dependency has no BcmsAuditable — asserted explicitly so a future audit trail add updates this test.'
+        );
+    }
+
+    /**
+     * `bia.approve` had no props-driven positive test before this cycle —
+     * only the ships-the-urls assertion and the "cannot approve your own
+     * assessment" service-level test existed.
+     */
+    #[Test]
+    public function posting_to_the_props_approve_url_approves_the_assessment(): void
+    {
+        $assessment = $this->assessment($this->process('BCP-APPROVE-URL'));
+        app(BiaAssessmentService::class)->save($assessment, ['mtpd_hours' => 24, 'rto_hours' => 4]);
+        app(BiaAssessmentService::class)->submit($assessment->refresh());
+        $approver = $this->userWith(['bcms.bia.view', 'bcms.bia.approve'], 'approve-url-user@khb.test', 'bcms-approve-url-user');
+
+        $approveUrl = $this->actingAs($approver)
+            ->get(route('bcms.bia.show', $assessment))
+            ->viewData('page')['props']['assessment']['approve_url'];
+
+        $this->actingAs($approver)
+            ->post($approveUrl)
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $assessment->refresh();
+        $this->assertSame(BiaAssessmentStatus::Approved, $assessment->status);
+        $this->assertSame($approver->id, (int) $assessment->approved_by);
+
+        $audit = \App\Models\Bcms\AuditLog::where('auditable_type', BiaAssessment::class)
+            ->where('auditable_id', $assessment->getKey())
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($audit);
+        $this->assertSame(BiaAssessmentStatus::Approved->value, $audit->after['status'] ?? null);
+    }
+
+    /**
+     * `accept-mtpd` had no props-driven positive test before this cycle —
+     * `the_accept_mtpd_route_flashes_a_message_that_tells_the_two_null_cases_
+     * apart` above exercises only the two REFUSAL paths, both via `route()`
+     * directly.
+     */
+    #[Test]
+    public function posting_to_the_props_accept_mtpd_url_records_the_derived_mtpd_as_the_answer(): void
+    {
+        $assessment = $this->assessment($this->process('BCP-ACCEPT-MTPD-URL'));
+        $completer = $this->userWith(['bcms.bia.view', 'bcms.bia.complete'], 'accept-mtpd-url-user@khb.test', 'bcms-accept-mtpd-url-user');
+
+        // Regulatory reaches the tenant's intolerable score (4) at 4h — the
+        // same recipe as the_mtpd_is_derived_from_the_first_horizon test.
+        app(BiaAssessmentService::class)->scoreImpact($assessment, ImpactCategory::Regulatory, ImpactHorizon::H4, 4);
+        $assessment->refresh();
+        $this->assertSame('4.00', (string) $assessment->derived_mtpd_hours, 'Precondition: the grid derived a proposal.');
+        $this->assertNull($assessment->mtpd_hours, 'Precondition: nothing accepted yet.');
+
+        $acceptMtpdUrl = $this->actingAs($completer)
+            ->get(route('bcms.bia.show', $assessment))
+            ->viewData('page')['props']['assessment']['accept_mtpd_url'];
+
+        $this->actingAs($completer)
+            ->post($acceptMtpdUrl)
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $assessment->refresh();
+        $this->assertSame('4.00', (string) $assessment->mtpd_hours);
+
+        $audit = \App\Models\Bcms\AuditLog::where('auditable_type', BiaAssessment::class)
+            ->where('auditable_id', $assessment->getKey())
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($audit);
+        $this->assertSame('4.00', (string) ($audit->after['mtpd_hours'] ?? null));
+    }
+
+    /**
+     * `ai_draft_url` was asserted equal to `route()` but never posted to.
+     * Faking the gateway's HTTP calls the way `BcmsLlmGatewayTest` does, so
+     * this exercises the full controller → `BiaAiDrafter` → `BcmsLlmClient`
+     * path rather than stubbing the drafter itself. `Http::preventStrayRequests()`
+     * makes sure the fake above is the ONLY network path this test can take —
+     * an unfaked endpoint fails loudly instead of this test silently talking
+     * to a real host. The gateway's own ledger (ADR 0015 §9) is asserted too,
+     * the same way `BcmsLlmGatewayTest::a_successful_call_returns_the_same_
+     * shape_as_before` does: a draft that updates the assessment but leaves
+     * no `LlmUsageEvent` row would be invisible to cost and usage reporting.
+     */
+    #[Test]
+    public function posting_to_the_props_ai_draft_url_drafts_and_flags_it_as_ai_generated(): void
+    {
+        Http::preventStrayRequests();
+
+        config()->set('services.llm.enabled', true);
+        config()->set('bcms.ai.capabilities.bia_draft', true);
+        config()->set('llm.default_profile', 'local-ollama');
+        config()->set('llm.profiles', [
+            'local-ollama' => [
+                'label' => 'Local model', 'endpoint' => 'http://localhost:11434', 'model' => 'granite4:micro',
+                'keep_alive' => '30m', 'unit_cost_per_1k_tokens_minor' => null, 'currency' => null,
+            ],
+        ]);
+        app(BcmsSettings::class)->update(['ai_enabled' => true], $this->organization->id);
+
+        Http::fake([
+            '*/api/tags' => Http::response(['models' => []], 200),
+            '*/api/generate' => Http::response([
+                'response' => json_encode([
+                    'mtpd_hours' => 8, 'rto_hours' => 2, 'rpo_minutes' => 15,
+                    'mbco' => 'Process cheque deposits only.',
+                    'reasoning' => ['mtpd_hours' => 'Regulatory reporting fails after 8 hours.'],
+                    'impacts' => [], 'challenge_questions' => ['Is 8 hours realistic given the manual workaround?'],
+                ]),
+                'prompt_eval_count' => 40, 'eval_count' => 20,
+            ], 200),
+        ]);
+
+        $assessment = $this->assessment($this->process('BCP-AI-DRAFT-URL'));
+        $completer = $this->userWith(['bcms.bia.view', 'bcms.bia.complete'], 'ai-draft-url-user@khb.test', 'bcms-ai-draft-url-user');
+
+        $aiDraftUrl = $this->actingAs($completer)
+            ->get(route('bcms.bia.show', $assessment))
+            ->viewData('page')['props']['assessment']['ai_draft_url'];
+
+        $this->actingAs($completer)
+            ->post($aiDraftUrl)
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $assessment->refresh();
+        $this->assertTrue((bool) $assessment->ai_generated);
+        $this->assertNotNull($assessment->ai_drafted_at);
+        $this->assertSame('8.00', (string) $assessment->mtpd_hours);
+
+        $audit = \App\Models\Bcms\AuditLog::where('auditable_type', BiaAssessment::class)
+            ->where('auditable_id', $assessment->getKey())
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($audit);
+        $this->assertSame(true, $audit->after['ai_generated'] ?? null);
+
+        // ADR 0015 §9 — BCMS's AI drafters run through the shared gateway,
+        // which keeps its own usage ledger regardless of what the caller
+        // does with the result.
+        $usage = LlmUsageEvent::withoutGlobalScopes()
+            ->where('organization_id', $this->organization->id)
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($usage, 'A successful AI draft must leave a row in the gateway\'s usage ledger.');
+        $this->assertSame('bcms', $usage->module);
+        $this->assertSame('succeeded', $usage->outcome->value);
+    }
+
+    #[Test]
+    public function a_user_of_another_tenant_posting_to_the_shipped_bia_workspace_urls_gets_404_and_changes_nothing(): void
+    {
+        $assessment = $this->assessment($this->process('BCP-CROSS-TENANT-URL'));
+        app(BiaAssessmentService::class)->save($assessment, ['mtpd_hours' => 24, 'rto_hours' => 4]);
+        $statusBeforeForeignPosts = $assessment->refresh()->status;
+        $viewer = $this->userWith(
+            ['bcms.bia.view', 'bcms.bia.complete', 'bcms.bia.approve'],
+            'cross-tenant-viewer@khb.test',
+            'bcms-cross-tenant-viewer',
+        );
+
+        $row = $this->actingAs($viewer)
+            ->get(route('bcms.bia.show', $assessment))
+            ->viewData('page')['props']['assessment'];
+
+        $foreignOrg = Organization::create([
+            'name' => 'Another Bank PLC', 'short_name' => 'ABP2',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+        $foreignUser = User::create([
+            'name' => 'Foreign Assessor', 'email' => 'assessor@abp2.test',
+            'password' => Hash::make(Str::random(32)), 'email_verified_at' => now(),
+            'organization_id' => $foreignOrg->id, 'is_active' => true,
+        ]);
+        $role = Role::findOrCreate('bcms-foreign-assessor', 'web');
+        foreach (['bcms.bia.view', 'bcms.bia.complete', 'bcms.bia.approve'] as $permission) {
+            $role->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+        }
+        $foreignUser->assignRole($role);
+
+        $this->actingAs($foreignUser)->post($row['submit_url'])->assertNotFound();
+        $this->actingAs($foreignUser)->post($row['approve_url'])->assertNotFound();
+        $this->actingAs($foreignUser)->post($row['accept_mtpd_url'])->assertNotFound();
+        $this->actingAs($foreignUser)->post($row['ai_draft_url'])->assertNotFound();
+        $this->actingAs($foreignUser)->post($row['impacts_url'], [
+            'impact_category' => ImpactCategory::Customer->value,
+            'horizon' => ImpactHorizon::W2->value,
+            'severity_score' => 3,
+        ])->assertNotFound();
+        $this->actingAs($foreignUser)->post($row['dependencies_url'], [
+            'dependable_type' => DependencyType::Applications->value,
+            'dependable_id' => 1,
+            'dependency_type' => 'upstream',
+            'criticality' => 'critical',
+        ])->assertNotFound();
+
+        $this->assertSame(
+            $statusBeforeForeignPosts,
+            $assessment->fresh()->status,
+            'A cross-tenant post to any shipped BIA workspace URL must not change the assessment.'
+        );
+        $this->assertFalse((bool) $assessment->fresh()->ai_generated, 'A cross-tenant post to ai_draft_url must not draft the assessment.');
+        $this->assertSame(0, $assessment->impacts()->count());
+        $this->assertSame(0, Dependency::query()->where('assessment_id', $assessment->getKey())->count());
+    }
+
+    /**
+     * `BiaCampaign` route-binds on its `uuid` (`HasBcmsUuid`), but
+     * `Bia/Campaigns.jsx` built Distribute, Chase now and Close from the row's
+     * numeric `campaign.id` — a 404 verified over HTTP.
+     * `BiaCampaignController::index()` now ships all three URLs itself.
+     */
+    #[Test]
+    public function the_campaign_dashboard_ships_distribute_chase_and_close_urls_bound_to_its_own_uuid(): void
+    {
+        $campaign = app(BiaCampaignService::class)->create(['name' => 'URL Campaign', 'closes_at' => now()->addWeeks(2)]);
+        $viewer = $this->userWith(['bcms.bia.view'], 'campaign-viewer@khb.test', 'bcms-campaign-viewer');
+
+        $this->actingAs($viewer)
+            ->get(route('bcms.bia-campaigns.index', ['campaign' => $campaign->getKey()]))
+            ->assertOk()
+            ->assertInertia(function (AssertableInertia $page) use ($campaign) {
+                $page->component('Bcms/Bia/Campaigns');
+
+                $row = collect($page->toArray()['props']['campaigns'])->firstWhere('id', $campaign->getKey());
+
+                $this->assertSame(route('bcms.bia-campaigns.distribute', $campaign), $row['distribute_url']);
+                $this->assertSame(route('bcms.bia-campaigns.chase', $campaign), $row['chase_url']);
+                $this->assertSame(route('bcms.bia-campaigns.close', $campaign), $row['close_url']);
+
+                $this->assertNotSame((string) $campaign->getKey(), (string) $campaign->uuid);
+                $this->assertStringContainsString((string) $campaign->uuid, $row['distribute_url']);
+                $this->assertStringNotContainsString('/bia-campaigns/'.$campaign->getKey().'/', $row['distribute_url']);
+            });
+    }
+
+    #[Test]
+    public function posting_to_the_props_distribute_url_distributes_the_campaign(): void
+    {
+        $this->process('BCP-CAMP-DIST', ['owner_id' => $this->assessor->id]);
+        $campaign = app(BiaCampaignService::class)->create(['name' => 'Distribute URL Campaign', 'closes_at' => now()->addWeeks(2)]);
+        $manager = $this->userWith(['bcms.bia.view', 'bcms.bia.campaign.manage'], 'distribute-manager@khb.test', 'bcms-distribute-manager');
+
+        $distributeUrl = $this->actingAs($manager)
+            ->get(route('bcms.bia-campaigns.index', ['campaign' => $campaign->getKey()]))
+            ->viewData('page')['props']['campaigns'][0]['distribute_url'];
+
+        $this->actingAs($manager)
+            ->post($distributeUrl)
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertGreaterThan(0, BiaAssessment::query()->where('campaign_id', $campaign->getKey())->count());
+        $this->assertSame('open', $campaign->fresh()->status);
+
+        $audit = \App\Models\Bcms\AuditLog::where('auditable_type', \App\Models\Bcms\BiaCampaign::class)
+            ->where('auditable_id', $campaign->getKey())
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($audit, 'BiaCampaign carries BcmsAuditable; distribute() updates its status and must write a row.');
+        $this->assertSame('open', $audit->after['status'] ?? null);
+    }
+
+    #[Test]
+    public function posting_to_the_props_chase_url_chases_the_campaign(): void
+    {
+        $owner = $this->user('chase-owner@khb.test');
+        $this->process('BCP-CAMP-CHASE', ['owner_id' => $owner->id]);
+        $campaigns = app(BiaCampaignService::class);
+        $campaign = $campaigns->create(['name' => 'Chase URL Campaign', 'closes_at' => now()->subDay()]);
+        $campaigns->distribute($campaign);
+        $manager = $this->userWith(['bcms.bia.view', 'bcms.bia.campaign.manage'], 'chase-manager@khb.test', 'bcms-chase-manager');
+
+        $assessment = BiaAssessment::query()->where('campaign_id', $campaign->getKey())->firstOrFail();
+        $this->assertSame(0, (int) $assessment->chase_count, 'Precondition: never chased yet.');
+        $this->assertNull($assessment->chased_at, 'Precondition: never chased yet.');
+
+        $chaseUrl = $this->actingAs($manager)
+            ->get(route('bcms.bia-campaigns.index', ['campaign' => $campaign->getKey()]))
+            ->viewData('page')['props']['campaigns'][0]['chase_url'];
+
+        $this->actingAs($manager)
+            ->post($chaseUrl)
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $assessment->refresh();
+        $this->assertSame(1, (int) $assessment->chase_count, 'chase() must increment chase_count on the overdue assessment.');
+        $this->assertNotNull($assessment->chased_at, 'chase() must stamp chased_at on the overdue assessment.');
+        $this->assertTrue($assessment->chased_at->isToday());
+
+        $audit = \App\Models\Bcms\AuditLog::where('auditable_type', BiaAssessment::class)
+            ->where('auditable_id', $assessment->getKey())
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($audit, 'BiaAssessment carries BcmsAuditable; chase() changes chased_at/chase_count and must write a row.');
+        $this->assertArrayHasKey('chase_count', $audit->after ?? []);
+        $this->assertSame(1, (int) $audit->after['chase_count']);
+    }
+
+    /**
+     * The only existing close-route test (`the_close_route_now_catches_the_
+     * already_closed_exception_consistently_with_distribute`) exercises the
+     * ALREADY-CLOSED error path and builds its URL with `route()` directly.
+     * This is the positive path, through the shipped `close_url`.
+     */
+    #[Test]
+    public function posting_to_the_props_close_url_closes_the_campaign_and_freezes_its_response_rate(): void
+    {
+        $this->process('BCP-CAMP-CLOSE-1');
+        $this->process('BCP-CAMP-CLOSE-2');
+        $campaigns = app(BiaCampaignService::class);
+        $campaign = $campaigns->create(['name' => 'Close URL Campaign', 'closes_at' => now()->addWeek()]);
+        $campaigns->distribute($campaign);
+
+        $first = BiaAssessment::query()->where('campaign_id', $campaign->getKey())->firstOrFail();
+        $this->completeAndSubmit($first);
+
+        $expectedRate = $campaigns->progress($campaign->refresh())['response_rate'];
+        $this->assertNotNull($expectedRate, 'Precondition: at least one response, so the rate is not null.');
+
+        $manager = $this->userWith(['bcms.bia.view', 'bcms.bia.campaign.manage'], 'close-manager@khb.test', 'bcms-close-manager');
+
+        $closeUrl = $this->actingAs($manager)
+            ->get(route('bcms.bia-campaigns.index', ['campaign' => $campaign->getKey()]))
+            ->viewData('page')['props']['campaigns'][0]['close_url'];
+
+        $this->actingAs($manager)
+            ->post($closeUrl)
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $campaign->refresh();
+        $this->assertSame('closed', $campaign->status);
+        $this->assertSame($expectedRate, (float) $campaign->response_rate);
+
+        $audit = \App\Models\Bcms\AuditLog::where('auditable_type', \App\Models\Bcms\BiaCampaign::class)
+            ->where('auditable_id', $campaign->getKey())
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($audit, 'BiaCampaign carries BcmsAuditable; close() updates status and response_rate and must write a row.');
+        $this->assertSame('closed', $audit->after['status'] ?? null);
+        $this->assertArrayHasKey('response_rate', $audit->after ?? []);
+    }
+
+    #[Test]
+    public function a_user_of_another_tenant_posting_to_the_shipped_campaign_urls_gets_404_and_changes_nothing(): void
+    {
+        $this->process('BCP-CAMP-CROSS', ['owner_id' => $this->assessor->id]);
+        $campaign = app(BiaCampaignService::class)->create(['name' => 'Cross-tenant Campaign', 'closes_at' => now()->addWeeks(2)]);
+        $viewer = $this->userWith(['bcms.bia.view'], 'campaign-cross-viewer@khb.test', 'bcms-campaign-cross-viewer');
+
+        $statusBeforeForeignPosts = $campaign->status;
+        $responseRateBeforeForeignPosts = $campaign->response_rate;
+        $opensAtBeforeForeignPosts = $campaign->opens_at;
+        $closesAtBeforeForeignPosts = $campaign->closes_at;
+
+        $row = collect(
+            $this->actingAs($viewer)
+                ->get(route('bcms.bia-campaigns.index', ['campaign' => $campaign->getKey()]))
+                ->viewData('page')['props']['campaigns']
+        )->firstWhere('id', $campaign->getKey());
+
+        $foreignOrg = Organization::create([
+            'name' => 'Fourth Bank PLC', 'short_name' => 'FBP',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+        $foreignUser = User::create([
+            'name' => 'Foreign Campaign Manager', 'email' => 'manager@fbp.test',
+            'password' => Hash::make(Str::random(32)), 'email_verified_at' => now(),
+            'organization_id' => $foreignOrg->id, 'is_active' => true,
+        ]);
+        $role = Role::findOrCreate('bcms-foreign-campaign-manager', 'web');
+        $role->givePermissionTo(Permission::findOrCreate('bcms.bia.campaign.manage', 'web'));
+        $foreignUser->assignRole($role);
+
+        $this->actingAs($foreignUser)->post($row['distribute_url'])->assertNotFound();
+        $this->actingAs($foreignUser)->post($row['chase_url'])->assertNotFound();
+        $this->actingAs($foreignUser)->post($row['close_url'])->assertNotFound();
+
+        $this->assertSame(
+            0,
+            BiaAssessment::query()->where('campaign_id', $campaign->getKey())->count(),
+            'A cross-tenant post to the shipped distribute_url must not create any assessment.'
+        );
+
+        $campaign->refresh();
+        $this->assertSame(
+            $statusBeforeForeignPosts,
+            $campaign->status,
+            'A cross-tenant post to the shipped close_url must not change the campaign status.'
+        );
+        $this->assertEquals(
+            $responseRateBeforeForeignPosts,
+            $campaign->response_rate,
+            'A cross-tenant post to the shipped close_url must not freeze a response rate.'
+        );
+        $this->assertEquals(
+            $opensAtBeforeForeignPosts,
+            $campaign->opens_at,
+            'A cross-tenant post to the shipped distribute_url must not stamp opens_at.'
+        );
+        $this->assertEquals(
+            $closesAtBeforeForeignPosts,
+            $campaign->closes_at,
+            'A cross-tenant post to the shipped close_url must not move closes_at.'
+        );
     }
 
     /* ------------------------------------------------------------------ */

@@ -234,6 +234,12 @@ class FindingController extends Controller
             'process' => $finding->affectedProcess?->name,
             'plan' => $finding->affectedPlan?->title,
             'erm_issue_id' => $finding->erm_issue_id,
+            // Built here rather than from the row's numeric `id`: `Finding`
+            // route-binds on its `uuid` (HasBcmsUuid), and a client posting
+            // the id it was handed 404s. One home for the URL means a
+            // route-key change can never break this screen again (the TPRM
+            // Intake Queue defect, 2026-09-13).
+            'store_action_url' => route('bcms.actions.store', $finding),
             'actions' => $finding->correctiveActions->map(fn (CorrectiveAction $a) => [
                 'id' => $a->getKey(),
                 // The route key. Corrective actions are addressed by uuid, and

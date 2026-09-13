@@ -18,7 +18,7 @@ export default function Campaigns({ campaigns = [], selected, progress, process_
     const create = useForm({ name: '', cycle: 'annual', closes_at: '' });
     const campaign = campaigns.find((c) => c.id === selected) ?? null;
 
-    const post = (name, arg) => router.post(tryRoute(name, arg), {}, { preserveScroll: true });
+    const postTo = (url) => router.post(url, {}, { preserveScroll: true });
 
     return (
         <AppLayout title="BIA campaigns">
@@ -92,14 +92,14 @@ export default function Campaigns({ campaigns = [], selected, progress, process_
                                         <div className="flex gap-2">
                                             {campaign.status !== 'closed' && (
                                                 <button type="button" className="btn-secondary text-sm"
-                                                    onClick={() => post('bcms.bia-campaigns.distribute', campaign.id)}>Distribute</button>
+                                                    onClick={() => postTo(campaign.distribute_url)}>Distribute</button>
                                             )}
                                             {campaign.status === 'open' && (
                                                 <>
                                                     <button type="button" className="btn-secondary text-sm"
-                                                        onClick={() => post('bcms.bia-campaigns.chase', campaign.id)}>Chase now</button>
+                                                        onClick={() => postTo(campaign.chase_url)}>Chase now</button>
                                                     <button type="button" className="btn-primary text-sm"
-                                                        onClick={() => post('bcms.bia-campaigns.close', campaign.id)}>Close</button>
+                                                        onClick={() => postTo(campaign.close_url)}>Close</button>
                                                 </>
                                             )}
                                         </div>

@@ -193,6 +193,18 @@ class WorkspacePerformanceTest extends CycleTestCase
         $twenty = $this->assessmentWith(20);
         $fiveHundred = $this->assessmentWith(500);
 
+        // FREEZE THE CLOCK, OR THE COMPARISON IS A COIN-FLIP. EnsureAuthenticated
+        // touches `users.last_activity_at` with `now()` on every request, and
+        // Eloquent skips the UPDATE when the stored value already equals `now()`
+        // at second precision. So whether a render carries that one extra query
+        // depends on whether it starts in the same wall-clock second as the
+        // render before it — 25 queries for 20 lines against 24 for 500, on a
+        // run where nothing was wrong. With time frozen, the warm-up render
+        // below writes the timestamp once and every later render finds it
+        // already current, so the touch drops out of both measurements
+        // equally. The middleware is right; this test's clock was not.
+        $this->freezeTime();
+
         // THE FIRST RENDER OF THE PROCESS IS NOT THE ONE TO MEASURE. It pays
         // for the permission cache, the methodology and the container — 299
         // queries against 22 for the very next call, which reads as a

@@ -79,11 +79,17 @@ class DependencyService
      * clocks, and taking the longest would report the most relaxed process as
      * the constraint.
      *
+     * `assessed_count` and `unassessed_count` are how many of the halting
+     * processes did and did not contribute an RTO to `aggregate_rto_hours`. A
+     * headline built from 1 of 14 halting processes is not the exposure — it
+     * is a stated fact about one process wearing the exposure's headline.
+     *
      * @return array{
      *   target: array<string, mixed>,
      *   processes: list<array<string, mixed>>,
      *   process_count: int, tier1_count: int, critical_service_count: int,
      *   aggregate_rto_hours: float|null, halting_count: int,
+     *   assessed_count: int, unassessed_count: int,
      * }
      */
     public function impactOf(Model $target): array
@@ -95,6 +101,26 @@ class DependencyService
             ->where('dependable_id', $target->getKey())
             ->with(['assessment.process'])
             ->get();
+
+        $processIds = $dependencies
+            ->map(fn (Dependency $d) => $d->assessment?->process?->getKey())
+            ->filter()
+            ->unique()
+            ->values();
+
+        // One query for every dependent process's latest approved objectives,
+        // rather than one query per dependency row inside the loop below.
+        $approvedByProcess = BiaAssessment::query()
+            ->whereIn('process_id', $processIds)
+            ->where('status', 'approved')
+            ->orderByDesc('approved_at')
+            ->get()
+            // The list is globally sorted by approved_at desc, so the first
+            // occurrence encountered per process is that process's latest —
+            // the same row `->orderByDesc('approved_at')->first()` picked
+            // when this ran once per row.
+            ->unique('process_id')
+            ->keyBy('process_id');
 
         $rows = [];
 
@@ -110,11 +136,7 @@ class DependencyService
 
             // Latest APPROVED objectives, so the exposure quotes numbers
             // somebody signed off rather than a draft in flight.
-            $approved = BiaAssessment::query()
-                ->where('process_id', $process->getKey())
-                ->where('status', 'approved')
-                ->orderByDesc('approved_at')
-                ->first();
+            $approved = $approvedByProcess->get($process->getKey());
 
             $rows[$process->getKey()] = [
                 'process_id' => $process->getKey(),
@@ -154,6 +176,10 @@ class DependencyService
             'critical_service_count' => count(array_filter($rows, fn (array $r) => $r['is_critical_service'])),
             'halting_count' => count($halting),
             'aggregate_rto_hours' => $rtos === [] ? null : min($rtos),
+            // Measured counts, not a ratio — a percentage over a partly
+            // assessed register reads as a confidence it is not.
+            'assessed_count' => count($rtos),
+            'unassessed_count' => count($halting) - count($rtos),
         ];
     }
 

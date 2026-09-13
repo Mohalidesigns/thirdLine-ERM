@@ -679,16 +679,31 @@ class Phase1GovernanceTest extends TestCase
     {
         // Clause 10.1 asks whether the action WORKED, which the person who did
         // it cannot answer about themselves.
+        //
+        // THE OR HAS TWO DISTINCT BRANCHES AND BOTH ARE EXERCISED HERE. The
+        // rule in CorrectiveActionService::verify() is
+        // `$verifierId === owner_id || $verifierId === completed_by`. The
+        // previous version of this test used a single person as BOTH owner
+        // and completer, so `foreach ([$this->doer->id] as $forbidden)`
+        // iterated one element that happened to satisfy both halves of the OR
+        // at once — a test that could not distinguish "only the owner check
+        // works" from "only the completer check works" from "both work",
+        // because deleting either half of the `||` would still leave this
+        // test green. `$owner` and `$completer` below are different people so
+        // each half is forbidden on its own.
         $finding = $this->raiseNonconformity();
         $actions = app(CorrectiveActionService::class);
 
-        $action = $actions->create($finding, 'Fix it', ['owner_id' => $this->doer->id], $this->author->id);
-        $actions->complete($action, $this->doer->id);
+        $owner = $this->author;
+        $completer = $this->doer;
 
-        foreach ([$this->doer->id] as $forbidden) {
+        $action = $actions->create($finding, 'Fix it', ['owner_id' => $owner->id], $this->author->id);
+        $actions->complete($action, $completer->id);
+
+        foreach ([$owner->id, $completer->id] as $forbidden) {
             try {
                 $actions->verify($action->refresh(), $forbidden);
-                $this->fail('A corrective action was verified by the person who completed it.');
+                $this->fail('A corrective action was verified by its owner or its completer.');
             } catch (InvalidArgumentException $e) {
                 $this->assertStringContainsString('other than the person who owned or completed it', $e->getMessage());
             }
@@ -910,5 +925,48 @@ class Phase1GovernanceTest extends TestCase
             ['iso_clause_ref' => IsoClauseRef::Iso22301_8_3->value, 'severity' => 'high'],
             $this->author->id,
         );
+    }
+
+    /**
+     * Gate 1 retrospective: neither this class nor Phase2BiaEngineTest nor
+     * CrossTrackContractsTest ever created a second organisation, so nothing
+     * in the governance/findings domain had a cross-tenant assertion at all.
+     * A finding and its corrective action carry the whole clause 10.1 trail —
+     * exactly the kind of row that must never resolve across a tenant
+     * boundary, and exactly the kind of miss that fails OPEN rather than
+     * closed if `OrganizationScope` is ever bypassed by accident (a queued
+     * job, a console command, a report that forgot to set the tenant).
+     */
+    #[Test]
+    public function a_findings_pipeline_does_not_resolve_across_a_tenant_boundary(): void
+    {
+        $other = Organization::create([
+            'name' => 'A Different Bank', 'short_name' => 'ADB',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        TenantContext::set($other->id);
+        $theirAuthor = $this->user('their-author@adb.test');
+        $theirFinding = app(FindingService::class)->raise(
+            FindingSource::GapAnalysis,
+            FindingClassification::Nonconformity,
+            'A finding that belongs to a different bank entirely.',
+            null,
+            ['iso_clause_ref' => IsoClauseRef::Iso22301_8_3->value, 'severity' => 'high'],
+            $theirAuthor->id,
+        );
+        $theirAction = app(CorrectiveActionService::class)->create(
+            $theirFinding, 'Their fix', ['owner_id' => $theirAuthor->id], $theirAuthor->id
+        );
+        TenantContext::clear();
+
+        TenantContext::set($this->organization->id);
+
+        $this->assertNull(Finding::query()->find($theirFinding->id), "Another tenant's finding leaked across the boundary.");
+        $this->assertNull(
+            \App\Models\Bcms\CorrectiveAction::query()->find($theirAction->id),
+            "Another tenant's corrective action leaked across the boundary."
+        );
+        $this->assertSame(0, Finding::query()->count());
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Services\Bcms\Bia;
 
+use App\Enums\Bcms\BiaAssessmentStatus;
 use App\Enums\Bcms\IsoClauseRef;
 use App\Models\Bcms\BiaAssessment;
 use App\Models\Bcms\Process;
@@ -95,6 +96,10 @@ class BiaValidator
             $blocking[] = $breach;
         }
 
+        foreach ($this->childBreaches($assessment, $process, $rto) as $breach) {
+            $blocking[] = $breach;
+        }
+
         /* -------------------------------------------------------------- */
         /*  Warnings */
         /* -------------------------------------------------------------- */
@@ -180,7 +185,7 @@ class BiaValidator
 
         $parentRto = BiaAssessment::query()
             ->where('process_id', $process->parent_process_id)
-            ->where('status', 'approved')
+            ->where('status', BiaAssessmentStatus::Approved->value)
             ->orderByDesc('approved_at')
             ->value('rto_hours');
 
@@ -197,6 +202,50 @@ class BiaValidator
             ),
             IsoClauseRef::Iso22301_8_2_2,
         )];
+    }
+
+    /**
+     * The reverse of {@see parentBreaches()}: a child's APPROVED RTO cannot be
+     * longer than the RTO this process is claiming.
+     *
+     * Both directions have to be checked, or the rule is only as strong as the
+     * order two people happen to click approve in. A child approved first at
+     * 8h does not stop a parent from later being approved at 4h — this is the
+     * check that catches it, on the parent's own submit/approve.
+     *
+     * @return list<array{field: string, message: string, citation: ?string}>
+     */
+    private function childBreaches(BiaAssessment $assessment, ?Process $process, ?float $rto): array
+    {
+        if ($process === null || $rto === null) {
+            return [];
+        }
+
+        $childIds = Process::query()->where('parent_process_id', $process->getKey())->pluck('id');
+
+        if ($childIds->isEmpty()) {
+            return [];
+        }
+
+        $breaches = BiaAssessment::query()
+            ->whereIn('process_id', $childIds)
+            ->where('status', BiaAssessmentStatus::Approved->value)
+            ->where('rto_hours', '>', $rto)
+            ->with('process:id,code,name')
+            ->orderByDesc('rto_hours')
+            ->get();
+
+        return $breaches->map(fn (BiaAssessment $child) => $this->issue(
+            'rto_hours',
+            sprintf(
+                'The child process %s recovers in %s and this one claims %s. The parent cannot resume while a step '
+                .'inside it is still down, so one of the two numbers is wrong.',
+                $child->process->name,
+                $this->duration((float) $child->rto_hours),
+                $this->duration($rto)
+            ),
+            IsoClauseRef::Iso22301_8_2_2,
+        ))->values()->all();
     }
 
     private function isOpenBanking(?Process $process): bool

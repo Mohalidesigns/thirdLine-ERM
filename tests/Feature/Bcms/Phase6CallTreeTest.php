@@ -14,6 +14,7 @@ use App\Enums\Bcms\CascadeOutcome;
 use App\Enums\Bcms\ChannelKey;
 use App\Enums\Bcms\ContactSource;
 use App\Enums\Bcms\FindingSource;
+use App\Enums\Bcms\VerificationStatus;
 use App\Models\Bcms\CallTree;
 use App\Models\Bcms\CallTreeNode;
 use App\Models\Bcms\CallTreeTest as CascadeTest;
@@ -547,7 +548,7 @@ class Phase6CallTreeTest extends TestCase
         // edited number is not a working number.
         $remediation->fixContact($victim->contact, ['mobile_primary' => '+2348000999111'], $this->admin->id);
         $this->assertSame('+2348000999111', $victim->contact->refresh()->mobile_primary);
-        $this->assertSame('unverified', $victim->contact->verification_status);
+        $this->assertSame(VerificationStatus::Unverified, $victim->contact->verification_status);
         $this->assertSame(0, (int) $victim->contact->consecutive_failures);
 
         // The tree is approved, so structural repairs need a new version.
@@ -656,6 +657,116 @@ class Phase6CallTreeTest extends TestCase
         // AND IT IS NOT A DATA-QUALITY FAILURE. Counting it as one would put
         // pressure on somebody to "fix" a withdrawal.
         $this->assertSame(0, $card['data_quality_failures']);
+    }
+
+    /**
+     * Gate 2 rejection, defect C1: a contact who has never been asked for
+     * consent (`not_requested`, the column default) has a good mobile number
+     * and would previously settle as `NoChannel` — "has no usable address on
+     * any requested channel" — which is false and is exactly the silent
+     * exclusion criterion 10 forbids. `not_requested` must block a personal
+     * channel exactly like `withdrawn`, and its note must say something an
+     * operator can act on: capture consent, rather than "respect the
+     * withdrawal" (there was nothing to respect — nobody asked).
+     */
+    #[Test]
+    public function a_contact_never_asked_for_consent_settles_as_consent_blocked_not_no_channel(): void
+    {
+        $tree = $this->smallTree(approve: true);
+
+        $node = $tree->nodes()->whereNull('parent_node_id')->first();
+        $contact = $node->contact;
+
+        $contact->update([
+            'consent_status' => 'not_requested',
+            'email' => null, 'teams_id' => null, 'slack_id' => null, 'push_token' => null,
+        ]);
+
+        $engine = app(CascadeEngine::class);
+        $test = $engine->schedule($tree, CascadeMode::Automated, true, null, $this->admin->id);
+        $engine->initiate($test, $this->admin->id);
+
+        $row = CallTreeTestNode::query()->where('test_id', $test->getKey())
+            ->where('node_id', $node->getKey())->first();
+
+        $this->assertSame(CascadeOutcome::ConsentBlocked, $row->outcome,
+            'Never having been asked blocks a personal channel exactly like a withdrawal — it must not '
+                .'settle as NoChannel, which would claim the contact has no usable address at all.');
+        $this->assertStringContainsString('never been asked', (string) $row->notes);
+        $this->assertStringContainsString('life-safety', (string) $row->notes,
+            'The note says what would still reach them in an emergency.');
+        $this->assertStringNotContainsString('withdrawn', (string) $row->notes,
+            'A contact nobody has asked has not withdrawn anything.');
+
+        $engine->complete($test, $this->admin->id);
+        $card = $test->refresh()->scorecard;
+
+        $this->assertSame(1, $card['consent_excluded']);
+        $this->assertSame(0, $card['data_quality_failures'],
+            'A consent gap is not a data-quality defect either — the record is correct, nobody has asked yet.');
+    }
+
+    /**
+     * Gate 2 rejection (third pass): `consentBlockedNote()` opened "has never
+     * been asked for consent" for `pending` too — the one thing untrue of
+     * that state, since a pending contact WAS asked and has not yet
+     * answered. Chasing an outstanding request is a different operator
+     * action from sending a new one, and the note must say which applies.
+     */
+    #[Test]
+    public function a_pending_consent_request_settles_as_consent_blocked_with_its_own_note(): void
+    {
+        $tree = $this->smallTree(approve: true);
+
+        $node = $tree->nodes()->whereNull('parent_node_id')->first();
+        $contact = $node->contact;
+
+        $contact->update([
+            'consent_status' => 'pending',
+            'email' => null, 'teams_id' => null, 'slack_id' => null, 'push_token' => null,
+        ]);
+
+        $engine = app(CascadeEngine::class);
+        $test = $engine->schedule($tree, CascadeMode::Automated, true, null, $this->admin->id);
+        $engine->initiate($test, $this->admin->id);
+
+        $row = CallTreeTestNode::query()->where('test_id', $test->getKey())
+            ->where('node_id', $node->getKey())->first();
+
+        $this->assertSame(CascadeOutcome::ConsentBlocked, $row->outcome,
+            'An outstanding consent request blocks a personal channel exactly like a withdrawal or a '
+                .'never-asked contact — it must not settle as NoChannel.');
+        $this->assertStringContainsString('has not answered', (string) $row->notes);
+        $this->assertStringContainsString('life-safety', (string) $row->notes,
+            'The note says what would still reach them in an emergency.');
+        $this->assertStringNotContainsString('never been asked', (string) $row->notes,
+            'A pending contact WAS asked — that claim is false of this state specifically.');
+        $this->assertStringNotContainsString('withdrawn', (string) $row->notes,
+            'A pending contact has not withdrawn anything.');
+
+        $engine->complete($test, $this->admin->id);
+        $card = $test->refresh()->scorecard;
+
+        $this->assertSame(1, $card['consent_excluded']);
+        $this->assertSame(0, $card['data_quality_failures'],
+            'An outstanding consent request is not a data-quality defect — the record is correct.');
+    }
+
+    /**
+     * Gate 2 rejection (second pass): the legend/filter text `CallTreePresenter
+     * ::results()` ships for `ConsentBlocked` used to read "Excluded — consent
+     * withdrawn", which is wrong for the two tests above whenever the reason
+     * is `not_requested` or `pending` rather than an actual withdrawal.
+     */
+    #[Test]
+    public function the_consent_blocked_label_covers_every_trigger_state_not_only_a_withdrawal(): void
+    {
+        $this->assertSame(
+            'Excluded — no consent for personal channels',
+            CascadeOutcome::ConsentBlocked->label(),
+            'This label is legend/filter copy shown for every ConsentBlocked node regardless of which of '
+            .'the three consent states caused it, and must not name only one of them.'
+        );
     }
 
     /* ================================================================== */

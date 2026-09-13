@@ -2,6 +2,7 @@
 
 namespace App\Models\Bcms;
 
+use App\Models\Bcms\Concerns\BcmsAuditable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use ThirdLine\Platform\Tenancy\BelongsToOrganization;
@@ -13,6 +14,13 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * reminder send time are decisions with legal weight in an emergency; they do
  * not belong somewhere nothing validates them. Read through
  * `App\Services\Bcms\BcmsSettings`, never directly — Gate G0 criterion 4.
+ *
+ * AUDITED. A settings row carries governance state — `ai_enabled`,
+ * `require_dual_approval_for_live`, quiet hours, the escalation offset — and a
+ * change to any of them (an administrator turning off the second-person
+ * control on a live dispatch, say) must leave the same actor/before/after
+ * trail as any other BCMS write. `updated_by` is set by
+ * `App\Services\Bcms\BcmsSettings::update()`, the only writer.
  *
  * @property int $id
  * @property int $organization_id
@@ -40,7 +48,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class Setting extends Model
 {
-    use BelongsToOrganization, HasFactory;
+    use BcmsAuditable, BelongsToOrganization, HasFactory;
 
     protected $table = 'bcms_settings';
 

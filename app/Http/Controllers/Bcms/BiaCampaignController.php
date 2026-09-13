@@ -124,7 +124,11 @@ class BiaCampaignController extends Controller
     {
         Gate::authorize('bcms.bia.campaign.manage');
 
-        $closed = $this->campaigns->close($campaign, $request->user()?->getKey());
+        try {
+            $closed = $this->campaigns->close($campaign, $request->user()?->getKey());
+        } catch (\InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', sprintf(
             'Campaign closed with a response rate of %s. That figure is now frozen — it is the clause 8.2.2 record '

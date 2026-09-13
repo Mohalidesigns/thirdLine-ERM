@@ -4,6 +4,7 @@ namespace App\Services\Bcms;
 
 use App\Contracts\Bcms\Recipient;
 use App\Enums\Bcms\ChannelKey;
+use App\Enums\Bcms\ConsentStatus;
 use App\Models\Bcms\Contact;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -106,14 +107,16 @@ class ContactResolver
     /**
      * Can this contact be reached on this channel at all?
      *
-     * TWO REASONS FOR NO, AND THEY ARE DIFFERENT. No address means the channel
-     * was never possible. Withdrawn consent means it was possible and the
-     * person said not to — except for life-safety traffic, where the NDPA's own
-     * vital-interests basis applies and the bank's duty of care does not pause
-     * for a marketing preference. The exception is deliberately narrow: it is
-     * `is_life_safety` traffic only, it is recorded on the delivery row, and it
-     * is written down in `docs/compliance/ndpa-register.md` rather than left as
-     * an engineer's judgement.
+     * CONSENT IS AN ALLOW-LIST, NOT A BLOCK-LIST. Only an explicit `granted`
+     * (or life-safety traffic, where the NDPA's own vital-interests basis
+     * applies and the bank's duty of care does not pause for a marketing
+     * preference) permits a consented channel. `pending` and `not_requested`
+     * refuse exactly like `withdrawn` — a mobile number an administrator typed
+     * in, that nobody has ever asked the person about, is not consent. The
+     * life-safety exception is deliberately narrow: it is `is_life_safety`
+     * traffic only, it is recorded on the delivery row, and it is written down
+     * in `docs/compliance/ndpa-register.md` rather than left as an engineer's
+     * judgement.
      */
     public function canReach(Contact $contact, ChannelKey $channel, bool $isLifeSafety = false): bool
     {
@@ -129,11 +132,11 @@ class ContactResolver
             return true;
         }
 
-        if ($contact->consent_status === 'withdrawn') {
-            return $isLifeSafety;
-        }
+        $consent = $contact->consent_status instanceof ConsentStatus
+            ? $contact->consent_status
+            : ConsentStatus::tryFrom((string) $contact->consent_status) ?? ConsentStatus::NotRequested;
 
-        return true;
+        return $consent->permitsPersonalChannel($isLifeSafety);
     }
 
     /**

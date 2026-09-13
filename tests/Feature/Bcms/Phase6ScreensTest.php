@@ -97,6 +97,57 @@ class Phase6ScreensTest extends TestCase
             );
     }
 
+    /**
+     * Gate 2 rejection, defect C1: the data-confidence panel counted contacts
+     * with `consent_status = withdrawn` but had no count at all for
+     * `not_requested` — the far more common case, since it is the column
+     * default — so the panel was silent about exactly the exclusion
+     * criterion 10 exists to surface.
+     */
+    #[Test]
+    public function the_dashboard_reports_contacts_with_no_consent_on_record(): void
+    {
+        $tree = $this->tree();
+
+        $node = $tree->nodes()->where('tier', 1)->first();
+        $node->contact?->update(['consent_status' => 'not_requested']);
+
+        $this->actingAs($this->userWith(['bcms.calltree.view']))
+            ->get(route('bcms.call-trees.index'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Bcms/CallTrees/Index')
+                ->where('dashboard.data_confidence.consent_not_requested', 1)
+            );
+    }
+
+    /**
+     * Gate 2 rejection (third pass): `pending` blocks a personal channel
+     * exactly like `not_requested` does (`ConsentStatus::blocksPersonalChannel()`),
+     * and the tooltip on this panel already says "never asked or awaiting an
+     * answer" — but `dataConfidence()` counted only `withdrawn` and
+     * `not_requested`, so a `pending` contact was invisible on the one panel
+     * whose own copy promised to show them. Nothing writes `pending` today;
+     * this is what stops the count from silently staying wrong the day
+     * something does.
+     */
+    #[Test]
+    public function a_pending_contact_is_also_counted_as_no_consent_on_record(): void
+    {
+        $tree = $this->tree();
+
+        $node = $tree->nodes()->where('tier', 1)->first();
+        $node->contact?->update(['consent_status' => 'pending']);
+
+        $this->actingAs($this->userWith(['bcms.calltree.view']))
+            ->get(route('bcms.call-trees.index'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Bcms/CallTrees/Index')
+                ->where('dashboard.data_confidence.consent_not_requested', 1)
+            );
+    }
+
     #[Test]
     public function the_designer_carries_the_tree_its_problems_and_its_versions(): void
     {
@@ -222,6 +273,98 @@ class Phase6ScreensTest extends TestCase
         $this->assertTrue($names->contains('Available Officer'));
         $this->assertFalse($names->contains('Finance Officer'));
         $this->assertTrue($response->json('contacts.0')['has_mobile']);
+    }
+
+    /**
+     * Gate 1 retrospective, defect 2: `CallTreeController::candidates()`
+     * compared the enum-cast `consent_status` column against the raw string
+     * `'withdrawn'`, which is never true once the column is cast — every
+     * candidate's `consent_withdrawn` flag came back `false`, including
+     * somebody who really had withdrawn. The designer's person picker would
+     * offer a withdrawn contact with no visible warning.
+     *
+     * MUTATION: change `$c->consent_status === ConsentStatus::Withdrawn` back
+     * to `$c->consent_status === 'withdrawn'` in
+     * `CallTreeController::candidates()` and this fails: the withdrawn
+     * contact's flag comes back `false`.
+     */
+    #[Test]
+    public function the_candidates_endpoint_flags_a_withdrawn_contact(): void
+    {
+        $tree = $this->tree();
+
+        $withdrawn = $this->contact('Withdrawn Officer');
+        $withdrawn->update(['consent_status' => 'withdrawn', 'consent_withdrawn_at' => now()]);
+
+        $granted = $this->contact('Granted Officer');
+
+        $response = $this->actingAs($this->userWith(['bcms.calltree.view']))
+            ->getJson(route('bcms.call-trees.candidates', $tree).'?q=Officer');
+
+        $response->assertOk();
+
+        $contacts = collect($response->json('contacts'))->keyBy('name');
+
+        $this->assertTrue(
+            $contacts['Withdrawn Officer']['consent_withdrawn'],
+            'A contact who withdrew consent must be visibly flagged on the person picker.'
+        );
+        $this->assertSame(
+            'withdrawn',
+            $contacts['Withdrawn Officer']['consent_reason'],
+            'An actual withdrawal must be distinguishable from a contact nobody has asked.'
+        );
+        $this->assertFalse(
+            $contacts['Granted Officer']['consent_withdrawn'],
+            'A contact who granted consent must not be flagged.'
+        );
+    }
+
+    /**
+     * Gate 2 rejection, defect C1: a contact nobody has ever asked
+     * (`not_requested`, the column default) was invisible on the node-picker
+     * because only `Withdrawn` was checked. `not_requested` refuses a
+     * personal channel and must be flagged, via
+     * `ConsentStatus::blocksPersonalChannel()` — but it is not the same
+     * state as a withdrawal, and the operator's next action differs (respect
+     * a withdrawal; capture consent for a never-asked contact), so the
+     * payload must carry which one it is rather than only the boolean.
+     */
+    #[Test]
+    public function the_candidates_endpoint_flags_a_not_requested_contact(): void
+    {
+        $tree = $this->tree();
+
+        $neverAsked = $this->contact('Never Asked Officer');
+        $neverAsked->update(['consent_status' => 'not_requested']);
+
+        $granted = $this->contact('Granted Officer 2');
+
+        $response = $this->actingAs($this->userWith(['bcms.calltree.view']))
+            ->getJson(route('bcms.call-trees.candidates', $tree).'?q=Officer');
+
+        $response->assertOk();
+
+        $contacts = collect($response->json('contacts'))->keyBy('name');
+
+        $this->assertTrue(
+            $contacts['Never Asked Officer']['consent_withdrawn'],
+            'A contact who has never been asked for consent must be visibly flagged.'
+        );
+        $this->assertSame(
+            'not_requested',
+            $contacts['Never Asked Officer']['consent_reason'],
+            'The reason must distinguish a never-asked contact from an actual withdrawal — the two need '
+            .'different operator actions.'
+        );
+        $this->assertFalse(
+            $contacts['Granted Officer 2']['consent_withdrawn'],
+            'A contact who granted consent must not be flagged.'
+        );
+        $this->assertNull(
+            $contacts['Granted Officer 2']['consent_reason'],
+            'A contact who granted consent has no blocking reason to report.'
+        );
     }
 
     #[Test]

@@ -8,6 +8,7 @@ use App\Enums\Bcms\CallTreeStatus;
 use App\Enums\Bcms\CascadeMode;
 use App\Enums\Bcms\CascadeOutcome;
 use App\Enums\Bcms\ChannelKey;
+use App\Enums\Bcms\ConsentStatus;
 use App\Enums\Bcms\DeliveryStatus;
 use App\Models\Bcms\CallTree;
 use App\Models\Bcms\CallTreeNode;
@@ -373,7 +374,14 @@ class CascadeEngine
         $usable = $this->contacts->channelsFor($contact, $requested, isLifeSafety: false);
 
         if ($usable === []) {
-            $blockedByConsent = $contact->consent_status === 'withdrawn'
+            $consent = $contact->consent_status;
+
+            // ONE PREDICATE, not a comparison to `Withdrawn` alone: `Pending`
+            // and `NotRequested` refuse a personal channel exactly like a
+            // withdrawal does, and reporting them as `NoChannel` would be the
+            // silent exclusion criterion 10 forbids — the contact has a good
+            // mobile number, the cascade just never asked to use it.
+            $blockedByConsent = $consent->blocksPersonalChannel()
                 && $this->contacts->channelsFor($contact, $requested, isLifeSafety: true) !== [];
 
             $this->settle(
@@ -381,9 +389,7 @@ class CascadeEngine
                 $blockedByConsent ? CascadeOutcome::ConsentBlocked : CascadeOutcome::NoChannel,
                 $at,
                 $blockedByConsent
-                    ? $contact->full_name.' has withdrawn consent for personal-channel contact and was '
-                        .'excluded from this cascade. They remain on the tree and are reachable on a '
-                        .'work channel in a life-safety activation.'
+                    ? $this->consentBlockedNote($contact, $consent)
                     : $contact->full_name.' has no usable address on any requested channel.',
             );
 
@@ -623,6 +629,30 @@ class CascadeEngine
         $this->settle($testNode, $outcome, $at ?? now(), $note);
 
         return $testNode->refresh();
+    }
+
+    /**
+     * The settle note for a `ConsentBlocked` node — WITHDRAWN, NEVER ASKED
+     * AND AWAITING AN ANSWER ALL READ DIFFERENTLY, because the operator's
+     * next action differs: a withdrawal is respected, `not_requested` is a
+     * consent request nobody has sent yet, and `pending` already has one
+     * outstanding — chasing it, not sending a new one, is the correct next
+     * step. `pending` is NOT "never asked": that claim is the one thing
+     * untrue of a contact who was, in fact, asked and has not yet answered.
+     */
+    private function consentBlockedNote(Contact $contact, ConsentStatus $consent): string
+    {
+        return match ($consent) {
+            ConsentStatus::Withdrawn => $contact->full_name.' has withdrawn consent for personal-channel '
+                .'contact and was excluded from this cascade. They remain on the tree and are reachable '
+                .'on a work channel in a life-safety activation.',
+            ConsentStatus::Pending => $contact->full_name.' was asked for consent to personal-channel '
+                .'contact and has not answered, and was excluded from this cascade pending an answer. '
+                .'They remain on the tree and are reachable on a work channel in a life-safety activation.',
+            default => $contact->full_name.' has never been asked for consent to personal-channel contact '
+                .'(status: '.$consent->value.') and was excluded from this cascade pending an answer. '
+                .'They remain on the tree and are reachable on a work channel in a life-safety activation.',
+        };
     }
 
     private function settle(CallTreeTestNode $testNode, CascadeOutcome $outcome, Carbon $at, ?string $note): void

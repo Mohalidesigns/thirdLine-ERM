@@ -8,6 +8,7 @@ use App\Enums\Bcms\CallTreeType;
 use App\Enums\Bcms\CascadeMode;
 use App\Enums\Bcms\CascadeOutcome;
 use App\Enums\Bcms\ContactSource;
+use App\Enums\Bcms\VerificationStatus;
 use App\Models\Bcms\CallTree;
 use App\Models\Bcms\CallTreeNode;
 use App\Models\Bcms\CallTreeTestNode;
@@ -648,7 +649,7 @@ class CallTreeDemoSeeder
             'mobile_secondary' => null,
             'email' => null,
             'consecutive_failures' => 6,
-            'verification_status' => 'failed',
+            'verification_status' => VerificationStatus::Bounced->value,
             'last_verified_at' => null,
         ]);
 
@@ -675,7 +676,7 @@ class CallTreeDemoSeeder
             ->each(fn (Contact $c) => $c->update([
                 'mobile_primary' => null,
                 'consecutive_failures' => 4,
-                'verification_status' => 'failed',
+                'verification_status' => VerificationStatus::Bounced->value,
                 'last_verified_at' => null,
             ]));
 

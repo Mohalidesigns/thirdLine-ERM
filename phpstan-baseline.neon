@@ -33,7 +33,7 @@
 #       runtime; typing them means naming a concrete class the code is
 #       deliberately generic over.
 #
-#    1  return.type — Collection's TValue is invariant, so PHPStan reports the
+#    4  return.type — Collection's TValue is invariant, so PHPStan reports the
 #       declared and actual array shapes as different while printing two
 #       identical types. Annotating it more precisely does not help; it was tried.
 #

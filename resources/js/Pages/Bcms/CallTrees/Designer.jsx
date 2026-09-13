@@ -183,8 +183,19 @@ export default function Designer({
                                 <div className="flex justify-between"><dt>Must reach</dt><dd>{selected.is_must_reach ? 'yes' : 'no'}</dd></div>
                                 {selected.consent_withdrawn && (
                                     <div className="rounded bg-violet-50 p-2 text-violet-700">
-                                        Consent withdrawn for personal channels. Excluded from cascade tests; still
-                                        reachable on a work channel in a life-safety activation.
+                                        {selected.consent_reason === 'withdrawn' ? (
+                                            <>
+                                                Consent withdrawn for personal channels. Respect it — excluded from
+                                                cascade tests; still reachable on a work channel in a life-safety
+                                                activation.
+                                            </>
+                                        ) : (
+                                            <>
+                                                No consent on record for personal channels — never asked, or
+                                                awaiting an answer. Capture consent before the next test; still
+                                                reachable on a work channel in a life-safety activation.
+                                            </>
+                                        )}
                                     </div>
                                 )}
                             </dl>

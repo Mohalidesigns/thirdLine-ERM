@@ -376,7 +376,12 @@ class CallTreeController extends Controller
                     'name' => $c->full_name,
                     'title' => $c->title,
                     'has_mobile' => filled($c->mobile_primary),
-                    'consent_withdrawn' => $c->consent_status === 'withdrawn',
+                    // Kept for backwards compatibility of the flag; `consent_reason`
+                    // is what lets the screen tell a withdrawal from a contact
+                    // nobody has asked yet — the same distinction the boolean
+                    // alone collapses.
+                    'consent_withdrawn' => $c->consent_status->blocksPersonalChannel(),
+                    'consent_reason' => $c->consent_status->blockedReason(),
                 ])->all(),
         ]);
     }

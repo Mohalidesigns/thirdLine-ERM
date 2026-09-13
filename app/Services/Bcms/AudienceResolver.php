@@ -2,6 +2,7 @@
 
 namespace App\Services\Bcms;
 
+use App\Exceptions\Bcms\CircularAudienceRuleException;
 use App\Models\Bcms\CallTreeNode;
 use App\Models\Bcms\Contact;
 use App\Models\Bcms\ExerciseParticipant;
@@ -32,6 +33,18 @@ use Illuminate\Support\Collection;
 class AudienceResolver
 {
     /**
+     * How many `saved_group` hops a single resolution may traverse.
+     *
+     * `AudienceRule::MAX_DEPTH` bounds nesting INSIDE one rule document; it does
+     * nothing for a chain of saved groups, because each hop into a group starts
+     * a fresh `AudienceRule::fromArray()` at depth 0. This is the separate bound
+     * for that separate axis — deliberately generous (nobody hand-builds a
+     * chain this long) so it only ever fires on a rule that could not
+     * legitimately need it.
+     */
+    public const MAX_GROUP_HOPS = 20;
+
+    /**
      * @return Collection<int, Contact> keyed by contact id
      */
     public function resolve(?AudienceRule $rule): Collection
@@ -50,23 +63,20 @@ class AudienceResolver
      * branches intersects integers instead of hydrating three collections of
      * models to throw most of them away.
      *
+     * PUBLIC ENTRY POINT ONLY — this always starts a fresh traversal with an
+     * empty visited-group set. Recursion inside this class goes through
+     * `resolveWithinTraversal()`, which carries that set forward; nothing here
+     * or in a caller should call this method recursively.
+     *
      * @return Collection<int, int>
+     *
+     * @throws CircularAudienceRuleException if the rule re-enters a saved group
+     *                                       already on its own resolution stack, or nests saved groups deeper
+     *                                       than {@see self::MAX_GROUP_HOPS}.
      */
     public function resolveIds(AudienceRule $rule): Collection
     {
-        return match ($rule->type()) {
-            'all_of' => $this->intersect($rule),
-            'any_of' => $this->union($rule),
-            'none_of' => collect(),
-            'org_node' => $this->byOrgNode($rule),
-            'site' => $this->bySite($rule),
-            'role' => $this->byRole($rule),
-            'call_tree' => $this->byCallTree($rule),
-            'occurrence_participants' => $this->byOccurrence($rule),
-            'saved_group' => $this->bySavedGroup($rule),
-            'geo' => $this->byGeo($rule),
-            default => collect(),
-        };
+        return $this->resolveWithinTraversal($rule, [], 0);
     }
 
     /** How many people a rule would reach — for the live recipient count on the console. */
@@ -75,12 +85,40 @@ class AudienceResolver
         return $rule === null ? 0 : $this->resolveIds($rule)->count();
     }
 
+    /**
+     * The same grammar `resolveIds()` matches, carrying the saved groups
+     * already entered on this traversal and how many group hops have been
+     * spent so far.
+     *
+     * @param  list<int>  $visitedGroupIds
+     * @return Collection<int, int>
+     */
+    private function resolveWithinTraversal(AudienceRule $rule, array $visitedGroupIds, int $hops): Collection
+    {
+        return match ($rule->type()) {
+            'all_of' => $this->intersect($rule, $visitedGroupIds, $hops),
+            'any_of' => $this->union($rule, $visitedGroupIds, $hops),
+            'none_of' => collect(),
+            'org_node' => $this->byOrgNode($rule),
+            'site' => $this->bySite($rule),
+            'role' => $this->byRole($rule),
+            'call_tree' => $this->byCallTree($rule),
+            'occurrence_participants' => $this->byOccurrence($rule),
+            'saved_group' => $this->bySavedGroup($rule, $visitedGroupIds, $hops),
+            'geo' => $this->byGeo($rule),
+            default => collect(),
+        };
+    }
+
     /* ------------------------------------------------------------------ */
     /*  Combinators */
     /* ------------------------------------------------------------------ */
 
-    /** @return Collection<int, int> */
-    private function union(AudienceRule $rule): Collection
+    /**
+     * @param  list<int>  $visitedGroupIds
+     * @return Collection<int, int>
+     */
+    private function union(AudienceRule $rule, array $visitedGroupIds, int $hops): Collection
     {
         $ids = collect();
 
@@ -89,14 +127,17 @@ class AudienceResolver
                 continue;
             }
 
-            $ids = $ids->merge($this->resolveIds($child));
+            $ids = $ids->merge($this->resolveWithinTraversal($child, $visitedGroupIds, $hops));
         }
 
-        return $this->applyExclusions($rule, $ids->unique()->values());
+        return $this->applyExclusions($rule, $ids->unique()->values(), $visitedGroupIds, $hops);
     }
 
-    /** @return Collection<int, int> */
-    private function intersect(AudienceRule $rule): Collection
+    /**
+     * @param  list<int>  $visitedGroupIds
+     * @return Collection<int, int>
+     */
+    private function intersect(AudienceRule $rule, array $visitedGroupIds, int $hops): Collection
     {
         $positive = array_values(array_filter(
             $rule->children(),
@@ -109,26 +150,27 @@ class AudienceResolver
             return collect();
         }
 
-        $ids = $this->resolveIds($positive[0]);
+        $ids = $this->resolveWithinTraversal($positive[0], $visitedGroupIds, $hops);
 
         foreach (array_slice($positive, 1) as $child) {
-            $ids = $ids->intersect($this->resolveIds($child));
+            $ids = $ids->intersect($this->resolveWithinTraversal($child, $visitedGroupIds, $hops));
 
             if ($ids->isEmpty()) {
                 break;
             }
         }
 
-        return $this->applyExclusions($rule, $ids->unique()->values());
+        return $this->applyExclusions($rule, $ids->unique()->values(), $visitedGroupIds, $hops);
     }
 
     /**
      * `none_of` children, applied after everything else.
      *
      * @param  Collection<int, int>  $ids
+     * @param  list<int>  $visitedGroupIds
      * @return Collection<int, int>
      */
-    private function applyExclusions(AudienceRule $rule, Collection $ids): Collection
+    private function applyExclusions(AudienceRule $rule, Collection $ids, array $visitedGroupIds, int $hops): Collection
     {
         foreach ($rule->children() as $child) {
             if ($child->type() !== 'none_of') {
@@ -136,7 +178,7 @@ class AudienceResolver
             }
 
             foreach ($child->children() as $excluded) {
-                $ids = $ids->diff($this->resolveIds($excluded));
+                $ids = $ids->diff($this->resolveWithinTraversal($excluded, $visitedGroupIds, $hops));
             }
         }
 
@@ -241,17 +283,48 @@ class AudienceResolver
         return $direct->merge($viaUser)->unique()->values();
     }
 
-    /** @return Collection<int, int> */
-    private function bySavedGroup(AudienceRule $rule): Collection
+    /**
+     * `saved_group` — with a fail-closed guard against re-entering a group
+     * already on this traversal's stack.
+     *
+     * REFUSES THE WHOLE RESOLUTION RATHER THAN THE RE-ENTRANT BRANCH ALONE.
+     * `AudienceRule::MAX_DEPTH` bounds nesting inside one stored rule document;
+     * it cannot see across a `saved_group` hop, because each hop starts a fresh
+     * `AudienceRule::fromArray()` at depth 0. Silently skipping the cycle and
+     * returning whatever the rest of the rule matched would hand every caller —
+     * the live recipient count on the EMNS console among them — a
+     * shorter-than-true audience with nothing to say it was truncated. During a
+     * crisis a wrong count that looks right is worse than a visible error, so
+     * this throws instead: {@see CircularAudienceRuleException}.
+     *
+     * @param  list<int>  $visitedGroupIds
+     * @return Collection<int, int>
+     */
+    private function bySavedGroup(AudienceRule $rule, array $visitedGroupIds, int $hops): Collection
     {
-        $group = SavedGroup::query()->find((int) $rule->get('id'));
+        $groupId = (int) $rule->get('id');
+        $group = SavedGroup::query()->find($groupId);
 
         if ($group === null) {
             return collect();
         }
 
         if ($group->is_dynamic && is_array($group->rule)) {
-            return $this->resolveIds(AudienceRule::fromArray($group->rule));
+            if (in_array($groupId, $visitedGroupIds, true)) {
+                throw CircularAudienceRuleException::cycle($groupId, $visitedGroupIds);
+            }
+
+            $hops++;
+
+            if ($hops > self::MAX_GROUP_HOPS) {
+                throw CircularAudienceRuleException::hopLimitExceeded(self::MAX_GROUP_HOPS, [...$visitedGroupIds, $groupId]);
+            }
+
+            return $this->resolveWithinTraversal(
+                AudienceRule::fromArray($group->rule),
+                [...$visitedGroupIds, $groupId],
+                $hops,
+            );
         }
 
         return $group->members()->pluck('bcms_contacts.id');

@@ -114,6 +114,9 @@ export default function Index({ dashboard = {}, units = [], types = [], scope_no
                                 <div className="flex justify-between"><dt>Verified</dt><dd>{data_confidence.verified} of {data_confidence.contacts}</dd></div>
                                 <div className="flex justify-between"><dt>Failing repeatedly</dt><dd>{data_confidence.failing}</dd></div>
                                 <div className="flex justify-between"><dt>Consent withdrawn</dt><dd>{data_confidence.consent_withdrawn}</dd></div>
+                                <div className="flex justify-between" title="Never asked or awaiting an answer — unreachable on personal channels outside a life-safety alert.">
+                                    <dt>No consent on record</dt><dd>{data_confidence.consent_not_requested}</dd>
+                                </div>
                             </dl>
                         </>
                     )}

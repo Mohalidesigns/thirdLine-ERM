@@ -143,9 +143,10 @@ class NullOrganizationRowsAreDeclaredGlobalTest extends TestCase
 
     /**
      * THE RULE. A table holding NULL-organization rows must declare them global.
+     *
+     * @return list<string>
      */
-    #[Test]
-    public function a_table_holding_null_organization_rows_declares_them_global(): void
+    private function undeclaredNullOrgTables(): array
     {
         $undeclared = [];
 
@@ -170,7 +171,91 @@ class NullOrganizationRowsAreDeclaredGlobalTest extends TestCase
             );
         }
 
+        return $undeclared;
+    }
+
+    /**
+     * THE RULE, against whatever rows happen to be in the migrated-but-empty
+     * test database. `RefreshDatabase` migrates every table and seeds none of
+     * them, so on its own this assertion inspects 50+ tables that are all
+     * empty: `$nulls` is 0 for every one, every iteration `continue`s, and
+     * `$undeclared` is `[]` by construction — a test that passes by looking at
+     * nothing, whether or not the underlying rule is even implemented.
+     *
+     * The method below,
+     * `a_table_holding_a_real_undeclared_null_organization_row_is_caught()`,
+     * is the one that actually exercises the rule with a manufactured row.
+     * This one stays as the full-schema sweep it was written as, because it
+     * IS the check a real deployment's data should be run against — see the
+     * class docblock's closing note — it is just not, by itself, capable of
+     * proving the rule fires.
+     */
+    #[Test]
+    public function a_table_holding_null_organization_rows_declares_them_global(): void
+    {
+        $undeclared = $this->undeclaredNullOrgTables();
+
         $this->assertSame([], $undeclared, implode("\n", $undeclared));
+    }
+
+    /**
+     * THE POSITIVE CONTROL the test above cannot provide on an empty database.
+     *
+     * `risk_control_mapping` is the exact table P8 found this defect on (see
+     * the class docblock) and is NOT declared global — confirmed separately by
+     * `the_risk_control_pivot_is_not_global_and_holds_no_orphans()`. Foreign
+     * key checks are dropped for one insert because manufacturing a row with a
+     * NULL `organization_id` is the only thing under test here; which `risk_id`
+     * and `control_id` it points at is not, and building real Risk and Control
+     * rows through their full validation stack would test something else.
+     *
+     * `risk_cause_categories` is the negative half of the same control: it
+     * legitimately holds NULL-organization rows (system categories inherited
+     * by every tenant) and IS declared global, so seeding a NULL row there
+     * must NOT be reported.
+     *
+     * MUTATION: comment out the `(new $class)->tenantIncludesGlobalRecords()`
+     * check in `undeclaredNullOrgTables()` (i.e. flag every NULL-org row
+     * regardless of declaration) and the SECOND assertion below fails, because
+     * `risk_cause_categories` — correctly declared global — would now be
+     * reported too. Comment out the whole rule (always return `[]`) and the
+     * FIRST assertion fails, because the manufactured `risk_control_mapping`
+     * orphan would no longer be caught.
+     */
+    #[Test]
+    public function a_table_holding_a_real_undeclared_null_organization_row_is_caught(): void
+    {
+        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        DB::table('risk_control_mapping')->insert([
+            'organization_id' => null,
+            'risk_id' => 999_999_001,
+            'control_id' => 999_999_002,
+            'mapping_rationale' => 'Manufactured for NullOrganizationRowsAreDeclaredGlobalTest.',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::statement('SET FOREIGN_KEY_CHECKS=1');
+
+        DB::table('risk_cause_categories')->insert([
+            'organization_id' => null,
+            'code' => 'MANUFACTURED-GLOBAL',
+            'name' => 'Manufactured global row for NullOrganizationRowsAreDeclaredGlobalTest',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $undeclared = $this->undeclaredNullOrgTables();
+
+        $this->assertTrue(
+            (bool) preg_grep('/^risk_control_mapping holds/', $undeclared),
+            "The manufactured orphan NULL-organization row in risk_control_mapping (undeclared as global) was not caught:\n"
+                .implode("\n", $undeclared)
+        );
+
+        $this->assertFalse(
+            (bool) preg_grep('/^risk_cause_categories holds/', $undeclared),
+            'risk_cause_categories is correctly declared global and must not be reported for holding a NULL-organization row.'
+        );
     }
 
     /**

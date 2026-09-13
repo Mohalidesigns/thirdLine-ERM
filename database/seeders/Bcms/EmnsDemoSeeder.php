@@ -3,6 +3,7 @@
 namespace Database\Seeders\Bcms;
 
 use App\Enums\Bcms\AlertSeverity;
+use App\Enums\Bcms\VerificationStatus;
 use App\Models\Bcms\Alert;
 use App\Models\Bcms\AlertRecipient;
 use App\Models\Bcms\AlertTemplate;
@@ -82,7 +83,7 @@ class EmnsDemoSeeder
                     'mobile_primary' => null,
                     'mobile_secondary' => null,
                     'consecutive_failures' => 5,
-                    'verification_status' => 'failed',
+                    'verification_status' => VerificationStatus::Bounced->value,
                     'last_verified_at' => null,
                 ]);
 
@@ -103,7 +104,7 @@ class EmnsDemoSeeder
                     'teams_id' => null,
                     'push_token' => null,
                     'consecutive_failures' => 9,
-                    'verification_status' => 'failed',
+                    'verification_status' => VerificationStatus::Bounced->value,
                     'last_verified_at' => null,
                 ]);
 

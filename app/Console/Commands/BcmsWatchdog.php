@@ -87,6 +87,14 @@ class BcmsWatchdog extends Command
 
                 if ($overdue > 0 || $stuck > 0) {
                     $problems[] = [
+                        // The id is what `alertAdministrators()` looks the
+                        // organisation back up by. `organizations.name` has no
+                        // unique index — two tenants with similar registered
+                        // names is not unusual in Nigerian banking group
+                        // structures — so a name-based re-lookup can resolve to
+                        // the WRONG tenant and notify its administrators about
+                        // another tenant's stalled reminders.
+                        'organization_id' => $organization->id,
                         'organization' => $organization->name,
                         'overdue_reminders' => $overdue,
                         'stuck_deliveries' => $stuck,
@@ -112,44 +120,58 @@ class BcmsWatchdog extends Command
         $auditFailures = (int) Cache::get(AuditLog::AUDIT_FAILURE_CACHE_KEY, 0);
 
         if ($auditFailures > 0) {
-            $problems[] = [
-                'organization' => 'ALL TENANTS',
-                'overdue_reminders' => 0,
-                'stuck_deliveries' => 0,
-                'audit_write_failures' => $auditFailures,
-            ];
-
             $this->error(sprintf(
                 '%d BCMS audit row(s) could not be written since the last check. The audit trail has holes; '.
                 'see the "BCMS audit row could not be written" log entries for the cause.',
                 $auditFailures,
             ));
 
+            // ITS OWN PATH, NOT A ROW IN $problems. This signal is not
+            // per-tenant — the counter never records which organisation's
+            // write failed, and TenantContext is not even set for a queue
+            // worker or command outside a tenant loop — so there is no
+            // organisation to notify and never was. Threading it through
+            // `alertAdministrators()`'s per-org name lookup as an
+            // 'ALL TENANTS' sentinel meant it matched nothing and `continue`d,
+            // so the one signal that the audit trail itself has holes reached
+            // nobody but a `Log::error` call further down that only fires when
+            // $problems is non-empty for some other reason.
+            $this->alertSupportOfAuditFailures($auditFailures);
+
             // Cleared so the next run reports only new failures. A count that
             // never resets stops meaning anything the day after it first fires.
             Cache::forget(AuditLog::AUDIT_FAILURE_CACHE_KEY);
         }
 
-        if ($problems === []) {
+        // Two independent signals, checked together: a stalled notification
+        // path is per-tenant, a hole in the audit trail is not, and neither
+        // may hide the other from the exit code a cron wrapper reads.
+        if ($problems === [] && $auditFailures === 0) {
             $this->info('BCMS notification path healthy.');
 
             return self::SUCCESS;
         }
 
-        $this->alertAdministrators($problems);
+        if ($problems !== []) {
+            $this->alertAdministrators($problems);
 
-        foreach ($problems as $problem) {
-            $this->error(sprintf(
-                '%s: %d reminder(s) overdue, %d delivery(ies) stuck in queued.',
-                $problem['organization'],
-                $problem['overdue_reminders'],
-                $problem['stuck_deliveries'],
-            ));
+            foreach ($problems as $problem) {
+                $this->error(sprintf(
+                    '%s: %d reminder(s) overdue, %d delivery(ies) stuck in queued.',
+                    $problem['organization'],
+                    $problem['overdue_reminders'],
+                    $problem['stuck_deliveries'],
+                ));
+            }
         }
 
-        // Error level, not warning: a stalled notification path is a
-        // compliance breach in progress and should page somebody.
-        Log::error('BCMS watchdog found a stalled notification path', ['problems' => $problems]);
+        // Error level, not warning: a stalled notification path or a hole in
+        // the audit trail is a compliance breach in progress and should page
+        // somebody.
+        Log::error('BCMS watchdog found a stalled notification path', [
+            'problems' => $problems,
+            'audit_write_failures' => $auditFailures,
+        ]);
 
         // A non-zero exit so a cron wrapper or a monitor notices without
         // having to parse the output.
@@ -171,7 +193,11 @@ class BcmsWatchdog extends Command
     private function alertAdministrators(array $problems): void
     {
         foreach ($problems as $problem) {
-            $organization = Organization::query()->where('name', $problem['organization'])->first();
+            // Looked up by id, not by `organizations.name` — the column has no
+            // unique index, and two tenants with similar registered names is
+            // not unusual in Nigerian banking group structures. The id was
+            // already in hand when the problem was recorded above.
+            $organization = Organization::query()->find($problem['organization_id']);
 
             if ($organization === null) {
                 continue;
@@ -214,6 +240,30 @@ class BcmsWatchdog extends Command
         Log::critical('BCMS watchdog: notification path stalled, support notified', [
             'support_alert' => true,
             'problems' => $problems,
+        ]);
+    }
+
+    /**
+     * Tell support that the audit trail itself has holes.
+     *
+     * ITS OWN PATH, NOT A SENTINEL ROW IN `alertAdministrators()`'s per-org
+     * list. `AuditLog::AUDIT_FAILURE_CACHE_KEY` is a single tenant-agnostic
+     * counter — `BcmsAuditable::writeBcmsAuditRow()` increments it wherever it
+     * runs, including a queue worker or a console command with no tenant
+     * resolved, so there is no organisation id to attach it to and never was.
+     * Pretending otherwise with an unmatched organisation name is how this
+     * signal reached nobody but a `Log::error` call that only fired when some
+     * other, unrelated problem happened to exist that day.
+     *
+     * Structured and at `critical`, like the notification-path signal above,
+     * so the same log collector alerts on it independently of whether any
+     * tenant also has a stalled reminder.
+     */
+    private function alertSupportOfAuditFailures(int $auditFailures): void
+    {
+        Log::critical('BCMS watchdog: audit trail has holes', [
+            'support_alert' => true,
+            'audit_write_failures' => $auditFailures,
         ]);
     }
 }

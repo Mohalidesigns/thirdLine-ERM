@@ -41,15 +41,26 @@ export default function ReverseImpact({ impact }) {
                 <p className="text-xs uppercase tracking-wide text-gray-500">Aggregate exposure</p>
                 {impact.aggregate_rto_hours === null ? (
                     <p className="mt-1 text-sm text-gray-500">
-                        None of the processes that stop has an approved BIA, so there is no stated recovery time to
-                        measure the exposure against.
+                        None of the {impact.halting_count} process{impact.halting_count === 1 ? '' : 'es'} that stop
+                        {impact.halting_count === 1 ? 's' : ''} has an approved BIA, so there is no stated recovery
+                        time to measure the exposure against.
                     </p>
+                ) : impact.unassessed_count > 0 ? (
+                    <>
+                        <p className="mt-1 font-mono text-3xl text-amber-700">{impact.aggregate_rto_hours} hours</p>
+                        <p className="mt-1 text-sm text-amber-800">
+                            Measured from {impact.assessed_count} of {impact.halting_count} processes that stop —
+                            the other {impact.unassessed_count} have no approved BIA and could shorten this once
+                            assessed. This is not the shortest recovery time among the processes that stop; it is
+                            the shortest among the ones that have stated one.
+                        </p>
+                    </>
                 ) : (
                     <>
                         <p className="mt-1 font-mono text-3xl text-gray-900">{impact.aggregate_rto_hours} hours</p>
                         <p className="mt-1 text-sm text-gray-600">
                             The shortest recovery time among the processes that stop — the time before the first
-                            commitment is breached.
+                            commitment is breached. All {impact.halting_count} have an approved BIA.
                         </p>
                     </>
                 )}

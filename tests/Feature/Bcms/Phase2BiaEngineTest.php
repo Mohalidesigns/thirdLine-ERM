@@ -804,6 +804,351 @@ class Phase2BiaEngineTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
+    /*  Gate 1 retrospective — Set B */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Set B defect 1: `MtpdDeriver` used to treat a horizon as fully assessed
+     * the moment ANY category at it breached the threshold, even when another
+     * category at that SAME horizon (or an earlier one) had never been
+     * scored. The exact reproducer from the retrospective: threshold 4;
+     * `financial` scored 1 at 1h, 2 at 4h, 3 at 24h; `regulatory` scored 5 at
+     * 24h but left BLANK at 1h and 4h.
+     *
+     * The old code proposed `hours = 24.0` with the rationale "the first
+     * horizon at which any category crosses it" — false, because regulatory
+     * at 4h (and 1h) was simply never assessed, not tolerable. Whether it had
+     * already crossed the threshold at 4h is unknown, so 24h cannot be
+     * trusted as the FIRST breach.
+     *
+     * MUTATION: remove the `$gaps` check in `MtpdDeriver::derive()` (i.e.
+     * propose the first breaching horizon without checking every earlier
+     * horizon was scored for that category) and this test's `hours`
+     * assertion fails: it comes back 24.0 instead of null.
+     */
+    #[Test]
+    public function a_partially_scored_horizon_is_not_treated_as_a_trustworthy_breach(): void
+    {
+        $assessment = $this->assessment($this->process('BCP-001'));
+        $service = app(BiaAssessmentService::class);
+
+        $service->scoreImpact($assessment, ImpactCategory::Financial, ImpactHorizon::H1, 1);
+        $service->scoreImpact($assessment, ImpactCategory::Financial, ImpactHorizon::H4, 2);
+        $service->scoreImpact($assessment, ImpactCategory::Financial, ImpactHorizon::H24, 3);
+        // Regulatory is scored ONLY at 24h — 1h and 4h are left blank.
+        $service->scoreImpact($assessment, ImpactCategory::Regulatory, ImpactHorizon::H24, 5);
+
+        $derived = app(MtpdDeriver::class)->derive($assessment->refresh());
+
+        $this->assertNull($derived['hours'], 'A gap in an earlier horizon was walked past instead of refusing the proposal.');
+        $this->assertNull($derived['horizon']);
+        $this->assertStringContainsString('regulatory', $derived['rationale']);
+        $this->assertStringContainsString('not scored', $derived['rationale']);
+
+        // apply() persists the refusal too — a later reader of the column
+        // sees no proposal rather than the false 24h one.
+        app(MtpdDeriver::class)->apply($assessment->refresh());
+        $this->assertNull($assessment->refresh()->derived_mtpd_hours);
+    }
+
+    /**
+     * FIXED (Gate 1 retrospective, defect 6): `BiaController::acceptDerivedMtpd()`
+     * used to flash a hardcoded "nothing to accept" string whenever
+     * `derived_mtpd_hours` was null, which is true of BOTH a grid that was
+     * fully scored and never crossed the threshold AND a grid refused for a
+     * scoring gap (Set B defect 1, above) — two completely different states
+     * for an assessor to be in. It now re-derives live and flashes
+     * `MtpdDeriver::derive()`'s own rationale, which is worded differently
+     * for each. "We checked and it is fine" must be distinguishable from
+     * "nobody looked" — a message that merely exists proves nothing.
+     *
+     * MUTATION: replace the `$this->deriver->derive($assessment)['rationale']`
+     * call in `BiaController::acceptDerivedMtpd()` with a fixed string (the
+     * pre-fix behaviour) and this fails on the second assertion — both flashed
+     * messages become identical.
+     */
+    #[Test]
+    public function the_accept_mtpd_route_flashes_a_message_that_tells_the_two_null_cases_apart(): void
+    {
+        $manager = User::create([
+            'organization_id' => $this->organization->id, 'name' => 'BIA Manager',
+            'email' => 'bia-manager@khb.test', 'password' => bcrypt('secret'), 'is_active' => true,
+        ]);
+        $role = \Spatie\Permission\Models\Role::findOrCreate('bia-manager', 'web');
+        $role->givePermissionTo(\Spatie\Permission\Models\Permission::findOrCreate('bcms.bia.complete', 'web'));
+        $manager->assignRole($role);
+
+        // Case A: fully scored, nothing crosses the threshold — "we checked
+        // and it is fine".
+        $toleratedAssessment = $this->assessment($this->process('BCP-MTPD-TOLERATED'));
+        app(BiaAssessmentService::class)->scoreImpact(
+            $toleratedAssessment, ImpactCategory::Customer, ImpactHorizon::W2, 2
+        );
+        $this->assertNull($toleratedAssessment->refresh()->derived_mtpd_hours, 'Precondition: nothing derived yet.');
+
+        $toleratedResponse = $this->actingAs($manager)
+            ->post(route('bcms.bia.accept-mtpd', $toleratedAssessment));
+        $toleratedResponse->assertSessionHas('error');
+        $toleratedMessage = session('error');
+
+        // Case B: refused for a scoring gap (the exact Set B defect 1
+        // reproducer) — "nobody looked", not "checked and fine".
+        $gapAssessment = $this->assessment($this->process('BCP-MTPD-GAP'));
+        $gapService = app(BiaAssessmentService::class);
+        $gapService->scoreImpact($gapAssessment, ImpactCategory::Financial, ImpactHorizon::H1, 1);
+        $gapService->scoreImpact($gapAssessment, ImpactCategory::Financial, ImpactHorizon::H4, 2);
+        $gapService->scoreImpact($gapAssessment, ImpactCategory::Financial, ImpactHorizon::H24, 3);
+        $gapService->scoreImpact($gapAssessment, ImpactCategory::Regulatory, ImpactHorizon::H24, 5);
+        $this->assertNull($gapAssessment->refresh()->derived_mtpd_hours, 'Precondition: refused, not derived.');
+
+        $gapResponse = $this->actingAs($manager)
+            ->post(route('bcms.bia.accept-mtpd', $gapAssessment));
+        $gapResponse->assertSessionHas('error');
+        $gapMessage = session('error');
+
+        // Both leave derived_mtpd_hours null, and BOTH routes flash an
+        // 'error' — the two situations must not be told apart, if at all,
+        // by anything other than the message text.
+        $this->assertNotSame(
+            $toleratedMessage,
+            $gapMessage,
+            'A grid that was fully scored and tolerable flashed the same message as one refused for a scoring gap.'
+        );
+        $this->assertStringContainsString('does not answer the question', $toleratedMessage);
+        $this->assertStringContainsString('not scored', $gapMessage);
+        $this->assertStringContainsString('regulatory', $gapMessage);
+
+        // Neither call actually recorded an mtpd_hours answer — a message was
+        // flashed instead of an acceptance going through.
+        $this->assertNull($toleratedAssessment->refresh()->mtpd_hours);
+        $this->assertNull($gapAssessment->refresh()->mtpd_hours);
+    }
+
+    /**
+     * Set B defect 2, the direction the existing coverage did not have: a
+     * CHILD approved first at a longer RTO, then its PARENT approved at a
+     * shorter one. `parentBreaches()` (checked on the child) only fires when
+     * the parent is already approved; here the parent is the one being
+     * checked, which is `childBreaches()`.
+     *
+     * MUTATION: delete the `childBreaches()` call from `BiaValidator::check()`
+     * and this blocks nothing — the register would say the parent resumes in
+     * 4 hours while a step inside it is still down for 8, silently.
+     */
+    #[Test]
+    public function a_parent_approved_after_its_child_cannot_claim_a_shorter_rto(): void
+    {
+        $parent = $this->process('BCP-PARENT2');
+        $child = $this->process('BCP-CHILD2', ['parent_process_id' => $parent->id]);
+
+        $childAssessment = $this->assessment($child);
+        app(BiaAssessmentService::class)->save($childAssessment, ['mtpd_hours' => 24, 'rto_hours' => 8]);
+        $this->approve($childAssessment);
+
+        $parentAssessment = $this->assessment($parent);
+        app(BiaAssessmentService::class)->save($parentAssessment, ['mtpd_hours' => 24, 'rto_hours' => 4]);
+
+        $blocking = app(BiaValidator::class)->check($parentAssessment->refresh())['blocking'];
+
+        $this->assertCount(1, $blocking);
+        $this->assertStringContainsString('one of the two numbers is wrong', $blocking[0]['message']);
+
+        $this->expectException(InvalidArgumentException::class);
+        app(BiaAssessmentService::class)->submit($parentAssessment->refresh());
+    }
+
+    /**
+     * Set B defect 3: the reverse-impact headline must carry its coverage
+     * denominator, and the screen must caveat rather than present a bare
+     * number when any halting process is unassessed. This is the service-side
+     * half — `assessed_count`/`unassessed_count` — the JSX caveat itself is
+     * verified by reading `resources/js/Pages/Bcms/Bia/ReverseImpact.jsx`.
+     *
+     * MUTATION: change `'assessed_count' => count($rtos)` to
+     * `count($halting)` (i.e. claim everything was assessed) and this test's
+     * `unassessed_count` assertion fails — it would report 0 instead of 2.
+     */
+    #[Test]
+    public function the_reverse_impact_headline_carries_its_coverage_denominator(): void
+    {
+        $core = Application::query()->create(['code' => 'APP-PARTIAL', 'name' => 'Partially Assessed Platform']);
+        $service = app(DependencyService::class);
+        $assessments = app(BiaAssessmentService::class);
+
+        // One halting process WITH an approved BIA...
+        $assessed = $this->process('BCP-ASSESSED', ['criticality_tier' => 2]);
+        $assessedAssessment = $this->assessment($assessed);
+        $assessments->save($assessedAssessment, ['mtpd_hours' => 24, 'rto_hours' => 4]);
+        $service->attach($assessedAssessment->refresh(), $core, ['criticality' => 'critical', 'dependency_type' => 'upstream']);
+        $this->approve($assessedAssessment->refresh(), 2);
+
+        // ...and two halting processes with NO approved BIA at all.
+        foreach (['BCP-GAP-1', 'BCP-GAP-2'] as $code) {
+            $gap = $this->process($code, ['criticality_tier' => 3]);
+            $gapAssessment = $this->assessment($gap);
+            $service->attach($gapAssessment->refresh(), $core, ['criticality' => 'medium', 'dependency_type' => 'upstream']);
+        }
+
+        $impact = $service->impactOf($core);
+
+        $this->assertSame(3, $impact['halting_count']);
+        $this->assertSame(1, $impact['assessed_count']);
+        $this->assertSame(2, $impact['unassessed_count']);
+        $this->assertSame(4.0, $impact['aggregate_rto_hours']);
+
+        // No percentage anywhere in the payload — a ratio over a partly
+        // assessed register reads as a confidence it is not.
+        $this->assertArrayNotHasKey('coverage_percentage', $impact);
+        $this->assertArrayNotHasKey('assessed_percentage', $impact);
+    }
+
+    /**
+     * Set B defect 4: `close()` had no already-closed guard, so a "frozen"
+     * clause 8.2.2 response rate could be silently rewritten. Fixed to throw,
+     * consistently with `distribute()`'s own already-closed guard.
+     *
+     * MUTATION: remove the `if ($campaign->status === 'closed')` guard from
+     * `BiaCampaignService::close()` and the second call below succeeds and
+     * rewrites `response_rate` instead of throwing — silently, since nothing
+     * else in the campaign changed to explain a new figure.
+     */
+    #[Test]
+    public function closing_an_already_closed_campaign_is_refused_consistently_with_distribute(): void
+    {
+        $this->process('BCP-CLOSE-1');
+        $this->process('BCP-CLOSE-2');
+
+        $campaigns = app(BiaCampaignService::class);
+        $campaign = $campaigns->create(['name' => 'Annual BIA', 'closes_at' => now()->addWeek()]);
+        $campaigns->distribute($campaign);
+
+        $first = BiaAssessment::query()->firstOrFail();
+        $this->completeAndSubmit($first);
+
+        $closed = $campaigns->close($campaign);
+        $this->assertSame(50.0, (float) $closed->response_rate);
+
+        // A second process answers AFTER close — if the guard did not exist,
+        // re-closing now would move the frozen figure to 100%.
+        $second = BiaAssessment::query()->where('id', '!=', $first->id)->firstOrFail();
+        $this->completeAndSubmit($second);
+
+        try {
+            $campaigns->close($campaign->refresh());
+            $this->fail('An already-closed campaign was closed again instead of being refused.');
+        } catch (InvalidArgumentException $e) {
+            $this->assertStringContainsString('already closed', $e->getMessage());
+        }
+
+        $this->assertSame(
+            50.0,
+            (float) $campaign->refresh()->response_rate,
+            'The frozen response rate moved after the campaign was already closed.'
+        );
+
+        // distribute() and close() must behave the SAME way when the
+        // campaign they are given is already closed — both refuse.
+        try {
+            $campaigns->distribute($campaign->refresh());
+            $this->fail('A closed campaign accepted a distribute() call.');
+        } catch (InvalidArgumentException $e) {
+            $this->assertStringContainsString('closed campaign', $e->getMessage());
+        }
+    }
+
+    /**
+     * FIXED (Gate 1 retrospective, defect 6): `BiaCampaignController::close()`
+     * now catches the `InvalidArgumentException` `close()` throws on a second
+     * close, exactly as `distribute()`'s controller action already did.
+     * Re-closing a campaign from the UI now redirects with a flash `error`
+     * carrying the service layer's "already closed" message, instead of
+     * falling through to Laravel's default 500.
+     *
+     * MUTATION: remove the `try { ... } catch (\InvalidArgumentException $e)`
+     * around `$this->campaigns->close(...)` in `BiaCampaignController::close()`
+     * and this goes back to an uncaught 500 with no flash message at all.
+     */
+    #[Test]
+    public function the_close_route_now_catches_the_already_closed_exception_consistently_with_distribute(): void
+    {
+        config()->set('app.debug', false);
+
+        $this->process('BCP-ROUTE-CLOSE');
+
+        $campaigns = app(BiaCampaignService::class);
+        $campaign = $campaigns->create(['name' => 'Route Campaign', 'closes_at' => now()->addWeek()]);
+        $campaigns->distribute($campaign);
+        $campaigns->close($campaign);
+
+        $manager = User::create([
+            'organization_id' => $this->organization->id, 'name' => 'Campaign Manager',
+            'email' => 'campaign-manager@khb.test', 'password' => bcrypt('secret'), 'is_active' => true,
+        ]);
+        $role = \Spatie\Permission\Models\Role::findOrCreate('bia-campaign-manager', 'web');
+        $role->givePermissionTo(\Spatie\Permission\Models\Permission::findOrCreate('bcms.bia.campaign.manage', 'web'));
+        $manager->assignRole($role);
+
+        $response = $this->actingAs($manager)->post(route('bcms.bia-campaigns.close', $campaign));
+
+        // A redirect with the service's own "already closed" message, not
+        // a bare 500 — the same shape distribute() already had.
+        $response->assertRedirect();
+        $response->assertSessionHas('error');
+        $this->assertStringContainsString('already closed', session('error'));
+    }
+
+    /**
+     * Gate 1 retrospective: this class never created a second organisation
+     * before this test, so the BIA engine — which carries an MTPD, an RTO and
+     * a dependency graph, all of it board-level material — had no
+     * cross-tenant assertion anywhere in Phase 2.
+     */
+    #[Test]
+    public function a_bia_assessment_and_its_dependencies_do_not_resolve_across_a_tenant_boundary(): void
+    {
+        $other = Organization::create([
+            'name' => 'A Different Bank', 'short_name' => 'ADB2',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        TenantContext::set($other->id);
+        $this->seed(BcmsReferenceSeeder::class);
+        TenantContext::set($other->id);
+        $theirUnit = BusinessUnit::create([
+            'organization_id' => $other->id, 'code' => 'BU-OTHER', 'name' => 'Other Ops', 'is_active' => true,
+        ]);
+        $theirOwner = User::create([
+            'name' => 'Their Owner', 'email' => 'their-owner@adb2.test',
+            'password' => Hash::make(Str::random(32)), 'email_verified_at' => now(),
+            'organization_id' => $other->id, 'is_active' => true,
+        ]);
+        $theirProcess = Process::query()->create([
+            'code' => 'BCP-OTHER', 'name' => 'Their Process', 'status' => 'active',
+            'business_unit_id' => $theirUnit->id, 'owner_id' => $theirOwner->id,
+            'organization_id' => $other->id,
+        ]);
+        $theirAssessment = app(BiaAssessmentService::class)->start($theirProcess, $theirOwner->id, null, []);
+        $theirApp = Application::query()->create(['code' => 'APP-OTHER', 'name' => 'Their Platform']);
+        app(DependencyService::class)->attach($theirAssessment->refresh(), $theirApp, ['criticality' => 'critical']);
+        TenantContext::clear();
+
+        TenantContext::set($this->organization->id);
+
+        $this->assertNull(
+            BiaAssessment::query()->find($theirAssessment->id),
+            "Another tenant's BIA assessment leaked across the boundary."
+        );
+        $this->assertNull(Process::query()->find($theirProcess->id), "Another tenant's process leaked across the boundary.");
+        $this->assertSame(0, BiaAssessment::query()->count());
+
+        // The reverse-impact view specifically: it must not silently sum in
+        // another tenant's dependency rows for an application row it can
+        // still see (bcms_applications is per-tenant, so this also confirms
+        // the application itself does not leak).
+        $this->assertNull(Application::query()->find($theirApp->id));
+    }
+
+    /* ------------------------------------------------------------------ */
 
     private function completeAndSubmit(BiaAssessment $assessment): void
     {

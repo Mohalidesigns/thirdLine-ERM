@@ -67,16 +67,31 @@ class BcmsSettings
     /**
      * Persist a change. Returns the saved row.
      *
+     * DEFAULTS ARE SEEDED ONLY FOR A ROW THAT DOES NOT YET EXIST. Filling
+     * `defaultAttributes()` unconditionally and then overlaying `$attributes`
+     * is only safe while every caller sends all fourteen fields
+     * (`UpdateBcmsSettingsRequest` does today) — the next caller to pass a
+     * partial array would silently reset every field it omitted, including
+     * `ai_enabled` and `require_dual_approval_for_live`, back to their
+     * defaults. Guarding on `$setting->exists` makes a partial update behave
+     * like every other partial update: it changes what it names and leaves
+     * the rest alone.
+     *
      * @param  array<string, mixed>  $attributes
      */
-    public function update(array $attributes, ?int $organizationId = null): Setting
+    public function update(array $attributes, ?int $organizationId = null, ?int $userId = null): Setting
     {
         $organizationId ??= TenantContext::organizationIdOrNull();
 
         $setting = Setting::query()->firstOrNew(['organization_id' => $organizationId]);
-        $setting->fill($this->defaultAttributes());
+
+        if (! $setting->exists) {
+            $setting->fill($this->defaultAttributes());
+        }
+
         $setting->fill($attributes);
         $setting->organization_id = $organizationId;
+        $setting->updated_by = $userId ?? auth()->id();
         $setting->save();
 
         unset($this->cache[$organizationId]);

@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\Bcms\ConsentStatus;
+use App\Enums\Bcms\VerificationStatus;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -62,6 +64,7 @@ class Preflight extends Command
         $this->checkDatabaseEngine();
         $this->checkEnabledModules();
         $this->checkUncertifiedModulesAreOff();
+        $this->checkBcmsContactEnumLiterals();
 
         $this->newLine();
         $this->table(
@@ -598,6 +601,72 @@ class Preflight extends Command
         }
 
         $this->pass('Uncertified modules', 'BCMS is on and its Phase 7 handoff no longer reports ungated code');
+    }
+
+    /**
+     * A row already holding a `verification_status` or `consent_status`
+     * outside its enum's declared cases.
+     *
+     * BOTH COLUMNS ON `bcms_contacts` ARE CAST TO AN ENUM
+     * (`App\Models\Bcms\Contact::casts()`). Once cast, Eloquent calls the
+     * enum's own `::from()` on every READ as well as every write, and
+     * `::from()` THROWS on a value that is not a declared case. Four seeder
+     * writes once used `verification_status = 'failed'`, which
+     * `VerificationStatus` has never declared — `unverified|verified|bounced|
+     * invalid` is the whole contract — and were fixed at the source
+     * (docs/bcms/phase-7-notes.md §7). But the fix is in the CODE that
+     * writes new rows; a database seeded before that fix landed can still
+     * hold the old value, and the day that row is touched through Eloquent
+     * — a cascade contacting it, the tree-health dashboard rendering it — the
+     * request fatals with a raw `ValueError` instead of a handled 404 or a
+     * validation message. A deploy is the last point at which that is cheap
+     * to catch.
+     *
+     * THE VALID SET IS READ FROM THE ENUM, NEVER HARDCODED. A case added to
+     * either enum later is covered here without anyone remembering to update
+     * a parallel list — the exact failure mode this check exists to close
+     * off in the first place.
+     *
+     * PORTABLE SQL ONLY: `whereNotIn()` against the enum's own `->value`s,
+     * no raw JSON function and no engine-specific syntax — the same
+     * discipline `CalendarService.php:410` documents for the same reason.
+     */
+    private function checkBcmsContactEnumLiterals(): void
+    {
+        if (! Schema::hasTable('bcms_contacts')) {
+            $this->pass('BCMS contact enum literals', 'bcms_contacts does not exist; nothing to check');
+
+            return;
+        }
+
+        $consentValues = array_map(fn (ConsentStatus $c) => $c->value, ConsentStatus::cases());
+        $verificationValues = array_map(fn (VerificationStatus $v) => $v->value, VerificationStatus::cases());
+
+        $badConsent = DB::table('bcms_contacts')->whereNotIn('consent_status', $consentValues)->count();
+        $badVerification = DB::table('bcms_contacts')->whereNotIn('verification_status', $verificationValues)->count();
+
+        if ($badConsent === 0 && $badVerification === 0) {
+            $this->pass('BCMS contact enum literals', 'every consent_status and verification_status value is a declared case');
+
+            return;
+        }
+
+        $problems = [];
+
+        if ($badVerification > 0) {
+            $problems[] = "{$badVerification} row(s) hold a verification_status outside "
+                .'unverified|verified|bounced|invalid — most likely the legacy literal \'failed\'. Fix: '
+                ."UPDATE bcms_contacts SET verification_status = 'bounced' WHERE verification_status = 'failed';";
+        }
+
+        if ($badConsent > 0) {
+            $problems[] = "{$badConsent} row(s) hold a consent_status outside "
+                .'not_requested|pending|granted|withdrawn.';
+        }
+
+        $this->fail_('BCMS contact enum literals', implode(' ', $problems)
+            .' Reading such a row through Eloquent throws a ValueError rather than rendering — this is a '
+            .'data fix, not a schema change, and no ADR is needed.');
     }
 
     /* ------------------------------------------------------------------ */

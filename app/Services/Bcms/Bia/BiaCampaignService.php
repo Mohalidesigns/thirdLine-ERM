@@ -193,6 +193,18 @@ class BiaCampaignService
      */
     public function close(BiaCampaign $campaign, ?int $userId = null): BiaCampaign
     {
+        // Matching `distribute()`'s guard: a figure frozen for a board pack
+        // must not be able to move by clicking the same button twice. Thrown,
+        // not silently returned unchanged, for the same reason distribute()
+        // throws rather than no-ops — the caller asked for an action that
+        // cannot happen and should be told, not left to assume it did.
+        if ($campaign->status === 'closed') {
+            throw new InvalidArgumentException(
+                'This campaign is already closed. Its response rate was frozen at close and does not move '
+                .'because processes were added or distributed afterward.'
+            );
+        }
+
         $progress = $this->progress($campaign);
 
         $campaign->update([
@@ -209,10 +221,21 @@ class BiaCampaignService
     /*  Chasing and escalation */
     /* ------------------------------------------------------------------ */
 
-    /** @return Collection<int, BiaAssessment> */
+    /**
+     * @return Collection<int, BiaAssessment>
+     *
+     * Adjacent cleanup while in this method (reviewer-flagged, not a defect of
+     * its own): the previous form wrapped `created_at` in a `whereDate(...)`
+     * that was true for every row, then filtered the whole result set on a
+     * campaign-level `isPast()` check that ignored each row it was given. Net
+     * effect was correct — nothing is overdue before the deadline — but the
+     * code said something different from what it did, and `whereDate()`
+     * wraps the column in `DATE()`, the same family as a `DATE_FORMAT` in a
+     * `WHERE` this codebase otherwise refuses. Expressed directly instead.
+     */
     public function overdue(BiaCampaign $campaign): Collection
     {
-        if ($campaign->closes_at === null) {
+        if ($campaign->closes_at === null || ! $campaign->closes_at->isPast()) {
             return collect();
         }
 
@@ -223,15 +246,12 @@ class BiaCampaignService
                 BiaAssessmentStatus::InProgress->value,
                 BiaAssessmentStatus::Returned->value,
             ])
-            ->where(fn ($q) => $q->whereDate('bcms_bia_assessments.created_at', '<=', now()))
             // `head_id` IS IN THE SELECT because `managerFor()` reads it. A
             // constrained eager load that omits a column the code then reads
             // returns null forever and nothing fails — the escalation simply
             // never happens (development standard §6).
             ->with(['process.businessUnit:id,name,head_id', 'assessor:id,name'])
-            ->get()
-            ->filter(fn () => $campaign->closes_at->isPast())
-            ->values();
+            ->get();
     }
 
     /**

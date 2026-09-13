@@ -2,8 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Organization;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -22,6 +26,8 @@ use Tests\TestCase;
  */
 class PreflightModuleGateTest extends TestCase
 {
+    use RefreshDatabase;
+
     #[Test]
     public function it_lists_which_modules_this_installation_actually_serves(): void
     {
@@ -150,5 +156,94 @@ class PreflightModuleGateTest extends TestCase
         );
         $this->assertStringNotContainsString('is missing, so its certification', $output,
             'It fell through to the missing-file branch, so the fallback did not happen.');
+    }
+
+    /**
+     * Gate 2 rejection, third pass: `docs/bcms/phase-7-notes.md` §7 records
+     * that a database seeded before the C2 fix may already hold
+     * `verification_status = 'failed'`, and nothing detected it. Once
+     * `Contact::casts()` maps the column onto `VerificationStatus`
+     * (`unverified|verified|bounced|invalid` — `'failed'` was never a case),
+     * Eloquent throws a `ValueError` reading such a row rather than 404ing or
+     * validating. This is the last point before serving traffic that it is
+     * cheap to catch.
+     */
+    #[Test]
+    public function it_passes_when_every_bcms_contact_holds_a_declared_enum_value(): void
+    {
+        $organization = $this->bcmsOrganization();
+        $this->insertBcmsContact($organization, 'verified', 'granted');
+
+        Artisan::call('app:preflight', ['--allow-local' => true]);
+        $output = Artisan::output();
+
+        $this->assertMatchesRegularExpression(
+            '/BCMS contact enum literals\s*\|\s*PASS/',
+            $output,
+            'Every consent_status and verification_status value in the fixture is a declared case, so this '.
+            "row must PASS.\n\n".$output
+        );
+    }
+
+    /**
+     * MUTATION: skip the raw insert below and this test proves nothing —
+     * the control test above already shows PASS on a clean table.
+     */
+    #[Test]
+    public function it_fails_when_a_bcms_contact_holds_a_verification_status_outside_the_enum(): void
+    {
+        $organization = $this->bcmsOrganization();
+
+        // A plain DML insert, deliberately bypassing the Contact model: once
+        // the column is cast, Eloquent's own enum cast throws on `::from()`
+        // for a value that is not a declared case — which is exactly the
+        // "seeded before the fix" scenario this check exists to catch, and
+        // the only way to build that fixture is to write around the cast.
+        $this->insertBcmsContact($organization, 'failed', 'granted');
+
+        Artisan::call('app:preflight', ['--allow-local' => true]);
+        $output = Artisan::output();
+
+        $this->assertMatchesRegularExpression(
+            '/BCMS contact enum literals\s*\|\s*FAIL/',
+            $output,
+            "A row holding verification_status = 'failed' did not fail preflight.\n\n".$output
+        );
+        $this->assertStringContainsString(
+            "verification_status = 'bounced' WHERE verification_status = 'failed'",
+            $output,
+            'The failure message must name the one-line data fix, not just the count.'
+        );
+    }
+
+    private function bcmsOrganization(): Organization
+    {
+        return Organization::create([
+            'name' => 'Preflight Consent Check Bank', 'short_name' => 'PCB-'.Str::random(6),
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+    }
+
+    /**
+     * A DIRECT INSERT, never through the `Contact` model — the model's enum
+     * casts would themselves throw on an invalid value, which is the
+     * behaviour this test is set up to provoke in `app:preflight`, not in
+     * the fixture that builds the row.
+     */
+    private function insertBcmsContact(Organization $organization, string $verificationStatus, string $consentStatus): void
+    {
+        DB::table('bcms_contacts')->insert([
+            'uuid' => (string) Str::uuid(),
+            'organization_id' => $organization->id,
+            'source' => 'manual',
+            'full_name' => 'Preflight Fixture Contact',
+            'preferred_language' => 'en',
+            'consent_status' => $consentStatus,
+            'verification_status' => $verificationStatus,
+            'consecutive_failures' => 0,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 }

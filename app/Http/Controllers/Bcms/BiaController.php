@@ -16,6 +16,7 @@ use App\Presenters\Bcms\BiaWorkspacePresenter;
 use App\Services\Bcms\Bia\BiaAiDrafter;
 use App\Services\Bcms\Bia\BiaAssessmentService;
 use App\Services\Bcms\Bia\DependencyService;
+use App\Services\Bcms\Bia\MtpdDeriver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -34,6 +35,7 @@ class BiaController extends Controller
     public function __construct(
         private BiaAssessmentService $assessments,
         private DependencyService $dependencies,
+        private MtpdDeriver $deriver,
     ) {}
 
     public function index(Request $request): Response
@@ -148,7 +150,10 @@ class BiaController extends Controller
         Gate::authorize('bcms.bia.complete');
 
         if ($assessment->derived_mtpd_hours === null) {
-            return back()->with('error', 'The impact grid has not proposed an MTPD — no category has reached the intolerable score at any scored horizon.');
+            // `derived_mtpd_hours` alone cannot say WHY it is null — assessed-and-tolerable
+            // and refused-for-a-scoring-gap both leave it null. Re-derive live for the
+            // rationale that actually distinguishes them (see MtpdDeriver::derive()).
+            return back()->with('error', $this->deriver->derive($assessment)['rationale']);
         }
 
         try {

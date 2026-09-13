@@ -380,6 +380,84 @@ class CrossTrackContractsTest extends TestCase
         $this->assertTrue(app(ContactResolver::class)->canReach($contact, ChannelKey::Sms, isLifeSafety: true));
     }
 
+    /**
+     * Set A defect 2 (Gate 1 retrospective). `ContactResolver::canReach()` used
+     * to return true for anything OTHER than an explicit `withdrawn`, and the
+     * column defaults to `not_requested` — so a contact nobody had ever asked
+     * was treated as consented. Now it is an allow-list: only `granted` (or
+     * life-safety traffic) permits SMS, voice, WhatsApp or USSD.
+     *
+     * THIS IS EXPECTED TO EMPTY AUDIENCES. `consent_status` is written only by
+     * seeders and tests — there is no consent-capture screen anywhere in this
+     * repository — so every contact created through the ordinary admin UI
+     * today defaults to `not_requested` and is now unreachable on every
+     * personal-phone channel until consent is explicitly recorded. That is
+     * the correct behaviour, not a regression, and it is exactly the gap the
+     * compliance-analyst's open NDPA finding is about.
+     *
+     * MUTATION: reverting `permitsPersonalChannel()` to "true unless
+     * Withdrawn" makes every assertion below fail on the SAME contact rows.
+     */
+    #[Test]
+    public function a_contact_never_asked_for_consent_is_not_reachable_on_a_personal_channel(): void
+    {
+        $neverAsked = Contact::query()->create([
+            'full_name' => 'Chidi Okafor', 'employee_id' => 'KHB-2',
+            'mobile_primary' => '+2348000000002', 'whatsapp' => '+2348000000002',
+            'is_active' => true,
+            // consent_status deliberately omitted — this is the column
+            // default (`not_requested`), which is the exact scenario every
+            // contact created outside a seeder or a test is in today.
+        ]);
+
+        $resolver = app(ContactResolver::class);
+        $neverAsked = $neverAsked->refresh();
+
+        $this->assertSame('not_requested', $neverAsked->consent_status->value);
+        $this->assertFalse($resolver->canReach($neverAsked, ChannelKey::Sms));
+        $this->assertFalse($resolver->canReach($neverAsked, ChannelKey::Voice));
+        $this->assertFalse($resolver->canReach($neverAsked, ChannelKey::WhatsApp));
+        $this->assertFalse($resolver->canReach($neverAsked, ChannelKey::Ussd));
+    }
+
+    #[Test]
+    public function a_pending_consent_request_is_not_yet_a_consent(): void
+    {
+        $pending = Contact::query()->create([
+            'full_name' => 'Ngozi Eze', 'employee_id' => 'KHB-3',
+            'mobile_primary' => '+2348000000003', 'consent_status' => 'pending', 'is_active' => true,
+        ]);
+
+        $this->assertFalse(app(ContactResolver::class)->canReach($pending, ChannelKey::Sms));
+    }
+
+    #[Test]
+    public function an_explicit_grant_permits_the_consented_channels(): void
+    {
+        $granted = Contact::query()->create([
+            'full_name' => 'Bola Adeyemi', 'employee_id' => 'KHB-4',
+            'mobile_primary' => '+2348000000004', 'consent_status' => 'granted', 'is_active' => true,
+        ]);
+
+        $this->assertTrue(app(ContactResolver::class)->canReach($granted, ChannelKey::Sms));
+    }
+
+    /**
+     * Life safety overrides `not_requested` exactly as it overrides
+     * `withdrawn` — the vital-interests basis does not depend on which kind
+     * of "no" is on record.
+     */
+    #[Test]
+    public function life_safety_traffic_reaches_a_never_asked_contact_too(): void
+    {
+        $neverAsked = Contact::query()->create([
+            'full_name' => 'Chidi Okafor', 'employee_id' => 'KHB-2',
+            'mobile_primary' => '+2348000000002', 'is_active' => true,
+        ]);
+
+        $this->assertTrue(app(ContactResolver::class)->canReach($neverAsked, ChannelKey::Sms, isLifeSafety: true));
+    }
+
     #[Test]
     public function a_contact_with_no_address_for_a_channel_is_skipped_rather_than_failed(): void
     {
@@ -402,6 +480,11 @@ class CrossTrackContractsTest extends TestCase
             'full_name' => 'Prefers WhatsApp', 'employee_id' => 'KHB-1',
             'email' => 'e@khb.test', 'mobile_primary' => '+2348000000001', 'whatsapp' => '+2348000000001',
             'channel_preferences' => ['whatsapp', 'sms'], 'is_active' => true,
+            // WhatsApp and SMS are consented channels (ContactResolver::CONSENTED_CHANNELS);
+            // without an explicit grant the column defaults to not_requested and both
+            // are refused, leaving only Email — which is the point of the allow-list fix,
+            // but not what THIS test is about, so the grant is stated explicitly.
+            'consent_status' => 'granted',
         ]);
 
         $channels = app(ContactResolver::class)->channelsFor(
@@ -469,5 +552,41 @@ class CrossTrackContractsTest extends TestCase
         $user = User::factory()->create(['organization_id' => $this->organization->id]);
 
         $this->assertNull(app(ContactResolver::class)->forUser($user));
+    }
+
+    /**
+     * Gate 1 retrospective: this class froze the cross-track contracts at G0
+     * for every other track to build against, and yet never itself created a
+     * second organisation — so the contract it is most responsible for,
+     * "resolves to contacts, never to users, and only within the tenant", had
+     * no cross-tenant assertion anywhere. A saved group and a contact are
+     * exactly the rows `AudienceResolver` and `ContactResolver` are built on.
+     */
+    #[Test]
+    public function a_saved_group_and_its_contacts_do_not_resolve_across_a_tenant_boundary(): void
+    {
+        $other = Organization::create([
+            'name' => 'A Different Bank', 'short_name' => 'ADB3',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+
+        TenantContext::set($other->id);
+        $theirContact = Contact::query()->create([
+            'full_name' => 'Not Our Contact', 'mobile_primary' => '+2348099999999', 'is_active' => true,
+        ]);
+        $theirGroup = SavedGroup::factory()->create(['is_dynamic' => false]);
+        $theirGroup->members()->attach($theirContact->id, ['organization_id' => $other->id]);
+        TenantContext::clear();
+
+        TenantContext::set($this->organization->id);
+
+        $this->assertNull(Contact::query()->find($theirContact->id), "Another tenant's contact leaked across the boundary.");
+        $this->assertNull(SavedGroup::query()->find($theirGroup->id), "Another tenant's saved group leaked across the boundary.");
+
+        // The resolver itself must fail closed, not merely the query builder:
+        // resolving a saved-group id that belongs to another tenant must find
+        // nobody, not throw and not silently borrow the other tenant's rule.
+        $ids = app(AudienceResolver::class)->resolveIds(AudienceRule::make('saved_group', ['id' => $theirGroup->id]));
+        $this->assertTrue($ids->isEmpty());
     }
 }

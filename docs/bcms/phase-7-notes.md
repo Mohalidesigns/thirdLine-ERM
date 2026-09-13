@@ -313,6 +313,16 @@ log driver and ships on-prem.
   liability.
 - **The AI alert composer is still off** (`bcms.ai.capabilities.alert_composer`),
   like every other AI capability. Phase 12.
+- **A deployment database seeded before Gate 2's retrospective fix may already
+  hold `bcms_contacts.verification_status = 'failed'`.** `VerificationStatus`
+  has never declared a `failed` case — the migration's own contract comment
+  lists `unverified|verified|bounced|invalid` — but four seeder writes used it
+  anyway, before `Contact::casts()` mapped the column onto the enum. Once cast,
+  reading such a row throws a `ValueError`. This is a one-line data fix, not a
+  structural one: `UPDATE bcms_contacts SET verification_status = 'bounced'
+  WHERE verification_status = 'failed';`. No ADR — the column and its
+  contract are unchanged; only a value that was already wrong under the
+  documented contract is being corrected to match it.
 
 ## 8. A MariaDB testing trap, for whoever forces a `QueryException` next
 

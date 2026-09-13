@@ -204,9 +204,11 @@ export default function Results({
                         <Line label="Must-reach nodes missed" value={`${scorecard.must_reach_missed ?? 0} of ${scorecard.must_reach_total ?? 0}`}
                             hint={(scorecard.must_reach_missed_names ?? []).join(', ') || 'every must-reach node answered'}
                             tone={(scorecard.must_reach_missed ?? 0) > 0 ? 'text-rose-600' : ''} />
-                        <Line label="Excluded — consent withdrawn" value={scorecard.consent_excluded ?? 0}
+                        <Line label={outcomes.find((o) => o.value === 'consent_blocked')?.label
+                                ?? 'Excluded — no consent for personal channels'}
+                            value={scorecard.consent_excluded ?? 0}
                             hint={(scorecard.consent_excluded_names ?? []).join(', ')
-                                || 'nobody was excluded; consent is not counted as a data failure'} />
+                                || 'nobody was excluded for lack of consent'} />
                     </dl>
 
                     {scorecard.by_confirmation && Object.keys(scorecard.by_confirmation).length > 1 && (

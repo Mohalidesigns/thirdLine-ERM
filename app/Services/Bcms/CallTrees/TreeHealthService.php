@@ -4,6 +4,7 @@ namespace App\Services\Bcms\CallTrees;
 
 use App\Enums\Bcms\CallTreeSource;
 use App\Enums\Bcms\CallTreeStatus;
+use App\Enums\Bcms\ConsentStatus;
 use App\Models\Bcms\CallTree;
 use App\Models\Bcms\CallTreeTest;
 use App\Models\Bcms\Contact;
@@ -134,6 +135,7 @@ class TreeHealthService
             return [
                 'contacts' => 0, 'verified' => 0, 'confidence' => null,
                 'unverified' => 0, 'failing' => 0, 'consent_withdrawn' => 0,
+                'consent_not_requested' => 0,
                 'window_days' => self::VERIFICATION_WINDOW_DAYS,
                 'note' => 'No active contacts. The roster is Phase 2C\'s to populate from the directory.',
             ];
@@ -148,10 +150,41 @@ class TreeHealthService
             'confidence' => round($verified / $total * 100, 1),
             'unverified' => $total - $verified,
             'failing' => (clone $base)->where('consecutive_failures', '>=', 3)->count(),
-            'consent_withdrawn' => (clone $base)->where('consent_status', 'withdrawn')->count(),
+            'consent_withdrawn' => (clone $base)->where('consent_status', ConsentStatus::Withdrawn->value)->count(),
+            // Criterion 10's missing count: a contact nobody has ever asked is
+            // just as unreachable on a personal channel as one who withdrew,
+            // and was invisible on this panel until now. DRIVEN BY THE
+            // PREDICATE, not a hardcoded pair of values: `Pending` blocks a
+            // personal channel exactly like `NotRequested` does
+            // (`blocksPersonalChannel()`), and nothing writes it today, but a
+            // future consent-capture workflow that starts a request in
+            // `pending` must not have to remember to update this count too.
+            'consent_not_requested' => (clone $base)
+                ->whereIn('consent_status', $this->neverGrantedConsentValues())
+                ->count(),
             'window_days' => self::VERIFICATION_WINDOW_DAYS,
             'note' => null,
         ];
+    }
+
+    /**
+     * Every consent state that blocks a personal channel WITHOUT being an
+     * actual withdrawal — today `not_requested` and `pending`, derived from
+     * `ConsentStatus::blocksPersonalChannel()` rather than listed by hand, so
+     * a state added to the enum later is covered here without anyone having
+     * to remember this count exists.
+     *
+     * @return list<string>
+     */
+    private function neverGrantedConsentValues(): array
+    {
+        return array_values(array_map(
+            fn (ConsentStatus $c) => $c->value,
+            array_filter(
+                ConsentStatus::cases(),
+                fn (ConsentStatus $c) => $c->blocksPersonalChannel() && $c !== ConsentStatus::Withdrawn
+            )
+        ));
     }
 
     /**

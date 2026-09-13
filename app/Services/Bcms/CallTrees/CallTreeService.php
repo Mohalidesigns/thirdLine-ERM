@@ -488,7 +488,11 @@ class CallTreeService
 
         $orphaned = $contact === null || ! $contact->is_active;
         $unverified = $contact !== null && $contact->last_verified_at === null;
-        $consentWithdrawn = $contact !== null && $contact->consent_status === 'withdrawn';
+        // ONE PREDICATE (Gate 1 retrospective, criterion 10): `pending` and
+        // `not_requested` refuse a personal channel exactly like a
+        // withdrawal, and comparing only to `Withdrawn` left the panel green
+        // for a tree that could not actually cascade.
+        $consentWithdrawn = $contact !== null && $contact->consent_status->blocksPersonalChannel();
         $noAddress = $contact !== null
             && ($contact->mobile_primary === null || $contact->mobile_primary === '')
             && ($contact->email === null || $contact->email === '');
@@ -496,7 +500,11 @@ class CallTreeService
         return [
             'is_orphaned' => $orphaned,
             'is_unverified' => $unverified,
+            // Kept for backwards compatibility of the flag; `consent_reason`
+            // is what lets the designer tell a withdrawal from a contact
+            // nobody has asked yet.
             'consent_withdrawn' => $consentWithdrawn,
+            'consent_reason' => $contact?->consent_status->blockedReason(),
             'has_no_address' => $noAddress,
             'failing_channel' => $contact !== null && (int) $contact->consecutive_failures >= 3,
             // A deputy is only expected where a failure would be expensive.

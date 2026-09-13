@@ -2,7 +2,9 @@
 
 namespace App\Models\Bcms;
 
+use App\Enums\Bcms\ConsentStatus;
 use App\Enums\Bcms\ContactSource;
+use App\Enums\Bcms\VerificationStatus;
 use App\Models\Bcms\Concerns\BcmsAuditable;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\Bcms\Concerns\ScopedToOrgHierarchy;
@@ -55,10 +57,10 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property array<array-key, mixed> $geo_last_known
  * @property ?string $latitude
  * @property ?string $longitude
- * @property string $consent_status
+ * @property \App\Enums\Bcms\ConsentStatus $consent_status
  * @property ?\Illuminate\Support\Carbon $consent_captured_at
  * @property ?\Illuminate\Support\Carbon $consent_withdrawn_at
- * @property string $verification_status
+ * @property \App\Enums\Bcms\VerificationStatus $verification_status
  * @property ?\Illuminate\Support\Carbon $last_verified_at
  * @property int $consecutive_failures
  * @property bool $is_active
@@ -110,6 +112,8 @@ class Contact extends Model
             'created_by' => 'integer',
             'updated_by' => 'integer',
             'source' => ContactSource::class,
+            'consent_status' => ConsentStatus::class,
+            'verification_status' => VerificationStatus::class,
         ];
     }
 

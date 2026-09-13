@@ -57,6 +57,8 @@ class MtpdDeriver
         }
 
         // Horizons in time order, not in the order somebody filled the grid in.
+        // Keyed by category too — a horizon that has SOME categories scored and
+        // others blank must not be read the same as one fully assessed.
         $byHorizon = [];
 
         foreach ($impacts as $impact) {
@@ -66,7 +68,7 @@ class MtpdDeriver
                 continue;
             }
 
-            $byHorizon[$horizon->value][] = $impact;
+            $byHorizon[$horizon->value][$impact->impact_category->value] = $impact;
         }
 
         $ordered = array_values(array_filter(
@@ -76,30 +78,64 @@ class MtpdDeriver
 
         usort($ordered, fn (ImpactHorizon $a, ImpactHorizon $b) => $a->hours() <=> $b->hours());
 
-        foreach ($ordered as $horizon) {
+        foreach ($ordered as $index => $horizon) {
             $breaching = [];
 
-            foreach ($byHorizon[$horizon->value] as $impact) {
+            foreach ($byHorizon[$horizon->value] as $categoryValue => $impact) {
                 if ((int) $impact->severity_score >= $threshold) {
-                    $breaching[] = $impact->impact_category->value;
+                    $breaching[] = $categoryValue;
                 }
             }
 
-            if ($breaching !== []) {
+            if ($breaching === []) {
+                continue;
+            }
+
+            // A breach is only trustworthy as "the FIRST horizon" if the
+            // category that breaches here was also scored at every earlier
+            // horizon the assessor actually visited. A gap means the category
+            // may have already crossed the threshold earlier and nobody
+            // recorded it — walking past that gap is exactly the defect.
+            $earlier = array_slice($ordered, 0, $index);
+            $gaps = [];
+
+            foreach ($breaching as $categoryValue) {
+                $missingAt = [];
+
+                foreach ($earlier as $earlierHorizon) {
+                    if (! isset($byHorizon[$earlierHorizon->value][$categoryValue])) {
+                        $missingAt[] = $earlierHorizon->value;
+                    }
+                }
+
+                if ($missingAt !== []) {
+                    $gaps[$categoryValue] = $missingAt;
+                }
+            }
+
+            if ($gaps !== []) {
                 return [
-                    'hours' => (float) $horizon->hours(),
-                    'horizon' => $horizon->value,
-                    'categories' => array_values(array_unique($breaching)),
+                    'hours' => null,
+                    'horizon' => null,
+                    'categories' => [],
                     'threshold' => $threshold,
-                    'rationale' => sprintf(
-                        'At %s, %s impact reaches %d out of 5, which this organisation has set as the point impact '
-                        .'stops being tolerable. That is the first horizon at which any category crosses it.',
-                        $horizon->value,
-                        $this->list($breaching),
-                        $threshold,
-                    ),
+                    'rationale' => $this->gapRationale($horizon, $gaps, $threshold),
                 ];
             }
+
+            return [
+                'hours' => (float) $horizon->hours(),
+                'horizon' => $horizon->value,
+                'categories' => array_values(array_unique($breaching)),
+                'threshold' => $threshold,
+                'rationale' => sprintf(
+                    'At %s, %s impact reaches %d out of 5, which this organisation has set as the point impact '
+                    .'stops being tolerable. That is the first horizon at which any category crosses it.',
+                    $horizon->value,
+                    $this->list($breaching),
+                    $threshold,
+                ),
+            ];
         }
 
         $longest = end($ordered) ?: null;
@@ -128,6 +164,32 @@ class MtpdDeriver
         $assessment->forceFill(['derived_mtpd_hours' => $derived['hours']])->save();
 
         return $assessment;
+    }
+
+    /**
+     * Explain why a candidate breach is being refused for a gap in its own
+     * history, naming the category and the specific horizons it was never
+     * scored at — silence is not an acceptable substitute for this.
+     *
+     * @param  array<string, list<string>>  $gaps  category value => horizon values it is missing at
+     */
+    private function gapRationale(ImpactHorizon $horizon, array $gaps, int $threshold): string
+    {
+        $named = [];
+
+        foreach ($gaps as $category => $missingHorizons) {
+            $named[] = sprintf('%s (not scored at %s)', $category, $this->list($missingHorizons));
+        }
+
+        return sprintf(
+            'At %s, impact would reach %d out of 5 — but %s. Whether that category already crossed the threshold '
+            .'at an earlier horizon is unknown, not tolerable, so %s cannot be proposed as the MTPD until every '
+            .'earlier horizon is scored for it.',
+            $horizon->value,
+            $threshold,
+            $this->list($named),
+            $horizon->value,
+        );
     }
 
     /** @param list<string> $items */

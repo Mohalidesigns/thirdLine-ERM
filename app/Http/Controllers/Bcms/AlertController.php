@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Bcms;
 
 use App\Enums\Bcms\AlertSeverity;
 use App\Enums\Bcms\ChannelKey;
+use App\Exceptions\Bcms\CircularAudienceRuleException;
 use App\Http\Controllers\Controller;
 use App\Jobs\Bcms\DispatchAlertChunkJob;
 use App\Jobs\Bcms\EscalateAlertRecipientsJob;
@@ -109,7 +110,14 @@ class AlertController extends Controller
     {
         Gate::authorize('bcms.alert.compose');
 
-        return response()->json($this->alerts->estimate($alert));
+        try {
+            return response()->json($this->alerts->estimate($alert));
+        } catch (CircularAudienceRuleException $e) {
+            // The live recipient counter is operated during an incident; the
+            // exception carries a careful, named explanation and the operator
+            // must see it rather than a bare 500 (Gate 1, defect 4).
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
     }
 
     /**
@@ -181,10 +189,11 @@ class AlertController extends Controller
 
         try {
             $contacts = $this->alerts->release($alert, (int) $request->user()?->getKey());
-        } catch (InvalidArgumentException $e) {
+        } catch (InvalidArgumentException|CircularAudienceRuleException $e) {
             // The refused attempt is recorded (criterion 4): an alert somebody
             // tried to send without a second authoriser is exactly the event an
-            // auditor asks to see.
+            // auditor asks to see. A cyclic audience rule refuses the dispatch
+            // the same way (Gate 1, defect 4) rather than surfacing a bare 500.
             $alert->recordAudit('alert.dispatch_refused', [
                 'reason' => $e->getMessage(),
                 'attempted_by' => $request->user()?->name,

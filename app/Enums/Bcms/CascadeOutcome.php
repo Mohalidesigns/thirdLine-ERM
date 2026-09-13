@@ -51,7 +51,7 @@ enum CascadeOutcome: string
             self::MailboxFull => 'Mailbox full',
             self::Unrecognised => 'Recipient not recognised',
             self::NoChannel => 'No reachable channel',
-            self::ConsentBlocked => 'Excluded — consent withdrawn',
+            self::ConsentBlocked => 'Excluded — no consent for personal channels',
             self::Blocked => 'Never attempted — blocked upstream',
         };
     }

@@ -5,7 +5,11 @@ namespace App\Services\Bcms\Findings;
 use App\Enums\Bcms\FindingClassification;
 use App\Enums\Bcms\FindingSource;
 use App\Enums\Bcms\IsoClauseRef;
+use App\Models\Bcms\Aar;
+use App\Models\Bcms\CallTreeTest;
 use App\Models\Bcms\Finding;
+use App\Models\Bcms\Plan;
+use App\Models\Bcms\Process;
 use App\Services\Bcms\Integration\ErmBridge;
 use App\Services\ReferenceCodeService;
 use Illuminate\Database\Eloquent\Model;
@@ -64,7 +68,7 @@ class FindingService
         }
 
         return DB::transaction(function () use ($source, $classification, $description, $sourceRecord, $attributes, $userId, $clauseRef) {
-            $finding = Finding::query()->create(array_merge([
+            $data = array_merge([
                 'reference' => $this->nextReference(),
                 'source' => $source->value,
                 'classification' => $classification->value,
@@ -74,7 +78,23 @@ class FindingService
                 'raised_by' => $userId ?? auth()->id(),
                 'raised_at' => now(),
                 'created_by' => $userId ?? auth()->id(),
-            ], $this->sourceLink($source, $sourceRecord), $attributes));
+            ], $this->sourceLink($source, $sourceRecord), $attributes);
+
+            // ADR 0017 Amendment 2: `Finding::orgScopeColumn()` now points at
+            // this column, and `grep -rn affected_business_unit_id app` showed
+            // exactly one writer before this — `CallTreeRemediation.php:193`,
+            // which sets it explicitly and is left alone below. Every other
+            // producer left it null, and a null unit is visible to the whole
+            // tenant by ADR 0006's null arm — deliberately, for the group BCP,
+            // and accidentally here. Derived only when the caller did not
+            // already supply one, and left null when the source genuinely
+            // carries no unit (audit, gap analysis, an incident or DR test
+            // with neither process nor plan named).
+            if (($data['affected_business_unit_id'] ?? null) === null) {
+                $data['affected_business_unit_id'] = $this->deriveBusinessUnitId($source, $sourceRecord, $data);
+            }
+
+            $finding = Finding::query()->create($data);
 
             // The ERM bridge is one-way and tolerant: a deployment whose issue
             // register is not configured must still be able to record a
@@ -84,6 +104,42 @@ class FindingService
 
             return $finding;
         });
+    }
+
+    /**
+     * @param  array<string, mixed>  $data  the finding's about-to-be-created
+     *                                      attributes, sourceLink already merged in
+     */
+    private function deriveBusinessUnitId(FindingSource $source, ?Model $sourceRecord, array $data): ?int
+    {
+        // A finding named against a specific process or plan — whether
+        // picked by hand on the raise-a-finding screen or carried by the
+        // source itself (`plan_review`'s sourceLink lands here as
+        // `affected_plan_id`) — takes that record's own unit, regardless of
+        // which of the eight sources raised it.
+        if (! empty($data['affected_process_id'])) {
+            return Process::query()->find($data['affected_process_id'])?->business_unit_id;
+        }
+
+        if (! empty($data['affected_plan_id'])) {
+            return Plan::query()->find($data['affected_plan_id'])?->business_unit_id;
+        }
+
+        if ($source === FindingSource::Aar && $sourceRecord instanceof Aar) {
+            return $sourceRecord->occurrence?->definition?->business_unit_id;
+        }
+
+        if ($source === FindingSource::CallTreeTest && $sourceRecord instanceof CallTreeTest) {
+            return $sourceRecord->callTree?->business_unit_id;
+        }
+
+        // `incident`, `dr_test`, `management_review`, `audit` and
+        // `gap_analysis` genuinely carry no unit unless one of the two
+        // attribute checks above already caught it — an incident or DR test
+        // register entry is enterprise-wide risk information, not one
+        // division's, and a null unit is the organisation-level answer ADR
+        // 0006 already gives it.
+        return null;
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Models\Bcms;
 
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -30,9 +31,18 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class PlanActivation extends Model
 {
-    use BelongsToOrganization, HasFactory;
+    use BelongsToOrganization, BindsToVisibleRecord, HasFactory;
 
     protected $table = 'bcms_plan_activations';
+
+    /**
+     * Derived (ADR 0017 §2): an activation has no unit column of its own and
+     * takes the shortest path to an anchor — its plan.
+     */
+    public function orgAnchorPath(): string
+    {
+        return 'plan';
+    }
 
     /** @var list<string> */
     protected $fillable = [

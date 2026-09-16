@@ -5,6 +5,7 @@ namespace App\Models\Bcms;
 use App\Enums\Bcms\ExerciseOutcome;
 use App\Enums\Bcms\OccurrenceStatus;
 use App\Models\Bcms\Concerns\BcmsAuditable;
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -56,7 +57,30 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class ExerciseOccurrence extends Model
 {
-    use BcmsAuditable, BelongsToOrganization, HasBcmsUuid, HasFactory, SoftDeletes;
+    use BcmsAuditable, BelongsToOrganization, BindsToVisibleRecord, HasBcmsUuid, HasFactory, SoftDeletes;
+
+    /**
+     * Derived (ADR 0017 §2): an occurrence has no unit column of its own and
+     * takes the shortest path to an anchor — its definition.
+     */
+    public function orgAnchorPath(): string
+    {
+        return 'definition';
+    }
+
+    /**
+     * ADR 0017 §4 point 5 — Phase 5's core loop. A Retail user invited to a
+     * Treasury exercise gets a T-10 reminder linking to
+     * `occurrences/{occurrence}/confirm-attendance`; without this arm that
+     * link 404s from an invitation the product itself sent. The facilitator
+     * runs an occurrence they may not be assigned to either.
+     *
+     * @return list<string>
+     */
+    public function orgVisibilityNamedUsers(): array
+    {
+        return ['facilitator_id', 'participants.user_id'];
+    }
 
     protected $table = 'bcms_exercise_occurrences';
 

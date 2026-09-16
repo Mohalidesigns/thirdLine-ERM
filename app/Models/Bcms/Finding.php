@@ -6,8 +6,10 @@ use App\Enums\Bcms\FindingClassification;
 use App\Enums\Bcms\FindingSource;
 use App\Models\Bcms\Concerns\BcmsAuditable;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\Bcms\Concerns\ScopedToOrgHierarchy;
 use App\Models\BusinessUnit;
+use App\Models\Bcms\Concerns\ScopedToOrgHierarchyContract;
 use App\Models\Issue;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -57,13 +59,25 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?\Illuminate\Support\Carbon $updated_at
  * @property ?\Illuminate\Support\Carbon $deleted_at
  */
-class Finding extends Model
+class Finding extends Model implements ScopedToOrgHierarchyContract
 {
-    use BcmsAuditable, BelongsToOrganization, HasBcmsUuid, HasFactory, ScopedToOrgHierarchy, SoftDeletes;
+    use BcmsAuditable, BelongsToOrganization, BindsToVisibleRecord, HasBcmsUuid, HasFactory, ScopedToOrgHierarchy, SoftDeletes;
 
     protected $table = 'bcms_findings';
 
     /** @var list<string> */
+    /**
+     * ADR 0017 §1 — the bug the ADR was written to name. `bcms_findings` has
+     * no `business_unit_id`; the column is `affected_business_unit_id`.
+     * Before this override, `Finding::visibleTo()` would raise an unknown-
+     * column error on its first call, uncaught because nothing had ever
+     * called it.
+     */
+    public function orgScopeColumn(): string
+    {
+        return 'affected_business_unit_id';
+    }
+
     protected $fillable = [
         'organization_id', 'reference', 'source', 'management_review_id', 'aar_id', 'incident_id', 'call_tree_test_id', 'dr_test_id',
         'classification', 'severity', 'description', 'root_cause', 'affected_plan_id',

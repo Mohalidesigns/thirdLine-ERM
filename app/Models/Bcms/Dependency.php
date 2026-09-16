@@ -3,6 +3,7 @@
 namespace App\Models\Bcms;
 
 use App\Enums\Bcms\DependencyType;
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -37,9 +38,19 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class Dependency extends Model
 {
-    use BelongsToOrganization, HasFactory;
+    use BelongsToOrganization, BindsToVisibleRecord, HasFactory;
 
     protected $table = 'bcms_dependencies';
+
+    /**
+     * Derived (ADR 0017 §2): a dependency has no unit column of its own and
+     * takes the shortest path to an anchor — through its assessment to the
+     * process it assesses. Two hops, and it is a single path (§2 rule 2).
+     */
+    public function orgAnchorPath(): string
+    {
+        return 'assessment.process';
+    }
 
     /** @var list<string> */
     protected $fillable = [

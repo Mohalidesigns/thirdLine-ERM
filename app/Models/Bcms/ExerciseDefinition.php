@@ -3,8 +3,10 @@
 namespace App\Models\Bcms;
 
 use App\Models\Bcms\Concerns\BcmsAuditable;
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\Bcms\Concerns\ScopedToOrgHierarchy;
+use App\Models\Bcms\Concerns\ScopedToOrgHierarchyContract;
 use App\Models\BusinessUnit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -61,9 +63,9 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?\Illuminate\Support\Carbon $updated_at
  * @property ?\Illuminate\Support\Carbon $deleted_at
  */
-class ExerciseDefinition extends Model
+class ExerciseDefinition extends Model implements ScopedToOrgHierarchyContract
 {
-    use BcmsAuditable, BelongsToOrganization, HasBcmsUuid, HasFactory, ScopedToOrgHierarchy, SoftDeletes;
+    use BcmsAuditable, BelongsToOrganization, BindsToVisibleRecord, HasBcmsUuid, HasFactory, ScopedToOrgHierarchy, SoftDeletes;
 
     protected $table = 'bcms_exercise_definitions';
 

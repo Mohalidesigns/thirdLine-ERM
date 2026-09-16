@@ -2315,7 +2315,7 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::post('bia/assessments/{assessment}/dependencies', [BcmsBiaController::class, 'storeDependency'])
             ->middleware('permission:bcms.bia.complete')->name('bia.dependencies.store');
         Route::delete('bia/assessments/{assessment}/dependencies/{dependency}', [BcmsBiaController::class, 'destroyDependency'])
-            ->middleware('permission:bcms.bia.complete')->name('bia.dependencies.destroy');
+            ->middleware('permission:bcms.bia.complete')->name('bia.dependencies.destroy')->scopeBindings();
 
         /* --- BIA campaigns --------------------------------------------- */
         Route::get('bia-campaigns', [BcmsBiaCampaignController::class, 'index'])
@@ -2431,6 +2431,9 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.plan.manage')->name('plans.preview-binding');
         Route::post('plans/{plan}/submit-review', [BcmsPlanController::class, 'submitForReview'])
             ->middleware('permission:bcms.plan.manage')->name('plans.submit-review');
+        // ADR 0017 §5: `->scopeBindings()` resolves {dependency} through the
+        // assessment's own `dependencies()` relation rather than globally by
+        // id, and `Dependency::orgAnchorPath()` then applies its own filter.
         Route::post('plans/{plan}/approve', [BcmsPlanController::class, 'approve'])
             ->middleware('permission:bcms.plan.approve')->name('plans.approve');
         Route::post('plans/{plan}/supersede', [BcmsPlanController::class, 'supersede'])
@@ -2443,9 +2446,9 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::post('plans/{plan}/sections', [BcmsPlanController::class, 'storeSection'])
             ->middleware('permission:bcms.plan.manage')->name('plans.sections.store');
         Route::patch('plans/{plan}/sections/{section}', [BcmsPlanController::class, 'updateSection'])
-            ->middleware('permission:bcms.plan.manage')->name('plans.sections.update');
+            ->middleware('permission:bcms.plan.manage')->name('plans.sections.update')->scopeBindings();
         Route::delete('plans/{plan}/sections/{section}', [BcmsPlanController::class, 'destroySection'])
-            ->middleware('permission:bcms.plan.manage')->name('plans.sections.destroy');
+            ->middleware('permission:bcms.plan.manage')->name('plans.sections.destroy')->scopeBindings();
 
         /* --- Plan distribution ------------------------------------------ */
         /*
@@ -2471,7 +2474,7 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::post('plans/{plan}/activate', [BcmsPlanDocumentController::class, 'activate'])
             ->middleware('permission:bcms.plan.activate')->name('plans.activate');
         Route::post('plans/{plan}/activations/{activation}/deactivate', [BcmsPlanDocumentController::class, 'deactivate'])
-            ->middleware('permission:bcms.plan.activate')->name('plans.deactivate');
+            ->middleware('permission:bcms.plan.activate')->name('plans.deactivate')->scopeBindings();
 
         /* --- The resilience calendar (clause 8.5, ISO 22398) ------------ */
         /*
@@ -2559,6 +2562,9 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
          * puts a message on the phone of every teller in a branch at 03:00, and
          * whoever holds it is a shorter list than whoever may draw the diagram.
          */
+        // ADR 0017 §5: without `->scopeBindings()`, {section} resolves
+        // globally by id — a section belonging to another division's plan
+        // could be addressed through a plan the user can see.
         Route::get('call-trees', [BcmsCallTreeController::class, 'index'])
             ->middleware('permission:bcms.calltree.view')->name('call-trees.index');
         Route::post('call-trees', [BcmsCallTreeController::class, 'store'])
@@ -2584,13 +2590,14 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::post('call-trees/{call_tree}/nodes', [BcmsCallTreeController::class, 'storeNode'])
             ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.store');
         Route::patch('call-trees/{call_tree}/nodes/{node}', [BcmsCallTreeController::class, 'updateNode'])
-            ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.update');
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.update')->scopeBindings();
         Route::delete('call-trees/{call_tree}/nodes/{node}', [BcmsCallTreeController::class, 'destroyNode'])
-            ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.destroy');
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.destroy')->scopeBindings();
+        // ADR 0017 §5: {activation} through the plan's own relation.
         Route::post('call-trees/{call_tree}/nodes/{node}/reparent', [BcmsCallTreeController::class, 'reparentNode'])
-            ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.reparent');
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.reparent')->scopeBindings();
         Route::post('call-trees/{call_tree}/nodes/{node}/deputy', [BcmsCallTreeController::class, 'assignDeputy'])
-            ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.deputy');
+            ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.deputy')->scopeBindings();
 
         Route::post('call-trees/{call_tree}/tests', [BcmsCallTreeTestController::class, 'store'])
             ->middleware('permission:bcms.calltree.test')->name('call-trees.tests.store');
@@ -2617,13 +2624,13 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
          * tree could record their own response.
          */
         Route::post('call-tree-tests/{test}/nodes/{node}/ack', [BcmsCallTreeTestController::class, 'acknowledge'])
-            ->middleware('permission:bcms.calltree.view')->name('call-tree-tests.nodes.ack');
+            ->middleware('permission:bcms.calltree.view')->name('call-tree-tests.nodes.ack')->scopeBindings();
         Route::post('call-tree-tests/{test}/nodes/{node}/failure', [BcmsCallTreeTestController::class, 'recordFailure'])
-            ->middleware('permission:bcms.calltree.test')->name('call-tree-tests.nodes.failure');
+            ->middleware('permission:bcms.calltree.test')->name('call-tree-tests.nodes.failure')->scopeBindings();
         Route::post('call-tree-tests/{test}/nodes/{node}/fix-contact', [BcmsCallTreeTestController::class, 'fixContact'])
-            ->middleware('permission:bcms.contact.manage')->name('call-tree-tests.nodes.fix-contact');
+            ->middleware('permission:bcms.contact.manage')->name('call-tree-tests.nodes.fix-contact')->scopeBindings();
         Route::post('call-tree-tests/{test}/nodes/{node}/finding', [BcmsCallTreeTestController::class, 'raiseFinding'])
-            ->middleware('permission:bcms.finding.manage')->name('call-tree-tests.nodes.finding');
+            ->middleware('permission:bcms.finding.manage')->name('call-tree-tests.nodes.finding')->scopeBindings();
 
         /* --- Emergency notification (Phase 7) --------------------------- */
         /*
@@ -2748,3 +2755,6 @@ Route::middleware(['feature:bcms'])->group(function () {
     Route::post('bcms/cascade/{token}', [\App\Http\Controllers\Bcms\CascadeAckController::class, 'store'])
         ->name('bcms.cascade.ack.store');
 });
+        // ADR 0017 §5: {node} through the tree's own `nodes()` relation.
+        // ADR 0017 §5: {node} through the test's own `nodes()` relation, on
+        // all four routes below.

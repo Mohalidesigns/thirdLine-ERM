@@ -4,14 +4,19 @@ namespace App\Http\Controllers\Bcms;
 
 use App\Enums\Bcms\CorrectiveActionStatus;
 use App\Enums\Bcms\FindingClassification;
+use App\Enums\Bcms\FindingSeverity;
 use App\Enums\Bcms\FindingSource;
 use App\Enums\Bcms\IsoClauseRef;
 use App\Http\Controllers\Controller;
+use App\Models\Bcms\Aar;
 use App\Models\Bcms\CorrectiveAction;
 use App\Models\Bcms\Finding;
 use App\Models\Bcms\Plan;
 use App\Models\Bcms\Process;
 use App\Models\User;
+use App\Rules\Bcms\VisibleToUser;
+use App\Services\Bcms\Exercises\AarService;
+use App\Services\Bcms\Findings\CorrectiveActionDueDateCalculator;
 use App\Services\Bcms\Findings\CorrectiveActionService;
 use App\Services\Bcms\Findings\FindingService;
 use Illuminate\Http\RedirectResponse;
@@ -39,6 +44,8 @@ class FindingController extends Controller
     public function __construct(
         private FindingService $findings,
         private CorrectiveActionService $actions,
+        private AarService $aar,
+        private CorrectiveActionDueDateCalculator $dueDates,
     ) {}
 
     public function index(Request $request): Response
@@ -47,7 +54,13 @@ class FindingController extends Controller
 
         $filters = $request->only(['status', 'classification', 'source', 'owner', 'due', 'search']);
 
+        // ADR 0017 Amendment 2: Finding was the one anchor `ScopedToOrgHierarchy`
+        // covers that no list scoped — a Kano holder of bcms.finding.view read
+        // every Lagos finding, description and clause ref included, from this
+        // screen and never needed a uuid. `visibleTo()` is the same scope the
+        // record route now enforces at binding; the list gets it too.
         $findings = Finding::query()
+            ->visibleTo($request->user())
             ->with(['correctiveActions.owner:id,name', 'affectedProcess:id,code,name', 'affectedPlan:id,title'])
             ->when($filters['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
             ->when($filters['classification'] ?? null, fn ($q, $v) => $q->where('classification', $v))
@@ -70,7 +83,7 @@ class FindingController extends Controller
         return Inertia::render('Bcms/Findings/Index', [
             'findings' => $findings->through(fn (Finding $f) => $this->shape($f)),
             'filters' => $filters,
-            'summary' => $this->summary(),
+            'summary' => $this->summary($request->user()),
             'options' => [
                 'classifications' => array_map(fn (FindingClassification $c) => [
                     'value' => $c->value,
@@ -83,8 +96,14 @@ class FindingController extends Controller
                 'clause_refs' => array_map(fn (IsoClauseRef $c) => [
                     'value' => $c->value, 'standard' => $c->standard(),
                 ], IsoClauseRef::cases()),
-                'processes' => Process::query()->orderBy('code')->get(['id', 'code', 'name']),
-                'plans' => Plan::query()->orderBy('title')->get(['id', 'title']),
+                // Both pickers name a specific process or plan to attach a
+                // finding to; a Kano user is not choosing among Lagos's, same
+                // reasoning as the list above. `users` stays unscoped — a
+                // tenant-wide roster of colleagues, not another division's
+                // continuity data (ADR 0017 §7, "out of scope, stated so it
+                // is not read as an oversight").
+                'processes' => Process::query()->visibleTo($request->user())->orderBy('code')->get(['id', 'code', 'name']),
+                'plans' => Plan::query()->visibleTo($request->user())->orderBy('title')->get(['id', 'title']),
                 'users' => User::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             ],
             'can' => [
@@ -106,21 +125,48 @@ class FindingController extends Controller
             'severity' => ['nullable', 'in:low,medium,high,critical'],
             'root_cause' => ['nullable', 'string', 'max:5000'],
             'iso_clause_ref' => ['nullable', 'string', 'in:'.implode(',', IsoClauseRef::values())],
-            'affected_process_id' => ['nullable', 'integer', 'exists:bcms_processes,id'],
-            'affected_plan_id' => ['nullable', 'integer', 'exists:bcms_plans,id'],
+            // ADR 0017 §7: these were a bare `exists:table,id` — a cross-tenant
+            // existence oracle, not merely a cross-unit one, over whatever a
+            // finding is filed against. `VisibleToUser` is the tenant- and
+            // unit-scoped analogue of standard §4's `Rule::exists(...)
+            // ->where('organization_id', ...)`.
+            'affected_process_id' => ['nullable', 'integer', new VisibleToUser(Process::class)],
+            'affected_plan_id' => ['nullable', 'integer', new VisibleToUser(Plan::class)],
+            // Phase 9: the AAR builder's inline "Raise a finding" form (clause
+            // map §3.1) posts here — the *existing* route, nothing new — with
+            // the AAR it was raised from and, where it is against a specific
+            // scored objective, that objective's snapshotted text so its
+            // low-score disposition (condition 6) can point at the finding
+            // this creates.
+            'aar_id' => ['nullable', 'integer', new VisibleToUser(Aar::class)],
+            'objective_text' => ['nullable', 'string', 'max:500'],
+            // BCMS Phase 10: a breached DR test's own "Raise a finding"
+            // control (`dr-test-record.md` §2) posts here, `source =
+            // dr_test`, matching `Findings/Index.jsx`'s existing raise form
+            // rather than a second route — `App\Enums\Bcms\FindingSource::
+            // DrTest`'s foreign key is `dr_test_id`.
+            'dr_test_id' => ['nullable', 'integer', new VisibleToUser(\App\Models\Bcms\DrTest::class)],
         ]);
+
+        $aarRecord = isset($data['aar_id']) ? Aar::query()->find($data['aar_id']) : null;
+        $drTestRecord = isset($data['dr_test_id']) ? \App\Models\Bcms\DrTest::query()->find($data['dr_test_id']) : null;
+        $sourceRecord = $aarRecord ?? $drTestRecord;
 
         try {
             $finding = $this->findings->raise(
                 FindingSource::from($data['source']),
                 FindingClassification::from($data['classification']),
                 $data['description'],
-                null,
+                $sourceRecord,
                 array_intersect_key($data, array_flip(['severity', 'root_cause', 'iso_clause_ref', 'affected_process_id', 'affected_plan_id'])),
                 $request->user()?->getKey(),
             );
         } catch (\InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
+        }
+
+        if ($aarRecord !== null && ($data['objective_text'] ?? null) !== null) {
+            $this->aar->linkObjectiveToFinding($aarRecord, $data['objective_text'], $finding->reference);
         }
 
         return back()->with('success', "Finding {$finding->reference} raised.");
@@ -165,6 +211,20 @@ class FindingController extends Controller
             'due_date' => ['nullable', 'date'],
             'priority' => ['nullable', 'in:low,medium,high,critical'],
         ]);
+
+        // The finding→CAPA due-date rule (clause map §3.3): an action arising
+        // from an exercise AAR with no due date supplied gets the computed
+        // one — severity default, floored and capped against the next
+        // occurrence of the same definition — rather than an open-ended action
+        // with nothing to chase it.
+        if (($data['due_date'] ?? null) === null && $finding->source?->value === 'aar') {
+            $occurrence = $finding->aar?->occurrence;
+            $severity = $finding->severity ?? FindingSeverity::Medium;
+
+            if ($occurrence !== null) {
+                $data['due_date'] = $this->dueDates->forOccurrence($occurrence, $severity)->toDateString();
+            }
+        }
 
         $action = $this->actions->create($finding, $data['title'], $data, $request->user()?->getKey());
 
@@ -225,7 +285,8 @@ class FindingController extends Controller
             'source' => $finding->source?->value,
             'source_label' => $finding->source?->label(),
             'classification' => $finding->classification?->value,
-            'severity' => $finding->severity,
+            'severity' => $finding->severity?->value,
+            'severity_label' => $finding->severity?->label(),
             'description' => $finding->description,
             'root_cause' => $finding->root_cause,
             'iso_clause_ref' => $finding->iso_clause_ref,
@@ -261,15 +322,29 @@ class FindingController extends Controller
     }
 
     /** @return array<string, int> */
-    private function summary(): array
+    /**
+     * `CorrectiveAction` is derived (ADR 0017 §2, `orgAnchorPath(): 'finding'`)
+     * and carries no unit column of its own to scope on directly, so its three
+     * counts reach the same filter through `whereHas('finding', ...)` —
+     * `Finding::visibleQuery()` rather than the magic `->visibleTo()` scope
+     * call, because a closure handed a bare `Builder` is exactly the case
+     * `visibleQuery()`'s own docblock exists for.
+     */
+    private function summary(?User $user): array
     {
         return [
-            'open' => Finding::query()->where('status', 'open')->count(),
-            'nonconformities_open' => Finding::query()->where('status', 'open')
+            'open' => Finding::query()->visibleTo($user)->where('status', 'open')->count(),
+            'nonconformities_open' => Finding::query()->visibleTo($user)->where('status', 'open')
                 ->where('classification', FindingClassification::Nonconformity->value)->count(),
-            'actions_open' => CorrectiveAction::query()->whereIn('status', ['open', 'in_progress'])->count(),
-            'actions_overdue' => CorrectiveAction::query()->where('status', CorrectiveActionStatus::Overdue->value)->count(),
-            'awaiting_verification' => CorrectiveAction::query()->where('status', CorrectiveActionStatus::Completed->value)->count(),
+            'actions_open' => CorrectiveAction::query()
+                ->whereHas('finding', fn ($q) => Finding::visibleQuery($q, $user))
+                ->whereIn('status', ['open', 'in_progress'])->count(),
+            'actions_overdue' => CorrectiveAction::query()
+                ->whereHas('finding', fn ($q) => Finding::visibleQuery($q, $user))
+                ->where('status', CorrectiveActionStatus::Overdue->value)->count(),
+            'awaiting_verification' => CorrectiveAction::query()
+                ->whereHas('finding', fn ($q) => Finding::visibleQuery($q, $user))
+                ->where('status', CorrectiveActionStatus::Completed->value)->count(),
         ];
     }
 }

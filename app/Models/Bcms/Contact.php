@@ -8,6 +8,7 @@ use App\Enums\Bcms\VerificationStatus;
 use App\Models\Bcms\Concerns\BcmsAuditable;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\Bcms\Concerns\ScopedToOrgHierarchy;
+use App\Models\Bcms\Concerns\ScopedToOrgHierarchyContract;
 use App\Models\BusinessUnit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -72,7 +73,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?\Illuminate\Support\Carbon $updated_at
  * @property ?\Illuminate\Support\Carbon $deleted_at
  */
-class Contact extends Model
+class Contact extends Model implements ScopedToOrgHierarchyContract
 {
     use BcmsAuditable, BelongsToOrganization, HasBcmsUuid, HasFactory, ScopedToOrgHierarchy, SoftDeletes;
 

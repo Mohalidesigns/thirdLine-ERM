@@ -37,9 +37,20 @@ use Illuminate\Database\Eloquent\Builder;
  * `BelongsToOrganization`'s global scope has already removed every other
  * organisation's rows before this filter runs. Conflating the two is how a
  * scoping bug becomes a cross-tenant leak.
+ *
+ * ADR 0017 §4 POINT 5 ADDS THE NAMED-USER ARM. A model may declare
+ * `orgVisibilityNamedUsers(): array` — local columns (`owner_id`) or
+ * `relation.column` pairs (`participants.user_id`) — and those rows are
+ * visible in addition to the org-hierarchy match, OR'd into the same query so
+ * the list screen and the record answer identically. This is a change to a
+ * Phase 0 frozen contract, made here rather than in `RcsaScope` because being
+ * named on a BCMS row is a BCMS fact, not an org-hierarchy one; RCSA does not
+ * inherit it.
  */
 trait ScopedToOrgHierarchy
 {
+    use AppliesNamedUserVisibility;
+
     /**
      * The column this model scopes on. Override where it is not the default;
      * a model with no unit at all should not use this trait.
@@ -72,15 +83,19 @@ trait ScopedToOrgHierarchy
         }
 
         $column = $this->orgScopeColumn();
+        $namedUsers = method_exists($this, 'orgVisibilityNamedUsers') ? $this->orgVisibilityNamedUsers() : [];
 
         // An empty list is "assigned to nothing", not "everything". It still
-        // sees organisation-level rows, and nothing belonging to a unit.
-        return $query->where(function (Builder $q) use ($column, $units) {
+        // sees organisation-level rows, and nothing belonging to a unit — plus
+        // any row this user is named on, regardless of its unit.
+        return $query->where(function (Builder $q) use ($column, $units, $namedUsers, $user) {
             $q->whereNull($column);
 
             if ($units !== []) {
                 $q->orWhereIn($column, $units);
             }
+
+            $this->orNamedUserVisibility($q, $namedUsers, $user);
         });
     }
 

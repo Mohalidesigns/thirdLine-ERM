@@ -2,6 +2,7 @@
 
 namespace App\Models\Bcms;
 
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,9 +29,18 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class PlanSection extends Model
 {
-    use BelongsToOrganization, HasFactory;
+    use BelongsToOrganization, BindsToVisibleRecord, HasFactory;
 
     protected $table = 'bcms_plan_sections';
+
+    /**
+     * Derived (ADR 0017 §2): a section has no unit column of its own and
+     * takes the shortest path to an anchor — its plan.
+     */
+    public function orgAnchorPath(): string
+    {
+        return 'plan';
+    }
 
     /** @var list<string> */
     protected $fillable = [

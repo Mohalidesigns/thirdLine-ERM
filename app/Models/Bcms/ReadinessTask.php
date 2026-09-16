@@ -2,6 +2,7 @@
 
 namespace App\Models\Bcms;
 
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -37,9 +38,42 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class ReadinessTask extends Model
 {
-    use BelongsToOrganization, HasFactory;
+    use BelongsToOrganization, BindsToVisibleRecord, HasFactory;
 
     protected $table = 'bcms_readiness_tasks';
+
+    /**
+     * Derived (ADR 0017 §2): a task has no unit column of its own and takes
+     * the shortest path to an anchor — through its occurrence to the
+     * definition that carries the unit.
+     */
+    public function orgAnchorPath(): string
+    {
+        return 'occurrence.definition';
+    }
+
+    /**
+     * ADR 0017 Amendment 1. The arm is declared here, not inherited
+     * transitively from `ExerciseOccurrence`'s own arm: `constrainAnchorPath()`
+     * walks `occurrence.definition` as a bare `whereHas` chain that consults
+     * only the anchor's `scopeVisibleTo()`, so a cross-unit facilitator who
+     * reaches the occurrence through ITS arm would otherwise get 404 from
+     * `readiness-tasks/{task}/complete` and `.override` on every task on it —
+     * including the ones they own (`ReadinessService.php:83` sets `owner_id`
+     * to `occurrence.facilitator_id` by default when the ladder is generated).
+     *
+     * `owner_id`: a reassignee must be able to act on their own task.
+     * `occurrence.facilitator_id`: the facilitator holds
+     * `bcms.readiness.override` and answers for the gate — the person who
+     * decides whether the exercise may start must be able to clear what
+     * blocks it, including a task owned by somebody else.
+     *
+     * @return list<string>
+     */
+    public function orgVisibilityNamedUsers(): array
+    {
+        return ['owner_id', 'occurrence.facilitator_id'];
+    }
 
     /** @var list<string> */
     protected $fillable = [

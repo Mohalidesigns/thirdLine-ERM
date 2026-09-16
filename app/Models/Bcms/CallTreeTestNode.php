@@ -3,6 +3,7 @@
 namespace App\Models\Bcms;
 
 use App\Enums\Bcms\CascadeOutcome;
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -36,9 +37,19 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class CallTreeTestNode extends Model
 {
-    use BelongsToOrganization, HasFactory;
+    use BelongsToOrganization, BindsToVisibleRecord, HasFactory;
 
     protected $table = 'bcms_call_tree_test_nodes';
+
+    /**
+     * Derived (ADR 0017 §2): a test-node result has no unit column of its
+     * own and takes the shortest path to an anchor — through its test to the
+     * call tree it tested.
+     */
+    public function orgAnchorPath(): string
+    {
+        return 'test.callTree';
+    }
 
     /** @var list<string> */
     protected $fillable = [

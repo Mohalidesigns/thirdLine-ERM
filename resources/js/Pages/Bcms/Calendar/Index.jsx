@@ -2,6 +2,7 @@ import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import YearHeatGrid from '@/Components/Bcms/YearHeatGrid';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
@@ -111,49 +112,62 @@ export default function Index({
 
             {/* ---- Filters ---------------------------------------------- */}
 
-            <div className="mb-6 flex flex-wrap gap-2 text-xs">
-                {[
-                    ['business_unit_id', 'All units', options.business_units, 'name'],
-                    ['site_id', 'All sites', options.sites, 'name'],
-                    ['exercise_type_id', 'All types', options.types, 'name'],
-                ].map(([key, blank, list, label]) => (
-                    <select
-                        key={key}
-                        className="rounded border-gray-300 text-xs"
-                        value={filters[key] ?? ''}
-                        onChange={(e) => go({ [key]: e.target.value || undefined })}
-                    >
-                        <option value="">{blank}</option>
-                        {(list ?? []).map((o) => <option key={o.id} value={o.id}>{o[label]}</option>)}
-                    </select>
-                ))}
+            <div className="filter-bar">
+                <div className="filter-bar-inner">
+                    {[
+                        ['business_unit_id', 'Business unit', 'All units', options.business_units, 'name'],
+                        ['site_id', 'Site', 'All sites', options.sites, 'name'],
+                        ['exercise_type_id', 'Exercise type', 'All types', options.types, 'name'],
+                    ].map(([key, filterLabel, blank, list, label]) => (
+                        <div className="filter-group min-w-[150px]" key={key}>
+                            <label className="filter-label">{filterLabel}</label>
+                            <select aria-label={filterLabel}
+                                className="filter-select"
+                                value={filters[key] ?? ''}
+                                onChange={(e) => go({ [key]: e.target.value || undefined })}
+                            >
+                                <option value="">{blank}</option>
+                                {(list ?? []).map((o) => <option key={o.id} value={o.id}>{o[label]}</option>)}
+                            </select>
+                        </div>
+                    ))}
 
-                <select
-                    className="rounded border-gray-300 text-xs"
-                    value={filters.status ?? ''}
-                    onChange={(e) => go({ status: e.target.value || undefined })}
-                >
-                    <option value="">Any status</option>
-                    {(options.statuses ?? []).map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
+                    <div className="filter-group min-w-[140px]">
+                        <label className="filter-label">Status</label>
+                        <select aria-label="Status"
+                            className="filter-select"
+                            value={filters.status ?? ''}
+                            onChange={(e) => go({ status: e.target.value || undefined })}
+                        >
+                            <option value="">Any status</option>
+                            {(options.statuses ?? []).map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        </select>
+                    </div>
 
-                <select
-                    className="rounded border-gray-300 text-xs"
-                    value={filters.ladder_level ?? ''}
-                    onChange={(e) => go({ ladder_level: e.target.value || undefined })}
-                >
-                    <option value="">Any ISO 22398 level</option>
-                    {(options.ladder_levels ?? []).map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
-                </select>
+                    <div className="filter-group min-w-[160px]">
+                        <label className="filter-label">ISO 22398 level</label>
+                        <select aria-label="ISO 22398 level"
+                            className="filter-select"
+                            value={filters.ladder_level ?? ''}
+                            onChange={(e) => go({ ladder_level: e.target.value || undefined })}
+                        >
+                            <option value="">Any ISO 22398 level</option>
+                            {(options.ladder_levels ?? []).map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+                        </select>
+                    </div>
 
-                <select
-                    className="rounded border-gray-300 text-xs"
-                    value={filters.criticality_tier ?? ''}
-                    onChange={(e) => go({ criticality_tier: e.target.value || undefined })}
-                >
-                    <option value="">Any process criticality</option>
-                    {[1, 2, 3].map((t) => <option key={t} value={t}>Tier {t} and above</option>)}
-                </select>
+                    <div className="filter-group min-w-[180px]">
+                        <label className="filter-label">Process criticality</label>
+                        <select aria-label="Process criticality"
+                            className="filter-select"
+                            value={filters.criticality_tier ?? ''}
+                            onChange={(e) => go({ criticality_tier: e.target.value || undefined })}
+                        >
+                            <option value="">Any process criticality</option>
+                            {[1, 2, 3].map((t) => <option key={t} value={t}>Tier {t} and above</option>)}
+                        </select>
+                    </div>
+                </div>
             </div>
 
             {scope_note && (
@@ -214,36 +228,40 @@ export default function Index({
             {/* ---- Gantt ------------------------------------------------ */}
 
             {view === 'gantt' && (
-                <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                            <tr>
-                                <th className="px-4 py-3 text-left">Exercise</th>
-                                <th className="px-4 py-3 text-left">ISO 22398 level</th>
-                                <th className="px-4 py-3 text-left">Unit</th>
-                                <th className="px-4 py-3 text-right">Per year</th>
-                                <th className="px-4 py-3 text-left">Placed</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {gantt.length === 0 && (
-                                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-600">No exercises defined for {year}.</td></tr>
-                            )}
-                            {gantt.map((row) => (
-                                <tr key={row.definition_id}>
-                                    <td className="px-4 py-3 font-medium text-gray-900">{row.name}</td>
-                                    <td className="px-4 py-3 text-xs text-gray-600">{row.ladder_label}</td>
-                                    <td className="px-4 py-3 text-xs text-gray-600">{row.business_unit ?? 'Organisation-wide'}</td>
-                                    <td className="px-4 py-3 text-right font-mono text-xs">{row.frequency_per_year}</td>
-                                    <td className="px-4 py-3 text-xs">
-                                        {row.dates.length === 0
-                                            ? <span className="text-amber-700">not generated</span>
-                                            : row.dates.join(' · ')}
-                                    </td>
+                <div className="card">
+                    <div className="overflow-x-auto">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Exercise</th>
+                                    <th>ISO 22398 level</th>
+                                    <th>Unit</th>
+                                    <th className="text-right">Per year</th>
+                                    <th>Placed</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {gantt.length === 0 && (
+                                    <tr><td colSpan={5} className="text-center py-12">
+                                        <div className="text-gray-400"><p className="text-sm font-medium">No exercises defined for {year}</p></div>
+                                    </td></tr>
+                                )}
+                                {gantt.map((row) => (
+                                    <tr key={row.definition_id}>
+                                        <td className="cell-title">{row.name}</td>
+                                        <td className="cell-muted">{row.ladder_label}</td>
+                                        <td className="cell-muted">{row.business_unit ?? 'Organisation-wide'}</td>
+                                        <td className="text-right font-mono text-xs">{row.frequency_per_year}</td>
+                                        <td className="text-xs">
+                                            {row.dates.length === 0
+                                                ? <span className="text-amber-700">not generated</span>
+                                                : row.dates.join(' · ')}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 
@@ -284,52 +302,61 @@ export default function Index({
 
             {['month', 'week', 'agenda', 'mine', 'unscheduled'].includes(view) && (
                 <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-                    <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                        <table className="min-w-full divide-y divide-gray-200 text-sm">
-                            <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                                <tr>
-                                    <th className="px-4 py-3 text-left">Date</th>
-                                    <th className="px-4 py-3 text-left">Exercise</th>
-                                    <th className="px-4 py-3 text-left">Unit / site</th>
-                                    <th className="px-4 py-3 text-left">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {occurrences.length === 0 && (
+                    <div className="card">
+                        <div className="overflow-x-auto">
+                            <table className="data-table">
+                                <thead>
                                     <tr>
-                                        <td colSpan={4} className="px-4 py-8 text-center text-gray-600">
-                                            {view === 'unscheduled'
-                                                ? 'Every occurrence has a date. Nothing is waiting to be scheduled.'
-                                                : 'Nothing in this period.'}
-                                        </td>
+                                        <th>Date</th>
+                                        <th>Exercise</th>
+                                        <th>Unit / site</th>
+                                        <th>Status</th>
                                     </tr>
-                                )}
-                                {occurrences.map((o) => (
-                                    <tr
-                                        key={o.id}
-                                        onClick={() => setSelected(o)}
-                                        className={`cursor-pointer hover:bg-gray-50 ${o.is_overdue ? 'bg-red-50' : ''}`}
-                                    >
-                                        <td className="px-4 py-3 font-mono text-xs">
-                                            {o.scheduled_date ?? <span className="text-amber-700">no date</span>}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className="font-medium text-gray-900">{o.title}</span>
-                                            <span className="block text-xs text-gray-500">
-                                                {o.type}
-                                                {o.mandatory && ' · mandatory'}
-                                                {o.unannounced && ' · unannounced'}
-                                                {o.reschedule_count > 0 && ` · moved ${o.reschedule_count}×`}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-gray-600">
-                                            {o.business_unit ?? 'Organisation-wide'}{o.site ? ` · ${o.site}` : ''}
-                                        </td>
-                                        <td className="px-4 py-3">{statusChip(o.status)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {occurrences.length === 0 && (
+                                        <tr>
+                                            <td colSpan={4} className="text-center py-12">
+                                                <div className="text-gray-400">
+                                                    <p className="text-sm font-medium">
+                                                        {view === 'unscheduled'
+                                                            ? 'Every occurrence has a date'
+                                                            : 'Nothing in this period'}
+                                                    </p>
+                                                    {view === 'unscheduled' && (
+                                                        <p className="text-xs mt-1">Nothing is waiting to be scheduled.</p>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {occurrences.map((o) => (
+                                        <tr
+                                            key={o.id}
+                                            onClick={() => setSelected(o)}
+                                            className={`cursor-pointer ${o.is_overdue ? 'bg-red-50' : ''}`}
+                                        >
+                                            <td className="font-mono text-xs">
+                                                {o.scheduled_date ?? <span className="text-amber-700">no date</span>}
+                                            </td>
+                                            <td>
+                                                <span className="cell-title">{o.title}</span>
+                                                <p className="cell-subtitle">
+                                                    {o.type}
+                                                    {o.mandatory && ' · mandatory'}
+                                                    {o.unannounced && ' · unannounced'}
+                                                    {o.reschedule_count > 0 && ` · moved ${o.reschedule_count}×`}
+                                                </p>
+                                            </td>
+                                            <td className="cell-muted">
+                                                {o.business_unit ?? 'Organisation-wide'}{o.site ? ` · ${o.site}` : ''}
+                                            </td>
+                                            <td>{statusChip(o.status)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     {/* ---- Right panel ----------------------------------- */}
@@ -400,36 +427,30 @@ export default function Index({
                         </p>
 
                         <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="text-sm">
-                                <span className="text-gray-700">Currently</span>
-                                <input type="text" readOnly value={rescheduling.scheduled_date ?? ''} className="mt-1 w-full rounded border-gray-200 bg-gray-50 text-sm" />
-                            </label>
-                            <label className="text-sm">
-                                <span className="text-gray-700">New date</span>
+                            <FormField label="Currently">
+                                <input type="text" readOnly value={rescheduling.scheduled_date ?? ''} className="form-input bg-gray-50" />
+                            </FormField>
+                            <FormField label="New date" required>
                                 <input
                                     type="date" required
-                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                    className="form-input"
                                     value={reschedule.data.scheduled_date}
                                     onChange={(e) => reschedule.setData('scheduled_date', e.target.value)}
                                 />
-                            </label>
+                            </FormField>
                         </div>
 
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Why is it moving?</span>
+                        <FormField label="Why is it moving?" required error={reschedule.errors.justification}>
                             <textarea
                                 rows={3} required minLength={10}
-                                className="mt-1 w-full rounded border-gray-300 text-sm"
+                                className="form-textarea"
                                 value={reschedule.data.justification}
                                 onChange={(e) => reschedule.setData('justification', e.target.value)}
                             />
-                            {reschedule.errors.justification && (
-                                <span className="text-xs text-red-600">{reschedule.errors.justification}</span>
-                            )}
-                        </label>
+                        </FormField>
 
                         <label className="flex items-center gap-2 text-xs text-gray-700">
-                            <input
+                            <input className="form-checkbox"
                                 type="checkbox"
                                 checked={reschedule.data.accept_conflicts}
                                 onChange={(e) => reschedule.setData('accept_conflicts', e.target.checked)}
@@ -437,9 +458,9 @@ export default function Index({
                             Move it even if the new date clashes with another exercise
                         </label>
 
-                        <div className="flex gap-2">
-                            <button type="submit" className="btn-primary text-sm" disabled={reschedule.processing}>Move it</button>
+                        <div className="form-actions">
                             <button type="button" className="btn-secondary text-sm" onClick={() => setRescheduling(null)}>Cancel</button>
+                            <button type="submit" className="btn-primary text-sm" disabled={reschedule.processing}>Move it</button>
                         </div>
                     </form>
                 </div>

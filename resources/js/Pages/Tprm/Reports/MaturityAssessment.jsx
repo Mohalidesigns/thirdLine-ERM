@@ -69,33 +69,33 @@ export default function MaturityAssessmentPage({
                 <h2 className="mb-2 text-sm font-semibold text-gray-800">Gap plan</h2>
 
                 <div className="card overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <table className="data-table">
                         <caption className="px-4 py-2 text-left text-xs text-gray-500">
                             Categories short of their own target, worst first. {gapPlan.no_target ?? 0} scored
                             categories have no target set and are not in this plan — a gap measured against a
                             target nobody agreed is not a gap. {gapPlan.unscored ?? 0} categories are unscored.
                         </caption>
-                        <thead className="bg-gray-50">
+                        <thead>
                             <tr>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Category</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Current</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Target</th>
-                                <th scope="col" className="px-4 py-2 text-right font-medium text-gray-600">Gap</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Actions</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Owner</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">By</th>
+                                <th scope="col">Category</th>
+                                <th scope="col">Current</th>
+                                <th scope="col">Target</th>
+                                <th scope="col" className="text-right">Gap</th>
+                                <th scope="col">Actions</th>
+                                <th scope="col">Owner</th>
+                                <th scope="col">By</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {(gapPlan.items ?? []).map((item) => (
                                 <tr key={`${item.framework}-${item.category_code}`}>
-                                    <td className="px-4 py-2">
+                                    <td>
                                         <span className="font-medium">{item.category_code}</span> {item.category_name}
                                     </td>
-                                    <td className="px-4 py-2">{item.current_label}</td>
-                                    <td className="px-4 py-2">{item.target_label}</td>
-                                    <td className="px-4 py-2 text-right tabular-nums">{item.gap}</td>
-                                    <td className="px-4 py-2">
+                                    <td>{item.current_label}</td>
+                                    <td>{item.target_label}</td>
+                                    <td className="text-right tabular-nums">{item.gap}</td>
+                                    <td>
                                         {item.has_plan ? (
                                             item.actions
                                         ) : (
@@ -104,15 +104,17 @@ export default function MaturityAssessmentPage({
                                             </span>
                                         )}
                                     </td>
-                                    <td className="px-4 py-2">{item.owner ?? '—'}</td>
-                                    <td className="px-4 py-2">{item.target_date ?? '—'}</td>
+                                    <td>{item.owner ?? '—'}</td>
+                                    <td>{item.target_date ?? '—'}</td>
                                 </tr>
                             ))}
                             {(gapPlan.items ?? []).length === 0 && (
                                 <tr>
-                                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
-                                        No scored category is below its target. Read that against the coverage
-                                        figures in the caption above.
+                                    <td colSpan={7} className="text-center py-12">
+                                        <div className="text-gray-400">
+                                            <p className="text-sm font-medium">No scored category is below its target.</p>
+                                            <p className="text-xs mt-1">Read that against the coverage figures in the caption above.</p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -172,7 +174,7 @@ function ScoreRow({ score, levels, owners, editable, open, onOpen, onSaved }) {
                     <div className="text-sm font-medium text-gray-800">
                         {score.category_code} — {score.category_name}
                     </div>
-                    {score.criterion && <p className="mt-1 text-xs text-gray-500">{score.criterion}</p>}
+                    {score.criterion && <p className="form-hint">{score.criterion}</p>}
                     {score.evidence && <p className="mt-2 text-xs text-gray-600">{score.evidence}</p>}
                 </div>
 
@@ -201,10 +203,10 @@ function ScoreRow({ score, levels, owners, editable, open, onOpen, onSaved }) {
 
             {open && (
                 <form onSubmit={save} className="mt-4 grid gap-4 border-t border-gray-100 pt-4 md:grid-cols-2">
-                    <label className="text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Current level</span>
                         <select
-                            className="w-full rounded border-gray-300 text-sm"
+                            className="form-select"
                             value={data.current_level}
                             onChange={(event) => setData('current_level', event.target.value)}
                         >
@@ -215,10 +217,10 @@ function ScoreRow({ score, levels, owners, editable, open, onOpen, onSaved }) {
                         </select>
                     </label>
 
-                    <label className="text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Target level</span>
                         <select
-                            className="w-full rounded border-gray-300 text-sm"
+                            className="form-select"
                             value={data.target_level}
                             onChange={(event) => setData('target_level', event.target.value)}
                         >
@@ -229,30 +231,34 @@ function ScoreRow({ score, levels, owners, editable, open, onOpen, onSaved }) {
                         </select>
                     </label>
 
-                    <label className="text-sm md:col-span-2">
-                        <span className="mb-1 block font-medium text-gray-700">Evidence for the current level</span>
-                        <textarea
-                            rows={2}
-                            className="w-full rounded border-gray-300 text-sm"
-                            value={data.evidence}
-                            onChange={(event) => setData('evidence', event.target.value)}
-                        />
-                    </label>
+                    <div className="md:col-span-2">
+                        <label className="form-label">
+                            <span className="mb-1 block font-medium text-gray-700">Evidence for the current level</span>
+                            <textarea
+                                rows={2}
+                                className="form-textarea"
+                                value={data.evidence}
+                                onChange={(event) => setData('evidence', event.target.value)}
+                            />
+                        </label>
+                    </div>
 
-                    <label className="text-sm md:col-span-2">
-                        <span className="mb-1 block font-medium text-gray-700">What closes the gap</span>
-                        <textarea
-                            rows={2}
-                            className="w-full rounded border-gray-300 text-sm"
-                            value={data.gap_actions}
-                            onChange={(event) => setData('gap_actions', event.target.value)}
-                        />
-                    </label>
+                    <div className="md:col-span-2">
+                        <label className="form-label">
+                            <span className="mb-1 block font-medium text-gray-700">What closes the gap</span>
+                            <textarea
+                                rows={2}
+                                className="form-textarea"
+                                value={data.gap_actions}
+                                onChange={(event) => setData('gap_actions', event.target.value)}
+                            />
+                        </label>
+                    </div>
 
-                    <label className="text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Owner</span>
                         <select
-                            className="w-full rounded border-gray-300 text-sm"
+                            className="form-select"
                             value={data.owner_id}
                             onChange={(event) => setData('owner_id', event.target.value)}
                         >
@@ -263,11 +269,11 @@ function ScoreRow({ score, levels, owners, editable, open, onOpen, onSaved }) {
                         </select>
                     </label>
 
-                    <label className="text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Target date</span>
                         <input
                             type="date"
-                            className="w-full rounded border-gray-300 text-sm"
+                            className="form-input"
                             value={data.target_date}
                             onChange={(event) => setData('target_date', event.target.value)}
                         />

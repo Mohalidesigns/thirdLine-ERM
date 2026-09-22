@@ -1,6 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -51,25 +52,28 @@ export default function Campaigns({ campaigns = [], selected, progress, process_
                     {can.manage && (
                         <form
                             onSubmit={(e) => { e.preventDefault(); create.post(tryRoute('bcms.bia-campaigns.store')); }}
-                            className="space-y-3 rounded-lg border border-gray-200 bg-white p-4"
+                            className="card"
                         >
-                            <h2 className="text-sm font-semibold text-gray-900">New campaign</h2>
-                            <input className="w-full rounded border-gray-300 text-sm" placeholder="Annual BIA"
-                                value={create.data.name} onChange={(e) => create.setData('name', e.target.value)} />
-                            {create.errors.name && <p className="text-xs text-red-600">{create.errors.name}</p>}
-                            <select className="w-full rounded border-gray-300 text-sm" value={create.data.cycle}
-                                onChange={(e) => create.setData('cycle', e.target.value)}>
-                                <option value="annual">Annual</option>
-                                <option value="semi_annual">Every six months</option>
-                                <option value="adhoc">One-off</option>
-                            </select>
-                            <label className="block text-sm">
-                                <span className="text-gray-700">Deadline</span>
-                                <input type="date" className="mt-1 w-full rounded border-gray-300 text-sm"
-                                    value={create.data.closes_at} onChange={(e) => create.setData('closes_at', e.target.value)} />
-                                {create.errors.closes_at && <p className="text-xs text-red-600">{create.errors.closes_at}</p>}
-                            </label>
-                            <button type="submit" className="btn-primary text-sm" disabled={create.processing}>Create</button>
+                            <div className="card-header"><h2 className="form-section-title">New campaign</h2></div>
+                            <div className="card-body space-y-4">
+                                <FormField label="Name" required error={create.errors.name}>
+                                    <input className="form-input" placeholder="Annual BIA"
+                                        value={create.data.name} onChange={(e) => create.setData('name', e.target.value)} />
+                                </FormField>
+                                <FormField label="Cycle">
+                                    <select className="form-select" value={create.data.cycle}
+                                        onChange={(e) => create.setData('cycle', e.target.value)}>
+                                        <option value="annual">Annual</option>
+                                        <option value="semi_annual">Every six months</option>
+                                        <option value="adhoc">One-off</option>
+                                    </select>
+                                </FormField>
+                                <FormField label="Deadline" error={create.errors.closes_at}>
+                                    <input type="date" className="form-input"
+                                        value={create.data.closes_at} onChange={(e) => create.setData('closes_at', e.target.value)} />
+                                </FormField>
+                                <button type="submit" className="btn-primary text-sm" disabled={create.processing}>Create</button>
+                            </div>
                         </form>
                     )}
                 </aside>
@@ -133,22 +137,24 @@ export default function Campaigns({ campaigns = [], selected, progress, process_
                                 </p>
                             </div>
 
-                            <div className="rounded-lg border border-gray-200 bg-white p-5">
-                                <h2 className="text-sm font-semibold text-gray-900">By department</h2>
-                                <table className="mt-3 w-full text-sm">
-                                    <thead className="text-left text-xs uppercase tracking-wide text-gray-500">
-                                        <tr><th className="pb-2">Unit</th><th className="pb-2">Outstanding</th><th className="pb-2">Responded</th></tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {progress.by_unit.map((u) => (
-                                            <tr key={u.unit}>
-                                                <td className="py-2 text-gray-800">{u.unit}</td>
-                                                <td className="py-2 font-mono text-gray-900">{u.outstanding}</td>
-                                                <td className="py-2 font-mono text-gray-500">{u.responded} / {u.total}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            <div className="card">
+                                <div className="card-header"><h2 className="form-section-title">By department</h2></div>
+                                <div className="overflow-x-auto">
+                                    <table className="data-table">
+                                        <thead>
+                                            <tr><th>Unit</th><th>Outstanding</th><th>Responded</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            {progress.by_unit.map((u) => (
+                                                <tr key={u.unit}>
+                                                    <td className="cell-muted">{u.unit}</td>
+                                                    <td className="font-mono text-gray-900">{u.outstanding}</td>
+                                                    <td className="font-mono text-gray-500">{u.responded} / {u.total}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
 
                             <div className="rounded-lg border border-gray-200 bg-white p-5">

@@ -161,11 +161,10 @@ export default function Show({
                             <tbody>
                                 {revisions.length === 0 && (
                                     <tr>
-                                        <td
-                                            colSpan={7}
-                                            className="py-10 text-center text-sm text-gray-400"
-                                        >
-                                            No ratings have been changed yet.
+                                        <td colSpan={7} className="text-center py-12">
+                                            <div className="text-gray-400">
+                                                <p className="text-sm font-medium">No ratings have been changed yet</p>
+                                            </div>
                                         </td>
                                     </tr>
                                 )}
@@ -220,11 +219,10 @@ export default function Show({
                             <tbody>
                                 {(estate ?? []).length === 0 && (
                                     <tr>
-                                        <td
-                                            colSpan={8}
-                                            className="py-10 text-center text-sm text-gray-400"
-                                        >
-                                            Nothing recorded yet.
+                                        <td colSpan={8} className="text-center py-12">
+                                            <div className="text-gray-400">
+                                                <p className="text-sm font-medium">Nothing recorded yet</p>
+                                            </div>
                                         </td>
                                     </tr>
                                 )}

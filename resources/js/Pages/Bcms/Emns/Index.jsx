@@ -2,6 +2,7 @@ import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -138,34 +139,29 @@ export default function Index({
                         </p>
                     ) : (
                         <form onSubmit={submit} className="space-y-3">
-                            <label className="block">
-                                <span className="mb-1 block text-xs font-medium text-slate-600">Title</span>
+                            <FormField label="Title" required error={compose.errors.title}>
                                 <input value={compose.data.title} onChange={(e) => compose.setData('title', e.target.value)}
-                                    className="w-full rounded border-slate-300 text-sm" required />
-                                {compose.errors.title && <span className="text-xs text-rose-600">{compose.errors.title}</span>}
-                            </label>
+                                    className="form-input" required />
+                            </FormField>
 
-                            <label className="block">
-                                <span className="mb-1 block text-xs font-medium text-slate-600">Message</span>
+                            <FormField label="Message">
                                 <textarea value={compose.data.message} rows={4}
                                     onChange={(e) => compose.setData('message', e.target.value)}
-                                    className="w-full rounded border-slate-300 text-sm" />
-                            </label>
+                                    className="form-textarea" />
+                            </FormField>
 
-                            <label className="block">
-                                <span className="mb-1 block text-xs font-medium text-slate-600">Severity</span>
+                            <FormField label="Severity">
                                 <select value={compose.data.severity} onChange={(e) => compose.setData('severity', e.target.value)}
-                                    className="w-full rounded border-slate-300 text-sm">
+                                    className="form-select">
                                     {severities.map((s) => (
                                         <option key={s.value} value={s.value}>
                                             {s.label}{s.respects_quiet_hours ? ' — held during quiet hours' : ' — bypasses quiet hours'}
                                         </option>
                                     ))}
                                 </select>
-                            </label>
+                            </FormField>
 
-                            <div>
-                                <span className="mb-1 block text-xs font-medium text-slate-600">Channels</span>
+                            <FormField label="Channels" hint="A life-safety dispatch should include at least one channel that works with no data connection: SMS, voice or USSD.">
                                 <div className="flex flex-wrap gap-2">
                                     {channels.map((c) => (
                                         <button key={c.channel} type="button" onClick={() => toggleChannel(c.channel)}
@@ -179,11 +175,7 @@ export default function Index({
                                         </button>
                                     ))}
                                 </div>
-                                <p className="mt-1 text-[11px] text-slate-500">
-                                    A life-safety dispatch should include at least one channel that works with no
-                                    data connection: SMS, voice or USSD.
-                                </p>
-                            </div>
+                            </FormField>
 
                             <p className="rounded bg-slate-50 p-2 text-[11px] text-slate-600">
                                 Anything above <strong>{dual_approval.severity}</strong> severity, or reaching more

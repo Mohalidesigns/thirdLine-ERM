@@ -2,6 +2,7 @@ import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -256,22 +257,20 @@ export default function Readiness({ occurrence = {}, tasks = [], gate = {}, ladd
                             it. Overriding lets the exercise go ahead anyway. The reason below is recorded against the
                             exercise and appears in the after-action report — this is a decision, not a dismissal.
                         </p>
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Why is this being overridden?</span>
+                        <FormField label="Why is this being overridden?" required error={override.errors.reason}>
                             <textarea
                                 rows={3} required minLength={10}
-                                className="mt-1 w-full rounded border-gray-300 text-sm"
+                                className="form-textarea"
                                 value={override.data.reason}
                                 onChange={(e) => override.setData('reason', e.target.value)}
                             />
-                            {override.errors.reason && <span className="text-xs text-red-600">{override.errors.reason}</span>}
-                        </label>
-                        <div className="flex gap-2">
-                            <button type="submit" className="btn-primary text-sm" disabled={override.processing}>
-                                Record the override
-                            </button>
+                        </FormField>
+                        <div className="form-actions">
                             <button type="button" className="btn-secondary text-sm" onClick={() => setOverriding(null)}>
                                 Cancel
+                            </button>
+                            <button type="submit" className="btn-primary text-sm" disabled={override.processing}>
+                                Record the override
                             </button>
                         </div>
                     </form>

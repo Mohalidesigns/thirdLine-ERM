@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { Head, Link, useForm, usePage } from "@inertiajs/react";
+import { Head, useForm, usePage } from "@inertiajs/react";
 import AppLayout from "@/Layouts/AppLayout";
 import PageHeader from "@thirdline/ui/Components/PageHeader";
 import StatusBadge from "@thirdline/ui/Components/StatusBadge";
+import Pagination from "@thirdline/ui/Components/Pagination";
+import FormField from "@thirdline/ui/Components/FormField";
+import FormSection from "@thirdline/ui/Components/FormSection";
 
 /**
  * The authorised bulk download and its log (§10.1, §10.2).
@@ -128,11 +131,12 @@ export default function Index({
                 </div>
             )}
 
-            <form onSubmit={submit} className="card mb-6 p-4">
+            <form onSubmit={submit} className="mb-6">
+              <FormSection title="Filter the export">
                 <div className="grid gap-3 md:grid-cols-4">
-                    <Field label="Cycle">
+                    <FormField label="Cycle">
                         <select
-                            className="filter-select w-full"
+                            className="form-select"
                             value={form.data.cycle}
                             onChange={(e) =>
                                 form.setData("cycle", e.target.value)
@@ -145,11 +149,11 @@ export default function Index({
                                 </option>
                             ))}
                         </select>
-                    </Field>
+                    </FormField>
 
-                    <Field label="Appetite">
+                    <FormField label="Appetite">
                         <select
-                            className="filter-select w-full"
+                            className="form-select"
                             value={form.data.appetite}
                             onChange={(e) =>
                                 form.setData("appetite", e.target.value)
@@ -159,11 +163,11 @@ export default function Index({
                             <option value="above">Above appetite only</option>
                             <option value="within">Within appetite only</option>
                         </select>
-                    </Field>
+                    </FormField>
 
-                    <Field label="Residual level">
+                    <FormField label="Residual level">
                         <select
-                            className="filter-select w-full"
+                            className="form-select"
                             value={form.data.residual_level}
                             onChange={(e) =>
                                 form.setData("residual_level", e.target.value)
@@ -182,11 +186,11 @@ export default function Index({
                                 </option>
                             ))}
                         </select>
-                    </Field>
+                    </FormField>
 
-                    <Field label="Assessment status">
+                    <FormField label="Assessment status">
                         <select
-                            className="filter-select w-full"
+                            className="form-select"
                             value={form.data.assessment_status}
                             onChange={(e) =>
                                 form.setData(
@@ -202,40 +206,35 @@ export default function Index({
                                 </option>
                             ))}
                         </select>
-                    </Field>
+                    </FormField>
 
-                    <Field label="Submitted from">
+                    <FormField label="Submitted from">
                         <input
                             type="date"
-                            className="form-input w-full text-sm"
+                            className="form-input"
                             value={form.data.from}
                             onChange={(e) =>
                                 form.setData("from", e.target.value)
                             }
                         />
-                    </Field>
+                    </FormField>
 
-                    <Field label="Submitted to">
+                    <FormField label="Submitted to" error={form.errors.to}>
                         <input
                             type="date"
-                            className="form-input w-full text-sm"
+                            className="form-input"
                             value={form.data.to}
                             onChange={(e) => form.setData("to", e.target.value)}
                         />
-                        {form.errors.to && (
-                            <p className="mt-1 text-xs text-red-600">
-                                {form.errors.to}
-                            </p>
-                        )}
-                    </Field>
+                    </FormField>
 
-                    <Field
+                    <FormField
                         label={`Business units (${form.data.business_units.length || "all"})`}
                     >
                         <select
                             multiple
                             size={3}
-                            className="form-select w-full text-sm"
+                            className="form-select"
                             value={form.data.business_units}
                             onChange={(e) =>
                                 form.setData(
@@ -252,7 +251,7 @@ export default function Index({
                                 </option>
                             ))}
                         </select>
-                    </Field>
+                    </FormField>
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
@@ -303,6 +302,7 @@ export default function Index({
                     row count and your IP address. A completed RCSA is the
                     bank's operational risk profile in one file.
                 </p>
+              </FormSection>
             </form>
 
             <h2 className="mb-2 text-sm font-semibold text-gray-700">
@@ -327,18 +327,17 @@ export default function Index({
                         <tbody>
                             {log.data.length === 0 && (
                                 <tr>
-                                    <td
-                                        colSpan={8}
-                                        className="py-10 text-center text-sm text-gray-400"
-                                    >
-                                        Nothing exported yet.
+                                    <td colSpan={8} className="text-center py-12">
+                                        <div className="text-gray-400">
+                                            <p className="text-sm font-medium">Nothing exported yet</p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
 
                             {log.data.map((row) => (
                                 <tr key={row.id}>
-                                    <td className="whitespace-nowrap text-sm text-gray-600">
+                                    <td className="whitespace-nowrap cell-muted">
                                         {row.created_at}
                                     </td>
                                     {seesEverything && (
@@ -432,33 +431,8 @@ export default function Index({
                         </tbody>
                     </table>
                 </div>
+                <Pagination links={log.links} />
             </div>
-
-            {log.links && log.links.length > 3 && (
-                <div className="mt-4 flex flex-wrap gap-1">
-                    {log.links.map((link, i) => (
-                        <Link
-                            key={i}
-                            href={link.url ?? "#"}
-                            className={`rounded px-3 py-1 text-xs ${
-                                link.active
-                                    ? "bg-[var(--color-primary)] text-white"
-                                    : "bg-white text-gray-600"
-                            } ${link.url ? "" : "pointer-events-none opacity-40"}`}
-                            dangerouslySetInnerHTML={{ __html: link.label }}
-                        />
-                    ))}
-                </div>
-            )}
         </AppLayout>
-    );
-}
-
-function Field({ label, children }) {
-    return (
-        <label className="text-xs text-gray-600">
-            <span className="mb-1 block uppercase tracking-wider">{label}</span>
-            {children}
-        </label>
     );
 }

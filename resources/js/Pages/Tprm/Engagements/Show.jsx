@@ -122,22 +122,22 @@ export default function Show({ engagement, derivation, inherentVersion, history 
                                     Business functions supported
                                 </h3>
                                 {engagement.functions?.length ? (
-                                    <table className="w-full text-sm">
-                                        <thead className="text-left text-xs uppercase tracking-wide text-gray-500">
+                                    <table className="data-table">
+                                        <thead>
                                             <tr>
-                                                <th className="pb-2 font-medium">Code</th>
-                                                <th className="pb-2 font-medium">Function</th>
-                                                <th className="pb-2 font-medium">Criticality</th>
-                                                <th className="pb-2 font-medium">RTO</th>
+                                                <th>Code</th>
+                                                <th>Function</th>
+                                                <th>Criticality</th>
+                                                <th>RTO</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100">
                                             {engagement.functions.map((fn) => (
                                                 <tr key={fn.id}>
-                                                    <td className="py-2 font-mono text-xs">{fn.code}</td>
-                                                    <td className="py-2">{fn.name}</td>
-                                                    <td className="py-2 capitalize">{fn.criticality}</td>
-                                                    <td className="py-2">{fn.rto_hours ? `${fn.rto_hours} h` : '—'}</td>
+                                                    <td className="font-mono text-xs">{fn.code}</td>
+                                                    <td>{fn.name}</td>
+                                                    <td className="capitalize">{fn.criticality}</td>
+                                                    <td>{fn.rto_hours ? `${fn.rto_hours} h` : '—'}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -224,24 +224,24 @@ export default function Show({ engagement, derivation, inherentVersion, history 
                         <div className="card p-5">
                             <h3 className="mb-3 text-sm font-semibold text-gray-900">Score history</h3>
                             {history.length ? (
-                                <table className="w-full text-sm">
-                                    <thead className="text-left text-xs uppercase tracking-wide text-gray-500">
+                                <table className="data-table">
+                                    <thead>
                                         <tr>
-                                            <th className="pb-2 font-medium">When</th>
-                                            <th className="pb-2 font-medium">Run</th>
-                                            <th className="pb-2 font-medium">Ruleset</th>
-                                            <th className="pb-2 text-right font-medium">IR</th>
-                                            <th className="pb-2 text-right font-medium">RR</th>
+                                            <th>When</th>
+                                            <th>Run</th>
+                                            <th>Ruleset</th>
+                                            <th className="text-right">IR</th>
+                                            <th className="text-right">RR</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
                                         {history.map((run) => (
                                             <tr key={run.id}>
-                                                <td className="py-2 text-gray-600">{run.at}</td>
-                                                <td className="py-2 capitalize">{run.run_type}</td>
-                                                <td className="py-2 font-mono text-xs">{run.ruleset_version}</td>
-                                                <td className="py-2 text-right tabular-nums">{run.ir ?? '—'}</td>
-                                                <td className="py-2 text-right tabular-nums">{run.rr ?? '—'}</td>
+                                                <td className="text-gray-600">{run.at}</td>
+                                                <td className="capitalize">{run.run_type}</td>
+                                                <td className="font-mono text-xs">{run.ruleset_version}</td>
+                                                <td className="text-right tabular-nums">{run.ir ?? '—'}</td>
+                                                <td className="text-right tabular-nums">{run.rr ?? '—'}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -275,7 +275,7 @@ export default function Show({ engagement, derivation, inherentVersion, history 
                                 </div>
                             ) : (
                                 <>
-                                    <p className="mt-1 text-xs text-gray-500">
+                                    <p className="form-hint">
                                         An override may raise a tier, never lower it — the model deciding a vendor
                                         needs less scrutiny is a ruleset change, not a per-vendor exception.
                                     </p>
@@ -294,7 +294,7 @@ export default function Show({ engagement, derivation, inherentVersion, history 
 
                     <div className="card p-5">
                         <h3 className="text-sm font-semibold text-gray-900">Not yet available</h3>
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="form-hint">
                             These tabs arrive with the phase that builds them. They are listed so the
                             workspace shows what is missing rather than showing an empty tab, which
                             would read as “nothing to see”.
@@ -335,29 +335,29 @@ function OverrideForm({ engagement, onClose }) {
     return (
         <form onSubmit={submit} className="mt-3 space-y-3 text-sm">
             <div>
-                <label className="block text-xs font-medium text-gray-700">Tier</label>
-                <select value={data.tier} onChange={(e) => setData('tier', e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm">
+                <label className="form-label">Tier</label>
+                <select aria-label="Tier" value={data.tier} onChange={(e) => setData('tier', e.target.value)}
+                    className="form-select mt-1">
                     <option value="moderate">Moderate</option>
                     <option value="high">High</option>
                     <option value="critical">Critical</option>
                 </select>
-                {errors.tier && <p className="mt-1 text-xs text-red-600">{errors.tier}</p>}
+                {errors.tier && <p className="form-error">{errors.tier}</p>}
             </div>
 
             <div>
-                <label className="block text-xs font-medium text-gray-700">Rationale</label>
-                <textarea rows="3" value={data.rationale} onChange={(e) => setData('rationale', e.target.value)}
+                <label className="form-label">Rationale</label>
+                <textarea aria-label="Rationale" rows="3" value={data.rationale} onChange={(e) => setData('rationale', e.target.value)}
                     placeholder="What the model is not seeing."
-                    className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm" />
-                {errors.rationale && <p className="mt-1 text-xs text-red-600">{errors.rationale}</p>}
+                    className="form-textarea mt-1" />
+                {errors.rationale && <p className="form-error">{errors.rationale}</p>}
             </div>
 
             <div>
-                <label className="block text-xs font-medium text-gray-700">Expires</label>
-                <input type="date" value={data.expires_at} onChange={(e) => setData('expires_at', e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm" />
-                {errors.expires_at && <p className="mt-1 text-xs text-red-600">{errors.expires_at}</p>}
+                <label className="form-label">Expires</label>
+                <input aria-label="Expires" type="date" value={data.expires_at} onChange={(e) => setData('expires_at', e.target.value)}
+                    className="form-input mt-1" />
+                {errors.expires_at && <p className="form-error">{errors.expires_at}</p>}
             </div>
 
             <div className="flex gap-2">

@@ -1,6 +1,7 @@
 import { useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import PortalLayout from '@/Layouts/PortalLayout';
+import FormField from '@thirdline/ui/Components/FormField';
 
 /**
  * FR-PRT-05 — evidence the vendor maintains.
@@ -47,30 +48,30 @@ export default function Documents({ documents = [], types = [], limits = {} }) {
                 </div>
             ) : (
                 <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-50">
+                    <table className="data-table">
+                        <thead>
                             <tr>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Document</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Type</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Expires</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Added by</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Scan</th>
+                                <th scope="col">Document</th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Expires</th>
+                                <th scope="col">Added by</th>
+                                <th scope="col">Scan</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {documents.map((document) => (
                                 <tr key={document.id}>
-                                    <th scope="row" className="px-4 py-2 text-left font-medium text-gray-900">
+                                    <th scope="row">
                                         {document.title}
                                     </th>
-                                    <td className="px-4 py-2">{document.type ?? '—'}</td>
+                                    <td>{document.type ?? '—'}</td>
                                     <td className={`px-4 py-2 ${document.expired ? 'font-semibold text-red-700' : document.expiring_soon ? 'text-amber-700' : ''}`}>
                                         {document.valid_to ?? 'Does not expire'}
                                     </td>
-                                    <td className="px-4 py-2 text-xs text-gray-500">
+                                    <td className="text-xs text-gray-500">
                                         {document.uploaded_via === 'portal' ? 'You' : 'Your client'}
                                     </td>
-                                    <td className="px-4 py-2 text-xs text-gray-500">
+                                    <td className="text-xs text-gray-500">
                                         {/* Never a green tick for a scan nobody ran. */}
                                         {document.scan_status === 'pending' ? 'Not scanned' : document.scan_status}
                                     </td>
@@ -107,7 +108,7 @@ function UploadDialog({ types, limits, onClose }) {
 
                 <Field label="Type" error={form.errors.document_type_id}>
                     <select
-                        className="w-full rounded border border-gray-200 p-2 text-sm"
+                        className="form-select"
                         value={form.data.document_type_id}
                         onChange={(event) => form.setData('document_type_id', event.target.value)}
                     >
@@ -120,7 +121,7 @@ function UploadDialog({ types, limits, onClose }) {
 
                 <Field label="Title" error={form.errors.title}>
                     <input
-                        className="w-full rounded border border-gray-200 p-2 text-sm"
+                        className="form-input"
                         value={form.data.title}
                         onChange={(event) => form.setData('title', event.target.value)}
                     />
@@ -132,7 +133,7 @@ function UploadDialog({ types, limits, onClose }) {
                         className="w-full text-sm"
                         onChange={(event) => form.setData('file', event.target.files[0])}
                     />
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="form-hint">
                         {limits.extensions?.join(', ')} · up to {Math.round((limits.max_kilobytes ?? 0) / 1024)}MB
                     </p>
                 </Field>
@@ -141,7 +142,7 @@ function UploadDialog({ types, limits, onClose }) {
                     <Field label="Valid from" error={form.errors.valid_from}>
                         <input
                             type="date"
-                            className="w-full rounded border border-gray-200 p-2 text-sm"
+                            className="form-input"
                             value={form.data.valid_from}
                             onChange={(event) => form.setData('valid_from', event.target.value)}
                         />
@@ -152,7 +153,7 @@ function UploadDialog({ types, limits, onClose }) {
                     >
                         <input
                             type="date"
-                            className="w-full rounded border border-gray-200 p-2 text-sm"
+                            className="form-input"
                             value={form.data.valid_to}
                             onChange={(event) => form.setData('valid_to', event.target.value)}
                         />
@@ -182,11 +183,5 @@ function UploadDialog({ types, limits, onClose }) {
 }
 
 function Field({ label, error, children }) {
-    return (
-        <div className="mb-3">
-            <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
-            {children}
-            {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
-        </div>
-    );
+    return <FormField label={label} error={error} className="mb-3">{children}</FormField>;
 }

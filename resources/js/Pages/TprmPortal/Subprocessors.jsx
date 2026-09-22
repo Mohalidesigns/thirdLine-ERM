@@ -50,28 +50,28 @@ export default function Subprocessors({ subprocessors = [], consent = {} }) {
                 </div>
             ) : (
                 <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-50">
+                    <table className="data-table">
+                        <thead>
                             <tr>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Company</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">What they do</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Country</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Status</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Declared</th>
+                                <th scope="col">Company</th>
+                                <th scope="col">What they do</th>
+                                <th scope="col">Country</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Declared</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {subprocessors.map((row) => (
                                 <tr key={row.id}>
-                                    <th scope="row" className="px-4 py-2 text-left font-medium text-gray-900">{row.name}</th>
-                                    <td className="px-4 py-2">{row.service_description ?? '—'}</td>
-                                    <td className="px-4 py-2">{row.country ?? '—'}</td>
-                                    <td className="px-4 py-2">
+                                    <th scope="row">{row.name}</th>
+                                    <td>{row.service_description ?? '—'}</td>
+                                    <td>{row.country ?? '—'}</td>
+                                    <td>
                                         {row.status === 'confirmed'
                                             ? <span className="text-green-700">Accepted</span>
                                             : <span className="text-amber-700">Awaiting your client</span>}
                                     </td>
-                                    <td className="px-4 py-2 text-xs text-gray-500">{row.declared_at ?? '—'}</td>
+                                    <td className="text-xs text-gray-500">{row.declared_at ?? '—'}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -105,9 +105,9 @@ function DeclareDialog({ consent, onClose }) {
 
                 <div className="mt-3 space-y-3">
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">Company name</label>
-                        <input
-                            className="w-full rounded border border-gray-200 p-2 text-sm"
+                        <label className="form-label">Company name</label>
+                        <input aria-label="Company name"
+                            className="form-input"
                             value={form.data.name}
                             onChange={(event) => form.setData('name', event.target.value)}
                         />
@@ -115,9 +115,9 @@ function DeclareDialog({ consent, onClose }) {
                     </div>
 
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">What they do for us</label>
-                        <textarea
-                            className="w-full rounded border border-gray-200 p-2 text-sm"
+                        <label className="form-label">What they do for us</label>
+                        <textarea aria-label="What they do for us"
+                            className="form-textarea"
                             rows="2"
                             value={form.data.service_description}
                             onChange={(event) => form.setData('service_description', event.target.value)}
@@ -126,18 +126,18 @@ function DeclareDialog({ consent, onClose }) {
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="mb-1 block text-sm font-medium text-gray-700">Country (ISO code)</label>
-                            <input
+                            <label className="form-label">Country (ISO code)</label>
+                            <input aria-label="Country (ISO code)"
                                 maxLength="2"
-                                className="w-full rounded border border-gray-200 p-2 text-sm uppercase"
+                                className="form-input uppercase"
                                 value={form.data.country_of_processing}
                                 onChange={(event) => form.setData('country_of_processing', event.target.value.toUpperCase())}
                             />
                         </div>
                         <div>
-                            <label className="mb-1 block text-sm font-medium text-gray-700">How critical</label>
-                            <select
-                                className="w-full rounded border border-gray-200 p-2 text-sm"
+                            <label className="form-label">How critical</label>
+                            <select aria-label="How critical"
+                                className="form-select"
                                 value={form.data.criticality}
                                 onChange={(event) => form.setData('criticality', event.target.value)}
                             >

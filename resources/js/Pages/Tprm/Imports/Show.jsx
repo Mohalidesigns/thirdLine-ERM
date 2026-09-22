@@ -78,7 +78,7 @@ export default function Show({ batch, inspection, columns = [] }) {
             {headers.length > 0 && batch.status !== 'committed' && batch.status !== 'rolled_back' && (
                 <div className="card mb-6 p-5">
                     <h3 className="text-sm font-semibold text-gray-900">Map the columns</h3>
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="form-hint">
                         A suggestion is filled in where the header was recognisable. Check it — a column headed
                         “Name” could be the company or the contact, and guessing wrong writes a person into the
                         register as a vendor.
@@ -87,15 +87,16 @@ export default function Show({ batch, inspection, columns = [] }) {
                     <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {columns.map((column) => (
                             <div key={column.key}>
-                                <label className="block text-sm font-medium text-gray-700">
+                                <label className="form-label" htmlFor={`map-${column.key}`}>
                                     {column.label}
                                     {column.required && <span className="ml-0.5 text-red-600">*</span>}
                                 </label>
                                 {column.hint && <p className="text-xs text-gray-500">{column.hint}</p>}
                                 <select
+                                    id={`map-${column.key}`}
                                     value={mapping[column.key] ?? ''}
                                     onChange={(e) => setMapping({ ...mapping, [column.key]: e.target.value || null })}
-                                    className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                                    className="form-select mt-1"
                                 >
                                     <option value="">Not mapped</option>
                                     {headers.map((header) => <option key={header} value={header}>{header}</option>)}
@@ -126,25 +127,25 @@ export default function Show({ batch, inspection, columns = [] }) {
                             {problems.length} thing{problems.length === 1 ? '' : 's'} to look at
                         </h3>
                     </div>
-                    <table className="w-full text-sm">
+                    <table className="data-table">
                         <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
                             <tr>
-                                <th className="px-4 py-2 font-medium">Row</th>
-                                <th className="px-4 py-2 font-medium">Column</th>
-                                <th className="px-4 py-2 font-medium">Severity</th>
-                                <th className="px-4 py-2 font-medium">What is wrong</th>
+                                <th>Row</th>
+                                <th>Column</th>
+                                <th>Severity</th>
+                                <th>What is wrong</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {problems.map((problem, i) => (
                                 <tr key={i}>
                                     {/* The row number in the user's own spreadsheet. */}
-                                    <td className="px-4 py-2 font-mono text-xs">{problem.row}</td>
-                                    <td className="px-4 py-2 text-xs text-gray-600">{problem.column}</td>
-                                    <td className="px-4 py-2">
+                                    <td className="font-mono text-xs">{problem.row}</td>
+                                    <td className="text-xs text-gray-600">{problem.column}</td>
+                                    <td>
                                         <SeverityChip severity={problem.severity} />
                                     </td>
-                                    <td className="px-4 py-2 text-xs text-gray-700">{problem.message}</td>
+                                    <td className="text-xs text-gray-700">{problem.message}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -155,14 +156,14 @@ export default function Show({ batch, inspection, columns = [] }) {
             {inspection?.sample?.length > 0 && batch.status === 'draft' && (
                 <div className="card mt-6 overflow-x-auto p-5">
                     <h3 className="mb-3 text-sm font-semibold text-gray-900">First rows of the file</h3>
-                    <table className="w-full text-xs">
+                    <table className="data-table text-xs">
                         <thead className="text-left text-gray-500">
-                            <tr>{headers.map((h) => <th key={h} className="whitespace-nowrap px-2 py-1 font-medium">{h}</th>)}</tr>
+                            <tr>{headers.map((h) => <th key={h} className="whitespace-nowrap">{h}</th>)}</tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {inspection.sample.map((row, i) => (
                                 <tr key={i}>
-                                    {row.map((cell, j) => <td key={j} className="whitespace-nowrap px-2 py-1 text-gray-700">{cell}</td>)}
+                                    {row.map((cell, j) => <td key={j} className="whitespace-nowrap text-gray-700">{cell}</td>)}
                                 </tr>
                             ))}
                         </tbody>

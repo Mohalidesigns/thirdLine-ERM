@@ -66,42 +66,46 @@ export default function ReverseImpact({ impact }) {
                 )}
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                <table className="w-full text-sm">
-                    <thead className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
-                        <tr>
-                            <th className="px-4 py-3">Process</th>
-                            <th className="px-4 py-3">Tier</th>
-                            <th className="px-4 py-3">Relation</th>
-                            <th className="px-4 py-3">RTO</th>
-                            <th className="px-4 py-3">Notes</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {impact.processes.length === 0 && (
-                            <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                                Nothing depends on this yet.
-                            </td></tr>
-                        )}
-                        {impact.processes.map((p) => (
-                            <tr key={p.process_id} className={p.halts ? '' : 'text-gray-500'}>
-                                <td className="px-4 py-3">
-                                    <span className="text-gray-900">{p.name}</span>
-                                    <span className="block font-mono text-xs text-gray-500">{p.code}</span>
-                                </td>
-                                <td className="px-4 py-3">{p.tier ? `Tier ${p.tier}` : '—'}</td>
-                                <td className="px-4 py-3">{p.halts ? 'stops' : 'degrades'}</td>
-                                <td className="px-4 py-3 font-mono">
-                                    {p.rto_hours === null ? <span className="text-gray-400">no approved BIA</span> : `${p.rto_hours} h`}
-                                </td>
-                                <td className="px-4 py-3 text-xs">
-                                    {p.single_point_of_failure && <span className="rounded bg-red-50 px-1.5 py-0.5 text-red-800">single point of failure</span>}
-                                    {p.alternative_available && <span className="ml-1 rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-800">alternative exists</span>}
-                                </td>
+            <div className="card">
+                <div className="overflow-x-auto">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Process</th>
+                                <th>Tier</th>
+                                <th>Relation</th>
+                                <th>RTO</th>
+                                <th>Notes</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {impact.processes.length === 0 && (
+                                <tr><td colSpan={5} className="text-center py-12">
+                                    <div className="text-gray-400">
+                                        <p className="text-sm font-medium">Nothing depends on this yet</p>
+                                    </div>
+                                </td></tr>
+                            )}
+                            {impact.processes.map((p) => (
+                                <tr key={p.process_id} className={p.halts ? '' : 'text-gray-500'}>
+                                    <td>
+                                        <span className="cell-title">{p.name}</span>
+                                        <p className="cell-subtitle font-mono">{p.code}</p>
+                                    </td>
+                                    <td className="cell-muted">{p.tier ? `Tier ${p.tier}` : '—'}</td>
+                                    <td className="cell-muted">{p.halts ? 'stops' : 'degrades'}</td>
+                                    <td className="font-mono">
+                                        {p.rto_hours === null ? <span className="text-gray-400">no approved BIA</span> : `${p.rto_hours} h`}
+                                    </td>
+                                    <td className="text-xs">
+                                        {p.single_point_of_failure && <span className="rounded bg-red-50 px-1.5 py-0.5 text-red-800">single point of failure</span>}
+                                        {p.alternative_available && <span className="ml-1 rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-800">alternative exists</span>}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </AppLayout>
     );

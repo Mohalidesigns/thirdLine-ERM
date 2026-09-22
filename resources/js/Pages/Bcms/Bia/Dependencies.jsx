@@ -33,25 +33,36 @@ export default function Dependencies({ graph, spof_register: spofRegister = [], 
                 subtitle="What the estate rests on, what rests on one thing only, and what several processes quietly share."
             />
 
-            <div className="mb-4 flex flex-wrap gap-3">
-                <select className="rounded border-gray-300 text-sm" value={filters.type ?? ''} onChange={(e) => filter('type', e.target.value)}>
-                    <option value="">Any type</option>
-                    {types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-                <select className="rounded border-gray-300 text-sm" value={filters.criticality ?? ''} onChange={(e) => filter('criticality', e.target.value)}>
-                    <option value="">Any criticality</option>
-                    {['critical', 'high', 'medium', 'low'].map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <select className="rounded border-gray-300 text-sm" value={filters.spof_only ?? ''} onChange={(e) => filter('spof_only', e.target.value)}>
-                    <option value="">All dependencies</option>
-                    <option value="yes">Single points of failure only</option>
-                </select>
+            <div className="filter-bar">
+                <div className="filter-bar-inner">
+                    <div className="filter-group min-w-[150px]">
+                        <label className="filter-label">Type</label>
+                        <select aria-label="Type" className="filter-select" value={filters.type ?? ''} onChange={(e) => filter('type', e.target.value)}>
+                            <option value="">Any type</option>
+                            {types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        </select>
+                    </div>
+                    <div className="filter-group min-w-[150px]">
+                        <label className="filter-label">Criticality</label>
+                        <select aria-label="Criticality" className="filter-select" value={filters.criticality ?? ''} onChange={(e) => filter('criticality', e.target.value)}>
+                            <option value="">Any criticality</option>
+                            {['critical', 'high', 'medium', 'low'].map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+                    <div className="filter-group min-w-[200px]">
+                        <label className="filter-label">Scope</label>
+                        <select aria-label="Scope" className="filter-select" value={filters.spof_only ?? ''} onChange={(e) => filter('spof_only', e.target.value)}>
+                            <option value="">All dependencies</option>
+                            <option value="yes">Single points of failure only</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <section className="rounded-lg border border-gray-200 bg-white p-5">
                     <h2 className="text-sm font-semibold text-gray-900">Single points of failure</h2>
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="form-hint">
                         Ordered by consequence — how critical, then how much stops with it.
                     </p>
 
@@ -89,7 +100,7 @@ export default function Dependencies({ graph, spof_register: spofRegister = [], 
 
                 <section className="rounded-lg border border-gray-200 bg-white p-5">
                     <h2 className="text-sm font-semibold text-gray-900">Shared across processes</h2>
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="form-hint">
                         A concentration nobody chose: each assessor recorded a reasonable dependency, and the exposure
                         exists only in the aggregate.
                     </p>
@@ -120,7 +131,7 @@ export default function Dependencies({ graph, spof_register: spofRegister = [], 
 
             <section className="mt-6 rounded-lg border border-gray-200 bg-white p-5">
                 <h2 className="text-sm font-semibold text-gray-900">The estate</h2>
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="form-hint">
                     {graph?.nodes?.length ?? 0} node(s), {graph?.edges?.length ?? 0} edge(s). Click a dependency to
                     see what stops if it fails.
                 </p>

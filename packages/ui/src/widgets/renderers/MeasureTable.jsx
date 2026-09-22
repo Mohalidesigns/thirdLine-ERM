@@ -13,7 +13,7 @@ export default function MeasureTable({ data }) {
 
     return (
         <div className="h-full overflow-auto">
-            <table className="min-w-full divide-y divide-gray-100 text-xs">
+            <table data-table-exempt="dashboard widget, compact by design" className="min-w-full divide-y divide-gray-100 text-xs">
                 <thead>
                     <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400">
                         <th className="px-2 py-1.5 font-medium">Measure</th>

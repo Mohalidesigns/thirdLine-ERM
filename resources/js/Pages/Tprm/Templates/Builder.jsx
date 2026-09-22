@@ -188,7 +188,7 @@ export default function Builder({ template, sections = [], publishBlockers = [],
                     <div className="sticky top-6 space-y-4">
                         <div className="card p-5">
                             <h3 className="text-sm font-semibold text-gray-900">Rule preview</h3>
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="form-hint">
                                 Evaluated server-side by the same evaluator that scopes an assessment, so what you
                                 see here is what a vendor will be asked.
                             </p>
@@ -248,7 +248,7 @@ export default function Builder({ template, sections = [], publishBlockers = [],
 
                         <div className="card p-5">
                             <h3 className="text-sm font-semibold text-gray-900">Facts a rule may use</h3>
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="form-hint">
                                 A whitelist. A rule is a stored, exportable object, so it may not name a
                                 credential — and a fact renamed later stays a fact this list has promised to keep.
                             </p>

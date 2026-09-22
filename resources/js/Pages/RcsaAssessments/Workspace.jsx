@@ -523,8 +523,8 @@ export default function Workspace({
                         risk in the assessment. Say why — this is what the
                         assessor reads.
                     </p>
-                    <textarea
-                        className="form-textarea w-full text-sm"
+                    <textarea aria-label="Reason for reopening"
+                        className="form-textarea"
                         rows={2}
                         value={rejectReason}
                         onChange={(e) => setRejectReason(e.target.value)}
@@ -593,7 +593,7 @@ export default function Workspace({
                                 onChange={(e) =>
                                     setIncompleteOnly(e.target.checked)
                                 }
-                                className="rounded border-gray-300"
+                                className="form-checkbox"
                             />
                             Incomplete only
                         </label>
@@ -607,7 +607,7 @@ export default function Workspace({
                                 <span className="text-sm text-gray-600">
                                     {selected.length} selected
                                 </span>
-                                <select
+                                <select aria-label="Bulk action"
                                     className="filter-select"
                                     value={bulkValue}
                                     onChange={(e) =>
@@ -707,7 +707,7 @@ export default function Workspace({
                                                                 )
                                                             }
                                                             aria-label={`Select ${line.risk_no}`}
-                                                            className="rounded border-gray-300"
+                                                            className="form-checkbox"
                                                         />
                                                     </td>
 
@@ -819,7 +819,7 @@ export default function Workspace({
                                                     </td>
 
                                                     <td>
-                                                        <select
+                                                        <select aria-label="Control effectiveness"
                                                             className="filter-select w-full"
                                                             disabled={
                                                                 !canEditLine(
@@ -976,7 +976,6 @@ export default function Workspace({
                                                     <tr className="bg-gray-50/70">
                                                         <td
                                                             colSpan={9}
-                                                            className="px-4 py-3"
                                                         >
                                                             <ActionPlans
                                                                 assessmentId={
@@ -1000,7 +999,6 @@ export default function Workspace({
                                                     <tr className="bg-amber-50/50">
                                                         <td
                                                             colSpan={9}
-                                                            className="px-4 py-2"
                                                         >
                                                             <OrmThread
                                                                 assessmentId={
@@ -1211,7 +1209,7 @@ function OrmThread({ assessmentId, line, canReply }) {
 
             {canReply && (
                 <form onSubmit={send} className="mt-2 flex gap-2">
-                    <input
+                    <input aria-label="Reply"
                         type="text"
                         className="form-input flex-1 text-xs"
                         placeholder="Reply to the reviewer…"
@@ -1241,7 +1239,7 @@ function ScaleSelect({
     title,
 }) {
     return (
-        <select
+        <select aria-label={title}
             className="filter-select w-full"
             disabled={disabled}
             value={value ?? ""}

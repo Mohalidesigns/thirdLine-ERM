@@ -79,7 +79,7 @@ export default function Index({
                     breadcrumbs={[{ label: "RCSA" }, { label: "Dashboard" }]}
                     actions={
                         <div className="flex items-center gap-2">
-                            <select
+                            <select aria-label="Cycle"
                                 className="filter-select"
                                 value={cycle?.id ?? ""}
                                 onChange={(e) => go({ cycle: e.target.value })}
@@ -296,20 +296,20 @@ export default function Index({
                                         <tbody>
                                             {completion.map((row) => (
                                                 <tr key={row.id}>
-                                                    <td className="text-sm text-gray-700">
+                                                    <td>
                                                         <Link
                                                             href={route(
                                                                 "rcsa.assessments.show",
                                                                 row.id,
                                                             )}
-                                                            className="hover:underline"
+                                                            className="cell-title"
                                                         >
                                                             {row.business_unit}
                                                         </Link>
-                                                        <span className="block text-xs text-gray-400">
+                                                        <p className="cell-subtitle">
                                                             {row.lines_count}{" "}
                                                             risks
-                                                        </span>
+                                                        </p>
                                                     </td>
                                                     <td>
                                                         <div className="flex items-center gap-2">

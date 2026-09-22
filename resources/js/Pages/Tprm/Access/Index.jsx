@@ -94,24 +94,24 @@ export default function Index({ reconciliation = {}, can = {} }) {
                                 tunnel whose configuration exists.
                             </p>
                             <div className="card overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                                    <thead className="bg-gray-50">
+                                <table className="data-table">
+                                    <thead>
                                         <tr>
-                                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Connection</th>
-                                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Type</th>
-                                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Endpoint</th>
-                                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Third party</th>
-                                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Engagement</th>
+                                            <th scope="col">Connection</th>
+                                            <th scope="col">Type</th>
+                                            <th scope="col">Endpoint</th>
+                                            <th scope="col">Third party</th>
+                                            <th scope="col">Engagement</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
                                         {openConnections.map((row) => (
                                             <tr key={row.id}>
-                                                <th scope="row" className="px-4 py-2 text-left font-medium text-gray-900">{row.name}</th>
-                                                <td className="px-4 py-2">{row.type}</td>
-                                                <td className="px-4 py-2 font-mono text-xs text-gray-600">{row.endpoint ?? '—'}</td>
-                                                <td className="px-4 py-2">{row.third_party}</td>
-                                                <td className="px-4 py-2">
+                                                <th scope="row">{row.name}</th>
+                                                <td>{row.type}</td>
+                                                <td className="font-mono text-xs text-gray-600">{row.endpoint ?? '—'}</td>
+                                                <td>{row.third_party}</td>
+                                                <td>
                                                     {row.engagement_uuid ? (
                                                         <Link
                                                             href={route('tprm.access.show', row.engagement_uuid)}
@@ -146,37 +146,37 @@ function GrantSection({ section }) {
             <h2 className="text-sm font-semibold text-gray-900">{section.title}</h2>
             <p className="mb-2 text-xs text-gray-600">{section.blurb}</p>
             <div className="card overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead className="bg-gray-50">
+                <table className="data-table">
+                    <thead>
                         <tr>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Grantee</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">System</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Access</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Ends</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Third party</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Engagement</th>
+                            <th scope="col">Grantee</th>
+                            <th scope="col">System</th>
+                            <th scope="col">Access</th>
+                            <th scope="col">Ends</th>
+                            <th scope="col">Third party</th>
+                            <th scope="col">Engagement</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {section.rows.map((row) => (
                             <tr key={row.id}>
-                                <th scope="row" className="px-4 py-2 text-left font-medium text-gray-900">
+                                <th scope="row">
                                     {row.grantee_name}
                                     {row.grantee_email && (
                                         <span className="block text-xs font-normal text-gray-500">{row.grantee_email}</span>
                                     )}
                                 </th>
-                                <td className="px-4 py-2">{row.system_name}</td>
-                                <td className="px-4 py-2">
+                                <td>{row.system_name}</td>
+                                <td>
                                     <span className={row.is_privileged ? 'font-semibold text-red-700' : ''}>
                                         {row.access_level_label}
                                     </span>
                                 </td>
-                                <td className="px-4 py-2">
+                                <td>
                                     {row.valid_to ?? <span className="text-amber-700">no end date</span>}
                                 </td>
-                                <td className="px-4 py-2">{row.third_party}</td>
-                                <td className="px-4 py-2">
+                                <td>{row.third_party}</td>
+                                <td>
                                     {row.engagement_uuid ? (
                                         <Link
                                             href={route('tprm.access.show', row.engagement_uuid)}

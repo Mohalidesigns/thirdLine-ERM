@@ -2,6 +2,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -138,22 +139,25 @@ export default function Workspace({
                 <section className="space-y-6 xl:col-span-2">
                     <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white p-5">
                         <h2 className="text-sm font-semibold text-gray-900">Impact over time</h2>
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="form-hint">
                             Score how bad the disruption is at each point. The MTPD is proposed from the first
                             horizon at which any category becomes intolerable.
                         </p>
 
-                        <table className="mt-4 w-full text-sm">
+                        {/* A severity-scoring matrix, not a listing — kept as a compact
+                            border-separate grid (like YearHeatGrid) rather than data-table,
+                            whose row padding would make forty clickable cells unusable. */}
+                        <table className="mt-4 w-full border-separate border-spacing-1 text-sm">
                             <thead>
                                 <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
-                                    <th className="pb-2 pr-3">Category</th>
-                                    {grid.horizons.map((h) => <th key={h.value} className="pb-2 px-2 text-center">{h.value}</th>)}
+                                    <th className="pr-3">Category</th>
+                                    {grid.horizons.map((h) => <th key={h.value} className="text-center">{h.value}</th>)}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {grid.categories.map((c) => (
                                     <tr key={c.value}>
-                                        <td className="py-2 pr-3 text-gray-800">
+                                        <td className="pr-3 text-gray-800">
                                             {c.label}
                                             {c.monetary && <span className="block text-[11px] text-gray-400">has a naira figure</span>}
                                         </td>
@@ -162,7 +166,7 @@ export default function Workspace({
                                             const severity = value?.severity ?? null;
 
                                             return (
-                                                <td key={h.value} className="px-1 py-1 text-center">
+                                                <td key={h.value} className="px-1 text-center">
                                                     <button
                                                         type="button"
                                                         disabled={!editable}
@@ -185,7 +189,7 @@ export default function Workspace({
                         <div className="flex items-start justify-between gap-4">
                             <div>
                                 <h2 className="text-sm font-semibold text-gray-900">Dependencies</h2>
-                                <p className="mt-1 text-xs text-gray-500">
+                                <p className="form-hint">
                                     What this process cannot run without. Vendors come from the third-party register
                                     and people from the platform — nothing is duplicated here.
                                 </p>
@@ -256,41 +260,34 @@ export default function Workspace({
                             ['rpo_minutes', 'Recovery point objective (minutes)'],
                             ['min_staff_required', 'Minimum staff required'],
                         ].map(([field, label]) => (
-                            <label key={field} className="block text-sm">
-                                <span className="text-gray-700">{label}</span>
+                            <FormField key={field} label={label} error={objectives.errors[field]}
+                                hint={assessment.ai_reasoning?.[field] ? `AI: ${assessment.ai_reasoning[field]}` : undefined}>
                                 <input type="number" step="any" disabled={!editable}
-                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                    className="form-input"
                                     value={objectives.data[field]}
                                     onChange={(e) => objectives.setData(field, e.target.value)} />
-                                {objectives.errors[field] && <span className="text-xs text-red-600">{objectives.errors[field]}</span>}
-                                {assessment.ai_reasoning?.[field] && (
-                                    <span className="mt-1 block text-xs italic text-sky-700">AI: {assessment.ai_reasoning[field]}</span>
-                                )}
-                            </label>
+                            </FormField>
                         ))}
 
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Minimum business continuity objective</span>
-                            <textarea rows={3} disabled={!editable} className="mt-1 w-full rounded border-gray-300 text-sm"
+                        <FormField label="Minimum business continuity objective" hint="In words, not numbers — what must keep running.">
+                            <textarea rows={3} disabled={!editable} className="form-textarea"
                                 value={objectives.data.mbco_description}
                                 onChange={(e) => objectives.setData('mbco_description', e.target.value)} />
-                            <span className="mt-1 block text-xs text-gray-500">In words, not numbers — what must keep running.</span>
-                        </label>
+                        </FormField>
 
-                        <label className="flex items-center gap-2 text-sm">
-                            <input type="checkbox" disabled={!editable} checked={objectives.data.workaround_available}
+                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                            <input className="form-checkbox" type="checkbox" disabled={!editable} checked={objectives.data.workaround_available}
                                 onChange={(e) => objectives.setData('workaround_available', e.target.checked)} />
-                            <span className="text-gray-700">A manual workaround exists</span>
+                            A manual workaround exists
                         </label>
 
                         {objectives.data.workaround_available && (
-                            <label className="block text-sm">
-                                <span className="text-gray-700">How long it can be sustained (hours)</span>
+                            <FormField label="How long it can be sustained (hours)">
                                 <input type="number" step="any" disabled={!editable}
-                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                    className="form-input"
                                     value={objectives.data.workaround_max_duration_hours}
                                     onChange={(e) => objectives.setData('workaround_max_duration_hours', e.target.value)} />
-                            </label>
+                            </FormField>
                         )}
 
                         {editable && (
@@ -333,38 +330,31 @@ function ImpactCellEditor({ impactsUrl, cell, onClose }) {
                     {cell.category} impact at {cell.horizon}
                 </h2>
 
-                <label className="block text-sm">
-                    <span className="text-gray-700">Severity (1 tolerable — 5 intolerable)</span>
-                    <select className="mt-1 w-full rounded border-gray-300 text-sm" value={form.data.severity_score}
+                <FormField label="Severity (1 tolerable — 5 intolerable)">
+                    <select className="form-select" value={form.data.severity_score}
                         onChange={(e) => form.setData('severity_score', e.target.value)}>
                         <option value="">Not scored</option>
                         {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
                     </select>
-                </label>
+                </FormField>
 
                 {cell.monetary && (
-                    <label className="block text-sm">
-                        <span className="text-gray-700">Financial impact (kobo)</span>
-                        <input type="number" className="mt-1 w-full rounded border-gray-300 text-sm"
+                    <FormField label="Financial impact (kobo)" hint="Minor units, so nothing is lost to rounding."
+                        error={form.errors.financial_amount_minor}>
+                        <input type="number" className="form-input"
                             value={form.data.financial_amount_minor}
                             onChange={(e) => form.setData('financial_amount_minor', e.target.value)} />
-                        <span className="mt-1 block text-xs text-gray-500">Minor units, so nothing is lost to rounding.</span>
-                    </label>
+                    </FormField>
                 )}
 
-                <label className="block text-sm">
-                    <span className="text-gray-700">What the impact looks like</span>
-                    <textarea rows={3} className="mt-1 w-full rounded border-gray-300 text-sm" value={form.data.narrative}
+                <FormField label="What the impact looks like">
+                    <textarea rows={3} className="form-textarea" value={form.data.narrative}
                         onChange={(e) => form.setData('narrative', e.target.value)} />
-                </label>
+                </FormField>
 
-                {form.errors.financial_amount_minor && (
-                    <p className="text-xs text-red-600">{form.errors.financial_amount_minor}</p>
-                )}
-
-                <div className="flex gap-2">
-                    <button type="submit" className="btn-primary text-sm" disabled={form.processing}>Save</button>
+                <div className="form-actions">
                     <button type="button" className="btn-secondary text-sm" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn-primary text-sm" disabled={form.processing}>Save</button>
                 </div>
             </form>
         </div>
@@ -390,23 +380,23 @@ function AddDependency({ dependenciesUrl, options }) {
             className="mt-4 space-y-3 rounded border border-dashed border-gray-300 p-3"
         >
             <div className="flex flex-wrap gap-2">
-                <select className="rounded border-gray-300 text-sm" value={form.data.dependable_type}
+                <select aria-label="Dependency kind" className="form-select" value={form.data.dependable_type}
                     onChange={(e) => { form.setData('dependable_type', e.target.value); form.setData('dependable_id', ''); }}>
                     {options.types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
 
-                <select className="min-w-56 flex-1 rounded border-gray-300 text-sm" value={form.data.dependable_id}
+                <select aria-label="Dependency" className="form-select min-w-56 flex-1" value={form.data.dependable_id}
                     onChange={(e) => form.setData('dependable_id', e.target.value)}>
                     <option value="">Choose…</option>
                     {targets.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
 
-                <select className="rounded border-gray-300 text-sm" value={form.data.dependency_type}
+                <select aria-label="Dependency type" className="form-select" value={form.data.dependency_type}
                     onChange={(e) => form.setData('dependency_type', e.target.value)}>
                     {options.relations.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
 
-                <select className="rounded border-gray-300 text-sm" value={form.data.criticality}
+                <select aria-label="Criticality" className="form-select" value={form.data.criticality}
                     onChange={(e) => form.setData('criticality', e.target.value)}>
                     {options.criticalities.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
@@ -414,12 +404,12 @@ function AddDependency({ dependenciesUrl, options }) {
 
             <div className="flex flex-wrap items-center gap-4 text-sm">
                 <label className="flex items-center gap-2">
-                    <input type="checkbox" checked={form.data.single_point_of_failure}
+                    <input className="form-checkbox" type="checkbox" checked={form.data.single_point_of_failure}
                         onChange={(e) => form.setData('single_point_of_failure', e.target.checked)} />
                     <span className="text-gray-700">Single point of failure</span>
                 </label>
                 <label className="flex items-center gap-2">
-                    <input type="checkbox" checked={form.data.alternative_available}
+                    <input className="form-checkbox" type="checkbox" checked={form.data.alternative_available}
                         onChange={(e) => form.setData('alternative_available', e.target.checked)} />
                     <span className="text-gray-700">An alternative exists</span>
                 </label>
@@ -427,7 +417,7 @@ function AddDependency({ dependenciesUrl, options }) {
             </div>
 
             {form.errors.single_point_of_failure && (
-                <p className="text-xs text-red-600">{form.errors.single_point_of_failure}</p>
+                <p className="form-error">{form.errors.single_point_of_failure}</p>
             )}
         </form>
     );

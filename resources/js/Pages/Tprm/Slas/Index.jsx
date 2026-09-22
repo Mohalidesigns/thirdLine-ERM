@@ -113,7 +113,7 @@ function SlaCard({ sla, can }) {
                         </span>
                     )}
                     {can.manage && (
-                        <button type="button" className="btn btn-secondary text-xs" onClick={() => setRecording(true)}>
+                        <button type="button" className="btn-secondary text-xs" onClick={() => setRecording(true)}>
                             Record a period
                         </button>
                     )}
@@ -202,48 +202,48 @@ function MeasurementDialog({ sla, onClose }) {
                 </p>
 
                 <div className="mt-5 grid grid-cols-2 gap-4">
-                    <label className="block">
+                    <label className="form-label">
                         <span className="text-sm font-medium text-gray-700">Period start</span>
-                        <input type="date" className="input mt-1" value={form.data.period_start}
+                        <input type="date" className="form-input mt-1" value={form.data.period_start}
                             onChange={(e) => form.setData('period_start', e.target.value)} />
                     </label>
-                    <label className="block">
+                    <label className="form-label">
                         <span className="text-sm font-medium text-gray-700">Period end</span>
-                        <input type="date" className="input mt-1" value={form.data.period_end}
+                        <input type="date" className="form-input mt-1" value={form.data.period_end}
                             onChange={(e) => form.setData('period_end', e.target.value)} />
                     </label>
                 </div>
 
-                <label className="mt-4 block">
+                <label className="form-label mt-4">
                     <span className="text-sm font-medium text-gray-700">Measured value {sla.unit ? `(${sla.unit})` : ''}</span>
-                    <input type="number" step="any" className="input mt-1" value={form.data.actual_value}
+                    <input type="number" step="any" className="form-input mt-1" value={form.data.actual_value}
                         onChange={(e) => form.setData('actual_value', e.target.value)} />
                 </label>
 
                 <div className="mt-4 grid grid-cols-3 gap-4">
-                    <label className="block">
+                    <label className="form-label">
                         <span className="text-sm font-medium text-gray-700">Credit claimed</span>
-                        <input type="number" className="input mt-1" placeholder="minor units"
+                        <input type="number" className="form-input mt-1" placeholder="minor units"
                             value={form.data.credit_claimed_minor}
                             onChange={(e) => form.setData('credit_claimed_minor', e.target.value)} />
                     </label>
-                    <label className="block">
+                    <label className="form-label">
                         <span className="text-sm font-medium text-gray-700">Credit received</span>
-                        <input type="number" className="input mt-1" placeholder="minor units"
+                        <input type="number" className="form-input mt-1" placeholder="minor units"
                             value={form.data.credit_received_minor}
                             onChange={(e) => form.setData('credit_received_minor', e.target.value)} />
                     </label>
-                    <label className="block">
+                    <label className="form-label">
                         <span className="text-sm font-medium text-gray-700">Currency</span>
-                        <input type="text" maxLength={3} className="input mt-1" placeholder="NGN"
+                        <input type="text" maxLength={3} className="form-input mt-1" placeholder="NGN"
                             value={form.data.currency}
                             onChange={(e) => form.setData('currency', e.target.value.toUpperCase())} />
                     </label>
                 </div>
 
                 <div className="mt-6 flex justify-end gap-2">
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" disabled={form.processing}>Record</button>
+                    <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn-primary" disabled={form.processing}>Record</button>
                 </div>
             </form>
         </div>

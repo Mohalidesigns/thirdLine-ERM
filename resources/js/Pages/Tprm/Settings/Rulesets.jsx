@@ -37,21 +37,21 @@ export default function Rulesets({ rulesets = [], current }) {
             </div>
 
             <div className="card overflow-hidden">
-                <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                <table className="data-table">
+                    <thead>
                         <tr>
-                            <th className="px-4 py-3 font-medium">Version</th>
-                            <th className="px-4 py-3 font-medium">Name</th>
-                            <th className="px-4 py-3 font-medium">Status</th>
-                            <th className="px-4 py-3 text-right font-medium">Factors</th>
-                            <th className="px-4 py-3 text-right font-medium">Knockouts</th>
-                            <th className="px-4 py-3 font-medium">Published</th>
+                            <th>Version</th>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th className="text-right">Factors</th>
+                            <th className="text-right">Knockouts</th>
+                            <th>Published</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {rulesets.map((ruleset) => (
                             <tr key={ruleset.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3">
+                                <td>
                                     <a href={ruleset.url} className="font-mono text-xs text-blue-700 hover:underline">
                                         {ruleset.version}
                                     </a>
@@ -61,11 +61,11 @@ export default function Rulesets({ rulesets = [], current }) {
                                         </span>
                                     )}
                                 </td>
-                                <td className="px-4 py-3">{ruleset.name}</td>
-                                <td className="px-4 py-3 text-xs capitalize">{ruleset.status}</td>
-                                <td className="px-4 py-3 text-right tabular-nums">{ruleset.factor_count}</td>
-                                <td className="px-4 py-3 text-right tabular-nums">{ruleset.knockout_count}</td>
-                                <td className="px-4 py-3 text-xs text-gray-500">
+                                <td>{ruleset.name}</td>
+                                <td className="text-xs capitalize">{ruleset.status}</td>
+                                <td className="text-right tabular-nums">{ruleset.factor_count}</td>
+                                <td className="text-right tabular-nums">{ruleset.knockout_count}</td>
+                                <td className="text-xs text-gray-500">
                                     {ruleset.published_at ?? '—'}
                                     {ruleset.published_by && <p>{ruleset.published_by}</p>}
                                 </td>

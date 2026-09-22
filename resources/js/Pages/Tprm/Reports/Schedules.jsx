@@ -87,10 +87,10 @@ export default function Schedules({
 
             {adding && can.manage && (
                 <form onSubmit={submit} className="card mb-6 grid gap-4 p-4 md:grid-cols-2">
-                    <label className="text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Report</span>
                         <select
-                            className="w-full rounded border-gray-300 text-sm"
+                            className="form-select"
                             value={data.report_key}
                             onChange={(event) => setData('report_key', event.target.value)}
                         >
@@ -99,29 +99,29 @@ export default function Schedules({
                             ))}
                         </select>
                         {errors.report_key && (
-                            <span className="mt-1 block text-xs text-red-600">{errors.report_key}</span>
+                            <span className="form-error">{errors.report_key}</span>
                         )}
-                        <span className="mt-1 block text-xs text-gray-500">
+                        <span className="form-hint">
                             Only reports you can read yourself are listed.
                         </span>
                     </label>
 
-                    <label className="text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Name</span>
                         <input
                             type="text"
-                            className="w-full rounded border-gray-300 text-sm"
+                            className="form-input"
                             placeholder="Monday procurement pack"
                             value={data.name}
                             onChange={(event) => setData('name', event.target.value)}
                         />
-                        {errors.name && <span className="mt-1 block text-xs text-red-600">{errors.name}</span>}
+                        {errors.name && <span className="form-error">{errors.name}</span>}
                     </label>
 
-                    <label className="text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Frequency</span>
                         <select
-                            className="w-full rounded border-gray-300 text-sm"
+                            className="form-select"
                             value={data.frequency}
                             onChange={(event) => setData('frequency', event.target.value)}
                         >
@@ -134,10 +134,10 @@ export default function Schedules({
                     </label>
 
                     {data.frequency === 'weekly' && (
-                        <label className="text-sm">
+                        <label className="form-label">
                             <span className="mb-1 block font-medium text-gray-700">Day</span>
                             <select
-                                className="w-full rounded border-gray-300 text-sm"
+                                className="form-select"
                                 value={data.day_of_week}
                                 onChange={(event) => setData('day_of_week', Number(event.target.value))}
                             >
@@ -150,39 +150,39 @@ export default function Schedules({
                     )}
 
                     {data.frequency === 'monthly' && (
-                        <label className="text-sm">
+                        <label className="form-label">
                             <span className="mb-1 block font-medium text-gray-700">Day of month</span>
                             <input
                                 type="number"
                                 min="1"
                                 max={maxDayOfMonth}
-                                className="w-full rounded border-gray-300 text-sm"
+                                className="form-input"
                                 value={data.day_of_month}
                                 onChange={(event) => setData('day_of_month', Number(event.target.value))}
                             />
                             {errors.day_of_month && (
-                                <span className="mt-1 block text-xs text-red-600">{errors.day_of_month}</span>
+                                <span className="form-error">{errors.day_of_month}</span>
                             )}
-                            <span className="mt-1 block text-xs text-gray-500">
+                            <span className="form-hint">
                                 Capped at {maxDayOfMonth}. A later day would skip February.
                             </span>
                         </label>
                     )}
 
-                    <label className="text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Send at</span>
                         <input
                             type="time"
-                            className="w-full rounded border-gray-300 text-sm"
+                            className="form-input"
                             value={data.send_at}
                             onChange={(event) => setData('send_at', event.target.value)}
                         />
                     </label>
 
-                    <label className="text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Format</span>
                         <select
-                            className="w-full rounded border-gray-300 text-sm"
+                            className="form-select"
                             value={data.format}
                             onChange={(event) => setData('format', event.target.value)}
                         >
@@ -195,9 +195,9 @@ export default function Schedules({
                     <div className="text-sm md:col-span-2">
                         <span className="mb-1 block font-medium text-gray-700">Recipients</span>
                         <div className="flex gap-2">
-                            <input
+                            <input aria-label="Recipient email"
                                 type="email"
-                                className="flex-1 rounded border-gray-300 text-sm"
+                                className="form-input flex-1"
                                 placeholder="procurement@bank.example"
                                 value={recipient}
                                 onChange={(event) => setRecipient(event.target.value)}
@@ -230,9 +230,9 @@ export default function Schedules({
                             ))}
                         </div>
                         {errors.recipients && (
-                            <span className="mt-1 block text-xs text-red-600">{errors.recipients}</span>
+                            <span className="form-error">{errors.recipients}</span>
                         )}
-                        <span className="mt-1 block text-xs text-gray-500">
+                        <span className="form-hint">
                             Addresses, not users — a distribution list is frequently a shared mailbox. The report
                             is still rendered with your permissions.
                         </span>
@@ -247,37 +247,37 @@ export default function Schedules({
             )}
 
             <div className="card overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead className="bg-gray-50">
+                <table className="data-table">
+                    <thead>
                         <tr>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Schedule</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Report</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">When</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Recipients</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Owner</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Last run</th>
-                            <th scope="col" className="px-4 py-2" />
+                            <th scope="col">Schedule</th>
+                            <th scope="col">Report</th>
+                            <th scope="col">When</th>
+                            <th scope="col">Recipients</th>
+                            <th scope="col">Owner</th>
+                            <th scope="col">Last run</th>
+                            <th scope="col" />
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {schedules.map((schedule) => (
                             <tr key={schedule.uuid} className={schedule.is_active ? '' : 'opacity-60'}>
-                                <td className="px-4 py-2 font-medium">
+                                <td className="font-medium">
                                     {schedule.name}
                                     {!schedule.is_active && (
                                         <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs">Paused</span>
                                     )}
                                 </td>
-                                <td className="px-4 py-2">
+                                <td>
                                     {schedule.report_title}
                                     <div className="text-xs text-gray-400">{schedule.format}</div>
                                 </td>
-                                <td className="px-4 py-2 text-xs">{schedule.frequency}</td>
-                                <td className="px-4 py-2 text-xs">
+                                <td className="text-xs">{schedule.frequency}</td>
+                                <td className="text-xs">
                                     {schedule.recipients.length} — {schedule.recipients.join(', ')}
                                 </td>
-                                <td className="px-4 py-2">{schedule.owner ?? 'Account removed'}</td>
-                                <td className="px-4 py-2 text-xs">
+                                <td>{schedule.owner ?? 'Account removed'}</td>
+                                <td className="text-xs">
                                     <span
                                         className={
                                             schedule.last_run_status === 'failed'
@@ -295,7 +295,7 @@ export default function Schedules({
                                         </div>
                                     )}
                                 </td>
-                                <td className="px-4 py-2 text-right">
+                                <td className="text-right">
                                     {can.manage && (
                                         <div className="flex justify-end gap-2 text-xs">
                                             <button
@@ -330,7 +330,7 @@ export default function Schedules({
                         ))}
                         {schedules.length === 0 && (
                             <tr>
-                                <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500">
+                                <td colSpan={7} className="py-10 text-center text-sm text-gray-500">
                                     No standing schedules. Every report can still be exported on demand.
                                 </td>
                             </tr>

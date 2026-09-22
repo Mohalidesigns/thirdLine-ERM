@@ -170,7 +170,7 @@ function Question({ assessment, question, complianceLevels }) {
                 {question.required && <span className="ml-1 text-red-600">*</span>}
             </p>
 
-            {question.help_text && <p className="mt-1 text-xs text-gray-500">{question.help_text}</p>}
+            {question.help_text && <p className="form-hint">{question.help_text}</p>}
 
             {question.prefilled && question.prefill_note && (
                 <p className="mt-2 rounded bg-blue-50 px-2 py-1.5 text-xs text-blue-900">{question.prefill_note}</p>
@@ -200,8 +200,8 @@ function Question({ assessment, question, complianceLevels }) {
                 ))}
             </div>
 
-            <textarea
-                className="mt-2 w-full rounded border border-gray-200 p-2 text-sm"
+            <textarea aria-label="Response notes"
+                className="form-textarea mt-2"
                 rows="3"
                 disabled={!assessment.editable}
                 value={value}
@@ -256,8 +256,8 @@ function MessageThread({ assessment, thread }) {
                     });
                 }}
             >
-                <textarea
-                    className="w-full rounded border border-gray-200 p-2 text-sm"
+                <textarea aria-label="Message"
+                    className="form-textarea"
                     rows="2"
                     value={form.data.body}
                     onChange={(event) => form.setData('body', event.target.value)}
@@ -294,8 +294,8 @@ function DelegateDialog({ assessment, section, colleagues, onClose }) {
                     They will see this assessment on their own sign-in. You stay responsible for submitting it.
                 </p>
 
-                <select
-                    className="mt-3 w-full rounded border border-gray-200 p-2 text-sm"
+                <select aria-label="Assign to"
+                    className="form-select mt-3"
                     value={form.data.portal_user_id}
                     onChange={(event) => form.setData('portal_user_id', event.target.value)}
                 >
@@ -306,8 +306,8 @@ function DelegateDialog({ assessment, section, colleagues, onClose }) {
                     ))}
                 </select>
 
-                <textarea
-                    className="mt-3 w-full rounded border border-gray-200 p-2 text-sm"
+                <textarea aria-label="Note to assignee"
+                    className="form-textarea mt-3"
                     rows="2"
                     value={form.data.note}
                     onChange={(event) => form.setData('note', event.target.value)}

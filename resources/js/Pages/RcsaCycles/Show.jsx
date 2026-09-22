@@ -113,8 +113,11 @@ export default function Show({ cycle, assessments = [], can = {} }) {
                         <tbody>
                             {assessments.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="py-10 text-center text-sm text-gray-400">
-                                        Nothing provisioned yet — open the cycle to create the assessments.
+                                    <td colSpan={6} className="text-center py-12">
+                                        <div className="text-gray-400">
+                                            <p className="text-sm font-medium">Nothing provisioned yet</p>
+                                            <p className="text-xs mt-1">Open the cycle to create the assessments</p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -122,7 +125,7 @@ export default function Show({ cycle, assessments = [], can = {} }) {
                             {assessments.map((assessment) => (
                                 <tr key={assessment.id}>
                                     <td className="text-sm font-medium text-gray-700">{assessment.business_unit}</td>
-                                    <td className="text-sm text-gray-600">{assessment.lines_count}</td>
+                                    <td className="cell-muted">{assessment.lines_count}</td>
                                     <td>
                                         <div className="flex items-center gap-2">
                                             <div className="h-2 w-24 rounded-full bg-gray-100">
@@ -134,17 +137,20 @@ export default function Show({ cycle, assessments = [], can = {} }) {
                                             <span className="text-xs text-gray-600">{assessment.completion_pct}%</span>
                                         </div>
                                     </td>
-                                    <td className="text-sm text-gray-600">{assessment.assignee ?? 'Unassigned'}</td>
+                                    <td className="cell-muted">{assessment.assignee ?? 'Unassigned'}</td>
                                     <td>
                                         <StatusBadge status={assessment.status} />
                                     </td>
                                     <td className="text-right">
-                                        <Link
-                                            href={route('rcsa.assessments.show', assessment.id)}
-                                            className="text-xs text-[var(--color-primary)] hover:underline"
-                                        >
-                                            Open
-                                        </Link>
+                                        <div className="row-actions">
+                                            <Link
+                                                href={route('rcsa.assessments.show', assessment.id)}
+                                                className="row-action"
+                                                aria-label="Open" title="Open"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                            </Link>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

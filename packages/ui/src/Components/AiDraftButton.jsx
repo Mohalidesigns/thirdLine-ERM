@@ -86,7 +86,8 @@ export default function AiDraftButton({
                         }
                     }}
                     placeholder={placeholder}
-                    className="flex-1 px-3 py-2 rounded-lg text-sm bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-[#D4AF37]"
+                    aria-label={placeholder || 'Scenario'}
+                    className="form-input flex-1 px-3 py-2 text-sm bg-white/10 border-white/20 text-white focus:border-[#D4AF37]"
                 />
                 <button
                     type="button"

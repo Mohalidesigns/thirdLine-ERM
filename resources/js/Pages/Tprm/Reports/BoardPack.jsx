@@ -89,7 +89,7 @@ export default function BoardPack({ pack = {}, can = {} }) {
                 <div className="mb-2 flex items-start justify-between gap-4">
                     <div>
                         <h2 className="text-sm font-semibold text-gray-800">Assessment</h2>
-                        <p className="mt-1 text-xs text-gray-500">{pack.narrative_provenance}</p>
+                        <p className="form-hint">{pack.narrative_provenance}</p>
                     </div>
                     {pack.editable && can.prepare && !editing && (
                         <button type="button" className="btn-secondary" onClick={() => setEditing(true)}>
@@ -100,8 +100,8 @@ export default function BoardPack({ pack = {}, can = {} }) {
 
                 {editing ? (
                     <form onSubmit={saveNarrative}>
-                        <textarea
-                            className="w-full rounded border-gray-300 text-sm"
+                        <textarea aria-label="Narrative"
+                            className="form-textarea"
                             rows={14}
                             value={data.narrative}
                             onChange={(event) => setData('narrative', event.target.value)}
@@ -235,11 +235,11 @@ function Section({ title, children }) {
 function Table({ headers, rows, empty }) {
     return (
         <div className="card overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50">
+            <table className="data-table">
+                <thead>
                     <tr>
                         {headers.map((header) => (
-                            <th key={header} scope="col" className="whitespace-nowrap px-4 py-2 text-left font-medium text-gray-600">
+                            <th key={header} scope="col" className="whitespace-nowrap">
                                 {header}
                             </th>
                         ))}
@@ -249,7 +249,7 @@ function Table({ headers, rows, empty }) {
                     {rows.map((row, index) => (
                         <tr key={index}>
                             {row.map((cell, cellIndex) => (
-                                <td key={cellIndex} className="px-4 py-2 align-top">
+                                <td key={cellIndex} className="align-top">
                                     {cell === null || cell === undefined || cell === ''
                                         ? <span className="text-gray-400">—</span>
                                         : String(cell)}
@@ -259,8 +259,10 @@ function Table({ headers, rows, empty }) {
                     ))}
                     {rows.length === 0 && (
                         <tr>
-                            <td colSpan={headers.length} className="px-4 py-8 text-center text-sm text-gray-500">
-                                {empty}
+                            <td colSpan={headers.length} className="text-center py-12">
+                                <div className="text-gray-400">
+                                    <p className="text-sm font-medium">{empty}</p>
+                                </div>
                             </td>
                         </tr>
                     )}
@@ -277,7 +279,7 @@ function Tile({ label, value, hint, tone }) {
         <div className="card p-4">
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</div>
             <div className={`mt-1 text-2xl font-bold ${toneClass}`}>{value}</div>
-            {hint && <div className="mt-1 text-xs text-gray-500">{hint}</div>}
+            {hint && <div className="form-hint">{hint}</div>}
         </div>
     );
 }

@@ -91,63 +91,67 @@ export default function Gap({ analysis = {}, max_tier, can = {} }) {
                 </p>
             )}
 
-            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                        <tr>
-                            <th className="px-4 py-3 text-left">Process</th>
-                            <th className="px-4 py-3 text-left">Business unit</th>
-                            <th className="px-4 py-3 text-right">Required</th>
-                            <th className="px-4 py-3 text-right">Achievable</th>
-                            <th className="px-4 py-3 text-right">Shortfall</th>
-                            <th className="px-4 py-3 text-right">At assessment</th>
-                            <th className="px-4 py-3 text-left">Strategy</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {rows.length === 0 && (
+            <div className="card">
+                <div className="overflow-x-auto">
+                    <table className="data-table">
+                        <thead>
                             <tr>
-                                <td colSpan={7} className="px-4 py-8 text-center text-gray-600">
-                                    No processes are in scope at this tier.
-                                </td>
+                                <th>Process</th>
+                                <th>Business unit</th>
+                                <th className="text-right">Required</th>
+                                <th className="text-right">Achievable</th>
+                                <th className="text-right">Shortfall</th>
+                                <th className="text-right">At assessment</th>
+                                <th>Strategy</th>
                             </tr>
-                        )}
+                        </thead>
+                        <tbody>
+                            {rows.length === 0 && (
+                                <tr>
+                                    <td colSpan={7} className="text-center py-12">
+                                        <div className="text-gray-400">
+                                            <p className="text-sm font-medium">No processes are in scope at this tier</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
 
-                        {rows.map((row) => (
-                            <tr key={row.process_id} className={row.shortfall_hours != null ? 'bg-red-50' : undefined}>
-                                <td className="px-4 py-3">
-                                    <Link href={tryRoute('bcms.strategy.show', row.process_uuid)} className="font-medium text-gray-900 hover:underline">
-                                        {row.code}
-                                    </Link>
-                                    <span className="block text-xs text-gray-600">{row.name}</span>
-                                    {row.reason && <span className="block text-xs italic text-amber-700">{row.reason}</span>}
-                                </td>
-                                <td className="px-4 py-3 text-xs text-gray-600">{row.business_unit ?? '—'}</td>
-                                <td className="px-4 py-3 text-right font-mono">
-                                    {row.rto_required_hours != null ? `${row.rto_required_hours}h` : '—'}
-                                </td>
-                                <td className="px-4 py-3 text-right font-mono">
-                                    {row.rto_achievable_hours != null ? `${row.rto_achievable_hours}h` : '—'}
-                                </td>
-                                <td className="px-4 py-3 text-right font-mono font-semibold text-red-700">
-                                    {row.shortfall_hours != null ? `${row.shortfall_hours}h` : ''}
-                                </td>
-                                <td className="px-4 py-3 text-right font-mono text-xs text-gray-500">
-                                    {row.gap_at_assessment_hours == null
-                                        ? '—'
-                                        : `${row.gap_at_assessment_hours > 0 ? '+' : ''}${row.gap_at_assessment_hours}h`}
-                                    {row.assessment_is_stale && <span className="ml-1 text-amber-700">stale</span>}
-                                </td>
-                                <td className="px-4 py-3 text-xs">
-                                    {row.strategy_label ?? <span className="text-red-700">None selected</span>}
-                                    {row.approval_status && row.approval_status !== 'approved' && (
-                                        <span className="ml-1 text-amber-700">({row.approval_status})</span>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                            {rows.map((row) => (
+                                <tr key={row.process_id} className={row.shortfall_hours != null ? 'bg-red-50' : undefined}>
+                                    <td>
+                                        <Link href={tryRoute('bcms.strategy.show', row.process_uuid)} className="cell-title">
+                                            {row.code}
+                                        </Link>
+                                        <p className="cell-subtitle">{row.name}</p>
+                                        {row.reason && <span className="block text-xs italic text-amber-700">{row.reason}</span>}
+                                    </td>
+                                    <td className="cell-muted">{row.business_unit ?? '—'}</td>
+                                    <td className="text-right font-mono">
+                                        {row.rto_required_hours != null ? `${row.rto_required_hours}h` : '—'}
+                                    </td>
+                                    <td className="text-right font-mono">
+                                        {row.rto_achievable_hours != null ? `${row.rto_achievable_hours}h` : '—'}
+                                    </td>
+                                    <td className="text-right font-mono font-semibold text-red-700">
+                                        {row.shortfall_hours != null ? `${row.shortfall_hours}h` : ''}
+                                    </td>
+                                    <td className="text-right font-mono text-xs text-gray-500">
+                                        {row.gap_at_assessment_hours == null
+                                            ? '—'
+                                            : `${row.gap_at_assessment_hours > 0 ? '+' : ''}${row.gap_at_assessment_hours}h`}
+                                        {row.assessment_is_stale && <span className="ml-1 text-amber-700">stale</span>}
+                                    </td>
+                                    <td className="text-xs">
+                                        {row.strategy_label ?? <span className="text-red-700">None selected</span>}
+                                        {row.approval_status && row.approval_status !== 'approved' && (
+                                            <span className="ml-1 text-amber-700">({row.approval_status})</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </AppLayout>
     );

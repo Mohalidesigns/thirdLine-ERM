@@ -3,6 +3,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import InputError from '@thirdline/ui/Components/InputError';
+import { FormSection, FormField } from '@thirdline/ui';
 import TierBadge from '@/Components/Tprm/TierBadge';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
@@ -161,9 +162,9 @@ export default function Create({ options = {}, questionnaire = {}, preselectedTh
                             <Select label="Service category" value={data.service_type_id} onChange={(v) => setData('service_type_id', v)} error={errors.service_type_id}
                                 options={(options.categories ?? []).map((c) => ({ value: c.id, label: c.name }))} />
                             <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700">What the service is</label>
-                                <textarea rows="2" value={data.service_description} onChange={(e) => setData('service_description', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                                <label className="form-label">What the service is</label>
+                                <textarea aria-label="What the service is" rows="2" value={data.service_description} onChange={(e) => setData('service_description', e.target.value)}
+                                    className="form-textarea mt-1" />
                                 <InputError message={errors.service_description} className="mt-1" />
                             </div>
                         </div>
@@ -181,7 +182,7 @@ export default function Create({ options = {}, questionnaire = {}, preselectedTh
                                         className={`flex cursor-pointer items-center gap-3 border-b border-gray-100 px-3 py-2 text-sm last:border-0 ${
                                             selected && fn.is_prohibited_outsourcing ? 'bg-red-50' : selected ? 'bg-blue-50' : 'hover:bg-gray-50'
                                         }`}>
-                                        <input type="checkbox" checked={selected} onChange={() => toggleFunction(fn.id)} className="rounded border-gray-300" />
+                                        <input type="checkbox" checked={selected} onChange={() => toggleFunction(fn.id)} className="form-checkbox" />
                                         <span className="font-mono text-xs text-gray-500">{fn.function_code}</span>
                                         <span className="flex-1">{fn.name}</span>
                                         {fn.is_prohibited_outsourcing && (
@@ -278,12 +279,12 @@ export default function Create({ options = {}, questionnaire = {}, preselectedTh
                                     )}
 
                                     {preview.factors?.length > 0 && (
-                                        <table className="mt-4 w-full text-xs">
+                                        <table className="data-table mt-4 text-xs">
                                             <tbody className="divide-y divide-gray-100">
                                                 {preview.factors.map((f) => (
                                                     <tr key={f.code}>
-                                                        <td className="py-1 text-gray-600">{f.label}</td>
-                                                        <td className="py-1 text-right tabular-nums text-gray-900">{f.weighted}</td>
+                                                        <td className="text-gray-600">{f.label}</td>
+                                                        <td className="text-right tabular-nums text-gray-900">{f.weighted}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -338,7 +339,7 @@ function Question({ code, question, value, onChange, error }) {
                 <div className="mt-2 flex gap-4 text-sm">
                     {[['Yes', true], ['No', false]].map(([label, val]) => (
                         <label key={label} className="flex items-center gap-1.5">
-                            <input type="radio" checked={value === val} onChange={() => onChange(val)} className="border-gray-300" />
+                            <input type="radio" checked={value === val} onChange={() => onChange(val)} className="form-radio" />
                             {label}
                         </label>
                     ))}
@@ -346,8 +347,8 @@ function Question({ code, question, value, onChange, error }) {
             )}
 
             {question.type === 'select' && (
-                <select value={value ?? ''} onChange={(e) => onChange(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                <select aria-label={question.text ?? question.label ?? question.key} value={value ?? ''} onChange={(e) => onChange(e.target.value)}
+                    className="form-select mt-1">
                     <option value="">Select…</option>
                     {(question.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
@@ -372,9 +373,9 @@ function Question({ code, question, value, onChange, error }) {
             )}
 
             {question.type === 'country' && (
-                <input type="text" maxLength="2" value={value ?? ''} onChange={(e) => onChange(e.target.value.toUpperCase())}
+                <input aria-label={question.text ?? question.label ?? question.key} type="text" maxLength="2" value={value ?? ''} onChange={(e) => onChange(e.target.value.toUpperCase())}
                     placeholder="NG"
-                    className="mt-1 block w-24 rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                    className="form-input mt-1 w-24" />
             )}
 
             <InputError message={error} className="mt-1" />
@@ -384,38 +385,30 @@ function Question({ code, question, value, onChange, error }) {
 
 function Text({ label, value, onChange, error, required = false }) {
     return (
-        <div>
-            <label className="block text-sm font-medium text-gray-700">
-                {label}{required && <span className="ml-0.5 text-red-600">*</span>}
-            </label>
+        <FormField label={label} required={required} error={error}>
             <input type="text" value={value ?? ''} onChange={(e) => onChange(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500" />
-            <InputError message={error} className="mt-1" />
-        </div>
+                className="form-input" />
+        </FormField>
     );
 }
 
 function Select({ label, value, onChange, error, options = [], hint, required = false }) {
     return (
-        <div>
-            <label className="block text-sm font-medium text-gray-700">
-                {label}{required && <span className="ml-0.5 text-red-600">*</span>}
-            </label>
+        <FormField label={label} required={required} error={error}>
             <select value={value ?? ''} onChange={(e) => onChange(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                className="form-select">
                 <option value="">Select…</option>
                 {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-            {hint && <p className="mt-1 text-xs text-amber-700">{hint}</p>}
-            <InputError message={error} className="mt-1" />
-        </div>
+            {hint && !error && <p className="mt-1 text-xs text-amber-700">{hint}</p>}
+        </FormField>
     );
 }
 
 function Toggle({ label, checked, onChange }) {
     return (
         <label className="flex items-center gap-2 self-end pb-2 text-sm">
-            <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="rounded border-gray-300" />
+            <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="form-checkbox" />
             {label}
         </label>
     );

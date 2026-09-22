@@ -34,36 +34,38 @@ export default function Stale({ plans = [], currency = {}, can = {} }) {
                     )}
                 </div>
             ) : (
-                <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                            <tr>
-                                <th className="px-4 py-3 text-left">Plan</th>
-                                <th className="px-4 py-3 text-left">Type</th>
-                                <th className="px-4 py-3 text-left">Owner</th>
-                                <th className="px-4 py-3 text-left">Due</th>
-                                <th className="px-4 py-3 text-right">Days overdue</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {plans.map((plan) => (
-                                <tr key={plan.id}>
-                                    <td className="px-4 py-3">
-                                        <Link href={tryRoute('bcms.plans.show', plan.uuid)} className="font-medium text-gray-900 hover:underline">
-                                            {plan.title}
-                                        </Link>
-                                        <span className="block text-xs text-gray-500">
-                                            v{plan.version} · {plan.business_unit ?? 'Organisation-wide'}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3 text-xs text-gray-600">{plan.plan_type_label}</td>
-                                    <td className="px-4 py-3 text-xs text-gray-600">{plan.owner ?? '—'}</td>
-                                    <td className="px-4 py-3 text-xs">{plan.next_review_date}</td>
-                                    <td className="px-4 py-3 text-right font-mono text-red-700">{plan.days_overdue}</td>
+                <div className="card">
+                    <div className="overflow-x-auto">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Plan</th>
+                                    <th>Type</th>
+                                    <th>Owner</th>
+                                    <th>Due</th>
+                                    <th className="text-right">Days overdue</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {plans.map((plan) => (
+                                    <tr key={plan.id}>
+                                        <td>
+                                            <Link href={tryRoute('bcms.plans.show', plan.uuid)} className="cell-title">
+                                                {plan.title}
+                                            </Link>
+                                            <p className="cell-subtitle">
+                                                v{plan.version} · {plan.business_unit ?? 'Organisation-wide'}
+                                            </p>
+                                        </td>
+                                        <td className="cell-muted">{plan.plan_type_label}</td>
+                                        <td className="cell-muted">{plan.owner ?? '—'}</td>
+                                        <td className="text-xs">{plan.next_review_date}</td>
+                                        <td className="text-right font-mono text-red-700">{plan.days_overdue}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
         </AppLayout>

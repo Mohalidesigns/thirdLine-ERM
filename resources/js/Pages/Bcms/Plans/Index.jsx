@@ -2,6 +2,7 @@ import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -98,96 +99,91 @@ export default function Index({
                         e.preventDefault();
                         create.post(tryRoute('bcms.plans.store'), { onSuccess: () => { create.reset(); setCreating(false); } });
                     }}
-                    className="mb-6 space-y-4 rounded-lg border border-gray-200 bg-white p-6"
+                    className="card mb-6"
                 >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <label className="text-sm">
-                            <span className="text-gray-700">Plan type</span>
+                    <div className="card-body space-y-4">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <FormField label="Plan type">
+                                <select
+                                    className="form-select"
+                                    value={create.data.plan_type}
+                                    onChange={(e) => { create.setData('plan_type', e.target.value); create.setData('template_key', ''); }}
+                                >
+                                    {types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                </select>
+                            </FormField>
+                            <FormField label="Title" required error={create.errors.title}>
+                                <input
+                                    type="text" required
+                                    className="form-input"
+                                    value={create.data.title}
+                                    onChange={(e) => create.setData('title', e.target.value)}
+                                />
+                            </FormField>
+                        </div>
+
+                        <FormField label="Start from a template" error={create.errors.template_key}
+                            hint={create.data.template_key ? templates.find((t) => t.key === create.data.template_key)?.summary : undefined}>
                             <select
-                                className="mt-1 w-full rounded border-gray-300 text-sm"
-                                value={create.data.plan_type}
-                                onChange={(e) => { create.setData('plan_type', e.target.value); create.setData('template_key', ''); }}
+                                className="form-select"
+                                value={create.data.template_key}
+                                onChange={(e) => create.setData('template_key', e.target.value)}
                             >
-                                {types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                <option value="">Blank — add sections by hand</option>
+                                {templatesForType.map((t) => (
+                                    <option key={t.key} value={t.key}>
+                                        {t.label} — {t.section_count} sections, {t.bound_section_count} bound to live data
+                                    </option>
+                                ))}
                             </select>
-                        </label>
-                        <label className="text-sm">
-                            <span className="text-gray-700">Title</span>
+                        </FormField>
+
+                        <FormField label="Review every (months)" className="sm:w-64"
+                            hint="Leave blank for no review cycle. A plan with no cycle gets no review date and shows as undated rather than current.">
                             <input
-                                type="text" required
-                                className="mt-1 w-full rounded border-gray-300 text-sm"
-                                value={create.data.title}
-                                onChange={(e) => create.setData('title', e.target.value)}
+                                type="number" min="1" max="120"
+                                className="form-input"
+                                value={create.data.review_frequency_months}
+                                onChange={(e) => create.setData('review_frequency_months', e.target.value)}
                             />
-                            {create.errors.title && <span className="text-xs text-red-600">{create.errors.title}</span>}
-                        </label>
-                    </div>
+                        </FormField>
 
-                    <label className="block text-sm">
-                        <span className="text-gray-700">Start from a template</span>
-                        <select
-                            className="mt-1 w-full rounded border-gray-300 text-sm"
-                            value={create.data.template_key}
-                            onChange={(e) => create.setData('template_key', e.target.value)}
-                        >
-                            <option value="">Blank — add sections by hand</option>
-                            {templatesForType.map((t) => (
-                                <option key={t.key} value={t.key}>
-                                    {t.label} — {t.section_count} sections, {t.bound_section_count} bound to live data
-                                </option>
-                            ))}
-                        </select>
-                        {create.data.template_key && (
-                            <span className="mt-1 block text-xs text-gray-600">
-                                {templates.find((t) => t.key === create.data.template_key)?.summary}
-                            </span>
-                        )}
-                        {create.errors.template_key && (
-                            <span className="text-xs text-red-600">{create.errors.template_key}</span>
-                        )}
-                    </label>
-
-                    <label className="block text-sm sm:w-64">
-                        <span className="text-gray-700">Review every (months)</span>
-                        <input
-                            type="number" min="1" max="120"
-                            className="mt-1 w-full rounded border-gray-300 text-sm"
-                            value={create.data.review_frequency_months}
-                            onChange={(e) => create.setData('review_frequency_months', e.target.value)}
-                        />
-                        <span className="mt-1 block text-xs text-gray-500">
-                            Leave blank for no review cycle. A plan with no cycle gets no review date and shows as undated
-                            rather than current.
-                        </span>
-                    </label>
-
-                    <div className="flex gap-2">
-                        <button type="submit" className="btn-primary text-sm" disabled={create.processing}>Create</button>
-                        <button type="button" className="btn-secondary text-sm" onClick={() => setCreating(false)}>Cancel</button>
+                        <div className="flex gap-2">
+                            <button type="submit" className="btn-primary text-sm" disabled={create.processing}>Create</button>
+                            <button type="button" className="btn-secondary text-sm" onClick={() => setCreating(false)}>Cancel</button>
+                        </div>
                     </div>
                 </form>
             )}
 
-            <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
-                <select
-                    className="rounded border-gray-300 text-xs"
-                    value={filters.type ?? ''}
-                    onChange={(e) => filter('type', e.target.value)}
-                >
-                    <option value="">All types</option>
-                    {types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-                <select
-                    className="rounded border-gray-300 text-xs"
-                    value={filters.status ?? ''}
-                    onChange={(e) => filter('status', e.target.value)}
-                >
-                    <option value="">Current versions</option>
-                    <option value="draft">Draft</option>
-                    <option value="review">In review</option>
-                    <option value="approved">Approved</option>
-                    <option value="archived">Archived</option>
-                </select>
+            <div className="filter-bar">
+                <div className="filter-bar-inner">
+                    <div className="filter-group min-w-[150px]">
+                        <label className="filter-label">Type</label>
+                        <select aria-label="Type"
+                            className="filter-select"
+                            value={filters.type ?? ''}
+                            onChange={(e) => filter('type', e.target.value)}
+                        >
+                            <option value="">All types</option>
+                            {types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        </select>
+                    </div>
+                    <div className="filter-group min-w-[160px]">
+                        <label className="filter-label">Status</label>
+                        <select aria-label="Status"
+                            className="filter-select"
+                            value={filters.status ?? ''}
+                            onChange={(e) => filter('status', e.target.value)}
+                        >
+                            <option value="">Current versions</option>
+                            <option value="draft">Draft</option>
+                            <option value="review">In review</option>
+                            <option value="approved">Approved</option>
+                            <option value="archived">Archived</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
             {scope_note && (
@@ -199,14 +195,13 @@ export default function Index({
                     <p className="text-sm text-gray-800">
                         {selected.length} selected. Set their review cycle to
                     </p>
-                    <label className="text-sm">
-                        <input
-                            type="number" min="1" max="120" placeholder="months"
-                            className="w-28 rounded border-gray-300 text-sm"
-                            value={cycle.data.review_frequency_months}
-                            onChange={(e) => cycle.setData('review_frequency_months', e.target.value)}
-                        />
-                    </label>
+                    <input
+                        type="number" min="1" max="120" placeholder="months"
+                        aria-label="Review cycle in months"
+                        className="form-input w-28"
+                        value={cycle.data.review_frequency_months}
+                        onChange={(e) => cycle.setData('review_frequency_months', e.target.value)}
+                    />
                     <button type="submit" className="btn-primary text-sm" disabled={cycle.processing}>Apply</button>
                     <button type="button" className="btn-secondary text-sm" onClick={() => setSelected([])}>Clear</button>
                     <p className="w-full text-xs text-gray-600">
@@ -217,88 +212,95 @@ export default function Index({
                 </form>
             )}
 
-            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                        <tr>
-                            {can.manage && (
-                                <th className="px-4 py-3 text-left">
-                                    <input
-                                        type="checkbox"
-                                        aria-label="Select every plan"
-                                        checked={plans.length > 0 && selected.length === plans.length}
-                                        onChange={(e) => setSelected(e.target.checked ? plans.map((p) => p.id) : [])}
-                                    />
-                                </th>
-                            )}
-                            <th className="px-4 py-3 text-left">Plan</th>
-                            <th className="px-4 py-3 text-left">Type</th>
-                            <th className="px-4 py-3 text-left">Version</th>
-                            <th className="px-4 py-3 text-left">Owner</th>
-                            <th className="px-4 py-3 text-left">Next review</th>
-                            <th className="px-4 py-3 text-left">State</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {plans.length === 0 && (
+            <div className="card">
+                <div className="overflow-x-auto">
+                    <table className="data-table">
+                        <thead>
                             <tr>
-                                <td colSpan={can.manage ? 7 : 6} className="px-4 py-8 text-center text-gray-600">
-                                    No plans yet. Create one from a template — the bound sections will fill themselves in
-                                    from the BIA.
-                                </td>
-                            </tr>
-                        )}
-
-                        {plans.map((plan) => (
-                            <tr key={plan.id} className={plan.is_stale ? 'bg-red-50' : undefined}>
                                 {can.manage && (
-                                    <td className="px-4 py-3">
-                                        <input
+                                    <th>
+                                        <input className="form-checkbox"
                                             type="checkbox"
-                                            aria-label={`Select ${plan.title}`}
-                                            checked={selected.includes(plan.id)}
-                                            onChange={() => toggle(plan.id)}
+                                            aria-label="Select every plan"
+                                            checked={plans.length > 0 && selected.length === plans.length}
+                                            onChange={(e) => setSelected(e.target.checked ? plans.map((p) => p.id) : [])}
                                         />
-                                    </td>
+                                    </th>
                                 )}
-                                <td className="px-4 py-3">
-                                    <Link href={tryRoute('bcms.plans.show', plan.uuid)} className="font-medium text-gray-900 hover:underline">
-                                        {plan.title}
-                                    </Link>
-                                    <span className="block text-xs text-gray-500">
-                                        {plan.business_unit ?? plan.site ?? 'Organisation-wide'}
-                                        {' · '}{plan.section_count} sections
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3 text-xs text-gray-600">{plan.plan_type_label}</td>
-                                <td className="px-4 py-3 font-mono text-xs">{plan.version}</td>
-                                <td className="px-4 py-3 text-xs text-gray-600">{plan.owner ?? '—'}</td>
-                                <td className="px-4 py-3 text-xs">
-                                    {plan.next_review_date ?? <span className="text-amber-700">Not set</span>}
-                                </td>
-                                <td className="space-x-1 px-4 py-3 text-xs">
-                                    <span className={`rounded px-2 py-1 ${plan.status === 'approved'
-                                        ? 'bg-green-100 text-green-800'
-                                        : plan.status === 'review'
-                                            ? 'bg-blue-100 text-blue-800'
-                                            : 'bg-gray-100 text-gray-700'}`}>
-                                        {plan.status}
-                                    </span>
-                                    {plan.is_stale && <span className="rounded bg-red-100 px-2 py-1 text-red-800">Past review</span>}
-                                    {plan.needs_review && (
-                                        <span className="rounded bg-amber-100 px-2 py-1 text-amber-800">
-                                            {plan.drifted_section_count} drifted
-                                        </span>
-                                    )}
-                                    {plan.ai_generated && <span className="rounded bg-purple-100 px-2 py-1 text-purple-800">AI draft</span>}
-                                    {plan.offline_bundle_generated_at && (
-                                        <span className="rounded bg-gray-100 px-2 py-1 text-gray-700">Offline</span>
-                                    )}
-                                </td>
+                                <th>Plan</th>
+                                <th>Type</th>
+                                <th>Version</th>
+                                <th>Owner</th>
+                                <th>Next review</th>
+                                <th>State</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {plans.length === 0 && (
+                                <tr>
+                                    <td colSpan={can.manage ? 7 : 6} className="text-center py-12">
+                                        <div className="text-gray-400">
+                                            <p className="text-sm font-medium">No plans yet</p>
+                                            <p className="text-xs mt-1">
+                                                Create one from a template — the bound sections will fill themselves in
+                                                from the BIA.
+                                            </p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+
+                            {plans.map((plan) => (
+                                <tr key={plan.id} className={plan.is_stale ? 'bg-red-50' : undefined}>
+                                    {can.manage && (
+                                        <td>
+                                            <input className="form-checkbox"
+                                                type="checkbox"
+                                                aria-label={`Select ${plan.title}`}
+                                                checked={selected.includes(plan.id)}
+                                                onChange={() => toggle(plan.id)}
+                                            />
+                                        </td>
+                                    )}
+                                    <td>
+                                        <Link href={tryRoute('bcms.plans.show', plan.uuid)} className="cell-title">
+                                            {plan.title}
+                                        </Link>
+                                        <p className="cell-subtitle">
+                                            {plan.business_unit ?? plan.site ?? 'Organisation-wide'}
+                                            {' · '}{plan.section_count} sections
+                                        </p>
+                                    </td>
+                                    <td className="cell-muted">{plan.plan_type_label}</td>
+                                    <td className="font-mono text-xs">{plan.version}</td>
+                                    <td className="cell-muted">{plan.owner ?? '—'}</td>
+                                    <td className="text-xs">
+                                        {plan.next_review_date ?? <span className="text-amber-700">Not set</span>}
+                                    </td>
+                                    <td className="space-x-1 text-xs">
+                                        <span className={`rounded px-2 py-1 ${plan.status === 'approved'
+                                            ? 'bg-green-100 text-green-800'
+                                            : plan.status === 'review'
+                                                ? 'bg-blue-100 text-blue-800'
+                                                : 'bg-gray-100 text-gray-700'}`}>
+                                            {plan.status}
+                                        </span>
+                                        {plan.is_stale && <span className="rounded bg-red-100 px-2 py-1 text-red-800">Past review</span>}
+                                        {plan.needs_review && (
+                                            <span className="rounded bg-amber-100 px-2 py-1 text-amber-800">
+                                                {plan.drifted_section_count} drifted
+                                            </span>
+                                        )}
+                                        {plan.ai_generated && <span className="rounded bg-purple-100 px-2 py-1 text-purple-800">AI draft</span>}
+                                        {plan.offline_bundle_generated_at && (
+                                            <span className="rounded bg-gray-100 px-2 py-1 text-gray-700">Offline</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </AppLayout>
     );

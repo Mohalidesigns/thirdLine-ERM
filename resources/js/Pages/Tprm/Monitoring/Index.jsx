@@ -41,7 +41,7 @@ export default function Index({
                 actions={can.manage ? (
                     <button
                         type="button"
-                        className="btn btn-secondary"
+                        className="btn-secondary"
                         onClick={() => router.post(route('tprm.monitoring.run'))}
                     >
                         Run now
@@ -214,11 +214,11 @@ function AlertStream({ alerts, can, onMute }) {
 
                     {can.manage && !alert.muted_until && (
                         <div className="mt-3 flex gap-2">
-                            <button type="button" className="btn btn-secondary text-xs"
+                            <button type="button" className="btn-secondary text-xs"
                                 onClick={() => router.post(route('tprm.monitoring.alerts.acknowledge', alert.id))}>
                                 Acknowledge
                             </button>
-                            <button type="button" className="btn btn-secondary text-xs" onClick={() => onMute(alert)}>
+                            <button type="button" className="btn-secondary text-xs" onClick={() => onMute(alert)}>
                                 Mute
                             </button>
                         </div>
@@ -233,7 +233,7 @@ function RulePanel({ rules, can, onAdd }) {
     return (
         <div className="space-y-4">
             {can.manage && (
-                <button type="button" className="btn btn-primary text-sm" onClick={onAdd}>Add a rule</button>
+                <button type="button" className="btn-primary text-sm" onClick={onAdd}>Add a rule</button>
             )}
 
             {rules.length === 0 ? (
@@ -402,9 +402,9 @@ function RuleDialog({ signalTypes, actions, onClose }) {
             <form onSubmit={submit} className="card w-full max-w-2xl p-6">
                 <h2 className="text-base font-semibold text-gray-900">Add a monitoring rule</h2>
 
-                <label className="mt-4 block">
+                <label className="form-label mt-4">
                     <span className="text-sm font-medium text-gray-700">Name</span>
-                    <input type="text" className="input mt-1" value={form.data.name}
+                    <input type="text" className="form-input mt-1" value={form.data.name}
                         onChange={(event) => form.setData('name', event.target.value)} />
                 </label>
 
@@ -447,9 +447,9 @@ function RuleDialog({ signalTypes, actions, onClose }) {
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-4">
-                    <label className="block">
+                    <label className="form-label">
                         <span className="text-sm font-medium text-gray-700">Severity</span>
-                        <select className="input mt-1" value={form.data.severity}
+                        <select className="form-select mt-1" value={form.data.severity}
                             onChange={(event) => form.setData('severity', event.target.value)}>
                             <option value="critical">Critical</option>
                             <option value="high">High</option>
@@ -459,19 +459,19 @@ function RuleDialog({ signalTypes, actions, onClose }) {
                         </select>
                     </label>
 
-                    <label className="block">
+                    <label className="form-label">
                         <span className="text-sm font-medium text-gray-700">Cooldown (hours)</span>
-                        <input type="number" className="input mt-1" value={form.data.cooldown_hours}
+                        <input type="number" className="form-input mt-1" value={form.data.cooldown_hours}
                             onChange={(event) => form.setData('cooldown_hours', event.target.value)} />
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="form-hint">
                             Per rule per vendor. A console full of yesterday&rsquo;s alert is one nobody opens.
                         </p>
                     </label>
                 </div>
 
                 <div className="mt-6 flex justify-end gap-2">
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" disabled={form.processing}>Create</button>
+                    <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn-primary" disabled={form.processing}>Create</button>
                 </div>
             </form>
         </div>
@@ -496,23 +496,23 @@ function MuteDialog({ alert, onClose }) {
                     incident, and two years later nobody knows why that vendor produces no alerts.
                 </p>
 
-                <label className="mt-4 block">
+                <label className="form-label mt-4">
                     <span className="text-sm font-medium text-gray-700">Why?</span>
-                    <textarea rows={3} className="input mt-1" value={form.data.mute_reason}
+                    <textarea rows={3} className="form-textarea mt-1" value={form.data.mute_reason}
                         onChange={(event) => form.setData('mute_reason', event.target.value)} />
-                    {form.errors.mute_reason && <p className="mt-1 text-xs text-red-600">{form.errors.mute_reason}</p>}
+                    {form.errors.mute_reason && <p className="form-error">{form.errors.mute_reason}</p>}
                 </label>
 
-                <label className="mt-4 block">
+                <label className="form-label mt-4">
                     <span className="text-sm font-medium text-gray-700">Until</span>
-                    <input type="date" className="input mt-1" value={form.data.muted_until}
+                    <input type="date" className="form-input mt-1" value={form.data.muted_until}
                         onChange={(event) => form.setData('muted_until', event.target.value)} />
-                    {form.errors.muted_until && <p className="mt-1 text-xs text-red-600">{form.errors.muted_until}</p>}
+                    {form.errors.muted_until && <p className="form-error">{form.errors.muted_until}</p>}
                 </label>
 
                 <div className="mt-6 flex justify-end gap-2">
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" disabled={form.processing}>Mute</button>
+                    <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn-primary" disabled={form.processing}>Mute</button>
                 </div>
             </form>
         </div>

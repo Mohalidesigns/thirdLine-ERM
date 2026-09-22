@@ -1,6 +1,7 @@
 import { useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import PortalLayout from '@/Layouts/PortalLayout';
+import FormField from '@thirdline/ui/Components/FormField';
 
 /**
  * FR-PRT-07 — the vendor tells us about an incident.
@@ -50,7 +51,7 @@ export default function Incidents({ incidents = [] }) {
                                 <span className="text-xs text-gray-500">Detected {incident.detected_at}</span>
                             </div>
                             <p className="mt-1 text-xs text-green-800">{incident.receipt}</p>
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="form-hint">
                                 {incident.personal_data_involved && 'Personal data involved. '}
                                 {incident.customer_impact && 'Customers affected.'}
                             </p>
@@ -88,7 +89,7 @@ function ReportDialog({ onClose }) {
                 <div className="mt-3 space-y-3">
                     <Field label="What happened" error={form.errors.title}>
                         <input
-                            className="w-full rounded border border-gray-200 p-2 text-sm"
+                            className="form-input"
                             value={form.data.title}
                             onChange={(event) => form.setData('title', event.target.value)}
                         />
@@ -97,7 +98,7 @@ function ReportDialog({ onClose }) {
                     <div className="grid grid-cols-2 gap-3">
                         <Field label="Kind" error={form.errors.type}>
                             <select
-                                className="w-full rounded border border-gray-200 p-2 text-sm"
+                                className="form-select"
                                 value={form.data.type}
                                 onChange={(event) => form.setData('type', event.target.value)}
                             >
@@ -112,7 +113,7 @@ function ReportDialog({ onClose }) {
                         <Field label="When you detected it" error={form.errors.detected_at}>
                             <input
                                 type="datetime-local"
-                                className="w-full rounded border border-gray-200 p-2 text-sm"
+                                className="form-input"
                                 value={form.data.detected_at}
                                 onChange={(event) => form.setData('detected_at', event.target.value)}
                             />
@@ -121,7 +122,7 @@ function ReportDialog({ onClose }) {
 
                     <Field label="What you know so far" error={form.errors.description}>
                         <textarea
-                            className="w-full rounded border border-gray-200 p-2 text-sm"
+                            className="form-textarea"
                             rows="4"
                             value={form.data.description}
                             onChange={(event) => form.setData('description', event.target.value)}
@@ -129,7 +130,7 @@ function ReportDialog({ onClose }) {
                     </Field>
 
                     <label className="flex items-center gap-2 text-sm">
-                        <input
+                        <input className="form-checkbox"
                             type="checkbox"
                             checked={form.data.personal_data_involved}
                             onChange={(event) => form.setData('personal_data_involved', event.target.checked)}
@@ -138,7 +139,7 @@ function ReportDialog({ onClose }) {
                     </label>
 
                     <label className="flex items-center gap-2 text-sm">
-                        <input
+                        <input className="form-checkbox"
                             type="checkbox"
                             checked={form.data.customer_impact}
                             onChange={(event) => form.setData('customer_impact', event.target.checked)}
@@ -159,11 +160,5 @@ function ReportDialog({ onClose }) {
 }
 
 function Field({ label, error, children }) {
-    return (
-        <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
-            {children}
-            {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
-        </div>
-    );
+    return <FormField label={label} error={error}>{children}</FormField>;
 }

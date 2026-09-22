@@ -2,6 +2,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import { FormField } from '@thirdline/ui';
 
 /**
  * One engagement's connections and access grants — FR-ACC-01, FR-ACC-02, and
@@ -43,7 +44,7 @@ export default function Engagement({
                         </p>
                     </div>
                     {can.manage && (
-                        <button type="button" className="btn btn-sm btn-secondary" onClick={() => setAddingConnection(true)}>
+                        <button type="button" className="btn-secondary text-xs" onClick={() => setAddingConnection(true)}>
                             Record connection
                         </button>
                     )}
@@ -56,38 +57,38 @@ export default function Engagement({
                     </div>
                 ) : (
                     <div className="card overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <table className="data-table">
                             <thead className="bg-gray-50">
                                 <tr>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Name</th>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Type</th>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Endpoint</th>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Encryption</th>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Owner</th>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Status</th>
-                                    {can.manage && <th scope="col" className="px-4 py-2" />}
+                                    <th scope="col" className="text-left">Name</th>
+                                    <th scope="col" className="text-left">Type</th>
+                                    <th scope="col" className="text-left">Endpoint</th>
+                                    <th scope="col" className="text-left">Encryption</th>
+                                    <th scope="col" className="text-left">Owner</th>
+                                    <th scope="col" className="text-left">Status</th>
+                                    {can.manage && <th scope="col" />}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {connections.map((row) => (
                                     <tr key={row.id}>
-                                        <th scope="row" className="px-4 py-2 text-left font-medium text-gray-900">{row.name}</th>
-                                        <td className="px-4 py-2">{row.type_label}</td>
-                                        <td className="px-4 py-2 font-mono text-xs text-gray-600">{row.endpoint ?? '—'}</td>
-                                        <td className="px-4 py-2 text-xs">{row.encryption ?? '—'}</td>
-                                        <td className="px-4 py-2 text-xs">{row.owner ?? '—'}</td>
-                                        <td className="px-4 py-2">
+                                        <th scope="row" className="text-left">{row.name}</th>
+                                        <td>{row.type_label}</td>
+                                        <td className="font-mono text-xs text-gray-600">{row.endpoint ?? '—'}</td>
+                                        <td className="text-xs">{row.encryption ?? '—'}</td>
+                                        <td className="text-xs">{row.owner ?? '—'}</td>
+                                        <td>
                                             <Pill tone={row.status_color}>{row.status_label}</Pill>
                                             {row.status === 'closed' && !row.has_closure_evidence && (
                                                 <span className="ml-1 text-xs text-amber-700">no evidence</span>
                                             )}
                                         </td>
                                         {can.manage && (
-                                            <td className="px-4 py-2 text-right">
+                                            <td className="text-right">
                                                 {row.status !== 'closed' && (
                                                     <button
                                                         type="button"
-                                                        className="btn btn-sm btn-ghost"
+                                                        className="btn-secondary text-xs"
                                                         onClick={() => setClosing(row)}
                                                     >
                                                         Close
@@ -113,7 +114,7 @@ export default function Engagement({
                         </p>
                     </div>
                     {can.manage && (
-                        <button type="button" className="btn btn-sm btn-secondary" onClick={() => setAddingGrant(true)}>
+                        <button type="button" className="btn-secondary text-xs" onClick={() => setAddingGrant(true)}>
                             Grant access
                         </button>
                     )}
@@ -125,50 +126,50 @@ export default function Engagement({
                     </div>
                 ) : (
                     <div className="card overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <table className="data-table">
                             <thead className="bg-gray-50">
                                 <tr>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Grantee</th>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">System</th>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Access</th>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Window</th>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Approved by</th>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Status</th>
-                                    {can.manage && <th scope="col" className="px-4 py-2" />}
+                                    <th scope="col" className="text-left">Grantee</th>
+                                    <th scope="col" className="text-left">System</th>
+                                    <th scope="col" className="text-left">Access</th>
+                                    <th scope="col" className="text-left">Window</th>
+                                    <th scope="col" className="text-left">Approved by</th>
+                                    <th scope="col" className="text-left">Status</th>
+                                    {can.manage && <th scope="col" />}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {grants.map((row) => (
                                     <tr key={row.id}>
-                                        <th scope="row" className="px-4 py-2 text-left font-medium text-gray-900">
+                                        <th scope="row" className="text-left">
                                             {row.grantee_name}
                                             {row.escort_required && (
                                                 <span className="block text-xs font-normal text-gray-500">escort required</span>
                                             )}
                                         </th>
-                                        <td className="px-4 py-2">{row.system_name}</td>
-                                        <td className="px-4 py-2">
+                                        <td>{row.system_name}</td>
+                                        <td>
                                             <span className={row.is_privileged ? 'font-semibold text-red-700' : ''}>
                                                 {row.access_level_label}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-2 text-xs">
+                                        <td className="text-xs">
                                             {row.valid_from ?? '—'} → {row.valid_to ?? (
                                                 <span className="text-amber-700">no end date</span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-2 text-xs">
+                                        <td className="text-xs">
                                             {row.approved_by ?? <span className="text-amber-700">not approved</span>}
                                         </td>
-                                        <td className="px-4 py-2">
+                                        <td>
                                             <Pill tone={row.status_color}>{row.status_label}</Pill>
                                         </td>
                                         {can.manage && (
-                                            <td className="px-4 py-2 text-right">
+                                            <td className="text-right">
                                                 {row.status === 'requested' && (
                                                     <button
                                                         type="button"
-                                                        className="btn btn-sm btn-ghost"
+                                                        className="btn-secondary text-xs"
                                                         onClick={() => router.post(route('tprm.access.grants.approve', row.id))}
                                                     >
                                                         Approve
@@ -177,7 +178,7 @@ export default function Engagement({
                                                 {row.status !== 'revoked' && (
                                                     <button
                                                         type="button"
-                                                        className="btn btn-sm btn-ghost"
+                                                        className="btn-secondary text-xs"
                                                         onClick={() => setRevoking(row)}
                                                     >
                                                         Revoke
@@ -275,7 +276,7 @@ function ConnectionDialog({ engagement, types, onClose }) {
             form.post(route('tprm.access.connections.store', engagement.uuid), { onSuccess: onClose });
         }} processing={form.processing}>
             <Field label="Type" error={form.errors.type}>
-                <select className="form-select w-full" value={form.data.type}
+                <select className="form-select" value={form.data.type}
                     onChange={(event) => form.setData('type', event.target.value)}>
                     {types.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
                 </select>
@@ -286,15 +287,15 @@ function ConnectionDialog({ engagement, types, onClose }) {
                 </p>
             )}
             <Field label="Name" error={form.errors.name}>
-                <input className="form-input w-full" value={form.data.name}
+                <input className="form-input" value={form.data.name}
                     onChange={(event) => form.setData('name', event.target.value)} />
             </Field>
             <Field label="Endpoint" error={form.errors.endpoint}>
-                <input className="form-input w-full font-mono text-sm" value={form.data.endpoint}
+                <input className="form-input font-mono" value={form.data.endpoint}
                     onChange={(event) => form.setData('endpoint', event.target.value)} />
             </Field>
             <Field label="Direction" error={form.errors.direction}>
-                <select className="form-select w-full" value={form.data.direction}
+                <select className="form-select" value={form.data.direction}
                     onChange={(event) => form.setData('direction', event.target.value)}>
                     <option value="inbound">Inbound</option>
                     <option value="outbound">Outbound</option>
@@ -302,19 +303,19 @@ function ConnectionDialog({ engagement, types, onClose }) {
                 </select>
             </Field>
             <Field label="Encryption" error={form.errors.encryption}>
-                <input className="form-input w-full" value={form.data.encryption}
+                <input className="form-input" value={form.data.encryption}
                     onChange={(event) => form.setData('encryption', event.target.value)} />
             </Field>
             <Field label="Authentication" error={form.errors.authentication_method}>
-                <input className="form-input w-full" value={form.data.authentication_method}
+                <input className="form-input" value={form.data.authentication_method}
                     onChange={(event) => form.setData('authentication_method', event.target.value)} />
             </Field>
             <Field label="Firewall rule reference" error={form.errors.firewall_rule_ref}>
-                <input className="form-input w-full" value={form.data.firewall_rule_ref}
+                <input className="form-input" value={form.data.firewall_rule_ref}
                     onChange={(event) => form.setData('firewall_rule_ref', event.target.value)} />
             </Field>
             <Field label="Data flows" error={form.errors.data_flows}>
-                <textarea className="form-textarea w-full" rows="2" value={form.data.data_flows}
+                <textarea className="form-textarea" rows="2" value={form.data.data_flows}
                     onChange={(event) => form.setData('data_flows', event.target.value)} />
             </Field>
         </Dialog>
@@ -343,26 +344,26 @@ function GrantDialog({ engagement, levels, connections, onClose }) {
             form.post(route('tprm.access.grants.store', engagement.uuid), { onSuccess: onClose });
         }} processing={form.processing}>
             <Field label="Grantee" error={form.errors.grantee_name}>
-                <input className="form-input w-full" value={form.data.grantee_name}
+                <input className="form-input" value={form.data.grantee_name}
                     onChange={(event) => form.setData('grantee_name', event.target.value)} />
             </Field>
             <Field label="Grantee email" error={form.errors.grantee_email}>
-                <input type="email" className="form-input w-full" value={form.data.grantee_email}
+                <input type="email" className="form-input" value={form.data.grantee_email}
                     onChange={(event) => form.setData('grantee_email', event.target.value)} />
             </Field>
             <Field label="System" error={form.errors.system_name}>
-                <input className="form-input w-full" value={form.data.system_name}
+                <input className="form-input" value={form.data.system_name}
                     onChange={(event) => form.setData('system_name', event.target.value)} />
             </Field>
             <Field label="Access level" error={form.errors.access_level}>
-                <select className="form-select w-full" value={form.data.access_level}
+                <select className="form-select" value={form.data.access_level}
                     onChange={(event) => form.setData('access_level', event.target.value)}>
                     {levels.map((level) => <option key={level.value} value={level.value}>{level.label}</option>)}
                 </select>
             </Field>
             {connections.length > 0 && (
                 <Field label="Over which connection" error={form.errors.connection_id}>
-                    <select className="form-select w-full" value={form.data.connection_id}
+                    <select className="form-select" value={form.data.connection_id}
                         onChange={(event) => form.setData('connection_id', event.target.value)}>
                         <option value="">Not tied to one</option>
                         {connections.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
@@ -371,21 +372,21 @@ function GrantDialog({ engagement, levels, connections, onClose }) {
             )}
             <div className="grid grid-cols-2 gap-3">
                 <Field label="Valid from" error={form.errors.valid_from}>
-                    <input type="date" className="form-input w-full" value={form.data.valid_from}
+                    <input type="date" className="form-input" value={form.data.valid_from}
                         onChange={(event) => form.setData('valid_from', event.target.value)} />
                 </Field>
                 <Field label="Valid to" error={form.errors.valid_to}>
-                    <input type="date" className="form-input w-full" value={form.data.valid_to}
+                    <input type="date" className="form-input" value={form.data.valid_to}
                         onChange={(event) => form.setData('valid_to', event.target.value)} />
                 </Field>
             </div>
             <Field label="Justification" error={form.errors.justification}>
-                <textarea className="form-textarea w-full" rows="2" value={form.data.justification}
+                <textarea className="form-textarea" rows="2" value={form.data.justification}
                     onChange={(event) => form.setData('justification', event.target.value)} />
             </Field>
             {privileged && (
                 <Field label="How is this monitored?" error={form.errors.monitoring_method}>
-                    <input className="form-input w-full" value={form.data.monitoring_method}
+                    <input className="form-input" value={form.data.monitoring_method}
                         onChange={(event) => form.setData('monitoring_method', event.target.value)} />
                 </Field>
             )}
@@ -410,12 +411,12 @@ function CloseDialog({ connection, onClose }) {
             <p className="mb-3 text-sm text-gray-600">{connection.closure_hint}</p>
             <Field label={needsEvidence ? 'Evidence document ID' : 'Evidence document ID (optional)'}
                 error={form.errors.closure_evidence_document_id}>
-                <input className="form-input w-full" value={form.data.closure_evidence_document_id}
+                <input className="form-input" value={form.data.closure_evidence_document_id}
                     onChange={(event) => form.setData('closure_evidence_document_id', event.target.value)} />
             </Field>
             {!needsEvidence && (
                 <Field label="Reason" error={form.errors.reason}>
-                    <textarea className="form-textarea w-full" rows="2" value={form.data.reason}
+                    <textarea className="form-textarea" rows="2" value={form.data.reason}
                         onChange={(event) => form.setData('reason', event.target.value)} />
                 </Field>
             )}
@@ -436,7 +437,7 @@ function RevokeDialog({ grant, onClose }) {
                 removal. A date with nothing behind it is what an examiner asks about.
             </p>
             <Field label="Evidence document ID" error={form.errors.revocation_evidence_document_id}>
-                <input className="form-input w-full" value={form.data.revocation_evidence_document_id}
+                <input className="form-input" value={form.data.revocation_evidence_document_id}
                     onChange={(event) => form.setData('revocation_evidence_document_id', event.target.value)} />
             </Field>
         </Dialog>
@@ -449,9 +450,9 @@ function Dialog({ title, children, onClose, onSubmit, processing }) {
             <form onSubmit={onSubmit} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
                 <h2 className="mb-4 text-base font-semibold text-gray-900">{title}</h2>
                 {children}
-                <div className="mt-5 flex justify-end gap-2">
-                    <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" disabled={processing}>Save</button>
+                <div className="form-actions mt-5">
+                    <button type="button" className="btn-secondary text-sm" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn-primary text-sm" disabled={processing}>Save</button>
                 </div>
             </form>
         </div>
@@ -460,10 +461,8 @@ function Dialog({ title, children, onClose, onSubmit, processing }) {
 
 function Field({ label, error, children }) {
     return (
-        <div className="mb-3">
-            <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
+        <FormField label={label} error={error} className="mb-3">
             {children}
-            {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
-        </div>
+        </FormField>
     );
 }

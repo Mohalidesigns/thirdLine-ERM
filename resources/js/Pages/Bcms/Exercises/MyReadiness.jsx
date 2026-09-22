@@ -32,49 +32,51 @@ export default function MyReadiness({ tasks = [] }) {
                     appear here and in your daily digest.
                 </div>
             ) : (
-                <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                            <tr>
-                                <th className="px-4 py-3 text-left">Due</th>
-                                <th className="px-4 py-3 text-left">What</th>
-                                <th className="px-4 py-3 text-left">For which exercise</th>
-                                <th className="px-4 py-3 text-left" />
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {tasks.map((t) => (
-                                <tr key={t.id} className={t.is_overdue ? 'bg-red-50' : undefined}>
-                                    <td className="px-4 py-3 font-mono text-xs">
-                                        {t.due_date ?? '—'}
-                                        {t.is_overdue && <span className="ml-1 text-red-700">overdue</span>}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        {t.title}
-                                        {t.is_blocking && (
-                                            <span className="ml-2 rounded bg-gray-900 px-1.5 py-0.5 text-[10px] uppercase text-white">
-                                                blocking
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 text-xs text-gray-600">
-                                        {t.exercise}
-                                        {t.exercise_date && <span className="block text-gray-500">{t.exercise_date}</span>}
-                                    </td>
-                                    <td className="px-4 py-3 text-right text-xs">
-                                        {t.occurrence_uuid && (
-                                            <Link
-                                                href={tryRoute('bcms.occurrences.readiness', t.occurrence_uuid)}
-                                                className="text-blue-700 hover:underline"
-                                            >
-                                                Open
-                                            </Link>
-                                        )}
-                                    </td>
+                <div className="card">
+                    <div className="overflow-x-auto">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Due</th>
+                                    <th>What</th>
+                                    <th>For which exercise</th>
+                                    <th />
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {tasks.map((t) => (
+                                    <tr key={t.id} className={t.is_overdue ? 'bg-red-50' : undefined}>
+                                        <td className="font-mono text-xs">
+                                            {t.due_date ?? '—'}
+                                            {t.is_overdue && <span className="ml-1 text-red-700">overdue</span>}
+                                        </td>
+                                        <td>
+                                            {t.title}
+                                            {t.is_blocking && (
+                                                <span className="ml-2 rounded bg-gray-900 px-1.5 py-0.5 text-[10px] uppercase text-white">
+                                                    blocking
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="cell-muted">
+                                            {t.exercise}
+                                            {t.exercise_date && <span className="block text-gray-500">{t.exercise_date}</span>}
+                                        </td>
+                                        <td className="text-right text-xs">
+                                            {t.occurrence_uuid && (
+                                                <Link
+                                                    href={tryRoute('bcms.occurrences.readiness', t.occurrence_uuid)}
+                                                    className="text-blue-700 hover:underline"
+                                                >
+                                                    Open
+                                                </Link>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
         </AppLayout>

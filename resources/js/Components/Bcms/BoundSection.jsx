@@ -59,19 +59,19 @@ export default function BoundSection({ live, section }) {
                 </p>
             ) : (
                 <div className="overflow-x-auto rounded border border-gray-200">
-                    <table className="min-w-full divide-y divide-gray-200 text-xs">
-                        <thead className="bg-gray-50 text-[10px] uppercase tracking-wide text-gray-500">
+                    <table className="data-table text-xs">
+                        <thead>
                             <tr>
                                 {columns.map((c) => (
-                                    <th key={c} className="px-3 py-2 text-left">{c.replace(/_/g, ' ')}</th>
+                                    <th key={c}>{c.replace(/_/g, ' ')}</th>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody>
                             {rows.map((row, i) => (
                                 <tr key={i}>
                                     {columns.map((c) => (
-                                        <td key={c} className="px-3 py-2 align-top">{cell(row[c])}</td>
+                                        <td key={c} className="align-top">{cell(row[c])}</td>
                                     ))}
                                 </tr>
                             ))}

@@ -68,12 +68,13 @@ export default function Index({
             {showImport && can.manage && (
                 <div className="mb-6 rounded-lg border border-gray-200 bg-white p-6">
                     <h2 className="text-sm font-semibold text-gray-900">Import from a spreadsheet</h2>
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="form-hint">
                         Columns, in this order: {columns.join(' · ')}. Check the file first — nothing is written
                         until every row passes.
                     </p>
                     <input
                         type="file"
+                        aria-label="Import file"
                         className="mt-3 block text-sm"
                         onChange={(e) => importForm.setData('file', e.target.files[0])}
                     />
@@ -110,29 +111,46 @@ export default function Index({
                 </div>
             )}
 
-            <div className="mb-4 flex flex-wrap gap-3">
-                <input
-                    className="w-64 rounded border-gray-300 text-sm"
-                    placeholder="Search name, code or description"
-                    defaultValue={filters.search ?? ''}
-                    onKeyDown={(e) => { if (e.key === 'Enter') filter('search', e.target.value); }}
-                />
-                <select className="rounded border-gray-300 text-sm" value={filters.tier ?? ''} onChange={(e) => filter('tier', e.target.value)}>
-                    <option value="">Any tier</option>
-                    {[1, 2, 3, 4].map((t) => <option key={t} value={t}>Tier {t}</option>)}
-                </select>
-                <select className="rounded border-gray-300 text-sm" value={filters.unit ?? ''} onChange={(e) => filter('unit', e.target.value)}>
-                    <option value="">Any business unit</option>
-                    {units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
-                <select className="rounded border-gray-300 text-sm" value={filters.critical ?? ''} onChange={(e) => filter('critical', e.target.value)}>
-                    <option value="">All processes</option>
-                    <option value="yes">Critical services only</option>
-                </select>
-                <select className="rounded border-gray-300 text-sm" value={filters.gap ?? ''} onChange={(e) => filter('gap', e.target.value)}>
-                    <option value="">No gap filter</option>
-                    <option value="no_accountable">Nobody accountable</option>
-                </select>
+            <div className="filter-bar">
+                <div className="filter-bar-inner">
+                    <div className="filter-group flex-1 min-w-[220px]">
+                        <label className="filter-label">Search</label>
+                        <input aria-label="Search"
+                            className="filter-input"
+                            placeholder="Search name, code or description"
+                            defaultValue={filters.search ?? ''}
+                            onKeyDown={(e) => { if (e.key === 'Enter') filter('search', e.target.value); }}
+                        />
+                    </div>
+                    <div className="filter-group min-w-[120px]">
+                        <label className="filter-label">Tier</label>
+                        <select aria-label="Tier" className="filter-select" value={filters.tier ?? ''} onChange={(e) => filter('tier', e.target.value)}>
+                            <option value="">Any tier</option>
+                            {[1, 2, 3, 4].map((t) => <option key={t} value={t}>Tier {t}</option>)}
+                        </select>
+                    </div>
+                    <div className="filter-group min-w-[170px]">
+                        <label className="filter-label">Business unit</label>
+                        <select aria-label="Business unit" className="filter-select" value={filters.unit ?? ''} onChange={(e) => filter('unit', e.target.value)}>
+                            <option value="">Any business unit</option>
+                            {units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="filter-group min-w-[170px]">
+                        <label className="filter-label">Critical services</label>
+                        <select aria-label="Critical services" className="filter-select" value={filters.critical ?? ''} onChange={(e) => filter('critical', e.target.value)}>
+                            <option value="">All processes</option>
+                            <option value="yes">Critical services only</option>
+                        </select>
+                    </div>
+                    <div className="filter-group min-w-[170px]">
+                        <label className="filter-label">Gaps</label>
+                        <select aria-label="Gaps" className="filter-select" value={filters.gap ?? ''} onChange={(e) => filter('gap', e.target.value)}>
+                            <option value="">No gap filter</option>
+                            <option value="no_accountable">Nobody accountable</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
             {gaps && (
@@ -143,65 +161,75 @@ export default function Index({
                 </p>
             )}
 
-            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                <table className="w-full text-sm">
-                    <thead className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
-                        <tr>
-                            <th className="px-4 py-3">Code</th>
-                            <th className="px-4 py-3">Process</th>
-                            <th className="px-4 py-3">Business unit</th>
-                            <th className="px-4 py-3">Tier</th>
-                            <th className="px-4 py-3">Owner</th>
-                            <th className="px-4 py-3">Accountable</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {rows.length === 0 && (
-                            <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                                No processes match. The catalogue is where every later phase binds, so it is the first
-                                thing to populate — by hand or from a spreadsheet.
-                            </td></tr>
-                        )}
-                        {rows.map((p) => {
-                            const accountable = accountableOf(p);
+            <div className="card">
+                <div className="overflow-x-auto">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Process</th>
+                                <th>Business unit</th>
+                                <th>Tier</th>
+                                <th>Owner</th>
+                                <th>Accountable</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.length === 0 && (
+                                <tr><td colSpan={6} className="text-center py-12">
+                                    <div className="text-gray-400">
+                                        <p className="text-sm font-medium">No processes match</p>
+                                        <p className="text-xs mt-1">
+                                            The catalogue is where every later phase binds, so it is the first thing to
+                                            populate — by hand or from a spreadsheet.
+                                        </p>
+                                    </div>
+                                </td></tr>
+                            )}
+                            {rows.map((p) => {
+                                const accountable = accountableOf(p);
 
-                            return (
-                                <tr key={p.id}>
-                                    <td className="px-4 py-3 font-mono text-xs text-gray-700">{p.code}</td>
-                                    <td className="px-4 py-3">
-                                        <span className="text-gray-900">{p.name}</span>
-                                        {p.is_critical_service && (
-                                            <span className="ml-2 rounded bg-purple-50 px-1.5 py-0.5 text-[11px] text-purple-800"
-                                                title={p.critical_service_justification ?? undefined}>
-                                                critical service
-                                            </span>
-                                        )}
-                                        {p.parent && <span className="block text-xs text-gray-400">under {p.parent}</span>}
-                                    </td>
-                                    <td className="px-4 py-3 text-gray-600">{p.unit ?? '—'}</td>
-                                    <td className="px-4 py-3">
-                                        {p.tier ? (
-                                            <span className={`rounded px-2 py-0.5 text-xs ${TIER_STYLE[p.tier] ?? ''}`}>Tier {p.tier}</span>
-                                        ) : <span className="text-xs text-gray-400">not tiered</span>}
-                                    </td>
-                                    <td className="px-4 py-3 text-gray-600">{p.owner ?? '—'}</td>
-                                    <td className="px-4 py-3">
-                                        {!accountable && <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">nobody</span>}
-                                        {accountable && !accountable.active && (
-                                            <span className="rounded bg-red-50 px-2 py-0.5 text-xs text-red-800">
-                                                {accountable.name} — has left
-                                            </span>
-                                        )}
-                                        {accountable && accountable.active && <span className="text-gray-700">{accountable.name}</span>}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                                return (
+                                    <tr key={p.id}>
+                                        <td className="cell-id">{p.code}</td>
+                                        <td>
+                                            <span className="cell-title">{p.name}</span>
+                                            {p.is_critical_service && (
+                                                <span className="ml-2 rounded bg-purple-50 px-1.5 py-0.5 text-[11px] text-purple-800"
+                                                    title={p.critical_service_justification ?? undefined}>
+                                                    critical service
+                                                </span>
+                                            )}
+                                            {p.parent && <p className="cell-subtitle">under {p.parent}</p>}
+                                        </td>
+                                        <td className="cell-muted">{p.unit ?? '—'}</td>
+                                        <td>
+                                            {p.tier ? (
+                                                <span className={`rounded px-2 py-0.5 text-xs ${TIER_STYLE[p.tier] ?? ''}`}>Tier {p.tier}</span>
+                                            ) : <span className="text-xs text-gray-400">not tiered</span>}
+                                        </td>
+                                        <td className="cell-muted">{p.owner ?? '—'}</td>
+                                        <td>
+                                            {!accountable && <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">nobody</span>}
+                                            {accountable && !accountable.active && (
+                                                <span className="rounded bg-red-50 px-2 py-0.5 text-xs text-red-800">
+                                                    {accountable.name} — has left
+                                                </span>
+                                            )}
+                                            {accountable && accountable.active && <span className="text-gray-700">{accountable.name}</span>}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+                {processes?.links && processes.links.length > 3 && (
+                    <div className="px-4 py-3 border-t border-gray-100">
+                        <Pagination links={processes.links} />
+                    </div>
+                )}
             </div>
-
-            {processes?.links && <Pagination links={processes.links} className="mt-4" />}
         </AppLayout>
     );
 }

@@ -110,7 +110,7 @@ function ProgressBar({ progress = {} }) {
             <div className="h-1.5 w-full overflow-hidden rounded bg-gray-100">
                 <div className="h-full bg-blue-600" style={{ width: `${pct}%` }} />
             </div>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="form-hint">
                 {progress.answered ?? 0} of {progress.total ?? 0} answered
                 {progress.required_total > 0 && (
                     <> · {progress.required_answered}/{progress.required_total} required</>
@@ -205,7 +205,7 @@ function TrustProfileCard({ profile = {} }) {
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-gray-100">
                 <div className="h-full bg-green-600" style={{ width: `${profile.completeness ?? 0}%` }} />
             </div>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="form-hint">
                 {profile.completeness ?? 0}% complete
                 {profile.published_version > 0
                     ? ` · published v${profile.published_version}`

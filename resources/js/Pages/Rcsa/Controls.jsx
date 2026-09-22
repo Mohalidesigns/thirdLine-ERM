@@ -37,10 +37,10 @@ export default function Controls({ summary = {}, controls = {}, businessUnits = 
         });
 
     const select = (name, value, options, placeholder) => (
-        <select
+        <select aria-label={placeholder}
             value={filters[name] ?? ''}
             onChange={(e) => apply({ [name]: e.target.value || null })}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700"
+            className="filter-select"
         >
             <option value="">{placeholder}</option>
             {options}
@@ -64,19 +64,30 @@ export default function Controls({ summary = {}, controls = {}, businessUnits = 
                 <KpiCard title="Ineffective" value={summary.ineffective ?? 0} icon="cancel" color="danger" />
             </div>
 
-            <div className="flex flex-wrap gap-2 mb-4">
-                {select('effectiveness', filters.effectiveness, Object.entries(EFFECTIVENESS).map(([value, band]) => (
-                    <option key={value} value={value}>{band.label}</option>
-                )), 'All effectiveness ratings')}
-                {select('control_type', filters.control_type, TYPES.map((type) => (
-                    <option key={type} value={type}>{titleCase(type)}</option>
-                )), 'All control types')}
-                {select('business_unit_id', filters.business_unit_id, businessUnits.map((unit) => (
-                    <option key={unit.id} value={unit.id}>{unit.name}</option>
-                )), 'All business units')}
+            <div className="filter-bar">
+                <div className="filter-bar-inner">
+                    <div className="filter-group min-w-[190px]">
+                        <label className="filter-label">Effectiveness</label>
+                        {select('effectiveness', filters.effectiveness, Object.entries(EFFECTIVENESS).map(([value, band]) => (
+                            <option key={value} value={value}>{band.label}</option>
+                        )), 'All effectiveness ratings')}
+                    </div>
+                    <div className="filter-group min-w-[160px]">
+                        <label className="filter-label">Control Type</label>
+                        {select('control_type', filters.control_type, TYPES.map((type) => (
+                            <option key={type} value={type}>{titleCase(type)}</option>
+                        )), 'All control types')}
+                    </div>
+                    <div className="filter-group min-w-[170px]">
+                        <label className="filter-label">Business Unit</label>
+                        {select('business_unit_id', filters.business_unit_id, businessUnits.map((unit) => (
+                            <option key={unit.id} value={unit.id}>{unit.name}</option>
+                        )), 'All business units')}
+                    </div>
+                </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="card">
                 <div className="overflow-x-auto">
                     <table className="data-table">
                         <thead>
@@ -104,16 +115,16 @@ export default function Controls({ summary = {}, controls = {}, businessUnits = 
                                 const band = EFFECTIVENESS[control.effectiveness];
 
                                 return (
-                                    <tr key={control.id} className="hover:bg-blue-50/50">
+                                    <tr key={control.id}>
                                         <td>
-                                            <Link href={control.url} className="font-medium text-[#1A365D] hover:underline">
+                                            <Link href={control.url} className="cell-title">
                                                 {control.name}
                                             </Link>
-                                            <div className="text-[10px] text-gray-400">{control.code}</div>
+                                            <p className="cell-subtitle">{control.code}</p>
                                         </td>
                                         <td><span className="badge bg-gray-100 text-gray-700">{titleCase(control.type)}</span></td>
-                                        <td className="text-xs">{control.businessUnit ?? '-'}</td>
-                                        <td className="text-xs">{control.owner ?? '-'}</td>
+                                        <td className="cell-muted">{control.businessUnit ?? '-'}</td>
+                                        <td className="cell-muted">{control.owner ?? '-'}</td>
                                         <td>
                                             {band ? (
                                                 <span className={`badge ${band.class}`}>{band.label}</span>
@@ -121,9 +132,9 @@ export default function Controls({ summary = {}, controls = {}, businessUnits = 
                                                 <span className="text-xs text-gray-400">Not rated</span>
                                             )}
                                         </td>
-                                        <td className="text-xs">{control.linkedRisks}</td>
-                                        <td className="text-xs text-gray-500">{control.lastTested ?? '-'}</td>
-                                        <td className="text-xs text-gray-500">{control.nextDue ?? '-'}</td>
+                                        <td className="cell-muted">{control.linkedRisks}</td>
+                                        <td className="cell-muted">{control.lastTested ?? '-'}</td>
+                                        <td className="cell-muted">{control.nextDue ?? '-'}</td>
                                     </tr>
                                 );
                             })}
@@ -131,7 +142,9 @@ export default function Controls({ summary = {}, controls = {}, businessUnits = 
                     </table>
                 </div>
 
-                <Pagination links={controls.links} meta={controls.meta} />
+                <div className="px-4 py-3 border-t border-gray-100">
+                    <Pagination links={controls.links} meta={controls.meta} />
+                </div>
             </div>
         </AuthenticatedLayout>
     );

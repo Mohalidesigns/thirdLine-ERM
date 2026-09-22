@@ -114,28 +114,28 @@ export default function Show({ thirdParty, engagements = [], certificates = null
             {tab === 'engagements' && (
                 <div className="card p-5">
                     {engagements.length ? (
-                        <table className="w-full text-sm">
-                            <thead className="text-left text-xs uppercase tracking-wide text-gray-500">
+                        <table className="data-table">
+                            <thead>
                                 <tr>
-                                    <th className="pb-2 font-medium">Reference</th>
-                                    <th className="pb-2 font-medium">Engagement</th>
-                                    <th className="pb-2 font-medium">Tier</th>
-                                    <th className="pb-2 font-medium">Status</th>
-                                    <th className="pb-2 text-right font-medium">Inherent</th>
-                                    <th className="pb-2 text-right font-medium">Residual</th>
+                                    <th>Reference</th>
+                                    <th>Engagement</th>
+                                    <th>Tier</th>
+                                    <th>Status</th>
+                                    <th className="text-right">Inherent</th>
+                                    <th className="text-right">Residual</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {engagements.map((e) => (
                                     <tr key={e.id}>
-                                        <td className="py-2">
+                                        <td>
                                             <a href={e.url} className="font-mono text-xs text-blue-700 hover:underline">{e.reference}</a>
                                         </td>
-                                        <td className="py-2">{e.name}</td>
-                                        <td className="py-2"><TierBadge tier={e.tier} label={e.tier_label} size="sm" /></td>
-                                        <td className="py-2"><StatusBadge status={e.status} /></td>
-                                        <td className="py-2 text-right tabular-nums">{e.inherent_score ?? '—'}</td>
-                                        <td className="py-2 text-right tabular-nums text-gray-500">
+                                        <td>{e.name}</td>
+                                        <td><TierBadge tier={e.tier} label={e.tier_label} size="sm" /></td>
+                                        <td><StatusBadge status={e.status} /></td>
+                                        <td className="text-right tabular-nums">{e.inherent_score ?? '—'}</td>
+                                        <td className="text-right tabular-nums text-gray-500">
                                             {e.residual_score ?? 'Not yet scored'}
                                         </td>
                                     </tr>
@@ -198,22 +198,22 @@ export default function Show({ thirdParty, engagements = [], certificates = null
             {tab === 'locations' && (
                 <div className="card p-5">
                     {thirdParty.locations?.length ? (
-                        <table className="w-full text-sm">
-                            <thead className="text-left text-xs uppercase tracking-wide text-gray-500">
+                        <table className="data-table">
+                            <thead>
                                 <tr>
-                                    <th className="pb-2 font-medium">Role</th>
-                                    <th className="pb-2 font-medium">City</th>
-                                    <th className="pb-2 font-medium">Country</th>
-                                    <th className="pb-2 font-medium">Data processing</th>
+                                    <th>Role</th>
+                                    <th>City</th>
+                                    <th>Country</th>
+                                    <th>Data processing</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {thirdParty.locations.map((l) => (
                                     <tr key={l.id}>
-                                        <td className="py-2 capitalize">{l.role?.replace('_', ' ')}</td>
-                                        <td className="py-2">{l.city ?? '—'}</td>
-                                        <td className="py-2">{l.country ?? '—'}</td>
-                                        <td className="py-2">{l.is_data_processing_location ? 'Yes' : 'No'}</td>
+                                        <td className="capitalize">{l.role?.replace('_', ' ')}</td>
+                                        <td>{l.city ?? '—'}</td>
+                                        <td>{l.country ?? '—'}</td>
+                                        <td>{l.is_data_processing_location ? 'Yes' : 'No'}</td>
                                     </tr>
                                 ))}
                             </tbody>

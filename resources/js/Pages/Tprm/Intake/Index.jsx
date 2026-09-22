@@ -30,30 +30,30 @@ export default function Index({ queue, can = {} }) {
 
             <div className="card overflow-hidden">
                 {rows.length ? (
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                    <table className="data-table">
+                        <thead>
                             <tr>
-                                <th className="px-4 py-3 font-medium">Reference</th>
-                                <th className="px-4 py-3 font-medium">Engagement</th>
-                                <th className="px-4 py-3 font-medium">Third party</th>
-                                <th className="px-4 py-3 font-medium">Tier</th>
-                                <th className="px-4 py-3 font-medium">Approval chain</th>
-                                <th className="px-4 py-3 font-medium">Submitted</th>
-                                <th className="px-4 py-3" />
+                                <th>Reference</th>
+                                <th>Engagement</th>
+                                <th>Third party</th>
+                                <th>Tier</th>
+                                <th>Approval chain</th>
+                                <th>Submitted</th>
+                                <th />
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {rows.map((row) => (
                                 <tr key={row.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3">
+                                    <td>
                                         <a href={row.url} className="font-mono text-xs text-blue-700 hover:underline">{row.reference}</a>
                                     </td>
-                                    <td className="px-4 py-3">{row.name}</td>
-                                    <td className="px-4 py-3 text-gray-600">{row.third_party}</td>
-                                    <td className="px-4 py-3">
+                                    <td>{row.name}</td>
+                                    <td className="text-gray-600">{row.third_party}</td>
+                                    <td>
                                         <TierBadge tier={row.tier} label={row.tier_label} size="sm" />
                                     </td>
-                                    <td className="px-4 py-3">
+                                    <td>
                                         <span className="text-xs text-gray-500">
                                             {row.approval_chain?.length ? row.approval_chain.join(' → ') : '—'}
                                         </span>
@@ -65,8 +65,8 @@ export default function Index({ queue, can = {} }) {
                                             </p>
                                         )}
                                     </td>
-                                    <td className="px-4 py-3 text-xs text-gray-500">{row.submitted_at}</td>
-                                    <td className="px-4 py-3 text-right">
+                                    <td className="text-xs text-gray-500">{row.submitted_at}</td>
+                                    <td className="text-right">
                                         {can.approve && (
                                             <div className="flex items-center justify-end gap-2">
                                                 <ApproveButton url={row.approve_url} />
@@ -131,16 +131,16 @@ function RejectDialog({ row, onClose }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
                 <h3 className="text-sm font-semibold text-gray-900">Reject {row.reference}</h3>
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="form-hint">
                     The intake is retained with its reason — a declined arrangement is supervisory
                     evidence, not something to delete (FR-INT-07).
                 </p>
 
                 <form onSubmit={submit} className="mt-4 space-y-3">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Reason code</label>
-                        <select value={data.reason_code} onChange={(e) => setData('reason_code', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm">
+                        <label className="form-label">Reason code</label>
+                        <select aria-label="Reason code" value={data.reason_code} onChange={(e) => setData('reason_code', e.target.value)}
+                            className="form-select mt-1">
                             <option value="">Select…</option>
                             <option value="insufficient_controls">Insufficient controls</option>
                             <option value="duplicate_service">Duplicate service already contracted</option>
@@ -149,14 +149,14 @@ function RejectDialog({ row, onClose }) {
                             <option value="incomplete_information">Incomplete information</option>
                             <option value="prohibited">Prohibited arrangement</option>
                         </select>
-                        {errors.reason_code && <p className="mt-1 text-xs text-red-600">{errors.reason_code}</p>}
+                        {errors.reason_code && <p className="form-error">{errors.reason_code}</p>}
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Rationale</label>
-                        <textarea rows="3" value={data.rationale} onChange={(e) => setData('rationale', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm" />
-                        {errors.rationale && <p className="mt-1 text-xs text-red-600">{errors.rationale}</p>}
+                        <label className="form-label">Rationale</label>
+                        <textarea aria-label="Rationale" rows="3" value={data.rationale} onChange={(e) => setData('rationale', e.target.value)}
+                            className="form-textarea mt-1" />
+                        {errors.rationale && <p className="form-error">{errors.rationale}</p>}
                     </div>
 
                     <div className="flex justify-end gap-2 pt-2">

@@ -45,6 +45,7 @@ export default function FilterBar({ filters = [], currentFilters = {}, route: ro
                             <input
                                 type="text"
                                 placeholder={searchPlaceholder}
+                                aria-label="Search"
                                 value={values.search || ''}
                                 onChange={(e) => handleChange('search', e.target.value)}
                                 className="filter-input pl-9"
@@ -58,6 +59,7 @@ export default function FilterBar({ filters = [], currentFilters = {}, route: ro
                     <div key={filter.name} className="filter-group min-w-[140px]">
                         <label className="filter-label">{filter.label}</label>
                         <select
+                            aria-label={filter.label}
                             value={values[filter.name] || ''}
                             onChange={(e) => handleChange(filter.name, e.target.value)}
                             className="filter-select"
@@ -79,7 +81,7 @@ export default function FilterBar({ filters = [], currentFilters = {}, route: ro
                                 type="checkbox"
                                 checked={values[filter.name] === '1' || values[filter.name] === true}
                                 onChange={(e) => handleChange(filter.name, e.target.checked ? '1' : '')}
-                                className="rounded border-gray-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                                className="form-checkbox"
                             />
                             {filter.label}
                         </label>

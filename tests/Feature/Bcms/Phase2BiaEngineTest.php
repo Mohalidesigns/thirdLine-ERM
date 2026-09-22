@@ -110,6 +110,15 @@ class Phase2BiaEngineTest extends TestCase
         }
         $user->assignRole($role);
 
+        // ADR 0017 (Phase 7.5): a record now resolves only where its list would
+        // have shown it, and a user with no unit assignment is confined to no
+        // units. Every actor in this file works the fixture's own unit.
+        DB::table('business_unit_user')->insert([
+            'organization_id' => $this->organization->id, 'user_id' => $user->id,
+            'business_unit_id' => $this->unit->id, 'includes_descendants' => true,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
         return $user;
     }
 
@@ -896,6 +905,11 @@ class Phase2BiaEngineTest extends TestCase
         $role = \Spatie\Permission\Models\Role::findOrCreate('bia-manager', 'web');
         $role->givePermissionTo(\Spatie\Permission\Models\Permission::findOrCreate('bcms.bia.complete', 'web'));
         $manager->assignRole($role);
+        DB::table('business_unit_user')->insert([
+            'organization_id' => $this->organization->id, 'user_id' => $manager->id,
+            'business_unit_id' => $this->unit->id, 'includes_descendants' => true,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
 
         // Case A: fully scored, nothing crosses the threshold — "we checked
         // and it is fine".

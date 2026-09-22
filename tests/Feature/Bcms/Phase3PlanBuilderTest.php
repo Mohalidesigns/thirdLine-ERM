@@ -31,6 +31,7 @@ use App\Support\Bcms\PlanBinding;
 use App\Support\Bcms\PlanTemplates;
 use Database\Seeders\Bcms\BcmsReferenceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -90,6 +91,13 @@ class Phase3PlanBuilderTest extends TestCase
         ]);
 
         $this->author = $this->user('author@khb.test');
+        // ADR 0017 (Phase 7.5): a record resolves only where its list would
+        // have shown it; an unassigned user is confined to no units.
+        DB::table('business_unit_user')->insert([
+            'organization_id' => $this->organization->id, 'user_id' => $this->author->id,
+            'business_unit_id' => $this->unit->id, 'includes_descendants' => true,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
         $this->approver = $this->user('approver@khb.test');
     }
 

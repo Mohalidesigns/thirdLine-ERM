@@ -114,9 +114,10 @@ return [
         'consecutive_failures', 'consent_captured_at', 'consent_status', 'consent_withdrawn_at',
         'created_at', 'created_by', 'deleted_at', 'email', 'employee_id', 'full_name',
         'geo_last_known', 'id', 'is_active', 'last_verified_at', 'latitude', 'longitude',
-        'manager_user_id', 'mobile_primary', 'mobile_secondary', 'next_of_kin', 'organization_id',
-        'preferred_language', 'push_token', 'site_id', 'slack_id', 'source', 'teams_id', 'title',
-        'updated_at', 'updated_by', 'user_id', 'uuid', 'verification_status', 'whatsapp',
+        'manager_contact_id', 'manager_user_id', 'mobile_primary', 'mobile_secondary',
+        'next_of_kin', 'organization_id', 'preferred_language', 'push_token', 'site_id',
+        'slack_id', 'source', 'teams_id', 'title', 'updated_at', 'updated_by', 'user_id', 'uuid',
+        'verification_status', 'whatsapp',
     ],
     'bcms_corrective_actions' => [
         'acceptance_expires_on', 'acceptance_rationale', 'accepted_at', 'accepted_by',
@@ -207,6 +208,23 @@ return [
         'incident_id', 'iso_clause_ref', 'management_review_id', 'organization_id', 'raised_at',
         'raised_by', 'reference', 'root_cause', 'severity', 'source', 'status', 'updated_at',
         'updated_by', 'uuid',
+    ],
+    'bcms_identity_connectors' => [
+        'attribute_map', 'auto_apply_policy', 'client_id', 'client_secret', 'created_at',
+        'created_by', 'credential_expires_on', 'delta_link', 'directory_filter',
+        'directory_tenant_id', 'graph_base_url', 'id', 'is_active', 'name', 'organization_id',
+        'provider', 'sync_schedule', 'token_base_url', 'updated_at', 'updated_by', 'uuid',
+    ],
+    'bcms_identity_sync_changes' => [
+        'after_json', 'applied_at', 'apply_error_class', 'before_json', 'contact_id', 'created_at',
+        'decided_at', 'decided_by', 'decision', 'directory_object_id', 'id', 'impact_json', 'kind',
+        'organization_id', 'requires_ack', 'subject_name', 'sync_run_id', 'updated_at',
+    ],
+    'bcms_identity_sync_runs' => [
+        'auto_applied_count', 'contact_change_count', 'created_at', 'directory_objects_read',
+        'error_class', 'error_code', 'finished_at', 'id', 'identity_connector_id', 'joiner_count',
+        'leaver_count', 'mover_count', 'organization_id', 'pages_fetched', 'pending_count',
+        'started_at', 'status', 'trigger', 'triggered_by', 'updated_at', 'uuid',
     ],
     'bcms_incident_log' => [
         'attachments', 'content', 'created_at', 'entry_type', 'id', 'incident_id', 'logged_at',

@@ -169,6 +169,43 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Identity sync (Phase 2C, ADR 0018) — the Microsoft host allowlist
+    |--------------------------------------------------------------------------
+    |
+    | NOT TENANT-EDITABLE, DELIBERATELY. `token_base_url`/`graph_base_url` are
+    | connector fields a `bcms.identity.manage` holder types into a form — a
+    | role that may WRITE a client secret but never READ one back (ADR 0018
+    | §5). Without this list, that holder could point `token_base_url` at
+    | their own host and recover the plaintext secret the moment "Test
+    | connection" POSTs it, or point `graph_base_url` anywhere to make the
+    | server fetch on their behalf. `App\Support\Http\OutboundUrlGuard`'s
+    | general SSRF check (scheme, no credentials-in-URL, no private/internal
+    | address) does not stop this: an attacker's own server is a perfectly
+    | public https host. This list is the closed answer underneath it — the
+    | six FQDNs Microsoft's identity platform and Graph actually run on,
+    | across the commercial, US Government and China clouds ADR 0018 §3.1
+    | names as in scope. A request to any other host, including a redirect —
+    | `EntraGraphClient` disables Guzzle's own redirect-following entirely
+    | (`withoutRedirecting()` on both the token POST and every Graph GET), so
+    | this list is never bypassed by a 3xx it never had a chance to see — an
+    | `@odata.nextLink` page or a stored `delta_link` that has drifted off
+    | this list, fails the run with a bounded error code rather than being
+    | followed.
+    |
+    */
+    'identity' => [
+        'allowed_hosts' => [
+            'login.microsoftonline.com',
+            'login.microsoftonline.us',
+            'graph.microsoft.com',
+            'graph.microsoft.us',
+            'login.chinacloudapi.cn',
+            'microsoftgraph.chinacloudapi.cn',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | AI capabilities (Blueprint §12)
     |--------------------------------------------------------------------------
     |

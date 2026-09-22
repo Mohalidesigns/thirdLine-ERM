@@ -211,3 +211,33 @@ Schedule::command('bcms:cascade-tick')->everyMinute()->withoutOverlapping();
 // puts it before the plan-drift sweep at 05:30, so a call-tree binding that
 // drift is about to re-resolve has already been flagged.
 Schedule::command('bcms:call-tree-hygiene')->dailyAt('05:15')->withoutOverlapping();
+
+// BCMS Phase 2C — ADR 0018 §3.1, §4. 02:30 so the reconciliation above (call
+// tree hygiene, 05:15) and the plan-drift sweep (05:30) both see a roster
+// already refreshed for the night rather than yesterday's. The nightly full
+// run is what actually maintains the manager-chain hierarchy; the 15-minute
+// delta below carries attribute changes and enable/disable flips only (ADR
+// 0018 §3.1) and never re-resolves a manager edge, which is why it runs far
+// more often without making the full run redundant.
+//
+// `onOneServer()` ON BOTH, WHICH THE OTHER BCMS ENTRIES DO NOT NEED AND THESE
+// DO. `withoutOverlapping()` is a per-server mutex: on a two-app-server
+// deployment both crons fire at 02:30 and both sweeps queue a job for the same
+// connector. `SyncBcmsIdentityJob` is `ShouldBeUnique` and the service holds a
+// connector lock, so the second would be dropped rather than run twice — but
+// dropping it costs a `failed_jobs`-adjacent mystery for whoever is reading the
+// Horizon dashboard at 03:00, and the fix is one method call. The commands that
+// only mark rows overdue are idempotent enough not to care; a directory read
+// that stages joiners is not.
+//
+// THE DELTA IS OFFSET OFF THE QUARTER HOUR ON PURPOSE. `everyFifteenMinutes()`
+// fires at :00/:15/:30/:45 — the same minute as the nightly full — so every
+// single night the two would race for one connector lock and the loser would be
+// dropped. Losing a delta tick costs fifteen minutes; losing the FULL costs the
+// manager hierarchy for a day, silently, because a successful delta keeps every
+// freshness indicator green (ADR 0018 §3.1: the delta never re-resolves a
+// manager edge). Seven minutes past each quarter makes the full the
+// deterministic winner and lets `bcms:sync-directory --delta` see the running
+// full and skip itself rather than queue behind it.
+Schedule::command('bcms:sync-directory')->dailyAt('02:30')->withoutOverlapping()->onOneServer();
+Schedule::command('bcms:sync-directory --delta')->cron('7,22,37,52 * * * *')->withoutOverlapping()->onOneServer();

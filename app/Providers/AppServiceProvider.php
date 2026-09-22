@@ -67,6 +67,29 @@ class AppServiceProvider extends ServiceProvider
          */
         $this->app->bind(\App\Services\Llm\LlmGateway::class);
 
+        /*
+         * BCMS Phase 2C (ADR 0018 §4). `DirectoryClient` is bound here rather
+         * than in a `BcmsServiceProvider` — BCMS still has none (ADR 0007
+         * deviation 2), and there is no new wiring here that would justify
+         * one: no observer, no listener, no rate limiter, no asserted policy
+         * map, just one interface→concrete binding exactly like every other
+         * BCMS binding on this file.
+         *
+         * BOUND TRANSIENT, NOT A SINGLETON. `EntraGraphClient` carries
+         * per-call paging state (`$pagesFetched`/`$objectsRead`, read back
+         * through `ReportsDirectoryFetchStats`) the same way `RuleEvaluator`
+         * carries `unresolvedFacts` in `TprmServiceProvider` — a singleton
+         * would leak one sync run's paging counters into the next tenant's
+         * run on a long-lived worker. `bind()` with no third argument is
+         * already transient; this is explicit for the same reason the TPRM
+         * binding is explicit: so the choice is a decision on the record, not
+         * an accident of Laravel's default.
+         */
+        $this->app->bind(
+            \App\Contracts\Bcms\DirectoryClient::class,
+            \App\Services\Bcms\Identity\EntraGraphClient::class,
+        );
+
         // How this product names the owner of a rendered document. The
         // renderer lives in thirdline/reporting and deliberately does not know
         // what an organisation is — see OrganizationBranding for why a Central

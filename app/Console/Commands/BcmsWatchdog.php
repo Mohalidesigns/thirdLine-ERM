@@ -70,6 +70,8 @@ class BcmsWatchdog extends Command
 
         $threshold = now()->subMinutes((int) $this->option('minutes'));
         $problems = [];
+        $identityProblems = [];
+        $health = app(\App\Services\Bcms\Identity\ConnectorHealth::class);
 
         foreach (Organization::query()->get() as $organization) {
             TenantContext::set($organization->id);
@@ -99,6 +101,33 @@ class BcmsWatchdog extends Command
                         'overdue_reminders' => $overdue,
                         'stuck_deliveries' => $stuck,
                     ];
+                }
+
+                // BCMS Phase 2C (ADR 0018 §4, work order §7). Two checks, both
+                // derived from `bcms_identity_sync_runs` — never a stored
+                // status column (`ConnectorHealth`, ADR 0018 §2.2 point 3). A
+                // secret that lapses silently freezes the roster, which is the
+                // failure mode this whole module exists to prevent, applied
+                // to itself.
+                foreach (\App\Models\Bcms\IdentityConnector::query()->where('is_active', true)->get() as $connector) {
+                    $isStale = $health->isStale($connector);
+                    $expiring = $health->credentialExpiringSoon($connector);
+                    $stuckRun = $this->stuckRun((int) $connector->getKey());
+                    $hierarchyStale = $this->hierarchyStale($connector);
+
+                    if ($isStale || $expiring || $stuckRun !== null || $hierarchyStale) {
+                        $identityProblems[] = [
+                            'organization_id' => $organization->id,
+                            'organization' => $organization->name,
+                            'connector_id' => $connector->getKey(),
+                            'is_stale' => $isStale,
+                            'credential_expiring_soon' => $expiring,
+                            'credential_expires_on' => $connector->credential_expires_on?->toDateString(),
+                            'stuck_run_id' => $stuckRun?->getKey(),
+                            'stuck_run_started_at' => $stuckRun?->started_at?->toIso8601String(),
+                            'hierarchy_stale' => $hierarchyStale,
+                        ];
+                    }
                 }
             } finally {
                 TenantContext::clear();
@@ -143,10 +172,26 @@ class BcmsWatchdog extends Command
             Cache::forget(AuditLog::AUDIT_FAILURE_CACHE_KEY);
         }
 
-        // Two independent signals, checked together: a stalled notification
-        // path is per-tenant, a hole in the audit trail is not, and neither
-        // may hide the other from the exit code a cron wrapper reads.
-        if ($problems === [] && $auditFailures === 0) {
+        if ($identityProblems !== []) {
+            // THE SAME ALERTING PATH THE OTHER CHECKS USE. Before this, an
+            // identity problem printed a line on a console nobody is reading
+            // at 03:30 and was folded into a `Log::error` that only fires
+            // when some other signal is also non-empty. A connector whose
+            // secret expired in December would have gone to nobody until an
+            // examiner asked why the leaver list stopped in January — the
+            // exact silence this command exists to break, aimed at the
+            // module's own supply of contacts.
+            $this->alertOfIdentityProblems($identityProblems);
+
+            foreach ($identityProblems as $problem) {
+                $this->error(sprintf('%s: identity connector %s.', $problem['organization'], $this->describeIdentityProblem($problem)));
+            }
+        }
+        // Three independent signals, checked together: a stalled notification
+        // path, a stale/expiring identity connector and a hole in the audit
+        // trail are all separately detectable, and none may hide another from
+        // the exit code a cron wrapper reads.
+        if ($problems === [] && $auditFailures === 0 && $identityProblems === []) {
             $this->info('BCMS notification path healthy.');
 
             return self::SUCCESS;
@@ -171,6 +216,7 @@ class BcmsWatchdog extends Command
         Log::error('BCMS watchdog found a stalled notification path', [
             'problems' => $problems,
             'audit_write_failures' => $auditFailures,
+            'identity_problems' => $identityProblems,
         ]);
 
         // A non-zero exit so a cron wrapper or a monitor notices without
@@ -238,6 +284,146 @@ class BcmsWatchdog extends Command
         // alerts on, deliberately separate from the per-tenant notification —
         // if every tenant's admin is asleep, somebody at Atheris is not.
         Log::critical('BCMS watchdog: notification path stalled, support notified', [
+            'support_alert' => true,
+            'problems' => $problems,
+        ]);
+    }
+
+    /**
+     * A directory sync that was written ahead and never closed out.
+     *
+     * The run row goes in with `status = running` BEFORE the first Graph call
+     * (standing rule 8), and `SyncBcmsIdentityJob::failed()` closes it out on
+     * any exception or on the queue timeout. Neither of those fires when the
+     * worker is killed outright — `kill -9`, an OOM kill, the container going
+     * away mid-deploy — and the row then sits on `running` for ever. It is
+     * NOT stale by `ConnectorHealth::isStale()`'s reckoning either, because
+     * that reads the last SUCCESSFUL run and this one never claimed to be one.
+     * So without this check the single most likely 2 a.m. outcome — worker
+     * dies mid-apply — produces a connector screen showing "sync in progress"
+     * indefinitely and no alert at all.
+     *
+     * THE THRESHOLD IS THE JOB'S OWN TIMEOUT PLUS A TEN-MINUTE GRACE, read
+     * from `SyncBcmsIdentityJob::TIMEOUT_SECONDS` rather than copied. A
+     * legitimately long nightly reconciliation must never be reported as
+     * stuck; anything past the budget the queue itself would have killed it at
+     * is stuck by definition.
+     */
+    private function stuckRun(int $connectorId): ?\App\Models\Bcms\IdentitySyncRun
+    {
+        return \App\Models\Bcms\IdentitySyncRun::query()
+            ->where('identity_connector_id', $connectorId)
+            ->where('status', \App\Enums\Bcms\SyncRunStatus::Running->value)
+            ->where('started_at', '<', now()->subSeconds(\App\Jobs\Bcms\SyncBcmsIdentityJob::TIMEOUT_SECONDS + 600))
+            ->orderBy('started_at')
+            ->first();
+    }
+
+    /**
+     * The nightly FULL reconciliation has stopped, while deltas keep passing.
+     *
+     * `ConnectorHealth::isStale()` counts any successful run, which is right
+     * for the screen and blind to this: on `nightly_plus_delta` a delta
+     * succeeds every fifteen minutes, so a full run that has failed every
+     * night for a month leaves every freshness indicator green. ADR 0018 §3.1
+     * is explicit that a delta never re-resolves a manager edge — only the
+     * full run maintains the hierarchy — so this failure mode is "the call
+     * tree quietly stopped being maintained", which is exactly the kind of
+     * thing that is discovered during an exercise.
+     *
+     * Forty-eight hours: twice the nightly schedule, the same threshold
+     * `ConnectorHealth` uses, so one missed night is not an alarm and two are.
+     */
+    private function hierarchyStale(\App\Models\Bcms\IdentityConnector $connector): bool
+    {
+        if ($connector->sync_schedule === 'manual') {
+            return false;
+        }
+
+        return ! \App\Models\Bcms\IdentitySyncRun::query()
+            ->where('identity_connector_id', $connector->getKey())
+            ->whereIn('trigger', [\App\Enums\Bcms\SyncTrigger::ScheduledFull->value, \App\Enums\Bcms\SyncTrigger::Manual->value])
+            ->whereIn('status', [\App\Enums\Bcms\SyncRunStatus::Success->value, \App\Enums\Bcms\SyncRunStatus::Partial->value])
+            ->where('started_at', '>=', now()->subHours(48))
+            ->exists();
+    }
+
+    /** @param  array<string, mixed>  $problem */
+    private function describeIdentityProblem(array $problem): string
+    {
+        $clauses = [];
+
+        if ($problem['stuck_run_id'] !== null) {
+            $clauses[] = sprintf('has a sync stuck on "running" since %s (run %d) — its worker died without closing the run out', $problem['stuck_run_started_at'], $problem['stuck_run_id']);
+        }
+
+        if ($problem['is_stale'] === true) {
+            $clauses[] = 'has not run successfully in over 48 hours';
+        }
+
+        if ($problem['hierarchy_stale'] === true) {
+            $clauses[] = 'has had no successful FULL reconciliation in over 48 hours, so the manager hierarchy is no longer being maintained';
+        }
+
+        if ($problem['credential_expiring_soon'] === true) {
+            $clauses[] = 'has a credential expiring on '.$problem['credential_expires_on'];
+        }
+
+        return implode('; and ', $clauses);
+    }
+
+    /**
+     * Tell the identity administrators, and tell support.
+     *
+     * `bcms.identity.manage` rather than `bcms.admin`: holding the credential
+     * that reads the bank's directory is what this permission means (ADR 0018
+     * §7), and it is the holder who can renew a lapsed secret. Structured
+     * `Log::critical` with `support_alert` alongside, exactly as the
+     * notification-path and regulatory-clock checks do — a roster that has
+     * stopped updating is our fault more often than the customer's.
+     *
+     * @param  list<array<string, mixed>>  $problems
+     */
+    private function alertOfIdentityProblems(array $problems): void
+    {
+        foreach ($problems as $problem) {
+            $organization = Organization::query()->find($problem['organization_id']);
+
+            if ($organization === null) {
+                continue;
+            }
+
+            TenantContext::set($organization->id);
+
+            try {
+                $admins = User::query()
+                    ->where('is_active', true)
+                    ->get()
+                    ->filter(fn (User $u) => $u->can('bcms.identity.manage'));
+
+                foreach ($admins as $admin) {
+                    NotificationService::send(
+                        organizationId: (int) $organization->id,
+                        userId: (int) $admin->getKey(),
+                        type: 'bcms.watchdog.identity_sync',
+                        subject: 'The directory sync has stopped keeping the roster current',
+                        body: sprintf(
+                            'The Entra connector %s. Until it is fixed, joiners are missing from call trees and '
+                            .'leavers are still on them — an alert sent today would reach the wrong list of people. '
+                            .'Atheris support has been notified.',
+                            $this->describeIdentityProblem($problem),
+                        ),
+                        metadata: $problem,
+                        priority: 'high',
+                        category: 'bcms',
+                    );
+                }
+            } finally {
+                TenantContext::clear();
+            }
+        }
+
+        Log::critical('BCMS watchdog: identity sync is stale, stuck or about to lose its credential', [
             'support_alert' => true,
             'problems' => $problems,
         ]);

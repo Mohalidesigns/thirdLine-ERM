@@ -28,6 +28,8 @@ use App\Http\Controllers\Bcms\ExerciseDefinitionController as BcmsExerciseDefini
 use App\Http\Controllers\Bcms\ExerciseProgrammeController as BcmsExerciseProgrammeController;
 use App\Http\Controllers\Bcms\FindingController as BcmsFindingController;
 use App\Http\Controllers\Bcms\HomeController as BcmsHomeController;
+use App\Http\Controllers\Bcms\IdentityController as BcmsIdentityController;
+use App\Http\Controllers\Bcms\IdentitySyncController as BcmsIdentitySyncController;
 use App\Http\Controllers\Bcms\OccurrenceController as BcmsOccurrenceController;
 use App\Http\Controllers\Bcms\PlanController as BcmsPlanController;
 use App\Http\Controllers\Bcms\PlanDocumentController as BcmsPlanDocumentController;
@@ -2209,6 +2211,40 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.admin')->name('settings.index');
         Route::put('settings', [BcmsSettingsController::class, 'update'])
             ->middleware('permission:bcms.admin')->name('settings.update');
+
+        /*
+         * Phase 2C (reduced) — ADR 0018. The Entra connector is a section of
+         * BCMS settings, not a screen of its own: no `ModuleSections` entry,
+         * no new nav item (ADR 0018 §5). Registered here, before the wildcard
+         * section route, for the same reason `settings` is.
+         */
+        Route::get('settings/identity', [BcmsIdentityController::class, 'show'])
+            ->middleware('permission:bcms.identity.manage')->name('settings.identity');
+        Route::put('settings/identity', [BcmsIdentityController::class, 'update'])
+            ->middleware('permission:bcms.identity.manage')->name('settings.identity.update');
+        Route::post('settings/identity/test', [BcmsIdentityController::class, 'test'])
+            ->middleware('permission:bcms.identity.manage')->name('settings.identity.test');
+        Route::post('settings/identity/sync', [BcmsIdentityController::class, 'sync'])
+            ->middleware('permission:bcms.identity.manage')->name('settings.identity.sync');
+        // The run-in-progress poll (identity-connector.md §6) — a small JSON
+        // document, latest run only, mirroring `call-tree-tests/{test}/live.json`.
+        Route::get('settings/identity/runs-status', [BcmsIdentityController::class, 'runsStatus'])
+            ->middleware('permission:bcms.identity.manage')->name('settings.identity.runs-status');
+
+        // `bcms.identity.review`, not `.manage` — deciding a joiner/leaver/
+        // mover is day-to-day continuity work, not the credential-holding
+        // administrator's authority (ADR 0018 §7). `{run}` binds by uuid;
+        // `{change}` is a numeric child scoped through `IdentitySyncRun::
+        // changes()` via `->scopeBindings()` (ADR 0017 §5) — an id from
+        // another run 404s rather than resolving.
+        Route::get('identity/runs', [BcmsIdentitySyncController::class, 'index'])
+            ->middleware('permission:bcms.identity.review')->name('identity.runs.index');
+        Route::get('identity/runs/{run}', [BcmsIdentitySyncController::class, 'show'])
+            ->middleware('permission:bcms.identity.review')->name('identity.runs.show');
+        Route::post('identity/runs/{run}/changes/{change}/decide', [BcmsIdentitySyncController::class, 'decide'])
+            ->middleware('permission:bcms.identity.review')->name('identity.changes.decide')->scopeBindings();
+        Route::post('identity/runs/{run}/changes/decide', [BcmsIdentitySyncController::class, 'bulkDecide'])
+            ->middleware('permission:bcms.identity.review')->name('identity.changes.bulk-decide');
 
         /*
          * Phase 1 — three sections now have real screens. They keep the SAME

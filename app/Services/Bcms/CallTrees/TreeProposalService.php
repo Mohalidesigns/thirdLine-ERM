@@ -142,15 +142,34 @@ class TreeProposalService
     {
         /** @var array<int, Contact> $byUser */
         $byUser = [];
+        /** @var array<int, Contact> $byId */
+        $byId = [];
         foreach ($contacts as $contact) {
             if ($contact->user_id !== null) {
                 $byUser[(int) $contact->user_id] = $contact;
             }
+            $byId[(int) $contact->getKey()] = $contact;
         }
 
-        // A manager who is not in this roster is outside the department, so the
-        // person reporting to them is a root of this tree.
-        $managerOf = function (Contact $contact) use ($byUser): ?Contact {
+        // Phase 2C (ADR 0018 §2.1): `manager_contact_id` is read FIRST — it is
+        // the edge a directory sync writes, and it is the only edge that
+        // exists at all for a contact with no `user_id` (a guard, a cleaner,
+        // a contractor). `manager_user_id` is the fallback, which is what
+        // keeps every hand-maintained roster and existing seeder working
+        // unchanged. A manager who is not in this roster is outside the
+        // department, so the person reporting to them is a root of this tree.
+        $managerOf = function (Contact $contact) use ($byUser, $byId): ?Contact {
+            $managerContactId = $contact->manager_contact_id;
+
+            if ($managerContactId !== null) {
+                $manager = $byId[(int) $managerContactId] ?? null;
+
+                // A manager contact outside this roster (a different
+                // department) makes this contact a root of THIS tree — the
+                // same rule already applied to `manager_user_id` below.
+                return $manager !== null && $manager->getKey() !== $contact->getKey() ? $manager : null;
+            }
+
             $managerUserId = $contact->manager_user_id;
 
             if ($managerUserId === null) {
@@ -306,7 +325,16 @@ class TreeProposalService
 
         $base = Contact::query()->where('is_active', true)->whereIn('business_unit_id', $units);
         $total = (clone $base)->count();
-        $linked = (clone $base)->whereNotNull('manager_user_id')->count();
+        // Phase 2C (ADR 0018 §2.1): `arrange()` reads `manager_contact_id`
+        // FIRST — the edge a directory sync writes, and the only edge that
+        // exists at all for a contact with no `user_id` (a guard, a cleaner,
+        // a contractor). Counting `manager_user_id` alone (gate 2 rejection
+        // #3, blocking defect 2) reported 0% coverage for a fully-linked
+        // directory-sourced department — the exact number that decides
+        // whether the "generate a call tree" button is worth pressing.
+        $linked = (clone $base)
+            ->where(fn ($q) => $q->whereNotNull('manager_contact_id')->orWhereNotNull('manager_user_id'))
+            ->count();
 
         return [
             'contacts' => $total,

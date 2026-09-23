@@ -311,10 +311,22 @@ return [
          *                  single-attempt, nobody watching. Gate G0 criterion 7
          *                  backs up 10,000 jobs here and asserts life safety is
          *                  still picked up.
+         *
+         * THE QUEUE NAMES COME FROM THE SAME ENV VARS THE JOBS READ. Every
+         * BCMS job takes its queue from `config('bcms.queues.*')`, which is
+         * `env('BCMS_QUEUE_*')` — set precisely so "a deployment on a shared
+         * Redis can prefix them without editing PHP" (config/bcms.php). These
+         * supervisors used to hardcode the unprefixed names, so the first
+         * deployment to use that documented env override would have had
+         * Horizon listening on four queues nobody was writing to while every
+         * EMNS alert piled up unread on four queues nobody was reading — a
+         * total, silent failure of the life-safety path with a green Horizon
+         * dashboard above it. The defaults are unchanged, so nothing moves for
+         * a deployment that never set the variables.
          */
         'bcms-lifesafety' => [
             'connection' => 'redis',
-            'queue' => ['bcms-lifesafety'],
+            'queue' => [env('BCMS_QUEUE_LIFESAFETY', 'bcms-lifesafety')],
             'balance' => 'simple',
             'autoScalingStrategy' => 'time',
             'minProcesses' => 1,
@@ -332,7 +344,7 @@ return [
 
         'bcms-alerts' => [
             'connection' => 'redis',
-            'queue' => ['bcms-alerts'],
+            'queue' => [env('BCMS_QUEUE_ALERTS', 'bcms-alerts')],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 2,
@@ -346,7 +358,7 @@ return [
 
         'bcms-reminders' => [
             'connection' => 'redis',
-            'queue' => ['bcms-reminders'],
+            'queue' => [env('BCMS_QUEUE_REMINDERS', 'bcms-reminders')],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 1,
@@ -360,7 +372,7 @@ return [
 
         'bcms-sync' => [
             'connection' => 'redis',
-            'queue' => ['bcms-sync'],
+            'queue' => [env('BCMS_QUEUE_SYNC', 'bcms-sync')],
             'balance' => 'simple',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 1,

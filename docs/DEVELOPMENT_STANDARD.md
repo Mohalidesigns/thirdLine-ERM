@@ -166,7 +166,8 @@ Be explicit about this rather than trusting a green run.
 
 `RouteAuthorizationTest`, `TenancyIsolationTest`, `NoFabricatedNumbersTest`,
 `AdminNavigationTest`, `PreflightRouteGuardTest`, `SecurityHeadersTest`,
-`PermissionCatalogCoversRoutesTest`, `scripts/parity-check.php`.
+`PermissionCatalogCoversRoutesTest`, `NoSelfUpdatingTimestampColumnsTest`,
+`scripts/parity-check.php`.
 
 **When one turns red, find out which of three kinds it is before touching it:**
 bookkeeping that is now stale, a check coupled to the renderer rather than the
@@ -182,3 +183,13 @@ the fact that made it impossible.
 
 One procedure: `.github/workflows/deploy.yml` → `scripts/deploy.sh`. See
 `docs/DEPLOYMENT.md`. `php artisan app:preflight` must exit zero before serving.
+
+## 13. A `timestamp()` column is `->nullable()` or `->useCurrent()`, never bare
+
+An event time the application writes (`*_at` that is not `created_at`/`updated_at`)
+is `dateTime()`. `timestampTz()` is not an alternative: on MySQL/MariaDB it
+is the same type. `useCurrentOnUpdate()` needs an ADR — on **any** column,
+not only a `TIMESTAMP` one; the same implicit `ON UPDATE CURRENT_TIMESTAMP`
+clause is exactly as bad on a `DATETIME` column, and the allowlist is empty.
+Guarded by `NoSelfUpdatingTimestampColumnsTest`, which scans every column of
+every table, of any type. See ADR 0022.

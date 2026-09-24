@@ -26,6 +26,11 @@ class PlanAttestationFactory extends Factory
             'attested_by' => \App\Models\User::factory(),
             'attested_by_name' => $this->faker->name(),
             'statement' => $this->faker->sentence(),
+            // ADR 0022: attested_at is DATETIME NOT NULL with no database
+            // default (a bare timestamp() used to silently rewrite itself on
+            // any unrelated UPDATE). The application always writes this
+            // explicitly; the factory must too.
+            'attested_at' => now(),
         ];
     }
 }

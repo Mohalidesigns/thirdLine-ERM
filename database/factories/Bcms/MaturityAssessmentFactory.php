@@ -22,6 +22,13 @@ class MaturityAssessmentFactory extends Factory
     {
         return [
             'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            // ADR 0022: assessed_at is DATETIME NOT NULL with no database
+            // default (a bare timestamp() used to silently rewrite itself on
+            // any unrelated UPDATE — this was the column with the largest
+            // observed drift, +60 minutes on every seeded row in `risk`). The
+            // application always writes this explicitly; the factory must
+            // too.
+            'assessed_at' => now(),
         ];
     }
 }

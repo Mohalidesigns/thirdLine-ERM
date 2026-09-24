@@ -25,6 +25,11 @@ class IncidentLogEntryFactory extends Factory
             'incident_id' => \App\Models\Bcms\Incident::factory(),
             'entry_type' => 'decision',
             'content' => $this->faker->paragraph(),
+            // ADR 0022: logged_at is DATETIME NOT NULL with no database
+            // default (a bare timestamp() used to silently rewrite itself on
+            // any unrelated UPDATE). The application always writes this
+            // explicitly; the factory must too.
+            'logged_at' => now(),
         ];
     }
 }

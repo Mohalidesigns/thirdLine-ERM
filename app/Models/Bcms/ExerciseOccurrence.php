@@ -187,4 +187,17 @@ class ExerciseOccurrence extends Model
     {
         return $this->hasMany(CorrectiveAction::class, 'carried_to_occurrence_id');
     }
+
+    /**
+     * Every evidence artefact anchored to this occurrence, whatever it is
+     * actually attached to (the occurrence itself, a score, a readiness task
+     * or the AAR) — ADR 0019. Filter by `owner_type`/`owner_id` for a
+     * specific attachment point.
+     *
+     * @return HasMany<Evidence, $this>
+     */
+    public function evidence(): HasMany
+    {
+        return $this->hasMany(Evidence::class, 'occurrence_id');
+    }
 }

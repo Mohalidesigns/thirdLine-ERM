@@ -920,11 +920,34 @@ class Phase1GovernanceTest extends TestCase
             }
 
             foreach ($this->phpFilesUnder($dir) as $file) {
+                $relative = str_replace(base_path().'/', '', $file);
+
+                // BCMS Phase 9 landed the exercise engine this test's own
+                // docblock names in advance. Two files in the searched layers
+                // now contain the array-literal shape this regex looks for,
+                // and only one of them is a write:
+                //
+                //   - CarriedActionService::carryForward() is THE exercise
+                //     engine's own write (Orchestration §5) — the very thing
+                //     this test exists to confirm nothing ELSE does.
+                //   - AarExportService::build() only READS the column, into
+                //     the examiner export's per-CAPA status (ADR 0019 §5:
+                //     "every finding with its... CAPA status"). The regex
+                //     cannot distinguish an array literal built for a report
+                //     from one passed to `forceFill()`/`update()`, so it is
+                //     named here rather than silently miscounted as a write.
+                if (in_array($relative, [
+                    'app/Services/Bcms/Exercises/CarriedActionService.php',
+                    'app/Services/Bcms/Exercises/AarExportService.php',
+                ], true)) {
+                    continue;
+                }
+
                 // The ASSIGNMENT form specifically. `whereNotNull(...)` is a
                 // read and a docblock is prose; a guard that flagged either is
                 // one somebody weakens until it stops meaning anything.
                 if (preg_match("/'carried_to_occurrence_id'\s*=>/", file_get_contents($file))) {
-                    $writers[] = str_replace(base_path().'/', '', $file);
+                    $writers[] = $relative;
                 }
             }
         }

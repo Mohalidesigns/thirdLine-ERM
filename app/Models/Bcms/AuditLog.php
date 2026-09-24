@@ -60,7 +60,17 @@ class AuditLog extends Model
         'actor_id', 'actor_label', 'ip_address', 'created_at',
     ];
 
-    /** @return array<string, string> */
+    /**
+     * `created_at` casts to `datetime` even though `$timestamps = false`
+     * (the class docblock has always claimed `?Carbon`) — `App\Models\Tprm\
+     * AuditLog` casts it the same way. Without this, every reader of this
+     * attribute gets the raw DB string, which 500s the first time anything
+     * calls `->created_at?->toIso8601String()` on it (Phase 11's evidence-
+     * pack export log, found by opening the screen in a browser after an
+     * export exists — never exercised end to end before).
+     *
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
         return [
@@ -69,6 +79,7 @@ class AuditLog extends Model
             'organization_id' => 'integer',
             'auditable_id' => 'integer',
             'actor_id' => 'integer',
+            'created_at' => 'datetime',
         ];
     }
 

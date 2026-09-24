@@ -65,7 +65,7 @@ drill is about.
 |---|---|
 | **Purpose** | Evidence of attendance (clause 7.3) and of competence (clause 7.2) |
 | **Categories** | User reference, attendance status, check-in time and **method** (including `geo`), assessment score |
-| **Lawful basis** | Performance of the employment contract; legal obligation for the mandatory records |
+| **Lawful basis** | Performance of the employment contract; ~~legal obligation for the mandatory records~~ **CORRECTED 2026-09-23 (§11.4):** legitimate interest. ISO 22301 is a voluntary standard, not law. Its mandatory-record requirement (7.2 d), "retain appropriate documented information as evidence of competence") supplies the *purpose*, not a legal-obligation basis. This is §7.3's reasoning, applied a second time |
 | **Retention** | 3 years after the record's `next_due_date`, or the certification cycle where the client is certified |
 | **Note** | `check_in_method = geo` records that a location was used, not the location itself. A stored assembly-point coordinate per person per drill would be movement data with no continuity purpose. |
 
@@ -1119,6 +1119,138 @@ is the phase that makes a connector possible.
 
 ---
 
+## 11. Phase 11 — supplier matching, CSAT pre-fill, exported packs, the training register
+
+**Four processing activities Phase 11 introduced with no register entry.** Checked
+against the code on `integration/bcms-remaining`, 2026-09-23. None of them adds a
+table or a column (ADR 0021). Three persist nothing new at all. That is a real
+mitigation, and it is also why each was easy to build without anyone asking where
+the personal data goes.
+
+### 11.1 Vendor exercise participation — matching `tp_contacts` to `bcms_contacts` by email
+
+| | |
+|---|---|
+| **Where it runs** | `SupplierResilienceController::vendorParticipation()`, a private method called from `index()` on every render of the supplier-resilience screen. **Not** in `SupplierResilienceService`, which the brief named. The service does not touch contacts |
+| **What it does** | Loads **every non-deleted `tp_contacts.email` in the tenant**, keyed to `third_party_id`. Selects every `bcms_contacts` row whose `email` is in that set. For each match it loads the person's `bcms_exercise_participants` rows. **Computed on read. Nothing is written**: no link row, no column, no cache |
+| **Data subjects** | Vendor personnel who are also on the bank's emergency roster: on-site contractors, outsourced service staff, and a vendor's BC coordinator invited to an exercise. These are **not the bank's employees**, which makes them a different population from §§1–3. By data-entry error, it can also catch a bank employee whose corporate address was recorded as a `tp_contacts` row |
+| **Read** | `tp_contacts.email`, `third_party_id`; `bcms_contacts.email`, `full_name`; participant `role`, `invitation_status`, `attendance_status`; occurrence `scheduled_date`. Also `with(['user'])`, which eager-loads the linked platform user **and nothing reads it**. That is a dead eager load: a name and an address brought into memory for no purpose. Trivial, but it is a minimisation point, so it is recorded |
+| **Rendered** | `contact_name`, `vendor_third_party_id`, `occurrence_id`, `scheduled_date`, `role`, `invitation_status`, `attendance_status`. **The email is the join key and is never rendered** |
+| **Lawful basis** | Legitimate interest (s.25(1)(b)(v)): the bank's oversight of whether its critical suppliers take part in continuity exercises. That is the ISO 22318 supply-chain purpose this module stamps `iso22318.supply_chain`. **No CBN provision is claimed for this**, because none was checked in this pass |
+| **Purpose limitation, s.24(1)(b)** | Two datasets collected for different purposes are combined here. `tp_contacts` is held to manage the vendor relationship. `bcms_contacts` is held to reach a person, per §1: "an emergency, an exercise, or a check that we can still reach them. Nothing else." The output is about **exercise attendance**, which is inside §1's stated purpose. On the TPRM side the address is used **only as a match key**: not rendered, not stored, not transmitted. **Position: compatible further processing, conditional on it staying a read-time match.** A persisted vendor↔contact edge, which ADR 0021 §4 declined, would be a new processing activity and would need its own entry |
+| **Accuracy, s.24: three findings, owner `backend-engineer`** | (1) **Case mismatch fabricates a vendor id.** Under the default `utf8mb4_unicode_ci` collation (`config/database.php`), `whereIn('email', …)` matches `Musa@Vendor.com` to `musa@vendor.com`. But `$vendorEmails->get($contact->email)` is a **case-sensitive** PHP key lookup, so it returns null, and `(int) null` renders **`vendor_third_party_id = 0`**: a named person attributed to a vendor that does not exist. (2) **One address on two vendors' contact lists.** `pluck('third_party_id', 'email')` keeps only the last, so attribution silently goes to one of them. (3) **A bank employee mis-entered as a vendor contact** appears as a "vendor participant". (1) is the `NoFabricatedNumbersTest` family. (2) and (3) are inherent to a heuristic join, and the screen should say so |
+| **Retention** | **None of its own**, because nothing is persisted. It inherits `tp_contacts` (TPRM's retention) and §1 / §3 for the BCMS rows |
+| **Residency** | Application server. Inherits §1. No transfer and no processor |
+| **Access** | `bcms.report.view`: risk-manager (the BC Coordinator), CRO, compliance-officer, **risk-analyst, board-member**, super-admin. **Not unit-scoped.** `Contact::query()` is called without `visibleTo()`. This is organisation-wide by design, and the consequence is that a board member sees vendor staff by name with their attendance record. That is acceptable for organisation-wide oversight roles. **The architect should confirm that `bcms.report.view` is only ever granted to organisation-wide roles**, because nothing enforces it |
+| **Deliberately not done** | No stored link and no `third_party_id` on `bcms_contacts` or `bcms_exercise_participants` (ADR 0021 §4). No email rendered. Nothing written to either register |
+| **Transparency** | Vendor personnel are **not covered by the bank's employee privacy notice**. Their notice is the vendor's. The §29 processing agreement in the TPRM engagement record should say that vendor personnel data is used as continuity-exercise evidence. Open question 14 |
+
+### 11.2 The CBN CSAT workbook pre-fill
+
+| | |
+|---|---|
+| **Where it runs** | `EvidencePackController::csatPrefill()` → `CsatPrefillService::fill()`. A user uploads the bank's CSAT workbook (`.xlsx`). PhpSpreadsheet loads the **whole** workbook. The service scans **every cell on every sheet** for known question labels, writes the matrix's answer into the adjacent cell, prepends a cover sheet, and streams the file back |
+| **What personal data can be in it** | **This cannot be stated from the document, because the product does not hold the CSAT template (ADR 0021 §4).** It is stated instead from what a completed self-assessment return is. The upload holds whatever the bank typed in before uploading, which commonly includes the names, designations, email addresses and phone numbers of respondent and attesting officers. It also holds the **Office document properties** (creator, last-modified-by), which PhpSpreadsheet reads on load and writes back on save. The service touches only question-label cells, but it reads every cell into memory to find them |
+| **What the service adds to it** | Matrix artefact sentences: clause states, counts, and at most a management review **title** ("Internal audit referenced in the {title}"). **No named individual.** I checked every artefact string in `ClauseComplianceMatrixService::sufficiency()` and the crosswalk, and none interpolates a person's name |
+| **Where it is stored** | **Nowhere persistent.** The upload sits in PHP's upload temp file, which PHP deletes at the end of the request. The output is written with `tempnam()` in `sys_get_temp_dir()`, read back, and `unlink()`ed. No database row, no application-disk copy, no queue payload. **Finding, owner `backend-engineer`:** the `unlink()` is not in a `finally`. If `$writer->save()` throws, a partial copy of the bank's workbook stays in the OS temp directory until the OS clears it. One `try/finally` fixes it |
+| **Deleted?** | Yes, by the request lifecycle, except on the failure path above |
+| **Retention** | The lifetime of the request. The downloaded file on the user's machine falls under the bank's own records management and is outside the product |
+| **Lawful basis** | The CBN Risk-Based Cybersecurity Framework's annual self-assessment, which the product maps to `cbn.rcf.csat` (ADR 0021 §4). The officers' names in the workbook are processed incidentally to completing that return |
+| **Residency** | Application server. Inherits §1. No processor. PhpSpreadsheet is a library running in-process, not a service |
+| **Audit: a gap** | **`csatPrefill()` writes no audit row**, unlike both packs in 11.3. So "who produced the CSAT answers the bank submitted to the CBN, and when" cannot be answered. That is an evidence-sufficiency gap as much as an NDPA one. Remediation, owner `backend-engineer`: one `pack.exported`-shaped row (`framework = cbn_csat_prefill`, matched and unmatched counts, actor). **Never the workbook content**, for 11.3's reason |
+| **Security of processing** | No virus scan, which is the product-wide named go-live gap. **No size limit in the validation rule**: it is `required\|file\|mimes:xlsx`, with no `max:`. An `.xlsx` is a zip, and the whole thing is loaded into memory, so a decompression bomb reaches PhpSpreadsheet with no check. Owner `backend-engineer` / `reliability-engineer` |
+| **Access** | `bcms.report.export`: risk-manager, CRO, compliance-officer, super-admin |
+| **Deliberately not done** | No cell coordinate invented. No copy kept. Nothing sent anywhere |
+
+### 11.3 Exported packs — the board pack (PDF, PPTX) and the evidence pack (PDF)
+
+**What personal data actually travels.** I read this from `BoardPackService`,
+`EvidencePackService`, `BoardPackPptxWriter`'s input, both blades under
+`resources/views/reports/pdf/`, and `layout.blade.php`, rather than inferring it
+from the brief.
+
+| File | Personal data in it |
+|---|---|
+| **Evidence pack**, all four frameworks | The **exporter's name** (the layout prints "Generated by"), the organisation name, and one artefact sentence per clause: counts, and at most a management review title. **No individual training record, no finding text, no contact data.** The brief expected training records here. **They are not in it**: the 7.2 section reads "N assessed competency record(s) on file…", which is a count |
+| **Board pack PDF** | The **exporter's name**. **Section 6 prints every open nonconformity's `reference` and its full `description` free text.** Section 9 prints the **management review approver's name**. Process names in the RTO-gap section. KRIs are aggregate. Incidents are a count only |
+| **Board pack PPTX** | Slide 6 has the same nonconformity `reference — description` lines, and slide 9 the approver's name. The exporter's name is **not** in the PPTX: the writer receives a title and slides only |
+
+**The exposure is `bcms_findings.description`.** Findings are raised from exercise
+evaluations (§8.2's performance-data category) and, since Phase 10, from PIRs
+(`FindingSource::Incident`), whose narratives §9.1 already records **can name staff
+and customers**. The board pack prints them verbatim into a file that, once
+downloaded, has no retention, no access control and no residency the product can
+enforce, and it prints them for a board. That is a **wider audience than the
+findings register itself**. `Finding` is `ScopedToOrgHierarchy` on its own screen,
+while `BoardPackService::openNonconformities()` applies no `visibleTo()`. That is
+correct for a board document, which is organisation-wide by nature. It also means the
+board-pack **preview** (`bcms.report.view`) shows every unit's nonconformity text to
+risk-analysts and board members.
+
+**§9.1's rule extends here: describe categories, never paste records.** A finding
+description is exactly what the board pack reprints. **No technical control exists
+and this register does not pretend one does.** The controls are copy on the finding
+form, the evaluator and crisis-team curricula, and open question 15.
+
+| | |
+|---|---|
+| **Lawful basis** | Legitimate interest in board oversight of the continuity programme. That is the governance purpose the product maps to `cbn.governance.board_oversight`. **No specific CBN clause requiring this content is asserted**, because none was checked in this pass |
+| **Access** | Generating a file needs `bcms.report.export` (risk-manager, CRO, compliance-officer, super-admin). The board-pack **preview**, which has the same content on screen, needs only `bcms.report.view`, which adds risk-analyst and board-member. The evidence pack's index, preview and export are all `bcms.report.export` |
+| **Audit** | Every export writes one `bcms_audit_logs` row: `auditable_type = bcms_report_pack`, `event = pack.exported`, with `actor_id`, `actor_label`, `framework`, `period`, and either the section-state summary (evidence pack) or the `format` (board pack). **It records who took data out, when, what kind and for what period. It does not record the content**, so "which named individuals were in the board pack downloaded on 3 March" is not answerable from the log. **This register agrees that the log should be content-free.** Storing the content would put a second copy of every finding description into an append-only table with no purge path, which is §7.5.1's defect deliberately recreated |
+| **Retention** | The audit row lives in `bcms_audit_logs`: append-only, and unreachable by §10's purge by design. It holds the exporter's name and nothing else personal. **The file itself leaves the product's control at the download.** Its retention is the bank's records management, and where a board pack goes next (a board portal, email) is the bank's processor, not this product's |
+| **Residency** | Generated on the application server (dompdf through `DocumentRenderer`, and `ZipArchive` for the PPTX). No external renderer and no processor. Generation is synchronous only (`docs/bcms/phase-11-notes.md` §1.6), which means **no server-side copy is ever held** waiting for a signed-link download. The deferred queued path would change that, and it would need a line here before it ships |
+| **Deliberately not done** | No persisted pack (no `bcms_board_packs`, ADR 0021 §4). No content in the audit log. No per-person data in the evidence pack |
+
+### 11.4 The training compliance register — each employee's competency score and assessor
+
+| | |
+|---|---|
+| **Where it runs** | `TrainingController::compliance()` → `TrainingComplianceService::complianceRows()`. One row per (assigned user × active curriculum), with assignment resolved live from roles, and `'*'` meaning every active user |
+| **Data subjects** | Every active user assigned to a curriculum. Because `BC-AWARE-ALL` is `'*'`, **that is the whole active workforce** |
+| **Fields per row** | Name, department, curriculum; attendance date and next due date; competency: whether assessed, **score**, pass mark, **assessor's name**, assessed date; and the source occurrence. The same page also ships **`users`, every active user's id, name and department**, for the assessor picker, plus the `departments` list |
+| **Nature** | A failed assessment is deliberately kept as a valid record, rendered as "Assessed 62% by {assessor}, below the 80% pass mark". **That is employee performance data**, §8.2's category, collected for ISO 22301 7.2, and line managers will read it. It is the second artefact in this module, after §8.2's evaluator commentary, most likely to be used in a conversation it was not collected for |
+| **Lawful basis** | Employment contract and legitimate interest. **Not legal obligation**: see §3's corrected cell |
+| **Access rule, being implemented now** | Gate `bcms.training.view`, held by risk-owner (the Department BC Champion), risk-analyst, compliance-officer, risk-manager and the CRO. **Rows must be limited to subjects whose `users.business_unit_id` is in the viewer's unit set.** Five rules, stated so that the fix cannot land half-done: |
+| | **(1) One resolver.** The unit set is `RcsaScope::unitIdsFor($viewer)`, the same one `ScopedToOrgHierarchy::visibleTo()` uses. A null result means the whole estate (`rcsa_scope.all_units`, or a system context). There is no second scoping rule |
+| | **(2) The null arm inverts for people.** `visibleTo()` makes `business_unit_id IS NULL` visible to everyone, because a no-unit *row* is a group plan every branch must follow. **A no-unit *person* is not organisation-level content.** Their score must be visible **only to a whole-estate viewer**, never to every unit-scoped viewer. Copying the trait's null arm here would publish the scores of exactly the people HR has not yet placed |
+| | **(3) The named-user arm.** The subject always sees their own row, which My Resilience already mirrors. **The recorded assessor sees the rows they assessed**, because they wrote that score. Nobody else is added |
+| | **(4) The picker leaks unless it is scoped too.** The `users` list (name and department of every active user) and the `departments` list must be filtered to the same unit set. Otherwise a unit-scoped champion still receives the whole workforce's names and departments through the assessor picker after the rows are fixed. Somebody outside the viewer's units cannot be assessed from this screen anyway, because their row is not on it |
+| | **(5) The tiles follow the rows.** `summaryTiles()` must count over the same scoped set. A tile that disagrees with the table below it is a defect in its own right, and at small unit sizes an "overdue: 1" identifies a person |
+| **Audit copy: registered, not a defect** | `TrainingRecord` is `BcmsAuditable` with the base `auditExcluded()`, so every create and update copies `score`, `assessor_id` and `user_id` into `bcms_audit_logs`. **Unlike §7.5.1, this duplication has evidential gain.** A competency score that was changed, and who changed it from 62 to 80, is exactly what an examiner needs to be able to trace on a mandatory record. It is kept, and its cost is stated: **§3's three-year retention cannot reach the audit copy**, so a person's score history outlives the record for as long as the audit log exists. Open question 16 |
+| **Retention** | §3 unchanged: 3 years after `next_due_date`, or the certification cycle. Failed-assessment rows run on the same clock, because they are 7.2 evidence that the process detects a competence gap. **Not enforced by anything (§10)** |
+| **Residency** | Inherits §1 |
+| **Export** | **None.** `TrainingController` has no export action. The only training data that leaves the system is the 7.2 counts inside the evidence pack (11.3) |
+| **Deliberately not done** | No certificate upload (ADR 0021 §3), so no provider certificates carrying ID numbers or photographs. Attendance and competency are never blended into one "trained %" figure |
+
+### 11.5 Clause codes, and what is still missing
+
+**No new clause ref is published by this section.** Everything maps to
+`ndpa.lawful_basis`, `ndpa.retention` and `ndpa.residency`. `ndpa.processor_agreement`
+remains proposed and unpublished, on §5.4's terms.
+
+**Nothing in Phase 11 deletes anything, and there is still no purge command (§10).**
+Phase 11 does not make that worse: three of its four activities persist no new
+personal data. The fourth, the training register, reads rows §3 already registered.
+**Nothing here should be read as a promise that a purge command is coming.** §10's
+specification stands, unowned by any scheduled phase.
+
+### 11.6 Sufficiency — could an examiner be shown this in one click?
+
+**Ask: "show me everyone who took personal data out of this system in a report this year."**
+
+**Partly.** The evidence-pack screen's export log (`EvidencePackService::log()`) lists
+both packs' `pack.exported` rows, with who, when, which framework or board year, and
+for which period, and a human assembles nothing. Three limits:
+
+- the log is **the latest 50 rows, unpaginated**, so a busy year truncates silently;
+- **the CSAT pre-fill is not in it at all** (11.2);
+- **this pass did not check** whether the other `bcms.report.export` doors write a
+  comparable row. Those are §6.2's alert-evidence CSV, the AAR export, the BIA report,
+  the plan document and the incident notification log. This register does not claim
+  they do.
+
+---
+
 ## Open questions for the client's DPO — Week 1 blockers
 
 These are listed as a Week-1 non-engineering blocker in Orchestration §9 and are
@@ -1190,6 +1322,27 @@ not an agent's to answer.
     whether it is expected to live here at all. If it is, it is a sized piece of
     work and not a column.
 
+### Added at Phase 11, 2026-09-23
+
+14. **Vendor personnel on the roster** (11.1). Supplier staff are matched by email
+    between TPRM and BCMS and shown by name with their exercise attendance, to
+    board members among others. They are not the bank's employees and not covered
+    by its staff privacy notice. Does each critical vendor's §29 agreement (held in
+    the TPRM engagement record) say that its personnel's data is used as
+    continuity-exercise evidence? If not, whose notice covers it?
+15. **Should the board pack print nonconformity descriptions verbatim?** (11.3).
+    Today it prints every open nonconformity's full free text, including findings
+    raised from post-incident reviews that can name staff and customers, into a
+    PDF and PPTX that leave the product's control on download. The alternative is
+    reference, clause, severity, age and action count, without the description.
+    The board may need the description; if so, that is a decision and not a
+    default.
+16. **Competency scores in the append-only audit log** (11.4). A person's score
+    history, including failed assessments, outlives §3's three-year retention
+    indefinitely, because `bcms_audit_logs` has no purge path. That is justified on
+    evidential grounds. Does the DPO accept it, and does the staff privacy notice
+    say it?
+
 ## HANDOFF — Phase 0 (historical)
 
 **Phase:** P0 — Foundations & schema freeze
@@ -1239,3 +1392,16 @@ not an agent's to answer.
 **Known gaps:** (1) **No purge command exists anywhere in BCMS** — §10 specifies it; every retention figure in this register is intent, and the factual position is indefinite retention. Owner backend-engineer, schedule reliability-engineer. (2) **§7.5.1 — `IdentitySyncChange` copies `before_json`/`after_json` into the append-only audit log** through the base `auditExcluded()`; one-method fix recommended, owner backend-engineer, **should be fixed before the first production sync**, not before gate 1. (3) **The DSAR export does not exist** and the Phase 0 commitment has slipped past the phase that owned it (§7.9). (4) **§8.3 — `participant_feedback` accepts any shape**; the published `bcms.aar.feedback.v1` rule that comments carry role and unit and never a name is enforced by nothing, owner backend-engineer at the Phase 9 re-gate. (5) **§9.3 — NDPA s.40(3) data-subject communication is not modelled at all**; architect's, and it is bigger than a column. (6) **§9.1 — `bcms_incident_log.attachments` is an un-modelled sibling of `bcms_evidence`**: no hash, no lock, no uploader, no retention. (7) A DPIA is probably required before the connector goes live and is the DPO's (§7.10). (8) The GAID original could not be read through the available tooling; every GAID statement is corroborated **by effect** from secondary commentary and the article numbering must be pinned by counsel. (9) The possible six-month GAID default retention is **not corroborated** and deliberately not adopted
 **Next agent:** `qa-engineer` for the **Phase 2C re-gate (gate 1)**. The gate-1 blocker this entry was raised against is discharged: ADR 0018 §10's five named items are on the record. Nothing in §7 asks qa-engineer to test a document — the two items a test could hold are §7.5.1's `auditExcluded()` override and §8.3's form-request rules, and both are named with owners rather than smuggled into this phase's criteria. After gate 1, `code-reviewer` for gate 2; `backend-engineer` owns gaps (2) and (4); `architect` owns gaps (5) and (6) and the review-queue permission observation at §7.4
 **Verification run:** Read in full on `integration/bcms-remaining`, 2026-09-17: `docs/adr/0018-bcms-phase-2c-is-entra-only.md` (all sections), `docs/bcms/phase-2c-entra-work-order.md`, `database/migrations/2026_09_17_120001_create_bcms_identity_tables.php`, `app/Services/Bcms/Identity/ChangeApplier.php` (both constants read literally, not summarised), `app/Services/Bcms/Identity/EntraGraphClient.php` (the `$select`, the single POST, the token cache, `scopesFromToken()`, `classifiedFailure()`, `curlErrno()`), `app/Support/Bcms/DirectoryAttributeMap.php`, `app/Services/Bcms/Identity/ChangeDetector.php` (to establish exactly what lands in `before_json`/`after_json`/`subject_name`), `app/Services/Bcms/Identity/ImpactAssessor.php` (to establish that `impact_json`'s `headline` carries the subject's own name and no third party's), `app/Models/Bcms/IdentitySyncChange.php`, `app/Models/Bcms/Concerns/BcmsAuditable.php`, `app/Presenters/Bcms/IdentityPresenter.php`, `app/Enums/Bcms/IsoClauseRef.php`, `app/Enums/Bcms/NotificationRegulator.php`, `app/Enums/Bcms/NotificationKind.php`, the Phase 9 and Phase 10 migrations, `app/Services/FileUploadService.php` (`DISK = 'local'`), `docs/bcms/phase-9-aar-clause-map.md` §2.3 and refinement 13, `docs/bcms/phase-10-incident-clause-map.md` §§2.1, 2.3, 5, 6. **Re-checked and found closed:** round 2's known gaps (1) `SmsGatewayChannel::reasonFrom()` and (2) `BcmsAuditable` / `MaterialiseReminderLadder` `getMessage()` — both now bounded and value-free, read in the code rather than taken from a note. **Re-checked and found still true:** no BCMS purge or retention command exists (`app/Console/Commands` enumerated; `PruneLlmUsageEvents` is TPRM's); no DSAR path exists; `bcms_incidents` has no personal-data-breach flag or data-subject count. Sources searched for the regulatory statements: NDPA s.25's lawful bases including legitimate interest ([Lexology](https://www.lexology.com/library/detail.aspx?g=ae8ccbd5-8368-4fd7-bd3c-f9c826f12bf3)), GAID 2025's DPIA triggers and audit expectations ([DLA Piper](https://privacymatters.dlapiper.com/2025/06/nigeria-ndpc-issues-gaid-key-compliance-insights/), [Mondaq](https://www.mondaq.com/nigeria/privacy-protection/1606106/the-nigeria-data-protection-commission-issues-the-general-application-and-implementation-directive-2025-gaid)), GAID's minimum-necessary and retention framing ([Mondaq, data minimisation and retention](https://www.mondaq.com/nigeria/privacy-protection/1764584/data-protection-data-minimisation-and-retention-keeping-only-what-you-truly-need)), the CBN Risk-Based Cybersecurity Framework for DMBs and PSBs 2024 ([CBN](https://www.cbn.gov.ng/Out/2024/BSD/CBN%20Risk-Based%20Cybersecurity%20Framework%20for%20DMBs%20and%20PSBs_2024.pdf)). **The GAID PDF at ndpc.gov.ng was fetched and could not be parsed to text**, so no GAID article number is quoted anywhere in §7.10 — the instrument and its effect are cited, as §5.4 already does. **Could not corroborate:** any CBN provision requiring a bank to read its identity directory or to hold an emergency roster in a prescribed form — which is why §7.3 makes legitimate interest the operative basis rather than legal obligation; and the six-month GAID default retention, which one source asserts and two fetched in full do not mention. No test suite run; no database touched. **Examiner walkthrough — "show me how your emergency roster is kept accurate, who approved each change, and what you were permitted to read from your directory": answerable in one click from `identity/runs` → the run → the change queue, with the token's own `roles` claim answering the permission half. The two questions that fail are the subject's, not the examiner's — "show me everything you hold about me" (no DSAR export) and "show me that you deleted it when you said you would" (nothing deletes anything, and the audit-log copy could not be deleted if it did).**
+
+## HANDOFF — Phase 11
+
+**Phase:** P11 — Training & competency, supply-chain resilience, reporting & evidence (register additions; the 8.6 ruling is in `docs/bcms/phase-11-notes.md`)
+**Agent:** compliance-analyst
+**Status:** complete
+**Delivered:** this file. New **§11**: 11.1 vendor email matching, 11.2 CSAT pre-fill, 11.3 exported packs, 11.4 the training register with its five-part access rule, 11.5 clause codes, 11.6 sufficiency. §3's lawful-basis cell corrected. Open questions 14–16
+**Clause refs published:** none
+**Contracts touched:** none. Documentation only
+**Assumptions made:** that a completed CSAT workbook carries officers' names and contact details. This could not be verified, because the product does not hold the template (ADR 0021 §4)
+**Known gaps:** no purge command (§10, unchanged). 11.1 case-mismatch vendor id 0. 11.2 no audit row, no upload size limit, temp file left behind on a writer failure. 11.3 finding descriptions printed verbatim into board packs. 11.6 export log capped at 50 rows, with other export doors not checked
+**Next agent:** `backend-engineer` (11.1, 11.2, and 11.4's scoping fix to all five rules), then `qa-engineer` and `code-reviewer`
+**Verification run:** code read 2026-09-23 on `integration/bcms-remaining`, as listed in 11.1–11.4. No suite run, no database touched. Examiner walkthrough "who took personal data out in a report this year": partly one click (11.6)

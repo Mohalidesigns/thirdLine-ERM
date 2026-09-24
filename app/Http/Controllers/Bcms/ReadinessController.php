@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Bcms;
 
 use App\Http\Controllers\Controller;
+use App\Models\Bcms\Evidence;
 use App\Models\Bcms\ExerciseOccurrence;
 use App\Models\Bcms\NotificationDelivery;
 use App\Models\Bcms\ReadinessTask;
 use App\Models\User;
+use App\Services\Bcms\Exercises\EvidenceService;
 use App\Services\Bcms\Reminders\AttendanceService;
 use App\Services\Bcms\Reminders\ReadinessService;
 use App\Services\Bcms\Reminders\ReminderAudienceResolver;
 use App\Services\Bcms\Reminders\ReminderScheduleBuilder;
+use App\Services\FileUploadService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -35,6 +38,8 @@ class ReadinessController extends Controller
         private ReminderScheduleBuilder $builder,
         private ReminderAudienceResolver $audience,
         private AttendanceService $attendance,
+        private EvidenceService $evidence,
+        private FileUploadService $uploads,
     ) {}
 
     /** The occurrence's readiness checklist and its alert plan. */
@@ -52,6 +57,15 @@ class ReadinessController extends Controller
             ->get();
 
         $gate = $this->readiness->gate($occurrence);
+
+        // `evidence_file_id` is retired (ADR 0019 §3) — "has evidence" is now
+        // answered from the real `bcms_evidence` table, one query for every
+        // task on the screen rather than N.
+        $taskIdsWithEvidence = Evidence::query()
+            ->where('owner_type', Evidence::KIND_READINESS_TASK)
+            ->whereIn('owner_id', $tasks->pluck('id'))
+            ->pluck('owner_id')
+            ->all();
 
         // A local, because a belongsTo on a nullable key is genuinely nullable
         // at runtime and typed non-null by static analysis — and the complaint
@@ -85,7 +99,7 @@ class ReadinessController extends Controller
                 'status' => $t->status,
                 'is_blocking' => (bool) $t->is_blocking,
                 'requires_evidence' => $t->templateTask !== null && (bool) $t->templateTask->requires_evidence,
-                'has_evidence' => $t->evidence_file_id !== null,
+                'has_evidence' => $t->evidence_file_id !== null || in_array($t->getKey(), $taskIdsWithEvidence, true),
                 'override_reason' => $t->override_reason,
                 'overridden_at' => $t->overridden_at?->toDateString(),
                 'is_overdue' => $t->status === 'overdue',
@@ -112,14 +126,35 @@ class ReadinessController extends Controller
         ]);
     }
 
+    /**
+     * `evidence_file_id` IS RETIRED (ADR 0019 §3): it was a bare, unconstrained
+     * integer pointing at no table — the same defect family as standard §4's
+     * bare `exists:`. Evidence is now a real, permissioned upload into
+     * `bcms_evidence`, `owner_type = 'readiness_task'`.
+     */
     public function complete(Request $request, ReadinessTask $task): RedirectResponse
     {
         Gate::authorize('bcms.exercise.facilitate');
 
-        $data = $request->validate(['evidence_file_id' => ['nullable', 'integer']]);
+        $data = $request->validate([
+            'evidence' => $this->uploads->rules(FileUploadService::PROFILE_BCMS_EVIDENCE, required: false),
+            'caption' => ['nullable', 'string', 'max:255'],
+        ]);
 
         try {
-            $this->readiness->complete($task, $request->user(), $data['evidence_file_id'] ?? null);
+            if ($request->hasFile('evidence')) {
+                $this->evidence->upload(
+                    $task->occurrence,
+                    $request->file('evidence'),
+                    Evidence::KIND_READINESS_TASK,
+                    $task->getKey(),
+                    'file',
+                    $request->user(),
+                    $data['caption'] ?? null,
+                );
+            }
+
+            $this->readiness->complete($task, $request->user());
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
         }

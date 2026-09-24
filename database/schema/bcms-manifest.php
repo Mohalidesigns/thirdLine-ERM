@@ -22,9 +22,9 @@
 return [
     'bcms_aars' => [
         'ai_draft_generated_at', 'ai_generated', 'approved_at', 'approved_by', 'created_at',
-        'created_by', 'deleted_at', 'distributed_at', 'id', 'iso_clause_ref', 'occurrence_id',
-        'organization_id', 'participant_feedback', 'quantitative_results', 'status', 'summary',
-        'updated_at', 'updated_by', 'uuid', 'what_failed', 'what_worked',
+        'created_by', 'deleted_at', 'distributed_at', 'id', 'incident_id', 'iso_clause_ref',
+        'occurrence_id', 'organization_id', 'participant_feedback', 'quantitative_results',
+        'status', 'summary', 'updated_at', 'updated_by', 'uuid', 'what_failed', 'what_worked',
     ],
     'bcms_alert_recipients' => [
         'acknowledged_at', 'alert_id', 'contact_id', 'contact_name_snapshot', 'created_at',
@@ -155,6 +155,11 @@ return [
         'code', 'created_at', 'created_by', 'deleted_at', 'equipment_type', 'external_ref', 'id',
         'is_active', 'name', 'organization_id', 'quantity', 'site_id', 'updated_at', 'updated_by',
     ],
+    'bcms_evidence' => [
+        'caption', 'captured_at', 'created_at', 'deleted_at', 'file_name', 'file_path', 'hash',
+        'id', 'iso_clause_ref', 'kind', 'locked_at', 'locked_by', 'mime', 'occurrence_id',
+        'organization_id', 'owner_id', 'owner_type', 'size', 'updated_at', 'uploaded_by', 'uuid',
+    ],
     'bcms_exercise_definitions' => [
         'blackout_overrides', 'business_unit_id', 'created_at', 'created_by',
         'daily_reminder_enabled', 'default_audience_rule', 'default_channel_set', 'deleted_at',
@@ -230,6 +235,12 @@ return [
         'attachments', 'content', 'created_at', 'entry_type', 'id', 'incident_id', 'logged_at',
         'logged_by', 'organization_id', 'supersedes_entry_id', 'updated_at',
     ],
+    'bcms_incident_notifications' => [
+        'awareness_at', 'basis_clause_ref', 'content_snapshot', 'created_at', 'created_by',
+        'due_at', 'id', 'incident_id', 'kind', 'organization_id', 'reference', 'regulator',
+        'sequence', 'submitted_at', 'submitted_by', 'updated_at', 'updated_by',
+        'withdrawal_entry_id', 'withdrawn_at', 'withdrawn_by',
+    ],
     'bcms_incident_tasks' => [
         'completed_at', 'created_at', 'description', 'due_at', 'id', 'incident_id',
         'organization_id', 'owner_id', 'priority', 'status', 'title', 'updated_at',
@@ -270,7 +281,8 @@ return [
     ],
     'bcms_plan_activations' => [
         'activated_at', 'activated_by', 'activation_reason', 'created_at', 'deactivated_at', 'id',
-        'incident_id', 'is_exercise', 'occurrence_id', 'organization_id', 'plan_id', 'updated_at',
+        'incident_id', 'is_exercise', 'kept_active_entry_id', 'occurrence_id', 'organization_id',
+        'plan_id', 'updated_at',
     ],
     'bcms_plan_attestations' => [
         'attestation_type', 'attested_at', 'attested_by', 'attested_by_name', 'attested_by_role',

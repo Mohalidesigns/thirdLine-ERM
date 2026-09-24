@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers\Bcms;
 
-use App\Enums\Bcms\AlertSeverity;
-use App\Enums\Bcms\ChannelKey;
 use App\Exceptions\Bcms\CircularAudienceRuleException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Bcms\StoreBcmsAlertRequest;
 use App\Jobs\Bcms\DispatchAlertChunkJob;
 use App\Jobs\Bcms\EscalateAlertRecipientsJob;
 use App\Models\Bcms\Alert;
 use App\Models\Bcms\AlertRecipient;
 use App\Models\Bcms\AlertTemplate;
+use App\Models\Bcms\Incident;
 use App\Presenters\Bcms\EmnsPresenter;
 use App\Services\Bcms\Emns\AlertService;
 use App\Services\Bcms\Emns\EvidenceExport;
@@ -79,25 +79,30 @@ class AlertController extends Controller
         return response()->json($this->presenter->alert($alert));
     }
 
-    public function store(Request $request): RedirectResponse
+    /**
+     * `incident_id` (Gate 2 review #1 defect 13) arrives as the incident's
+     * uuid and is resolved through `Incident::visibleTo()` before it is
+     * stored as the integer FK `AlertService::compose()` already passes
+     * through — see `StoreBcmsAlertRequest`'s own docblock for why this is
+     * not a bare tenant `Rule::exists()`.
+     */
+    public function store(StoreBcmsAlertRequest $request): RedirectResponse
     {
-        Gate::authorize('bcms.alert.compose');
-
-        $data = $request->validate([
-            'title' => ['required', 'string', 'max:200'],
-            'message' => ['nullable', 'string', 'max:4000'],
-            'template_id' => ['nullable', 'integer'],
-            'severity' => ['required', 'string', 'in:'.implode(',', array_column(AlertSeverity::cases(), 'value'))],
-            'channels' => ['nullable', 'array'],
-            'channels.*' => ['string', 'in:'.implode(',', array_column(ChannelKey::cases(), 'value'))],
-            'audience_rule' => ['nullable', 'array'],
-            'occurrence_id' => ['nullable', 'integer'],
-            'response_required' => ['nullable', 'boolean'],
-            'ack_window_minutes' => ['nullable', 'integer', 'min:1', 'max:1440'],
-        ]);
+        $data = $request->validated();
 
         if (filled($data['template_id'] ?? null) && AlertTemplate::query()->find($data['template_id']) === null) {
             throw ValidationException::withMessages(['template_id' => 'That template does not exist.']);
+        }
+
+        if (filled($data['incident_id'] ?? null)) {
+            $incident = Incident::query()->visibleTo($request->user())
+                ->where('uuid', $data['incident_id'])->first();
+
+            abort_if($incident === null, 404);
+
+            $data['incident_id'] = $incident->getKey();
+        } else {
+            unset($data['incident_id']);
         }
 
         $alert = $this->alerts->compose($data, (int) $request->user()?->getKey());

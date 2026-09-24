@@ -19,7 +19,9 @@ use App\Models\Bcms\Concerns\ScopedToOrgHierarchy;
 use App\Models\Bcms\Concerns\ScopedToOrgHierarchyContract;
 use App\Models\Bcms\DrSystem;
 use App\Models\Bcms\DrTest;
+use App\Models\Bcms\Evidence;
 use App\Models\Bcms\ExerciseDefinition;
+use App\Models\Bcms\ExerciseInject;
 use App\Models\Bcms\ExerciseOccurrence;
 use App\Models\Bcms\ExerciseParticipant;
 use App\Models\Bcms\ExerciseProgramme;
@@ -612,15 +614,47 @@ class BcmsRecordVisibilityTest extends TestCase
                 .'holds bcms.readiness.override and answers for the gate — the person who decides whether the '
                 .'exercise may start must be able to clear what blocks it, including a task owned by somebody else.',
         ],
+        // Phase 9, closing a Gate 2 finding carried over from the Phase 7.5
+        // code review (ADR 0017 Amendment 1 assigns it here): all three of
+        // these anchor through `occurrence.definition`, exactly the shape
+        // ReadinessTask does, and shipped with no named-user arm at all — a
+        // cross-unit facilitator who reaches the occurrence through ITS OWN
+        // arm 404s the moment they try to act on the AAR, an inject or the
+        // exercise's evidence, because `constrainAnchorPath()`'s walk down
+        // `occurrence.definition` only consults the DEFINITION's own
+        // `scopeVisibleTo()` — it does not re-apply the occurrence's own
+        // named-user arm partway through the chain.
+        Aar::class => [
+            'specs' => ['occurrence.facilitator_id'],
+            'reason' => 'The facilitator drafts and edits the report (bcms.aar.manage) regardless of which '
+                .'unit the occurrence sits in. The AAR\'s other actor, the approver, is not a stored id ahead of '
+                .'approval — there is no approver_id column to name, only approved_by, written once approval '
+                .'happens — so there is nothing to declare for that role. A participant does not act on the AAR '
+                .'routes at all; they score objectives, on a different model.',
+        ],
+        Evidence::class => [
+            'specs' => ['occurrence.facilitator_id'],
+            'reason' => 'occurrence.facilitator_id: the facilitator manages the exercise\'s evidence regardless '
+                .'of unit. uploaded_by is deliberately absent: every evidence route nests under '
+                .'occurrences/{occurrence} with scopeBindings(), so the parent segment is resolved through '
+                .'ExerciseOccurrence\'s own visibility first and an uploader who is not facilitator, participant '
+                .'or in-unit 404s there before this arm is consulted — a same-unit-uploader test proved the fact '
+                .'unreachable, so it is not claimed.',
+        ],
+        ExerciseInject::class => [
+            'specs' => ['occurrence.facilitator_id'],
+            'reason' => 'Only the facilitator releases an inject (bcms.exercise.facilitate); no other role '
+                .'writes bcms_exercise_injects, so the occurrence\'s own facilitator is the one fact worth naming.',
+        ],
     ];
 
     #[Test]
     public function the_named_user_visibility_map_is_pinned_and_asserted_whole(): void
     {
         $this->assertSame(
-            [ExerciseOccurrence::class, ReadinessTask::class],
+            [ExerciseOccurrence::class, ReadinessTask::class, Aar::class, Evidence::class, ExerciseInject::class],
             array_keys(self::NAMED_USER_VISIBILITY),
-            'A model besides ExerciseOccurrence and ReadinessTask now declares a named-user arm — '
+            'A model besides the five pinned here now declares a named-user arm — '
             .'ADR 0017 Amendment 1 pins this map exactly; widening it is a diff here with a reason, not a '
             .'silent addition to a model file.'
         );
@@ -785,6 +819,154 @@ class BcmsRecordVisibilityTest extends TestCase
         ]);
 
         return [$occurrence, $facilitator];
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Phase 9 / Gate 2 — Aar, Evidence and ExerciseInject each need their */
+    /*  own named-user arm; the occurrence's arm does not carry through. */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * `bcms.aars.update` is a STANDALONE route (no `occurrences/{occurrence}`
+     * prefix, no `->scopeBindings()`) — it binds `Aar` directly, so success
+     * here is provably `Aar::orgVisibilityNamedUsers()`'s own arm at work,
+     * not an occurrence-level gate the request also had to clear.
+     */
+    #[Test]
+    public function a_cross_unit_facilitator_can_update_their_own_aar_a_bystander_cannot(): void
+    {
+        [$occurrence, $facilitator] = $this->lagosOccurrenceFacilitatedFromKano();
+        $facilitator->givePermissionTo(Permission::findOrCreate('bcms.aar.manage', 'web'));
+
+        // Same unit as the facilitator (Kano), not Lagos — so a 404 here is
+        // provably the named-user arm, not a plain unit mismatch, and a
+        // success for the facilitator cannot be explained by ordinary
+        // org-hierarchy visibility either.
+        $bystander = $this->userWith(['bcms.aar.manage'], 'aar-bystander@khb.test', $this->kano);
+
+        $aar = Aar::query()->create([
+            'occurrence_id' => $occurrence->getKey(), 'status' => 'draft',
+            'quantitative_results' => [], 'participant_feedback' => [],
+        ]);
+
+        $this->actingAs($bystander)
+            ->patch(route('bcms.aars.update', $aar), ['summary' => 'Bystander should not reach this.'])
+            ->assertNotFound();
+        $this->assertNull($aar->fresh()->summary);
+
+        $this->actingAs($facilitator)
+            ->patch(route('bcms.aars.update', $aar), ['summary' => 'Facilitator can edit their own report.'])
+            ->assertRedirect();
+        $this->assertSame('Facilitator can edit their own report.', $aar->fresh()->summary);
+    }
+
+    /**
+     * `bcms.occurrences.injects.release` nests under the occurrence and
+     * `->scopeBindings()`'s the inject to it, so the parent occurrence
+     * parameter resolves for the facilitator via ITS OWN arm first — but
+     * `ExerciseInject::resolveRouteBindingQuery()` is then consulted
+     * SEPARATELY for the inject itself, and `constrainAnchorPath()`'s walk
+     * down `occurrence.definition` only asks the DEFINITION's own
+     * `scopeVisibleTo()`, never the occurrence's `facilitator_id` arm. Before
+     * this phase's fix the facilitator passed the parent gate and still
+     * 404'd on the inject — exactly the Gate 2 finding.
+     */
+    #[Test]
+    public function a_cross_unit_facilitator_can_release_their_own_inject_a_bystander_cannot(): void
+    {
+        [$occurrence, $facilitator] = $this->lagosOccurrenceFacilitatedFromKano();
+        $bystander = $this->userWith(['bcms.exercise.facilitate'], 'inject-bystander@khb.test', $this->kano);
+
+        $inject = ExerciseInject::query()->create([
+            'occurrence_id' => $occurrence->getKey(), 'sequence' => 1,
+            'release_offset_minutes' => 5, 'title' => 'A scripted event',
+        ]);
+
+        $this->actingAs($bystander)
+            ->post(route('bcms.occurrences.injects.release', [$occurrence, $inject]))
+            ->assertNotFound();
+        $this->assertNull($inject->fresh()->released_at);
+
+        $this->actingAs($facilitator)
+            ->post(route('bcms.occurrences.injects.release', [$occurrence, $inject]))
+            ->assertRedirect();
+        $this->assertNotNull($inject->fresh()->released_at);
+    }
+
+    /**
+     * `bcms.evidence.destroy` is the real write verb Evidence's own arm
+     * protects: `.store` never binds an `Evidence` model at all (there is no
+     * row yet), so it cannot exercise this fix. The row here is uploaded by a
+     * THIRD user, neither the facilitator nor the bystander, so a facilitator
+     * success is provably the `occurrence.facilitator_id` arm, not the
+     * `uploaded_by` one.
+     */
+    #[Test]
+    public function a_cross_unit_facilitator_can_delete_evidence_on_their_own_occurrence_a_bystander_cannot(): void
+    {
+        [$occurrence, $facilitator] = $this->lagosOccurrenceFacilitatedFromKano();
+        $bystander = $this->userWith(['bcms.exercise.facilitate'], 'evidence-bystander@khb.test', $this->kano);
+        $uploader = $this->userWith(['bcms.exercise.facilitate'], 'evidence-uploader@khb.test', $this->lagos);
+
+        // `hash` is deliberately not fillable (Gate 2 advisory 8) — built
+        // unsaved and `forceFill()`'d, the same one-INSERT shape
+        // `EvidenceService::upload()` uses.
+        $evidence = new Evidence([
+            'occurrence_id' => $occurrence->getKey(), 'owner_type' => Evidence::KIND_OCCURRENCE,
+            'owner_id' => $occurrence->getKey(), 'kind' => 'file', 'file_name' => 'sheet.txt',
+            'file_path' => 'bcms/evidence/test/sheet.txt', 'mime' => 'text/plain', 'size' => 10,
+            'uploaded_by' => $uploader->getKey(),
+        ]);
+        $evidence->forceFill(['hash' => str_repeat('a', 64)]);
+        $evidence->save();
+
+        $this->actingAs($bystander)
+            ->delete(route('bcms.evidence.destroy', [$occurrence, $evidence]))
+            ->assertNotFound();
+        $this->assertNull($evidence->fresh()->deleted_at);
+
+        $this->actingAs($facilitator)
+            ->delete(route('bcms.evidence.destroy', [$occurrence, $evidence]))
+            ->assertRedirect();
+        $this->assertNotNull($evidence->fresh()->deleted_at);
+    }
+
+    /**
+     * `uploaded_by` is NOT a named-user arm on Evidence, and this test pins
+     * why: the evidence routes nest under `occurrences/{occurrence}` with
+     * `scopeBindings()`, so an uploader who is neither the facilitator nor a
+     * participant nor in-unit is refused at the parent segment. If someone
+     * later declares `uploaded_by` as an arm without flattening the routes,
+     * the arm is dead code — this test asserts the honest behaviour (404 for
+     * both the uploader and the same-unit bystander) so the claim cannot be
+     * re-made silently.
+     */
+    #[Test]
+    public function an_uploader_who_is_not_facilitator_participant_or_in_unit_is_refused_at_the_occurrence_segment(): void
+    {
+        [$occurrence] = $this->lagosOccurrenceFacilitatedFromKano();
+
+        $uploader = $this->userWith(['bcms.exercise.facilitate'], 'evidence-uploaded-by-uploader@khb.test', $this->kano);
+        $bystander = $this->userWith(['bcms.exercise.facilitate'], 'evidence-uploaded-by-bystander@khb.test', $this->kano);
+
+        $evidence = new Evidence([
+            'occurrence_id' => $occurrence->getKey(), 'owner_type' => Evidence::KIND_OCCURRENCE,
+            'owner_id' => $occurrence->getKey(), 'kind' => 'file', 'file_name' => 'photo.txt',
+            'file_path' => 'bcms/evidence/test/photo.txt', 'mime' => 'text/plain', 'size' => 10,
+            'uploaded_by' => $uploader->getKey(),
+        ]);
+        $evidence->forceFill(['hash' => str_repeat('b', 64)]);
+        $evidence->save();
+
+        $this->actingAs($bystander)
+            ->delete(route('bcms.evidence.destroy', [$occurrence, $evidence]))
+            ->assertNotFound();
+        $this->assertNull($evidence->fresh()->deleted_at);
+
+        $this->actingAs($uploader)
+            ->delete(route('bcms.evidence.destroy', [$occurrence, $evidence]))
+            ->assertNotFound();
+        $this->assertNull($evidence->fresh()->deleted_at);
     }
 
     /* ------------------------------------------------------------------ */

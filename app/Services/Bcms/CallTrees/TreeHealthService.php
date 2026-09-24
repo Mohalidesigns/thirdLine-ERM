@@ -9,8 +9,8 @@ use App\Models\Bcms\CallTree;
 use App\Models\Bcms\CallTreeTest;
 use App\Models\Bcms\Contact;
 use App\Models\KeyRiskIndicator;
-use App\Models\KriMeasurement;
 use App\Models\User;
+use App\Services\KriMeasureBridge;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Throwable;
@@ -43,7 +43,7 @@ class TreeHealthService
     /** A contact verified longer ago than this is no longer evidence of anything. */
     private const VERIFICATION_WINDOW_DAYS = 90;
 
-    public function __construct(private CallTreeService $trees) {}
+    public function __construct(private CallTreeService $trees, private KriMeasureBridge $bridge) {}
 
     /**
      * @return array<string, mixed>
@@ -264,14 +264,28 @@ class TreeHealthService
      * created here — a KRI the risk team has not defined is not one this module
      * invents on their behalf.
      *
+     * PHASE 11 REMEDIATION (ADR 0021 §2): this used to write
+     * `KriMeasurement::updateOrCreate()` directly, which produced exactly what
+     * `KriPublisher`'s docblock warns about — a KRI whose number moved and
+     * whose RAG band, breach record and history did not. It now records
+     * through `KriMeasureBridge::recordMeasurement()`, the same seam TPRM's
+     * publisher uses: the bridge resolves the period, writes the measure
+     * value, mirrors the legacy tables and reconciles the breach, in that
+     * order. A KRI that files a value and never breaches is worse than one
+     * that files nothing, because the first looks monitored.
+     *
      * @return list<string> the codes that were written
      */
     public function mirrorKris(?User $user = null): array
     {
         $written = [];
+        $actorId = $user?->getKey() ?? auth()->id();
 
         foreach ($this->kris($user) as $kri) {
             if ($kri['value'] === null) {
+                // Not zero. A null reading is skipped and said out loud —
+                // publishing zero here would open a red breach from a
+                // division by nothing (ADR 0021 §2).
                 continue;
             }
 
@@ -279,12 +293,21 @@ class TreeHealthService
                 $target = KeyRiskIndicator::query()->where('kri_code', $kri['code'])->first();
 
                 if ($target === null) {
+                    // An unlinked code is reported, not swallowed, by the
+                    // compliance matrix's "n of 17 not linked" line — it is
+                    // not this method's job to create one.
                     continue;
                 }
 
-                KriMeasurement::query()->updateOrCreate(
-                    ['kri_id' => $target->getKey(), 'measurement_date' => Carbon::now()->toDateString()],
-                    ['value' => $kri['value'], 'data_source' => 'bcms.call_trees', 'notes' => $kri['basis']],
+                $this->bridge->recordMeasurement(
+                    $target,
+                    Carbon::now()->toImmutable(),
+                    (float) $kri['value'],
+                    [
+                        'entered_by' => $actorId,
+                        'source' => 'bcms.call_trees',
+                        'notes' => $kri['basis'],
+                    ],
                 );
 
                 $written[] = $kri['code'];

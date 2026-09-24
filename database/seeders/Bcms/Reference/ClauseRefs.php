@@ -166,6 +166,13 @@ class ClauseRefs
             self::row(IsoClauseRef::Ndpa_residency, 'NDPA 2023', 's.41', 'Residency and cross-border transfer',
                 'Transfer personal data outside Nigeria only on one of the stated bases, and record which basis applies.',
                 'Nigeria Data Protection Act 2023', ['ndpa']),
+
+            // ---- Phase 10 (BCMS incident & crisis management) ------------
+            self::row(IsoClauseRef::Ndpa_breach_notification, 'NDPA 2023', 's.40', 'Personal data breach notification',
+                'Notify the Commission within 72 hours of becoming aware of a reportable personal data breach, '
+                .'in phases where the full information cannot be given in time, and communicate immediately to '
+                .'data subjects where the breach is likely to result in high risk to their rights and freedoms.',
+                'Nigeria Data Protection Act 2023 s.40; NDPC GAID 2025', ['ndpa', 'board']),
         ];
     }
 

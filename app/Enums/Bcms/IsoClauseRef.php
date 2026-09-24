@@ -123,6 +123,11 @@ enum IsoClauseRef: string
     case Ndpa_retention = 'ndpa.retention';                 // NDPA 2023 — retention and erasure
     case Ndpa_residency = 'ndpa.residency';                 // NDPA 2023 — residency and cross-border transfer
 
+    // Phase 10 (BCMS incident & crisis management). The only case this phase
+    // adds — everything else it stamps reuses an existing ref (compliance
+    // map `phase-10-incident-clause-map.md` §5, ADR 0020 §3).
+    case Ndpa_breach_notification = 'ndpa.breach_notification'; // NDPA 2023 s.40 — personal data breach notification
+
     /**
      * The clauses whose artefact ISO 22301 makes a mandatory documented record.
      *

@@ -15,21 +15,33 @@ use App\Http\Controllers\Admin\SsoSettingsController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\WebhookController;
 use App\Http\Controllers\Auth\SsoController;
+use App\Http\Controllers\Bcms\AarController as BcmsAarController;
 use App\Http\Controllers\Bcms\AlertController as BcmsAlertController;
 use App\Http\Controllers\Bcms\AlertTemplateController as BcmsAlertTemplateController;
 use App\Http\Controllers\Bcms\BiaCampaignController as BcmsBiaCampaignController;
 use App\Http\Controllers\Bcms\BiaController as BcmsBiaController;
 use App\Http\Controllers\Bcms\BiaReportController as BcmsBiaReportController;
+use App\Http\Controllers\Bcms\BoardPackController as BcmsBoardPackController;
 use App\Http\Controllers\Bcms\CalendarController as BcmsCalendarController;
 use App\Http\Controllers\Bcms\CallTreeController as BcmsCallTreeController;
 use App\Http\Controllers\Bcms\CallTreeTestController as BcmsCallTreeTestController;
+use App\Http\Controllers\Bcms\ComplianceController as BcmsComplianceController;
 use App\Http\Controllers\Bcms\DependencyController as BcmsDependencyController;
+use App\Http\Controllers\Bcms\DrSystemController as BcmsDrSystemController;
+use App\Http\Controllers\Bcms\DrTestController as BcmsDrTestController;
+use App\Http\Controllers\Bcms\EvidenceController as BcmsEvidenceController;
+use App\Http\Controllers\Bcms\EvidencePackController as BcmsEvidencePackController;
+use App\Http\Controllers\Bcms\ExecutionController as BcmsExecutionController;
 use App\Http\Controllers\Bcms\ExerciseDefinitionController as BcmsExerciseDefinitionController;
 use App\Http\Controllers\Bcms\ExerciseProgrammeController as BcmsExerciseProgrammeController;
 use App\Http\Controllers\Bcms\FindingController as BcmsFindingController;
 use App\Http\Controllers\Bcms\HomeController as BcmsHomeController;
 use App\Http\Controllers\Bcms\IdentityController as BcmsIdentityController;
 use App\Http\Controllers\Bcms\IdentitySyncController as BcmsIdentitySyncController;
+use App\Http\Controllers\Bcms\IncidentController as BcmsIncidentController;
+use App\Http\Controllers\Bcms\IncidentNotificationController as BcmsIncidentNotificationController;
+use App\Http\Controllers\Bcms\IncidentReviewController as BcmsIncidentReviewController;
+use App\Http\Controllers\Bcms\MyResilienceController as BcmsMyResilienceController;
 use App\Http\Controllers\Bcms\OccurrenceController as BcmsOccurrenceController;
 use App\Http\Controllers\Bcms\PlanController as BcmsPlanController;
 use App\Http\Controllers\Bcms\PlanDocumentController as BcmsPlanDocumentController;
@@ -37,9 +49,12 @@ use App\Http\Controllers\Bcms\PolicyController as BcmsPolicyController;
 use App\Http\Controllers\Bcms\ProcessController as BcmsProcessController;
 use App\Http\Controllers\Bcms\ProgrammeController as BcmsProgrammeController;
 use App\Http\Controllers\Bcms\ReadinessController as BcmsReadinessController;
+use App\Http\Controllers\Bcms\ScoreController as BcmsScoreController;
 use App\Http\Controllers\Bcms\SectionController as BcmsSectionController;
 use App\Http\Controllers\Bcms\SettingsController as BcmsSettingsController;
 use App\Http\Controllers\Bcms\StrategyController as BcmsStrategyController;
+use App\Http\Controllers\Bcms\SupplierResilienceController as BcmsSupplierResilienceController;
+use App\Http\Controllers\Bcms\TrainingController as BcmsTrainingController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Rcsa\ActionPlanController as RcsaActionPlanController;
@@ -2278,8 +2293,84 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.programme.manage')->name('reviews.capture');
         Route::post('reviews/{review}/approve', [BcmsProgrammeController::class, 'approveReview'])
             ->middleware('permission:bcms.programme.approve')->name('reviews.approve');
+        // bcms.report.view is sufficient to READ an approved review — it is
+        // exactly the kind of artefact the compliance matrix links out to,
+        // and an examiner should not need programme-management rights to
+        // open it (docs/bcms/screens/management-review-inputs.md).
+        Route::get('reviews/{review}', [BcmsProgrammeController::class, 'showReview'])
+            ->middleware('permission:bcms.report.view')->name('reviews.show');
         Route::post('maturity/assess', [BcmsProgrammeController::class, 'assessMaturity'])
             ->middleware('permission:bcms.report.view')->name('maturity.assess');
+
+        /* ================================================================
+         * PHASE 11 — Training & competency, supply-chain resilience,
+         * reporting/analytics/evidence (phase-11-spec, ADR 0021).
+         * ================================================================ */
+
+        /* --- Training & competency (clauses 7.2, 7.3) ------------------- */
+        Route::get('training/compliance', [BcmsTrainingController::class, 'compliance'])
+            ->middleware('permission:bcms.training.view')->name('training.compliance');
+        Route::post('training-curricula', [BcmsTrainingController::class, 'storeCurriculum'])
+            ->middleware('permission:bcms.training.manage')->name('training-curricula.store');
+        Route::post('training-records', [BcmsTrainingController::class, 'storeRecord'])
+            ->middleware('permission:bcms.training.manage')->name('training-records.store');
+        Route::post('training-records/{record}/assess', [BcmsTrainingController::class, 'assess'])
+            ->middleware('permission:bcms.training.manage')->name('training-records.assess');
+
+        /* --- Supplier resilience (ISO 22318) — read-through of TPRM ----- */
+        Route::get('vendors/continuity', [BcmsSupplierResilienceController::class, 'index'])
+            ->middleware('permission:bcms.report.view')->name('vendors.continuity');
+        Route::get('vendors/concentration', [BcmsSupplierResilienceController::class, 'concentration'])
+            ->middleware('permission:bcms.report.view')->name('vendors.concentration');
+        // Writes tp_bcp_tests via TPRM's own service and authority check —
+        // bcms.report.view is the floor, not the whole gate (phase-11-spec §5).
+        Route::post('vendors/{thirdParty}/attestation', [BcmsSupplierResilienceController::class, 'storeAttestation'])
+            ->middleware('permission:bcms.report.view')->name('vendors.attestation.store');
+
+        /* --- Reporting, analytics & evidence ---------------------------- */
+        /*
+         * `ModuleSections`' `compliance` flips to live alongside Phase 11
+         * (`docs/bcms/phase-11-notes.md`) — the shell's own route name is
+         * kept, redirecting to the screen that is actually the section's
+         * landing page, exactly as `it-dr.index` redirects to
+         * `dr-systems.index` above.
+         */
+        Route::get('compliance', fn () => redirect()->route('bcms.reports.compliance-matrix'))
+            ->middleware('permission:bcms.report.view')->name('compliance.index');
+
+        Route::get('metrics/resilience-kris', [BcmsComplianceController::class, 'resilienceKris'])
+            ->middleware('permission:bcms.report.view')->name('metrics.resilience-kris');
+        Route::get('reports/compliance-matrix', [BcmsComplianceController::class, 'matrix'])
+            ->middleware('permission:bcms.report.view')->name('reports.compliance-matrix');
+        Route::get('reports/maturity-heatmap', [BcmsComplianceController::class, 'maturityHeatmap'])
+            ->middleware('permission:bcms.report.view')->name('reports.maturity-heatmap');
+        Route::post('reports/gap-analysis/ai', [BcmsComplianceController::class, 'gapAnalysis'])
+            ->middleware('permission:bcms.report.view')->name('reports.gap-analysis.ai');
+        Route::post('reports/gap-analysis/raise', [BcmsComplianceController::class, 'raiseFromGapAnalysis'])
+            ->middleware('permission:bcms.finding.manage')->name('reports.gap-analysis.raise');
+
+        Route::get('reports/regulatory-evidence', [BcmsEvidencePackController::class, 'index'])
+            ->middleware('permission:bcms.report.export')->name('reports.regulatory-evidence.index');
+        Route::get('reports/regulatory-evidence/preview', [BcmsEvidencePackController::class, 'preview'])
+            ->middleware('permission:bcms.report.export')->name('reports.regulatory-evidence.preview');
+        Route::post('reports/regulatory-evidence', [BcmsEvidencePackController::class, 'store'])
+            ->middleware('permission:bcms.report.export')->name('reports.regulatory-evidence.store');
+        Route::post('reports/csat-prefill', [BcmsEvidencePackController::class, 'csatPrefill'])
+            ->middleware('permission:bcms.report.export')->name('reports.csat-prefill');
+
+        Route::get('reports/board-pack', [BcmsBoardPackController::class, 'index'])
+            ->middleware('permission:bcms.report.view')->name('reports.board-pack');
+        Route::get('reports/board-pack/export', [BcmsBoardPackController::class, 'export'])
+            ->middleware('permission:bcms.report.export')->name('reports.board-pack.export');
+
+        /* --- My Resilience (employee) ----------------------------------- */
+        // Permission decided here (docs/bcms/screens/my-resilience.md's own
+        // open question): `my.view` is the existing baseline "see your own
+        // responsibilities page" grant every employee already holds, so this
+        // route sits behind it rather than a BCMS-specific permission nobody
+        // outside the module's own users would hold.
+        Route::get('me/resilience', [BcmsMyResilienceController::class, 'index'])
+            ->middleware('permission:my.view')->name('myresilience.index');
 
         /* --- The BC policy (clause 5.2) -------------------------------- */
         Route::get('policy', [BcmsPolicyController::class, 'index'])
@@ -2350,6 +2441,9 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.bia.complete')->name('bia.ai-draft');
         Route::post('bia/assessments/{assessment}/dependencies', [BcmsBiaController::class, 'storeDependency'])
             ->middleware('permission:bcms.bia.complete')->name('bia.dependencies.store');
+        // ADR 0017 §5: `->scopeBindings()` resolves {dependency} through the
+        // assessment's own `dependencies()` relation rather than globally by
+        // id, and `Dependency::orgAnchorPath()` then applies its own filter.
         Route::delete('bia/assessments/{assessment}/dependencies/{dependency}', [BcmsBiaController::class, 'destroyDependency'])
             ->middleware('permission:bcms.bia.complete')->name('bia.dependencies.destroy')->scopeBindings();
 
@@ -2467,9 +2561,6 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.plan.manage')->name('plans.preview-binding');
         Route::post('plans/{plan}/submit-review', [BcmsPlanController::class, 'submitForReview'])
             ->middleware('permission:bcms.plan.manage')->name('plans.submit-review');
-        // ADR 0017 §5: `->scopeBindings()` resolves {dependency} through the
-        // assessment's own `dependencies()` relation rather than globally by
-        // id, and `Dependency::orgAnchorPath()` then applies its own filter.
         Route::post('plans/{plan}/approve', [BcmsPlanController::class, 'approve'])
             ->middleware('permission:bcms.plan.approve')->name('plans.approve');
         Route::post('plans/{plan}/supersede', [BcmsPlanController::class, 'supersede'])
@@ -2481,6 +2572,9 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
 
         Route::post('plans/{plan}/sections', [BcmsPlanController::class, 'storeSection'])
             ->middleware('permission:bcms.plan.manage')->name('plans.sections.store');
+        // ADR 0017 §5: without `->scopeBindings()`, {section} resolves
+        // globally by id — a section belonging to another division's plan
+        // could be addressed through a plan the user can see.
         Route::patch('plans/{plan}/sections/{section}', [BcmsPlanController::class, 'updateSection'])
             ->middleware('permission:bcms.plan.manage')->name('plans.sections.update')->scopeBindings();
         Route::delete('plans/{plan}/sections/{section}', [BcmsPlanController::class, 'destroySection'])
@@ -2509,6 +2603,7 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.report.export')->name('plans.acknowledgements.export');
         Route::post('plans/{plan}/activate', [BcmsPlanDocumentController::class, 'activate'])
             ->middleware('permission:bcms.plan.activate')->name('plans.activate');
+        // ADR 0017 §5: {activation} through the plan's own relation.
         Route::post('plans/{plan}/activations/{activation}/deactivate', [BcmsPlanDocumentController::class, 'deactivate'])
             ->middleware('permission:bcms.plan.activate')->name('plans.deactivate')->scopeBindings();
 
@@ -2523,6 +2618,17 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
          */
         Route::get('calendar', [BcmsCalendarController::class, 'index'])
             ->middleware('permission:bcms.exercise.view')->name('calendar.index');
+
+        /*
+         * `ModuleSections`' `exercises` flips to live alongside Phase 9
+         * (`docs/bcms/phase-9-notes.md`) — the shell's own route name is
+         * kept, redirecting to the screen that is actually the section's
+         * landing page (the programme and its occurrences, from which the
+         * T-10 ladder, the execution workspace and the AAR are all reached),
+         * exactly as `it-dr.index` redirects to `dr-systems.index` below.
+         */
+        Route::get('exercises', fn () => redirect()->route('bcms.exercise-programmes.index'))
+            ->middleware('permission:bcms.exercise.view')->name('exercises.index');
 
         /* --- Exercise programmes and definitions ------------------------ */
         Route::get('exercise-programmes', [BcmsExerciseProgrammeController::class, 'index'])
@@ -2591,6 +2697,66 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::post('readiness-tasks/{task}/override', [BcmsReadinessController::class, 'override'])
             ->middleware('permission:bcms.readiness.override')->name('readiness-tasks.override');
 
+        /* --- Phase 9: the exercise execution workspace and the AAR ------- */
+        /*
+         * `start` calls the EXISTING readiness gate (`ReadinessService::
+         * gate()`, Phase 5) — clause map §2.1's own instruction not to write a
+         * second one. `workspace` 404s until `actual_start` is set: starting
+         * is the readiness screen's job, not this one's.
+         */
+        Route::post('occurrences/{occurrence}/start', [BcmsExecutionController::class, 'start'])
+            ->middleware('permission:bcms.exercise.facilitate')->name('occurrences.start');
+        Route::get('occurrences/{occurrence}/workspace', [BcmsExecutionController::class, 'show'])
+            ->middleware('permission:bcms.exercise.view')->name('occurrences.workspace');
+        Route::post('occurrences/{occurrence}/complete', [BcmsExecutionController::class, 'complete'])
+            ->middleware('permission:bcms.exercise.facilitate')->name('occurrences.complete');
+        Route::post('occurrences/{occurrence}/timeline', [BcmsExecutionController::class, 'storeTimelineEntry'])
+            ->middleware('permission:bcms.exercise.facilitate')->name('occurrences.timeline.store');
+        Route::post('occurrences/{occurrence}/injects/{inject}/release', [BcmsExecutionController::class, 'releaseInject'])
+            ->middleware('permission:bcms.exercise.facilitate')->name('occurrences.injects.release')->scopeBindings();
+        Route::post('occurrences/{occurrence}/check-in', [BcmsExecutionController::class, 'checkIn'])
+            ->middleware('permission:bcms.exercise.facilitate')->name('occurrences.check-in');
+        Route::get('occurrences/{occurrence}/check-in-poster', [BcmsExecutionController::class, 'checkInPoster'])
+            ->middleware('permission:bcms.exercise.facilitate')->name('occurrences.check-in-poster');
+        // JSON, not a full Inertia page — the 5-second poll (spec §6).
+        Route::get('occurrences/{occurrence}/live-metrics', [BcmsExecutionController::class, 'liveMetrics'])
+            ->middleware('permission:bcms.exercise.view')->name('occurrences.live-metrics');
+        Route::get('occurrences/{occurrence}/carried-actions', [BcmsExecutionController::class, 'carriedActions'])
+            ->middleware('permission:bcms.exercise.view')->name('occurrences.carried-actions');
+        Route::get('occurrences/{occurrence}/aar/export', [BcmsExecutionController::class, 'aarExport'])
+            ->middleware('permission:bcms.report.export')->name('occurrences.aar.export');
+
+        /* --- Observer scoring (evaluate is narrower than facilitate) ----- */
+        Route::get('occurrences/{occurrence}/score', [BcmsScoreController::class, 'show'])
+            ->middleware('permission:bcms.exercise.evaluate')->name('occurrences.score.show');
+        Route::post('occurrences/{occurrence}/scores', [BcmsScoreController::class, 'store'])
+            ->middleware('permission:bcms.exercise.evaluate')->name('occurrences.scores.store');
+
+        /* --- Evidence (ADR 0019) — nested under the occurrence, scoped ---- */
+        // Upload requires facilitate OR evaluate (ADR 0019 §4: "the two roles
+        // actually present at an exercise") — `permission:a|b` is Spatie's
+        // `canAny()`, not a typo'd single permission.
+        Route::post('occurrences/{occurrence}/evidence', [BcmsEvidenceController::class, 'store'])
+            ->middleware('permission:bcms.exercise.facilitate|bcms.exercise.evaluate')->name('evidence.store');
+        Route::get('occurrences/{occurrence}/evidence/{evidence}/download', [BcmsEvidenceController::class, 'download'])
+            ->middleware('permission:bcms.exercise.view')->name('evidence.download')->scopeBindings();
+        Route::delete('occurrences/{occurrence}/evidence/{evidence}', [BcmsEvidenceController::class, 'destroy'])
+            ->middleware('permission:bcms.exercise.facilitate')->name('evidence.destroy')->scopeBindings();
+
+        /* --- The after-action report ------------------------------------- */
+        Route::get('aars/{aar}', [BcmsAarController::class, 'show'])
+            ->middleware('permission:bcms.exercise.view')->name('aars.show');
+        Route::patch('aars/{aar}', [BcmsAarController::class, 'update'])
+            ->middleware('permission:bcms.aar.manage')->name('aars.update');
+        Route::post('aars/{aar}/finalise', [BcmsAarController::class, 'finalise'])
+            ->middleware('permission:bcms.aar.approve')->name('aars.finalise');
+        Route::post('aars/{aar}/reopen', [BcmsAarController::class, 'reopen'])
+            ->middleware('permission:bcms.aar.approve')->name('aars.reopen');
+        Route::post('aars/{aar}/distribute', [BcmsAarController::class, 'distribute'])
+            ->middleware('permission:bcms.aar.approve')->name('aars.distribute');
+        Route::post('aars/{aar}/ai-draft', [BcmsAarController::class, 'aiDraft'])
+            ->middleware('permission:bcms.aar.manage')->name('aars.ai-draft');
+
         /* --- Call trees (Phase 6) --------------------------------------- */
         /*
          * THREE PERMISSIONS, NOT TWO. Seeing a tree, editing it and firing it
@@ -2598,9 +2764,6 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
          * puts a message on the phone of every teller in a branch at 03:00, and
          * whoever holds it is a shorter list than whoever may draw the diagram.
          */
-        // ADR 0017 §5: without `->scopeBindings()`, {section} resolves
-        // globally by id — a section belonging to another division's plan
-        // could be addressed through a plan the user can see.
         Route::get('call-trees', [BcmsCallTreeController::class, 'index'])
             ->middleware('permission:bcms.calltree.view')->name('call-trees.index');
         Route::post('call-trees', [BcmsCallTreeController::class, 'store'])
@@ -2625,11 +2788,11 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.calltree.manage')->name('call-trees.review');
         Route::post('call-trees/{call_tree}/nodes', [BcmsCallTreeController::class, 'storeNode'])
             ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.store');
+        // ADR 0017 §5: {node} through the tree's own `nodes()` relation.
         Route::patch('call-trees/{call_tree}/nodes/{node}', [BcmsCallTreeController::class, 'updateNode'])
             ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.update')->scopeBindings();
         Route::delete('call-trees/{call_tree}/nodes/{node}', [BcmsCallTreeController::class, 'destroyNode'])
             ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.destroy')->scopeBindings();
-        // ADR 0017 §5: {activation} through the plan's own relation.
         Route::post('call-trees/{call_tree}/nodes/{node}/reparent', [BcmsCallTreeController::class, 'reparentNode'])
             ->middleware('permission:bcms.calltree.manage')->name('call-trees.nodes.reparent')->scopeBindings();
         Route::post('call-trees/{call_tree}/nodes/{node}/deputy', [BcmsCallTreeController::class, 'assignDeputy'])
@@ -2659,6 +2822,8 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
          * the dispatch permission to answer a cascade would mean nobody on the
          * tree could record their own response.
          */
+        // ADR 0017 §5: {node} through the test's own `nodes()` relation, on
+        // all four routes below.
         Route::post('call-tree-tests/{test}/nodes/{node}/ack', [BcmsCallTreeTestController::class, 'acknowledge'])
             ->middleware('permission:bcms.calltree.view')->name('call-tree-tests.nodes.ack')->scopeBindings();
         Route::post('call-tree-tests/{test}/nodes/{node}/failure', [BcmsCallTreeTestController::class, 'recordFailure'])
@@ -2723,6 +2888,109 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.alert.view')->name('alert-templates.inspect');
         Route::get('providers', [BcmsAlertTemplateController::class, 'providers'])
             ->middleware('permission:bcms.alert.view')->name('providers.index');
+
+        /*
+         * Phase 10 — incident & crisis management, and IT disaster recovery
+         * (ADR 0020, `plans/bcms/prompts/PHASE-10-incident-crisis-itdr.md`).
+         * Both `ModuleSections` entries flip `live` to true alongside this
+         * block, so it must land in the same change (`incidents.index` and
+         * `it-dr.index` are read from `ModuleSections::all()` above, and a
+         * live section with no route registered here 404s the whole nav
+         * item). uuid route-model binding throughout, per the keys declared
+         * on `Incident`/`DrSystem`; children with no uuid of their own
+         * (`IncidentTask`, `IncidentNotification`, `DrTest`) bind on id,
+         * scoped to their parent by `BindsToVisibleRecord`/the pinned
+         * organisation-level map (`BcmsRecordVisibilityTest`).
+         */
+
+        /* --- Incident declaration, the crisis room, stand-down --------- */
+        Route::get('incidents', [BcmsIncidentController::class, 'index'])
+            ->middleware('permission:bcms.incident.view')->name('incidents.index');
+        Route::get('incidents/declare', [BcmsIncidentController::class, 'declareForm'])
+            ->middleware('permission:bcms.incident.declare')->name('incidents.declare-form');
+        Route::post('incidents', [BcmsIncidentController::class, 'store'])
+            ->middleware('permission:bcms.incident.declare')->name('incidents.store');
+        Route::get('incidents/{incident}/crisis-room', [BcmsIncidentController::class, 'crisisRoom'])
+            ->middleware('permission:bcms.incident.view')->name('incidents.crisis-room');
+        Route::get('incidents/{incident}/live-metrics', [BcmsIncidentController::class, 'liveMetrics'])
+            ->middleware('permission:bcms.incident.view')->name('incidents.live-metrics');
+        Route::post('incidents/{incident}/log', [BcmsIncidentController::class, 'storeLog'])
+            ->middleware('permission:bcms.incident.manage')->name('incidents.log.store');
+        Route::post('incidents/{incident}/tasks', [BcmsIncidentController::class, 'storeTask'])
+            ->middleware('permission:bcms.incident.manage')->name('incidents.tasks.store');
+        Route::post('incidents/{incident}/tasks/{task}/complete', [BcmsIncidentController::class, 'completeTask'])
+            ->middleware('permission:bcms.incident.manage')->name('incidents.tasks.complete')->scopeBindings();
+        Route::post('incidents/{incident}/classify', [BcmsIncidentController::class, 'classify'])
+            ->middleware('permission:bcms.incident.manage')->name('incidents.classify');
+        Route::post('incidents/{incident}/regrade', [BcmsIncidentController::class, 'regrade'])
+            ->middleware('permission:bcms.incident.manage')->name('incidents.regrade');
+        Route::get('incidents/{incident}/stand-down', [BcmsIncidentController::class, 'standDownForm'])
+            ->middleware('permission:bcms.incident.manage')->name('incidents.stand-down-form');
+        Route::post('incidents/{incident}/stand-down', [BcmsIncidentController::class, 'standDown'])
+            ->middleware('permission:bcms.incident.manage')->name('incidents.stand-down');
+
+        // Read-only evidence assembly for a REAL invocation — never a DR
+        // test (ADR 0020 §4, `dr-failover-failback-record.md`). No store
+        // route: the controller itself also authorizes `bcms.dr.view` as a
+        // conjunction, so the route-level permission below is the coarser
+        // of the two gates.
+        Route::get('incidents/{incident}/dr-invocation', [BcmsIncidentController::class, 'drInvocation'])
+            ->middleware('permission:bcms.incident.view')->name('incidents.dr-invocation.show');
+
+        /* --- Regulatory notification log -------------------------------- */
+        Route::get('incidents/{incident}/notifications', [BcmsIncidentNotificationController::class, 'index'])
+            ->middleware('permission:bcms.incident.view')->name('incidents.notifications.index');
+        Route::post('incidents/{incident}/notifications/classify', [BcmsIncidentNotificationController::class, 'classify'])
+            ->middleware('permission:bcms.incident.manage')->name('incidents.notifications.classify');
+        Route::post('incidents/{incident}/notifications', [BcmsIncidentNotificationController::class, 'store'])
+            ->middleware('permission:bcms.incident.notify')->name('incidents.notifications.store');
+        // Gate 2 review #1 defect 8: the general export permission alone is
+        // not enough for incident-specific regulatory evidence — chained
+        // `permission:` middleware is AND (Spatie's single-middleware form is
+        // OR via `canAny()`), so both are required.
+        Route::get('incidents/{incident}/notifications/export', [BcmsIncidentNotificationController::class, 'export'])
+            ->middleware(['permission:bcms.report.export', 'permission:bcms.incident.view'])->name('incidents.notifications.export');
+
+        /* --- Post-incident review — an Aar row, see IncidentReviewController --- */
+        Route::post('incidents/{incident}/review', [BcmsIncidentReviewController::class, 'start'])
+            ->middleware('permission:bcms.incident.manage')->name('incidents.review.start');
+        // A standalone screen, not `bcms.aars.show` (`pir-post-incident-review.md`'s
+        // own preference) — `AarController`/`Aar.jsx` sit outside this session's
+        // edit boundary and assume an occurrence exists, so this route renders
+        // `Bcms/Incidents/Review` instead, gated on `bcms.incident.view` alone per
+        // the spec's own permission note (§1) rather than `bcms.exercise.view`.
+        Route::get('incidents/{incident}/review', [BcmsIncidentReviewController::class, 'show'])
+            ->middleware('permission:bcms.incident.view')->name('incidents.review.show');
+        // Gate 1 re-gate defect 5: `pir-post-incident-review.md` §1 requires
+        // BOTH `bcms.incident.manage` and `bcms.aar.approve` on the manage/
+        // approve actions — the presenter's `can.approve` already computes
+        // this conjunction; the route now enforces it too.
+        Route::post('incidents/{incident}/review/finalise', [BcmsIncidentReviewController::class, 'finalise'])
+            ->middleware(['permission:bcms.incident.manage', 'permission:bcms.aar.approve'])->name('incidents.review.finalise');
+        // Same conjunction as the notification export — a PIR can carry
+        // personal data about staff and customers (Gate 2 review #1 defect 8).
+        Route::get('incidents/{incident}/review/export', [BcmsIncidentReviewController::class, 'export'])
+            ->middleware(['permission:bcms.report.export', 'permission:bcms.incident.view'])->name('incidents.review.export');
+
+        /* --- IT disaster recovery register and test records ------------- */
+        Route::get('it-dr', fn () => redirect()->route('bcms.dr-systems.index'))
+            ->middleware('permission:bcms.dr.view')->name('it-dr.index');
+        Route::get('dr-systems', [BcmsDrSystemController::class, 'index'])
+            ->middleware('permission:bcms.dr.view')->name('dr-systems.index');
+        Route::post('dr-systems', [BcmsDrSystemController::class, 'store'])
+            ->middleware('permission:bcms.dr.manage')->name('dr-systems.store');
+        Route::patch('dr-systems/{system}', [BcmsDrSystemController::class, 'update'])
+            ->middleware('permission:bcms.dr.manage')->name('dr-systems.update');
+        Route::post('dr-systems/{system}/backup-attestation', [BcmsDrSystemController::class, 'backupAttestation'])
+            ->middleware('permission:bcms.dr.manage')->name('dr-systems.backup-attestation');
+        Route::get('dr-systems/{system}/tests', [BcmsDrTestController::class, 'index'])
+            ->middleware('permission:bcms.dr.view')->name('dr-systems.tests.index');
+        Route::post('dr-systems/{system}/tests', [BcmsDrTestController::class, 'store'])
+            ->middleware('permission:bcms.dr.test.record')->name('dr-systems.tests.store');
+        Route::get('dr-tests/{test}', [BcmsDrTestController::class, 'show'])
+            ->middleware('permission:bcms.dr.view')->name('dr-tests.show');
+        Route::post('dr-tests/{test}/confirm-objectives', [BcmsDrTestController::class, 'confirmObjectives'])
+            ->middleware('permission:bcms.dr.test.record')->name('dr-tests.confirm-objectives');
 
         /* --- The sections whose phase has not landed yet ---------------- */
         foreach (\App\Support\Bcms\ModuleSections::all() as $bcmsSection) {
@@ -2791,6 +3059,40 @@ Route::middleware(['feature:bcms'])->group(function () {
     Route::post('bcms/cascade/{token}', [\App\Http\Controllers\Bcms\CascadeAckController::class, 'store'])
         ->name('bcms.cascade.ack.store');
 });
-        // ADR 0017 §5: {node} through the tree's own `nodes()` relation.
-        // ADR 0017 §5: {node} through the test's own `nodes()` relation, on
-        // all four routes below.
+
+/* ---------------------------------------------------------------------- */
+/*  Phase 9 — exercise check-in, the same unauthenticated category. */
+/* ---------------------------------------------------------------------- */
+/*
+ * A participant walking past a poster at an assembly point has no session
+ * and no reason to have one — the same argument `CascadeAckController` makes,
+ * and this is built from its exact template (class docblock,
+ * `CheckInController`). The credential is the per-participant HMAC token
+ * (`CheckInService::tokenFor()`/`shortCodeFor()`), verified with
+ * `hash_equals`, not a permission — there is no user to check one against.
+ *
+ * `bcms/check-in` (no token) is the SMS/marshal short-code fallback form,
+ * declared before `bcms/check-in/{token}` for the same reason `me/
+ * readiness-tasks` precedes `occurrences/{occurrence}` above: it has fewer
+ * segments, so there is no ambiguity to resolve, but declaring the literal
+ * route first is the house convention.
+ */
+// Gate 2 defect 4 (BCMS Phase 9), split in two by Gate 2 review #2
+// (`AppServiceProvider::registerBcmsCheckInRateLimiters()`): the short-code
+// form is a human-typed 8-hex-character guess surface and stays keyed on ip
+// alone (`bcms-check-in-code`); the per-participant token routes are keyed
+// per TOKEN plus a generous per-ip ceiling (`bcms-check-in-token`), so a
+// crowd behind one NAT each scanning their OWN code is never locked out by
+// the same bucket a token-guessing attacker would exhaust.
+Route::middleware(['feature:bcms', 'throttle:bcms-check-in-code'])->group(function () {
+    Route::get('bcms/check-in', [\App\Http\Controllers\Bcms\CheckInController::class, 'codeForm'])
+        ->name('bcms.check-in.code');
+    Route::post('bcms/check-in', [\App\Http\Controllers\Bcms\CheckInController::class, 'codeStore'])
+        ->name('bcms.check-in.code.store');
+});
+Route::middleware(['feature:bcms', 'throttle:bcms-check-in-token'])->group(function () {
+    Route::get('bcms/check-in/{token}', [\App\Http\Controllers\Bcms\CheckInController::class, 'show'])
+        ->name('bcms.check-in.show');
+    Route::post('bcms/check-in/{token}', [\App\Http\Controllers\Bcms\CheckInController::class, 'store'])
+        ->name('bcms.check-in.store');
+});

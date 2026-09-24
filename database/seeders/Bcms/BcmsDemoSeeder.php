@@ -3,6 +3,7 @@
 namespace Database\Seeders\Bcms;
 
 use App\Enums\Bcms\ContactSource;
+use App\Enums\Bcms\DependencyType;
 use App\Enums\Bcms\DistributionMode;
 use App\Enums\Bcms\FindingClassification;
 use App\Enums\Bcms\FindingSource;
@@ -19,6 +20,7 @@ use App\Models\Bcms\BiaCampaign;
 use App\Models\Bcms\BlackoutPeriod;
 use App\Models\Bcms\Contact;
 use App\Models\Bcms\DataSet;
+use App\Models\Bcms\Dependency;
 use App\Models\Bcms\Equipment;
 use App\Models\Bcms\ExerciseDefinition;
 use App\Models\Bcms\ExerciseOccurrence;
@@ -34,13 +36,19 @@ use App\Models\Bcms\Programme;
 use App\Models\Bcms\ReadinessTask;
 use App\Models\Bcms\Site;
 use App\Models\Bcms\Strategy;
+use App\Models\Bcms\TrainingCurriculum;
+use App\Models\Bcms\TrainingRecord;
 use App\Models\BusinessProcess;
 use App\Models\BusinessUnit;
 use App\Models\Organization;
+use App\Models\Tprm\BcpTest;
+use App\Models\Tprm\Engagement;
+use App\Models\Tprm\ThirdParty;
 use App\Models\User;
 use App\Services\Bcms\Bia\BiaAssessmentService;
 use App\Services\Bcms\Bia\BiaCampaignService;
 use App\Services\Bcms\Bia\DependencyService;
+use App\Services\Bcms\CallTrees\TreeHealthService;
 use App\Services\Bcms\Exercises\ExerciseDefinitionService;
 use App\Services\Bcms\Exercises\ExerciseProgrammeService;
 use App\Services\Bcms\Exercises\OccurrenceGenerator;
@@ -54,7 +62,11 @@ use App\Services\Bcms\ProgrammeService;
 use App\Services\Bcms\RaciService;
 use App\Services\Bcms\Reminders\ReadinessService;
 use App\Services\Bcms\Reminders\ReminderScheduleBuilder;
+use App\Services\Bcms\ResilienceKriPublisher;
 use App\Services\Bcms\Strategy\StrategyService;
+use App\Services\Bcms\Suppliers\SupplierResilienceService;
+use App\Services\Bcms\Training\TrainingComplianceService;
+use App\Services\Tprm\Continuity\BcpTestRecorder;
 use App\Support\Bcms\AudienceRule;
 use Illuminate\Database\Seeder;
 use ThirdLine\Platform\Tenancy\TenantContext;
@@ -264,6 +276,15 @@ class BcmsDemoSeeder extends Seeder
             // Phase 7: the channel spread a real roster has, two saved
             // audiences, and one evacuation drill run through the real engine.
             (new EmnsDemoSeeder)->run($organization);
+
+            // Phase 11: training & competency records across the six
+            // curricula, the vendor continuity evidence the compliance and
+            // supplier-resilience screens read, and the resilience KRIs
+            // adopted with the readings the phases before it already computed
+            // or that this section itself just seeded.
+            $this->seedTrainingRecords();
+            $this->seedSupplierResilienceEvidence();
+            $this->seedResilienceKris();
 
             app(MaturityService::class)->assess($programme, 'scheduled');
         } finally {
@@ -1680,5 +1701,292 @@ class BcmsDemoSeeder extends Seeder
         ]));
 
         app(ReadinessService::class)->refreshCounts($live->refresh());
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Phase 11 — training & competency, supplier resilience, resilience KRIs */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * A realistic slice of training records across the six curricula.
+     *
+     * ATTENDANCE AND COMPETENCE ARE NEVER BLENDED, so this seeds both kinds
+     * deliberately: `BC-AWARE-ALL` attendance for most of the roster, and one
+     * assessed (assessor, date, score) record per role-based curriculum,
+     * through `TrainingComplianceService::recordOutcome()` so the same
+     * self-assessment guard a real user would hit is exercised here too.
+     *
+     * ONE RECORD IS PUSHED PAST ITS DUE DATE ON PURPOSE — the training
+     * compliance screen's overdue tile is a headline figure, and a demo
+     * tenant where nothing is overdue shows an empty state rather than the
+     * feature. `recordOutcome()` computes `next_due_date` from the record's
+     * own `completed_at` (B5), so backdating `completed_at` fourteen months
+     * against a twelve-month cycle is sufficient on its own.
+     *
+     * THE ASSESSOR IS THE ACTING USER (B4), never a free `assessor_id`
+     * field — `recordTrainingOutcomeOnce()` takes the assessor as an
+     * explicit actor id and passes it through to `recordOutcome()`'s second
+     * argument, the same as the controller does with the logged-in user.
+     *
+     * GUARDED PER (CURRICULUM, USER) PAIR, NOT ON "ANY TRAINING RECORD
+     * EXISTS ANYWHERE" — qa-engineer's gate 1 re-gate found the coarse
+     * top-of-method guard this used to carry: one unrelated pre-existing row
+     * (against a retired curriculum, or from manual testing on a shared dev
+     * tenant) satisfied it and permanently skipped the entire block, which is
+     * exactly what happened on the dev tenant. `recordTrainingOutcomeOnce()`
+     * checks the specific pair each call would create, so re-seeding a
+     * tenant that already has some of these rows self-heals by adding only
+     * what is missing, the same shape `seedSupplierResilienceEvidence()`
+     * already uses per engagement.
+     */
+    private function seedTrainingRecords(): void
+    {
+        $users = User::query()->where('is_active', true)->orderBy('id')->take(10)->get();
+
+        if ($users->count() < 6) {
+            return;
+        }
+
+        $service = app(TrainingComplianceService::class);
+        $curricula = TrainingCurriculum::query()->where('is_system_default', true)->get()->keyBy('code');
+        $assessor = $users->last();
+
+        if (($aware = $curricula->get('BC-AWARE-ALL')) !== null) {
+            foreach ($users->take(8) as $user) {
+                $this->recordTrainingOutcomeOnce($service, $aware, $user, [
+                    'completed_at' => now()->subMonths(3),
+                ]);
+            }
+        }
+
+        // One assessed record per role-based curriculum, each held by a
+        // different person from the assessor.
+        $assessed = [
+            ['BC-WARDEN', $users[0], 88.0, now()->subMonths(2)],
+            ['BC-CRISIS', $users[1], 92.0, now()->subMonths(4)],
+            ['BC-CHAMPION', $users[2], 78.0, now()->subMonths(6)],
+            ['BC-ITDR', $users[3], 85.0, now()->subMonths(1)],
+            // The EMNS operator: the six-month recertification cadence is
+            // the point of this row, corrected below.
+            ['BC-EMNS', $users[4], 95.0, now()->subMonths(5)],
+        ];
+
+        foreach ($assessed as [$code, $user, $score, $completedAt]) {
+            $curriculum = $curricula->get($code);
+
+            if ($curriculum === null || $user->is($assessor)) {
+                continue;
+            }
+
+            $this->recordTrainingOutcomeOnce($service, $curriculum, $user, [
+                'completed_at' => $completedAt,
+                'score' => $score,
+            ], $assessor->getKey());
+        }
+
+        // A warden whose last assessment was fourteen months ago against a
+        // twelve-month cycle — overdue for re-certification.
+        if (($warden = $curricula->get('BC-WARDEN')) !== null && $users->count() > 5) {
+            $overdueUser = $users[5];
+
+            if (! $overdueUser->is($assessor)) {
+                $completedAt = now()->subMonths(14);
+
+                $this->recordTrainingOutcomeOnce($service, $warden, $overdueUser, [
+                    'completed_at' => $completedAt,
+                    'score' => 82.0,
+                ], $assessor->getKey());
+            }
+        }
+    }
+
+    /**
+     * Create exactly one demo training record for this (curriculum, user)
+     * pair, or do nothing if one already exists — the self-healing guard
+     * `seedTrainingRecords()` needs instead of a single "any row anywhere"
+     * check.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function recordTrainingOutcomeOnce(
+        TrainingComplianceService $service,
+        TrainingCurriculum $curriculum,
+        User $user,
+        array $attributes,
+        ?int $actorId = null,
+    ): void {
+        $exists = TrainingRecord::query()
+            ->where('curriculum_id', $curriculum->getKey())
+            ->where('user_id', $user->getKey())
+            ->exists();
+
+        if ($exists) {
+            return;
+        }
+
+        $service->recordOutcome(array_merge([
+            'curriculum_id' => $curriculum->getKey(),
+            'user_id' => $user->getKey(),
+        ], $attributes), $actorId);
+    }
+
+    /**
+     * Vendor continuity evidence for the BCMS dependencies this demo names —
+     * phase-11-spec §4, read entirely through TPRM's own tables and written
+     * only through `BcpTestRecorder`, never a BCMS table of its own.
+     *
+     * INTERSWITCH IS THE EVIDENCE-AMBIGUOUS VENDOR. `TprmDemoSeeder` already
+     * gives it three engagements; two are marked `supports_critical_function`
+     * here, so a BCMS dependency naming "Interswitch" cannot say on its own
+     * which one it means — exactly the seam §4(5) describes. Cloudspan gets
+     * one qualifying engagement, so the screen also shows the unambiguous
+     * case beside it.
+     *
+     * NOTHING HERE RUNS IF THE TPRM DEMO PORTFOLIO IS NOT ON THIS TENANT
+     * (`config('features.tprm')` off, or `TprmDemoSeeder` not yet run): a
+     * dependency naming a vendor that does not exist would be exactly the
+     * invented data this seeder's own docblock refuses to write.
+     */
+    private function seedSupplierResilienceEvidence(): void
+    {
+        $interswitch = ThirdParty::query()->where('legal_name', 'Interswitch Limited')->first();
+        $cloudspan = ThirdParty::query()->where('legal_name', 'Cloudspan Digital Limited')->first();
+
+        if ($interswitch === null || $cloudspan === null) {
+            return;
+        }
+
+        $cardEngagement = Engagement::query()->where('reference', 'ENG-DEMO-0001')->first();
+        $atmEngagement = Engagement::query()->where('reference', 'ENG-DEMO-0002')->first();
+        $digitalEngagement = Engagement::query()->where('reference', 'ENG-DEMO-0004')->first();
+
+        if ($cardEngagement === null || $atmEngagement === null || $digitalEngagement === null) {
+            return;
+        }
+
+        foreach ([$cardEngagement, $atmEngagement, $digitalEngagement] as $engagement) {
+            if (! $engagement->supports_critical_function) {
+                $engagement->update(['supports_critical_function' => true]);
+            }
+        }
+
+        $dependencies = app(DependencyService::class);
+
+        $cardAssessment = BiaAssessment::query()
+            ->whereHas('process', fn ($q) => $q->where('code', 'BCP-CARD'))
+            ->where('status', 'approved')
+            ->first();
+
+        $channelAssessment = BiaAssessment::query()
+            ->whereHas('process', fn ($q) => $q->where('code', 'BCP-CHAN'))
+            ->where('status', 'approved')
+            ->first();
+
+        if ($cardAssessment !== null && ! Dependency::query()
+            ->where('assessment_id', $cardAssessment->getKey())
+            ->where('dependable_type', DependencyType::Vendors->value)
+            ->where('dependable_id', $interswitch->getKey())
+            ->exists()
+        ) {
+            $dependencies->attach($cardAssessment, $interswitch, [
+                'criticality' => 'critical',
+                'recovery_notes' => 'Card authorisation depends entirely on Interswitch\'s switching capacity.',
+            ]);
+        }
+
+        if ($channelAssessment !== null && ! Dependency::query()
+            ->where('assessment_id', $channelAssessment->getKey())
+            ->where('dependable_type', DependencyType::Vendors->value)
+            ->where('dependable_id', $cloudspan->getKey())
+            ->exists()
+        ) {
+            $dependencies->attach($channelAssessment, $cloudspan, [
+                'criticality' => 'critical',
+                'recovery_notes' => 'Mobile and internet banking is hosted on Cloudspan\'s platform.',
+            ]);
+        }
+
+        $actor = User::query()->where('email', 'admin@risk.test')->first()
+            ?? User::query()->where('is_active', true)->first();
+
+        if ($actor === null) {
+            return;
+        }
+
+        $recorder = app(BcpTestRecorder::class);
+
+        // Current — inside its cycle.
+        if (! BcpTest::query()->where('engagement_id', $cardEngagement->getKey())->exists()) {
+            $recorder->record($cardEngagement, [
+                'test_date' => now()->subMonths(2)->toDateString(),
+                'test_type' => 'failover',
+                'scope' => 'Card authorisation switching failover to the vendor\'s secondary site.',
+                'our_participation' => true,
+                'rto_achieved_hours' => 1,
+                'outcome' => 'passed',
+                'findings_raised' => [],
+                'next_due_at' => now()->addMonths(10)->toDateString(),
+            ], $actor);
+        }
+
+        // Overdue — so the chase list and BCMS-VENDOR-ATTEST have something
+        // real to report, on the SAME evidence-ambiguous vendor.
+        if (! BcpTest::query()->where('engagement_id', $atmEngagement->getKey())->exists()) {
+            $recorder->record($atmEngagement, [
+                'test_date' => now()->subMonths(14)->toDateString(),
+                'test_type' => 'tabletop',
+                'scope' => 'ATM and POS switching continuity tabletop.',
+                'our_participation' => true,
+                'rto_achieved_hours' => 3,
+                'outcome' => 'passed',
+                'findings_raised' => [],
+                'next_due_at' => now()->subMonths(2)->toDateString(),
+            ], $actor);
+        }
+
+        // Current, single qualifying engagement — the unambiguous case beside
+        // Interswitch's ambiguous one.
+        if (! BcpTest::query()->where('engagement_id', $digitalEngagement->getKey())->exists()) {
+            $recorder->record($digitalEngagement, [
+                'test_date' => now()->subMonths(3)->toDateString(),
+                'test_type' => 'failover',
+                'scope' => 'Digital banking platform regional failover.',
+                'our_participation' => false,
+                'rto_achieved_hours' => 5,
+                'outcome' => 'passed_with_findings',
+                'findings_raised' => ['Failback verification took longer than the runbook allowed.'],
+                'next_due_at' => now()->addMonths(9)->toDateString(),
+            ], $actor);
+        }
+    }
+
+    /**
+     * Adopt the seventeen resilience KRI definitions and give the matrix and
+     * board pack something to read: the four call-tree KRIs Phase 6 already
+     * computes over this demo's own trees (`TreeHealthService::mirrorKris()`,
+     * never a second number for what that class already works out), and the
+     * one measurement this phase writes itself — `BCMS-VENDOR-ATTEST`, over
+     * the continuity evidence just seeded above.
+     *
+     * A NULL ATTESTATION RATE IS LEFT UNWRITTEN, never published as zero
+     * (ADR 0021 §2) — `recordVendorAttestation()` already enforces that; it
+     * is restated here only so a reader of this seeder does not have to
+     * cross-reference the publisher to know why an empty dependency graph
+     * writes nothing.
+     */
+    private function seedResilienceKris(): void
+    {
+        $actor = User::query()->where('email', 'admin@risk.test')->first()
+            ?? User::query()->where('is_active', true)->first();
+
+        app(ResilienceKriPublisher::class)->adopt($actor?->getKey());
+
+        app(TreeHealthService::class)->mirrorKris($actor);
+
+        app(ResilienceKriPublisher::class)->recordVendorAttestation(
+            app(SupplierResilienceService::class)->attestationRate(),
+            'Demonstration reading, computed from the seeded vendor continuity evidence.',
+            $actor?->getKey(),
+        );
     }
 }

@@ -303,6 +303,18 @@ class Preflight extends Command
             'bcms/alert-reply/{provider}',
             'bcms/provider-status/{provider}',
 
+            // BCMS Phase 9 — exercise check-in, the same signed-capability
+            // category once more. A participant scanning a poster (or
+            // texting the printed short code) has no session; the credential
+            // is the per-participant HMAC token `CheckInService` mints,
+            // verified with `hash_equals`, exactly like the cascade-ack pair
+            // above. `bcms/check-in` with no token is the SMS/marshal
+            // short-code fallback form — see `RouteAuthorizationTest`'s
+            // allowlist, which carries the same two entries for the same
+            // reason.
+            'bcms/check-in',
+            'bcms/check-in/{token}',
+
             // Livewire's two framework endpoints were here — upload-file and
             // preview-file/{filename}, neither mapping to a feature and so
             // neither taking a permission. Migration Phase 6.8 uninstalled

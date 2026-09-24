@@ -83,13 +83,24 @@ trait BindsToVisibleRecord
     /**
      * The predicate itself, exposed so `App\Rules\Bcms\VisibleToUser` can
      * apply the identical filter to an id arriving in a request body (§7)
-     * rather than re-deriving it.
+     * rather than re-deriving it — and so `App\Services\Widgets\
+     * WidgetQueryEngine` can apply the SAME rule for an explicit widget
+     * context user, never a second implementation (R1, gate 1 code review
+     * #2: a prior copy in that class had already drifted — it dropped the
+     * named-user arm, lost the "whole estate" short-circuit by adding a
+     * `whereHas()` existence requirement `unitIdsFor() === null` exists
+     * specifically to avoid, and failed open where this method throws).
+     *
+     * `$user` DEFAULTS TO `Auth::user()`, so every existing caller
+     * (`resolveRouteBindingQuery()`, `App\Rules\Bcms\VisibleToUser`) is
+     * behaviourally unchanged — this widens the method to accept an
+     * explicit user, it does not change what "no argument" means.
      *
      * @param  Builder<static>|Relation<static, Model, *>  $query
      */
-    public function constrainToVisibleRecord(Builder|Relation $query): void
+    public function constrainToVisibleRecord(Builder|Relation $query, ?User $user = null): void
     {
-        $user = Auth::user();
+        $user ??= Auth::user();
 
         if ($this instanceof ScopedToOrgHierarchyContract && $query instanceof Builder) {
             // Anchor: the row carries its own unit column, and

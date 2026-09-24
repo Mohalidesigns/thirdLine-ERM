@@ -3,13 +3,14 @@
 namespace App\Models\Bcms;
 
 use App\Enums\Bcms\FindingClassification;
+use App\Enums\Bcms\FindingSeverity;
 use App\Enums\Bcms\FindingSource;
 use App\Models\Bcms\Concerns\BcmsAuditable;
-use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\Bcms\Concerns\BindsToVisibleRecord;
+use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\Bcms\Concerns\ScopedToOrgHierarchy;
-use App\Models\BusinessUnit;
 use App\Models\Bcms\Concerns\ScopedToOrgHierarchyContract;
+use App\Models\BusinessUnit;
 use App\Models\Issue;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -40,7 +41,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?int $dr_test_id
  * @property ?int $management_review_id
  * @property \App\Enums\Bcms\FindingClassification $classification
- * @property ?string $severity
+ * @property ?\App\Enums\Bcms\FindingSeverity $severity
  * @property string $description
  * @property ?string $root_cause
  * @property ?int $affected_plan_id
@@ -65,7 +66,6 @@ class Finding extends Model implements ScopedToOrgHierarchyContract
 
     protected $table = 'bcms_findings';
 
-    /** @var list<string> */
     /**
      * ADR 0017 §1 — the bug the ADR was written to name. `bcms_findings` has
      * no `business_unit_id`; the column is `affected_business_unit_id`.
@@ -78,6 +78,7 @@ class Finding extends Model implements ScopedToOrgHierarchyContract
         return 'affected_business_unit_id';
     }
 
+    /** @var list<string> */
     protected $fillable = [
         'organization_id', 'reference', 'source', 'management_review_id', 'aar_id', 'incident_id', 'call_tree_test_id', 'dr_test_id',
         'classification', 'severity', 'description', 'root_cause', 'affected_plan_id',
@@ -107,6 +108,13 @@ class Finding extends Model implements ScopedToOrgHierarchyContract
             'updated_by' => 'integer',
             'classification' => FindingClassification::class,
             'source' => FindingSource::class,
+            // ADR 0019 §6 / clause-map refinement 4: `severity` was a free
+            // string with no enum and no validator until Phase 9. An enum
+            // over an existing column is not a structural migration, so this
+            // needed no ADR of its own — but an uncast enum column is a
+            // shipped BCMS defect family (`verification_status = 'failed'`),
+            // and this is the phase that stops it repeating here.
+            'severity' => FindingSeverity::class,
         ];
     }
 

@@ -113,10 +113,20 @@ class MaturityService
         });
     }
 
-    /** The most recent assessment, or null if the engine has never run. */
+    /**
+     * The most recent assessment, or null if the engine has never run.
+     *
+     * A1 (gate 1 code review #1): `orderByDesc('assessed_at')` alone is not
+     * deterministic on a tie — two assessments in the same second, easily
+     * reached by a seeded test fixture or a re-run within the same request,
+     * left the database free to return either on a re-run. The primary key
+     * is a real, always-present tiebreaker, the same convention
+     * `ClauseComplianceMatrixService`'s own docblock states for exactly this
+     * reason.
+     */
     public function latest(): ?MaturityAssessment
     {
-        return MaturityAssessment::query()->with('scores')->orderByDesc('assessed_at')->first();
+        return MaturityAssessment::query()->with('scores')->orderByDesc('assessed_at')->orderByDesc('id')->first();
     }
 
     /* ------------------------------------------------------------------ */

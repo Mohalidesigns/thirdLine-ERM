@@ -241,6 +241,31 @@ class ReminderScheduleBuilder
             ]);
     }
 
+    /**
+     * Void only the named template rungs for one occurrence — used by
+     * `AarService::finalise()` to silence the AAR chasers (`exercise.
+     * aar_due`, `.aar_overdue`, `.aar_escalation`) the moment the report
+     * reaches `status = final` (clause map refinement 8: "a draft AAR that
+     * exists and says nothing is exactly the case the chasers are for").
+     * The same void-not-delete path `voidUnsent()` uses for a superseded
+     * ladder, scoped to a caller-named set of templates so the pre-exercise
+     * rungs and an unrelated `capa_due` chaser are left alone.
+     *
+     * @param  list<string>  $templateKeys
+     */
+    public function voidTemplates(ExerciseOccurrence $occurrence, array $templateKeys, string $reason): int
+    {
+        return ReminderSchedule::query()
+            ->where('occurrence_id', $occurrence->getKey())
+            ->where('status', 'pending')
+            ->whereIn('template_key', $templateKeys)
+            ->update([
+                'status' => 'voided',
+                'skip_reason' => $reason,
+                'updated_at' => now(),
+            ]);
+    }
+
     private function sendAtFor(ExerciseOccurrence $occurrence, array $rung): Carbon
     {
         $organizationId = (int) $occurrence->organization_id;

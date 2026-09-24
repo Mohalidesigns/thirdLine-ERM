@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Bcms;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Bcms\ActivateBcmsPlanRequest;
+use App\Models\Bcms\Incident;
 use App\Models\Bcms\Plan;
 use App\Models\Bcms\PlanActivation;
+use App\Services\Bcms\Incidents\IncidentService;
 use App\Services\Bcms\Plans\OfflineBundleBuilder;
 use App\Services\Bcms\Plans\PlanAcknowledgementService;
 use App\Services\Bcms\Plans\PlanActivationService;
@@ -36,6 +39,7 @@ class PlanDocumentController extends Controller
         private OfflineBundleBuilder $bundles,
         private PlanAcknowledgementService $acknowledgements,
         private PlanActivationService $activations,
+        private IncidentService $incidents,
     ) {}
 
     /** The printed plan. */
@@ -147,14 +151,37 @@ class PlanDocumentController extends Controller
     /*  Activation */
     /* ------------------------------------------------------------------ */
 
-    public function activate(Request $request, Plan $plan): RedirectResponse
+    /**
+     * `incident_id` (Gate 2 review #1 defect 13) is resolved through
+     * `Incident::visibleTo()`, not a bare tenant `exists` — see
+     * `ActivateBcmsPlanRequest`'s own docblock for why.
+     */
+    public function activate(ActivateBcmsPlanRequest $request, Plan $plan): RedirectResponse
     {
-        Gate::authorize('bcms.plan.activate');
+        $data = $request->validated();
 
-        $data = $request->validate([
-            'reason' => ['required', 'string', 'max:2000'],
-            'is_exercise' => ['nullable', 'boolean'],
-        ]);
+        $incidentId = null;
+
+        if (filled($data['incident_id'] ?? null)) {
+            $incident = Incident::query()->visibleTo($request->user())
+                ->where('uuid', $data['incident_id'])->first();
+
+            abort_if($incident === null, 404);
+
+            // A5 (code review #3 advisory): a closed/cancelled incident does
+            // not gain a new plan activation any more than it gains a new
+            // manual log entry, task or regrade (Gate 1 re-gate defect 3) —
+            // the same `assertNotTerminal()` guard, applied here because
+            // activating a plan is exactly as much an incident-commander
+            // action as those.
+            try {
+                $this->incidents->assertNotTerminal($incident);
+            } catch (InvalidArgumentException $e) {
+                return back()->with('error', $e->getMessage());
+            }
+
+            $incidentId = $incident->getKey();
+        }
 
         try {
             $this->activations->activate(
@@ -162,6 +189,7 @@ class PlanDocumentController extends Controller
                 $request->user(),
                 $data['reason'],
                 (bool) ($data['is_exercise'] ?? false),
+                $incidentId,
             );
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());

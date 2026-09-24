@@ -2,6 +2,7 @@
 
 namespace App\Models\Bcms;
 
+use App\Models\Bcms\Concerns\BcmsAuditable;
 use App\Models\BusinessUnit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,6 +16,12 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * `contact_id` as well as `user_id`, because a reminder resolves against a
  * CONTACT — a user has no channel (ADR 0003) — and because a security guard
  * or a contractor participates in a fire drill without a platform login.
+ *
+ * `BcmsAuditable` (Gate 2 defect 2): a check-in is an attendance fact used to
+ * gate the AAR's condition 7 and to compute the export's reconciliation —
+ * "who marked whom present, and when" needs the same before/after trail every
+ * other BCMS state change gets. `CheckInService::checkIn()` adds an explicit
+ * `recordAudit()` call alongside the automatic diff this trait now writes.
  *
  * @property int $id
  * @property int $organization_id
@@ -32,7 +39,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class ExerciseParticipant extends Model
 {
-    use BelongsToOrganization, HasFactory;
+    use BcmsAuditable, BelongsToOrganization, HasFactory;
 
     protected $table = 'bcms_exercise_participants';
 

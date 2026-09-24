@@ -210,6 +210,7 @@ class BcmsReferenceSeeder extends Seeder
                     'variables' => $template['variables'],
                     'requires_dual_approval' => $template['dual_approval'],
                     'is_life_safety' => $template['life_safety'],
+                    'iso_clause_ref' => isset($template['clause']) ? $template['clause']->value : null,
                     'is_system_default' => true,
                     'is_active' => true,
                 ]
@@ -257,6 +258,26 @@ class BcmsReferenceSeeder extends Seeder
                     'is_active' => true,
                 ]
             );
+        }
+
+        $this->retireSupersededTrainingCurricula();
+    }
+
+    /**
+     * Retire the codes the six-curriculum pack replaced (Phase 11, ADR 0021
+     * §3). NO SCHEMA CHANGE: `bcms_training_curricula.is_active` already
+     * exists, so a code that lost its place in the pack is switched off
+     * rather than left live beside its successor. A superseded row is never
+     * deleted — every `bcms_training_records.curriculum_id` that points at it
+     * stays valid, so no training record is ever orphaned by this.
+     */
+    private function retireSupersededTrainingCurricula(): void
+    {
+        foreach (array_keys(TrainingCurricula::superseded()) as $oldCode) {
+            TrainingCurriculum::query()
+                ->where('organization_id', null)
+                ->where('code', $oldCode)
+                ->update(['is_active' => false]);
         }
     }
 

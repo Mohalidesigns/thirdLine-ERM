@@ -26,6 +26,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property \Illuminate\Support\Carbon $activated_at
  * @property ?\Illuminate\Support\Carbon $deactivated_at
  * @property ?string $activation_reason
+ * @property ?int $kept_active_entry_id
  * @property ?\Illuminate\Support\Carbon $created_at
  * @property ?\Illuminate\Support\Carbon $updated_at
  */
@@ -48,6 +49,7 @@ class PlanActivation extends Model
     protected $fillable = [
         'organization_id', 'plan_id', 'incident_id', 'occurrence_id', 'is_exercise',
         'activated_by', 'activated_at', 'deactivated_at', 'activation_reason',
+        'kept_active_entry_id',
     ];
 
     /** @return array<string, string> */
@@ -62,6 +64,7 @@ class PlanActivation extends Model
             'activated_by' => 'integer',
             'activated_at' => 'datetime',
             'deactivated_at' => 'datetime',
+            'kept_active_entry_id' => 'integer',
         ];
     }
 
@@ -91,5 +94,24 @@ class PlanActivation extends Model
     public function activatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'activated_by');
+    }
+
+    /**
+     * The decision-log entry naming why this activation was kept active past
+     * stand-down (ADR 0020 Amendment 4) — never a `kept_active_at`/`_by` pair,
+     * which would only copy this entry's own `logged_at`/`logged_by` and
+     * could come to disagree with them.
+     *
+     * @return BelongsTo<IncidentLogEntry, $this>
+     */
+    public function keptActiveEntry(): BelongsTo
+    {
+        return $this->belongsTo(IncidentLogEntry::class, 'kept_active_entry_id');
+    }
+
+    /** Whether this activation was explicitly kept active at its incident's stand-down. */
+    public function isKeptActive(): bool
+    {
+        return $this->kept_active_entry_id !== null;
     }
 }

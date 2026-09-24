@@ -2,6 +2,7 @@
 
 namespace App\Models\Bcms;
 
+use App\Models\Bcms\Concerns\BcmsAuditable;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,6 +14,12 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  *
  * `objective_text` snapshots the wording, because an objective edited after
  * the exercise would otherwise rewrite what the evaluator was scoring.
+ *
+ * `BcmsAuditable` (Gate 2 defect 6): `ScoringService::score()` writes through
+ * `updateOrCreate()`, so a re-score silently overwrote the previous score and
+ * commentary with no before/after — an evaluator's own change of mind, or a
+ * dispute about what was actually scored, left no trace. This trait's
+ * automatic `updated` diff is what makes a re-score visible.
  *
  * @property int $id
  * @property int $organization_id
@@ -28,7 +35,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class ExerciseScore extends Model
 {
-    use BelongsToOrganization, HasFactory;
+    use BcmsAuditable, BelongsToOrganization, HasFactory;
 
     protected $table = 'bcms_exercise_scores';
 

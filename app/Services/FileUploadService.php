@@ -81,6 +81,22 @@ class FileUploadService
     public const PROFILE_TPRM_EVIDENCE = 'tprm_evidence';
 
     /**
+     * BCMS exercise evidence (ADR 0019) — photos from an assembly point,
+     * screenshots, scanned attendance sheets. Wider than TPRM's profile
+     * because images are the point here, and capped above the 10 MB default
+     * because a 12-megapixel photograph of a sign-in sheet runs a few
+     * megabytes and a scanned register more.
+     *
+     * NAMED TRAP (ADR 0019 §1): an iPhone's default photo format is HEIC, and
+     * `MIME_EXTENSIONS` below has no `image/heic` entry. A photo taken on a
+     * default-configured iPhone is REFUSED by this profile until the capture
+     * control converts to JPEG client-side or `image/heic` is added as a
+     * deliberate, product-wide change. Not fixed here — decided in the screen
+     * spec, per the ADR.
+     */
+    public const PROFILE_BCMS_EVIDENCE = 'bcms_evidence';
+
+    /**
      * profile => [extensions, max_kilobytes]
      *
      * The extension lists mirror what each endpoint already accepted before
@@ -143,6 +159,11 @@ class FileUploadService
         self::PROFILE_TPRM_EVIDENCE => [
             'extensions' => ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt'],
             'max_kilobytes' => 25600,
+        ],
+
+        self::PROFILE_BCMS_EVIDENCE => [
+            'extensions' => ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'docx', 'xlsx', 'csv', 'txt'],
+            'max_kilobytes' => 20480,
         ],
     ];
 

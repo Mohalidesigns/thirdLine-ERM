@@ -69,6 +69,22 @@ class AlertWebhookController extends Controller
      */
     private const SIGNATURE_WINDOW_SECONDS = 300;
 
+    /**
+     * The only providers these two routes speak for. ADR 0020 Amendment 1:
+     * `config('bcms-gateways.webhook_secrets')` used to also carry the three
+     * DR vendor keys, and `signatureOk()` accepted ANY key present in that
+     * map — so a DR provider's secret could authenticate an EMNS roll-call
+     * reply. The DR keys are gone from the config now, which already closes
+     * that hole; this allowlist is the second, independent guard so that a
+     * key added to the map for any future, unrelated purpose cannot quietly
+     * authenticate a roll-call reply again either.
+     *
+     * @var list<string>
+     */
+    private const KNOWN_PROVIDERS = [
+        'termii', 'africastalking', 'infobip', 'whatsapp-cloud', 'voice-tts', 'ussd-aggregator',
+    ];
+
     public function __construct(private InboundResponseHandler $handler) {}
 
     /**
@@ -195,11 +211,14 @@ class AlertWebhookController extends Controller
      *    segment fell through to "no secret configured for this provider",
      *    which `status()` then treats as an unsigned-but-acceptable callback.
      *    That let a caller pick any string at all for `{provider}` and land
-     *    on the permissive branch. Checked against
+     *    on the permissive branch. Checked first against the fixed
+     *    KNOWN_PROVIDERS allowlist (ADR 0020 Amendment 1 — this is the guard
+     *    that stops a key added to `webhook_secrets` for some other purpose
+     *    from authenticating a roll-call reply), and then against
      *    `config('bcms-gateways.webhook_secrets')`'s keys — the same list
-     *    `handleStatusReceipt`'s new provider-bound query trusts — before
-     *    either branch runs, so an unknown provider is refused regardless of
-     *    which route called this.
+     *    `handleStatusReceipt`'s provider-bound query trusts — before either
+     *    branch runs, so an unknown provider is refused regardless of which
+     *    route called this.
      *
      * 2. NO QUERY STRING, EVER, ON EITHER ROUTE. The signature was computed
      *    over `$request->getContent()` — the body alone — while the caller
@@ -231,6 +250,14 @@ class AlertWebhookController extends Controller
      */
     private function signatureOk(Request $request, string $provider, bool $failClosedWhenUnconfigured): bool
     {
+        // Checked before the map lookup below, and independently of it — see
+        // the KNOWN_PROVIDERS docblock. A provider absent from this list is
+        // refused even if some future change adds a same-named key to
+        // `webhook_secrets` for an unrelated purpose.
+        if (! in_array($provider, self::KNOWN_PROVIDERS, true)) {
+            return false;
+        }
+
         $secrets = config('bcms-gateways.webhook_secrets', []);
 
         if (! is_array($secrets) || ! array_key_exists($provider, $secrets)) {

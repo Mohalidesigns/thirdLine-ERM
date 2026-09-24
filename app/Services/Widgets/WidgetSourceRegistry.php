@@ -354,6 +354,58 @@ class WidgetSourceRegistry
             ],
             'sums' => ['estimated_loss_minor', 'data_subjects_affected'],
         ],
+
+        /* ------------------------------------------------------------------
+         | BCMS — ADR 0021 Amendment 1. Branch scope is a property of DRILLS
+         | AND PLANS, not of the seventeen resilience KRIs or the maturity
+         | score: both are organisation-level by definition (no per-unit
+         | reading exists to lean on), and stay off this registry. A plan
+         | carries its own `business_unit_id` directly (`business_unit_ref`);
+         | an occurrence does not — it hangs off its DEFINITION's business
+         | unit instead (`bcms_definition_units`) — see WidgetQueryEngine.
+         | Columns are whitelisted against `database/schema/bcms-manifest.php`
+         | only.
+         ------------------------------------------------------------------ */
+
+        'bcms_plans' => [
+            'model' => \App\Models\Bcms\Plan::class,
+            'node_column' => 'business_unit_id',
+            'node_column_kind' => 'business_unit_ref',
+            'date_column' => 'next_review_date',
+            'code_column' => 'uuid',
+            'label_column' => 'title',
+            'owner_column' => 'owner_id',
+            'permission' => 'bcms.plan.view',
+            'columns' => [
+                'title', 'plan_type', 'status', 'version', 'business_unit_id',
+                'site_id', 'owner_id', 'approver_id', 'approved_at', 'effective_from',
+                'next_review_date', 'review_frequency_months', 'supersedes_plan_id',
+                'created_at',
+            ],
+            'sums' => [],
+        ],
+
+        // A corporate drill (no `business_unit_id` on its definition) is
+        // genuinely unattributable and is out of scope on every node — the
+        // same rule `engagementsUnderNodes()` documents for TPRM, not a gap
+        // this query hides.
+        'bcms_exercise_occurrences' => [
+            'model' => \App\Models\Bcms\ExerciseOccurrence::class,
+            'node_column' => 'definition_id',
+            'node_column_kind' => 'bcms_definition_units',
+            'date_column' => 'scheduled_date',
+            'code_column' => 'uuid',
+            'label_column' => 'location',
+            'owner_column' => 'facilitator_id',
+            'permission' => 'bcms.exercise.view',
+            'columns' => [
+                'definition_id', 'status', 'scheduled_date', 'scheduled_start',
+                'scheduled_end', 'actual_start', 'actual_end', 'location',
+                'facilitator_id', 'outcome', 'readiness_complete', 'cancellation_reason',
+                'created_at',
+            ],
+            'sums' => [],
+        ],
     ];
 
     /** @return array<string, mixed>|null */

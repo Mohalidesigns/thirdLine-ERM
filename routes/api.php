@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\JobRunController;
 use App\Http\Controllers\Api\V1\MeasureSeriesController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\ResourceController;
+use App\Http\Controllers\Bcms\DrIngestionWebhookController;
 use App\Http\Controllers\Scim\ScimGroupController;
 use App\Http\Controllers\Scim\ScimUserController;
 use App\Models\ApiToken;
@@ -157,6 +158,24 @@ Route::prefix('api/v1')
 
         Route::get('jobs/{jobRun}', [JobRunController::class, 'show'])
             ->middleware('scope:job.view')->name('api.v1.jobs.show');
+
+        /*
+         * BCMS Phase 10 — IT DR result ingestion (ADR 0020 §3, Amendment 1).
+         * A tenant's own replication appliance posts a test result here with
+         * its OWN `ApiToken` (scope `bcms.dr.test.record`) — `api.auth`
+         * binds the tenant from that token before the controller runs, so
+         * there is no payload field that can name a different tenant's
+         * system. `{provider}` is data (which vendor produced the result),
+         * never authentication: DrIngestionWebhookController constrains it
+         * to a known DR-provider list before anything else runs.
+         * `feature:bcms` keeps it dark alongside every other BCMS route
+         * while the module is off; `idempotency` (from the group) is a
+         * second, independent safety net over the endpoint's own
+         * (provider, external_test_id) idempotency key.
+         */
+        Route::post('bcms/dr-tests/ingest/{provider}', [DrIngestionWebhookController::class, 'ingest'])
+            ->middleware(['feature:bcms', 'scope:bcms.dr.test.record'])
+            ->name('api.v1.bcms.dr-tests.ingest');
 
         // The generic resource surface. One controller, one allowlist per
         // resource — see App\Http\Api\ApiResourceRegistry.

@@ -88,4 +88,15 @@ Route::middleware(['feature:bcms'])->group(function () {
     Route::post('bcms/provider-status/{provider}', [AlertWebhookController::class, 'status'])
         ->middleware('throttle:bcms-provider-status')
         ->name('bcms.alerts.provider-status');
+
+    /*
+     * Phase 10 — IT DR result ingestion USED TO live here, signed the same
+     * way as the two EMNS callbacks above. ADR 0020 Amendment 1 moved it to
+     * `POST /api/v1/bcms/dr-tests/ingest/{provider}` (routes/api.php):
+     * the caller is one tenant's own estate, not a shared third-party
+     * account, so it authenticates with the product's own per-tenant
+     * `ApiToken` (scope `bcms.dr.test.record`) instead of a secret shared
+     * by every tenant on the deployment. See DrIngestionWebhookController's
+     * docblock for the full reasoning.
+     */
 });

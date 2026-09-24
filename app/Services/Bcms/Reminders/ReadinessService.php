@@ -3,6 +3,7 @@
 namespace App\Services\Bcms\Reminders;
 
 use App\Enums\Bcms\OccurrenceStatus;
+use App\Models\Bcms\Evidence;
 use App\Models\Bcms\ExerciseOccurrence;
 use App\Models\Bcms\ReadinessTask;
 use App\Models\Bcms\ReadinessTemplate;
@@ -96,14 +97,33 @@ class ReadinessService
         return $created;
     }
 
-    public function complete(ReadinessTask $task, User $by, ?int $evidenceFileId = null): ReadinessTask
+    /**
+     * `evidence_file_id` IS RETIRED (ADR 0019 §3). The column is still on the
+     * table — nothing writes it any more, dropping is a separate decision —
+     * and "does this task have evidence" is now answered by a real
+     * `bcms_evidence` row (`owner_type = 'readiness_task'`), uploaded through
+     * `EvidenceController` before this is called, not by an unconstrained
+     * integer a caller could point at nothing.
+     */
+    public function complete(ReadinessTask $task, User $by): ReadinessTask
     {
         // The evidence requirement lives on the TEMPLATE task, not on the
-        // materialised one — `bcms_readiness_tasks` carries the file, and the
-        // template carries whether one is needed.
+        // materialised one.
         $needsEvidence = $task->templateTask !== null && (bool) $task->templateTask->requires_evidence;
+        // Gate 2 defect 3: scoped by `occurrence_id` as well as `owner_id`,
+        // belt-and-braces alongside `EvidenceService::upload()`'s own refusal
+        // — `owner_id` is a bare integer with no uniqueness of its own across
+        // occurrences other than the row it happens to name, so a query that
+        // trusted `owner_id` alone would still read a task as evidenced by a
+        // file uploaded against a different occurrence entirely if the two
+        // checks were ever the only line of defence and one of them slipped.
+        $hasEvidence = $task->evidence_file_id !== null || Evidence::query()
+            ->where('owner_type', Evidence::KIND_READINESS_TASK)
+            ->where('owner_id', $task->getKey())
+            ->where('occurrence_id', $task->occurrence_id)
+            ->exists();
 
-        if ($task->is_blocking && $needsEvidence && $evidenceFileId === null && $task->evidence_file_id === null) {
+        if ($task->is_blocking && $needsEvidence && ! $hasEvidence) {
             throw new InvalidArgumentException(
                 'This blocking task needs evidence attached before it can be closed. "Somebody said it was done" '
                 .'is what the evidence requirement exists to replace.'
@@ -114,7 +134,6 @@ class ReadinessService
             'status' => 'complete',
             'completed_at' => now(),
             'completed_by' => $by->getKey(),
-            'evidence_file_id' => $evidenceFileId ?? $task->evidence_file_id,
         ]);
 
         $this->refreshCounts($task->occurrence);

@@ -71,7 +71,9 @@ class BcmsWatchdog extends Command
         $threshold = now()->subMinutes((int) $this->option('minutes'));
         $problems = [];
         $identityProblems = [];
+        $notificationProblems = [];
         $health = app(\App\Services\Bcms\Identity\ConnectorHealth::class);
+        $notifications = app(\App\Services\Bcms\Incidents\NotificationService::class);
 
         foreach (Organization::query()->get() as $organization) {
             TenantContext::set($organization->id);
@@ -100,6 +102,26 @@ class BcmsWatchdog extends Command
                         'organization' => $organization->name,
                         'overdue_reminders' => $overdue,
                         'stuck_deliveries' => $stuck,
+                    ];
+                }
+
+                // BCMS Phase 10 (ADR 0020 §2, clause map §6.12). An open
+                // regulatory obligation past `due_at` is the most expensive
+                // silent failure in this module — an examiner's "when did
+                // you know, when did you tell them" is unanswerable if a
+                // watchdog never looked. Reported per-organisation, same as
+                // the reminder/delivery check above, and separately from it:
+                // a tenant with a healthy notification path but an overdue
+                // CBN clock must still be woken.
+                $overdueNotifications = $notifications->overdueQuery()->count();
+                $approachingNotifications = $notifications->approachingDueQuery()->count();
+
+                if ($overdueNotifications > 0 || $approachingNotifications > 0) {
+                    $notificationProblems[] = [
+                        'organization_id' => $organization->id,
+                        'organization' => $organization->name,
+                        'overdue' => $overdueNotifications,
+                        'approaching' => $approachingNotifications,
                     ];
                 }
 
@@ -187,11 +209,25 @@ class BcmsWatchdog extends Command
                 $this->error(sprintf('%s: identity connector %s.', $problem['organization'], $this->describeIdentityProblem($problem)));
             }
         }
-        // Three independent signals, checked together: a stalled notification
-        // path, a stale/expiring identity connector and a hole in the audit
-        // trail are all separately detectable, and none may hide another from
-        // the exit code a cron wrapper reads.
-        if ($problems === [] && $auditFailures === 0 && $identityProblems === []) {
+
+        if ($notificationProblems !== []) {
+            $this->alertOfOverdueNotifications($notificationProblems);
+
+            foreach ($notificationProblems as $problem) {
+                $this->error(sprintf(
+                    '%s: %d regulatory notification(s) overdue, %d approaching their deadline.',
+                    $problem['organization'],
+                    $problem['overdue'],
+                    $problem['approaching'],
+                ));
+            }
+        }
+
+        // Four independent signals, checked together: a stalled notification
+        // path, a stale/expiring identity connector, an overdue regulatory
+        // clock and a hole in the audit trail are all separately detectable,
+        // and none may hide another from the exit code a cron wrapper reads.
+        if ($problems === [] && $auditFailures === 0 && $identityProblems === [] && $notificationProblems === []) {
             $this->info('BCMS notification path healthy.');
 
             return self::SUCCESS;
@@ -217,6 +253,7 @@ class BcmsWatchdog extends Command
             'problems' => $problems,
             'audit_write_failures' => $auditFailures,
             'identity_problems' => $identityProblems,
+            'incident_notification_problems' => $notificationProblems,
         ]);
 
         // A non-zero exit so a cron wrapper or a monitor notices without
@@ -284,6 +321,61 @@ class BcmsWatchdog extends Command
         // alerts on, deliberately separate from the per-tenant notification —
         // if every tenant's admin is asleep, somebody at Atheris is not.
         Log::critical('BCMS watchdog: notification path stalled, support notified', [
+            'support_alert' => true,
+            'problems' => $problems,
+        ]);
+    }
+
+    /**
+     * Phase 10 (ADR 0020 §2 consequences). An open CBN or NDPC clock is the
+     * most expensive silent failure this module has — nobody outside the
+     * crisis room may ever look at the notification log again once an
+     * incident is closed, so the watchdog is what stands between an
+     * overdue obligation and nobody noticing.
+     *
+     * @param  list<array{organization_id: int, organization: string, overdue: int, approaching: int}>  $problems
+     */
+    private function alertOfOverdueNotifications(array $problems): void
+    {
+        foreach ($problems as $problem) {
+            $organization = Organization::query()->find($problem['organization_id']);
+
+            if ($organization === null) {
+                continue;
+            }
+
+            TenantContext::set($organization->id);
+
+            try {
+                $admins = User::query()
+                    ->where('is_active', true)
+                    ->get()
+                    ->filter(fn (User $u) => $u->can('bcms.incident.notify'));
+
+                foreach ($admins as $admin) {
+                    NotificationService::send(
+                        organizationId: (int) $organization->id,
+                        userId: (int) $admin->getKey(),
+                        type: 'bcms.watchdog.notification_overdue',
+                        subject: 'A regulatory incident notification is overdue',
+                        body: sprintf(
+                            '%d regulatory notification(s) are past their deadline and %d more are approaching '
+                            .'it. Open the incident\'s notification log and record what has actually happened — '
+                            .'the product never submits one automatically.',
+                            $problem['overdue'],
+                            $problem['approaching'],
+                        ),
+                        metadata: $problem,
+                        priority: 'high',
+                        category: 'bcms',
+                    );
+                }
+            } finally {
+                TenantContext::clear();
+            }
+        }
+
+        Log::critical('BCMS watchdog: a regulatory incident notification is overdue', [
             'support_alert' => true,
             'problems' => $problems,
         ]);

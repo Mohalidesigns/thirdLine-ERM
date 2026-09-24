@@ -212,6 +212,23 @@ Schedule::command('bcms:cascade-tick')->everyMinute()->withoutOverlapping();
 // drift is about to re-resolve has already been flagged.
 Schedule::command('bcms:call-tree-hygiene')->dailyAt('05:15')->withoutOverlapping();
 
+// BCMS Phase 11 — links a completed exercise's present participants to their
+// training record automatically (phase-11-spec §6 criterion 6). Idempotent
+// (`linkOccurrenceParticipants()` checks curriculum/user/occurrence before
+// every create, so a missed run is caught by the next one's seven-day
+// lookback with no duplicate). A9: `onOneServer()` — a two-app-server
+// deployment would otherwise run the same day's sweep twice; each write is
+// idempotent so the second run costs nothing but wasted work, but that
+// wasted work is what `onOneServer()` is for.
+Schedule::command('bcms:training-link-exercises')->dailyAt('06:00')->withoutOverlapping()->onOneServer();
+
+// BCMS Phase 11 — B7: BCMS-VENDOR-ATTEST is the one KRI this phase measures
+// itself, and it used to move only when someone recorded a new attestation.
+// This sweep recomputes it for every tenant so evidence ageing past its
+// `next_due_at` moves the register on its own. After the training-link sweep,
+// well before the morning digest.
+Schedule::command('bcms:vendor-attestation-recompute')->dailyAt('06:15')->withoutOverlapping()->onOneServer();
+
 // BCMS Phase 2C — ADR 0018 §3.1, §4. 02:30 so the reconciliation above (call
 // tree hygiene, 05:15) and the plan-drift sweep (05:30) both see a roster
 // already refreshed for the night rather than yesterday's. The nightly full

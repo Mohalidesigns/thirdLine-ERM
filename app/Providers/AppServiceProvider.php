@@ -136,6 +136,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::before(fn (?User $user, string $ability) => $user?->hasRole('super-admin') ? true : null);
 
         $this->registerBcmsWebhookRateLimiters();
+        $this->registerBcmsCheckInRateLimiters();
 
         // Migration Phase 3.8. The only policy registered by hand: RCSA has no
         // model for Laravel to discover one from — it is four screens over
@@ -237,6 +238,77 @@ class AppServiceProvider extends ServiceProvider
 
             return \Illuminate\Cache\RateLimiting\Limit::perMinute($providerStatusPerMinute)
                 ->by('bcms-provider-status:'.$provider.':'.$request->ip());
+        });
+
+    }
+
+    /**
+     * Gate 2 defect 4 (BCMS Phase 9), and Gate 2 review #2's finding that the
+     * defect 4 fix over-corrected. `bcms/check-in` (the short-code form) and
+     * `bcms/check-in/{token}` (the QR link) carry no session and no
+     * permission — the credential is the per-participant HMAC itself
+     * (`CheckInController`'s own docblock) — so, like the EMNS webhook routes
+     * above, named limiters have to be registered at boot rather than in
+     * `routes/web.php`, which a route-cached deployment never re-executes.
+     *
+     * TWO LIMITERS, NOT ONE, because the two routes are different attack
+     * surfaces answering to different traffic shapes:
+     *
+     * `bcms-check-in-code` guards the short-code FORM (`bcms/check-in`, no
+     * token in the URL) — an 8-hex-character code typed by hand is a genuine
+     * guessing surface, so this stays keyed on ip alone, as the single
+     * `bcms-check-in` limiter always was.
+     *
+     * `bcms-check-in-token` guards the per-participant QR/link routes
+     * (`bcms/check-in/{token}`). A single shared ip-keyed bucket here was the
+     * defect: 200 people behind one office NAT, each scanning their OWN
+     * token once during an evacuation drill, exhausted the same 60/min
+     * bucket a token-guessing attacker would — request 61 was locked out
+     * regardless of whose token it was, defeating the exact scenario the
+     * feature exists for. This limiter returns TWO `Limit`s (Laravel accepts
+     * an array from a `RateLimiter::for()` closure and enforces every one):
+     * a tight per-TOKEN ceiling, because a token is a credential and
+     * hammering one specific token is still a guessing/abuse pattern worth
+     * stopping; and a generous per-ip ceiling, so a NAT'd crowd passes but a
+     * single scanner cannot still hammer the route without limit.
+     *
+     * ADVISORY 2 (Gate 2 review #3): both `config(...)` reads used to happen
+     * ONCE, here, at boot, and be captured into the closures by `use(...)`
+     * — so nothing short of restarting the process (or re-registering the
+     * limiter) could ever change the ceiling a running request is checked
+     * against. That made the per-ip `Limit` on `bcms-check-in-token`
+     * untestable from a plain `config()->set()` in a test, which is exactly
+     * how every other ceiling in this file is proven — a test lowering it
+     * silently did nothing, so deleting that `Limit` from the array above
+     * would have left the suite green. `config(...)` is now read INSIDE
+     * each closure, at CALL time, one lookup per request rather than once
+     * per process: negligible cost against a cached config array, and it
+     * makes `config()->set()` in a test — or an operator's runtime config
+     * change on a long-lived worker — take effect on the very next request,
+     * exactly as every other closure-based limiter in this file already
+     * behaves. The stale `600` fallback on the per-ip `Limit` (half of
+     * `config/bcms.php`'s own `1200` default, and derived from the same
+     * 200-participants-times-three-requests arithmetic that default's own
+     * comment explains) is corrected to match here too, so the two defaults
+     * cannot drift again.
+     */
+    private function registerBcmsCheckInRateLimiters(): void
+    {
+        \Illuminate\Support\Facades\RateLimiter::for('bcms-check-in-code', function (\Illuminate\Http\Request $request) {
+            $codePerMinute = (int) config('bcms.check_in_rate_limit_per_minute', 60);
+
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute($codePerMinute)->by('bcms-check-in-code:'.$request->ip());
+        });
+
+        \Illuminate\Support\Facades\RateLimiter::for('bcms-check-in-token', function (\Illuminate\Http\Request $request) {
+            $token = (string) ($request->route('token') ?? 'unknown');
+            $tokenPerMinute = (int) config('bcms.check_in_token_rate_limit_per_minute', 10);
+            $ipPerMinute = (int) config('bcms.check_in_ip_rate_limit_per_minute', 1200);
+
+            return [
+                \Illuminate\Cache\RateLimiting\Limit::perMinute($tokenPerMinute)->by('bcms-check-in-token:'.$token),
+                \Illuminate\Cache\RateLimiting\Limit::perMinute($ipPerMinute)->by('bcms-check-in-token-ip:'.$request->ip()),
+            ];
         });
     }
 

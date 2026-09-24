@@ -3,11 +3,18 @@
 namespace App\Services\Bcms;
 
 use App\Enums\Bcms\FindingClassification;
+use App\Enums\Bcms\FindingSource;
 use App\Enums\Bcms\IsoClauseRef;
+use App\Models\Bcms\Aar;
+use App\Models\Bcms\Alert;
+use App\Models\Bcms\AlertRecipient;
 use App\Models\Bcms\ClauseRef;
 use App\Models\Bcms\CorrectiveAction;
+use App\Models\Bcms\DrTest;
 use App\Models\Bcms\ExerciseOccurrence;
 use App\Models\Bcms\Finding;
+use App\Models\Bcms\Incident;
+use App\Models\Bcms\IncidentNotification;
 use App\Models\Bcms\ManagementReview;
 use App\Models\Bcms\Plan;
 use App\Models\Bcms\Process;
@@ -15,6 +22,9 @@ use App\Models\Bcms\Programme;
 use App\Models\Bcms\ProgrammeObligation;
 use App\Models\Bcms\ProgrammeScopeItem;
 use App\Models\BusinessUnit;
+use App\Services\Bcms\CallTrees\TreeHealthService;
+use App\Services\Bcms\Incidents\NotificationService;
+use App\Services\Bcms\Suppliers\SupplierResilienceService;
 use App\Services\ReferenceCodeService;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
@@ -43,7 +53,12 @@ use InvalidArgumentException;
  */
 class ProgrammeService
 {
-    public function __construct(private MaturityService $maturity) {}
+    public function __construct(
+        private MaturityService $maturity,
+        private TreeHealthService $callTreeHealth,
+        private SupplierResilienceService $supplierResilience,
+        private NotificationService $notifications,
+    ) {}
 
     /** @param array<string, mixed> $attributes */
     public function create(array $attributes, ?int $userId = null): Programme
@@ -221,10 +236,54 @@ class ProgrammeService
      * alternative — a screen that re-queries on every open — shows a reader in
      * December a meeting that considered December's numbers, which is not what
      * happened.
+     *
+     * EXTENDED ONCE, PHASE 11 (phase-11-spec §2.4, ADR 0021 §1/§4). The
+     * original four blocks (maturity, findings, corrective actions, exercises,
+     * plans) are joined by everything the later phases made available:
+     * previous-review actions, internal audit, incidents, exercise evaluation
+     * outputs, call-tree/EMNS performance, DR achievement, supplier
+     * continuity, interested-party feedback, BIA/risk changes, context
+     * changes and improvement opportunities — in one change, because a
+     * snapshot extended twice produces two shapes of stored json the pack
+     * then has to tolerate for ever.
+     *
+     * `$manual` carries the two sections nothing in this system computes:
+     * `internal_audit` (report reference, date, auditor, independence
+     * statement, conclusion — ADR 0021 §1, no audit-programme table exists to
+     * read this from) and `interested_party_feedback` (free text — no
+     * feedback register exists, phase-11-spec §2.4). Passing nothing PRESERVES
+     * whatever was already captured for this review, so a re-capture that
+     * refreshes the computed sections does not blow away a manually entered
+     * audit block along the way.
+     *
+     * A1: THE APPROVED-REVIEW LOCK LIVES HERE, NOT ONLY IN THE CONTROLLER.
+     * `ProgrammeController::captureReviewInputs()` already refused an
+     * approved review, but that left the service itself, and every other
+     * caller of it, free to rewrite a minuted, signed-off record's 9.2
+     * block. B12 rejected the same rewrite through the HTTP path; this is
+     * the same rule enforced at the one place every caller actually goes
+     * through.
+     *
+     * @param  array{internal_audit?: array<string, mixed>, interested_party_feedback?: ?string, context_changes?: ?string}  $manual
      */
-    public function captureReviewInputs(ManagementReview $review): ManagementReview
+    public function captureReviewInputs(ManagementReview $review, array $manual = []): ManagementReview
     {
+        if ($review->status === 'approved') {
+            throw new InvalidArgumentException(
+                'This management review is already approved. Its inputs are locked — open a new review to record later audit results.'
+            );
+        }
+
         $maturity = $this->maturity->latest();
+        $existing = $review->inputs ?? [];
+
+        $internalAudit = $manual['internal_audit'] ?? ($existing['internal_audit'] ?? null);
+        $interestedPartyFeedback = array_key_exists('interested_party_feedback', $manual)
+            ? $manual['interested_party_feedback']
+            : ($existing['interested_party_feedback'] ?? null);
+        $contextChangesNote = array_key_exists('context_changes', $manual)
+            ? $manual['context_changes']
+            : ($existing['context_changes']['note'] ?? null);
 
         // Eloquent, not DB::table(), for every one of these. `Finding`,
         // `CorrectiveAction`, `ExerciseOccurrence` and `Plan` all carry
@@ -235,8 +294,24 @@ class ProgrammeService
         // `whereNull('deleted_at')` calls this replaced existed only because
         // `DB::table()` also bypassed soft-deletes, which is the tell that
         // the wrong tool was reached for in the first place.
-        $yearStart = now()->startOfYear()->toDateString();
-        $yearEnd = now()->endOfYear()->toDateString();
+        // A7: `toDateString()` truncated `$yearEnd` to a bare date
+        // ('2026-12-31'), which `whereBetween` on a DATETIME column reads as
+        // midnight — every incident, alert, DR test etc. on 31 December
+        // after 00:00:00 fell outside "this year" for every review captured
+        // that day. Full datetime bounds are safe against a DATE-cast
+        // column too (`scheduled_date`, `test_date`): MariaDB widens the
+        // DATE column to midnight for the comparison, so a date of
+        // 2026-12-31 is still `<=` a bound of `2026-12-31 23:59:59`.
+        // A7: `toDateString()` truncated `$yearEnd` to a bare date
+        // ('2026-12-31'), which `whereBetween` on a DATETIME column reads as
+        // midnight — every incident, alert, DR test etc. on 31 December
+        // after 00:00:00 fell outside "this year" for every review captured
+        // that day. Full datetime bounds are safe against a DATE-cast
+        // column too (`scheduled_date`, `test_date`): MariaDB widens the
+        // DATE column to midnight for the comparison, so a date of
+        // 2026-12-31 is still `<=` a bound of `2026-12-31 23:59:59`.
+        $yearStart = now()->startOfYear()->toDateTimeString();
+        $yearEnd = now()->endOfYear()->toDateTimeString();
 
         $review->update([
             'inputs' => [
@@ -272,11 +347,212 @@ class ProgrammeService
                     'review_overdue' => Plan::query()->where('status', 'approved')
                         ->whereNotNull('next_review_date')->where('next_review_date', '<', now()->toDateString())->count(),
                 ],
+
+                /* -------------------------------------------------------- */
+                /*  Phase 11 additions — phase-11-spec §2.4, ADR 0021 §1/§4 */
+                /* -------------------------------------------------------- */
+
+                // The one section on this page that is a FORM, not a
+                // computed read — no audit-programme table exists to compute
+                // it from (ADR 0021 §1). This is also what
+                // `compliance-evidence-matrix.md`'s 9.2 amber state reads.
+                'internal_audit' => $internalAudit,
+
+                'previous_review_actions' => $this->previousReviewActions($review),
+
+                'incidents' => $this->incidentReportingOutcomes($yearStart, $yearEnd),
+
+                'exercise_evaluation_outputs' => [
+                    'aars_final' => Aar::query()->where('status', 'final')
+                        ->whereHas('occurrence', fn ($q) => $q->whereBetween('scheduled_date', [$yearStart, $yearEnd]))
+                        ->count(),
+                    'quantitative_misses' => \App\Models\Bcms\ExerciseScore::query()
+                        ->whereNotNull('score')->where('score', '<', 3)->count(),
+                ],
+
+                'call_tree_and_emns_performance' => $this->callTreeAndEmnsPerformance($yearStart, $yearEnd),
+
+                'dr_achievement' => [
+                    'tests_in_period' => DrTest::query()->whereBetween('test_date', [$yearStart, $yearEnd])->count(),
+                    'met_objectives' => DrTest::query()->whereBetween('test_date', [$yearStart, $yearEnd])->where('met_objectives', true)->count(),
+                ],
+
+                'supplier_continuity' => [
+                    'chase_list_count' => count($this->supplierResilience->chaseList()),
+                ],
+
+                // Free text only. There is no interested-party feedback
+                // register, and inventing one is out of scope
+                // (phase-11-spec §2.4's own note).
+                'interested_party_feedback' => $interestedPartyFeedback,
+
+                'bia_and_risk_changes' => [
+                    'bias_approved_this_year' => \App\Models\Bcms\BiaAssessment::query()
+                        ->where('status', 'approved')
+                        ->whereBetween('approved_at', [$yearStart, $yearEnd])
+                        ->count(),
+                ],
+
+                'context_changes' => ['note' => $contextChangesNote],
+
+                'improvement_opportunities' => [
+                    'open' => Finding::query()->where('classification', FindingClassification::Improvement->value)
+                        ->where('status', 'open')->count(),
+                ],
             ],
             'inputs_captured_at' => now(),
         ]);
 
         return $review->refresh();
+    }
+
+    /**
+     * The status of actions raised from the previous approved review —
+     * clause 9.3.2's first input.
+     *
+     * @return array<string, mixed>
+     */
+    private function previousReviewActions(ManagementReview $review): array
+    {
+        $previous = ManagementReview::query()
+            ->where('status', 'approved')
+            ->where('id', '!=', $review->getKey())
+            ->where(fn ($q) => $q->where('held_on', '<', $review->held_on)
+                ->orWhere(fn ($q2) => $q2->where('held_on', $review->held_on)->where('id', '<', $review->getKey())))
+            ->orderByDesc('held_on')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($previous === null) {
+            return ['previous_review_id' => null, 'note' => 'No earlier approved management review exists.'];
+        }
+
+        $findingIds = Finding::query()
+            ->where('source', FindingSource::ManagementReview->value)
+            ->where('management_review_id', $previous->getKey())
+            ->pluck('id');
+
+        $actions = CorrectiveAction::query()->whereIn('finding_id', $findingIds)->get();
+
+        return [
+            'previous_review_id' => $previous->getKey(),
+            'previous_review_title' => $previous->title,
+            'previous_review_held_on' => $previous->held_on?->toDateString(),
+            'actions_raised' => $actions->count(),
+            'actions_closed' => $actions->whereNotNull('completed_at')->count(),
+            'actions_open' => $actions->whereNull('completed_at')->count(),
+        ];
+    }
+
+    /**
+     * Incident counts and their regulatory-notification outcome for the
+     * review's period — clause 9.3.2's incident input.
+     *
+     * ADR 0020 §2: `bcms_incidents.reporting_due_at`/`regulator_notified_at`/
+     * `cbn_reference` are retired in place and never read here.
+     * `bcms_incident_notifications` (one row per regulator obligation) is
+     * where "was this notified on time" now lives — `App\Services\Bcms\
+     * Incidents\NotificationService::overdueQuery()` is the one place that
+     * classifies "never submitted, now overdue", reused rather than
+     * re-implemented; a submission recorded AFTER its own `due_at` is a
+     * second late case `overdueQuery()` does not cover (it has already been
+     * submitted, so it is no longer "open"), added alongside it.
+     *
+     * @return array<string, mixed>
+     */
+    private function incidentReportingOutcomes(string $yearStart, string $yearEnd): array
+    {
+        $reportableIds = Incident::query()
+            ->whereBetween('detected_at', [$yearStart, $yearEnd])
+            ->where('is_reportable', true)
+            ->pluck('id');
+
+        $notifiedWithinDue = IncidentNotification::query()
+            ->whereIn('incident_id', $reportableIds)
+            ->whereNotNull('submitted_at')
+            ->whereNotNull('due_at')
+            ->whereColumn('submitted_at', '<=', 'due_at')
+            ->count();
+
+        $missing = $reportableIds->isEmpty() ? 0 : $this->notifications->overdueQuery()
+            ->whereIn('incident_id', $reportableIds)
+            ->count();
+
+        $late = IncidentNotification::query()
+            ->whereIn('incident_id', $reportableIds)
+            ->whereNotNull('submitted_at')
+            ->whereNotNull('due_at')
+            ->whereColumn('submitted_at', '>', 'due_at')
+            ->count();
+
+        return [
+            'count' => Incident::query()->whereBetween('detected_at', [$yearStart, $yearEnd])->count(),
+            'by_severity' => Incident::query()
+                ->whereBetween('detected_at', [$yearStart, $yearEnd])
+                ->whereNotNull('severity')
+                ->selectRaw('severity, count(*) as total')
+                ->groupBy('severity')
+                ->pluck('total', 'severity')
+                ->all(),
+            'notified_within_due' => $notifiedWithinDue,
+            'notified_late_or_missing' => $missing + $late,
+        ];
+    }
+
+    /**
+     * Call-tree and EMNS performance — phase-11-spec §2.4. The call-tree
+     * figures are `TreeHealthService`'s own, read here rather than
+     * recomputed, so this snapshot and the call-tree dashboard cannot show
+     * two different numbers for the same fact.
+     *
+     * B6: the acknowledgement window is measured from dispatch, absolute —
+     * under Carbon 3, `$earlier->diffInMinutes($later)` is SIGNED by
+     * default (negative when `$earlier` is actually later), so a recipient
+     * who acknowledged two hours after dispatch was previously counted as
+     * "within 15 minutes" (a -120 minute diff passing `<= 15`). Scoped to
+     * the review period and read with a cursor rather than loading every
+     * alert recipient the tenant has ever had.
+     *
+     * @return array<string, mixed>
+     */
+    private function callTreeAndEmnsPerformance(string $yearStart, string $yearEnd): array
+    {
+        $callTreeKris = collect($this->callTreeHealth->kris())->keyBy('code');
+
+        $alerts = Alert::query()
+            ->whereNotNull('dispatched_at')
+            ->whereBetween('dispatched_at', [$yearStart, $yearEnd])
+            ->get(['id', 'dispatched_at'])
+            ->keyBy('id');
+
+        $measured = 0;
+        $within = 0;
+
+        if ($alerts->isNotEmpty()) {
+            AlertRecipient::query()
+                ->whereIn('alert_id', $alerts->keys())
+                ->select(['alert_id', 'acknowledged_at'])
+                ->cursor()
+                ->each(function (AlertRecipient $recipient) use ($alerts, &$measured, &$within) {
+                    $measured++;
+
+                    $alert = $alerts->get($recipient->alert_id);
+
+                    if ($recipient->acknowledged_at !== null && $alert?->dispatched_at !== null
+                        && $alert->dispatched_at->diffInMinutes($recipient->acknowledged_at, absolute: true) <= 15) {
+                        $within++;
+                    }
+                });
+        }
+
+        $ackWithin15 = $measured > 0 ? round($within / $measured * 100, 1) : null;
+
+        return [
+            'call_tree_completion_rate' => $callTreeKris->get('BCMS-CT-COMPLETION')['value'] ?? null,
+            'call_tree_confidence' => $callTreeKris->get('BCMS-CT-CONFIDENCE')['value'] ?? null,
+            'emns_ack_within_15_minutes_rate' => $ackWithin15,
+            'emns_recipients_measured' => $measured,
+        ];
     }
 
     public function approveManagementReview(ManagementReview $review, int $approverId): ManagementReview

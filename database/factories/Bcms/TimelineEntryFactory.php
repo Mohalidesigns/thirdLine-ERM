@@ -24,6 +24,11 @@ class TimelineEntryFactory extends Factory
         return [
             'occurrence_id' => \App\Models\Bcms\ExerciseOccurrence::factory(),
             'entry_type' => 'manual',
+            // ADR 0022: logged_at is DATETIME NOT NULL with no database
+            // default (a bare timestamp() used to silently rewrite itself on
+            // any unrelated UPDATE). The application always writes this
+            // explicitly; the factory must too.
+            'logged_at' => now(),
         ];
     }
 }

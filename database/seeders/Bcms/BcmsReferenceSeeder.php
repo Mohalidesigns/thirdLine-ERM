@@ -191,30 +191,54 @@ class BcmsReferenceSeeder extends Seeder
         return $recurrence + ['note' => $period['note'] ?? null];
     }
 
+    /**
+     * `is_active` IS A CREATE-TIME DEFAULT ONLY, not a re-seed default.
+     *
+     * Every other attribute here is reset on every run, by design — this is
+     * shipped reference content and a re-seed after a wording fix must land
+     * it. `is_active` is different: it is the one attribute this row's own
+     * reviewer owns from the moment the row first exists. An admin who
+     * activates a reviewed Pidgin template, or deliberately withdraws one,
+     * must not have that decision overwritten the next time this seeder
+     * runs — the exact failure `updateOrCreate()` had here, unconditionally
+     * writing `is_active => true` on every row, every run, including rows a
+     * reviewer had switched off.
+     */
     private function seedAlertTemplates(): void
     {
         foreach (AlertTemplates::all() as $template) {
-            AlertTemplate::query()->updateOrCreate(
-                ['organization_id' => null, 'code' => $template['code'], 'locale' => $template['locale']],
-                [
-                    'name' => $template['name'],
-                    'category' => $template['category'],
-                    'severity' => $template['severity'],
-                    'subject' => $template['subject'],
-                    'body' => $template['body'],
-                    'channel_renderings' => array_filter([
-                        'sms' => $template['sms'] ?? null,
-                        'voice' => $template['voice'] ?? null,
-                        'ussd' => $template['sms'] ?? null,
-                    ]),
-                    'variables' => $template['variables'],
-                    'requires_dual_approval' => $template['dual_approval'],
-                    'is_life_safety' => $template['life_safety'],
-                    'iso_clause_ref' => isset($template['clause']) ? $template['clause']->value : null,
-                    'is_system_default' => true,
-                    'is_active' => true,
-                ]
-            );
+            $row = AlertTemplate::query()->firstOrNew([
+                'organization_id' => null, 'code' => $template['code'], 'locale' => $template['locale'],
+            ]);
+
+            $isNew = ! $row->exists;
+
+            $row->fill([
+                'name' => $template['name'],
+                'category' => $template['category'],
+                'severity' => $template['severity'],
+                'subject' => $template['subject'],
+                'body' => $template['body'],
+                'channel_renderings' => array_filter([
+                    'sms' => $template['sms'] ?? null,
+                    'voice' => $template['voice'] ?? null,
+                    'ussd' => $template['sms'] ?? null,
+                ]),
+                'variables' => $template['variables'],
+                'requires_dual_approval' => $template['dual_approval'],
+                'is_life_safety' => $template['life_safety'],
+                'iso_clause_ref' => isset($template['clause']) ? $template['clause']->value : null,
+                'is_system_default' => true,
+            ]);
+
+            if ($isNew) {
+                // Reference default: `true`, unless the row says otherwise —
+                // the two Pidgin rows above ship `false`, pending a native
+                // speaker's review.
+                $row->is_active = $template['active'] ?? true;
+            }
+
+            $row->save();
         }
     }
 

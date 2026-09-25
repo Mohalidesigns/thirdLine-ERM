@@ -1,4 +1,4 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
@@ -22,8 +22,10 @@ import tryRoute from '@thirdline/ui/lib/tryRoute';
  * being hidden.
  */
 export default function Alert({ alert = {}, roll_call = null, channels = [], mocked_channels = [], can = {} }) {
+    const { errors = {} } = usePage().props;
     const [state, setState] = useState({ alert, roll_call });
     const [estimate, setEstimate] = useState(null);
+    const [estimateError, setEstimateError] = useState(null);
     const [estimating, setEstimating] = useState(false);
 
     const running = state.alert.dispatched_at && (state.roll_call?.unaccounted_for ?? 0) > 0;
@@ -44,8 +46,14 @@ export default function Alert({ alert = {}, roll_call = null, channels = [], moc
     // A plain fetch rather than an Inertia visit: the estimate is a number to
     // read, not a page to navigate to, and re-rendering the console under
     // somebody who is mid-decision is exactly what this screen must not do.
+    //
+    // The controller returns the same `{error: "..."}` 422 shape whether the
+    // audience rule is circular or a template placeholder was left unfilled
+    // (AlertController::estimate() catches both and responds identically), so
+    // one handler covers both refusals rather than guessing which happened.
     const runEstimate = () => {
         setEstimating(true);
+        setEstimateError(null);
         fetch(tryRoute('bcms.alerts.estimate', alert.uuid), {
             method: 'POST',
             headers: {
@@ -53,9 +61,16 @@ export default function Alert({ alert = {}, roll_call = null, channels = [], moc
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
             },
         })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((d) => d && setEstimate(d))
-            .catch(() => {})
+            .then((r) => r.json().then((body) => ({ ok: r.ok, body })))
+            .then(({ ok, body }) => {
+                if (ok) {
+                    setEstimate(body);
+                } else {
+                    setEstimate(null);
+                    setEstimateError(body?.error ?? 'Could not estimate reach and cost.');
+                }
+            })
+            .catch(() => setEstimateError('Could not estimate reach and cost.'))
             .finally(() => setEstimating(false));
     };
 
@@ -115,6 +130,12 @@ export default function Alert({ alert = {}, roll_call = null, channels = [], moc
                             {estimating ? 'Working out who this reaches…' : 'Estimate reach and cost'}
                         </button>
 
+                        {estimateError && (
+                            <p role="alert" className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">
+                                {estimateError}
+                            </p>
+                        )}
+
                         {estimate && (
                             <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                                 <Figure label="Recipients" value={estimate.recipients} />
@@ -168,6 +189,7 @@ export default function Alert({ alert = {}, roll_call = null, channels = [], moc
                         {can.dispatch ? (
                             <button type="button"
                                 disabled={!a.is_dispatchable || a.held_by_quiet_hours}
+                                aria-describedby={errors.dispatch ? 'dispatch-error' : undefined}
                                 onClick={() => {
                                     if (window.confirm(
                                         `Send "${a.title}" to ${a.recipient_count || 'the resolved'} recipients?`
@@ -185,6 +207,12 @@ export default function Alert({ alert = {}, roll_call = null, channels = [], moc
                             </button>
                         ) : (
                             <p className="text-sm text-slate-500">You do not hold the dispatch permission.</p>
+                        )}
+
+                        {errors.dispatch && (
+                            <p id="dispatch-error" role="alert" className="mt-2 rounded bg-rose-50 p-2 text-xs text-rose-700">
+                                {errors.dispatch}
+                            </p>
                         )}
 
                         {!a.is_dispatchable && (

@@ -71,6 +71,27 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?\Illuminate\Support\Carbon $created_at
  * @property ?\Illuminate\Support\Carbon $updated_at
  * @property ?\Illuminate\Support\Carbon $deleted_at
+ *
+ * `site_id` IS NULLABLE AND NULL IS THE DEFAULT for an incident with no
+ * building attached (an IT-only outage, say). `site(): BelongsTo` is
+ * declared `BelongsTo<Site, $this>` without a union, which is enough for
+ * Larastan to infer the magic `$incident->site` accessor as non-nullable —
+ * wrongly, and the mistake `TemplateRenderer::computeAlertDerivedVariables()`
+ * shipped with once, reading `?->site->name` on the strength of that bad
+ * inference and crashing with `Attempt to read property "name" on null` the
+ * first time an incident-linked alert had no site.
+ *
+ * THIS `@property-read` DOES NOT FIX THE INFERENCE. Larastan resolves the
+ * magic `site` accessor from the `site(): BelongsTo` method's return type
+ * rather than this class-level tag, so PHPStan still reports the second
+ * `?->` in `?->site?->name` as redundant even with this annotation present
+ * — verified, not assumed. The narrow "ignore nullsafe.neverNull" directive
+ * at the call site is what actually satisfies the analyser; this tag is
+ * left here only as accurate documentation of the real, nullable shape for
+ * a human reader, and must not be read as having resolved anything on its
+ * own. Never drop the second `?->` in `?->site?->name` to "agree with" a
+ * static-analysis result that contradicts the nullable FK.
+ * @property-read ?\App\Models\Bcms\Site $site
  */
 class Incident extends Model implements ScopedToOrgHierarchyContract
 {

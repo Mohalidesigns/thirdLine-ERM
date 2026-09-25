@@ -3,6 +3,7 @@ import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import FormField from '@thirdline/ui/Components/FormField';
+import InputError from '@thirdline/ui/Components/InputError';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -97,6 +98,7 @@ export default function Index({
             <div className="grid gap-4 lg:grid-cols-3">
                 <section className="rounded border border-slate-200 bg-white p-4">
                     <h2 className="mb-3 text-sm font-semibold text-slate-700">Scenario</h2>
+                    <InputError message={compose.errors.template_id} role="alert" className="mb-2" />
                     <ul className="space-y-1">
                         {templates.map((t) => (
                             <li key={t.id}>

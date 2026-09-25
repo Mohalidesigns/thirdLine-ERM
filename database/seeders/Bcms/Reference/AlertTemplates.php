@@ -60,6 +60,10 @@ class AlertTemplates
                 'sms' => 'COMOT {{site_name}} NOW. Use closest safe door. No lift. Go {{assembly_point}}.',
                 'voice' => 'Dis na emergency. Comot from {{site_name}} now now. Use di closest safe door. No enter lift. Go {{assembly_point}}.',
                 'variables' => ['site_name', 'assembly_point'],
+                // Pending native-speaker review — shipped inactive until a
+                // Pidgin speaker signs off on the wording (see
+                // `AlertTemplateController::activate()`).
+                'active' => false,
             ],
             [
                 'code' => 'ROLLCALL', 'locale' => 'en',
@@ -96,6 +100,10 @@ class AlertTemplates
                     ['value' => '2', 'label' => 'I need help'],
                     ['value' => '3', 'label' => 'Safe, no fit reach work'],
                 ],
+                // Pending native-speaker review — shipped inactive until a
+                // Pidgin speaker signs off on the wording (see
+                // `AlertTemplateController::activate()`).
+                'active' => false,
             ],
             [
                 'code' => 'ALLCLEAR', 'locale' => 'en',

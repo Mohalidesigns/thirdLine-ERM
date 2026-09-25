@@ -54,6 +54,15 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?\Illuminate\Support\Carbon $created_at
  * @property ?\Illuminate\Support\Carbon $updated_at
  * @property ?\Illuminate\Support\Carbon $deleted_at
+ *
+ * `site_id` IS NULLABLE. `site(): BelongsTo` is declared `BelongsTo<Site,
+ * $this>` without a union, which is enough for Larastan to infer the magic
+ * `$occurrence->site` accessor as non-nullable — wrongly; see
+ * `App\Models\Bcms\Incident`'s identical docblock note for the crash this
+ * caused once, and for why this `@property-read` documents the real shape
+ * without actually changing what Larastan infers — the "ignore
+ * nullsafe.neverNull" directive at the call site is what does that.
+ * @property-read ?\App\Models\Bcms\Site $site
  */
 class ExerciseOccurrence extends Model
 {

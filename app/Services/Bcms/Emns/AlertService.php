@@ -5,6 +5,7 @@ namespace App\Services\Bcms\Emns;
 use App\Enums\Bcms\AlertSeverity;
 use App\Enums\Bcms\ChannelKey;
 use App\Enums\Bcms\RecipientStatus;
+use App\Exceptions\Bcms\AlertRenderingRefusedException;
 use App\Models\Bcms\Alert;
 use App\Models\Bcms\AlertRecipient;
 use App\Models\Bcms\AlertTemplate;
@@ -63,6 +64,21 @@ class AlertService
         $template = isset($attributes['template_id'])
             ? AlertTemplate::query()->find($attributes['template_id'])
             : null;
+
+        // AN INACTIVE TEMPLATE CANNOT BE COMPOSED. This is the compose-time
+        // half; `TemplateRenderer::render()`/`TemplateNotActiveException`
+        // is the other half, for a template deactivated AFTER an alert
+        // already exists in draft (item 9) — this check alone only stops an
+        // operator picking one directly, never a mid-life withdrawal.
+        //
+        // THE MESSAGE IS NEUTRAL, NOT "awaiting review". A row that never
+        // went live is one reason a template is inactive; an admin
+        // deliberately withdrawing a previously-live one is another, and
+        // "awaiting review" is simply false for the second case — see
+        // `TemplateNotActiveException`'s docblock.
+        if ($template !== null && ! $template->is_active) {
+            throw new InvalidArgumentException('This template is not active.');
+        }
 
         $severity = $this->severityFor($attributes, $template);
 
@@ -453,6 +469,8 @@ class AlertService
             );
         }
 
+        $this->assertRenderable($alert, $contacts);
+
         DB::transaction(function () use ($alert, $contacts, $userId) {
             $channels = $this->channelKeys($alert);
             $isLifeSafety = $alert->severity === AlertSeverity::LifeSafety;
@@ -501,6 +519,54 @@ class AlertService
         ]);
 
         return $contacts;
+    }
+
+    /**
+     * FAIL CLOSED, BEFORE A SINGLE RECIPIENT ROW IS WRITTEN. Every channel this
+     * alert will actually use, in every language its resolved audience
+     * actually prefers, must render with no unfilled `{{variable}}` before
+     * `release()` commits anything. `TemplateRenderer::render()` is the one
+     * substitution path for every channel; this only exercises it ahead of
+     * time and turns its refusal into the same `InvalidArgumentException`
+     * `AlertController::dispatchAlert()` already converts to a named
+     * validation error and records with `alert.dispatch_refused` — so an
+     * `EVACUATE` alert missing `assembly_point` is refused here, loudly, and
+     * never reaches `DispatchAlertChunkJob`.
+     *
+     * @param  Collection<int, Contact>  $contacts
+     */
+    private function assertRenderable(Alert $alert, Collection $contacts): void
+    {
+        $channels = $this->channelKeys($alert);
+
+        // MAP `$l ?: 'en'` BEFORE `unique()`, NOT AFTER `filter()`. `filter()`
+        // used to DROP a contact whose `preferred_language` is null or ''
+        // rather than counting them as 'en' — the exact fallback
+        // `AlertDispatcher::sendOne()` applies at send time
+        // (`$contact->preferred_language ?: 'en'`). If even one contact in
+        // the audience has a real locale (say 'ha') and others have none,
+        // the dropped ones' actual locale — 'en' — was never in the
+        // preflighted set at all, so a template that renders for 'ha' but
+        // not for 'en' would pass this check and still fail at send.
+        $locales = $contacts->pluck('preferred_language')
+            ->map(fn ($l) => $l ?: 'en')
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($locales === []) {
+            $locales = ['en'];
+        }
+
+        foreach ($channels as $channel) {
+            foreach ($locales as $locale) {
+                try {
+                    $this->renderer->render($alert, $channel, (string) $locale);
+                } catch (AlertRenderingRefusedException $e) {
+                    throw new InvalidArgumentException($e->getMessage(), previous: $e);
+                }
+            }
+        }
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Bcms;
 
+use App\Exceptions\Bcms\AlertRenderingRefusedException;
 use App\Exceptions\Bcms\CircularAudienceRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Bcms\StoreBcmsAlertRequest;
@@ -105,12 +106,23 @@ class AlertController extends Controller
             unset($data['incident_id']);
         }
 
-        $alert = $this->alerts->compose($data, (int) $request->user()?->getKey());
+        try {
+            $alert = $this->alerts->compose($data, (int) $request->user()?->getKey());
+        } catch (InvalidArgumentException $e) {
+            // An inactive template reached here directly (never through the
+            // compose picker, which already excludes it) — see
+            // `AlertService::compose()`'s own guard.
+            throw ValidationException::withMessages(['template_id' => $e->getMessage()]);
+        }
 
         return redirect()->route('bcms.alerts.show', $alert);
     }
 
-    /** Recipient count and cost, before anything is sent. */
+    /**
+     * Recipient count and cost, before anything is sent — and, because it
+     * renders every channel's real message to price it, the only place today
+     * an operator would meet an unrendered `{{variable}}` before release.
+     */
     public function estimate(Request $request, Alert $alert): JsonResponse
     {
         Gate::authorize('bcms.alert.compose');
@@ -121,6 +133,14 @@ class AlertController extends Controller
             // The live recipient counter is operated during an incident; the
             // exception carries a careful, named explanation and the operator
             // must see it rather than a bare 500 (Gate 1, defect 4).
+            return response()->json(['error' => $e->getMessage()], 422);
+        } catch (AlertRenderingRefusedException $e) {
+            // FAIL CLOSED, SURFACED HERE TOO. `TemplateRenderer::render()`
+            // refuses a rendering with any unfilled placeholder, or one
+            // whose template is not active; the estimate panel is where
+            // that reaches an operator before `release()` would refuse it
+            // again — same shape of response as the circular audience rule
+            // above, so the console needs no new handling.
             return response()->json(['error' => $e->getMessage()], 422);
         }
     }

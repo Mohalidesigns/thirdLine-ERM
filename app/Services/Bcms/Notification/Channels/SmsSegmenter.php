@@ -95,11 +95,36 @@ final class SmsSegmenter
     }
 
     /**
-     * Cut to fit `$segments` segments, on a word boundary, with an ellipsis.
+     * The GSM-7-safe truncation marker. Three plain stops, not `…` (U+2026):
+     * the single curly character is outside the GSM 03.38 alphabet, so
+     * appending it to an otherwise-GSM-7 body was dropping the WHOLE message
+     * to UCS-2 — a two-segment SMS going out as five, for one character that
+     * was never actually sent to fit inside the segment count it was
+     * computed against. A UCS-2 body was already outside GSM-7 before
+     * truncation and stays that way; only the GSM-7 case needed the swap.
+     */
+    private const GSM7_MARKER = '...';
+
+    private const UCS2_MARKER = '…';
+
+    /**
+     * Cut to fit `$segments` segments, on a word boundary, with a marker safe
+     * for the body's own alphabet.
      *
      * Returns the body unchanged when it already fits — an alert that fits is
      * never rewritten, because a template author's exact words are what was
      * approved.
+     *
+     * THE BUDGET IS IN UNITS, NOT CHARACTERS. `GSM_SINGLE`/`GSM_CONCAT` are
+     * unit ceilings — `units()` already weighs a GSM-7 extended character
+     * (`^{}\[~]|€`) as 2 — and cutting by `mb_substr($body, 0, $limit)`
+     * (a CHARACTER count) silently mismatched that the moment an extended
+     * character was in play: a body with, say, six `€` signs among its
+     * first 160 characters is actually 166 units, over budget, but a
+     * character-counted cut kept all six anyway. The recount below
+     * (`cutToUnitBudget()`) walks the body accumulating the SAME per-character
+     * cost `units()` uses, so what is cut is measured the same way the
+     * budget itself is.
      */
     public static function truncate(string $body, int $segments = 1): string
     {
@@ -108,22 +133,67 @@ final class SmsSegmenter
         }
 
         $gsm = self::isGsm7($body);
+        $marker = $gsm ? self::GSM7_MARKER : self::UCS2_MARKER;
+
         $limit = $segments === 1
             ? ($gsm ? self::GSM_SINGLE : self::UCS2_SINGLE)
             : $segments * ($gsm ? self::GSM_CONCAT : self::UCS2_CONCAT);
 
-        $limit -= 1; // room for the ellipsis
-        $cut = mb_substr($body, 0, $limit);
+        $budget = $limit - self::units($marker); // room for the marker, in the body's own units
+
+        $cut = self::cutToUnitBudget($body, $budget, $gsm);
 
         $lastSpace = mb_strrpos($cut, ' ');
 
         // A single word longer than a whole segment has no boundary to cut on.
         // Cutting mid-word is then the only option and is better than sending
-        // nothing, but it is the exception rather than the rule.
-        if ($lastSpace !== false && $lastSpace > $limit * 0.5) {
+        // nothing, but it is the exception rather than the rule. Compared
+        // against the CUT STRING'S OWN character length, not the unit
+        // budget — the two can differ once extended characters are in play.
+        if ($lastSpace !== false && $lastSpace > mb_strlen($cut) * 0.5) {
             $cut = mb_substr($cut, 0, $lastSpace);
         }
 
-        return rtrim($cut, " \t\n\r,.;:-").'…';
+        // THE SEGMENT COUNT IS WHATEVER `segments()` SAYS ABOUT THE TEXT
+        // ACTUALLY RETURNED, never inferred from the pre-truncation body. A
+        // caller asking "how many segments is this" after truncation (the
+        // console's live preview, `inspect()`'s `sms_preview`) must call
+        // `segments()` again on THIS string — the marker is chosen
+        // (`GSM7_MARKER`/`UCS2_MARKER`) so that doing so agrees with the
+        // budget truncation was computed against, instead of the previous
+        // `…` silently moving a GSM-7 body to UCS-2 and turning a two-segment
+        // truncation into five, and the unit-weighted cut below is what
+        // makes that agreement hold even when extended characters are
+        // involved.
+        return rtrim($cut, " \t\n\r,.;:-").$marker;
+    }
+
+    /**
+     * The longest PREFIX of `$body` whose own `units()` cost is at most
+     * `$unitBudget` — a plain character cut for a UCS-2 body (1 unit per
+     * character, always), a running unit tally for a GSM-7 one, since an
+     * extended character there costs 2.
+     */
+    private static function cutToUnitBudget(string $body, int $unitBudget, bool $gsm): string
+    {
+        if (! $gsm) {
+            return mb_substr($body, 0, max(0, $unitBudget));
+        }
+
+        $kept = '';
+        $used = 0;
+
+        foreach (mb_str_split($body) as $char) {
+            $cost = str_contains(self::GSM_EXTENDED, $char) ? 2 : 1;
+
+            if ($used + $cost > $unitBudget) {
+                break;
+            }
+
+            $kept .= $char;
+            $used += $cost;
+        }
+
+        return $kept;
     }
 }

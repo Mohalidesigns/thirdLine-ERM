@@ -40,6 +40,10 @@ class IncidentPresenter
         private IncidentService $incidents,
         private NotificationService $notifications,
         private PirService $pir,
+        // EMNS-owned (ADR 0024, item B/D): the crisis room's SitRep/stakeholder
+        // composer needs the identical audience and occurrence picker options
+        // the EMNS console offers, not a second, drifting copy of the query.
+        private EmnsPresenter $emns,
     ) {}
 
     /** @return array<string, mixed> */
@@ -240,6 +244,11 @@ class IncidentPresenter
                 'kept_active_rationale' => $a->keptActiveEntry?->content,
             ])->values()->all(),
             'metrics' => $this->computeMetrics($incident),
+            // ADR 0024, item B/D — the SitRep/stakeholder composer's audience
+            // and occurrence pickers, reusing `EmnsPresenter` so this screen
+            // and the EMNS console never disagree about what is offered.
+            'audience_options' => $this->emns->audienceOptions(),
+            'occurrence_options' => $this->emns->occurrenceOptions(),
             'urls' => [
                 'log_store' => route('bcms.incidents.log.store', $incident),
                 'tasks_store' => route('bcms.incidents.tasks.store', $incident),

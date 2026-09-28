@@ -147,6 +147,34 @@ class EmnsTemplateSeedingTest extends TestCase
         $this->assertNotContains('pcm', array_column($before['templates'], 'locale') ?: []);
     }
 
+    /**
+     * ADR 0024 §3.6 — the composer's read-only "Filled in automatically"
+     * list. `console()`'s template map used to expose `operator_variables`
+     * only; a template's DERIVED variables (`site_name` on EVACUATE) had no
+     * prop at all, so the composer had nothing to build that list from.
+     */
+    #[Test]
+    public function the_console_exposes_evacuates_derived_variables_for_the_read_only_list(): void
+    {
+        $console = app(EmnsPresenter::class)->console($this->operator);
+
+        $evacuate = collect($console['templates'])->firstWhere('code', 'EVACUATE');
+        $this->assertNotNull($evacuate);
+        $this->assertArrayHasKey('derived_variables', $evacuate);
+
+        $names = array_column($evacuate['derived_variables'], 'name');
+        $this->assertContains('site_name', $names);
+
+        // Every entry has a human label, and no operator variable
+        // (`assembly_point`, required and shown as a real input) leaks into
+        // this read-only list.
+        foreach ($evacuate['derived_variables'] as $entry) {
+            $this->assertArrayHasKey('label', $entry);
+            $this->assertNotSame('', trim($entry['label']));
+        }
+        $this->assertNotContains('assembly_point', $names);
+    }
+
     #[Test]
     public function an_inactive_template_cannot_be_composed(): void
     {
@@ -235,10 +263,15 @@ class EmnsTemplateSeedingTest extends TestCase
 
         $response = $this->post(route('bcms.alerts.store'), [
             'title' => 'Comot now',
+            'message' => 'x',
             'template_id' => $evacuatePcm->getKey(),
             'severity' => $evacuatePcm->severity->value,
             'channels' => ['sms'],
             'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
+            // Still declared even though the row is inactive — supplied so
+            // the ONLY failure under test is the inactive-template refusal,
+            // not the (also real, separately tested) missing-variable one.
+            'template_variables' => ['assembly_point' => 'Rear car park'],
         ]);
 
         $response->assertSessionHasErrors('template_id');
@@ -281,6 +314,80 @@ class EmnsTemplateSeedingTest extends TestCase
         $this->assertStringContainsString('EVACUATE Lagos HQ NOW', $message->body);
         $this->assertStringNotContainsString('Comot', $message->body, 'Must not be the withheld Pidgin wording.');
         $this->assertStringNotContainsString('{{', $message->body);
+    }
+
+    /* ================================================================== */
+    /*  ADR 0024 — the classification map covers every declared variable,
+    /*  and locale siblings of one code agree on what they declare.
+    /* ================================================================== */
+
+    #[Test]
+    public function every_variable_any_shipped_template_declares_is_classified(): void
+    {
+        $unclassified = [];
+
+        foreach (\Database\Seeders\Bcms\Reference\AlertTemplates::all() as $definition) {
+            $bad = \App\Support\Bcms\AlertTemplateVariables::unclassified($definition['variables']);
+
+            if ($bad !== []) {
+                $unclassified[$definition['code'].'/'.$definition['locale']] = $bad;
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $unclassified,
+            'A template variable this map has never heard of is a failed test, not a runtime surprise: '
+                .json_encode($unclassified),
+        );
+    }
+
+    #[Test]
+    public function every_active_locale_row_of_one_template_code_declares_the_same_variable_set(): void
+    {
+        $byCode = [];
+
+        foreach (AlertTemplate::query()->where('is_active', true)->get() as $template) {
+            $byCode[$template->code][$template->locale] = array_values(array_filter(
+                (array) $template->variables, 'is_string',
+            ));
+        }
+
+        foreach ($byCode as $code => $byLocale) {
+            $first = array_key_first($byLocale);
+            $expected = $byLocale[$first];
+            sort($expected);
+
+            foreach ($byLocale as $locale => $variables) {
+                sort($variables);
+
+                $this->assertSame(
+                    $expected,
+                    $variables,
+                    "{$code}/{$locale} declares a different variable set than {$code}/{$first} — "
+                        .'compose validates against the locale the picker offers (en) while render uses '
+                        .'whichever locale row a recipient gets, and those must agree.',
+                );
+            }
+        }
+    }
+
+    #[Test]
+    public function blocking_note_is_declared_only_by_english_template_rows(): void
+    {
+        $offending = AlertTemplate::query()
+            ->where('locale', '!=', 'en')
+            ->get()
+            ->filter(fn (AlertTemplate $t) => in_array(
+                'blocking_note', array_values(array_filter((array) $t->variables, 'is_string')), true,
+            ));
+
+        $this->assertTrue(
+            $offending->isEmpty(),
+            '`blocking_note` is computed as an English sentence — a non-en row declaring it would '
+                .'render an English sentence inside otherwise-translated text: '
+                .$offending->map(fn (AlertTemplate $t) => "{$t->code}/{$t->locale}")->implode(', '),
+        );
     }
 
     private function contact(string $name): Contact

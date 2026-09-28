@@ -33,6 +33,55 @@ final class SmsSegmenter
 
     public const UCS2_CONCAT = 67;
 
+    /**
+     * A NARROW, NAMED PUNCTUATION MAP — em/en dash, curly quotes, the
+     * ellipsis character, and a non-breaking space — to their GSM-7
+     * equivalents. Every one of these is typography a word processor or a
+     * pasted site name introduces without anyone intending an SMS
+     * consequence: `TemplateRenderer::siteNameFromAudienceRule()` derives
+     * a site's name verbatim from `bcms_sites.name`, and a name like
+     * "Kano Heritage Bank — Head Office, Kano" (one em dash) was dropping
+     * an otherwise-plain-ASCII `EVACUATE` SMS from GSM-7 to UCS-2 — 160
+     * characters and one segment becoming 70 and three, silently, for a
+     * character nobody chose for this purpose.
+     *
+     * DELIBERATELY NOT A GENERAL TRANSLITERATOR. Genuinely non-GSM-7 text
+     * — Hausa diacritics, an actual emoji — stays exactly what it is and
+     * correctly prices as UCS-2; only this named, closed set of
+     * "typographic punctuation with an ASCII equivalent nobody would miss"
+     * is mapped. `nonGsmCharacters()` and `isGsm7()` are NOT changed to
+     * apply this map: the template-authoring preview (`inspect()`) must
+     * keep showing an author the exact character that cost them, which
+     * this map would otherwise hide from the one screen whose job is to
+     * show it.
+     *
+     * @var array<string, string>
+     */
+    private const GSM7_TRANSLITERATIONS = [
+        "\u{2014}" => '-',  // em dash —
+        "\u{2013}" => '-',  // en dash –
+        "\u{2018}" => "'",  // left single quotation mark '
+        "\u{2019}" => "'",  // right single quotation mark '
+        "\u{201C}" => '"',  // left double quotation mark "
+        "\u{201D}" => '"',  // right double quotation mark "
+        "\u{2026}" => '...', // horizontal ellipsis …
+        "\u{00A0}" => ' ',  // non-breaking space
+    ];
+
+    /**
+     * Applied to the WIRE body only — the text about to be shaped for SMS
+     * or USSD (`TemplateRenderer::shapeForChannel()`) — and BEFORE
+     * segmenting, never to what is stored. A body already GSM-7 is
+     * returned unchanged; one that becomes GSM-7 only after this map is
+     * applied now segments and prices as GSM-7 correctly. One that is
+     * still not GSM-7 afterwards (genuine non-Latin text) is untouched by
+     * this method — the split correctly stays UCS-2 for it.
+     */
+    public static function transliterateForGsm7(string $body): string
+    {
+        return strtr($body, self::GSM7_TRANSLITERATIONS);
+    }
+
     public static function isGsm7(string $body): bool
     {
         foreach (mb_str_split($body) as $char) {

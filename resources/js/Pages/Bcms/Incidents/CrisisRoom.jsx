@@ -8,6 +8,7 @@ import ReportabilityQuestion from '@/Components/Bcms/ReportabilityQuestion';
 import { toLocalInput, localInputToIso } from '@/Components/Bcms/dateInput';
 import { formatIncidentDateTime } from '@/Components/Bcms/dateDisplay';
 import AwarenessField, { awarenessDefault, isAwarenessLate } from '@/Components/Bcms/AwarenessField';
+import AudiencePicker from '@/Components/Bcms/AudiencePicker';
 
 const ENTRY_TONE = {
     decision: 'bg-slate-200 text-slate-800',
@@ -55,6 +56,14 @@ export default function CrisisRoom({
     entry_types: entryTypes = [], plans = [], roll_call: rollCall = null, review = {}, closed_by: closedBy = null,
     countdown_tiles: countdownTiles = [], reportability = {}, entries = [], tasks = [], plan_activations: planActivations = [],
     metrics = {}, urls = {},
+    // ADR 0024 item B — the SitRep/stakeholder/roll-call composers' audience
+    // picker, via the same `EmnsPresenter::audienceOptions()` the EMNS
+    // console itself reads (`IncidentPresenter`), so this screen and the
+    // console never disagree about what "Crisis Management Team" resolves
+    // to. `occurrence_options` is carried for parity with that presenter but
+    // has no picker of its own here — a crisis-room alert is already scoped
+    // to this incident, not to a drill.
+    audience_options: audienceOptions = {},
 }) {
     // `entries`/`tasks`/`planActivations` are plain Inertia props — they only
     // change when the server re-renders (a normal visit, or the partial
@@ -541,6 +550,7 @@ export default function CrisisRoom({
                                     defaultSeverity="critical"
                                     confirmLabel="Dispatch a life-safety roll-call?"
                                     isSimulation={incident.is_exercise}
+                                    audienceOptions={audienceOptions}
                                 />
                             )}
                             {can.dispatch_alert && !closed && (
@@ -551,7 +561,8 @@ export default function CrisisRoom({
                             )}
                             {showSitRepForm && (
                                 <AlertComposer storeUrl={urls.alerts_store} incidentUuid={incident.uuid}
-                                    defaultSeverity="high" confirmLabel="Send this SitRep?" isSimulation={incident.is_exercise} />
+                                    defaultSeverity="advisory" confirmLabel="Send this SitRep?" isSimulation={incident.is_exercise}
+                                    audienceOptions={audienceOptions} />
                             )}
                             {can.dispatch_alert && !closed && (
                                 <button type="button" onClick={() => setShowCommsForm((v) => !v)}
@@ -561,8 +572,8 @@ export default function CrisisRoom({
                             )}
                             {showCommsForm && (
                                 <AlertComposer storeUrl={urls.alerts_store} incidentUuid={incident.uuid}
-                                    defaultSeverity="high" confirmLabel="Send this communication?" isSimulation={incident.is_exercise}
-                                    audienceNote />
+                                    defaultSeverity="advisory" confirmLabel="Send this communication?" isSimulation={incident.is_exercise}
+                                    audienceOptions={audienceOptions} audienceNote />
                             )}
                         </div>
                     </section>
@@ -683,11 +694,40 @@ function EntryRow({ entry, depth, canManage, onCorrect }) {
     );
 }
 
-function AlertComposer({ storeUrl, incidentUuid, defaultSeverity, confirmLabel, isSimulation, audienceNote }) {
-    const form = useForm({ title: '', message: '', severity: defaultSeverity, incident_id: incidentUuid });
+/**
+ * ADR 0024 item B: EVERY CRISIS-ROOM COMPOSER CARRIES AN AUDIENCE, THE SAME
+ * PICKER THE EMNS CONSOLE OFFERS. Defaults to this tenant's crisis-team call
+ * tree when one is found by name (`/crisis/i` over `audience_options.call_
+ * trees` — a heuristic, not a configured field, because nothing on this
+ * payload names one explicitly); otherwise the operator must choose one
+ * before the button below will submit. A roll-call, SitRep or stakeholder
+ * update with nobody targeted is not a smaller version of the real thing —
+ * it is nothing sent at all, silently.
+ */
+function AlertComposer({ storeUrl, incidentUuid, defaultSeverity, confirmLabel, isSimulation, audienceNote, audienceOptions = {} }) {
+    const defaultAudience = useMemo(() => {
+        const crisisTeam = (audienceOptions.call_trees ?? []).find((t) => /crisis/i.test(t.name));
+        return crisisTeam ? { type: 'call_tree', id: crisisTeam.id } : null;
+    }, [audienceOptions]);
+
+    const form = useForm({
+        title: '', message: '', severity: defaultSeverity, incident_id: incidentUuid,
+        audience_rule: defaultAudience,
+    });
+
+    const audienceChosen = !!form.data.audience_rule;
 
     const submit = (e) => {
         e.preventDefault();
+        // `message` is `required` server-side (`StoreBcmsAlertRequest`,
+        // `errors.message`) — this guard puts the identical refusal in
+        // front of the operator immediately, without a round trip (same as
+        // `Emns/Index.jsx`'s composer).
+        if (!form.data.message.trim()) {
+            form.setError('message', 'Enter a message.');
+            return;
+        }
+        if (!audienceChosen) return;
         if (!window.confirm(confirmLabel)) return;
         form.post(storeUrl, { preserveScroll: true });
     };
@@ -696,15 +736,31 @@ function AlertComposer({ storeUrl, incidentUuid, defaultSeverity, confirmLabel, 
         <form onSubmit={submit} className="space-y-1 rounded border border-dashed border-slate-300 p-2">
             <input className="form-input w-full text-sm" placeholder="Title" aria-label="Title"
                 value={form.data.title} onChange={(e) => form.setData('title', e.target.value)} />
+            {form.errors.title && <p role="alert" className="text-xs text-rose-700">{form.errors.title}</p>}
             <textarea className="form-textarea w-full text-sm" rows={2} placeholder="Message" aria-label="Message"
-                value={form.data.message} onChange={(e) => form.setData('message', e.target.value)} />
+                value={form.data.message}
+                onChange={(e) => { form.setData('message', e.target.value); if (form.errors.message) form.clearErrors('message'); }} />
+            {form.errors.message && <p role="alert" className="text-xs text-rose-700">{form.errors.message}</p>}
+            <AudiencePicker
+                idPrefix={`crisis-audience-${incidentUuid}-${defaultSeverity}`}
+                legend="Who does this reach?"
+                required
+                options={audienceOptions}
+                value={form.data.audience_rule}
+                onChange={(rule) => form.setData('audience_rule', rule)}
+                error={form.errors.audience_rule}
+            />
+            {!audienceChosen && (
+                <p className="text-[11px] text-amber-700">Choose who this reaches before it can be sent.</p>
+            )}
             {audienceNote && (
                 <p className="rounded bg-amber-50 p-1 text-[11px] text-amber-800">
                     Confirm the audience before sending — this is recorded exactly as sent.
                 </p>
             )}
             {isSimulation && <p className="text-[11px] text-violet-700">This incident is flagged as an exercise; the alert stays a simulation.</p>}
-            <button type="submit" disabled={form.processing} className="w-full rounded bg-slate-800 py-1.5 text-xs text-white">
+            <button type="submit" disabled={form.processing || !audienceChosen}
+                className="w-full rounded bg-slate-800 py-1.5 text-xs text-white disabled:cursor-not-allowed disabled:opacity-60">
                 Continue to dispatch
             </button>
         </form>

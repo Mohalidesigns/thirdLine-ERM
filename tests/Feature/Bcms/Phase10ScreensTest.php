@@ -1358,7 +1358,12 @@ class Phase10ScreensTest extends TestCase
 
         $this->actingAs($this->officer)->post(route('bcms.alerts.store'), [
             'title' => 'SitRep 1', 'message' => 'Update from the crisis room.', 'severity' => 'advisory',
-            'channels' => ['sms'], 'audience_rule' => ['type' => 'business_unit', 'ids' => [$this->unit->id]],
+            'channels' => ['sms'],
+            // `org_node`, not the fictional `business_unit` leaf this fixture used
+            // to send before `StoreBcmsAlertRequest` validated the shape
+            // (`ValidAudienceRule`, ADR 0024 item B) — `AudienceResolver::byOrgNode()`
+            // resolves `org_node` ids against `business_units` already.
+            'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
             'incident_id' => $incident->uuid,
         ])->assertRedirect();
 
@@ -1398,7 +1403,12 @@ class Phase10ScreensTest extends TestCase
 
         $this->actingAs($this->officer)->post(route('bcms.alerts.store'), [
             'title' => 'Linked alert', 'message' => 'x', 'severity' => 'advisory',
-            'channels' => ['sms'], 'audience_rule' => ['type' => 'business_unit', 'ids' => [$this->unit->id]],
+            'channels' => ['sms'],
+            // `org_node`, not the fictional `business_unit` leaf this fixture used
+            // to send before `StoreBcmsAlertRequest` validated the shape
+            // (`ValidAudienceRule`, ADR 0024 item B) — `AudienceResolver::byOrgNode()`
+            // resolves `org_node` ids against `business_units` already.
+            'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
             'incident_id' => $incident->uuid,
         ])->assertRedirect();
 

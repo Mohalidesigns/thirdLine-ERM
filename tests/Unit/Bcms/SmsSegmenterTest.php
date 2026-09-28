@@ -126,4 +126,50 @@ class SmsSegmenterTest extends TestCase
         $this->assertStringEndsWith('...', $truncated);
         $this->assertStringNotContainsString('wor...', $truncated, 'Must cut on a space, not mid-word.');
     }
+
+    /**
+     * CODE REVIEW DEFECT 3, PERMANENT REGRESSION TEST. QA found this in the
+     * browser: a derived site name containing one em dash — "Kano Heritage
+     * Bank — Head Office, Kano" — was otherwise plain ASCII, but the single
+     * `—` dropped the whole `EVACUATE` SMS to UCS-2 and turned what should
+     * have been one segment into three.
+     */
+    #[Test]
+    public function transliterate_for_gsm7_maps_the_named_punctuation_set(): void
+    {
+        $body = "Kano Heritage Bank \u{2014} Head Office, Kano \u{2018}HQ\u{2019} \u{201C}main site\u{201D}"
+            ."\u{2026}\u{00A0}done";
+
+        $mapped = SmsSegmenter::transliterateForGsm7($body);
+
+        $this->assertTrue(SmsSegmenter::isGsm7($mapped));
+        $this->assertSame(
+            "Kano Heritage Bank - Head Office, Kano 'HQ' \"main site\"... done",
+            $mapped,
+        );
+    }
+
+    #[Test]
+    public function transliterate_for_gsm7_leaves_a_plain_gsm7_body_unchanged(): void
+    {
+        $body = 'Evacuate the building now and proceed to the assembly point.';
+
+        $this->assertSame($body, SmsSegmenter::transliterateForGsm7($body));
+    }
+
+    #[Test]
+    public function transliterate_for_gsm7_does_not_touch_genuine_non_gsm_text(): void
+    {
+        // `ƙ` (U+0199, Hausa hooked k) — genuinely outside GSM-7, and must
+        // stay that way rather than being silently mapped to something else.
+        $body = 'Ku bar ginin nan da sauri — ku tafi ƙofar taro.';
+
+        $mapped = SmsSegmenter::transliterateForGsm7($body);
+
+        $this->assertStringNotContainsString("\u{2014}", $mapped, 'The em dash itself is still mapped away.');
+        $this->assertFalse(
+            SmsSegmenter::isGsm7($mapped),
+            'The Hausa diacritics remain, and correctly keep this body UCS-2 — the map is narrow, not general.',
+        );
+    }
 }

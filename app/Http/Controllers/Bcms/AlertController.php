@@ -10,7 +10,6 @@ use App\Jobs\Bcms\DispatchAlertChunkJob;
 use App\Jobs\Bcms\EscalateAlertRecipientsJob;
 use App\Models\Bcms\Alert;
 use App\Models\Bcms\AlertRecipient;
-use App\Models\Bcms\AlertTemplate;
 use App\Models\Bcms\Incident;
 use App\Presenters\Bcms\EmnsPresenter;
 use App\Services\Bcms\Emns\AlertService;
@@ -91,10 +90,9 @@ class AlertController extends Controller
     {
         $data = $request->validated();
 
-        if (filled($data['template_id'] ?? null) && AlertTemplate::query()->find($data['template_id']) === null) {
-            throw ValidationException::withMessages(['template_id' => 'That template does not exist.']);
-        }
-
+        // `template_id`'s existence (and tenant/system-catalogue bound) is
+        // now the request's own `Rule::exists()` — see
+        // `StoreBcmsAlertRequest`'s docblock.
         if (filled($data['incident_id'] ?? null)) {
             $incident = Incident::query()->visibleTo($request->user())
                 ->where('uuid', $data['incident_id'])->first();

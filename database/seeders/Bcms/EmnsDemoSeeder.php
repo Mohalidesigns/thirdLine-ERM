@@ -174,11 +174,26 @@ class EmnsDemoSeeder
             'organization_id' => $organization->id,
             'template_id' => $template?->getKey(),
             'title' => 'Head office evacuation drill',
+            // ADR 0024: with a template attached, `TemplateRenderer::render()`
+            // renders from the TEMPLATE's body, never this free-hand
+            // `message` — it stays only as the fallback for a template-free
+            // alert. Left as a plain description for anyone reading the
+            // draft before it is released.
             'message' => 'Leave the building by the nearest fire exit and assemble at the rear car park. '
                 .'Reply SAFE when you are out, or HELP if you need assistance.',
             'severity' => AlertSeverity::LifeSafety->value,
             'channels' => ['sms', 'voice', 'email'],
+            // A bare `site` leaf — `TemplateRenderer::siteNameFromAudienceRule()`
+            // derives `site_name` from exactly this shape, and every
+            // department roster `CallTreeDemoSeeder` builds carries
+            // `site_id = HQ`, so this also resolves real recipients.
             'audience_rule' => ['type' => 'site', 'ids' => [(int) $hq->getKey()]],
+            // ADR 0024 §2 — `assembly_point` is operator-entered, never
+            // derivable (the site register deliberately holds none). Without
+            // this the release below refuses, named, and the seeded alert
+            // sits as an unsendable 0-progress draft — the defect this
+            // fixes: EVACUATE could not be sent in the demo at all.
+            'template_variables' => ['assembly_point' => 'Rear car park, Block B'],
             'response_required' => true,
             'response_options' => [
                 ['value' => 'safe', 'label' => "I'm safe"],

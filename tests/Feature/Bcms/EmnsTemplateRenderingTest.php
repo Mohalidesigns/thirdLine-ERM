@@ -10,6 +10,7 @@ use App\Models\Bcms\Alert;
 use App\Models\Bcms\AlertRecipient;
 use App\Models\Bcms\AlertTemplate;
 use App\Models\Bcms\AuditLog;
+use App\Models\Bcms\CallTree;
 use App\Models\Bcms\Contact;
 use App\Models\Bcms\Site;
 use App\Models\BusinessUnit;
@@ -98,6 +99,13 @@ class EmnsTemplateRenderingTest extends TestCase
             if (($definition['active'] ?? true) === false) {
                 // Pending review — never rendered for real; its own test
                 // covers the exclusion (EmnsTemplateSeedingTest).
+                continue;
+            }
+
+            if (\App\Support\Bcms\AlertTemplateVariables::needsPerRecipientVariable($definition['variables'])) {
+                // ADR 0024 §3.3 — EXBLOCKED and CONTACTVERIFY are refused at
+                // compose, deliberately; the deferral itself is covered by
+                // its own test below.
                 continue;
             }
 
@@ -235,6 +243,203 @@ class EmnsTemplateRenderingTest extends TestCase
             UnresolvedTemplateVariableException::class,
             'site_name',
         );
+    }
+
+    /**
+     * CODE REVIEW BLOCKING DEFECT, PERMANENT REGRESSION TEST for
+     * `audienceRuleMentionsAnySite()`. The test above proves the SAME
+     * audience shape fails closed, but with no incident linked there is
+     * nothing to fall back to either way — it cannot tell "the exclusion
+     * check correctly blocked the fallback" apart from "there was never a
+     * fallback source". This is the one shape that CAN tell them apart:
+     * an incident genuinely AT Ikeja, so a naive fallback has a real,
+     * wrong value ready to supply. Deleting the
+     * `audienceRuleMentionsAnySite()` ternary in
+     * `computeAlertDerivedVariables()` keeps every OTHER EMNS test green
+     * and brings back exactly the shipped defect: "EVACUATE Ikeja Branch
+     * NOW" sent to everyone the rule explicitly excludes Ikeja from.
+     *
+     * Verified by removing the ternary and re-running this test alone: it
+     * failed (site_name resolved to "Ikeja Branch" and the render
+     * succeeded instead of throwing). Restored immediately after
+     * confirming the failure.
+     */
+    #[Test]
+    public function an_incident_at_the_excluded_site_still_fails_closed_on_site_name(): void
+    {
+        $ikeja = Site::create(['organization_id' => $this->organization->id, 'code' => 'IKJ2', 'name' => 'Ikeja Branch']);
+
+        $incident = app(IncidentService::class)->declare([
+            'title' => 'Ikeja branch fire',
+            'severity' => \App\Enums\Bcms\IncidentSeverity::Sev1->value,
+            'detected_at' => now()->toIso8601String(),
+        ], $this->operator);
+        $incident->update(['site_id' => $ikeja->id]);
+
+        $template = AlertTemplate::query()->where('code', 'EVACUATE')->where('locale', 'en')->firstOrFail();
+
+        $alert = app(AlertService::class)->compose([
+            'organization_id' => $this->organization->id,
+            'title' => 'Evacuate now', 'message' => 'x',
+            'template_id' => $template->getKey(), 'incident_id' => $incident->getKey(),
+            'severity' => $template->severity->value, 'channels' => ['sms'],
+            // Everyone in the unit EXCEPT Ikeja — the incident is AT Ikeja,
+            // so a fallback that ignored the exclusion would name exactly
+            // the site the audience was built to leave out.
+            'audience_rule' => [
+                'type' => 'all_of',
+                'rules' => [
+                    ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
+                    ['type' => 'none_of', 'rules' => [['type' => 'site', 'ids' => [$ikeja->id]]]],
+                ],
+            ],
+            'template_variables' => ['assembly_point' => 'x'],
+        ], $this->operator->id);
+
+        $this->assertThrows(
+            fn () => app(TemplateRenderer::class)->render($alert, ChannelKey::Sms, 'en'),
+            UnresolvedTemplateVariableException::class,
+            'site_name',
+        );
+    }
+
+    /**
+     * The control for the test above: the SAME incident-at-a-site shape,
+     * but an audience that names no site AT ALL. This is the one case the
+     * fallback exists for, and it must still work — proving the fix is a
+     * narrowing of the fallback's CONDITION, not a removal of the
+     * fallback itself.
+     */
+    #[Test]
+    public function an_incident_at_a_site_with_no_site_named_in_the_audience_still_derives_it(): void
+    {
+        $hq = Site::create(['organization_id' => $this->organization->id, 'code' => 'HQ3', 'name' => 'Lagos HQ']);
+
+        $incident = app(IncidentService::class)->declare([
+            'title' => 'HQ power failure',
+            'severity' => \App\Enums\Bcms\IncidentSeverity::Sev2->value,
+            'detected_at' => now()->toIso8601String(),
+        ], $this->operator);
+        $incident->update(['site_id' => $hq->id]);
+
+        $template = AlertTemplate::query()->where('code', 'EVACUATE')->where('locale', 'en')->firstOrFail();
+
+        $alert = app(AlertService::class)->compose([
+            'organization_id' => $this->organization->id,
+            'title' => 'Evacuate now', 'message' => 'x',
+            'template_id' => $template->getKey(), 'incident_id' => $incident->getKey(),
+            'severity' => $template->severity->value, 'channels' => ['sms'],
+            // No `site` leaf anywhere — the audience is silent about sites,
+            // which is exactly when the incident's own site should stand in.
+            'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
+            'template_variables' => ['assembly_point' => 'x'],
+        ], $this->operator->id);
+
+        $message = app(TemplateRenderer::class)->render($alert, ChannelKey::Sms, 'en');
+
+        $this->assertStringContainsString('Lagos HQ', $message->body);
+        $this->assertStringNotContainsString('{{', $message->body);
+    }
+
+    /* ================================================================== */
+    /*  CODE REVIEW ADVISORY C — the untested derivations: readiness
+    /*  figures and the My Resilience links.
+    /* ================================================================== */
+
+    #[Test]
+    public function open_task_count_and_blocking_note_derive_from_the_occurrences_readiness_tasks(): void
+    {
+        $occurrenceId = $this->occurrenceWithNoSite();
+
+        // Two OPEN, one COMPLETE — only the open ones count. `whereIn`
+        // status list is `open`, `in_progress`, `overdue`.
+        \App\Models\Bcms\ReadinessTask::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrenceId,
+            'title' => 'Book the venue', 'status' => 'open',
+        ]);
+        \App\Models\Bcms\ReadinessTask::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrenceId,
+            'title' => 'Confirm facilitator', 'status' => 'overdue',
+        ]);
+        \App\Models\Bcms\ReadinessTask::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrenceId,
+            'title' => 'Print signage', 'status' => 'complete',
+        ]);
+
+        $occurrence = \App\Models\Bcms\ExerciseOccurrence::query()->findOrFail($occurrenceId);
+        // `location` is free text on the occurrence itself, independent of
+        // `site_id` — EXREMINDER declares it and this occurrence has no
+        // site, so it needs its own value.
+        $occurrence->forceFill(['blocking_tasks_open' => 2, 'location' => 'Training Room B'])->save();
+
+        $template = AlertTemplate::query()->where('code', 'EXREMINDER')->where('locale', 'en')->firstOrFail();
+
+        $alert = app(AlertService::class)->compose([
+            'organization_id' => $this->organization->id,
+            'title' => 'Exercise reminder', 'message' => 'x',
+            'template_id' => $template->getKey(), 'occurrence_id' => $occurrenceId,
+            'severity' => $template->severity->value, 'channels' => ['sms'],
+            'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
+        ], $this->operator->id);
+
+        $message = app(TemplateRenderer::class)->render($alert, ChannelKey::Sms, 'en');
+
+        // "2 readiness task(s) open" — the open + overdue ones, not the
+        // completed one.
+        $this->assertStringContainsString('2 readiness task(s) open', $message->body);
+        $this->assertStringNotContainsString('{{', $message->body);
+
+        $email = app(TemplateRenderer::class)->render($alert, ChannelKey::Email, 'en');
+        $this->assertStringContainsString(
+            '2 blocking task(s) must be closed before the exercise can start.',
+            $email->body,
+        );
+    }
+
+    #[Test]
+    public function blocking_task_count_derives_from_the_occurrences_own_stored_count(): void
+    {
+        $occurrenceId = $this->occurrenceWithNoSite();
+        \App\Models\Bcms\ExerciseOccurrence::query()->findOrFail($occurrenceId)
+            ->forceFill(['blocking_tasks_open' => 5])->save();
+
+        // Template-free (no template_id): the derivation itself does not
+        // depend on which template happens to declare the variable —
+        // `EXBLOCKED`, the one template that does, also declares the
+        // per-recipient `your_task_count` and can never be composed
+        // (ADR 0024 §2's "resulting template status" table), so this is
+        // exercised directly rather than through a route that cannot exist.
+        $alert = app(AlertService::class)->compose([
+            'organization_id' => $this->organization->id,
+            'title' => 'x', 'message' => 'Blocking tasks: {{blocking_task_count}}',
+            'occurrence_id' => $occurrenceId, 'severity' => AlertSeverity::Advisory->value,
+            'channels' => ['sms'],
+            'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
+        ], $this->operator->id);
+
+        $message = app(TemplateRenderer::class)->render($alert, ChannelKey::Sms, 'en');
+
+        $this->assertSame('Blocking tasks: 5', $message->body);
+    }
+
+    #[Test]
+    public function the_three_my_resilience_links_render_real_urls(): void
+    {
+        $alert = app(AlertService::class)->compose([
+            'organization_id' => $this->organization->id,
+            'title' => 'x',
+            'message' => 'Plans: {{plan_link}} Training: {{training_link}} Profile: {{profile_link}}',
+            'severity' => AlertSeverity::Informational->value, 'channels' => ['email'],
+            'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
+        ], $this->operator->id);
+
+        $message = app(TemplateRenderer::class)->render($alert, ChannelKey::Email, 'en');
+
+        $base = route('bcms.myresilience.index');
+        $this->assertStringContainsString($base.'#plans', $message->body);
+        $this->assertStringContainsString($base.'#training', $message->body);
+        $this->assertStringContainsString($base.'#profile', $message->body);
+        $this->assertStringNotContainsString('{{', $message->body);
     }
 
     /**
@@ -718,6 +923,187 @@ class EmnsTemplateRenderingTest extends TestCase
         // And nothing was actually queued.
         $this->assertSame('draft', $alert->refresh()->status);
         $this->assertSame(0, AlertRecipient::query()->where('alert_id', $alert->getKey())->count());
+    }
+
+    /* ================================================================== */
+    /*  ADR 0024 §2 — CALLTREEACT's tree_name, and LESSONSBULLETIN's pir_link.
+    /* ================================================================== */
+
+    #[Test]
+    public function calltreeact_renders_with_a_call_tree_audience_and_fails_closed_without_one(): void
+    {
+        $tree = CallTree::query()->create([
+            'organization_id' => $this->organization->id, 'name' => 'Operations call tree',
+        ]);
+        $template = AlertTemplate::query()->where('code', 'CALLTREEACT')->where('locale', 'en')->firstOrFail();
+
+        $withTree = app(AlertService::class)->compose([
+            'organization_id' => $this->organization->id,
+            'title' => 'Call tree activated', 'message' => 'x',
+            'template_id' => $template->getKey(), 'severity' => $template->severity->value,
+            'channels' => ['sms'], 'audience_rule' => ['type' => 'call_tree', 'id' => $tree->getKey()],
+        ], $this->operator->id);
+
+        $message = app(TemplateRenderer::class)->render($withTree, ChannelKey::Sms, 'en');
+        $this->assertStringContainsString('Operations call tree', $message->body);
+        $this->assertStringNotContainsString('{{', $message->body);
+
+        // An audience that names no call tree at all cannot render this
+        // template — nothing to call it, correctly refused rather than
+        // guessed.
+        $withoutTree = app(AlertService::class)->compose([
+            'organization_id' => $this->organization->id,
+            'title' => 'Call tree activated', 'message' => 'x',
+            'template_id' => $template->getKey(), 'severity' => $template->severity->value,
+            'channels' => ['sms'],
+            'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
+        ], $this->operator->id);
+
+        $this->assertThrows(
+            fn () => app(TemplateRenderer::class)->render($withoutTree, ChannelKey::Sms, 'en'),
+            UnresolvedTemplateVariableException::class,
+            'tree_name',
+        );
+    }
+
+    #[Test]
+    public function lessonsbulletin_is_refused_with_a_draft_pir_and_sendable_with_a_final_one(): void
+    {
+        $incident = app(IncidentService::class)->declare([
+            'title' => 'Core switch failure',
+            'severity' => \App\Enums\Bcms\IncidentSeverity::Sev2->value,
+            'detected_at' => now()->toIso8601String(),
+        ], $this->operator);
+
+        $template = AlertTemplate::query()->where('code', 'LESSONSBULLETIN')->where('locale', 'en')->firstOrFail();
+
+        $alert = app(AlertService::class)->compose([
+            'organization_id' => $this->organization->id,
+            'title' => 'What we learned', 'message' => 'x',
+            'template_id' => $template->getKey(), 'incident_id' => $incident->getKey(),
+            'severity' => $template->severity->value, 'channels' => ['sms'],
+            'audience_rule' => ['type' => 'org_node', 'id' => $this->unit->id, 'include_descendants' => true],
+        ], $this->operator->id);
+
+        // No AAR at all yet.
+        $this->assertThrows(
+            fn () => app(TemplateRenderer::class)->render($alert, ChannelKey::Sms, 'en', ['lessons_summary' => 'x']),
+            UnresolvedTemplateVariableException::class,
+            'pir_link',
+        );
+
+        $aar = \App\Models\Bcms\Aar::query()->create([
+            'organization_id' => $this->organization->id, 'incident_id' => $incident->getKey(),
+            'status' => 'draft',
+        ]);
+
+        // A DRAFT PIR does not unblock it either — the bulletin must not go
+        // out before the review it announces is finished.
+        $this->assertThrows(
+            fn () => app(TemplateRenderer::class)->render($alert, ChannelKey::Sms, 'en', ['lessons_summary' => 'x']),
+            UnresolvedTemplateVariableException::class,
+            'pir_link',
+        );
+
+        $aar->update(['status' => 'final']);
+
+        $message = app(TemplateRenderer::class)->render($alert, ChannelKey::Sms, 'en', ['lessons_summary' => 'x']);
+        $this->assertStringNotContainsString('{{', $message->body);
+        $this->assertStringContainsString(route('bcms.incidents.review.show', $incident), $message->body);
+    }
+
+    /* ================================================================== */
+    /*  A variable removed from the stored map after compose is refused at
+    /*  release, exactly as a variable never supplied would be.
+    /* ================================================================== */
+
+    #[Test]
+    public function removing_a_stored_operator_variable_after_compose_is_refused_at_release(): void
+    {
+        $site = Site::create(['organization_id' => $this->organization->id, 'code' => 'HQ', 'name' => 'Lagos HQ']);
+        $this->contact('Amina')->update(['site_id' => $site->id]);
+
+        $template = AlertTemplate::query()->where('code', 'EVACUATE')->where('locale', 'en')->firstOrFail();
+
+        $alert = app(AlertService::class)->compose([
+            'organization_id' => $this->organization->id,
+            'title' => 'Evacuate now', 'message' => 'x',
+            'template_id' => $template->getKey(), 'severity' => $template->severity->value,
+            'channels' => ['sms'], 'audience_rule' => ['type' => 'site', 'ids' => [$site->id]],
+            'template_variables' => ['assembly_point' => 'Rear car park'],
+        ], $this->operator->id);
+
+        // Renders clean before the tamper.
+        app(TemplateRenderer::class)->render($alert, ChannelKey::Sms, 'en');
+
+        // The test tampers with the stored row directly — no route does
+        // this (write once, §1) — to prove `release()` refuses on the
+        // stored map alone, the same as a variable never supplied.
+        $alert->forceFill(['template_variables' => []])->save();
+
+        // EVACUATE trips dual approval on its own — clear it, since this
+        // test is about the stored-variable refusal, not the approval gate.
+        $second = User::create([
+            'organization_id' => $this->organization->id, 'name' => 'Second Authoriser',
+            'email' => 'second-tamper@khb.test', 'password' => bcrypt('secret'), 'is_active' => true,
+        ]);
+        app(AlertService::class)->approve($alert->refresh(), $this->operator);
+        $alert = app(AlertService::class)->approve($alert->refresh(), $second);
+
+        $this->assertThrows(
+            fn () => app(AlertService::class)->release($alert->refresh(), $this->operator->id),
+            InvalidArgumentException::class,
+            'assembly_point',
+        );
+    }
+
+    /* ================================================================== */
+    /*  ADR 0024 §3.7 — estimate()'s preview.
+    /* ================================================================== */
+
+    #[Test]
+    public function estimate_returns_a_preview_identical_to_what_dispatch_would_actually_send(): void
+    {
+        $site = Site::create(['organization_id' => $this->organization->id, 'code' => 'HQ', 'name' => 'Lagos HQ']);
+        $this->contact('Amina')->update(['site_id' => $site->id]);
+
+        $template = AlertTemplate::query()->where('code', 'EVACUATE')->where('locale', 'en')->firstOrFail();
+
+        $alert = app(AlertService::class)->compose([
+            'organization_id' => $this->organization->id,
+            'title' => 'Evacuate now', 'message' => 'x',
+            'template_id' => $template->getKey(), 'severity' => $template->severity->value,
+            'channels' => ['sms'], 'audience_rule' => ['type' => 'site', 'ids' => [$site->id]],
+            'template_variables' => ['assembly_point' => 'Rear car park, Block B'],
+        ], $this->operator->id);
+        $alert->forceFill(['is_simulation' => true])->save();
+
+        $estimate = app(AlertService::class)->estimate($alert);
+
+        $this->assertNotEmpty($estimate['preview']);
+        $sms = collect($estimate['preview'])->firstWhere('channel', 'sms');
+        $this->assertNotNull($sms);
+        $this->assertSame('en', $sms['locale']);
+        $this->assertStringContainsString('Rear car park, Block B', $sms['body']);
+        $this->assertStringNotContainsString('{{', $sms['body']);
+        // Simulation prefix included, so the preview is the text that would
+        // actually be sent — not a re-derivation of it.
+        $this->assertStringStartsWith(\App\Contracts\Bcms\RenderedMessage::EXERCISE_PREFIX, $sms['body']);
+        $this->assertIsInt($sms['segments']);
+        $this->assertContains($sms['encoding'], ['gsm7', 'ucs2']);
+
+        // Identical to what the dispatcher actually records for the same
+        // recipient — release, dispatch, and compare.
+        app(AlertService::class)->release($alert, $this->operator->id);
+        $ids = AlertRecipient::query()->where('alert_id', $alert->getKey())->pluck('id')->all();
+        (new \App\Jobs\Bcms\DispatchAlertChunkJob(
+            (int) $alert->getKey(), (int) $alert->organization_id, array_map('intval', $ids),
+        ))->handle(app(\App\Services\Bcms\Emns\AlertDispatcher::class));
+
+        $delivery = \App\Models\Bcms\NotificationDelivery::query()
+            ->where('alert_id', $alert->getKey())->where('channel', 'sms')->firstOrFail();
+
+        $this->assertSame($sms['body'], $delivery->raw_response['would_have_sent']);
     }
 
     /* ================================================================== */

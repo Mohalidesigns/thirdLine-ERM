@@ -46,6 +46,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property string $currency
  * @property bool $response_required
  * @property array<array-key, mixed> $response_options
+ * @property ?array<string, string> $template_variables
  * @property ?int $ack_window_minutes
  * @property bool $escalation_enabled
  * @property bool $ai_generated
@@ -68,8 +69,8 @@ class Alert extends Model
         'severity', 'is_simulation', 'audience_rule', 'channels', 'initiated_by', 'approved_by',
         'approved_at', 'second_approved_by', 'second_approved_at', 'status', 'dispatched_at',
         'recipient_count', 'estimated_cost_minor', 'actual_cost_minor', 'currency',
-        'response_required', 'response_options', 'ack_window_minutes', 'escalation_enabled',
-        'ai_generated', 'iso_clause_ref', 'created_by', 'updated_by',
+        'response_required', 'response_options', 'template_variables', 'ack_window_minutes',
+        'escalation_enabled', 'ai_generated', 'iso_clause_ref', 'created_by', 'updated_by',
     ];
 
     /** @return array<string, string> */
@@ -79,6 +80,7 @@ class Alert extends Model
             'audience_rule' => 'array',
             'channels' => 'array',
             'response_options' => 'array',
+            'template_variables' => 'array',
             'organization_id' => 'integer',
             'template_id' => 'integer',
             'incident_id' => 'integer',

@@ -44,8 +44,8 @@ return [
         'dispatched_at', 'escalation_enabled', 'estimated_cost_minor', 'id', 'incident_id',
         'initiated_by', 'is_simulation', 'iso_clause_ref', 'message', 'occurrence_id',
         'organization_id', 'recipient_count', 'response_options', 'response_required',
-        'second_approved_at', 'second_approved_by', 'severity', 'status', 'template_id', 'title',
-        'updated_at', 'updated_by', 'uuid',
+        'second_approved_at', 'second_approved_by', 'severity', 'status', 'template_id',
+        'template_variables', 'title', 'updated_at', 'updated_by', 'uuid',
     ],
     'bcms_applications' => [
         'code', 'created_at', 'created_by', 'deleted_at', 'description', 'external_ref',

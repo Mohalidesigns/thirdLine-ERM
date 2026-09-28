@@ -7,8 +7,11 @@ use App\Enums\Bcms\AlertSeverity;
 use App\Enums\Bcms\ChannelKey;
 use App\Exceptions\Bcms\TemplateNotActiveException;
 use App\Exceptions\Bcms\UnresolvedTemplateVariableException;
+use App\Models\Bcms\Aar;
 use App\Models\Bcms\Alert;
 use App\Models\Bcms\AlertTemplate;
+use App\Models\Bcms\CallTree;
+use App\Models\Bcms\ReadinessTask;
 use App\Models\Bcms\Site;
 use App\Services\Bcms\Notification\Channels\SmsSegmenter;
 use Illuminate\Support\Collection;
@@ -235,19 +238,30 @@ class TemplateRenderer
     }
 
     /**
-     * Channel-specific SHAPE ONLY — truncation, never substitution. Called
-     * AFTER `assertFullyResolved()`, deliberately: truncating first was
-     * itself a defect (item 2) — a placeholder past the cut point vanished
-     * silently with the truncated tail, and one straddling the cut point
-     * left a literal `{{...` on the wire. Shaping a body already proven
-     * free of unfilled placeholders cannot reintroduce one.
+     * Channel-specific SHAPE ONLY — transliteration and truncation, never
+     * substitution. Called AFTER `assertFullyResolved()`, deliberately:
+     * truncating first was itself a defect (item 2) — a placeholder past
+     * the cut point vanished silently with the truncated tail, and one
+     * straddling the cut point left a literal `{{...` on the wire. Shaping
+     * a body already proven free of unfilled placeholders cannot
+     * reintroduce one.
+     *
+     * TRANSLITERATION RUNS BEFORE SEGMENTING, on the WIRE body only — never
+     * on `$alert->message`, a template row, or anything else stored.
+     * `SmsSegmenter::transliterateForGsm7()` is a narrow, named punctuation
+     * map (em/en dash, curly quotes, the ellipsis character, a non-breaking
+     * space); a derived site name carrying one of them (`Site::$name` is
+     * free text an operator typed once, unrelated to SMS) was silently
+     * dropping an otherwise-plain-ASCII `EVACUATE` SMS to UCS-2 — one
+     * segment becoming three. Applied to SMS and USSD only: the two
+     * channels this alphabet distinction actually costs money on.
      */
     private function shapeForChannel(string $body, ChannelKey $channel): string
     {
         return match ($channel) {
             // Criterion 10: length respected, and never cut mid-word.
-            ChannelKey::Sms => SmsSegmenter::truncate($body, self::MAX_SMS_SEGMENTS),
-            ChannelKey::Ussd => SmsSegmenter::truncate($body, 1),
+            ChannelKey::Sms => SmsSegmenter::truncate(SmsSegmenter::transliterateForGsm7($body), self::MAX_SMS_SEGMENTS),
+            ChannelKey::Ussd => SmsSegmenter::truncate(SmsSegmenter::transliterateForGsm7($body), 1),
             default => $body,
         };
     }
@@ -299,16 +313,45 @@ class TemplateRenderer
     }
 
     /**
-     * @param  array<string, mixed>  $extra  Supplied by the caller and always wins over anything derived below.
+     * ADR 0024 §4 — merge order is base → STORED OPERATOR VARIABLES →
+     * DERIVED → caller `$extra`. `array_merge()`'s later argument wins a
+     * key collision, so DERIVED MUST BE MERGED AFTER STORED for a derived
+     * value to structurally win one — this was shipped the other way round
+     * once (derived before stored) and the docblock claimed the win order
+     * without the code actually producing it: `StoreBcmsAlertRequest`
+     * prohibits an operator naming a derived variable over HTTP, but
+     * `AlertService::compose()` is also called directly (every seeder does),
+     * and a stored `template_variables` row holding a key like `site_name`
+     * silently overrode the real one — `EVACUATE` rendered "EVACUATE THE
+     * WRONG BUILDING NOW" the one time this was tried through that path.
+     * `AlertService::compose()` now ALSO refuses that key at write time
+     * (defence in depth, §3.1); this ordering is the second, structural
+     * defence that holds even if the first is ever bypassed again.
+     *
+     * `$extra` STAYS LAST, ahead of derived. It is never operator or
+     * seeder input — only an explicit argument a caller passes directly
+     * into `render()`, which no production code path does today (tests
+     * use it to supply a value ADR 0024 has not built a source for yet,
+     * e.g. `assembly_point` before `template_variables` existed). Letting
+     * a direct `render()` caller override a derived value is a deliberate,
+     * narrow escape hatch for exactly that use, not a route a compose-time
+     * value can reach.
+     *
+     * @param  array<string, mixed>  $extra  Supplied directly to `render()`, never operator or seeder input.
      * @return array<string, mixed>
      */
     private function variablesFor(Alert $alert, array $extra): array
     {
-        return array_merge([
-            'alert_title' => $alert->title,
-            'severity' => $alert->severity->value,
-            'organisation' => config('app.name'),
-        ], $this->alertDerivedVariables($alert), $extra);
+        return array_merge(
+            [
+                'alert_title' => $alert->title,
+                'severity' => $alert->severity->value,
+                'organisation' => config('app.name'),
+            ],
+            (array) ($alert->template_variables ?? []),
+            $this->alertDerivedVariables($alert),
+            $extra,
+        );
     }
 
     /**
@@ -365,24 +408,28 @@ class TemplateRenderer
     {
         $vars = [];
 
-        // BOTH `?->` ARE LOAD-BEARING. `site_id` is nullable on both
-        // `bcms_incidents` and `bcms_exercise_occurrences`, and null is the
-        // default — an IT-only incident or an exercise with no site
-        // genuinely has none. PHPStan (via Larastan's relation-type
-        // inference, which reads the `site(): BelongsTo` method's `@return
-        // BelongsTo<Site, $this>` rather than the `@property-read ?Site
-        // $site` on `Incident`/`ExerciseOccurrence`) believes the second
-        // `?->` is redundant; it is not. Verified directly: `$a?->b->c` with
-        // `$a` non-null and `$a->b` null throws "Attempt to read property
-        // on null" — PHP's nullsafe chain only short-circuits at the
-        // operator whose OWN left-hand side is null, not for every later
-        // access in the same chain. Dropping either `?->` here was shipped
-        // once and crashed `estimate()`/`release()`/`sendOne()` on the
-        // first incident- or exercise-linked alert with no site attached —
-        // see this fix's HANDOFF. Do not remove either guard.
-        $siteName = $this->siteNameFromAudienceRule($alert->audience_rule)
-            ?? $alert->incident?->site?->name // @phpstan-ignore nullsafe.neverNull
-            ?? $alert->occurrence?->site?->name;
+        $ruleSiteName = $this->siteNameFromAudienceRule($alert->audience_rule);
+
+        // REVIEW ADVISORY A. The linked incident's or occurrence's site is
+        // the fallback ONLY when the audience rule names no site AT ALL —
+        // never when it names one this narrow shape could not resolve to
+        // (an `any_of` of two sites, say) and never, especially, when the
+        // only site the rule mentions sits under a `none_of`. Falling back
+        // to the linked record's site in either of those cases would be the
+        // same class of defect the exclusion bug was: the rule said
+        // something specific about sites, and the fallback overrode it with
+        // something the rule never agreed to. "Names no site at all" is
+        // checked structurally, not by "did `siteNameFromAudienceRule()`
+        // return null" — that returns null for the ambiguous cases too,
+        // which must NOT fall back, only for the "no site mentioned" case.
+        $siteName = $ruleSiteName ?? (
+            $this->audienceRuleMentionsAnySite($alert->audience_rule)
+                ? null
+                // BOTH `?->` ARE LOAD-BEARING — see `Incident`'s own
+                // docblock for the crash dropping either one caused once.
+                : ($alert->incident?->site?->name // @phpstan-ignore nullsafe.neverNull
+                    ?? $alert->occurrence?->site?->name)
+        );
 
         if ($siteName !== null) {
             $vars['site_name'] = $siteName;
@@ -391,6 +438,18 @@ class TemplateRenderer
         if ($alert->incident !== null) {
             $vars['incident_reference'] = $alert->incident->reference;
             $vars['incident_title'] = $alert->incident->title;
+
+            // ADR 0024 §2 — LESSONSBULLETIN's `pir_link`, and ONLY when the
+            // review is final. A draft PIR leaves the variable unset, so
+            // the bulletin cannot go out before the review it announces is
+            // finished — the fail-closed path refuses it, named, same as
+            // any other missing variable.
+            $aar = Aar::query()->where('incident_id', $alert->incident->getKey())
+                ->where('status', 'final')->first();
+
+            if ($aar !== null) {
+                $vars['pir_link'] = route('bcms.incidents.review.show', $alert->incident);
+            }
         }
 
         if ($alert->occurrence !== null) {
@@ -403,9 +462,78 @@ class TemplateRenderer
                 $vars['days_remaining'] = max(0, (int) now()->startOfDay()
                     ->diffInDays($alert->occurrence->scheduled_date->copy()->startOfDay(), false));
             }
+
+            // ADR 0024 §2 — EXREMINDER/EXBLOCKED's readiness figures. Zero
+            // is a true count, not "not computed" — `array_filter` below
+            // only strips null, never 0 or "".
+            $vars['open_task_count'] = ReadinessTask::query()
+                ->where('occurrence_id', $alert->occurrence->getKey())
+                ->whereIn('status', ['open', 'in_progress', 'overdue'])
+                ->count();
+
+            $vars['blocking_task_count'] = (int) $alert->occurrence->blocking_tasks_open;
+
+            // `blocking_note` IS AN ENGLISH SENTENCE. Only `en` template
+            // rows may declare it — the seeding guard test asserts this —
+            // so it is safe to compute here regardless of the alert's own
+            // rendered locale.
+            $vars['blocking_note'] = $alert->occurrence->blocking_tasks_open > 0
+                ? sprintf(
+                    '%d blocking task(s) must be closed before the exercise can start.',
+                    $alert->occurrence->blocking_tasks_open,
+                )
+                : '';
+        }
+
+        // ADR 0024 §2 — the recipient's own My Resilience page. THE URL IS
+        // IDENTICAL FOR EVERY RECIPIENT: the person signs in and sees their
+        // own plans, training and profile, so none of these three is
+        // per-recipient despite reading that way at first glance.
+        $vars['plan_link'] = route('bcms.myresilience.index').'#plans';
+        $vars['training_link'] = route('bcms.myresilience.index').'#training';
+        $vars['profile_link'] = route('bcms.myresilience.index').'#profile';
+
+        // ADR 0024 §2 — CALLTREEACT's `tree_name`. Same shape as
+        // `site_name` above: derived only when the whole positive audience
+        // names exactly one call tree, for the identical reason — naming
+        // the wrong one, or one of several, is worse than refusing.
+        $treeName = $this->soleLeafName(
+            $alert->audience_rule, 'call_tree', fn (int $id) => CallTree::query()->find($id)?->name,
+        );
+
+        if ($treeName !== null) {
+            $vars['tree_name'] = $treeName;
         }
 
         return array_filter($vars, fn ($v) => $v !== null);
+    }
+
+    /**
+     * Does this audience rule mention a `site` leaf ANYWHERE — positive,
+     * negated under `none_of`, or inside a wider `any_of`? Existence only,
+     * never a value: used solely to decide whether the linked incident's or
+     * occurrence's site may stand in when the rule is silent about sites,
+     * never to pick which site.
+     *
+     * @param  array<string, mixed>|null  $rule
+     */
+    private function audienceRuleMentionsAnySite(?array $rule): bool
+    {
+        if ($rule === null) {
+            return false;
+        }
+
+        if (($rule['type'] ?? null) === 'site') {
+            return true;
+        }
+
+        foreach ((array) ($rule['rules'] ?? []) as $child) {
+            if (is_array($child) && $this->audienceRuleMentionsAnySite($child)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -440,30 +568,46 @@ class TemplateRenderer
      */
     private function siteNameFromAudienceRule(?array $rule): ?string
     {
-        $id = $rule === null ? null : $this->soleSiteId($rule);
+        return $this->soleLeafName($rule, 'site', fn (int $id) => Site::query()->find($id)?->name);
+    }
 
-        return $id === null ? null : Site::query()->find($id)?->name;
+    /**
+     * The generalised shape of `siteNameFromAudienceRule()`'s own docblock:
+     * a leaf of `$leafType` (`site`, `call_tree`, …), named ONLY when the
+     * whole positive audience is unambiguously exactly one of them. Reused
+     * by `tree_name` (ADR 0024 §2) for the identical reason `site_name`
+     * needed it — naming the wrong one of several, or one that sits under a
+     * `none_of`, is worse than refusing.
+     *
+     * @param  array<string, mixed>|null  $rule
+     * @param  \Closure(int): ?string  $name  Looks the one resolved id up and returns its name, or null.
+     */
+    private function soleLeafName(?array $rule, string $leafType, \Closure $name): ?string
+    {
+        $id = $rule === null ? null : $this->soleLeafId($rule, $leafType);
+
+        return $id === null ? null : $name($id);
     }
 
     /**
      * @param  array<string, mixed>  $rule
      */
-    private function soleSiteId(array $rule): ?int
+    private function soleLeafId(array $rule, string $leafType): ?int
     {
         $type = $rule['type'] ?? null;
 
-        if ($type === 'site') {
-            return $this->soleId((array) ($rule['ids'] ?? []));
+        if ($type === $leafType) {
+            return $this->soleId($this->idsFor($rule));
         }
 
         if ($type !== 'all_of') {
             // `any_of` (a wider audience), `none_of` (an exclusion, never a
             // target), a bare `org_node`/`role`/etc — none of these name
-            // exactly one site on their own.
+            // exactly one leaf of this type on their own.
             return null;
         }
 
-        $siteChildren = [];
+        $matchingChildren = [];
 
         foreach ((array) ($rule['rules'] ?? []) as $child) {
             if (! is_array($child)) {
@@ -471,24 +615,23 @@ class TemplateRenderer
             }
 
             // An `any_of` NESTED inside this `all_of` still disqualifies
-            // the whole branch — "this site AND (A or B)" does not make A
-            // or B the site, it makes the audience conditional on one of
-            // them, which is not "exactly one site" either.
+            // the whole branch — "this leaf AND (A or B)" does not make A
+            // or B the leaf, it makes the audience conditional on one of
+            // them, which is not "exactly one" either.
             if (($child['type'] ?? null) === 'any_of') {
                 return null;
             }
 
-            if (($child['type'] ?? null) === 'site') {
-                $siteChildren[] = $child;
+            if (($child['type'] ?? null) === $leafType) {
+                $matchingChildren[] = $child;
             }
 
-            // `none_of`, `org_node`, `role`, `call_tree`,
-            // `occurrence_participants`, `saved_group`, `geo`, a nested
-            // `all_of` with no site of its own: further restrictions, not
-            // disqualifying and not site-naming.
+            // `none_of`, and every other leaf type, and a nested `all_of`
+            // with no leaf of this type of its own: further restrictions,
+            // not disqualifying and not naming one.
         }
 
-        return count($siteChildren) === 1 ? $this->soleId((array) ($siteChildren[0]['ids'] ?? [])) : null;
+        return count($matchingChildren) === 1 ? $this->soleId($this->idsFor($matchingChildren[0])) : null;
     }
 
     /** The one id in a `site` leaf's `ids`, or null if it names zero or more than one. */
@@ -497,6 +640,26 @@ class TemplateRenderer
         $unique = array_values(array_unique(array_map('intval', $ids)));
 
         return count($unique) === 1 ? $unique[0] : null;
+    }
+
+    /**
+     * The G0 grammar is not uniform about this: a `site` leaf names a LIST,
+     * `ids` (`{"type": "site", "ids": [3, 7]}`), while a `call_tree` leaf
+     * names ONE, singular `id` (`{"type": "call_tree", "id": 4, ...}`,
+     * `AudienceRule`'s own grammar table). Reading `ids` for both silently
+     * found nothing for every call-tree rule — this normalises the two
+     * shapes to one list before `soleId()` ever sees them.
+     *
+     * @param  array<string, mixed>  $rule
+     * @return list<int>
+     */
+    private function idsFor(array $rule): array
+    {
+        if (isset($rule['ids'])) {
+            return (array) $rule['ids'];
+        }
+
+        return isset($rule['id']) ? [$rule['id']] : [];
     }
 
     /**

@@ -3,15 +3,22 @@
 namespace App\Presenters\Bcms;
 
 use App\Enums\Bcms\ChannelKey;
+use App\Enums\Bcms\OccurrenceStatus;
 use App\Models\Bcms\Alert;
 use App\Models\Bcms\AlertTemplate;
+use App\Models\Bcms\CallTree;
+use App\Models\Bcms\ExerciseOccurrence;
 use App\Models\Bcms\SavedGroup;
+use App\Models\Bcms\Site;
+use App\Models\BusinessUnit;
 use App\Models\User;
 use App\Services\Bcms\Emns\AlertService;
 use App\Services\Bcms\Emns\RollCallService;
 use App\Services\Bcms\Emns\TemplateRenderer;
 use App\Services\Bcms\Notification\ChannelRegistry;
+use App\Support\Bcms\AlertTemplateVariables;
 use Illuminate\Support\Collection;
+use Spatie\Permission\Models\Role;
 
 /**
  * What the EMNS console and the live dashboard draw.
@@ -67,6 +74,26 @@ class EmnsPresenter
                 // out in, on the card, before anybody picks it.
                 'live_locales' => AlertTemplate::query()
                     ->where('code', $t->code)->where('is_active', true)->count(),
+                // ADR 0024 §3.5 — one labelled input per operator variable
+                // this template declares, in the order declared; no entry
+                // for a derived variable (those are `derived_variables`
+                // below, read-only, frontend-side).
+                'operator_variables' => AlertTemplateVariables::operatorInputsFor(
+                    $declaredVariables = array_values(array_filter((array) $t->variables, 'is_string')),
+                ),
+                // ADR 0024 §3.6 — the composer's read-only "Filled in
+                // automatically" list: this template's own declared
+                // variables that are `DERIVED`, in declaration order, each
+                // with a human label (`{name, label}`) — `site_name` on
+                // EVACUATE, say. Never a form field.
+                'derived_variables' => AlertTemplateVariables::derivedInputsFor($declaredVariables),
+                // ADR 0024 §3.3 — a template needing a per-recipient
+                // variable is marked unavailable HERE, with the identical
+                // message `StoreBcmsAlertRequest` refuses it with, so an
+                // operator learns this while picking a template rather than
+                // after filling in a whole form.
+                'unavailable_reason' => AlertTemplateVariables::needsPerRecipientVariable($declaredVariables)
+                    ? AlertTemplateVariables::PER_RECIPIENT_MESSAGE : null,
             ])->all(),
 
             'channels' => $this->channels->states(),
@@ -80,6 +107,18 @@ class EmnsPresenter
                     'description' => $g->description,
                     'rule' => $g->rule,
                 ])->all(),
+
+            // ITEM B — the audience picker's own options. Neither composer
+            // could set `audience_rule` without these: the grammar
+            // (`AudienceRule`, ADR 0003) is free-form JSON server-side, but
+            // a human picks a saved group, a call tree, a site, an org node
+            // or a role BY NAME, not by typing the rule.
+            'audience_options' => $this->audienceOptions(),
+
+            // ITEM D — the occurrence picker. An alert cannot target
+            // `occurrence_id` (and so cannot default to simulation) without
+            // one to choose from.
+            'occurrence_options' => $this->occurrenceOptions(),
 
             'recent' => Alert::query()
                 ->whereNotNull('dispatched_at')
@@ -144,6 +183,82 @@ class EmnsPresenter
     }
 
     /**
+     * ITEM B — the audience picker's options, tenant-scoped through each
+     * model's own global scope (`BelongsToOrganization`), same as
+     * `saved_groups` above. `PUBLIC`, not `private`: the crisis room's own
+     * presenter (`IncidentPresenter`) calls this too, so the composer there
+     * offers the identical picker rather than a second, drifting one.
+     *
+     * @return array<string, mixed>
+     */
+    public function audienceOptions(): array
+    {
+        return [
+            'call_trees' => CallTree::query()->orderBy('name')->get()
+                ->map(fn (CallTree $t) => [
+                    'id' => (int) $t->getKey(), 'uuid' => $t->uuid, 'name' => $t->name,
+                ])->all(),
+
+            'sites' => Site::query()->where('is_active', true)->orderBy('name')->get()
+                ->map(fn (Site $s) => [
+                    'id' => (int) $s->getKey(), 'uuid' => $s->uuid, 'name' => $s->name, 'code' => $s->code,
+                ])->all(),
+
+            'org_nodes' => BusinessUnit::query()->where('is_active', true)->orderBy('name')->get()
+                ->map(fn (BusinessUnit $u) => [
+                    'id' => (int) $u->getKey(), 'name' => $u->name, 'code' => $u->code,
+                ])->all(),
+
+            // Role NAMES only — `AudienceResolver::byRole()` matches on
+            // `roles.name` (Spatie), not a BCMS-owned role table. Limited to
+            // names actually held by a user in this tenant, so the picker
+            // does not leak every role name in the system to an operator
+            // who could never target most of them.
+            'roles' => Role::query()
+                ->whereHas('users', fn ($q) => $q->where('organization_id', auth()->user()?->organization_id))
+                ->orderBy('name')->pluck('name')->values()->all(),
+        ];
+    }
+
+    /**
+     * ITEM D — the occurrence picker's options: exercises an alert can be
+     * linked to, so composing one can default to simulation (standing rule
+     * 5). Limited to occurrences not yet run, the only ones a "we are about
+     * to run/are running this drill" alert is ever linked to.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function occurrenceOptions(): array
+    {
+        // ADVISORY H — UPCOMING (OR ALREADY RUNNING), NOT "THE FIRST 50 BY
+        // DATE". A plain ascending `orderBy('scheduled_date')->limit(50)`
+        // let a backlog of past, never-run `planned` occurrences (missed,
+        // never cancelled) push the drills actually coming up off the end
+        // of a 50-row page. `in_progress` is kept regardless of date — an
+        // occurrence can be running today against a `scheduled_date` set
+        // days ago and must still be pickable.
+        return ExerciseOccurrence::query()
+            ->whereIn('status', [
+                OccurrenceStatus::Planned->value, OccurrenceStatus::Confirmed->value, OccurrenceStatus::InProgress->value,
+            ])
+            ->where(function ($query) {
+                $query->where('scheduled_date', '>=', now()->toDateString())
+                    ->orWhere('status', OccurrenceStatus::InProgress->value);
+            })
+            ->orderBy('scheduled_date')
+            ->with('definition:id,name')
+            ->limit(50)
+            ->get()
+            ->map(fn (ExerciseOccurrence $o) => [
+                'id' => (int) $o->getKey(),
+                'uuid' => $o->uuid,
+                'name' => $o->definition?->name,
+                'scheduled_date' => $o->scheduled_date?->toDateString(),
+                'status' => $o->status->value,
+            ])->all();
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function summary(Alert $alert): array
@@ -155,7 +270,15 @@ class EmnsPresenter
             'severity' => $alert->severity->value,
             'is_simulation' => (bool) $alert->is_simulation,
             'status' => $alert->status,
-            'channels' => $alert->channels,
+            // RESOLVED, not the raw stored column — `$alert->channels` is
+            // `[]` for a fallback alert (composed with no explicit choice,
+            // e.g. every crisis-room composer), and the console showing an
+            // empty set for an alert that actually went out on the tenant's
+            // SMS/voice/email defaults is the same "says nothing was sent"
+            // failure the audit row fix addresses. `channels_source` tells
+            // the screen which case it is looking at.
+            'channels' => array_map(fn (ChannelKey $c) => $c->value, $this->alerts->channelKeys($alert)),
+            'channels_source' => $alert->channels === [] ? 'tenant_default' : 'alert',
             'recipient_count' => (int) $alert->recipient_count,
             'dispatched_at' => $alert->dispatched_at?->toIso8601String(),
             'occurrence_id' => $alert->occurrence_id === null ? null : (int) $alert->occurrence_id,

@@ -380,8 +380,8 @@ export default function Review({
                                     <tbody>
                                         {rows.length === 0 && (
                                             <tr>
-                                                <td colSpan={isPendingView ? 7 : 5} className="py-8 text-center text-sm text-gray-400">
-                                                    No changes in this view.
+                                                <td colSpan={isPendingView ? 7 : 5}>
+                                                    <div className="py-5 text-center text-sm text-gray-400">No changes in this view.</div>
                                                 </td>
                                             </tr>
                                         )}

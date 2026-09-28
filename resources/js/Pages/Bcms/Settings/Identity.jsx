@@ -428,7 +428,7 @@ export default function Identity({
                                 const isDefault = defaultsByField[row.field] === value;
                                 return (
                                     <tr key={row.field}>
-                                        <th scope="row" className="text-left font-normal text-gray-700">{row.label}</th>
+                                        <th scope="row" className="font-normal">{row.label}</th>
                                         <td>
                                             <div className="flex items-center gap-2">
                                                 <input className="form-input" value={value}
@@ -443,14 +443,14 @@ export default function Identity({
                                 );
                             })}
                             <tr>
-                                <th scope="row" className="text-left font-normal text-gray-700">Manager</th>
+                                <th scope="row" className="font-normal">Manager</th>
                                 <td>
                                     <p className="text-sm text-gray-600">manager (relationship, not an attribute)</p>
                                     <p className="text-xs text-gray-500">Always the reporting edge Entra returns.</p>
                                 </td>
                             </tr>
                             <tr>
-                                <th scope="row" className="text-left font-normal text-gray-700">Active</th>
+                                <th scope="row" className="font-normal">Active</th>
                                 <td>
                                     <p className="text-sm text-gray-600">accountEnabled</p>
                                     <p className="text-xs text-gray-500">Always drives deactivation — a leaver is never re-included by relabelling this field.</p>
@@ -490,7 +490,7 @@ export default function Identity({
                         </thead>
                         <tbody>
                             {runs.length === 0 && (
-                                <tr><td colSpan={6} className="py-6 text-center text-sm text-gray-500">No runs yet.</td></tr>
+                                <tr><td colSpan={6}><div className="py-3 text-center text-sm text-gray-500">No runs yet.</div></td></tr>
                             )}
                             {runs.map((run, index) => (
                                 <tr key={run.uuid}>

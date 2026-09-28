@@ -163,8 +163,22 @@
         @apply px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-200;
     }
 
-    .data-table tbody td {
+    /* A row header (`<th scope="row">` in the body) is a cell like any other:
+       same padding and hairline as its neighbours. Without this it had no rule
+       at all and sat flush against the table edge. Child combinators, not
+       descendant: a data-table nested in another's body (the DORA register
+       and board-pack previews) has its own thead, and a descendant selector
+       would reach those header cells and strip their border. Weight is left
+       to the screen — settings labels state `font-normal`, entity names keep
+       the browser's bold. */
+    .data-table tbody td,
+    .data-table > tbody > tr > th {
         @apply px-4 py-3 border-b border-gray-100;
+    }
+
+    .data-table > tbody > tr > th {
+        @apply text-left;
+        vertical-align: middle;
     }
 
     .data-table tbody tr {
@@ -175,7 +189,8 @@
         vertical-align: middle;
     }
 
-    .data-table tbody tr:last-child td {
+    .data-table tbody tr:last-child td,
+    .data-table > tbody > tr:last-child > th {
         @apply border-b-0;
     }
 

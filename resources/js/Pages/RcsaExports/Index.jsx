@@ -113,7 +113,7 @@ export default function Index({
             header={
                 <PageHeader
                     title="Export the RCSA register"
-                    subtitle="The 23-column workbook, as the regulator reads it"
+                    subtitle="The regulator's 23-column workbook, plus 8 tracking columns for cycle, review and action-plan status"
                     breadcrumbs={[{ label: "RCSA" }, { label: "Export" }]}
                 />
             }

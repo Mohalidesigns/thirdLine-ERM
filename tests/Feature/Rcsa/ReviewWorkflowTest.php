@@ -391,6 +391,59 @@ class ReviewWorkflowTest extends ReviewTestCase
         $this->assertSame($this->reviewer->id, $line->orm_reviewer_id);
     }
 
+    /**
+     * A browser form sends everything as a string — `<select value="4">`
+     * carries no distinction between the number 4 and the text "4" — so the
+     * `integer` validation rule accepting `"4"` is not the same thing as
+     * storing `4`. Without the cast in `ChallengeLineRequest::suggestedValues()`,
+     * `rcsa_line_comments.suggested_values` held `{"inherent_likelihood":"4"}`
+     * for every challenge ever raised through the screen, even though the
+     * test above — which posts a native PHP int because it builds the request
+     * array in PHP — never saw it.
+     */
+    #[Test]
+    public function a_suggested_rating_is_stored_as_an_integer_even_when_the_form_sends_a_string(): void
+    {
+        $assessment = $this->submittedAssessment(risks: 1);
+        $line = $this->linesOf($assessment)->sole();
+
+        $this->actingAs($this->reviewer)->post(route('rcsa.review.claim', $assessment));
+
+        $this->actingAs($this->reviewer)
+            ->post(route('rcsa.review.lines.challenge', [$assessment, $line]), [
+                'body' => 'This line should carry a higher likelihood given last quarter\'s incident.',
+                'suggested' => [
+                    'inherent_likelihood' => '4',
+                    'inherent_impact' => '3',
+                    'control_effectiveness' => 'Partially Achieved',
+                ],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $comment = RcsaLineComment::sole();
+
+        $this->assertSame(4, $comment->suggested_values['inherent_likelihood']);
+        $this->assertIsInt($comment->suggested_values['inherent_likelihood']);
+        $this->assertSame(3, $comment->suggested_values['inherent_impact']);
+        $this->assertIsInt($comment->suggested_values['inherent_impact']);
+
+        // control_effectiveness is a label off the scale, not a number, and
+        // stays a string.
+        $this->assertSame('Partially Achieved', $comment->suggested_values['control_effectiveness']);
+        $this->assertIsString($comment->suggested_values['control_effectiveness']);
+
+        // The review screen and the workspace both just read the map back —
+        // confirm the read path still resolves the same values the write path
+        // stored, now that they are ints rather than strings.
+        $this->actingAs($this->reviewer)
+            ->get(route('rcsa.review.show', $assessment))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where(
+                'lines',
+                fn ($lines) => collect($lines)->firstWhere('id', $line->id)['comments'][0]['suggested']['inherent_likelihood'] === 4,
+            ));
+    }
+
     #[Test]
     public function a_flag_with_no_words_is_refused(): void
     {

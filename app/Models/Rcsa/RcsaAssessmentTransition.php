@@ -20,6 +20,14 @@ class RcsaAssessmentTransition extends Model
 {
     use BelongsToOrganization;
 
+    /**
+     * §9.1's diagram labels the assessment's creation "draft ──open──▶
+     * in_progress"; RcsaCycleService is the only writer, and it writes
+     * straight to `in_progress` with no `draft` row ever persisted, so this is
+     * a `none → in_progress` row rather than a transition FROM anything.
+     */
+    public const OPEN = 'open';
+
     public const SUBMIT = 'submit';
 
     public const APPROVE = 'approve';

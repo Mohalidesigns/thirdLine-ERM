@@ -4,6 +4,7 @@ namespace App\Services\Rcsa;
 
 use App\Models\Rcsa\RcsaAssessment;
 use App\Models\Rcsa\RcsaAssessmentLine;
+use App\Models\Rcsa\RcsaAssessmentTransition;
 use App\Models\Rcsa\RcsaCycle;
 use App\Models\Rcsa\RcsaMethodology;
 use App\Models\Rcsa\RcsaRegisterControl;
@@ -36,7 +37,10 @@ use RuntimeException;
  */
 class RcsaCycleService
 {
-    public function __construct(private readonly RcsaCalculationService $calculator) {}
+    public function __construct(
+        private readonly RcsaCalculationService $calculator,
+        private readonly RcsaWorkflowService $workflow,
+    ) {}
 
     /**
      * Open a cycle: provision an assessment per in-scope business unit and
@@ -89,6 +93,20 @@ class RcsaCycleService
                 ]);
 
                 $assessments++;
+
+                // §9.1's diagram calls this edge "open" — none of the assessor's
+                // own state machine, since the row lands straight in
+                // `in_progress` with no `draft` ever persisted, but it is the
+                // reason the assessment exists and belongs in its history the
+                // same as every later move.
+                $this->workflow->recordTransition(
+                    $assessment,
+                    from: null,
+                    to: RcsaAssessment::IN_PROGRESS,
+                    actor: $actor,
+                    event: RcsaAssessmentTransition::OPEN,
+                );
+
                 $sort = 0;
 
                 foreach ($unitRisks as $risk) {
@@ -118,28 +136,79 @@ class RcsaCycleService
 
     /**
      * Close a cycle. Everything under it becomes read-only.
+     *
+     * EVERY ASSESSMENT THE CLOSE TOUCHES GETS ONE HISTORY ROW, whether or not
+     * its own `status` column moves. `validated`, `submitted` and
+     * `under_review` land on `closed` — a decision was reached, or one was
+     * pending, and the cycle ended it. `in_progress` and `returned` (and, if a
+     * tenant enables the BU-head step, `bu_approval`) are NOT moved to
+     * `closed`: `CycleProvisioningTest::closing_a_cycle_freezes_every_
+     * assessment_under_it` pins an unfinished assessment staying exactly
+     * `in_progress`, because it is the CYCLE that freezes it —
+     * `RcsaAssessment::acceptsEdits()` consults both — not a status that
+     * pretends the work was finished. But the freeze is still an event: a
+     * from == to row, the same shape `escalate()` already writes, so the audit
+     * view explains why a screen that let someone edit yesterday is read-only
+     * today, even though `status` alone doesn't say so.
+     *
+     * THE "ALREADY CLOSED" CHECK IS RE-RUN INSIDE THE TRANSACTION, AGAINST A
+     * LOCKED ROW. The cheap check above is for the ordinary case — refusing
+     * before opening a transaction at all — but two requests from a doubled-up
+     * click both pass it in the gap between the read and the write, and
+     * without a lock both proceed to write a second set of close rows over
+     * the same assessments. `lockForUpdate()` makes the second request wait
+     * for the first to commit, then see `closed` and refuse.
      */
-    public function close(RcsaCycle $cycle, User $actor): void
+    public function close(RcsaCycle $cycle, User $actor, ?string $reason = null): void
     {
         if ($cycle->status === RcsaCycle::CLOSED) {
             throw new RuntimeException('This cycle is already closed.');
         }
 
-        DB::transaction(function () use ($cycle, $actor) {
+        DB::transaction(function () use ($cycle, $actor, $reason) {
+            $locked = RcsaCycle::query()->whereKey($cycle->getKey())->lockForUpdate()->firstOrFail();
+
+            if ($locked->status === RcsaCycle::CLOSED) {
+                throw new RuntimeException('This cycle is already closed.');
+            }
+
             $cycle->forceFill([
                 'status' => RcsaCycle::CLOSED,
                 'closed_by' => $actor->id,
                 'closed_at' => now(),
             ])->save();
 
-            // The lines are frozen by the cycle's status — RcsaAssessment::
-            // acceptsEdits() consults it — so nothing is rewritten here. A
-            // closing cycle that stamped every line would be a large write
-            // whose only effect was to make `updated_at` lie about when the
-            // assessment was last worked on.
-            $cycle->assessments()
-                ->whereIn('status', [RcsaAssessment::VALIDATED, RcsaAssessment::SUBMITTED, RcsaAssessment::UNDER_REVIEW])
-                ->update(['status' => RcsaAssessment::CLOSED]);
+            $assessments = $cycle->assessments()
+                ->whereNotIn('status', [RcsaAssessment::CLOSED])
+                ->get(['id', 'organization_id', 'status']);
+
+            foreach ($assessments as $assessment) {
+                $from = (string) $assessment->status;
+                $decided = in_array($from, [
+                    RcsaAssessment::VALIDATED,
+                    RcsaAssessment::SUBMITTED,
+                    RcsaAssessment::UNDER_REVIEW,
+                ], true);
+                $to = $decided ? RcsaAssessment::CLOSED : $from;
+
+                if ($decided) {
+                    // The lines themselves are frozen by the cycle's status,
+                    // not restamped here — a closing cycle that rewrote every
+                    // line would be a large write whose only effect was to
+                    // make `updated_at` lie about when the assessment was
+                    // last worked on. Only the assessment's own status moves.
+                    $assessment->forceFill(['status' => $to])->save();
+                }
+
+                $this->workflow->recordTransition(
+                    $assessment,
+                    from: $from,
+                    to: $to,
+                    actor: $actor,
+                    event: RcsaAssessmentTransition::CLOSE,
+                    reason: $reason,
+                );
+            }
         });
     }
 

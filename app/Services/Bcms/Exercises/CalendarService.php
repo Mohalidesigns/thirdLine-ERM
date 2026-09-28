@@ -8,6 +8,8 @@ use App\Models\Bcms\BlackoutPeriod;
 use App\Models\Bcms\ExerciseDefinition;
 use App\Models\Bcms\ExerciseOccurrence;
 use App\Models\Bcms\Process;
+use App\Models\Bcms\ReadinessTask;
+use App\Models\Bcms\ReminderSchedule;
 use App\Models\User;
 use App\Support\Rcsa\RcsaScope;
 use Illuminate\Database\Eloquent\Builder;
@@ -125,7 +127,7 @@ class CalendarService
             ->get(['bcms_exercise_occurrences.*'])
             ->all();
 
-        return array_map(fn (ExerciseOccurrence $o) => $this->present($o), $occurrences);
+        return $this->presentMany($occurrences);
     }
 
     /**
@@ -148,7 +150,7 @@ class CalendarService
             ->get(['bcms_exercise_occurrences.*'])
             ->all();
 
-        return array_map(fn (ExerciseOccurrence $o) => $this->present($o), $occurrences);
+        return $this->presentMany($occurrences);
     }
 
     /**
@@ -318,7 +320,7 @@ class CalendarService
             ->get()
             ->all();
 
-        return array_map(fn (ExerciseOccurrence $o) => $this->present($o), $occurrences);
+        return $this->presentMany($occurrences);
     }
 
     /* ------------------------------------------------------------------ */
@@ -453,8 +455,87 @@ class CalendarService
         });
     }
 
-    /** @return array<string, mixed> */
-    private function present(ExerciseOccurrence $occurrence): array
+    /**
+     * `present()` over a whole list, batching the two lookups the side panel
+     * needs (GAP 6) rather than one query per occurrence — this runs against
+     * every occurrence in a month/week/agenda view or a person's own
+     * calendar, and the year grid's own NFR (500+ occurrences under 1.5s) is
+     * exactly the budget an N+1 here would spend.
+     *
+     * @param  list<ExerciseOccurrence>  $occurrences
+     * @return list<array<string, mixed>>
+     */
+    private function presentMany(array $occurrences): array
+    {
+        $ids = array_map(fn (ExerciseOccurrence $o) => $o->getKey(), $occurrences);
+
+        $ladders = $this->ladderSummaries($ids);
+        $readiness = $this->readinessTaskCounts($ids);
+
+        return array_map(
+            fn (ExerciseOccurrence $o) => $this->present($o, $ladders[$o->getKey()] ?? null, $readiness[$o->getKey()] ?? null),
+            $occurrences,
+        );
+    }
+
+    /**
+     * GAP 6: next send and how many are still queued, per occurrence — the
+     * T-10 reminder ladder's own summary, batched.
+     *
+     * @param  list<int>  $occurrenceIds
+     * @return array<int, array{next_send: ?string, pending_count: int}>
+     */
+    private function ladderSummaries(array $occurrenceIds): array
+    {
+        if ($occurrenceIds === []) {
+            return [];
+        }
+
+        return ReminderSchedule::query()
+            ->whereIn('occurrence_id', $occurrenceIds)
+            ->where('status', 'pending')
+            ->get(['occurrence_id', 'send_at'])
+            ->groupBy('occurrence_id')
+            ->map(fn ($rows) => [
+                'next_send' => $rows->pluck('send_at')->sort()->first()?->toIso8601String(),
+                'pending_count' => $rows->count(),
+            ])
+            ->all();
+    }
+
+    /**
+     * GAP 6: the readiness checklist's own counts, batched — the panel's
+     * "3 of 8 complete" line. `readiness_complete`/`blocking_tasks_open` are
+     * already stored on the occurrence (`ReadinessService::refreshCounts()`
+     * maintains them); `total`/`complete` are not, so this is the one place
+     * that counts them.
+     *
+     * @param  list<int>  $occurrenceIds
+     * @return array<int, array{total: int, complete: int}>
+     */
+    private function readinessTaskCounts(array $occurrenceIds): array
+    {
+        if ($occurrenceIds === []) {
+            return [];
+        }
+
+        return ReadinessTask::query()
+            ->whereIn('occurrence_id', $occurrenceIds)
+            ->get(['occurrence_id', 'status'])
+            ->groupBy('occurrence_id')
+            ->map(fn ($rows) => [
+                'total' => $rows->count(),
+                'complete' => $rows->whereIn('status', ['complete', 'waived'])->count(),
+            ])
+            ->all();
+    }
+
+    /**
+     * @param  ?array{next_send: ?string, pending_count: int}  $ladder
+     * @param  ?array{total: int, complete: int}  $readinessCounts
+     * @return array<string, mixed>
+     */
+    private function present(ExerciseOccurrence $occurrence, ?array $ladder = null, ?array $readinessCounts = null): array
     {
         $definition = $occurrence->definition;
         $level = $definition?->exerciseType?->ladder_level;
@@ -491,6 +572,25 @@ class CalendarService
             'readiness_complete' => (bool) $occurrence->readiness_complete,
             'blocking_tasks_open' => (int) $occurrence->blocking_tasks_open,
             'regulatory_drivers' => $definition === null ? [] : ($definition->regulatory_drivers ?? []),
+            // GAP 6: what the side panel needs to replace the Phase 4
+            // placeholder. `readiness_url` is the one link the panel had
+            // none of; `ladder_summary` and `readiness_task_counts` are the
+            // two batched lookups above; `countdown_days` is signed —
+            // negative once the date has passed — and null for an
+            // unscheduled occurrence, never a fabricated zero (standard §5).
+            'readiness_url' => route('bcms.occurrences.readiness', $occurrence),
+            'ladder_summary' => [
+                'next_send' => $ladder['next_send'] ?? null,
+                'pending_count' => $ladder['pending_count'] ?? 0,
+            ],
+            'readiness_task_counts' => [
+                'total' => $readinessCounts['total'] ?? 0,
+                'complete' => $readinessCounts['complete'] ?? 0,
+                'blocking_open' => (int) $occurrence->blocking_tasks_open,
+            ],
+            'countdown_days' => $occurrence->scheduled_date === null
+                ? null
+                : (int) now()->startOfDay()->diffInDays($occurrence->scheduled_date->copy()->startOfDay(), false),
         ];
     }
 

@@ -1093,3 +1093,73 @@ this pass never touched and the coordinator's own per-file list does not name. R
 isolation (`--filter=Phase11WidgetsTest` alone), which points at cross-process contention against the
 same shared `risk_test_p10_b9babae` database from the concurrently-running Phase 11 background agents,
 not a regression from this pass. Flagged rather than fixed — outside this session's file boundary.
+
+## Compliance check: PIR timing metrics in `PirService::refreshMetrics()` (compliance-analyst, 2026-09-25)
+
+Read only. The verdict is **sound in design, with three corrections needed before the metrics are
+examiner-facing.**
+
+**The definitions are right.**
+- `time_to_declare_minutes` is detection to declaration.
+- `time_to_activate_minutes` is declaration to the first plan activation.
+- `time_to_detect_minutes` is never computed.
+
+These match `Incident`'s docblock and Phase 10 clause map §4.2. ISO 22301 does not define these
+measures. They are the bank's own evaluation inputs: clause 8.6 (evaluation after a disruption, per
+`ClauseRefs.php`) and clause 9.1. Findings from the review then feed clause 10.1. The PIR's own stamp
+stays `iso22320.incident_response` (clause map §4.2). **Label them as what the system records.**
+`IncidentService::declare()` sets `declared_at = now()`, and `PlanActivationService::activate()` sets
+`activated_at = now()`. Both are the moments recorded in BCMS, not the moment a crisis team decided
+something by telephone. Display labels: "Detection to declaration (as recorded)" and "Declaration to
+first plan activation (as recorded)".
+
+**Corrections (backend-engineer, then qa-engineer):**
+
+1. **The values are not integers.** On Carbon 3.13.2 (`composer.lock`), `diffInMinutes()` returns a
+   **signed float** (`vendor/nesbot/carbon/src/Carbon/Traits/Difference.php:391`). The PIR can
+   therefore show `12.4833…` minutes, and the method's `@return array<string, int>` is untrue. Store
+   whole minutes, rounded down from seconds, and say so in the label.
+2. **Guard against negative intervals.** The declare path enforces `detected_at <= declared_at`, and
+   an activation is created after its incident, so a negative value needs legacy, seeded or
+   hand-edited data. It must still never appear as a metric. If the end is before the start, send the
+   metric to `not_measured` with both times stated.
+3. **Do not substitute `created_at` for a missing `declared_at` inside a metric.** ADR 0020's fallback
+   starts a *regulatory clock*, where an early start is the safe error. A measurement labelled "declare"
+   that silently uses the record's creation time is an unlabelled proxy. The path is only reached for
+   rows that did not come through `declare()`. Use `not_measured` there.
+
+**`time_to_detect` stays "not measured".** No column holds the time an incident began:
+- `bcms_incidents` has `detected_at` and `declared_at`, and no onset time;
+- `bcms_incident_log.logged_at` is when an entry was written;
+- `bcms_incident_notifications.awareness_at` is when a reporting obligation's clock starts, which is
+  not the onset and should not be reused as one.
+
+Deriving the metric from any of these would measure the wrong thing.
+
+**One finding bears on the regulatory clock itself, not only on this metric.**
+- The CBN Risk-Based Cybersecurity Framework (2024), as quoted verbatim by
+  [Mondaq](https://www.mondaq.com/nigeria/security/1518574/overview-of-the-cbn-risk-based-cybersecurity-framework-and-guidelines-for-deposit-money-banks-and-payment-service-banks),
+  says incidents "should be reported to the CBN within twenty-four (24) hours after such incidents
+  **occur**". The CBN PDF returns 403 to this tool, so this is a secondary-source quotation.
+- Phase 10 clause map §3 (line 132) already lists "date/time of occurrence **and** of detection" as
+  CBN report content.
+- Running the clock from detection, as the `Incident` docblock says, is therefore an interpretation.
+  It starts **later** than the literal wording, so it is the less conservative reading.
+- Mitigation that already exists: `ClassifyBcmsIncidentRequest` lets an officer move `awareness_at`
+  back to a known occurrence time without justification.
+- **ADR item, not for Phase 12, whose schema is frozen by ADR 0023:** an optional, human-entered
+  `bcms_incidents.onset_at` (`dateTime`, per ADR 0022), validated `<= detected_at`. It would let the
+  CBN report carry the occurrence time it asks for, and when present
+  `time_to_detect = detected_at − onset_at`.
+- Counsel should confirm which anchor the CBN applies in practice. It is recorded here so the choice
+  is deliberate.
+
+**Proposed `not_measured` wording.** No column names, and never implying the value was zero:
+
+| Metric | Case | Wording |
+|---|---|---|
+| `time_to_detect_minutes` | always (today) | "Not measured. The system records when the incident was detected, not when it began, so the time taken to detect it cannot be calculated. If the start time is known, state it in the review and in the regulatory report." |
+| `time_to_declare_minutes` | no detection time | "Not measured. The incident record has no detection time." |
+| `time_to_declare_minutes` | no declaration time | "Not measured. The incident record has no declaration time. The time the record was created is not used in its place." |
+| `time_to_declare_minutes` / `time_to_activate_minutes` | end before start | "Not measured. The recorded times are out of order: {end label} {end time} is earlier than {start label} {start time}. Check the incident record." |
+| `time_to_activate_minutes` | no activation | "Not measured. No continuity plan was activated during this incident." |

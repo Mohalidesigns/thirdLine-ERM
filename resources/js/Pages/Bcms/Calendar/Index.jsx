@@ -5,6 +5,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import FormField from '@thirdline/ui/Components/FormField';
 import YearHeatGrid from '@/Components/Bcms/YearHeatGrid';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import { formatIncidentDateTime } from '@/Components/Bcms/dateDisplay';
 
 /**
  * The resilience calendar — the module's centrepiece.
@@ -386,13 +387,72 @@ export default function Index({
                                 </dl>
 
                                 {/*
-                                    Phase 5 fills these two. They are declared now so that the
-                                    panel's shape does not change when the reminder ladder lands.
+                                    GAP 6 — readiness and the T-10 reminder ladder, batched onto
+                                    each occurrence row by `CalendarService::ladderSummaries()`/
+                                    `readinessTaskCounts()`. `countdown_days` is signed and null
+                                    for an unscheduled occurrence — never a fabricated zero.
+
+                                    The wording follows the server-computed `is_overdue`, not the
+                                    sign of `countdown_days`: a completed, cancelled or deferred
+                                    occurrence has a past date but nothing outstanding, and a missed
+                                    one is already named by its status chip — none of the four take
+                                    the countdown or "Overdue by" wording, which is for occurrences
+                                    still open and running past their date.
                                 */}
-                                <div className="rounded border border-dashed border-gray-300 p-3 text-xs text-gray-500">
-                                    Readiness checklist and the T-10 reminder ladder appear here once Phase 5 lands.
-                                    {selected.blocking_tasks_open > 0 && (
-                                        <span className="block text-amber-700">{selected.blocking_tasks_open} blocking tasks open.</span>
+                                <div className="rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+                                    <p className="font-medium text-gray-900">
+                                        {['completed', 'cancelled', 'missed', 'deferred'].includes(selected.status)
+                                            ? '—'
+                                            : selected.countdown_days == null
+                                                ? 'Not scheduled'
+                                                : selected.is_overdue
+                                                    ? `Overdue by ${Math.abs(selected.countdown_days)} days`
+                                                    : `T-${selected.countdown_days} days`}
+                                    </p>
+                                    <p className="mt-1">
+                                        Readiness tasks: {selected.readiness_task_counts?.complete ?? 0} of{' '}
+                                        {selected.readiness_task_counts?.total ?? 0} complete
+                                        {(selected.readiness_task_counts?.blocking_open ?? 0) > 0 && (
+                                            <span className="ml-1 text-amber-700">
+                                                ({selected.readiness_task_counts.blocking_open} blocking open)
+                                            </span>
+                                        )}
+                                    </p>
+                                    {(() => {
+                                        const pending = selected.ladder_summary?.pending_count ?? 0;
+                                        const nextSend = selected.ladder_summary?.next_send ?? null;
+                                        // A pending row whose `send_at` has already passed is one
+                                        // the scheduler has not caught up with yet — honest as
+                                        // "overdue, not yet sent", never dressed up as the ordinary
+                                        // "Next reminder" line, which reads as "on schedule".
+                                        const sendDate = nextSend ? new Date(nextSend) : null;
+                                        const isOverdue = sendDate !== null && !Number.isNaN(sendDate.getTime())
+                                            && sendDate.getTime() < Date.now();
+
+                                        if (pending === 0) {
+                                            return <p className="mt-1">No reminders pending.</p>;
+                                        }
+
+                                        if (isOverdue) {
+                                            return (
+                                                <p className="mt-1 text-amber-700">
+                                                    Overdue reminder: {formatIncidentDateTime(nextSend)} (not yet sent)
+                                                    {' '}— {pending} pending
+                                                </p>
+                                            );
+                                        }
+
+                                        return (
+                                            <p className="mt-1">
+                                                Next reminder {nextSend ? formatIncidentDateTime(nextSend) : 'not scheduled'}
+                                                {' '}— {pending} pending
+                                            </p>
+                                        );
+                                    })()}
+                                    {selected.readiness_url && (
+                                        <Link href={selected.readiness_url} className="mt-2 inline-block text-blue-700 hover:underline">
+                                            Open readiness &amp; reminder ladder
+                                        </Link>
                                     )}
                                 </div>
 

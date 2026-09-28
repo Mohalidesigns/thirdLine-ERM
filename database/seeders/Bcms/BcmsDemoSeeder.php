@@ -5,10 +5,13 @@ namespace Database\Seeders\Bcms;
 use App\Enums\Bcms\ContactSource;
 use App\Enums\Bcms\DependencyType;
 use App\Enums\Bcms\DistributionMode;
+use App\Enums\Bcms\DrStrategy;
+use App\Enums\Bcms\DrTestType;
 use App\Enums\Bcms\FindingClassification;
 use App\Enums\Bcms\FindingSource;
 use App\Enums\Bcms\ImpactCategory;
 use App\Enums\Bcms\ImpactHorizon;
+use App\Enums\Bcms\InjectDeliveryChannel;
 use App\Enums\Bcms\IsoClauseRef;
 use App\Enums\Bcms\LadderLevel;
 use App\Enums\Bcms\PlanType;
@@ -21,6 +24,7 @@ use App\Models\Bcms\BlackoutPeriod;
 use App\Models\Bcms\Contact;
 use App\Models\Bcms\DataSet;
 use App\Models\Bcms\Dependency;
+use App\Models\Bcms\DrSystem;
 use App\Models\Bcms\Equipment;
 use App\Models\Bcms\ExerciseDefinition;
 use App\Models\Bcms\ExerciseOccurrence;
@@ -49,8 +53,10 @@ use App\Services\Bcms\Bia\BiaAssessmentService;
 use App\Services\Bcms\Bia\BiaCampaignService;
 use App\Services\Bcms\Bia\DependencyService;
 use App\Services\Bcms\CallTrees\TreeHealthService;
+use App\Services\Bcms\Dr\DrService;
 use App\Services\Bcms\Exercises\ExerciseDefinitionService;
 use App\Services\Bcms\Exercises\ExerciseProgrammeService;
+use App\Services\Bcms\Exercises\InjectService;
 use App\Services\Bcms\Exercises\OccurrenceGenerator;
 use App\Services\Bcms\Findings\CorrectiveActionService;
 use App\Services\Bcms\Findings\FindingService;
@@ -69,6 +75,7 @@ use App\Services\Bcms\Training\TrainingComplianceService;
 use App\Services\Tprm\Continuity\BcpTestRecorder;
 use App\Support\Bcms\AudienceRule;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Auth;
 use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
@@ -255,6 +262,12 @@ class BcmsDemoSeeder extends Seeder
             $this->seedManagementReview($programme);
             $this->seedWorkedFinding();
             $this->seedBiaCampaign();
+
+            // Gap 7: the DR register was entirely empty. One system, one
+            // test — the APP-CORE tier-mismatch example the clause map's own
+            // §3.2 worked example uses, so the register screen has something
+            // in it and the mismatch banner has something to show.
+            $this->seedDrRegister();
 
             // Phase 3: the strategy register with three deliberate gaps, and
             // the plan estate those strategies feed.
@@ -541,20 +554,49 @@ class BcmsDemoSeeder extends Seeder
         }
     }
 
+    /**
+     * GAP 7: this used to create the row directly with `status => 'active'`,
+     * which never goes through `ProgrammeService::approve()` and leaves
+     * `approved_by`/`approved_at` null — an "active" BCMS programme with
+     * nobody recorded as having approved it, the exact thing clause 5.2
+     * exists to prevent. `firstOrCreate` writes the base row once, as a
+     * draft; the block below then routes it through the service's own
+     * draft -> approved -> active lifecycle, which enforces "not its own
+     * owner" itself, so `approved_by`/`approved_at` land consistently. Only
+     * runs while the row is still a draft, so a tenant already fixed (or a
+     * genuinely in-progress draft a demo presenter left mid-review) is
+     * never silently re-approved on a later seed run.
+     */
     private function seedProgramme(): Programme
     {
-        return Programme::query()->updateOrCreate(
+        $owner = User::query()->where('email', 'admin@risk.test')->first();
+
+        $programme = Programme::query()->firstOrCreate(
             ['year' => (int) now()->year, 'name' => self::TRADING_NAME.' BCMS Programme'],
             [
                 'scope_statement' => 'The business continuity management system covers '.self::TRADING_NAME
                     ."'s head office, eight branches and three data centres, and the prioritised activities "
                     .'that deliver payments, digital channels, branch cash service and regulatory reporting.',
                 'out_of_scope_statement' => 'Subsidiary insurance brokerage operations, which maintain their own arrangements.',
-                'owner_id' => User::query()->where('email', 'admin@risk.test')->value('id'),
-                'status' => 'active',
+                'owner_id' => $owner?->id,
+                'status' => 'draft',
                 'iso_clause_ref' => IsoClauseRef::Iso22301_4_3->value,
             ]
         );
+
+        if ($programme->status === 'draft') {
+            $approver = User::query()->where('is_active', true)
+                ->when($owner !== null, fn ($q) => $q->whereKeyNot($owner->getKey()))
+                ->orderBy('id')
+                ->first();
+
+            if ($approver !== null) {
+                app(ProgrammeService::class)->approve($programme, $approver->getKey());
+                app(ProgrammeService::class)->activate($programme->refresh(), $approver->getKey());
+            }
+        }
+
+        return $programme->fresh();
     }
 
     private function seedExerciseProgramme(Programme $programme): void
@@ -973,6 +1015,59 @@ class BcmsDemoSeeder extends Seeder
             if ($approver !== null && (int) $approver->getKey() !== (int) $assessment->assessor_id) {
                 $assessments->approve($assessment->refresh(), (int) $approver->getKey(), $profile['tier']);
             }
+        }
+    }
+
+    /**
+     * Gap 7: one DR system with one recorded test, so the register is not
+     * empty. THE TIER-MISMATCH EXAMPLE (clause map §3.2): APP-CORE's DR
+     * target is set to 4 hours, wider than BCP-CORE's own approved BIA RTO
+     * of 2 hours (`self::BIA_PROFILE['BCP-CORE']['rto']`, seeded above with
+     * `APP-CORE` attached as a critical dependency) — `DrService::
+     * tierMismatch()` reads that gap live, from the same two rows this
+     * writes, rather than from anything stored on the system itself.
+     * Idempotent on the system's name, the same guard every other `_once`
+     * writer in this seeder uses.
+     */
+    private function seedDrRegister(): void
+    {
+        $application = Application::query()->where('code', 'APP-CORE')->first();
+        $by = User::query()->where('email', 'admin@risk.test')->first()
+            ?? User::query()->where('is_active', true)->first();
+
+        if ($application === null || $by === null) {
+            return;
+        }
+
+        $system = DrSystem::query()->firstOrCreate(
+            ['name' => 'Core Banking Platform DR'],
+            [
+                'application_id' => $application->getKey(),
+                'recovery_tier' => 2,
+                // WIDER than BCP-CORE's 2-hour BIA RTO — the mismatch is the
+                // point, not an oversight; see this method's own docblock.
+                'rto_target_hours' => 4,
+                'rpo_target_minutes' => 30,
+                'dr_strategy' => DrStrategy::Warm->value,
+                // Both columns are `string(40)` — see `StoreBcmsDrSystemRequest`.
+                'backup_frequency' => 'Nightly full, continuous log shipping',
+                'replication_type' => 'Asynchronous database replication',
+                'created_by' => $by->getKey(),
+            ]
+        );
+
+        if ($system->wasRecentlyCreated) {
+            $system->update(['next_test_due' => app(DrService::class)->deriveNextTestDue($system, now())]);
+        }
+
+        if (! $system->tests()->exists()) {
+            app(DrService::class)->recordTest($system, [
+                'test_type' => DrTestType::Failover->value,
+                'test_date' => now()->subMonths(2)->toDateString(),
+                'rto_actual_minutes' => 210,
+                'rpo_actual_minutes' => 12,
+                'notes' => 'Scheduled failover exercise of the core banking platform to the secondary data centre.',
+            ], $by);
         }
     }
 
@@ -1475,6 +1570,60 @@ class BcmsDemoSeeder extends Seeder
         if ($approver !== null && (int) $approver->getKey() !== (int) $author?->getKey()) {
             app(ExerciseProgrammeService::class)->approve($programme->refresh(), $approver);
         }
+
+        $this->seedCrisisSimulationInjects($author);
+    }
+
+    /**
+     * GAP 7: a handful of scripted injects on the crisis simulation's own
+     * occurrence, so the execution workspace demo has something to release.
+     * Found by DEFINITION NAME, never a hardcoded occurrence id — occurrence
+     * ids are assigned by whatever else has seeded on the tenant before this
+     * runs. Idempotent: does nothing once the occurrence already has any.
+     */
+    private function seedCrisisSimulationInjects(?User $author): void
+    {
+        $occurrence = ExerciseOccurrence::query()
+            ->whereHas('definition', fn ($q) => $q->where('name', 'Crisis management simulation'))
+            ->orderBy('sequence_no')
+            ->first();
+
+        if ($occurrence === null || $author === null) {
+            return;
+        }
+
+        if ($occurrence->injects()->exists()) {
+            return;
+        }
+
+        $injects = app(InjectService::class);
+
+        // `InjectService::create()` takes no `$by` — `ExerciseInject` is
+        // `BcmsAuditable`, which reads the actor from `auth()->user()` on
+        // the model event itself. A seeder run has no authenticated
+        // session, so without this every seeded inject's `created` row
+        // would carry a null `actor_id`. Set for the duration of these
+        // creates only, and restored afterwards — the same discipline any
+        // other seeder step that writes a `BcmsAuditable` row needs, not
+        // something specific to injects.
+        $previousUser = Auth::user();
+        Auth::setUser($author);
+
+        try {
+            foreach ([
+                ['title' => 'The primary data centre loses utility power', 'content' => 'UPS holds for 12 minutes; the generator has failed to start.', 'release_offset_minutes' => 0, 'delivery_channel' => InjectDeliveryChannel::InRoom->value],
+                ['title' => 'A journalist calls the front desk', 'content' => 'A reporter from a national daily asks whether the core banking outage is confirmed, and for a comment within the hour.', 'release_offset_minutes' => 15, 'delivery_channel' => InjectDeliveryChannel::SimPhone->value],
+                ['title' => 'The regulator\'s portal requests an update', 'content' => 'The CBN incident portal shows the 24-hour notification clock and asks for a status.', 'release_offset_minutes' => 45, 'delivery_channel' => InjectDeliveryChannel::SimSystem->value],
+            ] as $data) {
+                $injects->create($occurrence, $data);
+            }
+        } finally {
+            if ($previousUser !== null) {
+                Auth::setUser($previousUser);
+            } else {
+                Auth::forgetUser();
+            }
+        }
     }
 
     /**
@@ -1786,16 +1935,26 @@ class BcmsDemoSeeder extends Seeder
 
         // A warden whose last assessment was fourteen months ago against a
         // twelve-month cycle — overdue for re-certification.
+        //
+        // GAP 7: on a demo tenant with exactly six active users (the case in
+        // practice), `$users[5]` IS `$assessor` (`$users->last()`), so the
+        // self-assessment guard below used to refuse silently and this block
+        // never wrote a row at all — the training compliance screen's
+        // overdue tile stayed empty, contradicting this very comment. The
+        // assessor for THIS ONE record is `$users[0]`, not `$assessor`: a
+        // different, deterministic holder of BC-WARDEN's own "current"
+        // record (`$assessed[0]` above), who is never the overdue user.
         if (($warden = $curricula->get('BC-WARDEN')) !== null && $users->count() > 5) {
             $overdueUser = $users[5];
+            $overdueAssessor = $users[0];
 
-            if (! $overdueUser->is($assessor)) {
+            if (! $overdueUser->is($overdueAssessor)) {
                 $completedAt = now()->subMonths(14);
 
                 $this->recordTrainingOutcomeOnce($service, $warden, $overdueUser, [
                     'completed_at' => $completedAt,
                     'score' => 82.0,
-                ], $assessor->getKey());
+                ], $overdueAssessor->getKey());
             }
         }
     }

@@ -2597,8 +2597,11 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.contact.export')->name('plans.bundle.generate');
         Route::get('plans/{plan}/offline-bundle', [BcmsPlanDocumentController::class, 'bundle'])
             ->middleware('permission:bcms.contact.export')->name('plans.bundle');
+        // GAP 5: `my.view` is the other arm — the ownership-scoped check
+        // (a plan actually distributed to this caller) lives in the
+        // controller, not here; this middleware only says who may knock.
         Route::post('plans/{plan}/acknowledge', [BcmsPlanDocumentController::class, 'acknowledge'])
-            ->middleware('permission:bcms.plan.view')->name('plans.acknowledge');
+            ->middleware('permission:bcms.plan.view|my.view')->name('plans.acknowledge');
         Route::get('plans/{plan}/acknowledgements/export', [BcmsPlanDocumentController::class, 'acknowledgements'])
             ->middleware('permission:bcms.report.export')->name('plans.acknowledgements.export');
         Route::post('plans/{plan}/activate', [BcmsPlanDocumentController::class, 'activate'])
@@ -2679,8 +2682,12 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
          * because overriding is deciding to run an exercise unprepared and
          * that decision belongs to somebody who will answer for it.
          */
+        // GAP 5: `my.view` is the other arm — `mine()`'s own query is
+        // already scoped to `owner_id = $request->user()`, so nobody sees
+        // another employee's tasks through it regardless of which grant
+        // let them in.
         Route::get('me/readiness-tasks', [BcmsReadinessController::class, 'mine'])
-            ->middleware('permission:bcms.exercise.view')->name('readiness.mine');
+            ->middleware('permission:bcms.exercise.view|my.view')->name('readiness.mine');
         Route::get('occurrences/{occurrence}/readiness', [BcmsReadinessController::class, 'show'])
             ->middleware('permission:bcms.exercise.view')->name('occurrences.readiness');
         Route::post('occurrences/{occurrence}/reminder-schedule/regenerate', [BcmsReadinessController::class, 'regenerate'])
@@ -2692,8 +2699,11 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.exercise.view')->name('occurrences.confirm-attendance');
         Route::get('occurrences/{occurrence}/deliveries/export', [BcmsReadinessController::class, 'deliveries'])
             ->middleware('permission:bcms.report.export')->name('occurrences.deliveries.export');
+        // GAP 5: `my.view` is the other arm — `ReadinessController::
+        // complete()` only lets it through for the task's OWN owner; anyone
+        // else with only `my.view` is refused there, not here.
         Route::post('readiness-tasks/{task}/complete', [BcmsReadinessController::class, 'complete'])
-            ->middleware('permission:bcms.exercise.facilitate')->name('readiness-tasks.complete');
+            ->middleware('permission:bcms.exercise.facilitate|my.view')->name('readiness-tasks.complete');
         Route::post('readiness-tasks/{task}/override', [BcmsReadinessController::class, 'override'])
             ->middleware('permission:bcms.readiness.override')->name('readiness-tasks.override');
 
@@ -2714,6 +2724,17 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
             ->middleware('permission:bcms.exercise.facilitate')->name('occurrences.timeline.store');
         Route::post('occurrences/{occurrence}/injects/{inject}/release', [BcmsExecutionController::class, 'releaseInject'])
             ->middleware('permission:bcms.exercise.facilitate')->name('occurrences.injects.release')->scopeBindings();
+        // GAP 2: authoring. `bcms_exercise_injects` existed with nothing
+        // outside a test factory ever creating a row — same permission as
+        // release, the one role actually running the exercise.
+        Route::post('occurrences/{occurrence}/injects', [BcmsExecutionController::class, 'storeInject'])
+            ->middleware('permission:bcms.exercise.facilitate')->name('occurrences.injects.store');
+        Route::patch('occurrences/{occurrence}/injects/{inject}', [BcmsExecutionController::class, 'updateInject'])
+            ->middleware('permission:bcms.exercise.facilitate')->name('occurrences.injects.update')->scopeBindings();
+        Route::delete('occurrences/{occurrence}/injects/{inject}', [BcmsExecutionController::class, 'destroyInject'])
+            ->middleware('permission:bcms.exercise.facilitate')->name('occurrences.injects.destroy')->scopeBindings();
+        Route::post('occurrences/{occurrence}/injects/reorder', [BcmsExecutionController::class, 'reorderInjects'])
+            ->middleware('permission:bcms.exercise.facilitate')->name('occurrences.injects.reorder');
         Route::post('occurrences/{occurrence}/check-in', [BcmsExecutionController::class, 'checkIn'])
             ->middleware('permission:bcms.exercise.facilitate')->name('occurrences.check-in');
         Route::get('occurrences/{occurrence}/check-in-poster', [BcmsExecutionController::class, 'checkInPoster'])

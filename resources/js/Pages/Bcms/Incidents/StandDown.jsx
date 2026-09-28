@@ -7,7 +7,13 @@ const FIX_LINKS = {
     tasks: (urls) => urls.crisis_room_url,
     notifications: (urls) => urls.notifications_url,
     reportability: (urls) => urls.crisis_room_url,
-    plans: (urls) => urls.crisis_room_url,
+};
+
+// Informational text for a checklist item that is unmet but does not block
+// submit — shown instead of a "Fix it" link, because there is nothing to fix
+// before submitting: the submission itself settles it.
+const NON_BLOCKING_HINTS = {
+    plans: 'Settled on submit: plans left blank are deactivated.',
 };
 
 /**
@@ -16,22 +22,49 @@ const FIX_LINKS = {
  * task nobody decided to drop, or no communication telling anyone it is over.
  */
 export default function StandDown({
-    incident = {}, checklist = [], plan_activations: planActivations = [], audience_groups: audienceGroups = [],
+    incident = {}, checklist = [], plan_activations: planActivations = [],
     submit_url: submitUrl, crisis_room_url: crisisRoomUrl, notifications_url: notificationsUrl,
+    can_deactivate_plans: canDeactivatePlans,
 }) {
     const alreadyClosed = incident.status === 'closed';
 
-    const blockingUnmet = checklist.filter((c) => !c.met && c.key !== 'all_clear');
+    // A-iv: `can_deactivate_plans` is optional — while the backend key name
+    // is being confirmed, an absent key keeps the hint showing (`!== false`,
+    // not a truthy check), and only an explicit `false` hides it.
+    const showPlansHint = canDeactivatePlans !== false;
+
+    // `blocks_submit` comes from the server (`IncidentService::standDownChecklist()`)
+    // and is what gates the button — NOT `met` alone. `plans` is unmet-but-not-
+    // blocking while activations are open, because standing down is exactly what
+    // settles them (GAP 4); `all_clear` is unmet-but-not-blocking because it is
+    // satisfied only by this very submission. A missing key is treated as
+    // blocking, to stay safe if the server ever omits it.
+    const blockingUnmet = checklist.filter((c) => !c.met && c.blocks_submit !== false);
     const readyToSubmit = blockingUnmet.length === 0;
     const firstUnmet = blockingUnmet[0];
 
+    // GAP 4: `dispatch_all_clear` is gone — the server never read it, and
+    // composing/dispatching an ALLCLEAR communication is EMNS work with its
+    // own route, not a silent side effect of standing an incident down.
     const form = useForm({
-        all_clear_message: '', reason: '', dispatch_all_clear: audienceGroups.length > 0,
+        all_clear_message: '', reason: '',
         plans_remaining_active: {},
     });
 
     const submit = (e) => {
         e.preventDefault();
+        // An officer who types into a plan statement box and then clears it
+        // leaves a blank entry in `plans_remaining_active`, which the server
+        // refuses — "leave blank to deactivate" only holds if a cleared box
+        // is indistinguishable from one never touched. `form.transform` runs
+        // synchronously against the current `form.data`, unlike `setData`
+        // immediately followed by `post`, so this is safe to call right here.
+        form.transform((data) => ({
+            ...data,
+            plans_remaining_active: Object.fromEntries(
+                Object.entries(data.plans_remaining_active).filter(([, v]) => v.trim() !== ''),
+            ),
+        }));
         form.post(submitUrl);
     };
 
@@ -55,16 +88,24 @@ export default function StandDown({
             <PageHeader title={`Stand down — ${incident.reference}`} subtitle={incident.title} />
 
             <ol className="mb-6 space-y-2">
-                {checklist.map((item) => (
+                {checklist.map((item) => {
+                    const isBlocking = !item.met && item.blocks_submit !== false;
+                    const itemClassName = item.met
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                        : isBlocking
+                            ? 'border-rose-200 bg-rose-50 text-rose-900'
+                            : 'border-amber-200 bg-amber-50 text-amber-900';
+
+                    return (
                     <li key={item.key}
-                        className={`flex items-start gap-2 rounded border p-3 text-sm ${item.met ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-rose-200 bg-rose-50 text-rose-900'}`}>
-                        <span aria-hidden="true" className="mt-0.5 font-semibold">{item.met ? '✓' : '✗'}</span>
+                        className={`flex items-start gap-2 rounded border p-3 text-sm ${itemClassName}`}>
+                        <span aria-hidden="true" className="mt-0.5 font-semibold">{item.met ? '✓' : isBlocking ? '✗' : 'i'}</span>
                         <span className="flex-1">
                             <span className="font-medium">{item.label}</span>
                             {!item.met && (
                                 <span className="block text-xs">
                                     {item.message}
-                                    {FIX_LINKS[item.key] && item.key !== 'all_clear' && (
+                                    {isBlocking && FIX_LINKS[item.key] && (
                                         <>
                                             {' '}
                                             <Link href={FIX_LINKS[item.key]({ crisis_room_url: crisisRoomUrl, notifications_url: notificationsUrl })} className="underline">
@@ -72,11 +113,16 @@ export default function StandDown({
                                             </Link>
                                         </>
                                     )}
+                                    {!isBlocking && NON_BLOCKING_HINTS[item.key]
+                                        && (item.key !== 'plans' || showPlansHint) && (
+                                        <span className="block">{NON_BLOCKING_HINTS[item.key]}</span>
+                                    )}
                                 </span>
                             )}
                         </span>
                     </li>
-                ))}
+                    );
+                })}
             </ol>
 
             <form onSubmit={submit} className="space-y-4 rounded border border-slate-200 bg-white p-4">
@@ -106,14 +152,6 @@ export default function StandDown({
                             </div>
                         ))}
                     </div>
-                )}
-
-                {audienceGroups.length > 0 && (
-                    <label className="flex items-center gap-2 text-sm">
-                        <input type="checkbox" className="form-checkbox" checked={form.data.dispatch_all_clear}
-                            onChange={(e) => form.setData('dispatch_all_clear', e.target.checked)} />
-                        Dispatch the all-clear as a communication
-                    </label>
                 )}
 
                 <div className="flex items-center gap-3">

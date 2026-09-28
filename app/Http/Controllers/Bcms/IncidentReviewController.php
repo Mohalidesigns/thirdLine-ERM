@@ -50,8 +50,9 @@ class IncidentReviewController extends Controller
         $aar = $this->pir->ensureDraftFor($incident);
         // Persisted once, here, as the one EXPLICIT write action that opens
         // the draft (advisory A9) — every later GET recomputes without
-        // writing.
+        // writing. Gap 3: condition 7's timings are computed the same way.
         $this->pir->refreshPlanSections($aar, persist: true);
+        $this->pir->refreshMetrics($aar, persist: true);
 
         return redirect()->route('bcms.incidents.review.show', $incident);
     }
@@ -71,8 +72,9 @@ class IncidentReviewController extends Controller
         // IN MEMORY ONLY (`refreshPlanSections()`'s default `$persist =
         // false`) — nothing is written by this GET. `$aar` (not `$aar->
         // fresh()`, which would discard the in-memory merge by re-querying)
-        // is what the presenter reads.
+        // is what the presenter reads. Gap 3: same split for the timings.
         $this->pir->refreshPlanSections($aar);
+        $this->pir->refreshMetrics($aar);
 
         return Inertia::render('Bcms/Incidents/Review', $this->presenter->review($incident, $aar));
     }

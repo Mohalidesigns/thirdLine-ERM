@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Bcms;
 
+use App\Enums\Bcms\IsoClauseRef;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Bcms\ReopenAarRequest;
 use App\Http\Requests\Bcms\UpdateAarRequest;
@@ -162,6 +163,15 @@ class AarController extends Controller
             // already exposes for the identical control (ADR 0017 §7).
             'options' => [
                 'users' => User::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+                // QA re-gate cycle 3: `Exercises/Aar.jsx`'s "Raise a finding"
+                // form now renders `iso_clause_ref` as a `<select>` fed by
+                // this key — the same shape `IncidentPresenter::review()`
+                // ships and `FindingController::index()` originated —
+                // without it the select had only its empty option, and
+                // `FindingService::resolveClauseRef()` refuses a
+                // nonconformity with no clause named, a dead end for this
+                // screen's own findings table.
+                'clause_refs' => IsoClauseRef::options(),
             ],
             'can' => [
                 'manage' => $request->user()?->can('bcms.aar.manage') === true,

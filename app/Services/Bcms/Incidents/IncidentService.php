@@ -285,7 +285,27 @@ class IncidentService
      * submit, so the screen can never show "ready" when the server would
      * refuse.
      *
-     * @return list<array{key: string, label: string, met: bool, message: string}>
+     * `blocks_submit` is what a caller should gate the submit button on —
+     * NOT `met`, which the screen still shows for information. It is
+     * `false` for `plans` and `all_clear`, and `true` for everything else:
+     *
+     * - `plans` — `standDown()` settles every plan disposition (kept-active
+     *   statements, then GAP 4's deactivate-the-rest) BEFORE it evaluates
+     *   this checklist, so an unmet `plans` row on the GET render is not a
+     *   reason to refuse the submit that is about to resolve it. Blocking
+     *   submit on it made Gap 4 unreachable from the screen: the only way
+     *   through was typing a statement into every box, which is the false
+     *   record Amendment 2's shape warns against.
+     * - `all_clear` — `met` is always `false` here by construction (see
+     *   below); it is satisfied only by the very submission being gated, so
+     *   treating it as blocking would make stand-down permanently
+     *   unreachable.
+     * - `tasks`, `notifications`, `reportability` — none of these is
+     *   settled by the stand-down submission itself, so an unmet row here
+     *   is a genuine refusal, on the GET render and inside `standDown()`
+     *   alike.
+     *
+     * @return list<array{key: string, label: string, met: bool, message: string, blocks_submit: bool}>
      */
     public function standDownChecklist(Incident $incident): array
     {
@@ -297,6 +317,7 @@ class IncidentService
             'key' => 'tasks', 'label' => 'Every task is complete or cancelled',
             'met' => $openTasks === 0,
             'message' => $openTasks === 0 ? '' : "{$openTasks} task(s) still open.",
+            'blocks_submit' => true,
         ];
 
         $openObligations = $notifications->overdueOrOpenCount($incident);
@@ -304,6 +325,7 @@ class IncidentService
             'key' => 'notifications', 'label' => 'Every regulatory obligation is submitted or reassessed as not owed',
             'met' => $openObligations === 0,
             'message' => $openObligations === 0 ? '' : "{$openObligations} regulatory obligation(s) still open.",
+            'blocks_submit' => true,
         ];
 
         $out[] = [
@@ -311,12 +333,14 @@ class IncidentService
             'met' => $notifications->reportabilityStatus($incident, 'cbn') !== 'unknown'
                 && $notifications->reportabilityStatus($incident, 'personal_data') !== 'unknown',
             'message' => 'One or both reportability questions have not been answered.',
+            'blocks_submit' => true,
         ];
 
         $out[] = [
             'key' => 'all_clear', 'label' => 'A decision recording the stand-down and the all-clear',
             'met' => false, // Satisfied only by this very submission — see class docblock.
             'message' => 'Satisfied by submitting this form below.',
+            'blocks_submit' => false,
         ];
 
         // ADR 0020 Amendment 4: a kept-active activation (`kept_active_entry_id`
@@ -331,6 +355,9 @@ class IncidentService
             'key' => 'plans', 'label' => 'Every activated plan is deactivated or explicitly kept active',
             'met' => $openPlans === 0,
             'message' => $openPlans === 0 ? '' : "{$openPlans} activation(s) need a disposition below.",
+            // Settled by standDown() itself before this checklist is
+            // evaluated for the submit gate — see docblock above.
+            'blocks_submit' => false,
         ];
 
         return $out;
@@ -362,11 +389,53 @@ class IncidentService
             // second concurrent submission too.
             $this->assertNotTerminal($incident);
 
+            // ADR 0020 Amendment 4 rule 2, UNCHANGED: a KEY PRESENT in
+            // `plans_remaining_active` with a blank/whitespace value is
+            // REFUSED, naming the plan — `keepPlanActiveAtStandDown()`'s own
+            // guard, called for every key present regardless of its value.
+            // Typing into the box and then clearing it is not the same act
+            // as never touching the box at all (below).
             foreach ((array) ($data['plans_remaining_active'] ?? []) as $activationId => $statement) {
                 $this->keepPlanActiveAtStandDown($incident, $by, (int) $activationId, (string) $statement);
             }
 
-            $unmet = array_values(array_filter($this->standDownChecklist($incident), fn (array $c) => ! $c['met'] && $c['key'] !== 'all_clear'));
+            // GAP 4: the screen's own copy says "leave blank to deactivate" —
+            // before this, an activation nobody mentioned at all (no key in
+            // `plans_remaining_active`) simply stayed open forever: the
+            // "plans" checklist condition kept refusing stand-down with no
+            // way through short of typing a statement nobody meant. Every
+            // activation still open once the loop above has run — i.e. never
+            // named, since a named-but-blank one already threw — is
+            // deactivated as part of this same stand-down.
+            // A6: locked for the rest of this transaction, the same reason
+            // the incident row above is — a second stand-down (or a plan
+            // deactivated/kept-active through another route) racing this one
+            // must not read a set of "still open" activations that this
+            // transaction is about to act on.
+            $stillOpen = PlanActivation::query()
+                ->where('incident_id', $incident->getKey())
+                ->whereNull('deactivated_at')
+                ->whereNull('kept_active_entry_id')
+                ->with('plan:id,title')
+                ->lockForUpdate()
+                ->get();
+
+            if ($stillOpen->isNotEmpty() && $by->can('bcms.plan.activate') !== true) {
+                $names = $stillOpen->map(fn (PlanActivation $a) => $a->plan->title ?? "activation {$a->getKey()}")
+                    ->implode('", "');
+
+                throw new InvalidArgumentException(
+                    "Standing down this incident would deactivate \"{$names}\" — deactivating a plan needs the "
+                    .'plan.activate permission, which you do not hold. Ask someone who holds it, or record a '
+                    .'statement above to keep the plan(s) active instead.'
+                );
+            }
+
+            foreach ($stillOpen as $activation) {
+                $this->deactivatePlanAtStandDown($incident, $activation, $by);
+            }
+
+            $unmet = array_values(array_filter($this->standDownChecklist($incident), fn (array $c) => ! $c['met'] && $c['blocks_submit']));
 
             if ($unmet !== []) {
                 throw new InvalidArgumentException(
@@ -400,8 +469,11 @@ class IncidentService
      */
     private function keepPlanActiveAtStandDown(Incident $incident, User $by, int $activationId, string $statement): void
     {
+        // A6: locked for the rest of this transaction — see the note on
+        // `$stillOpen` in `standDown()`.
         $activation = PlanActivation::query()->where('id', $activationId)
             ->where('incident_id', $incident->getKey())
+            ->lockForUpdate()
             ->first();
 
         if ($activation === null) {
@@ -440,6 +512,44 @@ class IncidentService
             'plan_id' => $activation->plan_id,
             'entry_id' => $entry->getKey(),
             'statement' => $statement,
+        ]);
+    }
+
+    /**
+     * GAP 4 — the routine counterpart of `keepPlanActiveAtStandDown()`:
+     * "leave blank to deactivate" made real. No DECISION-log entry — unlike
+     * keeping a plan active past its incident, deactivating it AT stand-down
+     * is the ordinary case and needs no rationale of its own, the same as
+     * the plain `plans.deactivate` route (`PlanDocumentController::
+     * deactivate()`) never writes one, so `log()` is never given
+     * `options_considered`/`rationale` here and never refuses for lacking
+     * them. Reuses `PlanActivationService::deactivate()` rather than
+     * updating the row here, so there is one write path for "this activation
+     * stopped", not two.
+     *
+     * A6: writes an `action` entry to `bcms_incident_log` — the PIR reads
+     * the incident's own timeline, and before this an activation deactivated
+     * here left a mark only in `bcms_audit_logs`, which the PIR does not
+     * read — in addition to, not instead of, the existing audit row.
+     */
+    private function deactivatePlanAtStandDown(Incident $incident, PlanActivation $activation, User $by): void
+    {
+        $this->planActivations->deactivate($activation);
+
+        $planTitle = $activation->plan->title ?? "activation {$activation->getKey()}";
+
+        $this->log($incident, $by, [
+            'entry_type' => IncidentLogEntryType::Action->value,
+            'content' => sprintf(
+                'Plan "%s"%s deactivated at stand-down.',
+                $planTitle,
+                $activation->plan?->version ? " (v{$activation->plan->version})" : '',
+            ),
+        ]);
+
+        $incident->recordAudit('incident.plan_deactivated_at_standdown', [
+            'activation_id' => $activation->getKey(),
+            'plan_id' => $activation->plan_id,
         ]);
     }
 

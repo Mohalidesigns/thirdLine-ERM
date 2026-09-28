@@ -386,7 +386,45 @@ class Phase1ScreensTest extends TestCase
                 ->has('findings.data', 1)
                 ->where('summary.open', 1)
                 ->where('summary.nonconformities_open', 1)
-                ->has('options.sources', count(FindingSource::cases()))
+                // QA re-gate cycle 3: `incident` and `dr_test` are excluded
+                // from this register's own generic raise-form source picker
+                // — the form has no `aar_id`/`dr_test_id` field, and
+                // `FindingController::store()`'s per-source switch now
+                // refuses both without one. Both sources are still raised
+                // (from the PIR screen and the DR-test record, which DO
+                // supply the id) and still show up in the register itself —
+                // only this form's own picker excludes them.
+                ->has('options.sources', count(FindingSource::cases()) - 2)
+                ->where('options.sources', function ($sources) {
+                    $values = collect($sources)->pluck('value')->all();
+                    $this->assertNotContains('incident', $values);
+                    $this->assertNotContains('dr_test', $values);
+
+                    foreach (FindingSource::cases() as $case) {
+                        if (! in_array($case, [FindingSource::Incident, FindingSource::DrTest], true)) {
+                            $this->assertContains($case->value, $values, "{$case->value} should still be offered.");
+                        }
+                    }
+
+                    return true;
+                })
+                // The register's own SOURCE FILTER carries all eight —
+                // filtering rows that already exist (raised elsewhere, with
+                // their id already attached) is not the same as raising one
+                // with no id to give it, which is what the picker above is
+                // restricted against.
+                ->has('options.filter_sources', count(FindingSource::cases()))
+                ->where('options.filter_sources', function ($sources) {
+                    $values = collect($sources)->pluck('value')->all();
+                    $this->assertContains('incident', $values);
+                    $this->assertContains('dr_test', $values);
+
+                    foreach (FindingSource::cases() as $case) {
+                        $this->assertContains($case->value, $values, "{$case->value} should be offered as a filter.");
+                    }
+
+                    return true;
+                })
                 ->where('can.manage', true)
                 ->where('can.verify', false)
             );
@@ -470,7 +508,10 @@ class Phase1ScreensTest extends TestCase
                 'description' => 'Something is wrong',
             ])
             ->assertRedirect()
-            ->assertSessionHas('error');
+            // A field error, not a flash: a redirect with no error bag reads
+            // to Inertia as success, and the raise form would close and
+            // discard what was typed.
+            ->assertSessionHasErrors('iso_clause_ref');
 
         $this->assertSame(0, Finding::query()->count());
     }

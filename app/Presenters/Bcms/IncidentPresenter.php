@@ -5,6 +5,7 @@ namespace App\Presenters\Bcms;
 use App\Enums\Bcms\ActivationLevel;
 use App\Enums\Bcms\IncidentLogEntryType;
 use App\Enums\Bcms\IncidentSeverity;
+use App\Enums\Bcms\IsoClauseRef;
 use App\Models\Bcms\Aar;
 use App\Models\Bcms\Alert;
 use App\Models\Bcms\AlertRecipient;
@@ -443,25 +444,13 @@ class IncidentPresenter
                 ->whereNull('deactivated_at')->whereNull('kept_active_entry_id')
                 ->with('plan:id,title')->get()
                 ->map(fn ($a) => ['id' => $a->getKey(), 'plan' => $a->plan?->title])->all(),
-            // `AlertController::store()` now accepts `incident_id` (Gate 2
-            // review #1 defect 13), so every prior SitRep dispatched from
-            // this incident is findable by that column — one row per
-            // distinct audience, pre-selected on the all-clear form (spec
-            // §2's "a checklist of those audiences, pre-selected"). Stays
-            // empty, and the dispatch checkbox hides itself, only when this
-            // incident genuinely sent nobody an earlier communication.
-            'audience_groups' => Alert::query()
-                ->where('incident_id', $incident->getKey())
-                ->whereNotNull('dispatched_at')
-                ->whereNotNull('audience_rule')
-                ->orderBy('id')
-                ->get(['id', 'title', 'audience_rule'])
-                ->unique(fn (Alert $a) => json_encode($a->audience_rule))
-                ->map(fn (Alert $a) => [
-                    'alert_id' => $a->getKey(),
-                    'label' => $a->title,
-                    'audience_rule' => $a->audience_rule,
-                ])->values()->all(),
+            // A-iv: `standDown()`'s own permission gate for deactivating an
+            // unmentioned activation (GAP 4) — surfaced so the screen can
+            // show the "left blank, it is deactivated" hint only to someone
+            // it is actually true for. A `bcms.plan.activate`-less officer
+            // is refused if any activation is left unmentioned, so the hint
+            // would otherwise promise something the submit then contradicts.
+            'can_deactivate_plans' => Auth::user()?->can('bcms.plan.activate') === true,
             'submit_url' => route('bcms.incidents.stand-down', $incident),
             'crisis_room_url' => route('bcms.incidents.crisis-room', $incident),
             'notifications_url' => route('bcms.incidents.notifications.index', $incident),
@@ -531,6 +520,17 @@ class IncidentPresenter
             $canApprove = $approval['allowed'];
             $approverBarredReason = $approval['allowed'] ? null : $approval['reason'];
         }
+
+        // `bcms.findings.store`'s own middleware (`routes/web.php`) is
+        // `permission:bcms.finding.manage` — mirrored here rather than
+        // guessed, the same discipline `ModuleActionUrlRouteKeyTest` holds
+        // every URL in this array to. A finalised review is frozen (same
+        // family as `refreshPlanSections()`'s own "a final report is not
+        // re-derived" rule): offering a control that raises a finding
+        // against a report that can no longer be amended would let someone
+        // "fix" condition 6 after the fact instead of before finalisation,
+        // which is the point of the gate.
+        $canRaiseFinding = $user?->can('bcms.finding.manage') === true && $aar->status !== 'final';
 
         return [
             // Gate 1 re-gate defect 7 — the pinned contract: the DECLARATION
@@ -620,6 +620,14 @@ class IncidentPresenter
             'ai' => ['available' => false, 'unavailable_reason' => 'Post-incident AI drafting is not enabled in this deployment.'],
             'options' => [
                 'users' => User::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+                // Code review A4: the PIR's own "raise a finding" form is
+                // switching its free-text clause field to a select — the
+                // exact shape `FindingController::index()`'s
+                // `options.clause_refs` already builds for the Findings
+                // register's own raise form, reused through
+                // `IsoClauseRef::options()` rather than a second, driftable
+                // copy of the same list.
+                'clause_refs' => IsoClauseRef::options(),
             ],
             'can' => [
                 'manage' => $canManage,
@@ -646,7 +654,12 @@ class IncidentPresenter
                 // the URL is not shipped at all so there is nothing to post
                 // to in the first place.
                 'export' => route('bcms.incidents.review.export', $incident),
-                'raise_finding' => route('bcms.findings.store'),
+                // Present only for someone who may raise a finding, and only
+                // while the review is still open to amend — omitted
+                // entirely otherwise, the same "not shipped at all" shape
+                // `ai_draft` above uses, rather than a key the screen has to
+                // know to treat as falsy.
+                ...($canRaiseFinding ? ['raise_finding' => route('bcms.findings.store')] : []),
                 'crisis_room' => route('bcms.incidents.crisis-room', $incident),
             ],
         ];

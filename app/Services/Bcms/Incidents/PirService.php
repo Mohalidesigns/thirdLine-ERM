@@ -10,8 +10,10 @@ use App\Models\Bcms\Incident;
 use App\Models\Bcms\PlanActivation;
 use App\Models\Bcms\PlanSection;
 use App\Models\User;
+use App\Services\Bcms\BcmsSettings;
 use App\Services\Bcms\Exercises\AarService;
 use App\Services\Bcms\Integration\ErmBridge;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -44,6 +46,7 @@ class PirService
     public function __construct(
         private AarService $aarService,
         private ErmBridge $ermBridge,
+        private BcmsSettings $settings,
     ) {}
 
     public function ensureDraftFor(Incident $incident): Aar
@@ -248,6 +251,217 @@ class PirService
     }
 
     /**
+     * Display labels for the two computed timings (compliance check,
+     * 2026-09-25, `phase-10-notes.md` "Compliance check: PIR timing
+     * metrics"). `declared_at` and `activated_at` are the moments BCMS
+     * RECORDED a declaration/activation, not the moment a crisis team
+     * actually decided something by telephone — "(as recorded)" says so
+     * wherever the payload carries a label, rather than leaving the figure
+     * to read as the decision moment itself. Written into
+     * `quantitative_results.metric_labels` on every `refreshMetrics()` call,
+     * present whether or not the metric ended up `not_measured`, so a
+     * reason sits next to the same label the value would have used.
+     *
+     * @var array<string, string>
+     */
+    public const METRIC_LABELS = [
+        'time_to_declare_minutes' => 'Detection to declaration (as recorded, whole minutes, rounded down)',
+        'time_to_activate_minutes' => 'Declaration to first plan activation (as recorded, whole minutes, rounded down)',
+    ];
+
+    /**
+     * Gap 3 — condition 7's three timings, computed rather than left for a
+     * human to type into a read-only field. `IncidentReviewController::
+     * start()` persists this once; `show()` refreshes it in memory on every
+     * read, the same split `refreshPlanSections()` uses, so a late-recorded
+     * `declared_at` or a plan activated after the review was opened is
+     * reflected right up to finalisation.
+     *
+     * THREE TIMESTAMPS, THREE MEANINGS (`Incident`'s own docblock: "the
+     * regulatory clock runs from detection, the crisis team's response time
+     * from declaration"):
+     *
+     *  - `time_to_detect_minutes` is NEVER computed. BCMS stores no
+     *    independently recorded moment the incident actually began —
+     *    `detected_at` IS the earliest fact this product has, so there is
+     *    nothing to measure a detection lag against. Always `not_measured`.
+     *  - `time_to_declare_minutes` = `declared_at` minus `detected_at`.
+     *  - `time_to_activate_minutes` = the incident's first `bcms_plan_
+     *    activations` row (by `activated_at`) minus `declared_at`.
+     *
+     * A missing input is a missing metric — `not_measured` plus a named
+     * reason, never a zero standing in for "nothing recorded yet"
+     * (standard §5). Compliance check, 2026-09-25, added three more rules
+     * `not_measured` also has to cover, all in `wholeMinutesBetween()` or
+     * below:
+     *
+     *  1. **Whole minutes, never a float.** Carbon 3.13.2's `diffInMinutes()`
+     *     returns a signed float (`12.4833…`) — this method rounds down from
+     *     seconds instead, so the stored value matches its own `int` type.
+     *  2. **A negative interval is never a metric.** `declare()` enforces
+     *     `detected_at <= declared_at` and an activation is created after
+     *     its incident, so a negative value can only come from legacy,
+     *     seeded or hand-edited data — it still goes to `not_measured`,
+     *     naming both recorded times, never silently as a metric.
+     *  3. **No `created_at` fallback for a missing `declared_at`.** ADR
+     *     0020's fallback exists to START A REGULATORY CLOCK, where an early
+     *     start is the safe error; inside a metric labelled "declare" the
+     *     same substitution would be an unlabelled proxy for a fact the
+     *     record does not have. `not_measured` names the gap instead.
+     *
+     * @return array<string, int>
+     */
+    public function refreshMetrics(Aar $aar, bool $persist = false): array
+    {
+        if ($aar->status === 'final') {
+            $qr = (array) $aar->quantitative_results;
+
+            return (array) ($qr['metrics'] ?? []);
+        }
+
+        $incident = $aar->incident;
+
+        if ($incident === null) {
+            return [];
+        }
+
+        $qr = (array) $aar->quantitative_results;
+        $metrics = (array) ($qr['metrics'] ?? []);
+        $ours = ['time_to_detect_minutes', 'time_to_declare_minutes', 'time_to_activate_minutes'];
+        $notMeasured = collect($qr['not_measured'] ?? [])
+            ->reject(fn (array $n) => in_array($n['metric'] ?? null, $ours, true))
+            ->values();
+
+        foreach ($ours as $key) {
+            unset($metrics[$key]);
+        }
+
+        // Examiner-appropriate wording (compliance check table) — no column
+        // names, and never implying the value was zero.
+        $notMeasured->push([
+            'metric' => 'time_to_detect_minutes',
+            'reason' => 'Not measured. The system records when the incident was detected, not when it '
+                .'began, so the time taken to detect it cannot be calculated. If the start time is '
+                .'known, state it in the review and in the regulatory report.',
+        ]);
+
+        if ($incident->detected_at === null) {
+            $notMeasured->push([
+                'metric' => 'time_to_declare_minutes',
+                'reason' => 'Not measured. The incident record has no detection time.',
+            ]);
+        } elseif ($incident->declared_at === null) {
+            // Rule 3 — no `created_at` fallback inside the metric.
+            $notMeasured->push([
+                'metric' => 'time_to_declare_minutes',
+                'reason' => 'Not measured. The incident record has no declaration time. The time the '
+                    .'record was created is not used in its place.',
+            ]);
+        } else {
+            $minutes = $this->wholeMinutesBetween($incident->detected_at, $incident->declared_at);
+
+            if ($minutes === null) {
+                // Rule 2 — a negative interval never reaches `metrics`.
+                $notMeasured->push([
+                    'metric' => 'time_to_declare_minutes',
+                    'reason' => sprintf(
+                        'Not measured. The recorded times are out of order: declaration %s is earlier '
+                            .'than detection %s. Check the incident record.',
+                        $this->formatWithTenantTimezone($incident->declared_at, $incident->organization_id),
+                        $this->formatWithTenantTimezone($incident->detected_at, $incident->organization_id),
+                    ),
+                ]);
+            } else {
+                $metrics['time_to_declare_minutes'] = $minutes;
+            }
+        }
+
+        $firstActivation = PlanActivation::query()
+            ->where('incident_id', $incident->getKey())
+            ->orderBy('activated_at')
+            ->first();
+
+        if ($incident->declared_at === null) {
+            // Not in the compliance table (which only names "no activation"
+            // and "out of order" for this metric) — added for the same
+            // reason as `time_to_declare_minutes`'s own missing-input case:
+            // a metric with no start time is not measurable, and saying so
+            // beats a silent absence.
+            $notMeasured->push([
+                'metric' => 'time_to_activate_minutes',
+                'reason' => 'Not measured. The incident record has no declaration time. The time the '
+                    .'record was created is not used in its place.',
+            ]);
+        } elseif ($firstActivation === null) {
+            $notMeasured->push([
+                'metric' => 'time_to_activate_minutes',
+                'reason' => 'Not measured. No continuity plan was activated during this incident.',
+            ]);
+        } else {
+            $minutes = $this->wholeMinutesBetween($incident->declared_at, $firstActivation->activated_at);
+
+            if ($minutes === null) {
+                $notMeasured->push([
+                    'metric' => 'time_to_activate_minutes',
+                    'reason' => sprintf(
+                        'Not measured. The recorded times are out of order: activation %s is earlier '
+                            .'than declaration %s. Check the incident record.',
+                        $this->formatWithTenantTimezone($firstActivation->activated_at, $incident->organization_id),
+                        $this->formatWithTenantTimezone($incident->declared_at, $incident->organization_id),
+                    ),
+                ]);
+            } else {
+                $metrics['time_to_activate_minutes'] = $minutes;
+            }
+        }
+
+        $qr['metrics'] = $metrics;
+        $qr['not_measured'] = $notMeasured->values()->all();
+        $qr['metric_labels'] = self::METRIC_LABELS;
+
+        if ($persist) {
+            $aar->update(['quantitative_results' => $qr]);
+        } else {
+            $aar->forceFill(['quantitative_results' => $qr]);
+        }
+
+        return $metrics;
+    }
+
+    /**
+     * Whole minutes, rounded down from seconds — never the float
+     * `diffInMinutes()` returns on Carbon 3.13.2 (compliance check rule 1).
+     * Null if `$end` is before `$start`: a negative interval must never
+     * reach a metric (rule 2); the caller sends it to `not_measured` naming
+     * both recorded times instead.
+     */
+    private function wholeMinutesBetween(Carbon $start, Carbon $end): ?int
+    {
+        $seconds = (float) $start->diffInSeconds($end, false);
+
+        if ($seconds < 0.0) {
+            return null;
+        }
+
+        return (int) floor($seconds / 60);
+    }
+
+    /**
+     * A1 — an out-of-order reason quotes two stored instants, and a bare
+     * `toDateTimeString()` prints them in UTC with no marker saying so, which
+     * reads as local wall-clock time to whoever is looking at it. Rendered in
+     * the tenant's own BCMS timezone (`BcmsSettings::timezone()`, which
+     * itself falls back to `config('bcms.defaults.timezone')` when the
+     * tenant has never saved one — never `now()`'s process timezone), with
+     * the abbreviation or offset shown so the two figures are never
+     * ambiguous about which zone they are in.
+     */
+    private function formatWithTenantTimezone(Carbon $moment, ?int $organizationId): string
+    {
+        return $moment->copy()->setTimezone($this->settings->timezone($organizationId))->format('Y-m-d H:i:s T');
+    }
+
+    /**
      * The person who ran the incident response should not be the sole
      * signer of the review that judges it (`pir-post-incident-review.md`
      * §1) — the same principle `AarService::approverAllowed()` applies to an
@@ -331,6 +545,14 @@ class PirService
             if ($aar->status === 'final') {
                 throw new InvalidArgumentException('This review is already final.');
             }
+
+            // Gap 3: freshen condition 7's timings right before the gate
+            // checks them and they freeze — a plan activated moments ago, or
+            // a `declared_at` corrected since the review was opened, must be
+            // what gets locked in, not a stale in-memory snapshot from the
+            // GET that rendered the finalise button.
+            $this->refreshMetrics($aar, persist: true);
+            $aar->refresh();
 
             $approval = $this->pirApproverAllowed($aar, $by);
 

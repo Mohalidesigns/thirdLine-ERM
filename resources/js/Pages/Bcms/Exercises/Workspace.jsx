@@ -1,7 +1,8 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import EvidenceCapture from '@/Components/Bcms/EvidenceCapture';
 
 /**
@@ -30,12 +31,83 @@ export default function Workspace({
     occurrence = {}, is_simulation: isSimulation = true, ladder_warnings: ladderWarnings = [],
     readiness_overrides: readinessOverrides = [], channels_are_mocked: channelsAreMocked = false,
     metrics = {}, timeline = [], injects = [], attendance = {}, evidence = [],
-    can = {}, urls = {},
+    options = {}, can = {}, urls = {},
 }) {
+    const { flash } = usePage().props;
     const [state, setState] = useState({ occurrence, metrics, attendance, timeline });
     const [lastUpdated, setLastUpdated] = useState(0);
     const [pollFailing, setPollFailing] = useState(false);
     const [confirmingEnd, setConfirmingEnd] = useState(false);
+
+    // GAP 2 — inject authoring. `authoring` is either `null`, the string
+    // `'new'`, or the inject object being edited; `injectForm` is reused for
+    // both because the fields are identical (create/edit are the same shape,
+    // per `StoreExerciseInjectRequest`/`UpdateExerciseInjectRequest`).
+    const [authoring, setAuthoring] = useState(null);
+    const injectForm = useForm({ title: '', content: '', release_offset_minutes: '', delivery_channel: '' });
+    const channelOptions = options.inject_delivery_channels ?? [];
+
+    const startNewInject = () => {
+        injectForm.reset();
+        injectForm.clearErrors();
+        setAuthoring('new');
+    };
+
+    const startEditInject = (inject) => {
+        injectForm.setData({
+            title: inject.title ?? '',
+            content: inject.content ?? '',
+            release_offset_minutes: inject.release_offset_minutes ?? '',
+            delivery_channel: inject.delivery_channel ?? '',
+        });
+        injectForm.clearErrors();
+        setAuthoring(inject);
+    };
+
+    const closeInjectForm = () => {
+        setAuthoring(null);
+        injectForm.reset();
+        injectForm.clearErrors();
+    };
+
+    // The two-submit-button trap does not apply here (one submit action per
+    // form instance), but the payload still needs shaping before it goes on
+    // the wire — `transform()` right before `post()`/`patch()`, not `setData`
+    // followed by a submit in the same handler, matching `Rcsa/Worksheet.jsx`.
+    const submitInject = (e) => {
+        e.preventDefault();
+
+        injectForm.transform((data) => ({
+            title: data.title,
+            content: data.content === '' ? null : data.content,
+            release_offset_minutes: data.release_offset_minutes === '' ? null : Number(data.release_offset_minutes),
+            delivery_channel: data.delivery_channel === '' ? null : data.delivery_channel,
+        }));
+
+        const visitOptions = { preserveScroll: true, onSuccess: () => closeInjectForm() };
+
+        if (authoring === 'new') {
+            injectForm.post(urls.injects_store, visitOptions);
+        } else {
+            injectForm.patch(authoring.update_url, visitOptions);
+        }
+    };
+
+    const deleteInject = (inject) => {
+        if (window.confirm(`Remove the inject "${inject.title}"? This cannot be undone.`)) {
+            router.delete(inject.delete_url, { preserveScroll: true });
+        }
+    };
+
+    const moveInject = (index, direction) => {
+        const ids = injects.map((i) => i.id);
+        const target = index + direction;
+        if (target < 0 || target >= ids.length) return;
+        [ids[index], ids[target]] = [ids[target], ids[index]];
+        router.post(urls.injects_reorder, { inject_ids: ids }, { preserveScroll: true });
+    };
+
+    const channelLabel = (value) => channelOptions.find((c) => c.value === value)?.label ?? value;
 
     const completed = state.occurrence.actual_end != null;
 
@@ -226,6 +298,17 @@ export default function Workspace({
                 )}
             />
 
+            {flash?.success && (
+                <div role="status" className="mb-4 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                    {flash.success}
+                </div>
+            )}
+            {flash?.error && (
+                <div role="alert" className="mb-4 rounded border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
+                    {flash.error}
+                </div>
+            )}
+
             {ladderWarnings.length > 0 && (
                 <div className="mb-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                     {ladderWarnings.map((w, i) => <p key={i}>{w.message ?? w}</p>)}
@@ -344,38 +427,139 @@ export default function Workspace({
                 {/* Right: injects, attendance, evidence */}
                 <div className="space-y-4">
                     <section className="rounded border border-slate-200 bg-white p-4">
-                        <h2 className="mb-2 text-sm font-semibold text-slate-700">Injects</h2>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                            <h2 className="text-sm font-semibold text-slate-700">Injects</h2>
+                            {can.facilitate && !completed && urls.injects_store && (
+                                <button type="button" onClick={startNewInject}
+                                    className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
+                                    + Add inject
+                                </button>
+                            )}
+                        </div>
+
                         {injects.length === 0 ? (
                             <p className="text-sm text-slate-500">This exercise has no scripted injects.</p>
                         ) : (
                             <ul className="divide-y divide-slate-100 text-sm">
-                                {injects.map((i) => (
+                                {injects.map((i, index) => (
                                     <li key={i.id} className={`py-2 ${i.released_at ? 'opacity-60' : ''}`}>
                                         <div className="flex items-start justify-between gap-2">
-                                            <div>
+                                            <div className="min-w-0 flex-1">
                                                 <p className="text-slate-800">
                                                     {i.title}
                                                     {i.ai_generated && (
                                                         <span className="ml-1 inline-block rounded bg-sky-50 px-1.5 py-0.5 text-[11px] text-sky-800">AI draft</span>
                                                     )}
                                                 </p>
-                                                <p className="text-xs text-slate-500">due at T+{i.release_offset_minutes}</p>
+                                                {i.content && <p className="mt-0.5 text-xs text-slate-600">{i.content}</p>}
+                                                <p className="text-xs text-slate-500">
+                                                    due at T+{i.release_offset_minutes}
+                                                    {i.delivery_channel && ` · ${channelLabel(i.delivery_channel)}`}
+                                                </p>
                                             </div>
-                                            {!i.released_at && can.facilitate && !completed ? (
-                                                <button type="button" aria-label={`Release: ${i.title}`}
-                                                    onClick={() => releaseInject(i)}
-                                                    className="shrink-0 rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
-                                                    Release now
-                                                </button>
-                                            ) : i.released_at ? (
-                                                <span className="shrink-0 text-xs text-slate-500">
-                                                    released {formatTime(i.released_at)} by {i.released_by ?? '—'}
-                                                </span>
-                                            ) : null}
+
+                                            <div className="flex shrink-0 flex-col items-end gap-1">
+                                                {!i.released_at && can.facilitate && !completed ? (
+                                                    <button type="button" aria-label={`Release: ${i.title}`}
+                                                        onClick={() => releaseInject(i)}
+                                                        className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
+                                                        Release now
+                                                    </button>
+                                                ) : i.released_at ? (
+                                                    <span className="text-xs text-slate-500">
+                                                        released {formatTime(i.released_at)} by {i.released_by ?? '—'}
+                                                    </span>
+                                                ) : null}
+
+                                                {/* GAP 2 — edit/delete/reorder. `update_url`/`delete_url` are
+                                                   absent or null once released or for a non-facilitator (the
+                                                   same "hidden either way" contract `attendance.not_checked_in`
+                                                   already uses) — both are falsy in JS, so a released inject is
+                                                   read-only here with nothing more to check. */}
+                                                {(i.update_url || i.delete_url || (can.facilitate && !completed)) && (
+                                                    <div className="flex items-center gap-1 text-xs text-slate-500">
+                                                        {/* A-ii: a released inject keeps its rank — no arrows for it
+                                                           at all — and an unreleased inject can't swap with a
+                                                           released neighbour, which the server refuses anyway, so
+                                                           that direction's arrow is hidden rather than disabled. */}
+                                                        {can.facilitate && !completed && !i.released_at && (
+                                                            <>
+                                                                {index > 0 && !injects[index - 1].released_at && (
+                                                                    <button type="button" aria-label={`Move up: ${i.title}`}
+                                                                        onClick={() => moveInject(index, -1)}
+                                                                        className="rounded px-1 hover:bg-slate-100">
+                                                                        ↑
+                                                                    </button>
+                                                                )}
+                                                                {index < injects.length - 1 && !injects[index + 1].released_at && (
+                                                                    <button type="button" aria-label={`Move down: ${i.title}`}
+                                                                        onClick={() => moveInject(index, 1)}
+                                                                        className="rounded px-1 hover:bg-slate-100">
+                                                                        ↓
+                                                                    </button>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                        {i.update_url && (
+                                                            <button type="button" aria-label={`Edit: ${i.title}`}
+                                                                onClick={() => startEditInject(i)}
+                                                                className="text-blue-700 hover:underline">
+                                                                Edit
+                                                            </button>
+                                                        )}
+                                                        {i.delete_url && (
+                                                            <button type="button" aria-label={`Delete: ${i.title}`}
+                                                                onClick={() => deleteInject(i)}
+                                                                className="text-rose-700 hover:underline">
+                                                                Delete
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </li>
                                 ))}
                             </ul>
+                        )}
+
+                        {authoring && (
+                            <form onSubmit={submitInject} className="mt-3 space-y-3 rounded border border-slate-200 bg-slate-50 p-3">
+                                <h3 className="text-xs font-semibold text-slate-700">
+                                    {authoring === 'new' ? 'New inject' : `Edit inject: ${authoring.title}`}
+                                </h3>
+                                <FormField label="Title" htmlFor="inject-title" required error={injectForm.errors.title}>
+                                    <input id="inject-title" type="text" className="form-input text-sm"
+                                        value={injectForm.data.title}
+                                        onChange={(e) => injectForm.setData('title', e.target.value)} />
+                                </FormField>
+                                <FormField label="Content" htmlFor="inject-content" error={injectForm.errors.content}>
+                                    <textarea id="inject-content" rows={3} className="form-textarea text-sm"
+                                        value={injectForm.data.content}
+                                        onChange={(e) => injectForm.setData('content', e.target.value)} />
+                                </FormField>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <FormField label="Release at T+ (minutes)" htmlFor="inject-offset" error={injectForm.errors.release_offset_minutes}>
+                                        <input id="inject-offset" type="number" min="0" className="form-input text-sm"
+                                            value={injectForm.data.release_offset_minutes}
+                                            onChange={(e) => injectForm.setData('release_offset_minutes', e.target.value)} />
+                                    </FormField>
+                                    <FormField label="Delivery channel" htmlFor="inject-channel" error={injectForm.errors.delivery_channel}>
+                                        <select id="inject-channel" className="form-select text-sm"
+                                            value={injectForm.data.delivery_channel}
+                                            onChange={(e) => injectForm.setData('delivery_channel', e.target.value)}>
+                                            <option value="">Not set</option>
+                                            {channelOptions.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                        </select>
+                                    </FormField>
+                                </div>
+                                <div className="form-actions">
+                                    <button type="button" className="btn-secondary text-sm" onClick={closeInjectForm}>Cancel</button>
+                                    <button type="submit" disabled={injectForm.processing} className="btn-primary text-sm">
+                                        {authoring === 'new' ? 'Add inject' : 'Save changes'}
+                                    </button>
+                                </div>
+                            </form>
                         )}
                     </section>
 

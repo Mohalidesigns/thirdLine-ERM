@@ -190,4 +190,17 @@ enum IsoClauseRef: string
     {
         return array_map(fn (self $c) => $c->value, self::cases());
     }
+
+    /**
+     * The picker shape `FindingController::index()`'s `options.clause_refs`
+     * builds — pulled out here so a second "raise a finding" screen (the
+     * PIR's, `IncidentPresenter::review()`) reuses the exact same list
+     * rather than growing a second, driftable copy of it.
+     *
+     * @return list<array{value: string, standard: string}>
+     */
+    public static function options(): array
+    {
+        return array_map(fn (self $c) => ['value' => $c->value, 'standard' => $c->standard()], self::cases());
+    }
 }

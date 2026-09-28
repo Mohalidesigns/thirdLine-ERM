@@ -1,9 +1,10 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import ReadinessTaskComplete from '@/Components/Bcms/ReadinessTaskComplete';
 
 /**
  * Readiness, and the alert plan.
@@ -23,9 +24,42 @@ import tryRoute from '@thirdline/ui/lib/tryRoute';
  * that rendered "waived" as a green tick would let a bank run a DR failover
  * with no rollback plan and nothing on the screen to say anybody decided to.
  */
-export default function Readiness({ occurrence = {}, tasks = [], gate = {}, ladder = {}, attendance = {}, can = {} }) {
+export default function Readiness({ occurrence = {}, tasks = [], gate = {}, ladder = {}, attendance = {}, can = {}, start = {} }) {
+    const { flash } = usePage().props;
     const [overriding, setOverriding] = useState(null);
+    const [starting, setStarting] = useState(false);
     const override = useForm({ reason: '' });
+
+    // GAP 1: the readiness gate and the "today is before scheduled_date"
+    // gate `OccurrenceExecutionService::start()` checks are both asked for
+    // up front, as one confirmation each, rather than letting the
+    // facilitator discover either as a rejected POST.
+    const startExercise = () => {
+        const data = {};
+
+        if (start.requires_early_confirmation) {
+            const proceed = window.confirm(
+                `This exercise is scheduled for ${start.scheduled_date ?? 'a later date'}. Start it now?`,
+            );
+            if (!proceed) return;
+            data.confirmed_early_start = true;
+        }
+
+        if (start.requires_override) {
+            const proceed = window.confirm(
+                'This exercise still has open blocking readiness tasks. Start it anyway? The override will be '
+                + 'recorded against the exercise and the after-action report will carry it.',
+            );
+            if (!proceed) return;
+            data.confirmed_override = true;
+        }
+
+        setStarting(true);
+        router.post(start.url, data, {
+            preserveScroll: true,
+            onFinish: () => setStarting(false),
+        });
+    };
 
     const done = tasks.filter((t) => t.status === 'complete' || t.status === 'waived').length;
     const pct = tasks.length === 0 ? null : Math.round((done / tasks.length) * 100);
@@ -67,9 +101,32 @@ export default function Readiness({ occurrence = {}, tasks = [], gate = {}, ladd
                                 Rebuild the alert plan
                             </button>
                         )}
+                        {/* GAP 1: the one link into the workspace before this
+                            page carried nothing that pointed at it. */}
+                        {start.already_started && (
+                            <Link href={tryRoute('bcms.occurrences.workspace', occurrence.uuid)} className="btn-primary text-sm">
+                                Open the workspace
+                            </Link>
+                        )}
+                        {can.start && !start.already_started && (
+                            <button type="button" className="btn-primary text-sm" onClick={startExercise} disabled={starting}>
+                                {starting ? 'Starting…' : 'Start exercise'}
+                            </button>
+                        )}
                     </div>
                 )}
             />
+
+            {flash?.success && (
+                <div role="status" className="mb-4 rounded-lg border border-green-300 bg-green-50 p-3 text-sm text-green-900">
+                    {flash.success}
+                </div>
+            )}
+            {flash?.error && (
+                <div role="alert" className="mb-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">
+                    {flash.error}
+                </div>
+            )}
 
             {/* ---- The gate --------------------------------------------- */}
 
@@ -137,13 +194,11 @@ export default function Readiness({ occurrence = {}, tasks = [], gate = {}, ladd
                                         {statusChip(t)}
 
                                         {can.facilitate && !['complete', 'waived'].includes(t.status) && (
-                                            <button
-                                                type="button"
-                                                className="text-xs text-blue-700 hover:underline"
-                                                onClick={() => router.post(tryRoute('bcms.readiness-tasks.complete', t.id), {}, { preserveScroll: true })}
-                                            >
-                                                Complete
-                                            </button>
+                                            <ReadinessTaskComplete
+                                                completeUrl={tryRoute('bcms.readiness-tasks.complete', t.id)}
+                                                requiresEvidence={t.requires_evidence}
+                                                taskTitle={t.title}
+                                            />
                                         )}
 
                                         {can.override && t.is_blocking && !['complete', 'waived'].includes(t.status) && (

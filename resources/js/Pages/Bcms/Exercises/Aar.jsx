@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import FormField from '@thirdline/ui/Components/FormField';
+import RaiseFinding from '@/Components/Bcms/RaiseFinding';
 
 /**
  * The after-action report builder (aar-builder spec).
@@ -313,7 +314,7 @@ export default function Aar({
                                                                     onChange={(e) => setObjectiveField(o.objective_text, 'disposition_note', e.target.value)} />
                                                                 {can.finding_manage && (
                                                                     <button type="button" className="block text-xs text-blue-700 hover:underline"
-                                                                        aria-label={`Raise a finding for objective: ${o.objective_text}`}
+                                                                        aria-label={`Raise a finding for this objective: ${o.objective_text}`}
                                                                         onClick={() => setRaising({ objectiveText: o.objective_text, description: '' })}>
                                                                         Raise a finding for this objective
                                                                     </button>
@@ -455,6 +456,7 @@ export default function Aar({
                         key={raising ? `${raising.objectiveText ?? ''}::${raising.description}` : '__closed__'}
                         aarKey={aar.id} raiseUrl={urls.raise_finding} context={raising} onClose={() => setRaising(null)}
                         open={raising !== null} onOpen={() => setRaising({ objectiveText: null, description: '' })}
+                        clauseRefs={options.clause_refs ?? []}
                     />
                 )}
 
@@ -465,7 +467,7 @@ export default function Aar({
                             {aiSuggestions.map((s, i) => (
                                 <li key={i} className="flex items-center justify-between gap-2">
                                     <span>{s.description}</span>
-                                    {can.finding_manage && (
+                                    {can.finding_manage && !isFinal && (
                                         <button type="button" className="shrink-0 text-blue-700 hover:underline"
                                             aria-label={`Raise this finding: ${s.description}`}
                                             onClick={() => setRaising({ objectiveText: null, description: s.description })}>
@@ -631,57 +633,6 @@ function ParticipantFeedback({ feedback }) {
                 </ul>
             )}
         </div>
-    );
-}
-
-function RaiseFinding({ aarKey, raiseUrl, context, open, onOpen, onClose }) {
-    const form = useForm({
-        source: 'aar', classification: 'observation', description: context?.description || '',
-        severity: 'medium', iso_clause_ref: '', aar_id: aarKey, objective_text: context?.objectiveText || '',
-    });
-
-    if (!open) {
-        return (
-            <button type="button" className="mt-3 text-xs text-blue-700 hover:underline" onClick={onOpen}>
-                Raise a finding
-            </button>
-        );
-    }
-
-    return (
-        <form
-            onSubmit={(e) => {
-                e.preventDefault();
-                form.post(raiseUrl, { preserveScroll: true, onSuccess: () => { form.reset(); onClose(); } });
-            }}
-            className="mt-3 space-y-2 rounded border border-dashed border-slate-300 p-3"
-        >
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <select className="form-select text-xs" aria-label="Classification" value={form.data.classification}
-                    onChange={(e) => form.setData('classification', e.target.value)}>
-                    <option value="observation">Observation</option>
-                    <option value="improvement">Improvement</option>
-                    <option value="nonconformity">Nonconformity</option>
-                </select>
-                <select className="form-select text-xs" aria-label="Severity" value={form.data.severity}
-                    onChange={(e) => form.setData('severity', e.target.value)}>
-                    {['low', 'medium', 'high', 'critical'].map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <input className="form-input text-xs" aria-label="ISO clause (optional)" placeholder="ISO clause (optional)"
-                    value={form.data.iso_clause_ref} onChange={(e) => form.setData('iso_clause_ref', e.target.value)} />
-            </div>
-            <textarea rows={2} className="form-textarea w-full text-xs" aria-label="What was found" placeholder="What was found"
-                value={form.data.description} onChange={(e) => form.setData('description', e.target.value)} />
-            {form.data.objective_text && (
-                <p className="text-[11px] text-slate-500">Against objective: {form.data.objective_text}</p>
-            )}
-            <div className="flex gap-2">
-                <button type="submit" disabled={form.processing} className="rounded bg-slate-800 px-3 py-1 text-xs text-white hover:bg-slate-700">
-                    Raise
-                </button>
-                <button type="button" className="text-xs text-slate-500 hover:underline" onClick={onClose}>Cancel</button>
-            </div>
-        </form>
     );
 }
 

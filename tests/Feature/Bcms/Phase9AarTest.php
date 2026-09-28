@@ -186,7 +186,7 @@ class Phase9AarTest extends TestCase
             'organization_id' => $this->organization->id,
             'definition_id' => $definition->getKey(),
             'sequence_no' => 1,
-            'scheduled_date' => now()->addDays(3)->toDateString(),
+            'scheduled_date' => now()->toDateString(), // started immediately below; gap 1's early-start guard
             'status' => OccurrenceStatus::Planned,
             'facilitator_id' => $this->facilitator->id,
         ]);
@@ -230,7 +230,7 @@ class Phase9AarTest extends TestCase
             'organization_id' => $this->organization->id,
             'definition_id' => $definition->getKey(),
             'sequence_no' => 1,
-            'scheduled_date' => now()->addDays(3)->toDateString(),
+            'scheduled_date' => now()->toDateString(), // started immediately below; gap 1's early-start guard
             'status' => OccurrenceStatus::Planned,
             'facilitator_id' => $this->facilitator->id,
         ]);
@@ -897,7 +897,7 @@ class Phase9AarTest extends TestCase
             'organization_id' => $this->organization->id,
             'definition_id' => $definition->getKey(),
             'sequence_no' => $sequence,
-            'scheduled_date' => now()->addDays(3)->toDateString(),
+            'scheduled_date' => now()->toDateString(), // started immediately below; gap 1's early-start guard
             'status' => OccurrenceStatus::Planned,
             'facilitator_id' => $this->facilitator->id,
         ]);

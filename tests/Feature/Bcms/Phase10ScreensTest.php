@@ -603,6 +603,58 @@ class Phase10ScreensTest extends TestCase
     }
 
     /**
+     * A-iv: `can_deactivate_plans` reflects whether the CURRENT user holds
+     * `bcms.plan.activate` — the exact permission `standDown()` itself gates
+     * deactivating an unmentioned activation on (GAP 4) — so the screen can
+     * show the "left blank, it is deactivated" hint only where it is true.
+     */
+    #[Test]
+    public function the_stand_down_screen_carries_whether_the_actor_may_deactivate_plans(): void
+    {
+        $incident = $this->declareIncident();
+
+        $this->actingAs($this->officer)->get(route('bcms.incidents.stand-down-form', $incident))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('can_deactivate_plans', true));
+
+        $manageOnly = $this->user('manage-only-standdown@khb.test', ['bcms.incident.view', 'bcms.incident.manage']);
+
+        $this->actingAs($manageOnly)->get(route('bcms.incidents.stand-down-form', $incident))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('can_deactivate_plans', false));
+    }
+
+    /**
+     * `IncidentPresenter::standDown()`'s checklist carries a `blocks_submit`
+     * boolean per item — the screen's submit gate, deliberately NOT the same
+     * as `met` (code-reviewer gate 2, D1). `plans` is `false` because
+     * `IncidentService::standDown()` settles every plan disposition before
+     * it evaluates this checklist for the submit gate — blocking on it made
+     * Gap 4 unreachable from the screen. `all_clear` is `false` because it
+     * is satisfied only by the very submission it would be gating.
+     */
+    #[Test]
+    public function the_stand_down_checklist_marks_only_plans_and_all_clear_as_non_blocking(): void
+    {
+        $incident = $this->declareIncident();
+
+        $this->actingAs($this->officer)->get(route('bcms.incidents.stand-down-form', $incident))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('checklist.0.key', 'tasks')
+                ->where('checklist.0.blocks_submit', true)
+                ->where('checklist.1.key', 'notifications')
+                ->where('checklist.1.blocks_submit', true)
+                ->where('checklist.2.key', 'reportability')
+                ->where('checklist.2.blocks_submit', true)
+                ->where('checklist.3.key', 'all_clear')
+                ->where('checklist.3.blocks_submit', false)
+                ->where('checklist.4.key', 'plans')
+                ->where('checklist.4.blocks_submit', false)
+            );
+    }
+
+    /**
      * ADR 0020 Amendment 4 (Gate 2 review #1 defect 6, second half) — through
      * the HTTP route, not just the service.
      */
@@ -629,6 +681,7 @@ class Phase10ScreensTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('checklist.4.key', 'plans')
                 ->where('checklist.4.met', false)
+                ->where('checklist.4.blocks_submit', false)
                 ->has('plan_activations', 1)
             );
 
@@ -644,6 +697,111 @@ class Phase10ScreensTest extends TestCase
         $activation->refresh();
         $this->assertNull($activation->deactivated_at);
         $this->assertNotNull($activation->kept_active_entry_id);
+    }
+
+    /**
+     * Gap 4 — "leave blank to deactivate" over HTTP: a plan activation whose
+     * text box the officer left untouched (no key at all in
+     * `plans_remaining_active`) is deactivated as part of the same
+     * stand-down, not left open forever.
+     */
+    #[Test]
+    public function stand_down_over_http_deactivates_a_plan_left_blank(): void
+    {
+        $incident = $this->declareIncident();
+        app(NotificationService::class)->reassessNotReportable($incident, $this->officer, 'cbn', 'Not reportable.');
+        app(NotificationService::class)->reassessNotReportable($incident, $this->officer, 'personal_data', 'No personal data.');
+
+        $plan = Plan::query()->create([
+            'organization_id' => $this->organization->id, 'plan_type' => 'bcp', 'title' => 'HTTP deactivated plan',
+            'status' => 'approved', 'version' => '1', 'content' => [],
+        ]);
+        $activation = PlanActivation::query()->create([
+            'organization_id' => $this->organization->id, 'plan_id' => $plan->getKey(),
+            'incident_id' => $incident->getKey(), 'is_exercise' => false,
+            'activated_by' => $this->officer->getKey(), 'activated_at' => now(),
+            'activation_reason' => 'Declared.',
+        ]);
+
+        // No `plans_remaining_active` key at all for this activation.
+        $this->actingAs($this->officer)->post(route('bcms.incidents.stand-down', $incident), [
+            'all_clear_message' => 'All clear.', 'reason' => 'Resolved.',
+        ])->assertRedirect(route('bcms.incidents.crisis-room', $incident));
+
+        $incident->refresh();
+        $this->assertSame('closed', $incident->status->value);
+        $activation->refresh();
+        $this->assertNotNull($activation->deactivated_at);
+        $this->assertNull($activation->kept_active_entry_id);
+    }
+
+    /** Gap 4's refusal half, over HTTP: `bcms.plan.activate` is required to deactivate one. */
+    #[Test]
+    public function stand_down_over_http_is_refused_when_the_actor_cannot_activate_plans(): void
+    {
+        $incident = $this->declareIncident();
+        app(NotificationService::class)->reassessNotReportable($incident, $this->officer, 'cbn', 'Not reportable.');
+        app(NotificationService::class)->reassessNotReportable($incident, $this->officer, 'personal_data', 'No personal data.');
+
+        $plan = Plan::query()->create([
+            'organization_id' => $this->organization->id, 'plan_type' => 'bcp', 'title' => 'HTTP named plan',
+            'status' => 'approved', 'version' => '1', 'content' => [],
+        ]);
+        PlanActivation::query()->create([
+            'organization_id' => $this->organization->id, 'plan_id' => $plan->getKey(),
+            'incident_id' => $incident->getKey(), 'is_exercise' => false,
+            'activated_by' => $this->officer->getKey(), 'activated_at' => now(),
+            'activation_reason' => 'Declared.',
+        ]);
+
+        $manageOnly = $this->user('manage-only@khb.test', ['bcms.incident.view', 'bcms.incident.manage']);
+
+        $this->actingAs($manageOnly)->post(route('bcms.incidents.stand-down', $incident), [
+            'all_clear_message' => 'All clear.', 'reason' => 'Resolved.',
+        ])->assertRedirect()->assertSessionHas('error');
+
+        $this->assertStringContainsString('HTTP named plan', session('error'));
+        $incident->refresh();
+        $this->assertNotSame('closed', $incident->status->value);
+    }
+
+    /** Gap 4 — `dispatch_all_clear` is a validation error, not a silent no-op. */
+    #[Test]
+    public function stand_down_over_http_refuses_dispatch_all_clear(): void
+    {
+        $incident = $this->declareIncident();
+        app(NotificationService::class)->reassessNotReportable($incident, $this->officer, 'cbn', 'Not reportable.');
+        app(NotificationService::class)->reassessNotReportable($incident, $this->officer, 'personal_data', 'No personal data.');
+
+        $this->actingAs($this->officer)->post(route('bcms.incidents.stand-down', $incident), [
+            'all_clear_message' => 'All clear.', 'reason' => 'Resolved.', 'dispatch_all_clear' => true,
+        ])->assertSessionHasErrors('dispatch_all_clear');
+    }
+
+    /**
+     * QA re-gate D1 — a direct POST must be refused server-side while a
+     * `blocks_submit: true` checklist item is unmet, exactly as if the
+     * disabled submit button on `StandDown.jsx` had never existed. An open
+     * task is `blocks_submit: true` (`IncidentService::standDownChecklist()`)
+     * — the button would be disabled, but a client that skips the JS (or a
+     * script hitting the route directly) must still be refused, and the
+     * incident must not close.
+     */
+    #[Test]
+    public function stand_down_over_http_is_refused_with_an_open_task_and_the_incident_stays_open(): void
+    {
+        $incident = $this->declareIncident();
+        app(IncidentService::class)->addTask($incident, ['title' => 'Check the backup site']);
+        app(NotificationService::class)->reassessNotReportable($incident, $this->officer, 'cbn', 'Not reportable.');
+        app(NotificationService::class)->reassessNotReportable($incident, $this->officer, 'personal_data', 'No personal data.');
+
+        $this->actingAs($this->officer)->post(route('bcms.incidents.stand-down', $incident), [
+            'all_clear_message' => 'All clear.', 'reason' => 'Resolved.',
+        ])->assertRedirect()->assertSessionHas('error');
+
+        $incident->refresh();
+        $this->assertNotSame('closed', $incident->status->value);
+        $this->assertNull($incident->closed_at);
     }
 
     /* ================================================================== */
@@ -856,6 +1014,66 @@ class Phase10ScreensTest extends TestCase
     }
 
     /**
+     * Gap 3 — condition 7 used to need `time_to_detect_minutes`,
+     * `time_to_declare_minutes` and `time_to_activate_minutes` typed by hand
+     * into `quantitative_results.metrics` (every other test in this file
+     * still does that, via a direct model `update()`). This one proves the
+     * whole route works with NO such write anywhere: `IncidentReviewController
+     * ::start()` computes them, `PirService::finalise()` refreshes them
+     * again immediately before the gate, and the officer only ever PATCHes
+     * the narrative fields over HTTP.
+     */
+    #[Test]
+    public function the_review_finalises_over_http_with_no_manual_metric_patch(): void
+    {
+        $incident = $this->closedIncidentWithPlan();
+
+        // `start()` is the route a facilitator actually uses — not
+        // `PirService::ensureDraftFor()` called directly, which every other
+        // fixture in this file does.
+        $this->actingAs($this->officer)
+            ->post(route('bcms.incidents.review.start', $incident))
+            ->assertRedirect(route('bcms.incidents.review.show', $incident));
+
+        $aar = $incident->fresh()->reviews()->first();
+        $this->assertNotNull($aar);
+
+        // Computed at `start()`, before any human has touched the review.
+        $this->assertArrayHasKey('time_to_declare_minutes', $aar->quantitative_results['metrics'] ?? []);
+        $this->assertContains(
+            'time_to_detect_minutes',
+            collect($aar->quantitative_results['not_measured'] ?? [])->pluck('metric')->all(),
+        );
+
+        $planSections = collect((array) $aar->quantitative_results['plan_sections']);
+
+        // Only the narrative and the one plan section's verdict are PATCHed
+        // — never `quantitative_results.metrics` or `.not_measured`.
+        $this->actingAs($this->officer)->patch(route('bcms.aars.update', $aar), [
+            'summary' => 'The core banking outage was contained within the hour.',
+            'what_worked' => 'The response plan held throughout.',
+            'what_failed' => 'Nothing material.',
+            'quantitative_results' => [
+                'plan_sections' => $planSections->map(fn (array $s) => [
+                    ...$s, 'verdict' => 'held',
+                ])->values()->all(),
+            ],
+        ])->assertRedirect();
+
+        $approver = $this->independentApprover();
+        $this->actingAs($approver)->post(route('bcms.incidents.review.finalise', $incident), [
+            'realised_loss_minor' => 0,
+        ])->assertRedirect(route('bcms.incidents.review.show', $incident));
+
+        $aar->refresh();
+        $this->assertSame('final', $aar->status);
+        $metrics = (array) $aar->quantitative_results['metrics'];
+        $this->assertArrayHasKey('time_to_declare_minutes', $metrics);
+        $this->assertArrayHasKey('time_to_activate_minutes', $metrics, 'The fixture activated a real plan, so this must be computed, not not-measured.');
+        $this->assertArrayNotHasKey('time_to_detect_minutes', $metrics, 'This one is never computed — see PirService::refreshMetrics().');
+    }
+
+    /**
      * Gate 1 re-gate defect 7 (contract pin): the finalise POST carries a
      * REQUIRED top-level `realised_loss_minor`; the review payload ships it
      * back as `aar.realised_loss_minor` (null until confirmed) and the
@@ -1038,6 +1256,59 @@ class Phase10ScreensTest extends TestCase
 
         $aar->refresh();
         $this->assertSame($frozenSections, $aar->quantitative_results['plan_sections']);
+    }
+
+    /**
+     * `urls.raise_finding` is present only for someone who may raise a
+     * finding, and only while the review is still open to amend — omitted
+     * entirely otherwise (never a key carrying `null`), the live-demo gap
+     * this covers: a PIR with no way to raise the finding a "did not hold"
+     * section needs to finalise.
+     */
+    #[Test]
+    public function raise_finding_url_is_present_only_for_a_finding_manage_holder_on_a_draft_pir(): void
+    {
+        $incident = $this->closedIncidentWithPlan();
+        $aar = app(PirService::class)->ensureDraftFor($incident);
+        app(PirService::class)->refreshPlanSections($aar);
+
+        // $this->officer holds bcms.finding.manage (setUp) and the PIR is
+        // still a draft.
+        $this->actingAs($this->officer)->get(route('bcms.incidents.review.show', $incident))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('urls.raise_finding', route('bcms.findings.store'))
+            );
+
+        // Holds every other PIR-viewing permission but not bcms.finding.manage.
+        $noFindingManage = $this->user('no-finding-manage@khb.test', [
+            'bcms.incident.view', 'bcms.incident.manage', 'bcms.aar.manage', 'bcms.aar.approve',
+        ]);
+        $this->actingAs($noFindingManage)->get(route('bcms.incidents.review.show', $incident))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->missing('urls.raise_finding'));
+
+        // A finalised review is frozen — the control that would let someone
+        // "fix" condition 6 after the fact is gone once there is nothing
+        // left to fix it for.
+        app(IncidentService::class)->log($incident, $this->officer, [
+            'entry_type' => 'escalation', 'content' => 'Escalated.',
+        ]);
+        $qr = (array) $aar->quantitative_results;
+        $qr['plan_sections'][0]['verdict'] = 'held';
+        $qr['metrics'] = ['time_to_detect_minutes' => 1, 'time_to_declare_minutes' => 1, 'time_to_activate_minutes' => 1];
+        $aar->update(['summary' => 'S', 'what_worked' => 'W', 'what_failed' => 'F', 'quantitative_results' => $qr]);
+
+        $approver = $this->independentApprover();
+        $this->actingAs($approver)->post(route('bcms.incidents.review.finalise', $incident), [
+            'realised_loss_minor' => 0,
+        ])->assertRedirect();
+
+        $this->assertSame('final', $aar->fresh()->status);
+
+        $this->actingAs($this->officer)->get(route('bcms.incidents.review.show', $incident))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->missing('urls.raise_finding'));
     }
 
     /**
@@ -1419,33 +1690,6 @@ class Phase10ScreensTest extends TestCase
                 ->where('plan_activations.0.plan', 'Linked plan')
                 ->has('alerts', 1)
                 ->where('alerts.0.title', 'Linked alert')
-            );
-    }
-
-    /**
-     * `IncidentPresenter::standDown()`'s `audience_groups` (Gate 2 review #1
-     * defect 13) — pre-filled from a prior dispatched SitRep on this
-     * incident, which only exists to be found once alert compose stores
-     * `incident_id`.
-     */
-    #[Test]
-    public function the_stand_down_screen_pre_fills_audience_groups_from_a_prior_dispatched_alert(): void
-    {
-        $incident = $this->declareIncident();
-
-        $alert = Alert::query()->create([
-            'organization_id' => $this->organization->id, 'incident_id' => $incident->getKey(),
-            'title' => 'Earlier SitRep', 'message' => 'x', 'severity' => 'advisory',
-            'is_simulation' => false, 'audience_rule' => ['type' => 'business_unit', 'ids' => [$this->unit->id]],
-            'channels' => ['sms'], 'status' => 'dispatched', 'dispatched_at' => now(), 'currency' => 'NGN',
-        ]);
-
-        $this->actingAs($this->officer)->get(route('bcms.incidents.stand-down-form', $incident))
-            ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->component('Bcms/Incidents/StandDown', false)
-                ->has('audience_groups', 1)
-                ->where('audience_groups.0.alert_id', $alert->getKey())
             );
     }
 

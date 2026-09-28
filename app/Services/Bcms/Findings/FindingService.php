@@ -8,6 +8,7 @@ use App\Enums\Bcms\IsoClauseRef;
 use App\Models\Bcms\Aar;
 use App\Models\Bcms\CallTreeTest;
 use App\Models\Bcms\Finding;
+use App\Models\Bcms\Incident;
 use App\Models\Bcms\Plan;
 use App\Models\Bcms\Process;
 use App\Services\Bcms\Integration\ErmBridge;
@@ -133,12 +134,31 @@ class FindingService
             return $sourceRecord->callTree?->business_unit_id;
         }
 
-        // `incident`, `dr_test`, `management_review`, `audit` and
-        // `gap_analysis` genuinely carry no unit unless one of the two
-        // attribute checks above already caught it — an incident or DR test
-        // register entry is enterprise-wide risk information, not one
-        // division's, and a null unit is the organisation-level answer ADR
-        // 0006 already gives it.
+        // ADR 0020 gave `Incident` its own `business_unit_id` (Phase 10, the
+        // same anchor treatment as `Plan`). A finding raised from a PIR
+        // (`source = incident`, `$sourceRecord` the incident itself — see
+        // `FindingController::store()`'s `case FindingSource::Incident`)
+        // takes that incident's unit. This was previously left to fall
+        // through to the null return below, which — combined with
+        // `ScopedToOrgHierarchy`'s null-is-visible-to-the-whole-tenant rule —
+        // showed every PIR finding's full description to any
+        // `bcms.finding.view` holder in the tenant regardless of which
+        // branch's incident it came from (ADR 0017 Amendment 2). An incident
+        // genuinely declared with no unit (`business_unit_id` is nullable —
+        // see `IncidentService::declare()`) is an organisation-wide incident,
+        // and its findings stay organisation-wide too, which is correct: not
+        // every incident belongs to one division.
+        if ($source === FindingSource::Incident && $sourceRecord instanceof Incident) {
+            return $sourceRecord->business_unit_id;
+        }
+
+        // `dr_test`, `management_review`, `audit` and `gap_analysis`
+        // genuinely carry no unit unless one of the attribute checks above
+        // already caught it — `DrTest` is organisation-level (no
+        // `business_unit_id` column of its own), and a management review,
+        // audit or gap-analysis finding is enterprise-wide risk information,
+        // not one division's; a null unit is the organisation-level answer
+        // ADR 0006 already gives it.
         return null;
     }
 

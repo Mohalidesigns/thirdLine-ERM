@@ -8,6 +8,7 @@ use App\Enums\Bcms\IncidentStatus;
 use App\Events\LossEventAmountChanged;
 use App\Events\LossEventCreated;
 use App\Models\Bcms\Aar;
+use App\Models\Bcms\Finding;
 use App\Models\Bcms\Incident;
 use App\Models\Bcms\IncidentNotification;
 use App\Models\Bcms\Plan;
@@ -121,6 +122,136 @@ class Phase10IncidentTest extends TestCase
         // for the dedicated FK/unique-index assertions and the raw-insert
         // duplicate-refusal case.
         $this->assertSame(1, Aar::query()->where('incident_id', $incident->getKey())->count());
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Compliance check, 2026-09-25 — PIR timing metrics
+     *  (`phase-10-notes.md` "Compliance check: PIR timing metrics"). */
+    /* ------------------------------------------------------------------ */
+
+    /** Rule 1: Carbon 3.13.2's diffInMinutes() returns a signed float; the stored metric must be a whole int. */
+    #[Test]
+    public function refresh_metrics_stores_a_whole_int_not_carbons_float(): void
+    {
+        $incident = $this->declareIncident(detectedAt: now()->subMinutes(20));
+        // 749 seconds = 12.4833... minutes on diffInMinutes(); floored to 12.
+        $incident->update(['declared_at' => $incident->detected_at->copy()->addSeconds(749)]);
+
+        $pir = app(PirService::class)->ensureDraftFor($incident);
+        app(PirService::class)->refreshMetrics($pir, persist: true);
+
+        $metrics = $pir->fresh()->quantitative_results['metrics'];
+
+        $this->assertArrayHasKey('time_to_declare_minutes', $metrics);
+        $this->assertSame(12, $metrics['time_to_declare_minutes']);
+        $this->assertIsInt($metrics['time_to_declare_minutes'], 'The stored value must be an int, not the float diffInMinutes() returns.');
+    }
+
+    /** Rule 2: a negative interval (legacy/hand-edited data) must never reach `metrics`. */
+    #[Test]
+    public function refresh_metrics_sends_an_out_of_order_declaration_to_not_measured_naming_both_times(): void
+    {
+        // Built directly, not through declare(), which enforces
+        // detected_at <= declared_at — this is exactly the "legacy, seeded
+        // or hand-edited data" case the compliance note names.
+        $incident = Incident::query()->create([
+            'organization_id' => $this->organization->id,
+            'reference' => 'INC-OUT-OF-ORDER', 'title' => 'Out of order clock', 'status' => 'open',
+            'is_exercise' => false,
+            'detected_at' => now()->subHour(),
+            'declared_at' => now()->subHours(2),
+        ]);
+
+        $pir = app(PirService::class)->ensureDraftFor($incident);
+        app(PirService::class)->refreshMetrics($pir, persist: true);
+
+        $qr = $pir->fresh()->quantitative_results;
+
+        $this->assertArrayNotHasKey('time_to_declare_minutes', $qr['metrics']);
+        $entry = collect($qr['not_measured'])->firstWhere('metric', 'time_to_declare_minutes');
+        $this->assertNotNull($entry);
+        $this->assertStringContainsString('out of order', $entry['reason']);
+
+        // A1: printed in the tenant's own BCMS timezone (default
+        // Africa/Lagos, never a bare UTC string with no marker saying so),
+        // with the abbreviation shown.
+        $tz = app(\App\Services\Bcms\BcmsSettings::class)->timezone($incident->organization_id);
+        $this->assertStringContainsString(
+            $incident->declared_at->copy()->setTimezone($tz)->format('Y-m-d H:i:s T'), $entry['reason']
+        );
+        $this->assertStringContainsString(
+            $incident->detected_at->copy()->setTimezone($tz)->format('Y-m-d H:i:s T'), $entry['reason']
+        );
+    }
+
+    /** Rule 3: no created_at fallback inside the metric when declared_at is missing. */
+    #[Test]
+    public function refresh_metrics_never_substitutes_created_at_for_a_missing_declared_at(): void
+    {
+        $incident = Incident::query()->create([
+            'organization_id' => $this->organization->id,
+            'reference' => 'INC-NO-DECLARE', 'title' => 'No declaration recorded', 'status' => 'open',
+            'is_exercise' => false,
+            'detected_at' => now()->subHour(),
+            // declared_at deliberately left null. created_at is now(), which
+            // a fallback would silently turn into a ~60-minute "declare" time.
+        ]);
+
+        $pir = app(PirService::class)->ensureDraftFor($incident);
+        app(PirService::class)->refreshMetrics($pir, persist: true);
+
+        $qr = $pir->fresh()->quantitative_results;
+
+        $this->assertArrayNotHasKey('time_to_declare_minutes', $qr['metrics']);
+        $entry = collect($qr['not_measured'])->firstWhere('metric', 'time_to_declare_minutes');
+        $this->assertNotNull($entry);
+        $this->assertStringContainsString('no declaration time', $entry['reason']);
+        $this->assertStringContainsString('not used in its place', $entry['reason']);
+    }
+
+    /**
+     * A1 (code review, non-EMNS demo-gap set): `time_to_activate_minutes`'s
+     * own missing-`declared_at` reason must carry the same "the time the
+     * record was created is not used in its place" sentence
+     * `time_to_declare_minutes` already does — before this fix it named the
+     * gap but not the thing a reader might otherwise assume filled it.
+     */
+    #[Test]
+    public function refresh_metrics_activation_reason_also_says_created_at_is_not_used_in_its_place(): void
+    {
+        $incident = Incident::query()->create([
+            'organization_id' => $this->organization->id,
+            'reference' => 'INC-NO-DECLARE-ACT', 'title' => 'No declaration, plan activated anyway',
+            'status' => 'open', 'is_exercise' => false,
+            'detected_at' => now()->subHour(),
+            // declared_at deliberately left null — time_to_activate_minutes
+            // has no start time to measure from either.
+        ]);
+
+        $pir = app(PirService::class)->ensureDraftFor($incident);
+        app(PirService::class)->refreshMetrics($pir, persist: true);
+
+        $qr = $pir->fresh()->quantitative_results;
+
+        $this->assertArrayNotHasKey('time_to_activate_minutes', $qr['metrics']);
+        $entry = collect($qr['not_measured'])->firstWhere('metric', 'time_to_activate_minutes');
+        $this->assertNotNull($entry);
+        $this->assertStringContainsString('no declaration time', $entry['reason']);
+        $this->assertStringContainsString('not used in its place', $entry['reason']);
+    }
+
+    /** A1: `METRIC_LABELS` states the rounding rule, not just "(as recorded)". */
+    #[Test]
+    public function metric_labels_state_whole_minutes_rounded_down(): void
+    {
+        $this->assertSame(
+            'Detection to declaration (as recorded, whole minutes, rounded down)',
+            PirService::METRIC_LABELS['time_to_declare_minutes'],
+        );
+        $this->assertSame(
+            'Declaration to first plan activation (as recorded, whole minutes, rounded down)',
+            PirService::METRIC_LABELS['time_to_activate_minutes'],
+        );
     }
 
     /**
@@ -871,13 +1002,70 @@ class Phase10IncidentTest extends TestCase
      *  (Gate 2 review #1 defect 6, second half) */
     /* ------------------------------------------------------------------ */
 
-    /** The defect this closes: before Amendment 4, this could never pass. */
+    /**
+     * Gap 4 — "leave blank to deactivate" made real. Before this fix, an
+     * activation nobody mentioned in `plans_remaining_active` simply stayed
+     * open forever and stand-down refused indefinitely, with no way through
+     * short of typing a statement nobody meant (the defect this test used to
+     * pin, under its old name). `$this->officer` holds `bcms.plan.activate`
+     * (setUp), so leaving the activation unmentioned now deactivates it as
+     * part of this same stand-down, audited, rather than blocking it.
+     */
     #[Test]
-    public function stand_down_is_refused_when_an_activated_plan_has_no_disposition(): void
+    public function stand_down_deactivates_an_unmentioned_open_plan_when_the_actor_may_activate_plans(): void
     {
         $incident = $this->declareIncident();
         $plan = Plan::query()->create([
             'organization_id' => $this->organization->id, 'plan_type' => 'bcp', 'title' => 'Kept-active plan',
+            'status' => 'approved', 'version' => '1', 'content' => [],
+        ]);
+        $activation = \App\Models\Bcms\PlanActivation::query()->create([
+            'organization_id' => $this->organization->id, 'plan_id' => $plan->getKey(),
+            'incident_id' => $incident->getKey(), 'is_exercise' => false,
+            'activated_by' => $this->officer->getKey(), 'activated_at' => now(),
+            'activation_reason' => 'Declared.',
+        ]);
+        app(NotificationService::class)->reassessNotReportable($incident, $this->officer, 'cbn', 'Not reportable.');
+        app(NotificationService::class)->reassessNotReportable($incident, $this->officer, 'personal_data', 'No personal data.');
+
+        $closed = app(IncidentService::class)->standDown($incident, $this->officer, [
+            'all_clear_message' => 'All clear.', 'reason' => 'Resolved.',
+        ]);
+
+        $this->assertSame(IncidentStatus::Closed, $closed->status);
+        $activation->refresh();
+        $this->assertNotNull($activation->deactivated_at);
+        $this->assertNull($activation->kept_active_entry_id);
+        $this->assertSame('Declared.', $activation->activation_reason, 'activation_reason must never be rewritten at stand-down.');
+        $this->assertDatabaseHas('bcms_audit_logs', [
+            'auditable_type' => Incident::class,
+            'auditable_id' => $incident->getKey(),
+            'event' => 'incident.plan_deactivated_at_standdown',
+        ]);
+
+        // A6: an `action` entry on the incident's own log, in ADDITION to
+        // the audit row above — the PIR reads `bcms_incident_log`, not
+        // `bcms_audit_logs`.
+        $this->assertDatabaseHas('bcms_incident_log', [
+            'incident_id' => $incident->getKey(),
+            'entry_type' => IncidentLogEntryType::Action->value,
+            'content' => 'Plan "Kept-active plan" (v1) deactivated at stand-down.',
+        ]);
+    }
+
+    /**
+     * Gap 4's other half: deactivating a plan needs `bcms.plan.activate`, a
+     * different authority from `bcms.incident.manage`. An actor who can
+     * manage the incident but not activate plans is refused, naming the
+     * plan, rather than either silently deactivating it or silently doing
+     * nothing.
+     */
+    #[Test]
+    public function stand_down_with_an_unmentioned_open_plan_is_refused_without_plan_activate(): void
+    {
+        $incident = $this->declareIncident();
+        $plan = Plan::query()->create([
+            'organization_id' => $this->organization->id, 'plan_type' => 'bcp', 'title' => 'Named plan',
             'status' => 'approved', 'version' => '1', 'content' => [],
         ]);
         \App\Models\Bcms\PlanActivation::query()->create([
@@ -889,10 +1077,24 @@ class Phase10IncidentTest extends TestCase
         app(NotificationService::class)->reassessNotReportable($incident, $this->officer, 'cbn', 'Not reportable.');
         app(NotificationService::class)->reassessNotReportable($incident, $this->officer, 'personal_data', 'No personal data.');
 
-        $this->expectException(InvalidArgumentException::class);
-        app(IncidentService::class)->standDown($incident, $this->officer, [
-            'all_clear_message' => 'All clear.', 'reason' => 'Resolved.',
-        ]);
+        $noPlanAuthority = $this->user('manage-only@khb.test');
+        foreach (['bcms.incident.view', 'bcms.incident.manage'] as $p) {
+            $this->givePermission($noPlanAuthority, $p);
+        }
+        $this->givePermission($noPlanAuthority, 'rcsa_scope.all_units');
+
+        try {
+            app(IncidentService::class)->standDown($incident, $noPlanAuthority, [
+                'all_clear_message' => 'All clear.', 'reason' => 'Resolved.',
+            ]);
+            $this->fail('Expected an InvalidArgumentException.');
+        } catch (InvalidArgumentException $e) {
+            $this->assertStringContainsString('Named plan', $e->getMessage());
+            $this->assertStringContainsString('plan.activate', $e->getMessage());
+        }
+
+        $incident->refresh();
+        $this->assertNotSame(IncidentStatus::Closed, $incident->status);
     }
 
     #[Test]
@@ -1255,6 +1457,60 @@ class Phase10IncidentTest extends TestCase
 
         $finalised = app(PirService::class)->finalise($aar, $approver, 0);
 
+        $this->assertSame('final', $finalised->status);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Condition 6 — a "did not hold" plan section needs a finding, raised
+     *  through the shared `bcms.findings.store` route (`IncidentPresenter::
+     *  review()`'s `urls.raise_finding`), the live-demo gap this covers. */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function a_did_not_hold_plan_section_blocks_finalisation_until_a_finding_is_raised_via_the_findings_route(): void
+    {
+        $incident = $this->declareIncident();
+        $aar = $this->readyToFinalisePir($incident);
+
+        $qr = $aar->quantitative_results;
+        $qr['plan_sections'] = [[
+            'section_id' => 999,
+            'title' => 'Payments failover',
+            'verdict' => 'did_not_hold',
+            // Condition 5 (dispositioned) is satisfied by this note alone —
+            // condition 6 (a finding actually raised) is the separate gate
+            // this test is about.
+            'disposition_note' => 'Failover runbook was out of date.',
+        ]];
+        $aar->update(['quantitative_results' => $qr]);
+        $aar = $aar->fresh();
+
+        $six = collect(app(PirService::class)->conditions($aar))->firstWhere('key', '6_findings');
+        $this->assertFalse($six['met'], 'Condition 6 should not be met before any finding is raised.');
+
+        $approver = $this->independentApprover();
+        $this->givePermission($approver, 'bcms.finding.manage');
+
+        // The exact contract `IncidentPresenter::review()->urls.raise_finding`
+        // and the PIR screen post — `source = incident` (never `aar`, which
+        // would misreport a real incident's finding as coming from an
+        // exercise), the PIR's own `aar_id`, no `dr_test_id`.
+        $this->actingAs($approver)->post(route('bcms.findings.store'), [
+            'source' => 'incident',
+            'classification' => 'observation',
+            'description' => 'The payments failover runbook did not hold during this incident.',
+            'aar_id' => $aar->getKey(),
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $finding = Finding::query()->where('aar_id', $aar->getKey())->first();
+        $this->assertNotNull($finding, 'The finding must carry aar_id, not only incident_id, for condition 6 to find it.');
+        $this->assertSame($incident->getKey(), $finding->incident_id, 'incident_id must be the INCIDENT\'s key, not the AAR\'s.');
+        $this->assertSame('incident', $finding->source->value);
+
+        $six = collect(app(PirService::class)->conditions($aar->fresh()))->firstWhere('key', '6_findings');
+        $this->assertTrue($six['met'], 'Condition 6 should be met once a finding carrying this aar_id exists.');
+
+        $finalised = app(PirService::class)->finalise($aar->fresh(), $approver, 0);
         $this->assertSame('final', $finalised->status);
     }
 

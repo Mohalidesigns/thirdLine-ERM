@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Bcms;
 
 use App\Enums\Bcms\ChannelKey;
+use App\Enums\Bcms\InjectDeliveryChannel;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Bcms\CompleteOccurrenceRequest;
 use App\Http\Requests\Bcms\ManualCheckInRequest;
+use App\Http\Requests\Bcms\ReorderExerciseInjectsRequest;
 use App\Http\Requests\Bcms\StartOccurrenceRequest;
+use App\Http\Requests\Bcms\StoreExerciseInjectRequest;
 use App\Http\Requests\Bcms\StoreTimelineEntryRequest;
+use App\Http\Requests\Bcms\UpdateExerciseInjectRequest;
 use App\Models\Bcms\Evidence;
 use App\Models\Bcms\ExerciseInject;
 use App\Models\Bcms\ExerciseOccurrence;
@@ -131,17 +135,33 @@ class ExecutionController extends Controller
                 'content' => $t->content,
                 'logged_by' => $t->loggedBy?->name,
             ])->values()->all(),
-            'injects' => $injects->map(fn (ExerciseInject $i) => [
-                'id' => $i->getKey(),
-                'title' => $i->title,
-                'content' => $i->content,
-                'sequence' => $i->sequence,
-                'release_offset_minutes' => $i->release_offset_minutes,
-                'released_at' => $i->released_at?->toIso8601String(),
-                'released_by' => $i->releasedBy?->name,
-                'ai_generated' => (bool) $i->ai_generated,
-                'release_url' => route('bcms.occurrences.injects.release', [$occurrence, $i]),
-            ])->values()->all(),
+            'injects' => $injects->map(function (ExerciseInject $i) use ($occurrence, $canFacilitate) {
+                $released = $i->released_at !== null;
+
+                $row = [
+                    'id' => $i->getKey(),
+                    'title' => $i->title,
+                    'content' => $i->content,
+                    'sequence' => $i->sequence,
+                    'release_offset_minutes' => $i->release_offset_minutes,
+                    'delivery_channel' => $i->delivery_channel,
+                    'released_at' => $i->released_at?->toIso8601String(),
+                    'released_by' => $i->releasedBy?->name,
+                    'ai_generated' => (bool) $i->ai_generated,
+                    'release_url' => $released ? null : route('bcms.occurrences.injects.release', [$occurrence, $i]),
+                ];
+
+                // GAP 2 (A3). Edit/delete keys are genuinely ABSENT once
+                // released, or for a non-facilitator viewer — matching the
+                // "absent, not null" contract the comment always claimed,
+                // the same `attendance.not_checked_in` already uses below.
+                if ($canFacilitate && ! $released) {
+                    $row['update_url'] = route('bcms.occurrences.injects.update', [$occurrence, $i]);
+                    $row['delete_url'] = route('bcms.occurrences.injects.destroy', [$occurrence, $i]);
+                }
+
+                return $row;
+            })->values()->all(),
             'attendance' => [
                 'expected' => $participants->count(),
                 'checked_in' => $checkedIn->count(),
@@ -173,6 +193,16 @@ class ExecutionController extends Controller
                 'delete_url' => $e->isLocked() ? null : route('bcms.evidence.destroy', [$occurrence, $e]),
             ])->values()->all(),
             'objectives' => $this->scoring->objectivesFor($occurrence),
+            // GAP 2 — the closed vocabulary for the inject form's delivery
+            // channel select (ADR 0023 Amendment 1). Validated in
+            // `StoreExerciseInjectRequest`/`UpdateExerciseInjectRequest`, not
+            // cast on the model — see `InjectDeliveryChannel`'s own docblock.
+            'options' => [
+                'inject_delivery_channels' => array_map(
+                    fn (InjectDeliveryChannel $c) => ['value' => $c->value, 'label' => $c->label()],
+                    InjectDeliveryChannel::cases(),
+                ),
+            ],
             'can' => [
                 'facilitate' => $canFacilitate,
                 'evaluate' => $request->user()?->can('bcms.exercise.evaluate') === true,
@@ -188,6 +218,9 @@ class ExecutionController extends Controller
                 'score' => route('bcms.occurrences.score.show', $occurrence),
                 'evidence_upload' => route('bcms.evidence.store', $occurrence),
                 'aar' => $occurrence->aar !== null ? route('bcms.aars.show', $occurrence->aar) : null,
+                // GAP 2.
+                'injects_store' => route('bcms.occurrences.injects.store', $occurrence),
+                'injects_reorder' => route('bcms.occurrences.injects.reorder', $occurrence),
             ],
         ]);
     }
@@ -195,7 +228,12 @@ class ExecutionController extends Controller
     public function start(StartOccurrenceRequest $request, ExerciseOccurrence $occurrence): RedirectResponse
     {
         try {
-            $this->execution->start($occurrence, $request->user(), (bool) $request->boolean('confirmed_override'));
+            $this->execution->start(
+                $occurrence,
+                $request->user(),
+                (bool) $request->boolean('confirmed_override'),
+                (bool) $request->boolean('confirmed_early_start'),
+            );
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -245,6 +283,64 @@ class ExecutionController extends Controller
         }
 
         return back()->with('success', 'Released.');
+    }
+
+    /** GAP 2 — authoring an inject. Appended; use {@see reorderInjects()} to place it. */
+    public function storeInject(StoreExerciseInjectRequest $request, ExerciseOccurrence $occurrence): RedirectResponse
+    {
+        try {
+            $this->injects->create($occurrence, $request->validated());
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Inject added.');
+    }
+
+    /** GAP 2 — editing an unreleased inject. */
+    public function updateInject(UpdateExerciseInjectRequest $request, ExerciseOccurrence $occurrence, ExerciseInject $inject): RedirectResponse
+    {
+        if ((int) $inject->occurrence_id !== (int) $occurrence->getKey()) {
+            return back()->with('error', 'That inject does not belong to this occurrence.');
+        }
+
+        try {
+            $this->injects->update($inject, $request->validated());
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Inject updated.');
+    }
+
+    /** GAP 2 — deleting an unreleased inject. */
+    public function destroyInject(Request $request, ExerciseOccurrence $occurrence, ExerciseInject $inject): RedirectResponse
+    {
+        Gate::authorize('bcms.exercise.facilitate');
+
+        if ((int) $inject->occurrence_id !== (int) $occurrence->getKey()) {
+            return back()->with('error', 'That inject does not belong to this occurrence.');
+        }
+
+        try {
+            $this->injects->delete($inject);
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Inject removed.');
+    }
+
+    /** GAP 2 — reordering an occurrence's injects. */
+    public function reorderInjects(ReorderExerciseInjectsRequest $request, ExerciseOccurrence $occurrence): RedirectResponse
+    {
+        try {
+            $this->injects->reorder($occurrence, array_map('intval', $request->validated('inject_ids')), $request->user());
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Order updated.');
     }
 
     /** The facilitator checking a participant in by hand (execution-workspace spec §4). */

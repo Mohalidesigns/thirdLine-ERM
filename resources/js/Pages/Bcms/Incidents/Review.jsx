@@ -4,6 +4,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Modal from '@thirdline/ui/Components/Modal';
 import { formatIncidentDateTime } from '@/Components/Bcms/dateDisplay';
+import RaiseFinding from '@/Components/Bcms/RaiseFinding';
 
 /**
  * `docs/bcms/screens/pir-post-incident-review.md` — the post-incident review,
@@ -58,6 +59,14 @@ import { formatIncidentDateTime } from '@/Components/Bcms/dateDisplay';
  * officer the mirror needs a manual follow-up rather than leaving them to
  * assume it reached the register.
  */
+// Gap 3 — the three timings `PirService::refreshMetrics()` computes,
+// labelled for display. Fixed set, matching condition 7's own list.
+const METRIC_LABELS = {
+    time_to_detect_minutes: 'Time to detect',
+    time_to_declare_minutes: 'Time to declare',
+    time_to_activate_minutes: 'Time to activate (first plan activated)',
+};
+
 export default function Review({
     incident = {}, aar = {}, plan_sections: planSections = [], conditions = [], all_conditions_met: allConditionsMet = false,
     timeline = { entries: [], total: 0 }, findings = [], ai = {}, options = {}, can = {}, urls = {},
@@ -73,6 +82,11 @@ export default function Review({
     const [confirmingFinalise, setConfirmingFinalise] = useState(false);
     const [confirmingDistribute, setConfirmingDistribute] = useState(false);
     const [reopening, setReopening] = useState(false);
+    // null = no raise-finding form open; otherwise { description } prefill —
+    // shared by section 2's per-section triggers and section 7's general
+    // entry point, the same one-form-many-triggers shape `Exercises/Aar.jsx`
+    // uses for its per-objective buttons.
+    const [raising, setRaising] = useState(null);
 
     const canEdit = can.manage && !final;
 
@@ -196,7 +210,18 @@ export default function Review({
                     <p className="text-sm text-slate-500">No plan section is linked to this incident's activation(s).</p>
                 ) : (
                     <ul className="space-y-3">
-                        {sections.map((s) => (
+                        {sections.map((s) => {
+                            // The same "what was found" a reader of section 7
+                            // would want: the section's own title, plus its
+                            // note where one was recorded. Used both as the
+                            // raise-finding prefill and to tell whether the
+                            // form currently open below belongs to THIS
+                            // section (there is one shared form, not one per
+                            // section — see `raising` above).
+                            const sectionDescription = s.note ? `${s.title} — ${s.note}` : s.title;
+                            const raisingThisSection = raising?.description === sectionDescription;
+
+                            return (
                             <li key={s.section_id} className="rounded border border-slate-200 p-3">
                                 <p className="mb-2 text-sm font-medium text-slate-800">{s.title}</p>
                                 <div className="flex flex-wrap items-center gap-2">
@@ -221,8 +246,35 @@ export default function Review({
                                             onChange={(e) => updateSection(s.section_id, { disposition_note: e.target.value })} />
                                     </div>
                                 )}
+                                {s.verdict === 'did_not_hold' && !s.finding_reference && (
+                                    <p className="mt-1 text-[11px] text-slate-400">
+                                        A finding raised from this review appears in section 7 — paste its reference above to link it here.
+                                    </p>
+                                )}
+                                {/*
+                                    Condition 6 ("a plan section that did not
+                                    hold has a finding") has no route from this
+                                    screen without this — `urls.raise_finding`
+                                    is the sole gate, same rule as section 7's
+                                    entry point below: absent means hidden,
+                                    never a dead button, whether that is
+                                    because this user cannot raise findings or
+                                    because the review is already finalised.
+                                */}
+                                {s.verdict === 'did_not_hold' && urls.raise_finding && (
+                                    raisingThisSection ? (
+                                        <p className="mt-2 text-xs text-slate-500">Finding form open in section 7, below.</p>
+                                    ) : (
+                                        <button type="button" className="mt-2 text-xs text-blue-700 hover:underline"
+                                            aria-label={`Raise a finding for this section: ${s.title}`}
+                                            onClick={() => setRaising({ description: sectionDescription })}>
+                                            Raise a finding for this section
+                                        </button>
+                                    )
+                                )}
                             </li>
-                        ))}
+                            );
+                        })}
                         {canEdit && (
                             <button type="button" onClick={savePlanSections} className="rounded bg-slate-800 px-3 py-1.5 text-xs text-white">
                                 Save plan-section verdicts
@@ -256,7 +308,51 @@ export default function Review({
             {/* Sections 4-6 — narrative and quantitative */}
             <form onSubmit={saveNarrative}>
                 <SectionCard number={4} title="Quantitative results" source="Incident metrics; regulator-notification timing compared against each open obligation separately">
-                    <pre className="max-h-64 overflow-auto rounded bg-slate-50 p-2 text-xs">{JSON.stringify(draftForm.data.quantitative_results?.metrics ?? {}, null, 2)}</pre>
+                    {/*
+                        Gap 3 — three fixed, server-computed timings
+                        (`PirService::refreshMetrics()`), never re-derived
+                        here. `time_to_detect_minutes` is ALWAYS
+                        `not_measured`: BCMS records no independently
+                        observed onset time to measure a detection lag
+                        against, so it is stated as not measured, with the
+                        reason, rather than a duration measured against
+                        itself.
+
+                        `quantitative_results.metric_labels` carries the
+                        server's own heading for `time_to_declare_minutes`/
+                        `time_to_activate_minutes` — "(as recorded)" wording
+                        that only the backend can state honestly, since it
+                        knows which timestamps actually produced the figure.
+                        `time_to_detect_minutes` carries no server label (it
+                        is always `not_measured`, never a value with a
+                        provenance to describe) — `METRIC_LABELS` is the only
+                        heading it ever gets.
+                    */}
+                    <dl className="grid gap-3 sm:grid-cols-3">
+                        {Object.entries(METRIC_LABELS).map(([key, fallbackLabel]) => {
+                            const value = aar.quantitative_results?.metrics?.[key];
+                            const notMeasured = (aar.quantitative_results?.not_measured ?? [])
+                                .find((n) => n.metric === key);
+                            const label = key === 'time_to_detect_minutes'
+                                ? fallbackLabel
+                                : (aar.quantitative_results?.metric_labels?.[key] ?? fallbackLabel);
+
+                            return (
+                                <div key={key}>
+                                    <dt className="text-xs text-slate-500">{label}</dt>
+                                    <dd className="text-sm text-slate-800">
+                                        {value != null ? (
+                                            `${value} minute${value === 1 ? '' : 's'}`
+                                        ) : (
+                                            <span className="text-amber-800">
+                                                {notMeasured?.reason || 'Not measured'}
+                                            </span>
+                                        )}
+                                    </dd>
+                                </div>
+                            );
+                        })}
+                    </dl>
                 </SectionCard>
 
                 <SectionCard number={5} title="What worked / what did not">
@@ -271,7 +367,19 @@ export default function Review({
                 </SectionCard>
 
                 <SectionCard number={6} title="Responder debrief" source="Role and unit only, never a name">
-                    <pre className="max-h-48 overflow-auto rounded bg-slate-50 p-2 text-xs">{JSON.stringify(aar.participant_feedback ?? {}, null, 2)}</pre>
+                    {/*
+                        Was a raw `JSON.stringify({})` / `JSON.stringify([])` —
+                        "{}" or "[]" rendered to a responder reading their own
+                        debrief. `participant_feedback` is the same
+                        `{invited, responded, comments}` shape
+                        `Exercises/Aar.jsx`'s `ParticipantFeedback` reads;
+                        emptiness is judged the same way it is there.
+                    */}
+                    {isDebriefEmpty(aar.participant_feedback) ? (
+                        <p className="text-sm text-slate-500">No responder debrief recorded yet.</p>
+                    ) : (
+                        <pre className="max-h-48 overflow-auto rounded bg-slate-50 p-2 text-xs">{JSON.stringify(aar.participant_feedback, null, 2)}</pre>
+                    )}
                 </SectionCard>
 
                 {canEdit && (
@@ -299,6 +407,30 @@ export default function Review({
                             </li>
                         ))}
                     </ul>
+                )}
+                {/*
+                    Every raise-finding action on this screen — section 2's
+                    per-section buttons AND this section's own general entry
+                    point — is gated on `urls.raise_finding` alone: absent for
+                    a user without `bcms.finding.manage`, and absent again
+                    once the review is finalised. Absent means hidden, never a
+                    disabled button with nothing behind it.
+
+                    THE FORM STAYS BELOW THE LIST PERMANENTLY, the same way
+                    `aar-builder.md` §7's identical mechanism does at
+                    `Aar.jsx:454` — gated on `urls.raise_finding` alone, not on
+                    `findings.length`. Gating it to "only while there are no
+                    findings yet" (code-review defect 2) made the general
+                    entry point disappear after the very first finding, on a
+                    review that can go on to fail more than one plan section.
+                */}
+                {urls.raise_finding && (
+                    <RaiseFinding
+                        key={raising ? raising.description : '__closed__'}
+                        source="incident" aarKey={aar.id} raiseUrl={urls.raise_finding} context={raising}
+                        open={raising !== null} onOpen={() => setRaising({ description: '' })} onClose={() => setRaising(null)}
+                        clauseRefs={options.clause_refs ?? []}
+                    />
                 )}
             </SectionCard>
 
@@ -527,4 +659,13 @@ function money(minor) {
 
 function formatLocal(iso) {
     return formatIncidentDateTime(iso) ?? 'not yet';
+}
+
+// Mirrors `Exercises/Aar.jsx`'s `ParticipantFeedback` emptiness check —
+// `invited` unset and no free-text comments means nothing was recorded, no
+// matter whether the field arrived as `{}`, `[]`, or `null`.
+function isDebriefEmpty(feedback) {
+    if (!feedback) return true;
+    const comments = Array.isArray(feedback.comments) ? feedback.comments : [];
+    return feedback.invited == null && comments.length === 0;
 }

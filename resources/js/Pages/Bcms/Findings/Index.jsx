@@ -4,6 +4,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
 import FormField from '@thirdline/ui/Components/FormField';
+import InputError from '@thirdline/ui/Components/InputError';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -33,6 +34,16 @@ export default function Index({ findings, filters = {}, summary = {}, options = 
         source: 'gap_analysis', classification: 'observation', description: '',
         severity: 'medium', iso_clause_ref: '', affected_process_id: '',
     });
+    // The fields that render their OWN error below. Anything else
+    // `raise.errors` names is shown as a form-level alert instead of
+    // silently never appearing (the same "no field, no dead end" rule as
+    // `RaiseFinding.jsx`): `aar_id` and `dr_test_id`, which this form never
+    // sends but the shared store route can refuse; `source`,
+    // `classification` and `severity`, which have a control here but no
+    // error slot; and `affected_process_id`, which this form posts empty
+    // and has no control for.
+    const RAISE_FORM_FIELDS = ['description', 'iso_clause_ref'];
+    const raiseFormLevelErrors = Object.entries(raise.errors).filter(([key]) => !RAISE_FORM_FIELDS.includes(key));
 
     const tiles = [
         { label: 'Open findings', value: summary.open },
@@ -71,6 +82,14 @@ export default function Index({ findings, filters = {}, summary = {}, options = 
                     className="card mb-6"
                 >
                     <div className="card-body space-y-4">
+                        {raiseFormLevelErrors.length > 0 && (
+                            <div className="space-y-1">
+                                {raiseFormLevelErrors.map(([key, message]) => (
+                                    <InputError key={key} role="alert" message={message} />
+                                ))}
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <FormField label="Source">
                                 <select className="form-select" value={raise.data.source}
@@ -97,7 +116,7 @@ export default function Index({ findings, filters = {}, summary = {}, options = 
                                 onChange={(e) => raise.setData('description', e.target.value)} />
                         </FormField>
 
-                        <FormField label="Clause it failed"
+                        <FormField label="Clause it failed" error={raise.errors.iso_clause_ref}
                             hint="Required for a nonconformity: clause 10.1 defines one as a failure to meet a stated requirement, so it has to name the requirement.">
                             <select className="form-select" value={raise.data.iso_clause_ref}
                                 onChange={(e) => raise.setData('iso_clause_ref', e.target.value)}>
@@ -131,9 +150,14 @@ export default function Index({ findings, filters = {}, summary = {}, options = 
                     </div>
                     <div className="filter-group min-w-[150px]">
                         <label className="filter-label">Source</label>
+                        {/* The register's filter needs every source a finding can carry,
+                            including `incident` and `dr_test` — `options.sources` is the
+                            narrower RAISE-form list (those two are raised from their own
+                            screens, not this one), so filtering by it would make a real
+                            finding's own source unreachable in this dropdown. */}
                         <select aria-label="Source" className="filter-select" value={filters.source ?? ''} onChange={(e) => filter('source', e.target.value)}>
                             <option value="">Any source</option>
-                            {(options.sources ?? []).map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                            {(options.filter_sources ?? options.sources ?? []).map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                     </div>
                     <div className="filter-group min-w-[150px]">

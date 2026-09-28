@@ -117,11 +117,13 @@ class ReadinessService
         // trusted `owner_id` alone would still read a task as evidenced by a
         // file uploaded against a different occurrence entirely if the two
         // checks were ever the only line of defence and one of them slipped.
-        $hasEvidence = $task->evidence_file_id !== null || Evidence::query()
+        $evidence = Evidence::query()
             ->where('owner_type', Evidence::KIND_READINESS_TASK)
             ->where('owner_id', $task->getKey())
             ->where('occurrence_id', $task->occurrence_id)
-            ->exists();
+            ->first();
+
+        $hasEvidence = $task->evidence_file_id !== null || $evidence !== null;
 
         if ($task->is_blocking && $needsEvidence && ! $hasEvidence) {
             throw new InvalidArgumentException(
@@ -134,6 +136,16 @@ class ReadinessService
             'status' => 'complete',
             'completed_at' => now(),
             'completed_by' => $by->getKey(),
+        ]);
+
+        // A NAMED EVENT ON TOP OF THE COLUMN DIFF `BcmsAuditable` already
+        // wrote for the `update()` above — the same pairing `exercise_started`
+        // uses on the occurrence: the automatic row says status/completed_at/
+        // completed_by changed, this one says who closed it and against what
+        // evidence, which an examiner reads as the actual record of the act.
+        $task->recordAudit('readiness_task_completed', [
+            'by' => $by->name,
+            'evidence_id' => $evidence?->getKey(),
         ]);
 
         $this->refreshCounts($task->occurrence);
@@ -167,6 +179,17 @@ class ReadinessService
             'override_reason' => $reason,
             'overridden_by' => $by->getKey(),
             'overridden_at' => now(),
+        ]);
+
+        // On the TASK, the same pairing `complete()` now writes above: the
+        // automatic `updated` row from `BcmsAuditable` carries the column
+        // diff, this named event carries the reason. `readiness_override`
+        // below is unchanged and stays on the OCCURRENCE — it is the
+        // existing record the AAR's export already draws the exercise-level
+        // override list from.
+        $task->recordAudit('readiness_task_overridden', [
+            'by' => $by->name,
+            'reason' => $reason,
         ]);
 
         $occurrence = $task->occurrence;
@@ -284,21 +307,54 @@ class ReadinessService
         $tasks = ReadinessTask::query()
             ->where('owner_id', $user->getKey())
             ->whereIn('status', ['open', 'in_progress', 'overdue'])
-            ->with(['occurrence.definition:id,uuid,name', 'occurrence:id,uuid,definition_id,scheduled_date'])
+            ->with([
+                'occurrence.definition:id,uuid,name', 'occurrence:id,uuid,definition_id,scheduled_date',
+                'templateTask:id,requires_evidence',
+            ])
             ->orderBy('due_date')
             ->get();
 
-        return $tasks->map(fn (ReadinessTask $t) => [
-            'id' => $t->getKey(),
-            'title' => $t->title,
-            'due_date' => $t->due_date?->toDateString(),
-            'is_blocking' => (bool) $t->is_blocking,
-            'status' => $t->status,
-            'is_overdue' => $t->due_date !== null && $t->due_date->lt(now()->startOfDay()),
-            'exercise' => $t->occurrence?->definition?->name,
-            'exercise_date' => $t->occurrence?->scheduled_date?->toDateString(),
-            'occurrence_uuid' => $t->occurrence?->uuid,
-        ])->all();
+        // D3: the full occurrence readiness screen sits behind
+        // `bcms.exercise.view`, a broader grant than the `my.view` this page
+        // itself runs under (Gap 5's own reasoning below) — a `my.view`-only
+        // owner sending that URL got a 403 on every row. Checked once for
+        // the whole list: it is a property of the CURRENT user, not of any
+        // one row.
+        $canOpenReadinessScreen = $user->can('bcms.exercise.view') === true;
+
+        return $tasks->map(function (ReadinessTask $t) use ($canOpenReadinessScreen) {
+            $row = [
+                'id' => $t->getKey(),
+                'title' => $t->title,
+                'description' => $t->description,
+                'due_date' => $t->due_date?->toDateString(),
+                'is_blocking' => (bool) $t->is_blocking,
+                'status' => $t->status,
+                'is_overdue' => $t->due_date !== null && $t->due_date->lt(now()->startOfDay()),
+                'exercise' => $t->occurrence?->definition?->name,
+                'exercise_date' => $t->occurrence?->scheduled_date?->toDateString(),
+                'occurrence_uuid' => $t->occurrence?->uuid,
+                // GAP 5: the owner completes their OWN task from THIS page —
+                // `bcms.readiness-tasks.complete` now accepts `my.view` for the
+                // owner's own task (`ReadinessController::complete()`), so this
+                // page does not need to send them to the full occurrence
+                // readiness screen, which stays behind the broader
+                // `bcms.exercise.view`/`bcms.exercise.facilitate` grants.
+                'complete_url' => route('bcms.readiness-tasks.complete', $t),
+                'requires_evidence' => $t->templateTask !== null && (bool) $t->templateTask->requires_evidence,
+            ];
+
+            // D3: `readiness_url` — the same key `CalendarService`'s
+            // `readiness_url` already uses for this exact route — is present
+            // ONLY when the current user holds `bcms.exercise.view`. No key,
+            // no link; the frontend renders nothing rather than a link that
+            // 403s.
+            if ($canOpenReadinessScreen && $t->occurrence !== null) {
+                $row['readiness_url'] = route('bcms.occurrences.readiness', $t->occurrence);
+            }
+
+            return $row;
+        })->all();
     }
 
     /* ------------------------------------------------------------------ */

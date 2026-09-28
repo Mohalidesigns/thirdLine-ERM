@@ -253,6 +253,55 @@ class Phase9ExecutionTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
+    /*  Gap 1 — the date guard: nothing previously stopped a 2027 exercise
+     *  starting today. */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function starting_before_the_scheduled_date_is_refused_until_confirmed_and_is_audited(): void
+    {
+        $definition = $this->definition('FIREDRILL', ['readiness_gating' => false]);
+        $occurrence = $this->occurrence($definition, 1);
+        $occurrence->update(['scheduled_date' => now()->addMonths(6)->toDateString()]);
+
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.start', $occurrence))
+            ->assertRedirect()
+            ->assertSessionHas('error');
+        $this->assertNull($occurrence->refresh()->actual_start, 'An unconfirmed early start must not start the exercise.');
+
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.start', $occurrence), ['confirmed_early_start' => 1])
+            ->assertRedirect(route('bcms.occurrences.workspace', $occurrence));
+        $this->assertNotNull($occurrence->refresh()->actual_start);
+
+        $this->assertDatabaseHas('bcms_audit_logs', [
+            'auditable_type' => \App\Models\Bcms\ExerciseOccurrence::class,
+            'auditable_id' => $occurrence->getKey(),
+            'event' => 'exercise_started',
+        ]);
+        $log = \App\Models\Bcms\AuditLog::query()
+            ->where('auditable_type', \App\Models\Bcms\ExerciseOccurrence::class)
+            ->where('auditable_id', $occurrence->getKey())
+            ->where('event', 'exercise_started')
+            ->sole();
+        $this->assertTrue((bool) $log->after['started_early'], 'Starting early must be audited as such, even when confirmed.');
+    }
+
+    #[Test]
+    public function starting_on_or_after_the_scheduled_date_needs_no_confirmation(): void
+    {
+        $definition = $this->definition('FIREDRILL', ['readiness_gating' => false]);
+        $occurrence = $this->occurrence($definition, 1);
+        $occurrence->update(['scheduled_date' => now()->toDateString()]);
+
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.start', $occurrence))
+            ->assertRedirect(route('bcms.occurrences.workspace', $occurrence));
+        $this->assertNotNull($occurrence->refresh()->actual_start);
+    }
+
+    /* ------------------------------------------------------------------ */
     /*  Acceptance criterion 5 — a low score with no commentary is rejected. */
     /* ------------------------------------------------------------------ */
 
@@ -319,6 +368,430 @@ class Phase9ExecutionTest extends TestCase
         $this->actingAs($this->facilitator)
             ->post(route('bcms.occurrences.injects.release', [$occurrence, $inject]))
             ->assertRedirect()->assertSessionHas('error');
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Gap 2 — injects can now be authored, not only released. */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function an_inject_can_be_authored_edited_deleted_and_reordered(): void
+    {
+        $definition = $this->definition('FIREDRILL');
+        $occurrence = $this->occurrence($definition, 1);
+        $this->actingAs($this->facilitator)->post(route('bcms.occurrences.start', $occurrence));
+
+        // A viewer without facilitate is refused.
+        $this->actingAs($this->evaluator)
+            ->post(route('bcms.occurrences.injects.store', $occurrence), ['title' => 'Nope'])
+            ->assertForbidden();
+
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.store', $occurrence), [
+                'title' => 'The fire alarm sounds a second time',
+                'content' => 'A klaxon repeats every thirty seconds.',
+                'release_offset_minutes' => 5,
+                'delivery_channel' => 'sim_sms',
+            ])
+            ->assertRedirect()->assertSessionHasNoErrors();
+
+        $inject = ExerciseInject::query()->where('occurrence_id', $occurrence->getKey())->sole();
+        $this->assertSame(1, $inject->sequence);
+        $this->assertSame('sim_sms', $inject->delivery_channel);
+        $this->assertDatabaseHas('bcms_audit_logs', [
+            'auditable_type' => ExerciseInject::class,
+            'auditable_id' => $inject->getKey(),
+            'event' => 'created',
+            // A4: `InjectService::create()` no longer takes a `$by`
+            // parameter — the actor still lands here because
+            // `BcmsAuditable` reads it from `auth()->user()` on the model
+            // event itself, not from an argument.
+            'actor_id' => $this->facilitator->getKey(),
+        ]);
+
+        // An unknown channel is refused by validation.
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.store', $occurrence), [
+                'title' => 'Bad channel', 'delivery_channel' => 'sms',
+            ])
+            ->assertSessionHasErrors('delivery_channel');
+
+        $second = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 2, 'title' => 'A journalist calls the front desk',
+        ]);
+
+        // Editing an unreleased inject.
+        $this->actingAs($this->facilitator)
+            ->patch(route('bcms.occurrences.injects.update', [$occurrence, $inject]), ['title' => 'The alarm sounds again, louder'])
+            ->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame('The alarm sounds again, louder', $inject->refresh()->title);
+        $this->assertDatabaseHas('bcms_audit_logs', [
+            'auditable_type' => ExerciseInject::class,
+            'auditable_id' => $inject->getKey(),
+            'event' => 'updated',
+        ]);
+
+        // Reordering — the payload has to name exactly this occurrence's injects.
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.reorder', $occurrence), ['inject_ids' => [$second->getKey(), $inject->getKey()]])
+            ->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame(1, $second->refresh()->sequence);
+        $this->assertSame(2, $inject->refresh()->sequence);
+        $this->assertDatabaseHas('bcms_audit_logs', [
+            'auditable_type' => \App\Models\Bcms\ExerciseOccurrence::class,
+            'auditable_id' => $occurrence->getKey(),
+            'event' => 'injects_reordered',
+        ]);
+
+        // Release, then editing and deleting are both refused.
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.release', [$occurrence, $second]))
+            ->assertRedirect();
+        $this->actingAs($this->facilitator)
+            ->patch(route('bcms.occurrences.injects.update', [$occurrence, $second]), ['title' => 'Too late'])
+            ->assertRedirect()->assertSessionHas('error');
+        $this->actingAs($this->facilitator)
+            ->delete(route('bcms.occurrences.injects.destroy', [$occurrence, $second]))
+            ->assertRedirect()->assertSessionHas('error');
+        $this->assertDatabaseHas('bcms_exercise_injects', ['id' => $second->getKey()]);
+
+        // Deleting an unreleased one works.
+        $deletedInjectId = $inject->getKey();
+        $this->actingAs($this->facilitator)
+            ->delete(route('bcms.occurrences.injects.destroy', [$occurrence, $inject]))
+            ->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertDatabaseMissing('bcms_exercise_injects', ['id' => $deletedInjectId]);
+        $this->assertDatabaseHas('bcms_audit_logs', [
+            'auditable_type' => ExerciseInject::class,
+            'auditable_id' => $deletedInjectId,
+            'event' => 'deleted',
+        ]);
+    }
+
+    /**
+     * QA gate coverage — A3 (code review, non-EMNS demo-gap set):
+     * `update_url`/`delete_url` must be genuinely ABSENT from the payload,
+     * not sent as `null`, once an inject is released or for a viewer without
+     * `bcms.exercise.facilitate` — the same "hidden either way" contract
+     * `attendance.not_checked_in` already uses, and the one `Workspace.jsx`'s
+     * `i.update_url || i.delete_url` guard depends on.
+     */
+    #[Test]
+    public function released_and_viewer_only_injects_carry_no_update_or_delete_url(): void
+    {
+        $definition = $this->definition('FIREDRILL');
+        $occurrence = $this->occurrence($definition, 1);
+        $this->actingAs($this->facilitator)->post(route('bcms.occurrences.start', $occurrence));
+
+        $unreleased = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 1, 'title' => 'Not yet released',
+        ]);
+        $released = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 2, 'title' => 'Already released',
+            'released_at' => now(), 'released_by' => $this->facilitator->getKey(),
+        ]);
+
+        // A facilitator: the unreleased row carries both URLs and a
+        // release_url; the released row carries neither update/delete URL
+        // and its release_url is absent (null), not a link to release again.
+        $this->actingAs($this->facilitator)
+            ->get(route('bcms.occurrences.workspace', $occurrence))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('injects.0.title', $unreleased->title)
+                ->has('injects.0.update_url')
+                ->has('injects.0.delete_url')
+                ->has('injects.0.release_url')
+                ->where('injects.1.title', $released->title)
+                ->missing('injects.1.update_url')
+                ->missing('injects.1.delete_url')
+                ->where('injects.1.release_url', null)
+            );
+
+        // A viewer without facilitate: neither row carries update/delete,
+        // regardless of released state.
+        $this->actingAs($this->evaluator)
+            ->get(route('bcms.occurrences.workspace', $occurrence))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->missing('injects.0.update_url')
+                ->missing('injects.0.delete_url')
+                ->missing('injects.1.update_url')
+                ->missing('injects.1.delete_url')
+            );
+    }
+
+    #[Test]
+    public function the_workspace_shows_the_injects_seeded_on_the_occurrence_and_carries_authoring_urls(): void
+    {
+        $definition = $this->definition('FIREDRILL');
+        $occurrence = $this->occurrence($definition, 1);
+        $this->actingAs($this->facilitator)->post(route('bcms.occurrences.start', $occurrence));
+
+        ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 1, 'title' => 'Seeded inject',
+        ]);
+
+        $this->actingAs($this->facilitator)
+            ->get(route('bcms.occurrences.workspace', $occurrence))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->has('injects', 1)
+                ->where('injects.0.title', 'Seeded inject')
+                ->has('injects.0.update_url')
+                ->has('injects.0.delete_url')
+                ->has('urls.injects_store')
+                ->has('urls.injects_reorder')
+                ->has('options.inject_delivery_channels', 6)
+            );
+    }
+
+    /**
+     * QA gate coverage — `InjectService::reorder()`'s own guard: the payload
+     * must name EXACTLY the occurrence's current set of injects, checked
+     * against the database. A subset (an id missing), a superset (a
+     * duplicate), and a foreign id (belonging to a different occurrence)
+     * must all be refused, and none may change any `sequence`.
+     */
+    #[Test]
+    public function reordering_injects_refuses_a_subset_a_duplicate_and_a_foreign_id(): void
+    {
+        $definition = $this->definition('FIREDRILL');
+        $occurrence = $this->occurrence($definition, 1);
+        $this->actingAs($this->facilitator)->post(route('bcms.occurrences.start', $occurrence));
+
+        $first = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 1, 'title' => 'First inject',
+        ]);
+        $second = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 2, 'title' => 'Second inject',
+        ]);
+
+        $otherOccurrence = $this->occurrence($definition, 2);
+        $foreign = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $otherOccurrence->getKey(),
+            'sequence' => 1, 'title' => 'Belongs elsewhere',
+        ]);
+
+        // A subset — missing $second entirely.
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.reorder', $occurrence), ['inject_ids' => [$first->getKey()]])
+            ->assertRedirect()->assertSessionHas('error');
+
+        // A duplicate id standing in for the missing one.
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.reorder', $occurrence), [
+                'inject_ids' => [$first->getKey(), $first->getKey()],
+            ])
+            ->assertRedirect()->assertSessionHas('error');
+
+        // A foreign id belonging to a different occurrence, in place of $second.
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.reorder', $occurrence), [
+                'inject_ids' => [$first->getKey(), $foreign->getKey()],
+            ])
+            ->assertRedirect()->assertSessionHas('error');
+
+        // None of the refused attempts moved anything.
+        $this->assertSame(1, $first->refresh()->sequence);
+        $this->assertSame(2, $second->refresh()->sequence);
+        $this->assertSame(1, $foreign->refresh()->sequence);
+    }
+
+    /**
+     * D2. `UpdateExerciseInjectRequest`'s `release_offset_minutes` stays
+     * `nullable` — matching `create()`'s own rule — but `InjectService::
+     * update()` now coerces an explicit `null` to `0` the same way `create()`
+     * treats a missing one, rather than writing `null` straight into a
+     * NOT NULL column and 500ing with `SQLSTATE[23000] 1048`.
+     */
+    #[Test]
+    public function patching_a_null_release_offset_is_coerced_to_zero_not_a_500(): void
+    {
+        $definition = $this->definition('FIREDRILL');
+        $occurrence = $this->occurrence($definition, 1);
+        $this->actingAs($this->facilitator)->post(route('bcms.occurrences.start', $occurrence));
+
+        $inject = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 1, 'title' => 'Has an offset', 'release_offset_minutes' => 10,
+        ]);
+
+        $this->actingAs($this->facilitator)
+            ->patch(route('bcms.occurrences.injects.update', [$occurrence, $inject]), [
+                'release_offset_minutes' => null,
+            ])
+            ->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertSame(0, $inject->refresh()->release_offset_minutes);
+    }
+
+    /**
+     * A5. Reordering is refused once the occurrence is `completed` or
+     * `cancelled` — there is no facilitation left for the order to serve.
+     */
+    #[Test]
+    public function reordering_is_refused_once_the_occurrence_is_completed(): void
+    {
+        $definition = $this->definition('FIREDRILL');
+        $occurrence = $this->occurrence($definition, 1);
+        $this->actingAs($this->facilitator)->post(route('bcms.occurrences.start', $occurrence));
+
+        $first = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 1, 'title' => 'First inject',
+        ]);
+        $second = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 2, 'title' => 'Second inject',
+        ]);
+
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.complete', $occurrence), ['outcome' => 'pass'])
+            ->assertRedirect();
+        $this->assertSame(OccurrenceStatus::Completed, $occurrence->refresh()->status);
+
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.reorder', $occurrence), [
+                'inject_ids' => [$second->getKey(), $first->getKey()],
+            ])
+            ->assertRedirect()->assertSessionHas('error');
+
+        $this->assertSame(1, $first->refresh()->sequence);
+        $this->assertSame(2, $second->refresh()->sequence);
+    }
+
+    /**
+     * A5. A released inject's `sequence` is fixed history — a reorder that
+     * would move it is refused, even though the unreleased ones around it
+     * may still move.
+     */
+    #[Test]
+    public function reordering_refuses_to_move_a_released_injects_sequence(): void
+    {
+        $definition = $this->definition('FIREDRILL');
+        $occurrence = $this->occurrence($definition, 1);
+        $this->actingAs($this->facilitator)->post(route('bcms.occurrences.start', $occurrence));
+
+        $first = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 1, 'title' => 'Released first', 'released_at' => now(), 'released_by' => $this->facilitator->getKey(),
+        ]);
+        $second = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 2, 'title' => 'Still scripted',
+        ]);
+
+        // Swapping them would move the released inject off sequence 1.
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.reorder', $occurrence), [
+                'inject_ids' => [$second->getKey(), $first->getKey()],
+            ])
+            ->assertRedirect()->assertSessionHas('error');
+
+        $this->assertSame(1, $first->refresh()->sequence);
+        $this->assertSame(2, $second->refresh()->sequence);
+
+        // A THIRD, unreleased inject may still be placed around it — only
+        // the released one's own position is frozen.
+        $third = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 3, 'title' => 'Newly scripted',
+        ]);
+
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.reorder', $occurrence), [
+                'inject_ids' => [$first->getKey(), $third->getKey(), $second->getKey()],
+            ])
+            ->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertSame(1, $first->refresh()->sequence);
+        $this->assertSame(2, $third->refresh()->sequence);
+        $this->assertSame(3, $second->refresh()->sequence);
+    }
+
+    /**
+     * Code review defect 1: `delete()` leaves a gap in `sequence`, so
+     * comparing a released inject's raw `sequence` against its new 1-based
+     * position drifts apart the moment anything has ever been deleted — and
+     * never recovers. Repro: author A/B/C (1/2/3); release C; delete A
+     * (B, C now stored as 2, 3 — a gap at 1); add D (max()+1 = 4, so D is
+     * stored as 4). C's RANK among {B, C, D} is still 2nd, even though its
+     * stored `sequence` is 3.
+     */
+    #[Test]
+    public function reordering_after_a_gap_uses_the_released_injects_rank_not_its_stored_sequence(): void
+    {
+        $definition = $this->definition('FIREDRILL');
+        $occurrence = $this->occurrence($definition, 1);
+        $this->actingAs($this->facilitator)->post(route('bcms.occurrences.start', $occurrence));
+
+        $a = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 1, 'title' => 'A',
+        ]);
+        $b = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 2, 'title' => 'B',
+        ]);
+        $c = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 3, 'title' => 'C', 'released_at' => now(), 'released_by' => $this->facilitator->getKey(),
+        ]);
+
+        $this->actingAs($this->facilitator)
+            ->delete(route('bcms.occurrences.injects.destroy', [$occurrence, $a]))
+            ->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.store', $occurrence), ['title' => 'D'])
+            ->assertRedirect()->assertSessionHasNoErrors();
+        $d = ExerciseInject::query()->where('title', 'D')->sole();
+
+        // The gap is real: B and C kept their old stored numbers, D landed
+        // past C, not past the gap.
+        $this->assertSame(2, $b->refresh()->sequence);
+        $this->assertSame(3, $c->refresh()->sequence);
+        $this->assertSame(4, $d->refresh()->sequence);
+
+        // The UNCHANGED order must still succeed — this is exactly what the
+        // old sequence-vs-position check refused forever once the gap
+        // existed.
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.reorder', $occurrence), [
+                'inject_ids' => [$b->getKey(), $c->getKey(), $d->getKey()],
+            ])
+            ->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame(1, $b->refresh()->sequence);
+        $this->assertSame(2, $c->refresh()->sequence);
+        $this->assertSame(3, $d->refresh()->sequence);
+
+        // Moving the unreleased ones around the released one, while C KEEPS
+        // its rank (2nd of 3), succeeds.
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.reorder', $occurrence), [
+                'inject_ids' => [$d->getKey(), $c->getKey(), $b->getKey()],
+            ])
+            ->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame(1, $d->refresh()->sequence);
+        $this->assertSame(2, $c->refresh()->sequence);
+        $this->assertSame(3, $b->refresh()->sequence);
+
+        // Moving C's RANK — 1st instead of 2nd — is still refused.
+        $this->actingAs($this->facilitator)
+            ->post(route('bcms.occurrences.injects.reorder', $occurrence), [
+                'inject_ids' => [$c->getKey(), $d->getKey(), $b->getKey()],
+            ])
+            ->assertRedirect()->assertSessionHas('error');
+        $this->assertSame(1, $d->refresh()->sequence);
+        $this->assertSame(2, $c->refresh()->sequence);
+        $this->assertSame(3, $b->refresh()->sequence);
     }
 
     /* ------------------------------------------------------------------ */
@@ -1149,6 +1622,63 @@ class Phase9ExecutionTest extends TestCase
         $this->actingAs($otherUser)->post(route('bcms.occurrences.complete', $occurrence))->assertNotFound();
     }
 
+    /**
+     * QA gate coverage — gap 2's four new routes specifically. Starting an
+     * occurrence early, and authoring/editing/deleting/reordering its
+     * injects, must all 404 for a different tenant's occurrence and inject —
+     * store/reorder through the (unscoped-by-name) `{occurrence}` binding,
+     * update/destroy through the nested, `scopeBindings()`-scoped
+     * `{occurrence}/injects/{inject}` pair.
+     */
+    #[Test]
+    public function starting_early_and_every_inject_route_404s_for_a_different_tenants_occurrence(): void
+    {
+        $definition = $this->definition('FIREDRILL', ['readiness_gating' => false]);
+        $occurrence = $this->occurrence($definition, 1);
+        $occurrence->update(['scheduled_date' => now()->addMonths(6)->toDateString()]);
+
+        $inject = ExerciseInject::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'sequence' => 1, 'title' => 'Tenant A inject',
+        ]);
+
+        $otherOrg = Organization::create([
+            'name' => 'Other Bank Two', 'short_name' => 'OB2',
+            'institution_type' => 'commercial_bank', 'sector' => 'banking', 'is_active' => true,
+        ]);
+        $otherUser = User::query()->create([
+            'name' => 'Outsider Two', 'email' => 'outsider2@ob.test',
+            'password' => Hash::make(Str::random(32)), 'email_verified_at' => now(),
+            'organization_id' => $otherOrg->id, 'is_active' => true,
+        ]);
+        $this->givePermission($otherUser, 'bcms.exercise.facilitate');
+
+        $this->actingAs($otherUser)
+            ->post(route('bcms.occurrences.start', $occurrence), ['confirmed_early_start' => 1])
+            ->assertNotFound();
+        $this->assertNull($occurrence->refresh()->actual_start);
+
+        $this->actingAs($otherUser)
+            ->post(route('bcms.occurrences.injects.store', $occurrence), ['title' => 'Planted from outside'])
+            ->assertNotFound();
+        $this->assertDatabaseMissing('bcms_exercise_injects', ['title' => 'Planted from outside']);
+
+        $this->actingAs($otherUser)
+            ->patch(route('bcms.occurrences.injects.update', [$occurrence, $inject]), ['title' => 'Overwritten from outside'])
+            ->assertNotFound();
+        $this->assertSame('Tenant A inject', $inject->refresh()->title);
+
+        $this->actingAs($otherUser)
+            ->delete(route('bcms.occurrences.injects.destroy', [$occurrence, $inject]))
+            ->assertNotFound();
+        $this->assertDatabaseHas('bcms_exercise_injects', ['id' => $inject->getKey()]);
+
+        $this->actingAs($otherUser)
+            ->post(route('bcms.occurrences.injects.reorder', $occurrence), ['inject_ids' => [$inject->getKey()]])
+            ->assertNotFound();
+        $this->assertSame(1, $inject->refresh()->sequence);
+    }
+
     /* ------------------------------------------------------------------ */
     /*  Helpers */
     /* ------------------------------------------------------------------ */
@@ -1217,7 +1747,11 @@ class Phase9ExecutionTest extends TestCase
             'organization_id' => $this->organization->id,
             'definition_id' => $definition->getKey(),
             'sequence_no' => $sequence,
-            'scheduled_date' => now()->addDays(3 * $sequence)->toDateString(),
+            // Today, not a future offset: every test in this file starts the
+            // occurrence via `bcms.occurrences.start` immediately after
+            // creating it, and `start()` now refuses an early start (gap 1)
+            // without `confirmed_early_start`.
+            'scheduled_date' => now()->toDateString(),
             'status' => OccurrenceStatus::Planned,
             'facilitator_id' => $this->facilitator->id,
         ]);

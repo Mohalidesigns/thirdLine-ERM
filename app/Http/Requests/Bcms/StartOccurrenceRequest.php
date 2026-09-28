@@ -10,6 +10,11 @@ use Illuminate\Foundation\Http\FormRequest;
  * criterion 2) — `OccurrenceExecutionService::start()` still calls the
  * existing `ReadinessService::gate()` and audits the override itself; this
  * flag is only the caller's acknowledgement that they saw the warning.
+ *
+ * `confirmed_early_start` is the same shape of flag for the OTHER gate
+ * `start()` checks: today is before `scheduled_date`. Both are
+ * acknowledgements the caller saw a warning, not authority of their own —
+ * the service decides whether either gate applies.
  */
 class StartOccurrenceRequest extends FormRequest
 {
@@ -23,6 +28,7 @@ class StartOccurrenceRequest extends FormRequest
     {
         return [
             'confirmed_override' => ['nullable', 'boolean'],
+            'confirmed_early_start' => ['nullable', 'boolean'],
         ];
     }
 }

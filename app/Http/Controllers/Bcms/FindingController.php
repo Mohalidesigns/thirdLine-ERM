@@ -90,12 +90,32 @@ class FindingController extends Controller
                     'label' => ucfirst(str_replace('_', ' ', $c->value)),
                     'requires_action' => $c->requiresCorrectiveAction(),
                 ], FindingClassification::cases()),
-                'sources' => array_map(fn (FindingSource $s) => [
+                // QA re-gate cycle 3: `incident` and `dr_test` are excluded
+                // from this register's own generic "raise a finding" source
+                // picker — this form has no `aar_id`/`dr_test_id` field, and
+                // `FindingController::store()`'s per-source switch now
+                // refuses both without one (D1: a finding raised as
+                // `incident`/`dr_test` must actually be tied to the review
+                // or test it came from). Those two sources are raised from
+                // the PIR screen and the DR-test record instead, which
+                // already supply the id. `aar` stays — its `aar_id` is
+                // optional by design (`FindingSource`'s own docblock), so
+                // this form can still raise one with none.
+                'sources' => array_values(array_map(fn (FindingSource $s) => [
+                    'value' => $s->value, 'label' => $s->label(),
+                ], array_filter(
+                    FindingSource::cases(),
+                    fn (FindingSource $s) => ! in_array($s, [FindingSource::Incident, FindingSource::DrTest], true)
+                ))),
+                // The register's own SOURCE FILTER, unlike the raise form
+                // above: filtering the list by `incident` or `dr_test` is
+                // filtering rows that already exist (raised elsewhere, with
+                // their id correctly attached), not raising a new one with
+                // no id to give it — so this one carries all eight.
+                'filter_sources' => array_map(fn (FindingSource $s) => [
                     'value' => $s->value, 'label' => $s->label(),
                 ], FindingSource::cases()),
-                'clause_refs' => array_map(fn (IsoClauseRef $c) => [
-                    'value' => $c->value, 'standard' => $c->standard(),
-                ], IsoClauseRef::cases()),
+                'clause_refs' => IsoClauseRef::options(),
                 // Both pickers name a specific process or plan to attach a
                 // finding to; a Kano user is not choosing among Lagos's, same
                 // reasoning as the list above. `users` stays unscoped — a
@@ -150,26 +170,194 @@ class FindingController extends Controller
 
         $aarRecord = isset($data['aar_id']) ? Aar::query()->find($data['aar_id']) : null;
         $drTestRecord = isset($data['dr_test_id']) ? \App\Models\Bcms\DrTest::query()->find($data['dr_test_id']) : null;
-        $sourceRecord = $aarRecord ?? $drTestRecord;
+        $source = FindingSource::from($data['source']);
+
+        // QA gate 1, defect 2: BOTH kinds of `bcms_aars` row withdraw their
+        // "Raise a finding" control once `status === 'final'` — the exercise
+        // builder (`Aar.jsx`: `can.finding_manage && !isFinal`, gating the
+        // same `bcms.findings.store` form this route serves) and the PIR
+        // screen (`IncidentPresenter::review()`'s `urls.raise_finding`, only
+        // while `$aar->status !== 'final'`) apply the identical rule for the
+        // identical reason: `AarService::reopen()` is the one explicit,
+        // audited way to unlock a finalised report for more evidence, and a
+        // control that raises a finding straight past that is exactly what
+        // the withdrawn button was for. Nothing found in the AAR builder
+        // spec, the clause map or the exercise test suite treats a
+        // finalised EXERCISE AAR differently — the button is withdrawn there
+        // too — so the same refusal applies to both, not only the PIR this
+        // gap was reported against. Checked BEFORE the source/record
+        // integrity checks below so a finalised AAR is refused for being
+        // finalised, not for whatever else might be wrong with the request.
+        if ($aarRecord !== null && $aarRecord->status === 'final') {
+            return back()->withErrors([
+                'aar_id' => 'That report has already been finalised and cannot have a new finding raised against it. '
+                    .'Reopen it first.',
+            ])->withInput();
+        }
+
+        // Code review gate 2, defect 1: the two-FK design (this class's own
+        // docblock, and `bcms_findings`' migration docblock) means an
+        // `aar_id`/`dr_test_id` sent with the WRONG `source` does not fail —
+        // it silently produces a malformed row. Two ways this was reachable:
+        // `source = aar` with a PIR's `aar_id` was accepted, filing an
+        // exercise-clause finding (`iso22301.8.5.report`) against a real
+        // incident and satisfying `PirService::conditions()`'s `6_findings`
+        // with a finding that has no `incident_id`; `source = dr_test` with
+        // only an `aar_id` reached `sourceLink()`, which used
+        // `$source->foreignKey()` — `dr_test_id` — with the AAR's own key,
+        // either a foreign-key violation or, worse, a silent cross-tenant
+        // link if a `dr_tests` row happened to share that id. The record is
+        // now derived FROM `$source`, and every mismatch is refused with a
+        // validation error on the field that does not belong, before
+        // `FindingService::raise()` ever sees it.
+        $sourceRecord = null;
+        $extraAttributes = [];
+
+        switch ($source) {
+            case FindingSource::Aar:
+                if ($drTestRecord !== null) {
+                    return back()->withErrors([
+                        'dr_test_id' => 'A finding raised with source "aar" does not take a DR test id.',
+                    ])->withInput();
+                }
+
+                // Nullable by design (`FindingSource`'s own docblock: "aar,
+                // incident, call_tree_test and dr_test each have a nullable
+                // foreign key") — an `aar_id` is not mandatory here, but if
+                // one IS sent it must actually be an exercise AAR, not a PIR
+                // wearing the same table.
+                if ($aarRecord !== null && $aarRecord->isPostIncident()) {
+                    return back()->withErrors([
+                        'aar_id' => 'That review is a post-incident review, not an exercise after-action report, '
+                            .'so a finding cannot be raised against it with source "aar".',
+                    ])->withInput();
+                }
+
+                $sourceRecord = $aarRecord;
+                break;
+
+            case FindingSource::Incident:
+                // Unlike `aar`, this route has no bare `incident_id` field —
+                // the ONLY way to reach an incident here is through a PIR's
+                // `aar_id` — so, for this route, "incident requires a PIR"
+                // means `aar_id` is mandatory, not merely type-checked.
+                if ($aarRecord === null) {
+                    return back()->withErrors([
+                        'aar_id' => 'A finding with source "incident" must name the post-incident review it was '
+                            .'raised from.',
+                    ])->withInput();
+                }
+
+                // QA gate 1, defect 1 (original wording preserved — the
+                // regate test names this exact message): an exercise AAR
+                // (`occurrence_id` set, `incident_id` null) is a valid,
+                // visible `Aar` row under `VisibleToUser`, so without this
+                // check `$aarRecord->incident` below would silently evaluate
+                // to null and the finding would be created anyway as
+                // `source = incident`, `incident_id = null`.
+                if (! $aarRecord->isPostIncident()) {
+                    return back()->withErrors([
+                        'aar_id' => 'That review is not a post-incident review, so a finding cannot be raised '
+                            .'against it with source "incident".',
+                    ])->withInput();
+                }
+
+                if ($drTestRecord !== null) {
+                    return back()->withErrors([
+                        'dr_test_id' => 'A finding raised with source "incident" does not take a DR test id.',
+                    ])->withInput();
+                }
+
+                // `FindingSource::Incident->foreignKey()` is `incident_id`,
+                // not `aar_id` — `sourceLink()` needs the INCIDENT to stamp
+                // the right column, and `aar_id` is carried through
+                // separately so `PirService::conditions()`'s `6_findings`
+                // check (`Finding::where('aar_id', ...)`) can still find it.
+                $sourceRecord = $aarRecord->incident;
+                $extraAttributes['aar_id'] = $aarRecord->getKey();
+                break;
+
+            case FindingSource::DrTest:
+                if ($drTestRecord === null) {
+                    return back()->withErrors([
+                        'dr_test_id' => 'A finding with source "dr_test" must name the DR test it was raised from.',
+                    ])->withInput();
+                }
+
+                if ($aarRecord !== null) {
+                    return back()->withErrors([
+                        'aar_id' => 'A finding raised with source "dr_test" does not take an AAR id.',
+                    ])->withInput();
+                }
+
+                $sourceRecord = $drTestRecord;
+                break;
+
+            default:
+                // `call_tree_test`, `audit`, `gap_analysis` and
+                // `management_review` take no record through this route —
+                // none of their FKs has a field here — so an `aar_id` or
+                // `dr_test_id` sent alongside one of them is not silently
+                // ignored, it is refused.
+                if ($aarRecord !== null) {
+                    return back()->withErrors([
+                        'aar_id' => "A finding raised with source \"{$source->value}\" does not take an AAR id.",
+                    ])->withInput();
+                }
+
+                if ($drTestRecord !== null) {
+                    return back()->withErrors([
+                        'dr_test_id' => "A finding raised with source \"{$source->value}\" does not take a DR test id.",
+                    ])->withInput();
+                }
+        }
 
         try {
             $finding = $this->findings->raise(
-                FindingSource::from($data['source']),
+                $source,
                 FindingClassification::from($data['classification']),
                 $data['description'],
                 $sourceRecord,
-                array_intersect_key($data, array_flip(['severity', 'root_cause', 'iso_clause_ref', 'affected_process_id', 'affected_plan_id'])),
+                array_merge(
+                    array_intersect_key($data, array_flip(['severity', 'root_cause', 'iso_clause_ref', 'affected_process_id', 'affected_plan_id'])),
+                    $extraAttributes,
+                ),
                 $request->user()?->getKey(),
             );
         } catch (\InvalidArgumentException $e) {
-            return back()->with('error', $e->getMessage());
+            // Code review D2: a bare `back()->with('error', ...)` carries no
+            // error bag, and Inertia treats a redirect with no error bag as
+            // success — `RaiseFinding.jsx`'s `onSuccess` reset and closed the
+            // form, discarding the officer's typed description with only a
+            // toast (easy to miss, and gone on the next navigation) as the
+            // only sign anything happened. `resolveClauseRef()`'s refusal
+            // (no clause named on a nonconformity) is a validation failure on
+            // a specific field, so it is flashed as one, the same shape every
+            // other refusal in this method already uses.
+            return back()->withErrors(['iso_clause_ref' => $e->getMessage()])->withInput();
         }
 
-        if ($aarRecord !== null && ($data['objective_text'] ?? null) !== null) {
+        // Code review A5: `linkObjectiveToFinding()` writes into
+        // `quantitative_results['objectives']`, a shape the exercise AAR
+        // builder owns (Phase 9's per-objective scoring); a PIR's
+        // `quantitative_results` holds its own PIR metrics instead
+        // (`readyToFinalisePir()`'s fixture shape), so a direct POST of
+        // `objective_text` against a PIR's `aar_id` overwrote it with
+        // `objectives: []`. Only an exercise AAR — `! isPostIncident()` — is
+        // in scope for this link.
+        if ($aarRecord !== null && ! $aarRecord->isPostIncident() && ($data['objective_text'] ?? null) !== null) {
             $this->aar->linkObjectiveToFinding($aarRecord, $data['objective_text'], $finding->reference);
         }
 
-        return back()->with('success', "Finding {$finding->reference} raised.");
+        // Code review A3: `existingFor()` folds a repeat into the row it
+        // already raised rather than duplicating it (`FindingService`'s own
+        // "idempotent on its source" contract) — `wasRecentlyCreated` is
+        // Eloquent's own flag for exactly this, false on a row `raise()`
+        // fetched rather than inserted, so the flash message says which one
+        // happened instead of "raised" every time regardless.
+        $verb = $finding->wasRecentlyCreated ? 'raised' : 'already raised';
+
+        return back()->with('success', "Finding {$finding->reference} {$verb}.");
     }
 
     public function close(Request $request, Finding $finding): RedirectResponse

@@ -30,12 +30,43 @@ class OccurrenceExecutionService
     ) {}
 
     /**
+     * Whether `start()` would need `confirmedEarlyStart` right now — today is
+     * still before the occurrence's `scheduled_date`. Shared with the
+     * readiness screen so the Start button can ask before the server refuses.
+     */
+    public function startsEarly(ExerciseOccurrence $occurrence): bool
+    {
+        return $occurrence->scheduled_date !== null
+            && now()->startOfDay()->lt($occurrence->scheduled_date->copy()->startOfDay());
+    }
+
+    /**
      * @return ExerciseOccurrence the started occurrence, refreshed
      */
-    public function start(ExerciseOccurrence $occurrence, User $by, bool $confirmedOverride = false): ExerciseOccurrence
-    {
+    public function start(
+        ExerciseOccurrence $occurrence,
+        User $by,
+        bool $confirmedOverride = false,
+        bool $confirmedEarlyStart = false,
+    ): ExerciseOccurrence {
         if ($occurrence->actual_start !== null) {
             throw new InvalidArgumentException('This exercise has already started.');
+        }
+
+        // THE DATE GUARD. Nothing stopped a 2027 exercise starting today
+        // before this — `start()` only ever checked `actual_start`. Starting
+        // ahead of `scheduled_date` is not refused outright (a facilitator
+        // legitimately runs a drill early sometimes, and the demo itself
+        // starts a 2027-dated simulation today), but it is never silent: it
+        // needs the same explicit, named confirmation the readiness override
+        // already uses, and it is audited either way.
+        $startedEarly = $this->startsEarly($occurrence);
+
+        if ($startedEarly && ! $confirmedEarlyStart) {
+            throw new InvalidArgumentException(sprintf(
+                'This exercise is scheduled for %s, which has not arrived. Confirm to start it early.',
+                $occurrence->scheduled_date->toFormattedDateString(),
+            ));
         }
 
         $gate = $this->readiness->gate($occurrence);
@@ -54,7 +85,11 @@ class OccurrenceExecutionService
             'status' => OccurrenceStatus::InProgress->value,
         ]);
 
-        $occurrence->recordAudit('exercise_started', ['by' => $by->name, 'gate_overridden' => ! $gate['allowed']]);
+        $occurrence->recordAudit('exercise_started', [
+            'by' => $by->name,
+            'gate_overridden' => ! $gate['allowed'],
+            'started_early' => $startedEarly,
+        ]);
 
         return $occurrence->refresh();
     }

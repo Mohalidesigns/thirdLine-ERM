@@ -480,7 +480,10 @@ class Phase9ScreensTest extends TestCase
             'organization_id' => $this->organization->id,
             'definition_id' => $definition->getKey(),
             'sequence_no' => $sequence,
-            'scheduled_date' => now()->addDays(3 * $sequence)->toDateString(),
+            // Today, not a future offset — `start()` now refuses an early
+            // start (gap 1) without `confirmed_early_start`, and this
+            // occurrence is started immediately after creation.
+            'scheduled_date' => now()->toDateString(),
             'status' => OccurrenceStatus::Planned,
             'facilitator_id' => $this->facilitator->id,
         ]);

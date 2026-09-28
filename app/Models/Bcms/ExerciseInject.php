@@ -2,6 +2,7 @@
 
 namespace App\Models\Bcms;
 
+use App\Models\Bcms\Concerns\BcmsAuditable;
 use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -29,7 +30,13 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class ExerciseInject extends Model
 {
-    use BelongsToOrganization, BindsToVisibleRecord, HasFactory;
+    // GAP 2: authoring — create/update/delete now go through `InjectService`,
+    // so `BcmsAuditable` gives every one of those a `bcms_audit_logs` row for
+    // free, the same way `Evidence` does. `release()` still logs its own
+    // `inject` timeline entry on top; that is the AAR's record of what
+    // happened during the exercise, this is the audit trail of who authored
+    // and changed the script.
+    use BcmsAuditable, BelongsToOrganization, BindsToVisibleRecord, HasFactory;
 
     /**
      * Derived (ADR 0017 §2): an inject has no unit column of its own and takes

@@ -2,6 +2,7 @@
 
 namespace App\Models\Bcms;
 
+use App\Models\Bcms\Concerns\BcmsAuditable;
 use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,6 +16,13 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * A blocking task that is not closed stops the exercise. It can be overridden,
  * never silently: the reason and the person are recorded and the AAR reports
  * the override.
+ *
+ * `BcmsAuditable`, the same way `ExerciseInject` carries it: `complete()` and
+ * `override()` in `ReadinessService` both call `update()`, which gives every
+ * completion and override a `bcms_audit_logs` row for free, on top of the
+ * named `readiness_task_completed`/`readiness_task_overridden` events those
+ * two methods record explicitly for the human-readable "who, and why" a
+ * column diff alone does not carry.
  *
  * @property int $id
  * @property int $organization_id
@@ -38,7 +46,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class ReadinessTask extends Model
 {
-    use BelongsToOrganization, BindsToVisibleRecord, HasFactory;
+    use BcmsAuditable, BelongsToOrganization, BindsToVisibleRecord, HasFactory;
 
     protected $table = 'bcms_readiness_tasks';
 

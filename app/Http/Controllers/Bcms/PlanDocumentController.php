@@ -105,16 +105,33 @@ class PlanDocumentController extends Controller
     /**
      * Record that this reader has read this plan.
      *
-     * NO EXTRA PERMISSION. Anybody who may see a plan may say they have read
-     * it, and requiring a permission to acknowledge would mean the people the
-     * plan is distributed to could not produce the evidence that it was.
+     * GAP 5 — OWNERSHIP-SCOPED, NOT A NEW PERMISSION. A holder of the broad
+     * `bcms.plan.view` grant may acknowledge any plan, as before. Someone who
+     * holds only `my.view` (the route's other arm — Oluwaseun's case: a
+     * `loss-event-manager` who sees the My Resilience page but not the plan
+     * register) may acknowledge only a plan whose `distribution_rule`
+     * actually names them — `PlanAcknowledgementService::isDistributedTo()`,
+     * the same audience grammar `coverage()` measures against. Requiring
+     * `bcms.plan.view` outright would mean the very people a plan is
+     * distributed to could not produce the clause 7.4 evidence that they
+     * read it; granting it broadly to fix that would let a `my.view`-only
+     * employee browse every plan in the tenant, which is a bigger grant than
+     * "let me confirm I read the one addressed to me".
      */
     public function acknowledge(Request $request, Plan $plan): RedirectResponse
     {
-        Gate::authorize('bcms.plan.view');
+        $user = $request->user();
+
+        if ($user?->can('bcms.plan.view') !== true) {
+            Gate::authorize('my.view');
+
+            if (! $this->acknowledgements->isDistributedTo($plan, $user)) {
+                abort(403, 'This plan has not been distributed to you.');
+            }
+        }
 
         try {
-            $this->acknowledgements->acknowledge($plan, $request->user(), $request->ip());
+            $this->acknowledgements->acknowledge($plan, $user, $request->ip());
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
         }

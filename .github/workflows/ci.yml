@@ -102,6 +102,23 @@ jobs:
           npm run build
           node -e "const m=require('./public/build/manifest.json'); for (const k of ['resources/js/app.jsx','resources/css/app.css']) { if (!m[k]) { console.error('manifest missing '+k); process.exit(1); } } if (m['resources/js/app.js']) { console.error('resources/js/app.js is back in the manifest; Livewire was removed in Phase 6.8'); process.exit(1); }"
 
+      # The ThirdLine field/table look is held by a static audit, not by review.
+      # Phase 2C's two identity screens reached the branch with five deviations
+      # because nothing ran it; and the audit's own rules are proved against
+      # fixtures first, so a weakened rule fails here rather than letting a
+      # screen through. It gates the three modules and the WHOLE shared package
+      # — the field baseline in app.css is document-wide, so a changed-files
+      # scope certifies nothing about packages/ui. The legacy ERM pages stay
+      # out of scope: they carry hundreds of pre-adoption findings.
+      #
+      # THE LIST DOES NOT GROW ON ITS OWN. A directory that goes missing fails
+      # loudly; a NEW module directory that is never added here is skipped in
+      # silence. Add it when you create it.
+      - name: Guard — UI audit (RCSA, TPRM, BCMS and the shared package)
+        run: |
+          npm run ui:audit:test
+          npm run ui:audit -- resources/js/Pages/Rcsa* resources/js/Pages/Tprm resources/js/Pages/TprmPortal resources/js/Components/Tprm resources/js/Pages/Bcms resources/js/Components/Bcms packages/ui/src
+
       - name: Guard — migration parity
         run: php scripts/parity-check.php
 

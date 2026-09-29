@@ -10,9 +10,10 @@
  * <label> that styles itself. Exit code 1 when anything is listed, so it can
  * gate a phase. Layout tables (border-separate) and hidden/sr-only fields are
  * exempt by design, as is a <table data-table-exempt="reason"> (rendered rich
- * text, a compact dashboard widget). It gates a CHANGED SET, never the whole tree: the legacy
- * ERM screens carry hundreds of pre-adoption findings, so pass the files of
- * the diff under review.
+ * text, a compact dashboard widget). It never gates the whole tree: the legacy ERM
+ * screens carry hundreds of pre-adoption findings. CI runs it over the RCSA,
+ * TPRM and BCMS directories and the whole of packages/ui/src (the list is in
+ * .github/workflows/ci.yml); locally, pass those or the files of a diff.
  */
 import fs from 'node:fs';
 import path from 'node:path';

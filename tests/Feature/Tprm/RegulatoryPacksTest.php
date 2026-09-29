@@ -522,6 +522,15 @@ class RegulatoryPacksTest extends TestCase
     /** Same shape as RegisterScreensTest::countQueriesFor(). */
     private function countQueriesFor(string $url): int
     {
+        // FREEZE THE CLOCK. EnsureAuthenticated touches `users.last_activity_at`
+        // with `now()` on every request, and Eloquent skips the UPDATE when the
+        // stored value already equals `now()` at second precision — so whether
+        // a measured request carries that one query depends on the wall clock.
+        // The tolerance below absorbed it without naming it. With time frozen
+        // the warm-up writes the timestamp once and the measured request never
+        // does (see WorkspacePerformanceTest, 4db428e).
+        $this->freezeTime();
+
         $this->actingAs($this->user)->get($url)->assertOk();
 
         $count = 0;

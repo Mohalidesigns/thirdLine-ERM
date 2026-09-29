@@ -194,6 +194,15 @@ class Phase4ScreensTest extends TestCase
     #[Test]
     public function the_agenda_views_query_count_does_not_grow_with_the_number_of_occurrences(): void
     {
+        // FREEZE THE CLOCK. EnsureAuthenticated touches `users.last_activity_at`
+        // with `now()` on every request, and Eloquent skips the UPDATE when the
+        // stored value already equals `now()` at second precision — so whether
+        // a measured request carries that one query depends on the wall clock.
+        // With time frozen, the warm-up request in the closure writes the
+        // timestamp once and no measured request does (see
+        // WorkspacePerformanceTest, 4db428e).
+        $this->freezeTime();
+
         $queryCountFor = function (int $occurrenceCount): int {
             $definition = $this->definition('DRFAILOVER', $occurrenceCount, ['name' => 'Batch '.$occurrenceCount]);
             app(OccurrenceGenerator::class)->generate($definition);
@@ -209,15 +218,20 @@ class Phase4ScreensTest extends TestCase
                 );
             }
 
+            $url = route('bcms.calendar.index', [
+                'view' => 'agenda', 'year' => $this->year,
+                'from' => $this->year.'-01-01', 'to' => $this->year.'-12-31',
+            ]);
+            $user = $this->userWith(['bcms.exercise.view']);
+
+            // Warm-up, unmeasured: the first request in a process also pays for
+            // the permission cache, which is not what this test is counting.
+            $this->actingAs($user)->get($url)->assertOk();
+
             DB::enableQueryLog();
             DB::flushQueryLog();
 
-            $this->actingAs($this->userWith(['bcms.exercise.view']))
-                ->get(route('bcms.calendar.index', [
-                    'view' => 'agenda', 'year' => $this->year,
-                    'from' => $this->year.'-01-01', 'to' => $this->year.'-12-31',
-                ]))
-                ->assertOk();
+            $this->actingAs($user)->get($url)->assertOk();
 
             $count = count(DB::getQueryLog());
             DB::disableQueryLog();

@@ -52,7 +52,7 @@ class RiskRegisterController extends Controller
         // denormalised current columns.
         $selectedPeriod = PeriodContext::current();
 
-        if ($selectedPeriod !== null && $selectedPeriod->end_date?->isPast()) {
+        if ($selectedPeriod?->hasEnded()) {
             return $this->historicIndex($request, $selectedPeriod);
         }
 

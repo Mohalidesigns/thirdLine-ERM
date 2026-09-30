@@ -193,3 +193,17 @@ not only a `TIMESTAMP` one; the same implicit `ON UPDATE CURRENT_TIMESTAMP`
 clause is exactly as bad on a `DATETIME` column, and the allowlist is empty.
 Guarded by `NoSelfUpdatingTimestampColumnsTest`, which scans every column of
 every table, of any type. See ADR 0022.
+
+## 14. A `date` cast is a day, not an instant
+
+A column cast `'date'` comes back as midnight at the START of that day, so
+`$model->end_date->isPast()` is true for the whole of the last day, and
+`where('due_date', '<', now())` has MariaDB widen the DATE to that same
+midnight. The register, the command centre and the heatmap decided "this
+period is over" that way and showed every user the historic "as at" view on
+the last day of every month; the suite was green on 29 September and CI was
+red on the 30th. Ask the model — `Period::hasEnded()` — or compare days to
+days: `DateBounds::endOfDay()`, `whereDate($col, '<', now()->toDateString())`.
+Never `->isPast()`/`->isFuture()` on a date cast, and never a bare `now()`
+against a DATE column. The same shape remains on some due-date readers,
+where "due today" reads as overdue; they are booked, not exempt.

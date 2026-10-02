@@ -22,6 +22,15 @@ npm run build
 echo "==> Migrations"
 php artisan migrate --force
 
+# The permission catalogue is additive: SeedsPermissions::syncCatalog uses
+# findOrCreate and givePermissionTo and never revokes, so re-running it on every
+# deploy adds the permissions a release introduced to tenants that already exist
+# — which a fresh-install seeder otherwise never reaches. Note that it also
+# re-grants a catalogue permission an administrator had removed from a built-in
+# role, and recreates a built-in role that was deleted.
+echo "==> Sync permission catalog"
+php artisan db:seed --class=RolesAndPermissionsSeeder --force
+
 echo "==> Cache config/routes/views"
 php artisan config:cache
 php artisan route:cache

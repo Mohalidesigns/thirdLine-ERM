@@ -136,172 +136,7 @@ use App\Http\Controllers\Tprm\RulesetController as TprmRulesetController;
 use App\Http\Controllers\Tprm\ScreeningController as TprmScreeningController;
 use App\Http\Controllers\Tprm\SlaController as TprmSlaController;
 use App\Http\Controllers\Tprm\ThirdPartyController as TprmThirdPartyController;
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Str;
-
-/*
-|--------------------------------------------------------------------------
-| Rate limits on the authentication surface
-|--------------------------------------------------------------------------
-|
-| PREVIOUS BEHAVIOUR: nothing in this file was throttled. `POST login`,
-| `POST mfa/verify`, `POST forgot-password` and `POST auth/sso/discover` all
-| accepted unlimited attempts from anyone who could reach the host. On a
-| platform holding a bank's risk register that is the cheapest attack available:
-| an offline-quality password guessing rate against a live login form.
-|
-| CHOOSING THE KEY IS THE WHOLE DESIGN. These deployments sit inside banks,
-| where several hundred staff share one or two NAT egress addresses. A purely
-| per-IP limit on `login` would mean the head office throttling itself every
-| Monday morning, and an operator whose first experience of a security control
-| is a self-inflicted outage turns it off. So each limiter below uses the
-| narrowest key that still bounds the attack:
-|
-|   login            per (email, IP) primarily; a loose per-IP ceiling second
-|   mfa-verify       per (account, IP) — the brute-force target, tightest limit
-|   password-reset   per email primarily, because the abuse is mail-bombing one
-|                    named person; a loose per-IP ceiling second
-|   sso-discover     per IP, because there is no account involved — the abuse is
-|                    enumerating which customer domains are federated
-|
-| The SCIM group is limited too; its limiter lives beside the API's own in
-| routes/api.php, which is where the rest of the machine-to-machine surface is
-| configured.
-|
-| Every ceiling below is stated with the normal-use figure it has to clear, so
-| the next person can tell whether a change is safe.
-*/
-
-/*
- * LOGIN.
- *
- * Two limits, and both apply:
- *
- *   5 per minute per (email, IP) — one person, at one keyboard, getting their
- *   own password wrong. Five tries a minute is more than a human needs and far
- *   below what guessing needs. Keyed on the PAIR rather than on the email alone
- *   so that an attacker cannot consume a colleague's budget; keyed on the email
- *   as well as the IP so that one machine cannot grind a single account.
- *
- *   60 per minute per IP — the anti-spray ceiling: one source trying many
- *   different accounts. Deliberately generous, because in these deployments one
- *   IP is an entire office. A 200-person branch signing in over a ten-minute
- *   window is ~20/min, and this leaves 3x headroom on top. It bounds spraying
- *   at 86,400 attempts/day from a single address, which is not zero — the
- *   honest statement is that a shared-egress deployment cannot have a tight
- *   per-IP login limit, and that detection (repeated failures across many
- *   distinct accounts from one address) is the control that closes the rest.
- *
- * Both are counted per REQUEST, not per failure, because ThrottleRequests runs
- * before the controller. A user who signs in successfully consumes one of the
- * five, which does not matter at these numbers.
- */
-RateLimiter::for('login', function (Request $request) {
-    $email = Str::lower(trim((string) $request->input('email')));
-
-    return [
-        Limit::perMinute(5)->by('login:'.sha1($email.'|'.$request->ip())),
-        Limit::perMinute(60)->by('login-ip:'.$request->ip()),
-    ];
-});
-
-/*
- * MFA VERIFICATION AND ENROLMENT CONFIRMATION.
- *
- * A six-digit code checked against a plus/minus-one-step window is one guess in
- * ~333,333 per attempt. The verification controller keeps no attempt counter
- * of its own, so before this limiter existed the expected number of requests to
- * walk in was well inside what a script does over a lunch break.
- *
- * 5 attempts per 15 minutes per (account, IP) reduces that to roughly 20 codes
- * an hour, i.e. centuries of expected guessing, while still letting a user who
- * fat-fingers a code or whose phone clock has drifted try again shortly. The
- * account part of the key is the pending user id during sign-in verification and
- * the authenticated user id during enrolment confirmation, so the same limiter
- * serves mfa/verify and mfa/enable.
- *
- * The 30-per-hour per-IP ceiling catches somebody cycling sessions to reset the
- * narrower key.
- *
- * NOTE: mfa/verify and mfa/enable are behind `feature:mfa_totp` and return 404
- * while the flag is off. The limiter is applied anyway so that the route is not
- * left unthrottled for whoever turns the flag on.
- */
-RateLimiter::for('mfa-verify', function (Request $request) {
-    $account = $request->session()->get('mfa_pending_user_id')
-        ?? $request->user()?->getAuthIdentifier()
-        ?? 'anonymous';
-
-    return [
-        Limit::perMinutes(15, 5)->by('mfa:'.sha1($account.'|'.$request->ip())),
-        Limit::perMinutes(60, 30)->by('mfa-ip:'.$request->ip()),
-    ];
-});
-
-/*
- * PASSWORD RESET REQUESTS.
- *
- * The abuse here is not guessing, it is mail-bombing: `POST forgot-password`
- * sends an email to an address the caller names, so an unthrottled endpoint is a
- * free outbound mailer pointed at a named member of staff, and it also burns the
- * deployment's SMTP reputation.
- *
- *   5 per hour per email — keyed on the EMAIL rather than the pair, because the
- *   victim is the mailbox and a botnet would otherwise get one send per source.
- *   Nobody legitimately needs a sixth reset link in an hour; the link is valid
- *   for an hour and reusable.
- *
- *   60 per hour per IP — the office-NAT allowance. High enough that a shared
- *   egress address cannot exhaust it during a normal morning.
- *
- * Keying on the email does mean an attacker can stop one person from requesting
- * a reset for an hour. That is a real, bounded nuisance and it is the lesser
- * evil: the alternative key lets the same attacker deliver hundreds of reset
- * emails to that person instead. It expires on its own, and an administrator can
- * reset the password directly from the user screen in the meantime.
- */
-RateLimiter::for('password-reset', function (Request $request) {
-    $email = Str::lower(trim((string) $request->input('email')));
-
-    return [
-        Limit::perMinutes(60, 5)->by('pwreset:'.sha1($email)),
-        Limit::perMinutes(60, 60)->by('pwreset-ip:'.$request->ip()),
-    ];
-});
-
-/*
- * HOME-REALM DISCOVERY.
- *
- * `POST auth/sso/discover` turns an email address into a sign-in URL, which
- * makes it an oracle for "is this company a customer, and is their domain
- * federated". SsoController already answers vaguely for unknown domains; the
- * limit is what stops the vague answer being ground down by enumerating a
- * dictionary of domains.
- *
- * 30 per minute per IP. No account exists at this point in the flow, so the IP
- * is the only key available. A real user hits this once per sign-in, so 30 a
- * minute clears normal office use by a wide margin while making domain
- * enumeration slow enough to be visible in the logs.
- */
-RateLimiter::for('sso-discover', function (Request $request) {
-    return Limit::perMinute(30)->by('sso-discover:'.$request->ip());
-});
-
-/*
- * LICENCE ACTIVATION.
- *
- * `POST admin/settings/license/activate` forwards the supplied key to the
- * LicensingServer with retries, which makes an unthrottled endpoint a
- * licence-key brute-forcer with somebody else's server as the oracle. The
- * caller is always an authenticated licence manager, so the key is the user;
- * five attempts a minute is more than a person pasting a key needs.
- */
-RateLimiter::for('license-activate', function (Request $request) {
-    return Limit::perMinute(5)->by('license:'.($request->user()?->getAuthIdentifier() ?? $request->ip()));
-});
 
 /*
 |--------------------------------------------------------------------------
@@ -339,7 +174,8 @@ Route::get('/', function () {
 
 // Migration Phase 1: sign-in, sign-out, password reset, MFA and the profile
 // live in routes/auth.php (Breeze-shaped controllers, Inertia pages). Route
-// names are unchanged; the limiters they reference are defined above.
+// names are unchanged; the limiters they reference are registered in
+// `AppServiceProvider::registerAuthRateLimiters()`.
 require __DIR__.'/auth.php';
 
 /* ---------------------------------------------------------------------- */
@@ -507,7 +343,7 @@ Route::prefix('admin')->middleware(['auth'])->group(function () {
         Route::get('settings/license', [LicenseController::class, 'index'])->name('admin.license');
 
         // Each of these reaches the LicensingServer; see the license-activate
-        // limiter at the top of this file.
+        // limiter in `AppServiceProvider::registerAuthRateLimiters()`.
         Route::middleware('throttle:license-activate')->group(function () {
             Route::post('settings/license/activate', [LicenseController::class, 'activate'])->name('admin.license.activate');
             Route::post('settings/license/offline-activate', [LicenseController::class, 'offlineActivate'])->name('admin.license.offline-activate');

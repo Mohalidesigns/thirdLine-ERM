@@ -228,7 +228,14 @@ return [
         \Dedoc\Scramble\SecurityDocumentation\MiddlewareAuthSecurityStrategy::class,
         [
             'middleware' => ['auth:sanctum', 'auth', 'auth:*'],
-            'scheme' => \Dedoc\Scramble\Support\Generator\SecurityScheme::http('bearer'),
+            // NO `scheme` KEY, deliberately. Config has to be serializable for
+            // `config:cache`, and a live `SecurityScheme` object is not: it has
+            // no `__set_state()`, so the cache command throws "the value at
+            // scramble.security_strategy.1.scheme is non-serializable" and, under
+            // `set -e`, scripts/deploy.sh aborts there on every deploy.
+            // MiddlewareAuthSecurityStrategy's constructor defaults `$scheme` to
+            // `SecurityScheme::http('bearer')` when it is omitted, so leaving it
+            // out changes nothing in the generated spec.
         ],
     ],
 ];

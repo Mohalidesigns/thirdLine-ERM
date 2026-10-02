@@ -56,7 +56,7 @@ class MfaFeatureGateTest extends TestCase
             'features.mfa_totp must default to false — the MFA implementation is broken (see config/features.php).'
         );
 
-        // routes/web.php throttles the auth surface. The limiter is backed by
+        // The auth surface is throttled (AppServiceProvider::registerAuthRateLimiters()). The limiter is backed by
         // the array cache store, which persists for the whole process, so a
         // class that posts to /login repeatedly would otherwise start seeing
         // 429s that have nothing to do with what it is testing.

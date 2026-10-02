@@ -12,11 +12,12 @@ use Illuminate\Support\Str;
  *
  * ONE MECHANISM, NOT TWO. Breeze's LoginRequest keeps its own five-per-minute
  * RateLimiter; this repository already throttles the route with
- * `throttle:login` (routes/web.php), which is the anti-spray ceiling. What
- * lives here is the OTHER control — the per-account lockout that the retired
- * AuthController carried, keyed on (email, IP) so that it cannot be used to
- * lock a named member of staff out of their own account. The reasoning is
- * reproduced in lockoutKey(); AuthenticationRateLimitTest holds it in place.
+ * `throttle:login` (`AppServiceProvider::registerAuthRateLimiters()`), which is
+ * the anti-spray ceiling. What lives here is the OTHER control — the
+ * per-account lockout that the retired AuthController carried, keyed on
+ * (email, IP) so that it cannot be used to lock a named member of staff out of
+ * their own account. The reasoning is reproduced in lockoutKey();
+ * AuthenticationRateLimitTest holds it in place.
  */
 class LoginRequest extends FormRequest
 {

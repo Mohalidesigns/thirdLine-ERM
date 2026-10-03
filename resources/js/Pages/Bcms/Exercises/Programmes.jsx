@@ -2,6 +2,7 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -38,29 +39,28 @@ export default function Programmes({ programmes = [], can = {} }) {
             {creating && can.manage && (
                 <form
                     onSubmit={(e) => { e.preventDefault(); create.post(tryRoute('bcms.exercise-programmes.store')); }}
-                    className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-6"
+                    className="card mb-6"
                 >
-                    <label className="text-sm">
-                        <span className="text-gray-700">Year</span>
-                        <input
-                            type="number" min="2000" max="2100" required
-                            className="mt-1 w-32 rounded border-gray-300 text-sm"
-                            value={create.data.year}
-                            onChange={(e) => create.setData('year', e.target.value)}
-                        />
-                    </label>
-                    <label className="flex-1 text-sm">
-                        <span className="text-gray-700">Name</span>
-                        <input
-                            type="text" required placeholder="Annual exercise programme 2027"
-                            className="mt-1 w-full rounded border-gray-300 text-sm"
-                            value={create.data.name}
-                            onChange={(e) => create.setData('name', e.target.value)}
-                        />
-                        {create.errors.name && <span className="text-xs text-red-600">{create.errors.name}</span>}
-                    </label>
-                    <button type="submit" className="btn-primary text-sm" disabled={create.processing}>Create</button>
-                    <button type="button" className="btn-secondary text-sm" onClick={() => setCreating(false)}>Cancel</button>
+                    <div className="card-body flex flex-wrap items-end gap-3">
+                        <FormField label="Year" required className="w-32">
+                            <input
+                                type="number" min="2000" max="2100" required
+                                className="form-input"
+                                value={create.data.year}
+                                onChange={(e) => create.setData('year', e.target.value)}
+                            />
+                        </FormField>
+                        <FormField label="Name" required error={create.errors.name} className="flex-1">
+                            <input
+                                type="text" required placeholder="Annual exercise programme 2027"
+                                className="form-input"
+                                value={create.data.name}
+                                onChange={(e) => create.setData('name', e.target.value)}
+                            />
+                        </FormField>
+                        <button type="submit" className="btn-primary text-sm" disabled={create.processing}>Create</button>
+                        <button type="button" className="btn-secondary text-sm" onClick={() => setCreating(false)}>Cancel</button>
+                    </div>
                 </form>
             )}
 
@@ -78,7 +78,7 @@ export default function Programmes({ programmes = [], can = {} }) {
                                 <Link href={tryRoute('bcms.exercise-programmes.show', p.uuid)} className="text-sm font-semibold text-gray-900 hover:underline">
                                     {p.name}
                                 </Link>
-                                <p className="mt-1 text-xs text-gray-500">
+                                <p className="form-hint">
                                     {p.year} · {p.definition_count} exercises defined
                                     {p.approver && ` · approved by ${p.approver} on ${p.approved_at}`}
                                 </p>

@@ -139,7 +139,11 @@ class RcsaImportProcessor
      */
     public function recount(RcsaImportBatch $batch): array
     {
+        // reorder(): the relation carries ->orderBy('row_number'), and MySQL 8
+        // (only_full_group_by) refuses an ORDER BY column that is neither
+        // grouped nor aggregated (error 1055). MariaDB 10.4 tolerates it.
         $byStatus = $batch->rows()
+            ->reorder()
             ->select('status', DB::raw('count(*) as aggregate'))
             ->groupBy('status')
             ->pluck('aggregate', 'status')

@@ -24,7 +24,7 @@ export default function Report({
                 subtitle="Ranked by criticality, then by how quickly the process must come back."
                 actions={
                     <div className="flex gap-2">
-                        <select className="rounded border-gray-300 text-sm" value={selected ?? ''}
+                        <select aria-label="Campaign" className="form-select" value={selected ?? ''}
                             onChange={(e) => router.get(tryRoute('bcms.bia-report.index'), { campaign: e.target.value || undefined })}>
                             <option value="">All approved assessments</option>
                             {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -51,49 +51,54 @@ export default function Report({
                 )}
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                <table className="w-full text-sm">
-                    <thead className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
-                        <tr>
-                            <th className="px-4 py-3">Process</th>
-                            <th className="px-4 py-3">Tier</th>
-                            <th className="px-4 py-3">MTPD</th>
-                            <th className="px-4 py-3">RTO</th>
-                            <th className="px-4 py-3">RPO</th>
-                            <th className="px-4 py-3">Dependencies</th>
-                            <th className="px-4 py-3">Approved</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {rows.length === 0 && (
-                            <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                                No approved assessments yet. The report shows approved ones only — a draft is not evidence.
-                            </td></tr>
-                        )}
-                        {rows.map((r) => (
-                            <tr key={r.id}>
-                                <td className="px-4 py-3">
-                                    <span className="text-gray-900">{r.name}</span>
-                                    <span className="block font-mono text-xs text-gray-500">{r.code} · {r.unit ?? '—'}</span>
-                                    {r.is_critical_service && (
-                                        <span className="mt-1 inline-block rounded bg-purple-50 px-1.5 py-0.5 text-[11px] text-purple-800">critical service</span>
-                                    )}
-                                </td>
-                                <td className="px-4 py-3">{r.tier ? `Tier ${r.tier}` : '—'}</td>
-                                <td className="px-4 py-3 font-mono">{r.mtpd_hours === null ? '—' : `${r.mtpd_hours} h`}</td>
-                                <td className="px-4 py-3 font-mono">{r.rto_hours === null ? '—' : `${r.rto_hours} h`}</td>
-                                <td className="px-4 py-3 font-mono">{r.rpo_minutes === null ? '—' : `${r.rpo_minutes} m`}</td>
-                                <td className="px-4 py-3">
-                                    {r.dependency_count}
-                                    {r.spof_count > 0 && (
-                                        <span className="ml-1 rounded bg-red-50 px-1.5 py-0.5 text-[11px] text-red-800">{r.spof_count} SPOF</span>
-                                    )}
-                                </td>
-                                <td className="px-4 py-3 text-xs text-gray-500">{r.approved_at}</td>
+            <div className="card">
+                <div className="overflow-x-auto">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Process</th>
+                                <th>Tier</th>
+                                <th>MTPD</th>
+                                <th>RTO</th>
+                                <th>RPO</th>
+                                <th>Dependencies</th>
+                                <th>Approved</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {rows.length === 0 && (
+                                <tr><td colSpan={7} className="text-center py-12">
+                                    <div className="text-gray-400">
+                                        <p className="text-sm font-medium">No approved assessments yet</p>
+                                        <p className="text-xs mt-1">The report shows approved ones only — a draft is not evidence.</p>
+                                    </div>
+                                </td></tr>
+                            )}
+                            {rows.map((r) => (
+                                <tr key={r.id}>
+                                    <td>
+                                        <span className="cell-title">{r.name}</span>
+                                        <p className="cell-subtitle font-mono">{r.code} · {r.unit ?? '—'}</p>
+                                        {r.is_critical_service && (
+                                            <span className="mt-1 inline-block rounded bg-purple-50 px-1.5 py-0.5 text-[11px] text-purple-800">critical service</span>
+                                        )}
+                                    </td>
+                                    <td className="cell-muted">{r.tier ? `Tier ${r.tier}` : '—'}</td>
+                                    <td className="font-mono">{r.mtpd_hours === null ? '—' : `${r.mtpd_hours} h`}</td>
+                                    <td className="font-mono">{r.rto_hours === null ? '—' : `${r.rto_hours} h`}</td>
+                                    <td className="font-mono">{r.rpo_minutes === null ? '—' : `${r.rpo_minutes} m`}</td>
+                                    <td>
+                                        {r.dependency_count}
+                                        {r.spof_count > 0 && (
+                                            <span className="ml-1 rounded bg-red-50 px-1.5 py-0.5 text-[11px] text-red-800">{r.spof_count} SPOF</span>
+                                        )}
+                                    </td>
+                                    <td className="cell-muted">{r.approved_at}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {gaps.length > 0 && (

@@ -123,6 +123,11 @@ enum IsoClauseRef: string
     case Ndpa_retention = 'ndpa.retention';                 // NDPA 2023 — retention and erasure
     case Ndpa_residency = 'ndpa.residency';                 // NDPA 2023 — residency and cross-border transfer
 
+    // Phase 10 (BCMS incident & crisis management). The only case this phase
+    // adds — everything else it stamps reuses an existing ref (compliance
+    // map `phase-10-incident-clause-map.md` §5, ADR 0020 §3).
+    case Ndpa_breach_notification = 'ndpa.breach_notification'; // NDPA 2023 s.40 — personal data breach notification
+
     /**
      * The clauses whose artefact ISO 22301 makes a mandatory documented record.
      *
@@ -184,5 +189,18 @@ enum IsoClauseRef: string
     public static function values(): array
     {
         return array_map(fn (self $c) => $c->value, self::cases());
+    }
+
+    /**
+     * The picker shape `FindingController::index()`'s `options.clause_refs`
+     * builds — pulled out here so a second "raise a finding" screen (the
+     * PIR's, `IncidentPresenter::review()`) reuses the exact same list
+     * rather than growing a second, driftable copy of it.
+     *
+     * @return list<array{value: string, standard: string}>
+     */
+    public static function options(): array
+    {
+        return array_map(fn (self $c) => ['value' => $c->value, 'standard' => $c->standard()], self::cases());
     }
 }

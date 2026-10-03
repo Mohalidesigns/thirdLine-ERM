@@ -35,29 +35,29 @@ export default function BoardPacks({ packs = [], trend = [], can = {} }) {
 
             {can.prepare && (
                 <form onSubmit={submit} className="card mb-6 flex flex-wrap items-end gap-4 p-4">
-                    <label className="text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Period</span>
                         <input
                             type="text"
-                            className="w-40 rounded border-gray-300 text-sm"
+                            className="form-input w-40"
                             placeholder="Q3 2026"
                             value={data.period_label}
                             onChange={(event) => setData('period_label', event.target.value)}
                         />
                         {errors.period_label && (
-                            <span className="mt-1 block text-xs text-red-600">{errors.period_label}</span>
+                            <span className="form-error">{errors.period_label}</span>
                         )}
                     </label>
 
-                    <label className="text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Position as at</span>
                         <input
                             type="date"
-                            className="rounded border-gray-300 text-sm"
+                            className="form-input"
                             value={data.as_at}
                             onChange={(event) => setData('as_at', event.target.value)}
                         />
-                        {errors.as_at && <span className="mt-1 block text-xs text-red-600">{errors.as_at}</span>}
+                        {errors.as_at && <span className="form-error">{errors.as_at}</span>}
                     </label>
 
                     <button type="submit" className="btn-primary" disabled={processing}>
@@ -74,22 +74,22 @@ export default function BoardPacks({ packs = [], trend = [], can = {} }) {
             {trend.length > 1 && (
                 <div className="card mb-6 overflow-x-auto p-4">
                     <h2 className="mb-2 text-sm font-semibold text-gray-800">Trend across signed-off packs</h2>
-                    <table className="min-w-full text-sm">
+                    <table className="data-table">
                         <thead>
                             <tr>
-                                <th scope="col" className="px-3 py-1 text-left font-medium text-gray-600">Period</th>
-                                <th scope="col" className="px-3 py-1 text-right font-medium text-gray-600">Engagements</th>
-                                <th scope="col" className="px-3 py-1 text-right font-medium text-gray-600">Mean residual</th>
-                                <th scope="col" className="px-3 py-1 text-right font-medium text-gray-600">Open findings</th>
-                                <th scope="col" className="px-3 py-1 text-right font-medium text-gray-600">HHI</th>
-                                <th scope="col" className="px-3 py-1 text-right font-medium text-gray-600">Exit gaps</th>
-                                <th scope="col" className="px-3 py-1 text-right font-medium text-gray-600">Incidents</th>
+                                <th scope="col">Period</th>
+                                <th scope="col" className="text-right">Engagements</th>
+                                <th scope="col" className="text-right">Mean residual</th>
+                                <th scope="col" className="text-right">Open findings</th>
+                                <th scope="col" className="text-right">HHI</th>
+                                <th scope="col" className="text-right">Exit gaps</th>
+                                <th scope="col" className="text-right">Incidents</th>
                             </tr>
                         </thead>
                         <tbody>
                             {trend.map((row) => (
                                 <tr key={row.period_label}>
-                                    <td className="px-3 py-1">{row.period_label}</td>
+                                    <td>{row.period_label}</td>
                                     <Cell value={row.engagements} />
                                     <Cell value={row.mean_residual} />
                                     <Cell value={row.open_findings} />
@@ -104,25 +104,25 @@ export default function BoardPacks({ packs = [], trend = [], can = {} }) {
             )}
 
             <div className="card overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead className="bg-gray-50">
+                <table className="data-table">
+                    <thead>
                         <tr>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Period</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">As at</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Status</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Prepared by</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Signed off by</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Narrative</th>
+                            <th scope="col">Period</th>
+                            <th scope="col">As at</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Prepared by</th>
+                            <th scope="col">Signed off by</th>
+                            <th scope="col">Narrative</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {packs.map((pack) => (
                             <tr key={pack.uuid}>
-                                <td className="px-4 py-2 font-medium">
+                                <td className="font-medium">
                                     <Link className="text-indigo-600" href={pack.url}>{pack.period_label}</Link>
                                 </td>
-                                <td className="px-4 py-2">{pack.as_at}</td>
-                                <td className="px-4 py-2">
+                                <td>{pack.as_at}</td>
+                                <td>
                                     <span
                                         className={`rounded px-2 py-0.5 text-xs font-medium ${
                                             pack.status === 'signed_off'
@@ -133,14 +133,14 @@ export default function BoardPacks({ packs = [], trend = [], can = {} }) {
                                         {pack.status_label}
                                     </span>
                                 </td>
-                                <td className="px-4 py-2">{pack.prepared_by ?? '—'}</td>
-                                <td className="px-4 py-2">{pack.signed_off_by ?? '—'}</td>
-                                <td className="px-4 py-2 text-xs text-gray-600">{pack.narrative_provenance}</td>
+                                <td>{pack.prepared_by ?? '—'}</td>
+                                <td>{pack.signed_off_by ?? '—'}</td>
+                                <td className="text-xs text-gray-600">{pack.narrative_provenance}</td>
                             </tr>
                         ))}
                         {packs.length === 0 && (
                             <tr>
-                                <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">
+                                <td colSpan={6} className="py-10 text-center text-sm text-gray-500">
                                     No pack has been prepared. The first one establishes the baseline the trend
                                     is measured against.
                                 </td>
@@ -155,7 +155,7 @@ export default function BoardPacks({ packs = [], trend = [], can = {} }) {
 
 function Cell({ value }) {
     return (
-        <td className="px-3 py-1 text-right tabular-nums">
+        <td className="text-right tabular-nums">
             {value === null || value === undefined ? <span className="text-gray-400">—</span> : value}
         </td>
     );

@@ -62,53 +62,51 @@ export default function Providers({ providers = [], spend = {}, channels = [] })
                 </div>
             </section>
 
-            <section className="mb-6 rounded border border-slate-200 bg-white">
-                <h2 className="border-b border-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">
-                    Gateway health — last 30 days
-                </h2>
+            <div className="card mb-6">
+                <div className="card-header"><h2 className="form-section-title">Gateway health — last 30 days</h2></div>
                 {providers.length === 0 ? (
-                    <p className="px-4 py-6 text-sm text-slate-500">
+                    <p className="px-6 py-6 text-sm text-slate-500">
                         No messages have been dispatched yet, so there is nothing to measure.
                     </p>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                        <table className="data-table">
+                            <thead>
                                 <tr>
-                                    <th className="px-4 py-2">Provider</th>
-                                    <th className="px-4 py-2 text-right">Attempts</th>
-                                    <th className="px-4 py-2 text-right">Delivery rate</th>
-                                    <th className="px-4 py-2 text-right">Median latency</th>
-                                    <th className="px-4 py-2 text-right">Cost</th>
-                                    <th className="px-4 py-2">Top failures</th>
+                                    <th>Provider</th>
+                                    <th className="text-right">Attempts</th>
+                                    <th className="text-right">Delivery rate</th>
+                                    <th className="text-right">Median latency</th>
+                                    <th className="text-right">Cost</th>
+                                    <th>Top failures</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <tbody>
                                 {providers.map((p) => (
                                     <tr key={p.provider} className={p.is_cooling_off ? 'bg-rose-50' : ''}>
-                                        <td className="px-4 py-2">
-                                            <span className="font-medium text-slate-800">{p.provider}</span>
+                                        <td>
+                                            <span className="cell-title">{p.provider}</span>
                                             {p.is_cooling_off && (
                                                 <span className="ml-2 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] text-white">
                                                     demoted
                                                 </span>
                                             )}
-                                            <div className="text-[11px] text-slate-500">{p.channel}</div>
+                                            <p className="cell-subtitle">{p.channel}</p>
                                         </td>
-                                        <td className="px-4 py-2 text-right tabular-nums">{p.attempts}</td>
-                                        <td className={`px-4 py-2 text-right tabular-nums ${
+                                        <td className="text-right tabular-nums">{p.attempts}</td>
+                                        <td className={`text-right tabular-nums ${
                                             p.delivery_rate === null ? 'text-slate-400'
                                                 : p.delivery_rate < 80 ? 'text-rose-600' : 'text-slate-800'
                                         }`}>
                                             {p.delivery_rate === null ? '—' : `${p.delivery_rate}%`}
                                         </td>
-                                        <td className="px-4 py-2 text-right tabular-nums text-slate-600">
+                                        <td className="text-right tabular-nums text-slate-600">
                                             {p.median_latency_seconds === null ? '—' : `${p.median_latency_seconds}s`}
                                         </td>
-                                        <td className="px-4 py-2 text-right tabular-nums text-slate-600">
+                                        <td className="text-right tabular-nums text-slate-600">
                                             {money(p.cost_minor, p.currency)}
                                         </td>
-                                        <td className="px-4 py-2 text-[11px] text-slate-500">
+                                        <td className="text-[11px] text-slate-500">
                                             {p.top_failures.length === 0
                                                 ? '—'
                                                 : p.top_failures.map((f) => `${f.reason} (${f.count})`).join('; ')}
@@ -119,7 +117,7 @@ export default function Providers({ providers = [], spend = {}, channels = [] })
                         </table>
                     </div>
                 )}
-            </section>
+            </div>
 
             <section className="rounded border border-slate-200 bg-white p-4">
                 <h2 className="mb-3 text-sm font-semibold text-slate-700">Spend</h2>
@@ -149,20 +147,22 @@ export default function Providers({ providers = [], spend = {}, channels = [] })
                 )}
 
                 {(spend.by_channel ?? []).length > 0 && (
-                    <table className="w-full text-sm">
-                        <thead className="text-left text-xs uppercase text-slate-500">
-                            <tr><th className="pb-2">Channel</th><th className="pb-2 text-right">Messages</th><th className="pb-2 text-right">Cost</th></tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {spend.by_channel.map((c) => (
-                                <tr key={c.channel}>
-                                    <td className="py-2 capitalize">{c.channel}</td>
-                                    <td className="py-2 text-right tabular-nums">{c.messages}</td>
-                                    <td className="py-2 text-right tabular-nums">{money(c.cost_minor, spend.currency)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    <div className="overflow-x-auto rounded border border-gray-200">
+                        <table className="data-table">
+                            <thead>
+                                <tr><th>Channel</th><th className="text-right">Messages</th><th className="text-right">Cost</th></tr>
+                            </thead>
+                            <tbody>
+                                {spend.by_channel.map((c) => (
+                                    <tr key={c.channel}>
+                                        <td className="capitalize">{c.channel}</td>
+                                        <td className="text-right tabular-nums">{c.messages}</td>
+                                        <td className="text-right tabular-nums">{money(c.cost_minor, spend.currency)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </section>
         </AppLayout>

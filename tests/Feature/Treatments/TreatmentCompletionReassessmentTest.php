@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use Tests\Support\AssertsCanonicalJson;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\Support\CreatesWorkflowFixtures;
 use Tests\TestCase;
@@ -41,7 +42,7 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  */
 class TreatmentCompletionReassessmentTest extends TestCase
 {
-    use CreatesDomainFixtures, CreatesWorkflowFixtures, RefreshDatabase;
+    use AssertsCanonicalJson, CreatesDomainFixtures, CreatesWorkflowFixtures, RefreshDatabase;
 
     private RiskScoringService $scoring;
 
@@ -310,8 +311,9 @@ class TreatmentCompletionReassessmentTest extends TestCase
         // Same keys as expected_risk_reduction, so the two are comparable.
         $this->assertSame(1, $delivered['likelihood_reduction']);
         $this->assertSame(1, $delivered['impact_reduction']);
-        $this->assertSame(['likelihood' => 3, 'impact' => 4], $delivered['from']);
-        $this->assertSame(['likelihood' => 2, 'impact' => 3], $delivered['to']);
+        // Key order is not the contract: MySQL 8 returns a json column's keys re-sorted.
+        $this->assertSameJson(['likelihood' => 3, 'impact' => 4], $delivered['from']);
+        $this->assertSameJson(['likelihood' => 2, 'impact' => 3], $delivered['to']);
 
         // Claimed, not confirmed: the reassessment it points at has not been
         // approved yet, and calling that "actual" would be the old listener's

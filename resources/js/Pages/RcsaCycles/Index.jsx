@@ -4,7 +4,8 @@ import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
-import InputError from '@thirdline/ui/Components/InputError';
+import FormField from '@thirdline/ui/Components/FormField';
+import FormSection from '@thirdline/ui/Components/FormSection';
 
 /**
  * RCSA cycles — step 1 of the process flow.
@@ -61,9 +62,8 @@ export default function Index({ cycles, filters = {}, options = {}, can = {} }) 
             )}
 
             {creating && (
-                <form onSubmit={submit} className="card mb-4 space-y-4 p-4">
-                    <h3 className="text-sm font-semibold text-gray-800">New cycle</h3>
-
+                <form onSubmit={submit} className="mb-4">
+                <FormSection title="New cycle">
                     {options.publishedRisks === 0 && (
                         <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                             Nothing is published in the RCSA Universe yet, so this cycle would have no risks to
@@ -76,21 +76,23 @@ export default function Index({ cycles, filters = {}, options = {}, can = {} }) 
                     )}
 
                     <div className="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label className="mb-1 block text-sm font-medium text-gray-700">Name</label>
+                        <FormField label="Name" required error={form.errors.name}>
                             <input
-                                className="filter-input w-full"
+                                className="form-input"
                                 placeholder="RCSA 2026 H1"
                                 value={form.data.name}
                                 onChange={(e) => form.setData('name', e.target.value)}
                             />
-                            <InputError message={form.errors.name} className="mt-1" />
-                        </div>
+                        </FormField>
 
-                        <div>
-                            <label className="mb-1 block text-sm font-medium text-gray-700">Methodology</label>
+                        <FormField
+                            label="Methodology"
+                            required
+                            error={form.errors.methodology_id}
+                            hint="Every line in this cycle is scored against this, and it stays fixed once the cycle opens."
+                        >
                             <select
-                                className="filter-select w-full"
+                                className="form-select"
                                 value={form.data.methodology_id}
                                 onChange={(e) => form.setData('methodology_id', e.target.value)}
                             >
@@ -100,32 +102,25 @@ export default function Index({ cycles, filters = {}, options = {}, can = {} }) 
                                     </option>
                                 ))}
                             </select>
-                            <p className="mt-1 text-xs text-gray-500">
-                                Every line in this cycle is scored against this, and it stays fixed once the cycle
-                                opens.
-                            </p>
-                            <InputError message={form.errors.methodology_id} className="mt-1" />
-                        </div>
+                        </FormField>
 
                         {[
-                            ['period_start', 'Period start'],
-                            ['period_end', 'Period end'],
-                            ['due_date', 'Due date (optional)'],
-                        ].map(([field, label]) => (
-                            <div key={field}>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
+                            ['period_start', 'Period start', true],
+                            ['period_end', 'Period end', true],
+                            ['due_date', 'Due date (optional)', false],
+                        ].map(([field, label, required]) => (
+                            <FormField key={field} label={label} required={required} error={form.errors[field]}>
                                 <input
                                     type="date"
-                                    className="filter-input w-full"
+                                    className="form-input"
                                     value={form.data[field]}
                                     onChange={(e) => form.setData(field, e.target.value)}
                                 />
-                                <InputError message={form.errors[field]} className="mt-1" />
-                            </div>
+                            </FormField>
                         ))}
                     </div>
 
-                    <div className="flex justify-end gap-2">
+                    <div className="form-actions">
                         <button type="button" onClick={() => setCreating(false)} className="btn-secondary text-sm">
                             Cancel
                         </button>
@@ -133,6 +128,7 @@ export default function Index({ cycles, filters = {}, options = {}, can = {} }) 
                             Create as draft
                         </button>
                     </div>
+                </FormSection>
                 </form>
             )}
 
@@ -140,7 +136,7 @@ export default function Index({ cycles, filters = {}, options = {}, can = {} }) 
                 <div className="filter-bar-inner">
                     <div className="filter-group min-w-[160px]">
                         <label className="filter-label">Status</label>
-                        <select
+                        <select aria-label="Status"
                             className="filter-select"
                             value={filters.status ?? ''}
                             onChange={(e) =>
@@ -178,8 +174,11 @@ export default function Index({ cycles, filters = {}, options = {}, can = {} }) 
                         <tbody>
                             {(cycles?.data ?? []).length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="py-10 text-center text-sm text-gray-400">
-                                        No cycles yet. A cycle is the exercise an assessment belongs to.
+                                    <td colSpan={6} className="text-center py-12">
+                                        <div className="text-gray-400">
+                                            <p className="text-sm font-medium">No cycles yet</p>
+                                            <p className="text-xs mt-1">A cycle is the exercise an assessment belongs to</p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -189,22 +188,22 @@ export default function Index({ cycles, filters = {}, options = {}, can = {} }) 
                                     <td>
                                         <Link
                                             href={route('rcsa.cycles.show', cycle.id)}
-                                            className="text-sm font-medium text-[var(--color-primary)] hover:underline"
+                                            className="cell-title"
                                         >
                                             {cycle.name}
                                         </Link>
                                         {cycle.description && (
-                                            <p className="max-w-[320px] truncate text-xs text-gray-500">
+                                            <p className="cell-subtitle">
                                                 {cycle.description}
                                             </p>
                                         )}
                                     </td>
-                                    <td className="text-sm text-gray-600">
+                                    <td className="cell-muted">
                                         {cycle.period_start} → {cycle.period_end}
                                     </td>
-                                    <td className="text-sm text-gray-600">{cycle.due_date ?? '—'}</td>
-                                    <td className="text-sm text-gray-600">{cycle.assessments_count}</td>
-                                    <td className="text-sm text-gray-600">{cycle.methodology ?? '—'}</td>
+                                    <td className="cell-muted">{cycle.due_date ?? '—'}</td>
+                                    <td className="cell-muted">{cycle.assessments_count}</td>
+                                    <td className="cell-muted">{cycle.methodology ?? '—'}</td>
                                     <td>
                                         <StatusBadge status={cycle.status} />
                                     </td>

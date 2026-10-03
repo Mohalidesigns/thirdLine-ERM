@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Bcms;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Bcms\CaptureBcmsReviewInputsRequest;
 use App\Http\Requests\Bcms\StoreBcmsProgrammeRequest;
 use App\Http\Requests\Bcms\StoreBcmsScopeItemRequest;
 use App\Models\Bcms\ManagementReview;
@@ -177,13 +178,82 @@ class ProgrammeController extends Controller
         return back()->with('success', "Management review {$review->reference} opened, with its clause 9.3 inputs captured.");
     }
 
-    public function captureReviewInputs(ManagementReview $review): RedirectResponse
+    public function captureReviewInputs(CaptureBcmsReviewInputsRequest $request, ManagementReview $review): RedirectResponse
     {
         Gate::authorize('bcms.programme.manage');
 
-        $this->programmes->captureReviewInputs($review);
+        // Section 4 (internal audit) and interested-party feedback are the
+        // only two manual inputs on this record (ADR 0021 §1) — everything
+        // else is recomputed. Omitting them from the request preserves
+        // whatever was previously captured, so a re-capture that refreshes
+        // the computed sections cannot blow away a manually entered audit
+        // block along the way. `validated()` also means only the five named
+        // `internal_audit` keys ever reach the snapshot (B12) — anything
+        // else submitted is dropped, not stored.
+        $manual = array_filter([
+            'internal_audit' => $request->has('internal_audit') ? $request->validated('internal_audit') : null,
+            'interested_party_feedback' => $request->has('interested_party_feedback')
+                ? $request->validated('interested_party_feedback') : null,
+            'context_changes' => $request->has('context_changes')
+                ? $request->validated('context_changes') : null,
+        ], fn ($v) => $v !== null);
+
+        // B12/A1: the lock against rewriting an approved review's 9.2 block
+        // is enforced in the service (`ProgrammeService::captureReviewInputs()`)
+        // now, so every caller shares one rule rather than the controller
+        // and the service each carrying their own copy.
+        try {
+            $this->programmes->captureReviewInputs($review, $manual);
+        } catch (\InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', 'Clause 9.3 inputs re-captured.');
+    }
+
+    /**
+     * The 9.3 mandatory record itself: a snapshot, its status banner, and —
+     * while not yet approved — the internal-audit form (`docs/bcms/screens/
+     * management-review-inputs.md`).
+     */
+    public function showReview(ManagementReview $review): Response
+    {
+        Gate::authorize('bcms.report.view');
+
+        // A11: `bcms.report.view` reaches an APPROVED, minuted review —
+        // this method's own comment always said so, but nothing enforced
+        // it. A draft carries a manual `internal_audit` form in progress and
+        // sections nobody has signed off; only someone who can manage the
+        // programme (or who can approve it) sees a draft.
+        if ($review->status !== 'approved') {
+            $user = request()->user();
+
+            if (! ($user?->can('bcms.programme.manage') || $user?->can('bcms.programme.approve'))) {
+                abort(403, 'This management review has not been approved yet.');
+            }
+        }
+
+        $review->loadMissing(['chair:id,name', 'approver:id,name']);
+
+        return Inertia::render('Bcms/Reviews/Show', [
+            'review' => [
+                'id' => $review->getKey(),
+                'uuid' => $review->uuid,
+                'reference' => $review->reference,
+                'title' => $review->title,
+                'held_on' => $review->held_on?->toDateString(),
+                'status' => $review->status,
+                'chair' => $review->chair?->name,
+                'inputs' => $review->inputs,
+                'inputs_captured_at' => $review->inputs_captured_at?->toIso8601String(),
+                'approved_by' => $review->approver?->name,
+                'approved_at' => $review->approved_at?->toIso8601String(),
+            ],
+            'can' => [
+                'manage' => request()->user()?->can('bcms.programme.manage') ?? false,
+                'approve' => request()->user()?->can('bcms.programme.approve') ?? false,
+            ],
+        ]);
     }
 
     public function approveReview(Request $request, ManagementReview $review): RedirectResponse

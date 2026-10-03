@@ -2,6 +2,7 @@
 
 namespace App\Models\Bcms;
 
+use App\Enums\Bcms\DrStrategy;
 use App\Models\Bcms\Concerns\BcmsAuditable;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,6 +20,13 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * register screen is "which systems are overdue and which missed target", and
  * computing that per row across tests is the N+1 a reviewer would reject.
  *
+ * ORGANISATION-LEVEL (ADR 0017 §2 category 3), NOT AN ANCHOR OR A DERIVED
+ * MODEL. A DR arrangement is enterprise IT's register, not one business
+ * unit's — recovery tiers and RTO/RPO targets apply across the whole estate
+ * the same way `BiaCampaign` and the alert templates do, and there is no unit
+ * column to scope on. Pinned in `BcmsRecordVisibilityTest::
+ * ORGANISATION_LEVEL_MODELS` alongside `DrTest`.
+ *
  * @property int $id
  * @property string $uuid
  * @property int $organization_id
@@ -27,7 +35,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?int $recovery_tier
  * @property ?string $rto_target_hours
  * @property ?int $rpo_target_minutes
- * @property ?string $dr_strategy
+ * @property ?\App\Enums\Bcms\DrStrategy $dr_strategy
  * @property ?int $dr_site_id
  * @property ?int $failover_runbook_plan_id
  * @property ?\Illuminate\Support\Carbon $last_test_date
@@ -80,6 +88,7 @@ class DrSystem extends Model
             'last_backup_verified_at' => 'datetime',
             'created_by' => 'integer',
             'updated_by' => 'integer',
+            'dr_strategy' => DrStrategy::class,
         ];
     }
 

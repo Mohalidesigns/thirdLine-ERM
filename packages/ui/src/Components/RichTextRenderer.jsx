@@ -106,7 +106,7 @@ function Block({ block }) {
             const withHeadings = !!d.withHeadings;
             return (
                 <div className="overflow-x-auto">
-                    <table className="min-w-full border border-gray-200 text-sm">
+                    <table data-table-exempt="rendered rich-text content" className="min-w-full border border-gray-200 text-sm">
                         {withHeadings && (
                             <thead>
                                 <tr>

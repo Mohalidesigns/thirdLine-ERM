@@ -416,6 +416,61 @@ class Phase3ScreensTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page->where('has_acknowledged', true));
     }
 
+    /**
+     * Gap 5 — a `my.view`-only employee (Oluwaseun's case: sees plans to
+     * acknowledge on `/risk/bcms/me/resilience` but has never held
+     * `bcms.plan.view`) may acknowledge a plan actually distributed to
+     * their own business unit, and is refused one that is not, without
+     * being granted the broad `bcms.plan.view` permission at all.
+     */
+    #[Test]
+    public function a_my_view_only_employee_can_acknowledge_their_own_units_plan_but_not_anothers(): void
+    {
+        $plan = $this->approvedPlan();
+        $employee = $this->userWith(['my.view'], 'oluwaseun@khb.test');
+
+        $this->assertFalse($employee->can('bcms.plan.view'));
+
+        $this->actingAs($employee)
+            ->post(route('bcms.plans.acknowledge', $plan))
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        // `plans.show` stays behind `bcms.plan.view` — a `my.view`-only
+        // employee acknowledging their own plan is not handed the broader
+        // "browse every plan" screen. Checked directly instead.
+        $this->assertTrue(app(\App\Services\Bcms\Plans\PlanAcknowledgementService::class)->hasAcknowledged($plan, $employee));
+
+        // A plan in a DIFFERENT business unit, with no distribution rule
+        // naming this employee, is refused — even when the employee CAN see
+        // it (an extra `rcsa_scope.all_units` grant, so the 403 below is
+        // provably the ownership check and not merely the route failing to
+        // bind an invisible record).
+        $otherUnit = BusinessUnit::create([
+            'organization_id' => $this->organization->id, 'code' => 'BU-LAG', 'name' => 'Lagos', 'is_active' => true,
+        ]);
+        $foreignPlan = app(PlanService::class)->create(
+            PlanType::Bcp, 'Lagos plan', ['business_unit_id' => $otherUnit->id, 'review_frequency_months' => 12],
+            'bcp_group', $this->author()->id,
+        );
+        app(PlanAssembler::class)->assemble($foreignPlan, $this->author()->id);
+        app(PlanService::class)->submitForReview($foreignPlan, $this->author()->id);
+        $foreignPlan = app(PlanService::class)->approve($foreignPlan, $this->approver(), now()->toDateString(), 12);
+
+        $sighted = $this->userWith(['my.view', 'rcsa_scope.all_units'], 'sighted-employee@khb.test');
+        $this->assertFalse($sighted->can('bcms.plan.view'));
+
+        $this->actingAs($sighted)
+            ->post(route('bcms.plans.acknowledge', $foreignPlan))
+            ->assertForbidden();
+
+        // A user with neither permission is refused at the route.
+        $nobody = $this->userWith([], 'nogrant@khb.test');
+        $this->actingAs($nobody)
+            ->post(route('bcms.plans.acknowledge', $plan))
+            ->assertForbidden();
+    }
+
     #[Test]
     public function editing_a_section_of_an_approved_plan_is_refused_with_an_explanation(): void
     {

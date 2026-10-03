@@ -34,8 +34,44 @@ class ModuleShellTest extends TestCase
 
     private Organization $organization;
 
+    /**
+     * The synthetic, always-non-live section
+     * `a_section_screen_names_the_phase_that_delivers_it` asserts against.
+     * Every REAL `ModuleSections` entry now has a landed screen (`compliance`
+     * was the last, Phase 11), so a test bound to a real key breaks the day
+     * that phase ships — which is exactly what happened here twice
+     * (`incidents` at Phase 10, then `compliance` at Phase 11). Kept as a
+     * class constant rather than inlined so the test's own assertions and
+     * the `fake()` call below cannot drift apart.
+     *
+     * @var array{
+     *     key: string, label: string, permission: string, phase: string,
+     *     summary: string, lands: string, clause: string, live: bool
+     * }
+     */
+    private const SHELL_EXAMPLE_SECTION = [
+        'key' => 'shell-example',
+        'label' => 'Shell Example',
+        'permission' => 'bcms.view',
+        'phase' => 'n/a',
+        'summary' => 'A section that exists only so this test has a non-live example once every real one has landed.',
+        'lands' => 'Nothing — this key names no real capability and never will.',
+        'clause' => 'n/a',
+        'live' => false,
+    ];
+
     protected function setUp(): void
     {
+        // MUST run before parent::setUp(): `routes/web.php` reads
+        // `ModuleSections::all()` once, at application boot, to register the
+        // generic placeholder route for every section this returns with
+        // `live => false`. Calling `fake()` after boot would change what
+        // `ModuleSections::find()` returns but could not retroactively
+        // register a route boot already skipped.
+        if ($this->name() === 'a_section_screen_names_the_phase_that_delivers_it') {
+            ModuleSections::fake([self::SHELL_EXAMPLE_SECTION]);
+        }
+
         parent::setUp();
 
         config()->set('features.bcms', true);
@@ -50,6 +86,7 @@ class ModuleShellTest extends TestCase
 
     protected function tearDown(): void
     {
+        ModuleSections::reset();
         TenantContext::clear();
 
         parent::tearDown();
@@ -179,17 +216,22 @@ class ModuleShellTest extends TestCase
     public function a_section_screen_names_the_phase_that_delivers_it(): void
     {
         // The example has to be a section that has not landed, or this asserts
-        // nothing. `calendar` was it until Phase 4 and `call-trees` until Phase
-        // 6; `emns` until Phase 7; `incidents` is Phase 10's.
-        $user = $this->userWith(['bcms.view', 'bcms.incident.view']);
+        // nothing. `calendar` was it until Phase 4, `call-trees` until Phase 6,
+        // `emns` until Phase 7, `incidents`/`it-dr` until Phase 10, and
+        // `exercises`/`compliance` until Phase 9/11 — every real section has
+        // now landed a real screen, so `setUp()` fakes a synthetic one
+        // (`self::SHELL_EXAMPLE_SECTION`) for this test alone, rather than
+        // this test asserting nothing against a real key that would break
+        // the day its own phase ships.
+        $user = $this->userWith(['bcms.view']);
 
         // A blank screen is indistinguishable from a broken one.
         $this->actingAs($user)
-            ->get(route('bcms.incidents.index'))
+            ->get(route('bcms.shell-example.index'))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->component('Bcms/Section')
-                ->where('section.key', 'incidents')
+                ->where('section.key', 'shell-example')
                 ->has('section.phase')
                 ->has('section.lands')
                 ->has('section.clause')

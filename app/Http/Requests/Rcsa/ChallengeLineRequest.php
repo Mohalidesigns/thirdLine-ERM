@@ -68,16 +68,34 @@ class ChallengeLineRequest extends FormRequest
     }
 
     /**
-     * The suggested values, with the nulls stripped.
+     * The suggested values, with the nulls stripped and the ratings cast to
+     * the type the scale actually holds.
+     *
+     * THE `integer` VALIDATION RULE DOES NOT CAST. It checks that
+     * `"4"` looks like an integer and leaves it exactly as the request sent
+     * it — a string — so without this, every likelihood and impact suggestion
+     * was written into `suggested_values` as `"4"` rather than `4`, silently,
+     * because `array` is a permissive enough cast on the model that nothing
+     * ever complained. `control_effectiveness` is genuinely a label (the
+     * scale's own string, validated above against the methodology's item
+     * labels) and stays a string.
      *
      * @return array<string, mixed>
      */
     public function suggestedValues(): array
     {
-        return array_filter(
+        $suggested = array_filter(
             (array) data_get($this->validated(), 'suggested', []),
             fn ($value) => $value !== null && $value !== '',
         );
+
+        foreach (['inherent_likelihood', 'inherent_impact'] as $field) {
+            if (array_key_exists($field, $suggested)) {
+                $suggested[$field] = (int) $suggested[$field];
+            }
+        }
+
+        return $suggested;
     }
 
     private function methodology(): ?RcsaMethodology

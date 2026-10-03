@@ -93,6 +93,22 @@ class RouteAuthorizationTest extends TestCase
         // this is the fix.
         'bcms/alert-reply/{provider}',
         'bcms/provider-status/{provider}',
+
+        // BCMS Phase 9 — exercise check-in, the same category again. A
+        // participant scanning a poster (or texting the printed short code)
+        // has no session; the credential is the per-participant HMAC token
+        // `CheckInService` mints, verified with `hash_equals`, exactly like
+        // the cascade-ack pair above. `bcms/check-in` with no token is the
+        // SMS/marshal short-code fallback form.
+        'bcms/check-in',
+        'bcms/check-in/{token}',
+
+        // BCMS Phase 10's DR ingestion webhook does NOT belong here (ADR
+        // 0020 Amendment 1, withdrawn): it moved to
+        // `/api/v1/bcms/dr-tests/ingest/{provider}` behind `api.auth` and
+        // `scope:bcms.dr.test.record` — a per-tenant machine token, not an
+        // unauthenticated capability URL — so `ApiAuthorizationTest` covers
+        // it with no new guard and no allowlist entry.
     ];
 
     #[Test]
@@ -229,7 +245,15 @@ class RouteAuthorizationTest extends TestCase
             // an inbound reply, neither of which can carry a session. The
             // argument is in the constant above.
             'bcms/alert-reply/{provider}',
-            'bcms/provider-status/{provider}'];
+            'bcms/provider-status/{provider}',
+            // BCMS Phase 9. Same category: an unauthenticated capability token
+            // minted per participant, the argument is in the constant above.
+            'bcms/check-in',
+            'bcms/check-in/{token}',
+            // BCMS Phase 10's DR ingestion webhook is deliberately NOT here —
+            // it is a per-tenant machine token under `/api/v1`, not an
+            // unauthenticated capability URL (ADR 0020 Amendment 1).
+        ];
 
         $this->assertSame(
             $permitted,

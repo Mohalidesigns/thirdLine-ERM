@@ -2,9 +2,14 @@
 
 namespace App\Models\Bcms;
 
+use App\Enums\Bcms\ActivationLevel;
+use App\Enums\Bcms\IncidentSeverity;
+use App\Enums\Bcms\IncidentStatus;
 use App\Models\Bcms\Concerns\BcmsAuditable;
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\Bcms\Concerns\ScopedToOrgHierarchy;
+use App\Models\Bcms\Concerns\ScopedToOrgHierarchyContract;
 use App\Models\BusinessUnit;
 use App\Models\LossEvent;
 use App\Models\User;
@@ -23,21 +28,33 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * declaration. `is_exercise` keeps a drill's incident record out of the loss
  * history a regulator reads.
  *
+ * PHASE 10 (ADR 0020): AN ANCHOR, LIKE `Plan`. `business_unit_id` is this
+ * row's own unit column (the default `ScopedToOrgHierarchy` column), so a
+ * Kano incident and a Lagos incident are visible only to the unit(s) each
+ * belongs to, plus organisation-level and named-user readers — the same rule
+ * every other BCMS anchor already follows.
+ *
+ * `reporting_due_at`, `regulator_notified_at` and `cbn_reference` ARE RETIRED
+ * IN PLACE (ADR 0020 §2). The columns stay on the table until a later cleanup
+ * migration drops them; nothing in this phase or after writes them, and
+ * `bcms_incident_notifications` is the replacement — see
+ * `App\Services\Bcms\Incidents\NotificationService`.
+ *
  * @property int $id
  * @property string $uuid
  * @property int $organization_id
  * @property string $reference
  * @property string $title
  * @property ?string $incident_type
- * @property ?string $severity
+ * @property ?\App\Enums\Bcms\IncidentSeverity $severity
  * @property ?int $business_unit_id
  * @property ?int $site_id
  * @property ?\Illuminate\Support\Carbon $detected_at
  * @property ?int $declared_by
  * @property ?\Illuminate\Support\Carbon $declared_at
  * @property ?\Illuminate\Support\Carbon $closed_at
- * @property string $status
- * @property ?string $activation_level
+ * @property \App\Enums\Bcms\IncidentStatus $status
+ * @property ?\App\Enums\Bcms\ActivationLevel $activation_level
  * @property array<array-key, mixed> $impacted_processes
  * @property ?int $estimated_impact_minor
  * @property ?string $currency
@@ -54,20 +71,48 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?\Illuminate\Support\Carbon $created_at
  * @property ?\Illuminate\Support\Carbon $updated_at
  * @property ?\Illuminate\Support\Carbon $deleted_at
+ *
+ * `site_id` IS NULLABLE AND NULL IS THE DEFAULT for an incident with no
+ * building attached (an IT-only outage, say). `site(): BelongsTo` is
+ * declared `BelongsTo<Site, $this>` without a union, which is enough for
+ * Larastan to infer the magic `$incident->site` accessor as non-nullable —
+ * wrongly, and the mistake `TemplateRenderer::computeAlertDerivedVariables()`
+ * shipped with once, reading `?->site->name` on the strength of that bad
+ * inference and crashing with `Attempt to read property "name" on null` the
+ * first time an incident-linked alert had no site.
+ *
+ * THIS `@property-read` DOES NOT FIX THE INFERENCE. Larastan resolves the
+ * magic `site` accessor from the `site(): BelongsTo` method's return type
+ * rather than this class-level tag, so PHPStan still reports the second
+ * `?->` in `?->site?->name` as redundant even with this annotation present
+ * — verified, not assumed. The narrow "ignore nullsafe.neverNull" directive
+ * at the call site is what actually satisfies the analyser; this tag is
+ * left here only as accurate documentation of the real, nullable shape for
+ * a human reader, and must not be read as having resolved anything on its
+ * own. Never drop the second `?->` in `?->site?->name` to "agree with" a
+ * static-analysis result that contradicts the nullable FK.
+ * @property-read ?\App\Models\Bcms\Site $site
  */
-class Incident extends Model
+class Incident extends Model implements ScopedToOrgHierarchyContract
 {
-    use BcmsAuditable, BelongsToOrganization, HasBcmsUuid, HasFactory, ScopedToOrgHierarchy, SoftDeletes;
+    use BcmsAuditable, BelongsToOrganization, BindsToVisibleRecord, HasBcmsUuid, HasFactory, ScopedToOrgHierarchy, SoftDeletes;
 
     protected $table = 'bcms_incidents';
 
-    /** @var list<string> */
+    /**
+     * @var list<string>
+     *
+     * `reporting_due_at`, `regulator_notified_at` and `cbn_reference` are
+     * DELIBERATELY ABSENT (ADR 0020 §2) — retired in place. Nothing writes
+     * them from Phase 10 onward; `bcms_incident_notifications` is where that
+     * information lives now, one row per regulator per submission.
+     */
     protected $fillable = [
         'organization_id', 'reference', 'title', 'incident_type', 'severity', 'business_unit_id',
         'site_id', 'detected_at', 'declared_by', 'declared_at', 'closed_at', 'status',
         'activation_level', 'impacted_processes', 'estimated_impact_minor', 'currency',
-        'is_exercise', 'occurrence_id', 'is_reportable', 'regulator_notified_at', 'cbn_reference',
-        'reporting_due_at', 'erm_loss_event_id', 'iso_clause_ref', 'created_by', 'updated_by',
+        'is_exercise', 'occurrence_id', 'is_reportable',
+        'erm_loss_event_id', 'iso_clause_ref', 'created_by', 'updated_by',
     ];
 
     /** @return array<string, string> */
@@ -85,9 +130,10 @@ class Incident extends Model
             'estimated_impact_minor' => 'integer',
             'is_exercise' => 'boolean',
             'occurrence_id' => 'integer',
+            'severity' => IncidentSeverity::class,
+            'status' => IncidentStatus::class,
+            'activation_level' => ActivationLevel::class,
             'is_reportable' => 'boolean',
-            'regulator_notified_at' => 'datetime',
-            'reporting_due_at' => 'datetime',
             'erm_loss_event_id' => 'integer',
             'created_by' => 'integer',
             'updated_by' => 'integer',
@@ -138,6 +184,24 @@ class Incident extends Model
     public function alerts(): HasMany
     {
         return $this->hasMany(Alert::class, 'incident_id');
+    }
+
+    /** @return HasMany<IncidentNotification, $this> */
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(IncidentNotification::class, 'incident_id');
+    }
+
+    /** @return HasMany<PlanActivation, $this> */
+    public function planActivations(): HasMany
+    {
+        return $this->hasMany(PlanActivation::class, 'incident_id');
+    }
+
+    /** @return HasMany<Aar, $this> (at most one — the unique index on incident_id) */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Aar::class, 'incident_id');
     }
 
     /** @return HasMany<Finding, $this> */

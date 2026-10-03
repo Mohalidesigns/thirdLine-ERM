@@ -40,7 +40,7 @@ export default function Show({ finding, acceptances = [], acceptanceLimits = {},
                     </span>
                 }
                 actions={
-                    <Link href={route('tprm.findings.index')} className="btn btn-secondary">
+                    <Link href={route('tprm.findings.index')} className="btn-secondary">
                         Back to the board
                     </Link>
                 }
@@ -61,7 +61,7 @@ export default function Show({ finding, acceptances = [], acceptanceLimits = {},
                         )}
 
                         {finding.control_refs.length > 0 && (
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="form-hint">
                                 Controls: {finding.control_refs.join(', ')}
                             </p>
                         )}
@@ -87,7 +87,7 @@ export default function Show({ finding, acceptances = [], acceptanceLimits = {},
                                 A {finding.severity_label.toLowerCase()} finding may be accepted for at most{' '}
                                 {acceptanceLimits.maximum_months} months.
                             </p>
-                            <button type="button" className="btn btn-secondary mt-3 w-full text-xs"
+                            <button type="button" className="btn-secondary mt-3 w-full text-xs"
                                 onClick={() => setAccepting(true)}>
                                 Record an acceptance
                             </button>
@@ -201,41 +201,41 @@ function RemediationPanel({ finding, can }) {
                     }}
                     className="mt-3 space-y-3"
                 >
-                    <label className="block">
+                    <label className="form-label">
                         <span className="text-xs font-medium text-gray-700">The plan</span>
                         <textarea
                             rows={4}
-                            className="input mt-1 text-sm"
+                            className="form-textarea mt-1"
                             placeholder="What the vendor will do, and by when."
                             value={planForm.data.remediation_plan}
                             onChange={(event) => planForm.setData('remediation_plan', event.target.value)}
                         />
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="form-hint">
                             A finding inside its SLA with an accepted plan counts at half weight in the residual
                             score. Being early is not mitigation on its own — the discount is for a gap somebody
                             has decided how to fix.
                         </p>
                     </label>
 
-                    <label className="block">
+                    <label className="form-label">
                         <span className="text-xs font-medium text-gray-700">The vendor&rsquo;s response</span>
                         <textarea
                             rows={3}
-                            className="input mt-1 text-sm"
+                            className="form-textarea mt-1"
                             value={planForm.data.vendor_response}
                             onChange={(event) => planForm.setData('vendor_response', event.target.value)}
                         />
                     </label>
 
                     <div className="flex flex-wrap gap-2">
-                        <button type="submit" className="btn btn-primary text-xs" disabled={planForm.processing}>
+                        <button type="submit" className="btn-primary text-xs" disabled={planForm.processing}>
                             Save the plan
                         </button>
 
                         {canVerify && (
                             <button
                                 type="button"
-                                className="btn btn-secondary text-xs"
+                                className="btn-secondary text-xs"
                                 onClick={() => router.post(finding.verify_url)}
                             >
                                 Send for verification
@@ -259,10 +259,10 @@ function RemediationPanel({ finding, can }) {
                 >
                     <h4 className="text-xs font-semibold text-gray-900">Close it</h4>
                     <div className="mt-2 flex flex-wrap items-end gap-2">
-                        <label className="block">
+                        <label className="form-label">
                             <span className="text-xs text-gray-600">As</span>
                             <select
-                                className="input mt-1 text-sm"
+                                className="form-select mt-1"
                                 value={closeForm.data.closure_type}
                                 onChange={(event) => closeForm.setData('closure_type', event.target.value)}
                             >
@@ -271,17 +271,17 @@ function RemediationPanel({ finding, can }) {
                             </select>
                         </label>
 
-                        <label className="block">
+                        <label className="form-label">
                             <span className="text-xs text-gray-600">Evidence document ID</span>
                             <input
                                 type="number"
-                                className="input mt-1 text-sm"
+                                className="form-input mt-1"
                                 value={closeForm.data.evidence_document_id}
                                 onChange={(event) => closeForm.setData('evidence_document_id', event.target.value)}
                             />
                         </label>
 
-                        <button type="submit" className="btn btn-primary text-xs" disabled={closeForm.processing}>
+                        <button type="submit" className="btn-primary text-xs" disabled={closeForm.processing}>
                             Close
                         </button>
                     </div>
@@ -323,7 +323,7 @@ function AcceptanceHistory({ finding, acceptances, can }) {
                         {acceptance.in_force && can.acceptRisk && (
                             <button
                                 type="button"
-                                className="btn btn-secondary mt-2 text-xs"
+                                className="btn-secondary mt-2 text-xs"
                                 onClick={() => {
                                     const reason = window.prompt('Why is the acceptance being withdrawn?');
                                     if (reason) {
@@ -373,48 +373,48 @@ function AcceptanceDialog({ finding, limits, onClose }) {
                 </p>
 
                 <div className="mt-5 space-y-4">
-                    <label className="block">
+                    <label className="form-label">
                         <span className="text-sm font-medium text-gray-700">Why is this acceptable?</span>
                         <textarea
                             rows={4}
-                            className="input mt-1"
+                            className="form-textarea mt-1"
                             value={form.data.justification}
                             onChange={(event) => form.setData('justification', event.target.value)}
                         />
                         {form.errors.justification && (
-                            <p className="mt-1 text-xs text-red-600">{form.errors.justification}</p>
+                            <p className="form-error">{form.errors.justification}</p>
                         )}
                     </label>
 
-                    <label className="block">
+                    <label className="form-label">
                         <span className="text-sm font-medium text-gray-700">Compensating controls</span>
                         <textarea
                             rows={3}
-                            className="input mt-1"
+                            className="form-textarea mt-1"
                             value={form.data.compensating_controls}
                             onChange={(event) => form.setData('compensating_controls', event.target.value)}
                         />
                     </label>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <label className="block">
+                        <label className="form-label">
                             <span className="text-sm font-medium text-gray-700">Expires</span>
                             <input
                                 type="date"
-                                className="input mt-1"
+                                className="form-input mt-1"
                                 value={form.data.expires_at}
                                 onChange={(event) => form.setData('expires_at', event.target.value)}
                             />
                             {form.errors.expires_at && (
-                                <p className="mt-1 text-xs text-red-600">{form.errors.expires_at}</p>
+                                <p className="form-error">{form.errors.expires_at}</p>
                             )}
                         </label>
 
-                        <label className="block">
+                        <label className="form-label">
                             <span className="text-sm font-medium text-gray-700">Approver role</span>
                             <input
                                 type="text"
-                                className="input mt-1"
+                                className="form-input mt-1"
                                 placeholder="Chief Risk Officer"
                                 value={form.data.approver_role}
                                 onChange={(event) => form.setData('approver_role', event.target.value)}
@@ -424,8 +424,8 @@ function AcceptanceDialog({ finding, limits, onClose }) {
                 </div>
 
                 <div className="mt-6 flex justify-end gap-2">
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" disabled={form.processing}>
+                    <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn-primary" disabled={form.processing}>
                         Record the acceptance
                     </button>
                 </div>

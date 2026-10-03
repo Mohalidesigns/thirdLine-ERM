@@ -1372,12 +1372,22 @@ class Phase7EmnsTest extends TestCase
 
         $cut = SmsSegmenter::truncate($long, 1);
         $this->assertLessThanOrEqual(SmsSegmenter::GSM_SINGLE, SmsSegmenter::units($cut));
-        $this->assertStringEndsWith('…', $cut);
+
+        // GSM-7-SAFE MARKER, NOT `…`. The curly single-character ellipsis is
+        // outside the GSM 03.38 alphabet, so appending it to an
+        // otherwise-GSM-7 body used to silently drop the WHOLE message to
+        // UCS-2 (70 chars/segment instead of 160) — a body truncated to "fit
+        // one segment" was actually re-segmenting to two or more. This body
+        // is plain GSM-7 throughout, so the marker must be too, and the
+        // truncated result must still measure as one segment.
+        $this->assertStringEndsWith('...', $cut);
+        $this->assertTrue(SmsSegmenter::isGsm7($cut), 'The marker must not itself force UCS-2.');
+        $this->assertSame(1, SmsSegmenter::segments($cut), 'Recounted against the truncated text.');
 
         // The cut text is a WHOLE-WORD PREFIX of the original. A word-boundary
         // cut still ends in a letter, so the test is that the next character in
         // the source is a boundary — not that the result looks a certain way.
-        $kept = rtrim(mb_substr($cut, 0, -1));
+        $kept = rtrim(mb_substr($cut, 0, -3));
         $this->assertStringStartsWith($kept, $long);
         $this->assertSame(' ', mb_substr($long, mb_strlen($kept), 1), 'Never cut mid-word.');
 
@@ -1391,6 +1401,14 @@ class Phase7EmnsTest extends TestCase
         $this->assertFalse(SmsSegmenter::isGsm7($smart));
         $this->assertSame(2, SmsSegmenter::segments($smart));
         $this->assertSame(['’'], SmsSegmenter::nonGsmCharacters($smart));
+
+        // And truncating a body that is ALREADY UCS-2 keeps the single-char
+        // marker — only the GSM-7 case needed to change.
+        $longUcs2 = str_repeat('Assemble at the main car park immediately’. ', 12);
+        $cutUcs2 = SmsSegmenter::truncate($longUcs2, 1);
+        $this->assertFalse(SmsSegmenter::isGsm7($cutUcs2));
+        $this->assertStringEndsWith('…', $cutUcs2);
+        $this->assertSame(1, SmsSegmenter::segments($cutUcs2));
     }
 
     #[Test]
@@ -1428,16 +1446,39 @@ class Phase7EmnsTest extends TestCase
         $this->assertSame('not_authored', $row['locales']['yo']['state']);
     }
 
+    /**
+     * SUPERSEDES the old fail-open behaviour this test used to prove
+     * ("an unfilled placeholder is removed rather than printed"). Deleting a
+     * placeholder nobody supplied made "Assemble at {{assembly_point}} now."
+     * read as the coherent-but-wrong "Assemble at now." — worse than an
+     * obviously broken message, because nobody double-checks a sentence that
+     * reads fine. `TemplateRenderer::render()` now fails closed instead: it
+     * refuses, naming the variable, rather than silently sending a shorter
+     * sentence. See `EmnsTemplateRenderingTest` for the full fail-closed
+     * coverage (release-time refusal, the dispatcher's last line of defence,
+     * every shipped template with a complete variable set).
+     */
     #[Test]
-    public function an_unfilled_placeholder_is_removed_rather_than_printed(): void
+    public function an_unfilled_placeholder_fails_closed_rather_than_being_silently_removed(): void
     {
         $alert = $this->alert(AlertSeverity::Urgent, ['sms']);
         $alert->forceFill(['message' => 'Assemble at {{assembly_point}} now.'])->save();
 
-        $body = app(TemplateRenderer::class)->render($alert->refresh(), ChannelKey::Sms, 'en')->body;
+        $this->assertThrows(
+            fn () => app(TemplateRenderer::class)->render($alert->refresh(), ChannelKey::Sms, 'en'),
+            \App\Exceptions\Bcms\UnresolvedTemplateVariableException::class,
+            'assembly_point',
+        );
 
+        // Supplying the value renders clean — proving the refusal above is
+        // about the missing value, not about free-text (non-template)
+        // bodies being unsupported.
+        $body = app(TemplateRenderer::class)->render(
+            $alert->refresh(), ChannelKey::Sms, 'en', ['assembly_point' => 'the main gate'],
+        )->body;
+
+        $this->assertSame('Assemble at the main gate now.', $body);
         $this->assertStringNotContainsString('{{', $body);
-        $this->assertStringNotContainsString('assembly_point', $body);
     }
 
     /* ================================================================== */

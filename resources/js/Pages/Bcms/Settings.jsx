@@ -1,6 +1,8 @@
 import { Head, useForm } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormSection from '@thirdline/ui/Components/FormSection';
+import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -48,8 +50,6 @@ export default function Settings({ settings, channels = [], timezones = [] }) {
         })).put(tryRoute('bcms.settings.update'), { preserveScroll: true });
     };
 
-    const error = (field) => (form.errors[field] ? <p className="mt-1 text-xs text-red-600">{form.errors[field]}</p> : null);
-
     return (
         <AppLayout title="BCMS settings">
             <Head title="BCMS settings" />
@@ -59,19 +59,13 @@ export default function Settings({ settings, channels = [], timezones = [] }) {
                 subtitle="How this organisation is reminded, alerted and escalated to."
             />
 
-            <form onSubmit={submit} className="max-w-3xl space-y-8">
-                <section className="rounded-lg border border-gray-200 bg-white p-6">
-                    <h2 className="text-sm font-semibold text-gray-900">Reminders</h2>
-                    <p className="mt-1 text-xs text-gray-500">
-                        The countdown before an exercise. One digest per person per day is the default because alert
-                        fatigue, not missed alerts, is what stops people reading them.
-                    </p>
-
-                    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Time zone</span>
+            <form onSubmit={submit} className="form-page">
+                <FormSection title="Reminders"
+                    description="The countdown before an exercise. One digest per person per day is the default because alert fatigue, not missed alerts, is what stops people reading them.">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <FormField label="Time zone" error={form.errors.timezone}>
                             <select
-                                className="mt-1 w-full rounded border-gray-300 text-sm"
+                                className="form-select"
                                 value={form.data.timezone}
                                 onChange={(e) => form.setData('timezone', e.target.value)}
                             >
@@ -79,112 +73,89 @@ export default function Settings({ settings, channels = [], timezones = [] }) {
                                     <option key={tz} value={tz}>{tz}</option>
                                 ))}
                             </select>
-                            {error('timezone')}
-                        </label>
+                        </FormField>
 
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Countdown length (days before an exercise)</span>
+                        <FormField label="Countdown length (days before an exercise)" error={form.errors.default_lead_time_days}>
                             <input
                                 type="number"
-                                className="mt-1 w-full rounded border-gray-300 text-sm"
+                                className="form-input"
                                 value={form.data.default_lead_time_days}
                                 onChange={(e) => form.setData('default_lead_time_days', e.target.value)}
                             />
-                            {error('default_lead_time_days')}
-                        </label>
+                        </FormField>
 
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Reminder send time (local)</span>
+                        <FormField label="Reminder send time (local)" error={form.errors.reminder_send_time}>
                             <input
                                 type="time"
-                                className="mt-1 w-full rounded border-gray-300 text-sm"
+                                className="form-input"
                                 value={form.data.reminder_send_time}
                                 onChange={(e) => form.setData('reminder_send_time', e.target.value)}
                             />
-                            {error('reminder_send_time')}
-                        </label>
+                        </FormField>
 
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Reminder style</span>
+                        <FormField label="Reminder style" error={form.errors.default_reminder_mode}>
                             <select
-                                className="mt-1 w-full rounded border-gray-300 text-sm"
+                                className="form-select"
                                 value={form.data.default_reminder_mode}
                                 onChange={(e) => form.setData('default_reminder_mode', e.target.value)}
                             >
                                 <option value="digest">One digest per person per day</option>
                                 <option value="discrete">A separate message per exercise</option>
                             </select>
-                            {error('default_reminder_mode')}
-                        </label>
+                        </FormField>
 
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Escalate blocking tasks (days before)</span>
+                        <FormField label="Escalate blocking tasks (days before)" error={form.errors.escalation_day_offset}
+                            hint="Negative — two days before means −2.">
                             <input
                                 type="number"
-                                className="mt-1 w-full rounded border-gray-300 text-sm"
+                                className="form-input"
                                 value={form.data.escalation_day_offset}
                                 onChange={(e) => form.setData('escalation_day_offset', e.target.value)}
                             />
-                            <span className="mt-1 block text-xs text-gray-500">Negative — two days before means −2.</span>
-                            {error('escalation_day_offset')}
-                        </label>
+                        </FormField>
                     </div>
-                </section>
+                </FormSection>
 
-                <section className="rounded-lg border border-gray-200 bg-white p-6">
-                    <h2 className="text-sm font-semibold text-gray-900">Quiet hours</h2>
-                    <p className="mt-1 text-xs text-gray-500">
-                        Routine reminders are held until the window closes. Quiet hours never apply to critical or
-                        life-safety alerts — those go out immediately, whatever is set here. Leave both blank for none.
-                    </p>
-
-                    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <label className="block text-sm">
-                            <span className="text-gray-700">From</span>
+                <FormSection title="Quiet hours"
+                    description="Routine reminders are held until the window closes. Quiet hours never apply to critical or life-safety alerts — those go out immediately, whatever is set here. Leave both blank for none.">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <FormField label="From" error={form.errors.quiet_hours_start}>
                             <input
                                 type="time"
-                                className="mt-1 w-full rounded border-gray-300 text-sm"
+                                className="form-input"
                                 value={form.data.quiet_hours_start}
                                 onChange={(e) => form.setData('quiet_hours_start', e.target.value)}
                             />
-                            {error('quiet_hours_start')}
-                        </label>
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Until</span>
+                        </FormField>
+                        <FormField label="Until" error={form.errors.quiet_hours_end}>
                             <input
                                 type="time"
-                                className="mt-1 w-full rounded border-gray-300 text-sm"
+                                className="form-input"
                                 value={form.data.quiet_hours_end}
                                 onChange={(e) => form.setData('quiet_hours_end', e.target.value)}
                             />
-                            {error('quiet_hours_end')}
-                        </label>
+                        </FormField>
                     </div>
-                </section>
+                </FormSection>
 
-                <section className="rounded-lg border border-gray-200 bg-white p-6">
-                    <h2 className="text-sm font-semibold text-gray-900">Channels</h2>
-                    <p className="mt-1 text-xs text-gray-500">
-                        Life-safety alerts must include at least one channel that works with no data connection: SMS,
-                        voice or USSD. The form will refuse a set without one.
-                    </p>
-
-                    <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <FormSection title="Channels"
+                    description="Life-safety alerts must include at least one channel that works with no data connection: SMS, voice or USSD. The form will refuse a set without one.">
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                         {[
                             ['default_channel_set', 'Routine alerts and reminders'],
                             ['life_safety_channel_set', 'Life-safety alerts'],
                         ].map(([field, label]) => (
                             <fieldset key={field}>
-                                <legend className="text-sm text-gray-700">{label}</legend>
+                                <legend className="form-label">{label}</legend>
                                 <div className="mt-2 space-y-1">
                                     {channels.map((channel) => (
-                                        <label key={channel.key} className="flex items-center gap-2 text-sm">
-                                            <input
+                                        <label key={channel.key} className="flex items-center gap-2 text-sm text-gray-700">
+                                            <input className="form-checkbox"
                                                 type="checkbox"
                                                 checked={(form.data[field] ?? []).includes(channel.key)}
                                                 onChange={() => toggleChannel(field, channel.key)}
                                             />
-                                            <span className="text-gray-800">{channel.label}</span>
+                                            <span>{channel.label}</span>
                                             {channel.offline_capable && (
                                                 <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-700">
                                                     works offline
@@ -198,20 +169,18 @@ export default function Settings({ settings, channels = [], timezones = [] }) {
                                         </label>
                                     ))}
                                 </div>
-                                {error(field)}
+                                {form.errors[field] && <p className="form-error">{form.errors[field]}</p>}
                             </fieldset>
                         ))}
                     </div>
-                </section>
+                </FormSection>
 
-                <section className="rounded-lg border border-gray-200 bg-white p-6">
-                    <h2 className="text-sm font-semibold text-gray-900">Safeguards</h2>
-
-                    <div className="mt-4 space-y-3 text-sm">
+                <FormSection title="Safeguards">
+                    <div className="space-y-3 text-sm">
                         <label className="flex items-start gap-2">
                             <input
                                 type="checkbox"
-                                className="mt-1"
+                                className="form-checkbox mt-1"
                                 checked={form.data.exercise_simulation_default}
                                 onChange={(e) => form.setData('exercise_simulation_default', e.target.checked)}
                             />
@@ -227,7 +196,7 @@ export default function Settings({ settings, channels = [], timezones = [] }) {
                         <label className="flex items-start gap-2">
                             <input
                                 type="checkbox"
-                                className="mt-1"
+                                className="form-checkbox mt-1"
                                 checked={form.data.require_dual_approval_for_live}
                                 onChange={(e) => form.setData('require_dual_approval_for_live', e.target.checked)}
                             />
@@ -243,7 +212,7 @@ export default function Settings({ settings, channels = [], timezones = [] }) {
                         <label className="flex items-start gap-2">
                             <input
                                 type="checkbox"
-                                className="mt-1"
+                                className="form-checkbox mt-1"
                                 checked={form.data.ai_enabled}
                                 onChange={(e) => form.setData('ai_enabled', e.target.checked)}
                             />
@@ -257,37 +226,33 @@ export default function Settings({ settings, channels = [], timezones = [] }) {
                         </label>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Currency for alert costs</span>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <FormField label="Currency for alert costs" error={form.errors.alert_currency}>
                             <input
                                 type="text"
                                 maxLength={3}
-                                className="mt-1 w-full rounded border-gray-300 text-sm uppercase"
+                                className="form-input uppercase"
                                 value={form.data.alert_currency}
                                 onChange={(e) => form.setData('alert_currency', e.target.value.toUpperCase())}
                             />
-                            {error('alert_currency')}
-                        </label>
+                        </FormField>
 
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Ask people to confirm their contact details every (days)</span>
+                        <FormField label="Ask people to confirm their contact details every (days)" error={form.errors.contact_verification_days}>
                             <input
                                 type="number"
-                                className="mt-1 w-full rounded border-gray-300 text-sm"
+                                className="form-input"
                                 value={form.data.contact_verification_days}
                                 onChange={(e) => form.setData('contact_verification_days', e.target.value)}
                             />
-                            {error('contact_verification_days')}
-                        </label>
+                        </FormField>
                     </div>
-                </section>
+                </FormSection>
 
-                <div className="flex items-center gap-3">
+                <div className="form-actions">
+                    {form.recentlySuccessful && <span className="text-sm text-emerald-700">Saved.</span>}
                     <button type="submit" className="btn-primary text-sm" disabled={form.processing}>
                         {form.processing ? 'Saving…' : 'Save settings'}
                     </button>
-                    {form.recentlySuccessful && <span className="text-sm text-emerald-700">Saved.</span>}
                 </div>
             </form>
         </AppLayout>

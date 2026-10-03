@@ -4,7 +4,9 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "ui:audit": "node tools/ui-audit.mjs",
+        "ui:audit:test": "node tools/ui-audit-selftest.mjs"
     },
     "devDependencies": {
         "@editorjs/code": "^2.9.4",

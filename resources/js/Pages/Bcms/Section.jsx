@@ -40,7 +40,7 @@ export default function Section({ section, sections = [] }) {
                                 className="rounded-lg border border-gray-200 bg-white p-3 text-sm transition hover:border-gray-400"
                             >
                                 <span className="font-medium text-gray-900">{other.label}</span>
-                                <span className="mt-1 block text-xs text-gray-500">{other.phase}</span>
+                                <span className="form-hint">{other.phase}</span>
                             </Link>
                         ))}
                 </div>

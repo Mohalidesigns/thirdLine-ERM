@@ -3,6 +3,7 @@ import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import BoundSection from '@/Components/Bcms/BoundSection';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -127,22 +128,20 @@ export default function Show({
                         print exactly this for ever.
                     </p>
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <label className="text-sm">
-                            <span className="text-gray-700">Effective from</span>
+                        <FormField label="Effective from">
                             <input
-                                type="date" className="mt-1 w-full rounded border-gray-300 text-sm"
+                                type="date" className="form-input"
                                 value={approve.data.effective_from}
                                 onChange={(e) => approve.setData('effective_from', e.target.value)}
                             />
-                        </label>
-                        <label className="text-sm">
-                            <span className="text-gray-700">Review every (months)</span>
+                        </FormField>
+                        <FormField label="Review every (months)">
                             <input
-                                type="number" min="1" max="120" className="mt-1 w-full rounded border-gray-300 text-sm"
+                                type="number" min="1" max="120" className="form-input"
                                 value={approve.data.review_frequency_months ?? ''}
                                 onChange={(e) => approve.setData('review_frequency_months', e.target.value)}
                             />
-                        </label>
+                        </FormField>
                     </div>
                     <button type="submit" className="btn-primary text-sm" disabled={approve.processing}>
                         Approve version {plan.version}
@@ -155,15 +154,14 @@ export default function Show({
                     onSubmit={(e) => { e.preventDefault(); supersede.post(tryRoute('bcms.plans.supersede', plan.uuid)); }}
                     className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-6"
                 >
-                    <label className="text-sm">
-                        <span className="text-gray-700">New version number</span>
+                    <FormField label="New version number" className="w-40">
                         <input
                             type="text" required placeholder="2.0"
-                            className="mt-1 w-40 rounded border-gray-300 text-sm"
+                            className="form-input"
                             value={supersede.data.version}
                             onChange={(e) => supersede.setData('version', e.target.value)}
                         />
-                    </label>
+                    </FormField>
                     <button type="submit" className="btn-primary text-sm" disabled={supersede.processing}>
                         Draft it
                     </button>
@@ -279,7 +277,7 @@ export default function Show({
                                 </button>
                             )}
                             {plan.offline_bundle_generated_at && (
-                                <p className="mt-1 text-[11px] text-gray-500">
+                                <p className="form-hint">
                                     Bundle built {new Date(plan.offline_bundle_generated_at).toLocaleString()}.
                                 </p>
                             )}
@@ -315,12 +313,13 @@ export default function Show({
                                 >
                                     <input
                                         type="text" required placeholder="Why is this being activated?"
-                                        className="w-full rounded border-gray-300 text-xs"
+                                        aria-label="Why is this being activated?"
+                                        className="form-input text-xs"
                                         value={activate.data.reason}
                                         onChange={(e) => activate.setData('reason', e.target.value)}
                                     />
                                     <label className="flex items-center gap-2">
-                                        <input
+                                        <input className="form-checkbox"
                                             type="checkbox"
                                             checked={activate.data.is_exercise}
                                             onChange={(e) => activate.setData('is_exercise', e.target.checked)}
@@ -369,34 +368,35 @@ export default function Show({
 
                             {editing === section.key ? (
                                 <form onSubmit={saveSection} className="space-y-3">
-                                    <input
-                                        type="text"
-                                        className="w-full rounded border-gray-300 text-sm"
-                                        value={edit.data.title}
-                                        onChange={(e) => edit.setData('title', e.target.value)}
-                                    />
-                                    <textarea
-                                        rows={14}
-                                        className="w-full rounded border-gray-300 font-mono text-sm"
-                                        value={edit.data.body}
-                                        onChange={(e) => edit.setData('body', e.target.value)}
-                                    />
-                                    <label className="block text-xs">
-                                        <span className="text-gray-600">Bind to live data</span>
+                                    <FormField label="Section title">
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            value={edit.data.title}
+                                            onChange={(e) => edit.setData('title', e.target.value)}
+                                        />
+                                    </FormField>
+                                    <FormField label="Section body">
+                                        <textarea
+                                            rows={14}
+                                            className="form-textarea font-mono"
+                                            value={edit.data.body}
+                                            onChange={(e) => edit.setData('body', e.target.value)}
+                                        />
+                                    </FormField>
+                                    <FormField label="Bind to live data"
+                                        hint={edit.data.source_binding?.source
+                                            ? sources.find((s) => s.value === edit.data.source_binding.source)?.renders
+                                            : undefined}>
                                         <select
-                                            className="mt-1 w-full rounded border-gray-300 text-sm"
+                                            className="form-select"
                                             value={edit.data.source_binding?.source ?? ''}
                                             onChange={(e) => edit.setData('source_binding', e.target.value ? { source: e.target.value } : null)}
                                         >
                                             <option value="">Not bound — free text</option>
                                             {sources.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                                         </select>
-                                        {edit.data.source_binding?.source && (
-                                            <span className="mt-1 block text-gray-500">
-                                                {sources.find((s) => s.value === edit.data.source_binding.source)?.renders}
-                                            </span>
-                                        )}
-                                    </label>
+                                    </FormField>
                                     {section.is_bound && (
                                         <p className="text-xs text-amber-700">
                                             Editing the text of a bound section marks it as yours. Re-assembling will keep

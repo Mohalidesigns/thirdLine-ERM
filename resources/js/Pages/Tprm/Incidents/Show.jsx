@@ -31,14 +31,14 @@ export default function Show({
                     <div className="flex gap-2">
                         <button
                             type="button"
-                            className="btn btn-secondary"
+                            className="btn-secondary"
                             onClick={() => router.post(route('tprm.incidents.assess', incident.uuid))}
                         >
                             Reassess
                         </button>
                         <button
                             type="button"
-                            className="btn btn-secondary"
+                            className="btn-secondary"
                             onClick={() => router.post(route('tprm.incidents.drafts.build', incident.uuid))}
                         >
                             Prepare drafts
@@ -109,7 +109,7 @@ export default function Show({
                         {can.manage && incident.estimated_loss_minor > 0 && (
                             <button
                                 type="button"
-                                className="btn btn-sm btn-secondary mt-4"
+                                className="btn-secondary text-xs mt-4"
                                 onClick={() => router.post(route('tprm.incidents.loss-register', incident.uuid))}
                             >
                                 {incident.erm_loss_event_id
@@ -235,7 +235,7 @@ function Draft({ draft, can }) {
                     {!draft.approved_at && (
                         <button
                             type="button"
-                            className="btn btn-sm btn-primary"
+                            className="btn-primary text-xs"
                             onClick={() => router.post(draft.approve_url)}
                         >
                             Approve the wording
@@ -244,7 +244,7 @@ function Draft({ draft, can }) {
                     {draft.can_submit && (
                         <button
                             type="button"
-                            className="btn btn-sm btn-secondary"
+                            className="btn-secondary text-xs"
                             onClick={() => setRecording(true)}
                         >
                             Record that it was sent
@@ -280,22 +280,22 @@ function SubmissionDialog({ draft, onClose }) {
                     gave you — that is what stops the clock.
                 </p>
 
-                <label className="mt-3 block text-sm font-medium text-gray-700">Their reference</label>
-                <input
-                    className="w-full rounded border border-gray-200 p-2 text-sm"
+                <label className="form-label mt-3">Their reference</label>
+                <input aria-label="Their reference"
+                    className="form-input"
                     value={form.data.reference}
                     onChange={(event) => form.setData('reference', event.target.value)}
                 />
                 {form.errors.reference && <p className="mt-1 text-xs text-red-700">{form.errors.reference}</p>}
 
-                <label className="mt-3 block text-sm font-medium text-gray-700">When you sent it</label>
-                <input
+                <label className="form-label mt-3">When you sent it</label>
+                <input aria-label="When you sent it"
                     type="datetime-local"
-                    className="w-full rounded border border-gray-200 p-2 text-sm"
+                    className="form-input"
                     value={form.data.submitted_at}
                     onChange={(event) => form.setData('submitted_at', event.target.value)}
                 />
-                <p className="mt-1 text-xs text-gray-500">Leave blank for now.</p>
+                <p className="form-hint">Leave blank for now.</p>
 
                 <div className="mt-5 flex justify-end gap-2">
                     <button type="button" className="px-3 py-1.5 text-sm text-gray-600" onClick={onClose}>Cancel</button>

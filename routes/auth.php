@@ -14,8 +14,9 @@ use Illuminate\Support\Facades\Route;
 | Authentication and account self-service (migration Phase 1)
 |--------------------------------------------------------------------------
 |
-| Required from routes/web.php, which defines the rate limiters these routes
-| name. Route NAMES are unchanged from the retired AuthController era — the
+| Required from routes/web.php. The rate limiters these routes name are
+| registered at boot in `AppServiceProvider::registerAuthRateLimiters()`, not
+| here. Route NAMES are unchanged from the retired AuthController era — the
 | tests, Ziggy and every link depend on them; only the controllers and the
 | renderer (Inertia) changed.
 |
@@ -27,8 +28,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
 
-// The credential-guessing surface. See the `login` limiter in web.php for
-// why the key is (email, IP) with a separate, looser per-IP ceiling.
+// The credential-guessing surface. See the `login` limiter in
+// `AppServiceProvider::registerAuthRateLimiters()` for why the key is
+// (email, IP) with a separate, looser per-IP ceiling.
 Route::post('login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:login');
 
 Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');

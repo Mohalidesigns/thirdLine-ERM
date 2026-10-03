@@ -67,6 +67,29 @@ class AppServiceProvider extends ServiceProvider
          */
         $this->app->bind(\App\Services\Llm\LlmGateway::class);
 
+        /*
+         * BCMS Phase 2C (ADR 0018 §4). `DirectoryClient` is bound here rather
+         * than in a `BcmsServiceProvider` — BCMS still has none (ADR 0007
+         * deviation 2), and there is no new wiring here that would justify
+         * one: no observer, no listener, no rate limiter, no asserted policy
+         * map, just one interface→concrete binding exactly like every other
+         * BCMS binding on this file.
+         *
+         * BOUND TRANSIENT, NOT A SINGLETON. `EntraGraphClient` carries
+         * per-call paging state (`$pagesFetched`/`$objectsRead`, read back
+         * through `ReportsDirectoryFetchStats`) the same way `RuleEvaluator`
+         * carries `unresolvedFacts` in `TprmServiceProvider` — a singleton
+         * would leak one sync run's paging counters into the next tenant's
+         * run on a long-lived worker. `bind()` with no third argument is
+         * already transient; this is explicit for the same reason the TPRM
+         * binding is explicit: so the choice is a decision on the record, not
+         * an accident of Laravel's default.
+         */
+        $this->app->bind(
+            \App\Contracts\Bcms\DirectoryClient::class,
+            \App\Services\Bcms\Identity\EntraGraphClient::class,
+        );
+
         // How this product names the owner of a rendered document. The
         // renderer lives in thirdline/reporting and deliberately does not know
         // what an organisation is — see OrganizationBranding for why a Central
@@ -113,6 +136,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::before(fn (?User $user, string $ability) => $user?->hasRole('super-admin') ? true : null);
 
         $this->registerBcmsWebhookRateLimiters();
+        $this->registerBcmsCheckInRateLimiters();
+        $this->registerAuthRateLimiters();
+        $this->registerApiRateLimiters();
 
         // Migration Phase 3.8. The only policy registered by hand: RCSA has no
         // model for Laravel to discover one from — it is four screens over
@@ -214,6 +240,312 @@ class AppServiceProvider extends ServiceProvider
 
             return \Illuminate\Cache\RateLimiting\Limit::perMinute($providerStatusPerMinute)
                 ->by('bcms-provider-status:'.$provider.':'.$request->ip());
+        });
+
+    }
+
+    /**
+     * Gate 2 defect 4 (BCMS Phase 9), and Gate 2 review #2's finding that the
+     * defect 4 fix over-corrected. `bcms/check-in` (the short-code form) and
+     * `bcms/check-in/{token}` (the QR link) carry no session and no
+     * permission — the credential is the per-participant HMAC itself
+     * (`CheckInController`'s own docblock) — so, like the EMNS webhook routes
+     * above, named limiters have to be registered at boot rather than in
+     * `routes/web.php`, which a route-cached deployment never re-executes.
+     *
+     * TWO LIMITERS, NOT ONE, because the two routes are different attack
+     * surfaces answering to different traffic shapes:
+     *
+     * `bcms-check-in-code` guards the short-code FORM (`bcms/check-in`, no
+     * token in the URL) — an 8-hex-character code typed by hand is a genuine
+     * guessing surface, so this stays keyed on ip alone, as the single
+     * `bcms-check-in` limiter always was.
+     *
+     * `bcms-check-in-token` guards the per-participant QR/link routes
+     * (`bcms/check-in/{token}`). A single shared ip-keyed bucket here was the
+     * defect: 200 people behind one office NAT, each scanning their OWN
+     * token once during an evacuation drill, exhausted the same 60/min
+     * bucket a token-guessing attacker would — request 61 was locked out
+     * regardless of whose token it was, defeating the exact scenario the
+     * feature exists for. This limiter returns TWO `Limit`s (Laravel accepts
+     * an array from a `RateLimiter::for()` closure and enforces every one):
+     * a tight per-TOKEN ceiling, because a token is a credential and
+     * hammering one specific token is still a guessing/abuse pattern worth
+     * stopping; and a generous per-ip ceiling, so a NAT'd crowd passes but a
+     * single scanner cannot still hammer the route without limit.
+     *
+     * ADVISORY 2 (Gate 2 review #3): both `config(...)` reads used to happen
+     * ONCE, here, at boot, and be captured into the closures by `use(...)`
+     * — so nothing short of restarting the process (or re-registering the
+     * limiter) could ever change the ceiling a running request is checked
+     * against. That made the per-ip `Limit` on `bcms-check-in-token`
+     * untestable from a plain `config()->set()` in a test, which is exactly
+     * how every other ceiling in this file is proven — a test lowering it
+     * silently did nothing, so deleting that `Limit` from the array above
+     * would have left the suite green. `config(...)` is now read INSIDE
+     * each closure, at CALL time, one lookup per request rather than once
+     * per process: negligible cost against a cached config array, and it
+     * makes `config()->set()` in a test — or an operator's runtime config
+     * change on a long-lived worker — take effect on the very next request,
+     * exactly as every other closure-based limiter in this file already
+     * behaves. The stale `600` fallback on the per-ip `Limit` (half of
+     * `config/bcms.php`'s own `1200` default, and derived from the same
+     * 200-participants-times-three-requests arithmetic that default's own
+     * comment explains) is corrected to match here too, so the two defaults
+     * cannot drift again.
+     */
+    private function registerBcmsCheckInRateLimiters(): void
+    {
+        \Illuminate\Support\Facades\RateLimiter::for('bcms-check-in-code', function (\Illuminate\Http\Request $request) {
+            $codePerMinute = (int) config('bcms.check_in_rate_limit_per_minute', 60);
+
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute($codePerMinute)->by('bcms-check-in-code:'.$request->ip());
+        });
+
+        \Illuminate\Support\Facades\RateLimiter::for('bcms-check-in-token', function (\Illuminate\Http\Request $request) {
+            $token = (string) ($request->route('token') ?? 'unknown');
+            $tokenPerMinute = (int) config('bcms.check_in_token_rate_limit_per_minute', 10);
+            $ipPerMinute = (int) config('bcms.check_in_ip_rate_limit_per_minute', 1200);
+
+            return [
+                \Illuminate\Cache\RateLimiting\Limit::perMinute($tokenPerMinute)->by('bcms-check-in-token:'.$token),
+                \Illuminate\Cache\RateLimiting\Limit::perMinute($ipPerMinute)->by('bcms-check-in-token-ip:'.$request->ip()),
+            ];
+        });
+    }
+
+    /**
+     * Rate limits on the authentication surface — registered here, at boot, and
+     * NOT from `routes/web.php`.
+     *
+     * A named `RateLimiter::for()` closure has to run at boot: `route:cache`
+     * (which `scripts/deploy.sh` runs) means a cached deployment never
+     * re-executes the routes files, so a limiter defined there works under
+     * `php artisan serve` and in the test suite and is simply never registered
+     * in production. Every `throttle:<name>` route then answers 500 "Rate
+     * limiter [login] is not defined" — login, MFA, password reset, SSO
+     * discovery and licence activation included. This is the same reason
+     * `registerBcmsWebhookRateLimiters()` lives here.
+     *
+     * `RateLimitersSurviveRouteCacheTest` fails the build if a limiter is ever
+     * defined in a routes file again.
+     *
+     * PREVIOUS BEHAVIOUR: nothing in the routes was throttled. `POST login`,
+     * `POST mfa/verify`, `POST forgot-password` and `POST auth/sso/discover` all
+     * accepted unlimited attempts from anyone who could reach the host. On a
+     * platform holding a bank's risk register that is the cheapest attack available:
+     * an offline-quality password guessing rate against a live login form.
+     *
+     * CHOOSING THE KEY IS THE WHOLE DESIGN. These deployments sit inside banks,
+     * where several hundred staff share one or two NAT egress addresses. A purely
+     * per-IP limit on `login` would mean the head office throttling itself every
+     * Monday morning, and an operator whose first experience of a security control
+     * is a self-inflicted outage turns it off. So each limiter below uses the
+     * narrowest key that still bounds the attack:
+     *
+     *   login            per (email, IP) primarily; a loose per-IP ceiling second
+     *   mfa-verify       per (account, IP) — the brute-force target, tightest limit
+     *   password-reset   per email primarily, because the abuse is mail-bombing one
+     *                    named person; a loose per-IP ceiling second
+     *   sso-discover     per IP, because there is no account involved — the abuse is
+     *                    enumerating which customer domains are federated
+     *
+     * The SCIM group is limited too; its limiter lives beside the API's own in
+     * `registerApiRateLimiters()` below, which is where the rest of the
+     * machine-to-machine surface is configured.
+     *
+     * Every ceiling below is stated with the normal-use figure it has to clear, so
+     * the next person can tell whether a change is safe.
+     */
+    private function registerAuthRateLimiters(): void
+    {
+        /*
+         * LOGIN.
+         *
+         * Two limits, and both apply:
+         *
+         *   5 per minute per (email, IP) — one person, at one keyboard, getting their
+         *   own password wrong. Five tries a minute is more than a human needs and far
+         *   below what guessing needs. Keyed on the PAIR rather than on the email alone
+         *   so that an attacker cannot consume a colleague's budget; keyed on the email
+         *   as well as the IP so that one machine cannot grind a single account.
+         *
+         *   60 per minute per IP — the anti-spray ceiling: one source trying many
+         *   different accounts. Deliberately generous, because in these deployments one
+         *   IP is an entire office. A 200-person branch signing in over a ten-minute
+         *   window is ~20/min, and this leaves 3x headroom on top. It bounds spraying
+         *   at 86,400 attempts/day from a single address, which is not zero — the
+         *   honest statement is that a shared-egress deployment cannot have a tight
+         *   per-IP login limit, and that detection (repeated failures across many
+         *   distinct accounts from one address) is the control that closes the rest.
+         *
+         * Both are counted per REQUEST, not per failure, because ThrottleRequests runs
+         * before the controller. A user who signs in successfully consumes one of the
+         * five, which does not matter at these numbers.
+         */
+        \Illuminate\Support\Facades\RateLimiter::for('login', function (\Illuminate\Http\Request $request) {
+            $email = \Illuminate\Support\Str::lower(trim((string) $request->input('email')));
+
+            return [
+                \Illuminate\Cache\RateLimiting\Limit::perMinute(5)->by('login:'.sha1($email.'|'.$request->ip())),
+                \Illuminate\Cache\RateLimiting\Limit::perMinute(60)->by('login-ip:'.$request->ip()),
+            ];
+        });
+
+        /*
+         * MFA VERIFICATION AND ENROLMENT CONFIRMATION.
+         *
+         * A six-digit code checked against a plus/minus-one-step window is one guess in
+         * ~333,333 per attempt. The verification controller keeps no attempt counter
+         * of its own, so before this limiter existed the expected number of requests to
+         * walk in was well inside what a script does over a lunch break.
+         *
+         * 5 attempts per 15 minutes per (account, IP) reduces that to roughly 20 codes
+         * an hour, i.e. centuries of expected guessing, while still letting a user who
+         * fat-fingers a code or whose phone clock has drifted try again shortly. The
+         * account part of the key is the pending user id during sign-in verification and
+         * the authenticated user id during enrolment confirmation, so the same limiter
+         * serves mfa/verify and mfa/enable.
+         *
+         * The 30-per-hour per-IP ceiling catches somebody cycling sessions to reset the
+         * narrower key.
+         *
+         * NOTE: mfa/verify and mfa/enable are behind `feature:mfa_totp` and return 404
+         * while the flag is off. The limiter is applied anyway so that the route is not
+         * left unthrottled for whoever turns the flag on.
+         */
+        \Illuminate\Support\Facades\RateLimiter::for('mfa-verify', function (\Illuminate\Http\Request $request) {
+            $account = $request->session()->get('mfa_pending_user_id')
+                ?? $request->user()?->getAuthIdentifier()
+                ?? 'anonymous';
+
+            return [
+                \Illuminate\Cache\RateLimiting\Limit::perMinutes(15, 5)->by('mfa:'.sha1($account.'|'.$request->ip())),
+                \Illuminate\Cache\RateLimiting\Limit::perMinutes(60, 30)->by('mfa-ip:'.$request->ip()),
+            ];
+        });
+
+        /*
+         * PASSWORD RESET REQUESTS.
+         *
+         * The abuse here is not guessing, it is mail-bombing: `POST forgot-password`
+         * sends an email to an address the caller names, so an unthrottled endpoint is a
+         * free outbound mailer pointed at a named member of staff, and it also burns the
+         * deployment's SMTP reputation.
+         *
+         *   5 per hour per email — keyed on the EMAIL rather than the pair, because the
+         *   victim is the mailbox and a botnet would otherwise get one send per source.
+         *   Nobody legitimately needs a sixth reset link in an hour; the link is valid
+         *   for an hour and reusable.
+         *
+         *   60 per hour per IP — the office-NAT allowance. High enough that a shared
+         *   egress address cannot exhaust it during a normal morning.
+         *
+         * Keying on the email does mean an attacker can stop one person from requesting
+         * a reset for an hour. That is a real, bounded nuisance and it is the lesser
+         * evil: the alternative key lets the same attacker deliver hundreds of reset
+         * emails to that person instead. It expires on its own, and an administrator can
+         * reset the password directly from the user screen in the meantime.
+         */
+        \Illuminate\Support\Facades\RateLimiter::for('password-reset', function (\Illuminate\Http\Request $request) {
+            $email = \Illuminate\Support\Str::lower(trim((string) $request->input('email')));
+
+            return [
+                \Illuminate\Cache\RateLimiting\Limit::perMinutes(60, 5)->by('pwreset:'.sha1($email)),
+                \Illuminate\Cache\RateLimiting\Limit::perMinutes(60, 60)->by('pwreset-ip:'.$request->ip()),
+            ];
+        });
+
+        /*
+         * HOME-REALM DISCOVERY.
+         *
+         * `POST auth/sso/discover` turns an email address into a sign-in URL, which
+         * makes it an oracle for "is this company a customer, and is their domain
+         * federated". SsoController already answers vaguely for unknown domains; the
+         * limit is what stops the vague answer being ground down by enumerating a
+         * dictionary of domains.
+         *
+         * 30 per minute per IP. No account exists at this point in the flow, so the IP
+         * is the only key available. A real user hits this once per sign-in, so 30 a
+         * minute clears normal office use by a wide margin while making domain
+         * enumeration slow enough to be visible in the logs.
+         */
+        \Illuminate\Support\Facades\RateLimiter::for('sso-discover', function (\Illuminate\Http\Request $request) {
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute(30)->by('sso-discover:'.$request->ip());
+        });
+
+        /*
+         * LICENCE ACTIVATION.
+         *
+         * `POST admin/settings/license/activate` forwards the supplied key to the
+         * LicensingServer with retries, which makes an unthrottled endpoint a
+         * licence-key brute-forcer with somebody else's server as the oracle. The
+         * caller is always an authenticated licence manager, so the key is the user;
+         * five attempts a minute is more than a person pasting a key needs.
+         */
+        \Illuminate\Support\Facades\RateLimiter::for('license-activate', function (\Illuminate\Http\Request $request) {
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute(5)->by('license:'.($request->user()?->getAuthIdentifier() ?? $request->ip()));
+        });
+    }
+
+    /**
+     * Machine-to-machine rate limits (the REST API and SCIM) — registered here,
+     * at boot, and NOT from `routes/api.php`, for the reason given on
+     * `registerAuthRateLimiters()`: a route-cached deployment never re-executes
+     * the routes files, so a limiter defined there is never registered and
+     * every `throttle:api-token` / `throttle:scim` route answers 500.
+     */
+    private function registerApiRateLimiters(): void
+    {
+        /*
+         * WP-07 — the rate limit is PER TOKEN, and each token carries its own ceiling.
+         *
+         * Per IP would be wrong in both directions here: several integrations behind
+         * one corporate NAT would throttle each other, and one runaway script would be
+         * indistinguishable from the rest of the building. Per token also means a
+         * misbehaving integration can be given a lower ceiling without touching anyone
+         * else's.
+         */
+        \Illuminate\Support\Facades\RateLimiter::for('api-token', function (\Illuminate\Http\Request $request) {
+            /** @var \App\Models\ApiToken|null $token */
+            $token = $request->attributes->get('api_token');
+
+            if ($token === null) {
+                // Unauthenticated attempts, keyed by IP. Deliberately tight: the only
+                // thing an unauthenticated caller can be doing here is guessing tokens.
+                return \Illuminate\Cache\RateLimiting\Limit::perMinute(20)->by('api-anon:'.$request->ip());
+            }
+
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute(max(1, (int) $token->rate_limit_per_minute))->by('api-token:'.$token->id);
+        });
+
+        /*
+         * SCIM 2.0 PROVISIONING.
+         *
+         * Keyed on the PRESENTED BEARER TOKEN, not the IP: the callers are directory
+         * services (Entra ID, Okta), one per customer, and several customers may egress
+         * through the same cloud address. Keying on the credential also means the limit
+         * applies before AuthenticateScim resolves it, so token guessing is throttled
+         * too — which is why `throttle:scim` is listed BEFORE `scim.auth` on the group.
+         *
+         *   300 per minute per token — Entra ID sends one HTTP request per user or group
+         *   change and bursts hard on the first full sync of a directory. A 5,000-staff
+         *   bank's initial import is a long tail of requests, not a spike, but the
+         *   ceiling has to clear the burst or provisioning fails silently at the
+         *   customer end and nobody hears about it for a week.
+         *
+         *   20 per minute per IP when NO token is presented at all. The only thing an
+         *   unauthenticated caller can be doing on these endpoints is probing, and this
+         *   mirrors the `api-anon` limit already used by `api-token` above.
+         */
+        \Illuminate\Support\Facades\RateLimiter::for('scim', function (\Illuminate\Http\Request $request) {
+            $bearer = $request->bearerToken();
+
+            if ($bearer === null || $bearer === '') {
+                return \Illuminate\Cache\RateLimiting\Limit::perMinute(20)->by('scim-anon:'.$request->ip());
+            }
+
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute(300)->by('scim:'.hash('sha256', $bearer));
         });
     }
 

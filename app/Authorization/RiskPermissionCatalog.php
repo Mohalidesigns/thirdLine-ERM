@@ -522,6 +522,11 @@ class RiskPermissionCatalog extends PermissionCatalog
                 // roster every alert resolves against. It is an administrator\'s
                 // authority, and the read-only rule is enforced in the connector.
                 'bcms.identity.manage' => 'Configure and run the AD, Entra and SCIM contact sync. Read-only against the directory; nothing is ever written back.',
+                // Deciding that Musa Bello has left and his branch needs
+                // re-parenting is day-to-day continuity work, not the
+                // administrator's authority above it — the BC Coordinator
+                // holds this one, not `bcms.identity.manage` (ADR 0018 §7).
+                'bcms.identity.review' => 'Review the directory sync change queue and approve or reject joiners, leavers and movers.',
 
                 'bcms.report.view' => 'See BCMS reports, the maturity heatmap and the board pack.',
                 'bcms.report.export' => 'Export the ISO 22301, CBN and board evidence packs.',
@@ -660,6 +665,7 @@ class RiskPermissionCatalog extends PermissionCatalog
             'bcms.incident.view', 'bcms.incident.manage',
             'bcms.dr.view', 'bcms.dr.manage', 'bcms.dr.test.record',
             'bcms.training.view', 'bcms.training.manage',
+            'bcms.identity.review',
             'bcms.report.view', 'bcms.report.export',
         ];
 

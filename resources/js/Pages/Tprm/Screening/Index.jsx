@@ -79,7 +79,7 @@ export default function Index({ pending = [], summary = {}, lists = [], can = {}
                             )}
 
                             {can.decide && (
-                                <button type="button" className="btn btn-primary mt-4 text-xs"
+                                <button type="button" className="btn-primary mt-4 text-xs"
                                     onClick={() => setDeciding(match)}>
                                     Resolve this match
                                 </button>
@@ -163,9 +163,9 @@ function DecisionDialog({ match, onClose }) {
                     </div>
                 )}
 
-                <label className="mt-4 block">
+                <label className="form-label mt-4">
                     <span className="text-sm font-medium text-gray-700">Decision</span>
-                    <select className="input mt-1" value={form.data.decision}
+                    <select className="form-select mt-1" value={form.data.decision}
                         onChange={(event) => form.setData('decision', event.target.value)}>
                         <option value="false_positive">False positive — a different party</option>
                         <option value="possible">Possible — needs more information</option>
@@ -173,23 +173,23 @@ function DecisionDialog({ match, onClose }) {
                     </select>
                 </label>
 
-                <label className="mt-4 block">
+                <label className="form-label mt-4">
                     <span className="text-sm font-medium text-gray-700">Rationale</span>
-                    <textarea rows={4} className="input mt-1"
+                    <textarea rows={4} className="form-textarea mt-1"
                         placeholder="Different date of birth and nationality; no connection to this entity."
                         value={form.data.rationale}
                         onChange={(event) => form.setData('rationale', event.target.value)} />
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="form-hint">
                         Required on a dismissal as much as a confirmation — it is what makes the decision
                         reviewable by an examiner who cannot re-run the search as it was.
                     </p>
-                    {form.errors.rationale && <p className="mt-1 text-xs text-red-600">{form.errors.rationale}</p>}
+                    {form.errors.rationale && <p className="form-error">{form.errors.rationale}</p>}
                 </label>
 
                 <div className="mt-6 flex justify-end gap-2">
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+                    <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
                     <button type="submit"
-                        className={form.data.decision === 'true_match' ? 'btn btn-danger' : 'btn btn-primary'}
+                        className={form.data.decision === 'true_match' ? 'btn-danger' : 'btn-primary'}
                         disabled={form.processing}>
                         {form.data.decision === 'true_match' ? 'Confirm and suspend' : 'Record the decision'}
                     </button>

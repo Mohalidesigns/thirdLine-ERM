@@ -2,6 +2,7 @@ import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import CascadeTree from '@/Components/Bcms/CascadeTree';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
@@ -157,45 +158,47 @@ export default function Results({
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-                <section className="rounded border border-slate-200 bg-white p-4">
-                    <h2 className="mb-3 text-sm font-semibold text-slate-700">Per-tier timing against target</h2>
-                    <table className="w-full text-sm">
-                        <thead className="text-left text-xs uppercase text-slate-500">
-                            <tr>
-                                <th className="pb-2">Tier</th>
-                                <th className="pb-2 text-right">Reached</th>
-                                <th className="pb-2 text-right">Elapsed</th>
-                                <th className="pb-2 text-right">Target</th>
-                                <th className="pb-2 text-right">Blocked</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {(scorecard.by_tier ?? []).map((row) => (
-                                <tr key={row.tier}>
-                                    <td className="py-2">Tier {row.tier}</td>
-                                    <td className="py-2 text-right tabular-nums">
-                                        {row.reached}/{row.nodes}
-                                        <span className="ml-1 text-xs text-slate-500">
-                                            {row.completion_rate == null ? '' : `${row.completion_rate}%`}
-                                        </span>
-                                    </td>
-                                    <td className={`py-2 text-right tabular-nums ${row.on_target === false ? 'text-rose-600' : ''}`}>
-                                        {row.elapsed_minutes == null ? '—' : `${row.elapsed_minutes}m`}
-                                    </td>
-                                    <td className="py-2 text-right tabular-nums text-slate-500">
-                                        {row.target_minutes == null ? '—' : `${row.target_minutes}m`}
-                                    </td>
-                                    <td className="py-2 text-right tabular-nums text-rose-600">
-                                        {row.blocked || ''}
-                                    </td>
+                <div className="card">
+                    <div className="card-header"><h2 className="form-section-title">Per-tier timing against target</h2></div>
+                    <div className="overflow-x-auto">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Tier</th>
+                                    <th className="text-right">Reached</th>
+                                    <th className="text-right">Elapsed</th>
+                                    <th className="text-right">Target</th>
+                                    <th className="text-right">Blocked</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </section>
+                            </thead>
+                            <tbody>
+                                {(scorecard.by_tier ?? []).map((row) => (
+                                    <tr key={row.tier}>
+                                        <td>Tier {row.tier}</td>
+                                        <td className="text-right tabular-nums">
+                                            {row.reached}/{row.nodes}
+                                            <span className="ml-1 text-xs text-slate-500">
+                                                {row.completion_rate == null ? '' : `${row.completion_rate}%`}
+                                            </span>
+                                        </td>
+                                        <td className={`text-right tabular-nums ${row.on_target === false ? 'text-rose-600' : ''}`}>
+                                            {row.elapsed_minutes == null ? '—' : `${row.elapsed_minutes}m`}
+                                        </td>
+                                        <td className="text-right tabular-nums text-slate-500">
+                                            {row.target_minutes == null ? '—' : `${row.target_minutes}m`}
+                                        </td>
+                                        <td className="text-right tabular-nums text-rose-600">
+                                            {row.blocked || ''}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
 
-                <section className="rounded border border-slate-200 bg-white p-4">
-                    <h2 className="mb-3 text-sm font-semibold text-slate-700">Data quality and accuracy</h2>
+                <div className="card card-body">
+                    <h2 className="form-section-title mb-3">Data quality and accuracy</h2>
                     <dl className="space-y-2 text-sm">
                         <Line label="Data quality failures" value={scorecard.data_quality_failures ?? 0}
                             hint="wrong number, dead line, mailbox full, unrecognised" />
@@ -227,7 +230,7 @@ export default function Results({
                             </dl>
                         </div>
                     )}
-                </section>
+                </div>
             </div>
 
             <section className="mt-6 rounded border border-slate-200 bg-white">
@@ -258,17 +261,14 @@ export default function Results({
                             preserveScroll: true, onSuccess: () => { setActing(null); fix.reset(); },
                         });
                     }} className="space-y-3">
-                        <label className="block">
-                            <span className="mb-1 block text-xs font-medium text-slate-600">Mobile</span>
+                        <FormField label="Mobile" error={fix.errors.mobile_primary}>
                             <input value={fix.data.mobile_primary} onChange={(e) => fix.setData('mobile_primary', e.target.value)}
-                                className="w-full rounded border-slate-300 text-sm" placeholder="+234…" />
-                            {fix.errors.mobile_primary && <span className="text-xs text-rose-600">{fix.errors.mobile_primary}</span>}
-                        </label>
-                        <label className="block">
-                            <span className="mb-1 block text-xs font-medium text-slate-600">Email</span>
+                                className="form-input" placeholder="+234…" />
+                        </FormField>
+                        <FormField label="Email">
                             <input type="email" value={fix.data.email} onChange={(e) => fix.setData('email', e.target.value)}
-                                className="w-full rounded border-slate-300 text-sm" />
-                        </label>
+                                className="form-input" />
+                        </FormField>
                         <button type="submit" disabled={fix.processing}
                             className="w-full rounded bg-slate-800 py-2 text-sm text-white hover:bg-slate-700">
                             Save correction
@@ -289,23 +289,19 @@ export default function Results({
                             preserveScroll: true, onSuccess: () => { setActing(null); finding.reset(); },
                         });
                     }} className="space-y-3">
-                        <label className="block">
-                            <span className="mb-1 block text-xs font-medium text-slate-600">Classification</span>
+                        <FormField label="Classification">
                             <select value={finding.data.classification} onChange={(e) => finding.setData('classification', e.target.value)}
-                                className="w-full rounded border-slate-300 text-sm">
+                                className="form-select">
                                 <option value="observation">Observation</option>
                                 <option value="improvement">Opportunity for improvement</option>
                                 <option value="nonconformity">Nonconformity</option>
                             </select>
-                        </label>
-                        <label className="block">
-                            <span className="mb-1 block text-xs font-medium text-slate-600">
-                                Description <span className="font-normal text-slate-400">(leave blank to use the cascade's own wording)</span>
-                            </span>
+                        </FormField>
+                        <FormField label="Description" hint="Leave blank to use the cascade's own wording.">
                             <textarea value={finding.data.description} onChange={(e) => finding.setData('description', e.target.value)}
-                                rows={4} className="w-full rounded border-slate-300 text-sm"
+                                rows={4} className="form-textarea"
                                 placeholder={acting.branch.headline} />
-                        </label>
+                        </FormField>
                         <button type="submit" disabled={finding.processing}
                             className="w-full rounded bg-slate-800 py-2 text-sm text-white hover:bg-slate-700">
                             Raise it

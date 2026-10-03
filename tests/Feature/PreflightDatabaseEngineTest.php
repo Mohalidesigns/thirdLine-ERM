@@ -16,7 +16,7 @@ use Tests\TestCase;
  * share it. Panels are no better — XAMPP's says "MySQL" over a MariaDB server.
  *
  * Two things are tested here, and the second is the one with teeth. The check
- * warns when the running engine differs from `Preflight::EXPECTED_DB_ENGINE`,
+ * warns when the running engine is not in `Preflight::EXPECTED_DB_ENGINES`,
  * so that constant is load-bearing; a constant kept in step with CI by nothing
  * but a comment is the same defect one level up from the one being caught.
  */
@@ -55,7 +55,7 @@ class PreflightDatabaseEngineTest extends TestCase
     }
 
     #[Test]
-    public function the_expected_engine_matches_the_image_ci_actually_runs(): void
+    public function the_expected_engines_match_the_images_ci_actually_runs(): void
     {
         $workflow = base_path('.github/workflows/ci.yml');
 
@@ -63,28 +63,39 @@ class PreflightDatabaseEngineTest extends TestCase
 
         $yaml = file_get_contents($workflow);
 
-        $this->assertMatchesRegularExpression(
-            '/image:\s*\S+/',
-            $yaml,
-            'No service image found in ci.yml, so the pin cannot be checked.'
-        );
+        // EVERY literal image, not the first one. CI runs a matrix — the
+        // service reads `${{ matrix.image }}` and the literals live in the
+        // matrix entries — and a first-match read here would certify one leg
+        // and say nothing about the other. Expressions are skipped: they name
+        // a matrix value, not an engine.
+        preg_match_all('/image:\s*(\S+)/', $yaml, $m);
+        $images = array_values(array_filter(
+            array_map('strtolower', $m[1]),
+            fn (string $image) => ! str_starts_with($image, '$'),
+        ));
 
-        preg_match('/image:\s*(\S+)/', $yaml, $m);
-        $image = strtolower($m[1]);
+        $this->assertNotEmpty($images, 'No literal service image found in ci.yml, so the pin cannot be checked.');
 
-        $engineInCi = str_contains($image, 'mariadb') ? 'MariaDB'
-            : (str_contains($image, 'mysql') ? 'MySQL'
-            : (str_contains($image, 'postgres') ? 'PostgreSQL' : $image));
+        $enginesInCi = array_values(array_unique(array_map(
+            fn (string $image) => str_contains($image, 'mariadb') ? 'MariaDB'
+                : (str_contains($image, 'mysql') ? 'MySQL'
+                : (str_contains($image, 'postgres') ? 'PostgreSQL' : $image)),
+            $images,
+        )));
+        sort($enginesInCi);
+
+        $expected = Preflight::EXPECTED_DB_ENGINES;
+        sort($expected);
 
         $this->assertSame(
-            Preflight::EXPECTED_DB_ENGINE,
-            $engineInCi,
+            $expected,
+            $enginesInCi,
             sprintf(
                 "Preflight expects [%s] but ci.yml runs [%s].\n".
-                'These must move together: preflight warns operators when the running engine differs from the pin, '.
-                'so a stale pin makes it warn about the wrong thing — or stay silent when it should not.',
-                Preflight::EXPECTED_DB_ENGINE,
-                $engineInCi
+                'These must move together: preflight warns operators when the running engine is not one CI runs, '.
+                'so a stale list makes it warn about the wrong thing — or stay silent when it should not.',
+                implode(', ', $expected),
+                implode(', ', $enginesInCi)
             )
         );
     }

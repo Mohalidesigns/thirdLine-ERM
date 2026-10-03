@@ -70,6 +70,30 @@ class CommandCentreTest extends TestCase
         $this->assertNull($this->dashboard()['carPercentage']);
     }
 
+    /**
+     * On the last day of the month the dashboard is still live: `end_date` is
+     * a date (midnight at the start of the day), and reading "end date is
+     * past" as "period is over" made every user's dashboard an "as at" view
+     * of the closing month for the whole of its last day. CI ran on 30
+     * September and the counters came back 0 where the 29th had seen 1.
+     */
+    #[Test]
+    public function the_dashboard_stays_live_on_the_last_day_of_the_month(): void
+    {
+        $this->travelTo(now()->endOfMonth()->setTime(12, 0));
+        $this->actor->forceFill(['last_activity_at' => now()])->save();
+
+        $this->makeRisk(['status' => 'active', 'residual_rating' => 'Critical']);
+
+        $data = $this->dashboard();
+
+        $this->assertNull($data['asOfPeriod'], 'The closing month is not over until midnight.');
+        $this->assertSame(1, $data['totalActiveRisks']);
+        $this->assertSame(1, $data['criticalRisks']);
+
+        $this->travelBack();
+    }
+
     /** The counters follow the register. */
     #[Test]
     public function the_counters_follow_the_register(): void

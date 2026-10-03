@@ -32,7 +32,7 @@ export default function Show({ engagement, checklist, can = {} }) {
                         {' '}{engagement.tier_label ?? 'not yet tiered'} engagement gets the items that tier requires.
                     </p>
                     {can.manage && (
-                        <button type="button" className="btn btn-primary mt-4"
+                        <button type="button" className="btn-primary mt-4"
                             onClick={() => router.post(engagement.generate_url)}>
                             Generate the checklist
                         </button>
@@ -67,7 +67,7 @@ export default function Show({ engagement, checklist, can = {} }) {
                     </span>
                 }
                 actions={can.manage && checklist.status === 'open' ? (
-                    <button type="button" className="btn btn-primary"
+                    <button type="button" className="btn-primary"
                         disabled={!checklist.can_complete}
                         onClick={() => router.post(route('tprm.due-diligence.complete', checklist.id))}>
                         Complete due diligence
@@ -154,13 +154,13 @@ function Item({ item, can, onWaive }) {
                 <div className="flex shrink-0 items-center gap-2">
                     <StatusChip item={item} />
                     {can.manage && !item.settled && (
-                        <button type="button" className="btn btn-secondary text-xs"
+                        <button type="button" className="btn-secondary text-xs"
                             onClick={() => router.post(route('tprm.due-diligence.items.complete', item.id))}>
                             Mark done
                         </button>
                     )}
                     {can.waive && !item.settled && (
-                        <button type="button" className="btn btn-secondary text-xs" onClick={onWaive}>
+                        <button type="button" className="btn-secondary text-xs" onClick={onWaive}>
                             Waive
                         </button>
                     )}
@@ -213,23 +213,23 @@ function WaiverDialog({ item, onClose }) {
                     attached — nobody revisits it, and the item never comes back.
                 </p>
 
-                <label className="mt-4 block">
+                <label className="form-label mt-4">
                     <span className="text-sm font-medium text-gray-700">Why does this not apply here?</span>
-                    <textarea rows={4} className="input mt-1" value={form.data.reason}
+                    <textarea rows={4} className="form-textarea mt-1" value={form.data.reason}
                         onChange={(event) => form.setData('reason', event.target.value)} />
-                    {form.errors.reason && <p className="mt-1 text-xs text-red-600">{form.errors.reason}</p>}
+                    {form.errors.reason && <p className="form-error">{form.errors.reason}</p>}
                 </label>
 
-                <label className="mt-4 block">
+                <label className="form-label mt-4">
                     <span className="text-sm font-medium text-gray-700">Expires</span>
-                    <input type="date" className="input mt-1" value={form.data.expires_at}
+                    <input type="date" className="form-input mt-1" value={form.data.expires_at}
                         onChange={(event) => form.setData('expires_at', event.target.value)} />
-                    {form.errors.expires_at && <p className="mt-1 text-xs text-red-600">{form.errors.expires_at}</p>}
+                    {form.errors.expires_at && <p className="form-error">{form.errors.expires_at}</p>}
                 </label>
 
                 <div className="mt-6 flex justify-end gap-2">
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" disabled={form.processing}>Waive</button>
+                    <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn-primary" disabled={form.processing}>Waive</button>
                 </div>
             </form>
         </div>

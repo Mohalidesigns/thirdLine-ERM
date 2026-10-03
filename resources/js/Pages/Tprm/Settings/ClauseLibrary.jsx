@@ -2,6 +2,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 
 /**
  * The clause library settings screen.
@@ -33,7 +34,7 @@ export default function ClauseLibrary({ clauses = [], summary = {}, can = {} }) 
                 title="Clause library"
                 subtitle="The terms a contract has to contain, where they come from, and which of them stop an engagement going live."
                 actions={can.manage ? (
-                    <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
+                    <button type="button" className="btn-primary" onClick={() => setAdding(true)}>
                         Add a clause
                     </button>
                 ) : null}
@@ -116,13 +117,13 @@ function ClauseRow({ clause, can, onEdit }) {
 
                 {can.manage && (
                     <div className="flex shrink-0 gap-2">
-                        <button type="button" className="btn btn-secondary text-xs" onClick={onEdit}>
+                        <button type="button" className="btn-secondary text-xs" onClick={onEdit}>
                             {clause.is_system_owned ? 'Edit wording' : 'Edit'}
                         </button>
                         {!clause.is_system_owned && (
                             <button
                                 type="button"
-                                className="btn btn-secondary text-xs"
+                                className="btn-secondary text-xs"
                                 onClick={() => router.delete(route('tprm.clauses.destroy', clause.id))}
                             >
                                 Remove
@@ -207,11 +208,11 @@ function ClauseDialog({ clause, onClose }) {
                     {!clause && (
                         <div className="grid grid-cols-2 gap-4">
                             <Field label="Code">
-                                <input type="text" className="input" value={form.data.code}
+                                <input type="text" className="form-input" value={form.data.code}
                                     onChange={(e) => form.setData('code', e.target.value)} />
                             </Field>
                             <Field label="Category">
-                                <input type="text" className="input" value={form.data.category}
+                                <input type="text" className="form-input" value={form.data.category}
                                     onChange={(e) => form.setData('category', e.target.value)} />
                             </Field>
                         </div>
@@ -219,21 +220,21 @@ function ClauseDialog({ clause, onClose }) {
 
                     {!clause && (
                         <Field label="Title">
-                            <input type="text" className="input" value={form.data.title}
+                            <input type="text" className="form-input" value={form.data.title}
                                 onChange={(e) => form.setData('title', e.target.value)} />
                         </Field>
                     )}
 
                     {!locked('citation') && (
                         <Field label="Citation">
-                            <input type="text" className="input" value={form.data.citation}
+                            <input type="text" className="form-input" value={form.data.citation}
                                 onChange={(e) => form.setData('citation', e.target.value)} />
                         </Field>
                     )}
 
                     {!locked('is_blocking') && (
                         <label className="flex items-start gap-2">
-                            <input type="checkbox" className="mt-1" checked={form.data.is_blocking}
+                            <input type="checkbox" className="form-checkbox mt-1" checked={form.data.is_blocking}
                                 onChange={(e) => form.setData('is_blocking', e.target.checked)} />
                             <span className="text-sm text-gray-700">
                                 An engagement cannot be activated while this clause is missing.
@@ -242,14 +243,14 @@ function ClauseDialog({ clause, onClose }) {
                     )}
 
                     <Field label="Guidance">
-                        <textarea rows={3} className="input" value={form.data.guidance}
+                        <textarea rows={3} className="form-textarea" value={form.data.guidance}
                             onChange={(e) => form.setData('guidance', e.target.value)} />
                     </Field>
 
                     <Field label="Model wording">
-                        <textarea rows={6} className="input font-mono text-xs" value={form.data.model_text}
+                        <textarea rows={6} className="form-textarea font-mono text-xs" value={form.data.model_text}
                             onChange={(e) => form.setData('model_text', e.target.value)} />
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="form-hint">
                             This is sent to the vendor on the gap report. It ships empty because contract
                             language is drafted by your legal function, not by us.
                         </p>
@@ -257,8 +258,8 @@ function ClauseDialog({ clause, onClose }) {
                 </div>
 
                 <div className="mt-6 flex justify-end gap-2">
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" disabled={form.processing}>Save</button>
+                    <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn-primary" disabled={form.processing}>Save</button>
                 </div>
             </form>
         </div>
@@ -266,10 +267,5 @@ function ClauseDialog({ clause, onClose }) {
 }
 
 function Field({ label, children }) {
-    return (
-        <label className="block">
-            <span className="text-sm font-medium text-gray-700">{label}</span>
-            <div className="mt-1">{children}</div>
-        </label>
-    );
+    return <FormField label={label}>{children}</FormField>;
 }

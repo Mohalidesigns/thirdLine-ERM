@@ -66,10 +66,61 @@ class WidgetQueryEngine
         $query = $source['model']::query();
 
         $this->applyScope($query, $scope, $source);
+        $this->applyVisibility($query, $context);
         $this->applyPeriods($query, $definition, $periods, $source);
         $this->applyFilters($query, $definition, $context, $sourceKey);
 
         return $query;
+    }
+
+    /**
+     * ADR 0017 record visibility, for sources whose model participates in it
+     * — B1 (gate 1 code review #1): `baseQuery()` never called this, so a
+     * Kano-assigned user with `bcms.plan.view` saw every branch's plans and
+     * drills through a widget, the exact leak ADR 0017 exists to close on
+     * every other read path. Node scope (`applyScope()`, which branch a
+     * widget is PLACED ON) and record visibility (which rows THIS USER may
+     * see at all) are different questions — a user assigned to nothing still
+     * sees organisation-level rows on an unrestricted widget, which node
+     * scope alone would not stop.
+     *
+     * R1 (gate 1 code review #2): the FIRST fix here re-implemented ADR 0017
+     * as a second copy — `BindsToVisibleRecord::constrainToVisibleRecord()`
+     * already does exactly this (both the ANCHOR and DERIVED cases, in one
+     * method), and the copy had already drifted from it: it dropped the
+     * named-user arm (`ExerciseOccurrence::orgVisibilityNamedUsers()` —
+     * `facilitator_id`, `participants.user_id` — so a Kano facilitator of a
+     * Lagos drill saw it on the calendar but not on the widget); it added a
+     * `whereHas('definition', ...)` existence requirement with no "whole
+     * estate" short-circuit, exactly the defect the trait's own docblock
+     * names (a soft-deleted definition would have silently hidden the
+     * occurrence from an `rcsa_scope.all_units` holder too); and it failed
+     * OPEN (silently applied nothing) on a terminal the trait's own
+     * `constrainAnchorPath()` fails LOUD on.
+     *
+     * `constrainToVisibleRecord()` now takes an optional `?User $user`
+     * (defaulting to `Auth::user()`, so every non-widget caller is
+     * unchanged) for exactly this reason — an explicit user rather than the
+     * implicit authenticated one, because a widget's context user is not
+     * always the request's authenticated user (a scheduled digest can
+     * render somebody else's dashboard). One call handles both the ANCHOR
+     * case (`Plan`) and the DERIVED case (`ExerciseOccurrence`, anchored on
+     * its `definition`) — the trait itself decides which, the same way it
+     * already does for route binding.
+     *
+     * EVERY OTHER SOURCE IS UNAFFECTED. No TPRM model, no ERM model
+     * (`Risk`, `Control`, …) and `KeyRiskIndicator` use
+     * `BindsToVisibleRecord` at all — `TprmWidgetTest`/
+     * `TprmWidgetHqRenderTest` stay green, unedited, because
+     * `method_exists()` is false for every one of their models.
+     */
+    private function applyVisibility(Builder $query, WidgetContext $context): void
+    {
+        $model = $query->getModel();
+
+        if (method_exists($model, 'constrainToVisibleRecord')) {
+            $model->constrainToVisibleRecord($query, $context->user);
+        }
     }
 
     /**
@@ -166,6 +217,31 @@ class WidgetQueryEngine
                     ->whereIn('id', $this->engagementsUnderNodes($nodeIds))
                     ->whereNull('deleted_at'),
             ),
+            // BCMS (ADR 0021 Amendment 1). The row carries its OWN
+            // `business_unit_id` directly (a plan) — in scope when that unit
+            // is one of the nodes in scope, or hangs off one. Unlike TPRM's
+            // engagements, a BCMS plan or drill belongs to exactly one unit,
+            // so this is the same shape as `unitsUnderNodes()` reuses, not a
+            // second join.
+            'business_unit_ref' => $query->whereIn(
+                $query->qualifyColumn($column),
+                $this->unitsUnderNodes($nodeIds),
+            ),
+            // BCMS (ADR 0021 Amendment 1). The row carries a DEFINITION id
+            // (an exercise occurrence) — in scope when that definition's own
+            // `business_unit_id` is one of the nodes in scope, or hangs off
+            // one. A corporate drill with no business unit on its definition
+            // is unattributable and out of scope on every node — the same
+            // "genuinely unattributable" rule `engagementsUnderNodes()`
+            // documents for TPRM.
+            'bcms_definition_units' => $query->whereIn(
+                $query->qualifyColumn($column),
+                \Illuminate\Support\Facades\DB::table('bcms_exercise_definitions')
+                    ->select('id')
+                    ->where('organization_id', TenantContext::organizationId())
+                    ->whereNull('deleted_at')
+                    ->whereIn('business_unit_id', $this->unitsUnderNodes($nodeIds)),
+            ),
             default => $query->whereIn($query->qualifyColumn($column), $nodeIds),
         };
     }
@@ -199,17 +275,7 @@ class WidgetQueryEngine
     {
         $organizationId = TenantContext::organizationId();
 
-        // Business units whose graph object is one of the nodes in scope, or
-        // hangs off one. `objects.source_model_type` is the morph alias the
-        // sync service writes.
-        $unitIds = \Illuminate\Support\Facades\DB::table('objects')
-            ->select('source_model_id')
-            ->where('organization_id', $organizationId)
-            ->where('source_model_type', 'business_unit')
-            ->whereNull('deleted_at')
-            ->where(function ($query) use ($nodeIds) {
-                $query->whereIn('id', $nodeIds)->orWhereIn('node_id', $nodeIds);
-            });
+        $unitIds = $this->unitsUnderNodes($nodeIds);
 
         $viaFunctions = \Illuminate\Support\Facades\DB::table('tp_engagement_functions')
             ->join(
@@ -231,6 +297,34 @@ class WidgetQueryEngine
             ->where(function ($query) use ($viaFunctions, $unitIds) {
                 $query->whereIn('id', $viaFunctions)
                     ->orWhereIn('business_unit_id', $unitIds);
+            });
+    }
+
+    /**
+     * Business units whose graph object is one of the nodes in scope, or
+     * hangs off one. `objects.source_model_type` is the morph alias the sync
+     * service writes.
+     *
+     * Extracted from `engagementsUnderNodes()` (ADR 0021 Amendment 1) so
+     * `applyScope()`'s `business_unit_ref`/`bcms_definition_units` arms can
+     * reuse the exact same node → business-unit resolution TPRM's own join
+     * already relies on, rather than a second copy that could drift from it.
+     * TPRM's behaviour is unchanged by this extraction — same query, same
+     * bindings, called from the same place.
+     *
+     * @param  list<int>  $nodeIds
+     */
+    private function unitsUnderNodes(array $nodeIds): \Illuminate\Database\Query\Builder
+    {
+        $organizationId = TenantContext::organizationId();
+
+        return \Illuminate\Support\Facades\DB::table('objects')
+            ->select('source_model_id')
+            ->where('organization_id', $organizationId)
+            ->where('source_model_type', 'business_unit')
+            ->whereNull('deleted_at')
+            ->where(function ($query) use ($nodeIds) {
+                $query->whereIn('id', $nodeIds)->orWhereIn('node_id', $nodeIds);
             });
     }
 
@@ -265,7 +359,7 @@ class WidgetQueryEngine
         foreach (array_merge($declared, $runtime) as $filter) {
             $field = (string) ($filter['field'] ?? '');
             $op = (string) ($filter['op'] ?? 'eq');
-            $value = $filter['value'] ?? null;
+            $value = $this->resolveDynamicValue($filter['value'] ?? null);
 
             if (! $this->registry->allowsColumn($sourceKey, $field)) {
                 throw new InvalidArgumentException("Widget filter column [{$field}] is not allowed on [{$sourceKey}].");
@@ -296,6 +390,27 @@ class WidgetQueryEngine
                 'not_null' => $query->whereNotNull($column),
             };
         }
+    }
+
+    /**
+     * A stored filter value is literal JSON, evaluated once at seed/author
+     * time — `'2026-09-23'` never becomes tomorrow. `$today` is the one
+     * token this engine resolves LIVE, at render time, so a seeded "upcoming"
+     * filter stays honest for ever rather than freezing on the day it was
+     * written (B14, gate 1 code review #1 — `BcmsWidgetSeeder`'s drill
+     * calendar had baked `date('Y-m-d')` in at seed time).
+     */
+    private function resolveDynamicValue(mixed $value): mixed
+    {
+        if ($value === '$today') {
+            return now()->toDateString();
+        }
+
+        if (is_array($value)) {
+            return array_map(fn ($v) => $v === '$today' ? now()->toDateString() : $v, $value);
+        }
+
+        return $value;
     }
 
     /* ------------------------------------------------------------------ */

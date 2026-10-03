@@ -5,6 +5,7 @@ namespace App\Models\Bcms;
 use App\Enums\Bcms\ExerciseOutcome;
 use App\Enums\Bcms\OccurrenceStatus;
 use App\Models\Bcms\Concerns\BcmsAuditable;
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -53,10 +54,42 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?\Illuminate\Support\Carbon $created_at
  * @property ?\Illuminate\Support\Carbon $updated_at
  * @property ?\Illuminate\Support\Carbon $deleted_at
+ *
+ * `site_id` IS NULLABLE. `site(): BelongsTo` is declared `BelongsTo<Site,
+ * $this>` without a union, which is enough for Larastan to infer the magic
+ * `$occurrence->site` accessor as non-nullable — wrongly; see
+ * `App\Models\Bcms\Incident`'s identical docblock note for the crash this
+ * caused once, and for why this `@property-read` documents the real shape
+ * without actually changing what Larastan infers — the "ignore
+ * nullsafe.neverNull" directive at the call site is what does that.
+ * @property-read ?\App\Models\Bcms\Site $site
  */
 class ExerciseOccurrence extends Model
 {
-    use BcmsAuditable, BelongsToOrganization, HasBcmsUuid, HasFactory, SoftDeletes;
+    use BcmsAuditable, BelongsToOrganization, BindsToVisibleRecord, HasBcmsUuid, HasFactory, SoftDeletes;
+
+    /**
+     * Derived (ADR 0017 §2): an occurrence has no unit column of its own and
+     * takes the shortest path to an anchor — its definition.
+     */
+    public function orgAnchorPath(): string
+    {
+        return 'definition';
+    }
+
+    /**
+     * ADR 0017 §4 point 5 — Phase 5's core loop. A Retail user invited to a
+     * Treasury exercise gets a T-10 reminder linking to
+     * `occurrences/{occurrence}/confirm-attendance`; without this arm that
+     * link 404s from an invitation the product itself sent. The facilitator
+     * runs an occurrence they may not be assigned to either.
+     *
+     * @return list<string>
+     */
+    public function orgVisibilityNamedUsers(): array
+    {
+        return ['facilitator_id', 'participants.user_id'];
+    }
 
     protected $table = 'bcms_exercise_occurrences';
 
@@ -162,5 +195,18 @@ class ExerciseOccurrence extends Model
     public function carriedActions(): HasMany
     {
         return $this->hasMany(CorrectiveAction::class, 'carried_to_occurrence_id');
+    }
+
+    /**
+     * Every evidence artefact anchored to this occurrence, whatever it is
+     * actually attached to (the occurrence itself, a score, a readiness task
+     * or the AAR) — ADR 0019. Filter by `owner_type`/`owner_id` for a
+     * specific attachment point.
+     *
+     * @return HasMany<Evidence, $this>
+     */
+    public function evidence(): HasMany
+    {
+        return $this->hasMany(Evidence::class, 'occurrence_id');
     }
 }

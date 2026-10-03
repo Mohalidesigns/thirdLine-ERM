@@ -82,10 +82,10 @@ export default function AiUsage({
             )}
 
             <div className="mb-6 flex items-center gap-3">
-                <label className="text-sm">
+                <label className="form-label">
                     <span className="mb-1 block font-medium text-gray-700">Month</span>
                     <select
-                        className="rounded border-gray-300 text-sm"
+                        className="form-select"
                         value={month.usage_month}
                         disabled={navigating}
                         onChange={(event) => changeMonth(event.target.value)}
@@ -216,29 +216,29 @@ function ByServicePanel({ rows }) {
 
     return (
         <section className="card mb-6 overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="data-table">
                 <caption className="p-4 text-left text-sm font-semibold text-gray-800">By service</caption>
                 <thead>
                     <tr className="border-t border-gray-200 bg-gray-50">
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Service</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Calls</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Succeeded</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Refused/blocked</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Tokens</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Avg. duration</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Cost</th>
+                        <th scope="col">Service</th>
+                        <th scope="col">Calls</th>
+                        <th scope="col">Succeeded</th>
+                        <th scope="col">Refused/blocked</th>
+                        <th scope="col">Tokens</th>
+                        <th scope="col">Avg. duration</th>
+                        <th scope="col">Cost</th>
                     </tr>
                 </thead>
                 <tbody>
                     {rows.map((row) => (
                         <tr key={row.service} className="border-t border-gray-100">
-                            <th scope="row" className="px-4 py-2 text-left font-normal text-gray-700">{row.service}</th>
-                            <td className="px-4 py-2">
+                            <th scope="row" className="font-normal">{row.service}</th>
+                            <td>
                                 <InlineBar value={row.calls} max={maxCalls} /> <span className="ml-1">{row.calls}</span>
                             </td>
-                            <td className="px-4 py-2">{row.succeeded}</td>
-                            <td className="px-4 py-2">{row.refused}</td>
-                            <td className="px-4 py-2">
+                            <td>{row.succeeded}</td>
+                            <td>{row.refused}</td>
+                            <td>
                                 {row.tokens === null ? (
                                     'not reported by this backend'
                                 ) : row.calls_missing_tokens > 0 ? (
@@ -247,8 +247,8 @@ function ByServicePanel({ rows }) {
                                     row.tokens.toLocaleString()
                                 )}
                             </td>
-                            <td className="px-4 py-2">{(row.avg_duration_ms / 1000).toFixed(1)}s</td>
-                            <td className="px-4 py-2 text-gray-500">Not priced — self-hosted endpoint</td>
+                            <td>{(row.avg_duration_ms / 1000).toFixed(1)}s</td>
+                            <td className="text-gray-500">Not priced — self-hosted endpoint</td>
                         </tr>
                     ))}
                 </tbody>
@@ -291,25 +291,25 @@ function ByOutcomePanel({ rows }) {
 
     return (
         <section className="card mb-6 overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="data-table">
                 <caption className="p-4 text-left text-sm font-semibold text-gray-800">By outcome</caption>
                 <thead>
                     <tr className="border-t border-gray-200 bg-gray-50">
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Outcome</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Count</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Share of month</th>
+                        <th scope="col">Outcome</th>
+                        <th scope="col">Count</th>
+                        <th scope="col">Share of month</th>
                     </tr>
                 </thead>
                 <tbody>
                     {rows.map((row) => (
                         <tr key={row.outcome} className="border-t border-gray-100">
-                            <th scope="row" className="px-4 py-2 text-left font-normal">
+                            <th scope="row" className="font-normal">
                                 <OutcomeBadge label={row.label} />
                             </th>
-                            <td className="px-4 py-2">
+                            <td>
                                 <InlineBar value={row.count} max={maxCount} /> <span className="ml-1">{row.count}</span>
                             </td>
-                            <td className="px-4 py-2">
+                            <td>
                                 {row.share === null ? '—' : `${(row.share * 100).toFixed(1)}%`}
                             </td>
                         </tr>

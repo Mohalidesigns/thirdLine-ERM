@@ -1,3 +1,4 @@
+import FormField from '@thirdline/ui/Components/FormField';
 /**
  * Guided mode — one risk at a time, for the occasional assessor (§8.2).
  *
@@ -83,7 +84,7 @@ export default function GuidedStep({
                 <div className="grid gap-4 md:grid-cols-2">
                     <Field label="Likelihood (without controls)">
                         <select
-                            className="filter-select w-full"
+                            className="form-select"
                             disabled={!editable}
                             value={line.inherent_likelihood ?? ''}
                             onChange={(e) =>
@@ -104,7 +105,7 @@ export default function GuidedStep({
 
                     <Field label="Impact (without controls)">
                         <select
-                            className="filter-select w-full"
+                            className="form-select"
                             disabled={!editable}
                             value={line.inherent_impact ?? ''}
                             onChange={(e) =>
@@ -165,8 +166,8 @@ export default function GuidedStep({
                     </p>
                 )}
 
-                <select
-                    className="filter-select w-full md:w-1/2"
+                <select aria-label="Control effectiveness"
+                    className="form-select md:w-1/2"
                     disabled={!editable}
                     value={line.control_effectiveness ?? ''}
                     onChange={(e) => onChange({ control_effectiveness: e.target.value || null })}
@@ -207,14 +208,14 @@ export default function GuidedStep({
                         <Field label="This moved materially since the last cycle — why?">
                             <textarea
                                 rows={2}
-                                className="filter-input w-full"
+                                className="form-textarea"
                                 disabled={!editable}
                                 defaultValue={line.assessment_rationale ?? ''}
                                 onBlur={(e) => onChange({ assessment_rationale: e.target.value })}
                             />
                         </Field>
                         {line.prior && (
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="form-hint">
                                 Last cycle: inherent {line.prior.inherent_score}, control{' '}
                                 {line.prior.control_effectiveness ?? '—'}.
                             </p>
@@ -241,18 +242,13 @@ function Section({ number, title, children }) {
 }
 
 function Field({ label, children }) {
-    return (
-        <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
-            {children}
-        </div>
-    );
+    return <FormField label={label}>{children}</FormField>;
 }
 
 function Hint({ children }) {
     if (!children) return null;
 
-    return <p className="mt-1 text-xs text-gray-500">{children}</p>;
+    return <p className="form-hint">{children}</p>;
 }
 
 function Computed({ label, score, level }) {

@@ -169,6 +169,92 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Identity sync (Phase 2C, ADR 0018) — the Microsoft host allowlist
+    |--------------------------------------------------------------------------
+    |
+    | NOT TENANT-EDITABLE, DELIBERATELY. `token_base_url`/`graph_base_url` are
+    | connector fields a `bcms.identity.manage` holder types into a form — a
+    | role that may WRITE a client secret but never READ one back (ADR 0018
+    | §5). Without this list, that holder could point `token_base_url` at
+    | their own host and recover the plaintext secret the moment "Test
+    | connection" POSTs it, or point `graph_base_url` anywhere to make the
+    | server fetch on their behalf. `App\Support\Http\OutboundUrlGuard`'s
+    | general SSRF check (scheme, no credentials-in-URL, no private/internal
+    | address) does not stop this: an attacker's own server is a perfectly
+    | public https host. This list is the closed answer underneath it — the
+    | six FQDNs Microsoft's identity platform and Graph actually run on,
+    | across the commercial, US Government and China clouds ADR 0018 §3.1
+    | names as in scope. A request to any other host, including a redirect —
+    | `EntraGraphClient` disables Guzzle's own redirect-following entirely
+    | (`withoutRedirecting()` on both the token POST and every Graph GET), so
+    | this list is never bypassed by a 3xx it never had a chance to see — an
+    | `@odata.nextLink` page or a stored `delta_link` that has drifted off
+    | this list, fails the run with a bounded error code rather than being
+    | followed.
+    |
+    */
+    'identity' => [
+        'allowed_hosts' => [
+            'login.microsoftonline.com',
+            'login.microsoftonline.us',
+            'graph.microsoft.com',
+            'graph.microsoft.us',
+            'login.chinacloudapi.cn',
+            'microsoftgraph.chinacloudapi.cn',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Incident & crisis management (Phase 10, ADR 0020)
+    |--------------------------------------------------------------------------
+    |
+    | THE REGULATORY WINDOWS ARE LAW, NOT A TENANT SETTING (ADR 0020 §2 point
+    | 3) — same reasoning as the dual-approval thresholds above: a customer
+    | must not be able to set their own reporting deadline to something
+    | roomier. 24 hours (CBN cyber incident reporting) and 72 hours (NDPA
+    | s.40 personal-data breach) run from AWARENESS, never from declaration
+    | or from when a report is drafted.
+    |
+    | DR CADENCE is inherited from `bcms_processes.regulatory_flags`
+    | (open_banking), resolved in PHP over a scoped fetch per the clause
+    | map's own MariaDB warning — never a raw JSON function. Expressed here
+    | in days because `next_test_due` is a date, not a timestamp.
+    |
+    */
+    'incident' => [
+        'notification_windows' => [
+            'cbn_hours' => env('BCMS_INCIDENT_CBN_WINDOW_HOURS', 24),
+            'ndpa_hours' => env('BCMS_INCIDENT_NDPA_WINDOW_HOURS', 72),
+        ],
+
+        // How far past `due_at` an obligation must be before the watchdog's
+        // "approaching" warning fires ahead of the deadline — a chance to
+        // act before the countdown tile turns rose, not just after.
+        'notification_approaching_hours' => env('BCMS_INCIDENT_NOTIFICATION_APPROACHING_HOURS', 6),
+    ],
+
+    'dr' => [
+        // CBN Open Banking cadence (Phase 0/9 corroborated): quarterly
+        // failover, six-monthly DR test, 30-minute failover/failback
+        // threshold. Days, because `next_test_due` is a date column.
+        'open_banking_failover_cadence_days' => env('BCMS_DR_OPEN_BANKING_FAILOVER_DAYS', 91),
+        'open_banking_test_cadence_days' => env('BCMS_DR_OPEN_BANKING_TEST_DAYS', 182),
+        'open_banking_threshold_minutes' => env('BCMS_DR_OPEN_BANKING_THRESHOLD_MINUTES', 30),
+
+        // A system with no open-banking exposure still gets a default review
+        // cadence, or a DR register with nothing typed in `next_test_due`
+        // never surfaces as overdue at all.
+        'default_test_cadence_days' => env('BCMS_DR_DEFAULT_TEST_CADENCE_DAYS', 365),
+
+        // Same shape as `defaults.contact_verification_days` above — a
+        // backup attested six months ago is not a backup you can currently
+        // trust.
+        'backup_currency_days' => env('BCMS_DR_BACKUP_CURRENCY_DAYS', 30),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | AI capabilities (Blueprint §12)
     |--------------------------------------------------------------------------
     |
@@ -197,6 +283,11 @@ return [
             'alert_composer' => env('BCMS_AI_ALERT_COMPOSER', false),
             'plan_draft' => env('BCMS_AI_PLAN_DRAFT', false),
             'programme_advisor' => env('BCMS_AI_PROGRAMME_ADVISOR', false),
+            // Phase 10, Blueprint §12(8): compares a real incident's timeline
+            // against the plan and prior exercises. Draft only, human
+            // reviewed, never sets severity/is_reportable/status and never
+            // raises a finding itself (clause map §6.10).
+            'post_incident_learning' => env('BCMS_AI_POST_INCIDENT_LEARNING', false),
         ],
     ],
 
@@ -213,6 +304,59 @@ return [
     |
     */
     'offline_disk' => env('BCMS_OFFLINE_DISK', env('FILESYSTEM_DISK', 'local')),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Unauthenticated route rate limits
+    |--------------------------------------------------------------------------
+    |
+    | `bcms/check-in` and `bcms/check-in/{token}` (Phase 9, Gate 2 defect 4)
+    | carry no session and no permission to check — the credential is the
+    | per-participant HMAC token/short code itself (`CheckInController`'s own
+    | docblock). Registered as TWO limiters in `AppServiceProvider::
+    | registerBcmsCheckInRateLimiters()` (Gate 2 review #2), not one, because
+    | the two routes are different traffic shapes:
+    |
+    | `check_in_rate_limit_per_minute` guards the short-code FORM
+    | (`bcms/check-in`, no token in the URL), keyed on ip alone — an 8-hex
+    | code typed by hand is a genuine guessing surface, and this is a small
+    | number of human fingers, not a provider's server, so there is no
+    | per-provider key to add.
+    |
+    | `check_in_token_rate_limit_per_minute` and `check_in_ip_rate_limit_
+    | per_minute` together guard the per-participant token routes
+    | (`bcms/check-in/{token}`): the FIRST is keyed per token (a tight
+    | ceiling, because a token is a credential and hammering one specific
+    | token is a guessing/abuse pattern), the SECOND is keyed per ip (a
+    | generous ceiling, sized for an evacuation drill's worth of people
+    | behind one office NAT scanning their own, distinct tokens within the
+    | same minute — the scenario a single shared ip-keyed bucket used to
+    | lock out at request 61, defeating the exact feature it protects).
+    | Both apply together; either can trip first.
+    |
+    | The ip ceiling was 600 through Gate 1 of this pass and is 1200 as of
+    | Gate 1 review #3: the concurrent-checkins NFR (`nfr.concurrent_
+    | checkins` below) is 200, and each participant's own check-in is up to
+    | THREE requests against this route — GET the link, POST "I'm here",
+    | the redirect-GET back to the same page that follows a successful
+    | POST — so 200 × 3 is exactly 600, and one nervous double-tap from
+    | anyone in the drill trips the old ceiling on the feature it exists to
+    | protect. 1200 leaves that headroom without weakening the ceiling as a
+    | guessing-rate control — a script hammering distinct tokens from one
+    | ip still needs 1200 requests inside a minute to clear it, and each of
+    | those tokens is still separately capped at
+    | `check_in_token_rate_limit_per_minute` regardless.
+    |
+    | All three keys are read from INSIDE their `RateLimiter::for()`
+    | closures, at the moment each request is checked, not captured by
+    | `use(...)` at boot (Advisory 2, Gate 2 review #3) — so a value
+    | changed here (or by `config()->set()` in a test) takes effect on the
+    | very next request, on a long-lived worker as much as in a test run.
+    |
+    */
+    'check_in_rate_limit_per_minute' => (int) env('BCMS_CHECK_IN_RATE_LIMIT_PER_MINUTE', 60),
+    'check_in_token_rate_limit_per_minute' => (int) env('BCMS_CHECK_IN_TOKEN_RATE_LIMIT_PER_MINUTE', 10),
+    'check_in_ip_rate_limit_per_minute' => (int) env('BCMS_CHECK_IN_IP_RATE_LIMIT_PER_MINUTE', 1200),
 
     /*
     |--------------------------------------------------------------------------

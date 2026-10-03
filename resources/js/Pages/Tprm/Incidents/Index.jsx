@@ -43,20 +43,20 @@ export default function Index({ incidents = [], settings = {}, can = {} }) {
                 </div>
             ) : (
                 <div className="card overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-50">
+                    <table className="data-table">
+                        <thead>
                             <tr>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Reference</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Incident</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Provider</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Clocks</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Told to us</th>
+                                <th scope="col">Reference</th>
+                                <th scope="col">Incident</th>
+                                <th scope="col">Provider</th>
+                                <th scope="col">Clocks</th>
+                                <th scope="col">Told to us</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {sorted.map((incident) => (
                                 <tr key={incident.uuid}>
-                                    <th scope="row" className="px-4 py-2 text-left">
+                                    <th scope="row">
                                         <Link
                                             href={route('tprm.incidents.show', incident.uuid)}
                                             className="font-mono text-xs text-blue-700 hover:underline"
@@ -64,9 +64,9 @@ export default function Index({ incidents = [], settings = {}, can = {} }) {
                                             {incident.reference}
                                         </Link>
                                     </th>
-                                    <td className="px-4 py-2">{incident.title}</td>
-                                    <td className="px-4 py-2">{incident.third_party}</td>
-                                    <td className="px-4 py-2">
+                                    <td>{incident.title}</td>
+                                    <td>{incident.third_party}</td>
+                                    <td>
                                         <div className="flex flex-wrap gap-1">
                                             {(incident.clocks ?? []).length === 0 && (
                                                 <span className="text-xs text-gray-400">none</span>
@@ -76,7 +76,7 @@ export default function Index({ incidents = [], settings = {}, can = {} }) {
                                             ))}
                                         </div>
                                     </td>
-                                    <td className="px-4 py-2 text-xs text-gray-500">{incident.reported_to_us_at}</td>
+                                    <td className="text-xs text-gray-500">{incident.reported_to_us_at}</td>
                                 </tr>
                             ))}
                         </tbody>

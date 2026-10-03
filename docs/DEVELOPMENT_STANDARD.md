@@ -131,6 +131,7 @@ record before the tenant is known.
 | A dashboard tile | `WidgetPayloadPresenter` |
 | A long job | `hooks/useJobProgress` |
 | A document | `ThirdLine\Reporting\DocumentRenderer` |
+| A digest or comparison over a `json` column's value | `App\Support\CanonicalJson` (see section 15). It is stable on MySQL 8 only for values with no non-integral or out-of-range doubles. Quote floats before storing, as `Tprm\AuditLog::quoteFloats()` does. |
 
 Charts are Chart.js — a deliberate divergence from ThirdLine, settled as
 Decision 4 of the migration strategy.
@@ -166,7 +167,9 @@ Be explicit about this rather than trusting a green run.
 
 `RouteAuthorizationTest`, `TenancyIsolationTest`, `NoFabricatedNumbersTest`,
 `AdminNavigationTest`, `PreflightRouteGuardTest`, `SecurityHeadersTest`,
-`PermissionCatalogCoversRoutesTest`, `scripts/parity-check.php`.
+`PermissionCatalogCoversRoutesTest`, `NoSelfUpdatingTimestampColumnsTest`,
+`CanonicalJsonTest`, `AuditChainCrossEngineTest`, `AuditLogHashRecipeTest`,
+`scripts/parity-check.php`.
 
 **When one turns red, find out which of three kinds it is before touching it:**
 bookkeeping that is now stale, a check coupled to the renderer rather than the
@@ -182,3 +185,49 @@ the fact that made it impossible.
 
 One procedure: `.github/workflows/deploy.yml` → `scripts/deploy.sh`. See
 `docs/DEPLOYMENT.md`. `php artisan app:preflight` must exit zero before serving.
+
+## 13. A `timestamp()` column is `->nullable()` or `->useCurrent()`, never bare
+
+An event time the application writes (`*_at` that is not `created_at`/`updated_at`)
+is `dateTime()`. `timestampTz()` is not an alternative: on MySQL/MariaDB it
+is the same type. `useCurrentOnUpdate()` needs an ADR — on **any** column,
+not only a `TIMESTAMP` one; the same implicit `ON UPDATE CURRENT_TIMESTAMP`
+clause is exactly as bad on a `DATETIME` column, and the allowlist is empty.
+Guarded by `NoSelfUpdatingTimestampColumnsTest`, which scans every column of
+every table, of any type. See ADR 0022.
+
+## 14. A `date` cast is a day, not an instant
+
+A column cast `'date'` comes back as midnight at the START of that day, so
+`$model->end_date->isPast()` is true for the whole of the last day, and
+`where('due_date', '<', now())` has MariaDB widen the DATE to that same
+midnight. The register, the command centre and the heatmap decided "this
+period is over" that way and showed every user the historic "as at" view on
+the last day of every month; the suite was green on 29 September and CI was
+red on the 30th. Ask the model — `Period::hasEnded()` — or compare days to
+days: `DateBounds::endOfDay()`, `whereDate($col, '<', now()->toDateString())`.
+Never `->isPast()`/`->isFuture()` on a date cast, and never a bare `now()`
+against a DATE column. The same shape remains on some due-date readers,
+where "due today" reads as overdue; they are booked, not exempt.
+
+## 15. A digest over a `json` column hashes the decoded value, never the column's text
+
+MySQL 8 stores `json` as a binary type and returns it re-serialised (keys
+re-ordered, spacing and escaping changed). MariaDB returns the stored text
+verbatim. Seal and verify through `App\Support\CanonicalJson`.
+
+**Canonicalising is not enough for doubles.** MySQL 8.0.46's JSON parser does
+not read every double back exactly. `9.018867924528301` comes back as
+`9.0188679245283`, `1.0e25` as `9.999999999999999e24`, and integers above
+`2^64` drift too. The server has already stored a different number before
+anything reads it, so no canonicaliser can undo the drift. Unrounded ratios
+mismatched about 1 time in 10 in the gate-2 measurement. A digest over a MySQL
+`json` column is therefore stable only for values with **no non-integral or
+out-of-range doubles**. A writer must quote floats (store each float's
+`serialize_precision = -1` text as a JSON string) or quantise them **before**
+storing. Do it at write time, never inside the digest: quoting at verify time
+makes `72.5` and `"72.5"` hash alike and hides a type change. Do not rely on
+"we round to 4 dp" either. Nothing enforces it, and an audit trait records raw
+attributes, where a `decimal:N` cast has not run. Ints within int64 are exact
+on both engines. Guarded by `CanonicalJsonTest`, `AuditChainCrossEngineTest`
+and `AuditLogHashRecipeTest`. See ADR 0025 §1 and §2a.

@@ -76,7 +76,7 @@ phase that needs one raises it here first.
 | 8.4.4 | `iso22301.8.4.4` | Plans with roles, activation and resumption procedures | Plan sections bound to live BIA and call-tree data | `bcms_plan_sections` | ISO pack |
 | 8.4.5 | `iso22301.8.4.5` | Recovery — returning from temporary measures | DR failback test records | `bcms_dr_tests` (`test_type = failback`) | ISO pack, CBN |
 | **8.5** | three codes | The **exercise programme**, the **individual exercise**, the **post-exercise report** | The annual programme, each occurrence, each AAR | `bcms_exercise_programmes`, `bcms_exercise_occurrences`, `bcms_aars` | ISO pack, CBN CSAT, board |
-| 8.6 | `iso22301.8.6` | Evaluation of documentation and capability | Plan review dates; exercise outcomes | `bcms_plans.next_review_date`, `bcms_exercise_occurrences.outcome` | ISO pack, board |
+| 8.6 | `iso22301.8.6` | Evaluation of documentation and capability, through periodic exercises AND post-incident reports | No active Tier-1 process untested above a walkthrough within 18 months (`LadderAdvisor::coverageMatrix()`, the `tier1_never_drilled`/`tier1_stale` rules); every `status = closed`, `is_exercise = false` incident has a finalised post-incident review (`bcms_aars` with `incident_id` set) | `bcms_processes` (Tier 1), `bcms_exercise_occurrences`, `bcms_incidents`, `bcms_aars` (the PIR arm — amber only, never green on its own: compliance ruling "PIRs and clause 8.6", `docs/bcms/phase-11-notes.md`) | ISO pack, board |
 
 > **8.5 is split into three codes and that split is load-bearing.** An auditor
 > asks for the programme (what you planned for the year), the exercise (what you

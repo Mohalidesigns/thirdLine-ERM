@@ -34,8 +34,8 @@ export default function Show({
                 subtitle={[document.type, document.issuer].filter(Boolean).join(' · ') || 'Uncategorised evidence'}
                 actions={
                     <div className="flex gap-2">
-                        <a href={document.download_url} className="btn btn-secondary">Download</a>
-                        <Link href={route('tprm.documents.index')} className="btn btn-secondary">Back to library</Link>
+                        <a href={document.download_url} className="btn-secondary">Download</a>
+                        <Link href={route('tprm.documents.index')} className="btn-secondary">Back to library</Link>
                     </div>
                 }
             />
@@ -315,14 +315,14 @@ function ExtractionPanel({ document, extractions, pending, capabilities, can, ex
                         {canExtract && (
                             <button
                                 type="button"
-                                className="btn btn-secondary"
+                                className="btn-secondary"
                                 disabled={isExtracting}
                                 onClick={() => router.post(route('tprm.documents.extract', document.uuid))}
                             >
                                 {isExtracting ? 'Reading…' : 'Read the document'}
                             </button>
                         )}
-                        <button type="button" className="btn btn-secondary" onClick={() => setManual(true)}>
+                        <button type="button" className="btn-secondary" onClick={() => setManual(true)}>
                             Enter by hand
                         </button>
                     </div>
@@ -582,14 +582,14 @@ function ExtractionCard({ document, extraction, isPending, can }) {
                 <div className="mt-4 flex gap-2 border-t border-gray-100 pt-4">
                     <button
                         type="button"
-                        className="btn btn-primary"
+                        className="btn-primary"
                         onClick={() => router.post(route('tprm.documents.extractions.confirm', [document.uuid, extraction.id]))}
                     >
                         Confirm this is what the document says
                     </button>
                     <button
                         type="button"
-                        className="btn btn-secondary"
+                        className="btn-secondary"
                         onClick={() => router.post(route('tprm.documents.extractions.reject', [document.uuid, extraction.id]))}
                     >
                         Reject
@@ -830,7 +830,7 @@ function ProposalsPanel({ document, proposals, soc2, can }) {
                             <li key={answer.response_id} className="flex gap-3 rounded border border-gray-200 p-3">
                                 <input
                                     type="checkbox"
-                                    className="mt-1"
+                                    className="form-checkbox mt-1"
                                     checked={form.data.answers.includes(answer.response_id)}
                                     onChange={() => toggle(answer.response_id)}
                                 />
@@ -883,9 +883,9 @@ function ProposalsPanel({ document, proposals, soc2, can }) {
                                 <p className="text-gray-900">
                                     <span className="font-medium">{cuec.reference ?? 'CUEC'}</span> — {cuec.description}
                                 </p>
-                                <input
+                                <input aria-label={`Rating for ${cuec.reference ?? 'CUEC'}`}
                                     type="number"
-                                    className="input mt-2 max-w-xs"
+                                    className="form-input mt-2 max-w-xs"
                                     placeholder="Owner user ID"
                                     value={form.data.cuecs[cuec.id]?.owner_id ?? ''}
                                     onChange={(event) => form.setData('cuecs', {
@@ -901,7 +901,7 @@ function ProposalsPanel({ document, proposals, soc2, can }) {
 
             {can.confirm && (
                 <div className="mt-6 border-t border-gray-100 pt-4">
-                    <button type="submit" className="btn btn-primary" disabled={form.processing}>
+                    <button type="submit" className="btn-primary" disabled={form.processing}>
                         Apply the selected proposals
                     </button>
                 </div>
@@ -963,30 +963,30 @@ function ManualEntryDialog({ document, onClose }) {
                     the same state.
                 </p>
 
-                <label className="mt-4 block">
+                <label className="form-label mt-4">
                     <span className="text-sm font-medium text-gray-700">Document kind</span>
                     <input
                         type="text"
-                        className="input mt-1"
+                        className="form-input mt-1"
                         value={form.data.extractor}
                         onChange={(event) => form.setData('extractor', event.target.value)}
                     />
                 </label>
 
-                <label className="mt-4 block">
+                <label className="form-label mt-4">
                     <span className="text-sm font-medium text-gray-700">Fields</span>
                     <textarea
                         rows={14}
-                        className="input mt-1 font-mono text-xs"
+                        className="form-textarea mt-1 font-mono text-xs"
                         value={form.data.fields}
                         onChange={(event) => form.setData('fields', event.target.value)}
                     />
-                    {form.errors.fields && <p className="mt-1 text-xs text-red-600">{form.errors.fields}</p>}
+                    {form.errors.fields && <p className="form-error">{form.errors.fields}</p>}
                 </label>
 
                 <div className="mt-6 flex justify-end gap-2">
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" disabled={form.processing}>Record</button>
+                    <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn-primary" disabled={form.processing}>Record</button>
                 </div>
             </form>
         </div>

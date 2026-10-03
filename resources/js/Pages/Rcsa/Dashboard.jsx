@@ -24,9 +24,11 @@ const EFFECTIVENESS_LABEL = {
 
 function Panel({ title, children }) {
     return (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#1A365D] mb-4">{title}</h3>
-            {children}
+        <div className="card">
+            <div className="card-header">
+                <h3 className="form-section-title">{title}</h3>
+            </div>
+            <div className="card-body">{children}</div>
         </div>
     );
 }
@@ -104,9 +106,9 @@ export default function Dashboard({
                 </Panel>
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
-                <div className="px-5 py-4 border-b border-gray-100">
-                    <h3 className="text-sm font-semibold text-[#1A365D]">Assessment Progress by Business Unit</h3>
+            <div className="card mb-6">
+                <div className="card-header">
+                    <h3 className="form-section-title">Assessment Progress by Business Unit</h3>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="data-table">
@@ -123,17 +125,19 @@ export default function Dashboard({
                         <tbody>
                             {unitProgress.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="text-center py-8 text-gray-400">
-                                        <span className="material-symbols-outlined text-3xl mb-2 block">assignment</span>
-                                        No business unit data available
+                                    <td colSpan={6} className="text-center py-12">
+                                        <div className="text-gray-400">
+                                            <span className="material-symbols-outlined text-3xl mb-2 block">assignment</span>
+                                            <p className="text-sm font-medium">No business unit data available</p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
                             {unitProgress.map((unit) => (
                                 <tr key={unit.id}>
-                                    <td className="font-medium text-[#1A365D]">{unit.name}</td>
-                                    <td className="text-xs">{unit.totalRisks}</td>
-                                    <td className="text-xs">{unit.assessed}</td>
+                                    <td className="cell-title">{unit.name}</td>
+                                    <td className="cell-muted">{unit.totalRisks}</td>
+                                    <td className="cell-muted">{unit.assessed}</td>
                                     <td>
                                         <div className="flex items-center gap-2">
                                             <div className="w-20 bg-gray-200 rounded-full h-2">
@@ -151,9 +155,9 @@ export default function Dashboard({
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-100">
-                    <h3 className="text-sm font-semibold text-[#1A365D]">Top Risks by Residual Rating</h3>
+            <div className="card">
+                <div className="card-header">
+                    <h3 className="form-section-title">Top Risks by Residual Rating</h3>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="data-table">
@@ -169,12 +173,18 @@ export default function Dashboard({
                         </thead>
                         <tbody>
                             {topRisks.length === 0 && (
-                                <tr><td colSpan={6} className="text-center py-8 text-gray-400">No risks identified yet</td></tr>
+                                <tr>
+                                    <td colSpan={6} className="text-center py-12">
+                                        <div className="text-gray-400">
+                                            <p className="text-sm font-medium">No risks identified yet</p>
+                                        </div>
+                                    </td>
+                                </tr>
                             )}
                             {topRisks.map((risk) => (
                                 <tr key={risk.id}>
-                                    <td className="font-medium text-[#1A365D]">{risk.title}</td>
-                                    <td className="text-xs">{risk.businessUnit ?? '-'}</td>
+                                    <td className="cell-title">{risk.title}</td>
+                                    <td className="cell-muted">{risk.businessUnit ?? '-'}</td>
                                     <td><RatingBadge rating={risk.inherentRating?.toLowerCase()} /></td>
                                     <td><RatingBadge rating={risk.residualRating?.toLowerCase()} /></td>
                                     <td>
@@ -186,7 +196,7 @@ export default function Dashboard({
                                             <span className="text-xs text-gray-400">Not assessed</span>
                                         )}
                                     </td>
-                                    <td className="text-xs">{risk.controlCount}</td>
+                                    <td className="cell-muted">{risk.controlCount}</td>
                                 </tr>
                             ))}
                         </tbody>

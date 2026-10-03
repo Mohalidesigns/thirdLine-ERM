@@ -45,7 +45,7 @@ export default function Index({
                 actions={can.manage ? (
                     <button
                         type="button"
-                        className="btn btn-secondary"
+                        className="btn-secondary"
                         onClick={() => router.post(route('tprm.concentration.run'), { dimension })}
                     >
                         Run analysis
@@ -54,10 +54,10 @@ export default function Index({
             />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
-                <label htmlFor="dimension" className="text-sm text-gray-600">Grouped by</label>
+                <label htmlFor="dimension" className="filter-label">Grouped by</label>
                 <select
                     id="dimension"
-                    className="form-select text-sm"
+                    className="form-select"
                     value={dimension}
                     onChange={(event) => router.get(
                         route('tprm.concentration.index'),
@@ -175,33 +175,33 @@ function SpofTable({ rows }) {
 
     return (
         <div className="card overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <table className="data-table">
                 <caption className="sr-only">
                     Providers ranked by the number of critical business functions depending on them
                 </caption>
                 <thead className="bg-gray-50">
                     <tr>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Provider</th>
-                        <th scope="col" className="px-4 py-2 text-right font-medium text-gray-600">Critical functions</th>
-                        <th scope="col" className="px-4 py-2 text-right font-medium text-gray-600">Engagements</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Substitutability</th>
-                        <th scope="col" className="px-4 py-2 text-right font-medium text-gray-600">Time to replace</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Exit plan</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Note</th>
+                        <th scope="col" className="text-left">Provider</th>
+                        <th scope="col" className="text-right">Critical functions</th>
+                        <th scope="col" className="text-right">Engagements</th>
+                        <th scope="col" className="text-left">Substitutability</th>
+                        <th scope="col" className="text-right">Time to replace</th>
+                        <th scope="col" className="text-left">Exit plan</th>
+                        <th scope="col" className="text-left">Note</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                     {rows.map((row) => (
                         <tr key={row.label}>
-                            <th scope="row" className="px-4 py-2 text-left font-medium text-gray-900">{row.label}</th>
-                            <td className="px-4 py-2 text-right tabular-nums">{row.critical_functions}</td>
-                            <td className="px-4 py-2 text-right tabular-nums">{row.engagements}</td>
-                            <td className="px-4 py-2">{row.substitutability ?? <Unknown />}</td>
-                            <td className="px-4 py-2 text-right tabular-nums">
+                            <th scope="row" className="text-left">{row.label}</th>
+                            <td className="text-right tabular-nums">{row.critical_functions}</td>
+                            <td className="text-right tabular-nums">{row.engagements}</td>
+                            <td>{row.substitutability ?? <Unknown />}</td>
+                            <td className="text-right tabular-nums">
                                 {row.time_to_replace_months ? `${row.time_to_replace_months} months` : <Unknown />}
                             </td>
-                            <td className="px-4 py-2"><ExitPlanCell plan={row.exit_plan} /></td>
-                            <td className="px-4 py-2 text-gray-600">{row.note}</td>
+                            <td><ExitPlanCell plan={row.exit_plan} /></td>
+                            <td className="text-gray-600">{row.note}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -243,26 +243,26 @@ function ClusterTable({ rows, bandEdges }) {
 
     return (
         <div className="card overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <table className="data-table">
                 <caption className="px-4 py-2 text-left text-xs text-gray-500">
                     The index is the sum of squared shares, on a 0–10,000 scale. Below {bandEdges.diversified} is
                     diversified; above {bandEdges.concentrated} is concentrated.
                 </caption>
                 <thead className="bg-gray-50">
                     <tr>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Group</th>
-                        <th scope="col" className="px-4 py-2 text-right font-medium text-gray-600">Engagements</th>
-                        <th scope="col" className="px-4 py-2 text-right font-medium text-gray-600">Critical functions</th>
-                        <th scope="col" className="px-4 py-2 text-right font-medium text-gray-600">Share of spend</th>
+                        <th scope="col" className="text-left">Group</th>
+                        <th scope="col" className="text-right">Engagements</th>
+                        <th scope="col" className="text-right">Critical functions</th>
+                        <th scope="col" className="text-right">Share of spend</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                     {rows.map((row) => (
                         <tr key={row.label}>
-                            <th scope="row" className="px-4 py-2 text-left font-medium text-gray-900">{row.label}</th>
-                            <td className="px-4 py-2 text-right tabular-nums">{row.engagements}</td>
-                            <td className="px-4 py-2 text-right tabular-nums">{row.critical_functions}</td>
-                            <td className="px-4 py-2 text-right tabular-nums">
+                            <th scope="row" className="text-left">{row.label}</th>
+                            <td className="text-right tabular-nums">{row.engagements}</td>
+                            <td className="text-right tabular-nums">{row.critical_functions}</td>
+                            <td className="text-right tabular-nums">
                                 {total > 0 ? `${((row.spend_minor / total) * 100).toFixed(1)}%` : <Unknown />}
                             </td>
                         </tr>
@@ -347,22 +347,22 @@ function SupplyChain({ graph }) {
             </div>
 
             <div className="card overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <table className="data-table">
                     <caption className="px-4 py-2 text-left text-xs text-gray-500">
                         Every entity in the diagram above, with its distance from us.
                     </caption>
                     <thead className="bg-gray-50">
                         <tr>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Entity</th>
-                            <th scope="col" className="px-4 py-2 text-right font-medium text-gray-600">Depth</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Risk band</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Reached through</th>
+                            <th scope="col" className="text-left">Entity</th>
+                            <th scope="col" className="text-right">Depth</th>
+                            <th scope="col" className="text-left">Risk band</th>
+                            <th scope="col" className="text-left">Reached through</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {positioned.map((node) => (
                             <tr key={node.id}>
-                                <th scope="row" className="px-4 py-2 text-left font-medium text-gray-900">
+                                <th scope="row" className="text-left">
                                     {node.name}
                                     {!node.matched && (
                                         <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-xs font-normal text-amber-800">
@@ -370,9 +370,9 @@ function SupplyChain({ graph }) {
                                         </span>
                                     )}
                                 </th>
-                                <td className="px-4 py-2 text-right tabular-nums">{node.depth}</td>
-                                <td className="px-4 py-2">{node.band ?? <Unknown />}</td>
-                                <td className="px-4 py-2 text-gray-600">
+                                <td className="text-right tabular-nums">{node.depth}</td>
+                                <td>{node.band ?? <Unknown />}</td>
+                                <td className="text-gray-600">
                                     {edges.filter((edge) => edge.to === node.id)
                                         .map((edge) => byId[edge.from]?.name)
                                         .filter(Boolean)
@@ -440,14 +440,14 @@ function Proposals({ rows, can }) {
                         <div className="flex shrink-0 gap-2">
                             <button
                                 type="button"
-                                className="btn btn-sm btn-secondary"
+                                className="btn-secondary text-xs"
                                 onClick={() => router.post(route('tprm.concentration.edges.confirm', row.id))}
                             >
                                 Confirm
                             </button>
                             <button
                                 type="button"
-                                className="btn btn-sm btn-ghost"
+                                className="btn-secondary text-xs"
                                 onClick={() => router.post(route('tprm.concentration.edges.reject', row.id))}
                             >
                                 Reject

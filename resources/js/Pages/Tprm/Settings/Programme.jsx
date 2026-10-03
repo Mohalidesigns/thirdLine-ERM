@@ -1,6 +1,7 @@
 import { Head, useForm } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import { FormSection, FormField, FormActions } from '@thirdline/ui';
 
 /**
  * TPRM programme settings — the figures the module cannot ship a default for.
@@ -73,13 +74,11 @@ export default function Programme({ settings = {}, consequences = {}, updatedBy,
                 </div>
             )}
 
-            <form onSubmit={submit} className="space-y-6">
-                <section className="card p-4">
-                    <h2 className="mb-1 text-sm font-semibold text-gray-800">Institution identity</h2>
-                    <p className="mb-4 text-xs text-gray-500">
-                        Used by DORA RT.01.01. Leave a field blank rather than entering a partial value.
-                    </p>
-
+            <form onSubmit={submit} className="form-page">
+                <FormSection
+                    title="Institution identity"
+                    description="Used by DORA RT.01.01. Leave a field blank rather than entering a partial value."
+                >
                     <div className="grid gap-4 md:grid-cols-2">
                         <Field
                             label="Legal Entity Identifier (LEI)"
@@ -113,15 +112,12 @@ export default function Programme({ settings = {}, consequences = {}, updatedBy,
                             maxLength={3}
                         />
                     </div>
-                </section>
+                </FormSection>
 
-                <section className="card p-4">
-                    <h2 className="mb-1 text-sm font-semibold text-gray-800">Shareholders&rsquo; funds</h2>
-                    <p className="mb-4 text-xs text-gray-500">
-                        The CBN cyber-incident definition turns on a loss exceeding {materiality.percentage}% of
-                        this figure. The percentage is statutory; the figure is a property of the bank.
-                    </p>
-
+                <FormSection
+                    title="Shareholders’ funds"
+                    description={`The CBN cyber-incident definition turns on a loss exceeding ${materiality.percentage}% of this figure. The percentage is statutory; the figure is a property of the bank.`}
+                >
                     <div className="grid gap-4 md:grid-cols-3">
                         <Field
                             label="Amount"
@@ -149,15 +145,12 @@ export default function Programme({ settings = {}, consequences = {}, updatedBy,
                             onChange={(value) => setData('shareholders_funds_as_at', value)}
                         />
                     </div>
-                </section>
+                </FormSection>
 
-                <section className="card p-4">
-                    <h2 className="mb-1 text-sm font-semibold text-gray-800">Regulatory contact</h2>
-                    <p className="mb-4 text-xs text-gray-500">
-                        Named on notification drafts. Nothing is ever transmitted to a regulator from this
-                        product — a draft is assembled here and a person sends it.
-                    </p>
-
+                <FormSection
+                    title="Regulatory contact"
+                    description="Named on notification drafts. Nothing is ever transmitted to a regulator from this product — a draft is assembled here and a person sends it."
+                >
                     <div className="grid gap-4 md:grid-cols-2">
                         <Field
                             label="Name"
@@ -172,19 +165,18 @@ export default function Programme({ settings = {}, consequences = {}, updatedBy,
                             onChange={(value) => setData('regulatory_contact_title', value)}
                         />
                     </div>
-                </section>
+                </FormSection>
 
-                <div className="flex items-center gap-4">
-                    <button type="submit" className="btn-primary" disabled={processing}>
-                        Save settings
-                    </button>
-                    {recentlySuccessful && <span className="text-sm text-emerald-700">Saved.</span>}
-                    {updatedBy && (
-                        <span className="text-xs text-gray-500">
-                            Last changed by {updatedBy} on {updatedAt}.
-                        </span>
-                    )}
-                </div>
+                <FormActions submitLabel="Save settings" processing={processing}>
+                    <div className="mr-auto flex flex-col gap-0.5">
+                        {recentlySuccessful && <span className="text-sm text-emerald-700">Saved.</span>}
+                        {updatedBy && (
+                            <span className="text-xs text-gray-500">
+                                Last changed by {updatedBy} on {updatedAt}.
+                            </span>
+                        )}
+                    </div>
+                </FormActions>
             </form>
         </AppLayout>
     );
@@ -192,18 +184,15 @@ export default function Programme({ settings = {}, consequences = {}, updatedBy,
 
 function Field({ label, hint, value, error, onChange, type = 'text', step, maxLength }) {
     return (
-        <label className="block text-sm">
-            <span className="mb-1 block font-medium text-gray-700">{label}</span>
+        <FormField label={label} hint={hint} error={error}>
             <input
                 type={type}
                 step={step}
                 maxLength={maxLength}
-                className="w-full rounded border-gray-300 text-sm"
+                className="form-input"
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
             />
-            {hint && !error && <span className="mt-1 block text-xs text-gray-500">{hint}</span>}
-            {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
-        </label>
+        </FormField>
     );
 }

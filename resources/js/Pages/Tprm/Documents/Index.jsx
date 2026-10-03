@@ -3,6 +3,7 @@ import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 
 /**
  * The evidence library — FR-EVD-01, with the expiry heat map above it.
@@ -46,7 +47,7 @@ export default function Index({ summary = {}, grid, documentTypes = [], capabili
                 title="Evidence library"
                 subtitle="Certificates, assurance reports and agreements, with what they cover and when they lapse. A control evidenced by an expired report is not evidenced today."
                 actions={can.upload ? (
-                    <button type="button" className="btn btn-primary" onClick={() => setUploading(true)}>
+                    <button type="button" className="btn-primary" onClick={() => setUploading(true)}>
                         Upload evidence
                     </button>
                 ) : null}
@@ -153,7 +154,7 @@ function UploadDialog({ documentTypes, onClose }) {
                     <Field label="File" error={form.errors.file}>
                         <input
                             type="file"
-                            className="input"
+                            className="block text-sm"
                             accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
                             onChange={(event) => form.setData('file', event.target.files[0])}
                         />
@@ -161,7 +162,7 @@ function UploadDialog({ documentTypes, onClose }) {
 
                     <Field label="Document type" error={form.errors.document_type_id}>
                         <select
-                            className="input"
+                            className="form-select"
                             value={form.data.document_type_id}
                             onChange={(event) => form.setData('document_type_id', event.target.value)}
                         >
@@ -185,7 +186,7 @@ function UploadDialog({ documentTypes, onClose }) {
                     <div className="grid grid-cols-2 gap-4">
                         <Field label="Attached to" error={form.errors.owner_type}>
                             <select
-                                className="input"
+                                className="form-select"
                                 value={form.data.owner_type}
                                 onChange={(event) => form.setData('owner_type', event.target.value)}
                             >
@@ -198,7 +199,7 @@ function UploadDialog({ documentTypes, onClose }) {
                         <Field label="Record ID" error={form.errors.owner_id}>
                             <input
                                 type="number"
-                                className="input"
+                                className="form-input"
                                 value={form.data.owner_id}
                                 onChange={(event) => form.setData('owner_id', event.target.value)}
                             />
@@ -208,7 +209,7 @@ function UploadDialog({ documentTypes, onClose }) {
                     <Field label="Title" error={form.errors.title}>
                         <input
                             type="text"
-                            className="input"
+                            className="form-input"
                             placeholder="Taken from the filename if left blank"
                             value={form.data.title}
                             onChange={(event) => form.setData('title', event.target.value)}
@@ -217,23 +218,23 @@ function UploadDialog({ documentTypes, onClose }) {
 
                     <div className="grid grid-cols-3 gap-4">
                         <Field label="Issued" error={form.errors.issue_date}>
-                            <input type="date" className="input" value={form.data.issue_date}
+                            <input type="date" className="form-input" value={form.data.issue_date}
                                 onChange={(event) => form.setData('issue_date', event.target.value)} />
                         </Field>
                         <Field label="Valid from" error={form.errors.valid_from}>
-                            <input type="date" className="input" value={form.data.valid_from}
+                            <input type="date" className="form-input" value={form.data.valid_from}
                                 onChange={(event) => form.setData('valid_from', event.target.value)} />
                         </Field>
                         <Field label="Expires" error={form.errors.valid_to}>
-                            <input type="date" className="input" value={form.data.valid_to}
+                            <input type="date" className="form-input" value={form.data.valid_to}
                                 onChange={(event) => form.setData('valid_to', event.target.value)} />
                         </Field>
                     </div>
                 </div>
 
                 <div className="mt-6 flex justify-end gap-2">
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" disabled={form.processing}>
+                    <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn-primary" disabled={form.processing}>
                         {form.processing ? 'Uploading…' : 'Upload'}
                     </button>
                 </div>
@@ -243,11 +244,5 @@ function UploadDialog({ documentTypes, onClose }) {
 }
 
 function Field({ label, error, children }) {
-    return (
-        <label className="block">
-            <span className="text-sm font-medium text-gray-700">{label}</span>
-            <div className="mt-1">{children}</div>
-            {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-        </label>
-    );
+    return <FormField label={label} error={error}>{children}</FormField>;
 }

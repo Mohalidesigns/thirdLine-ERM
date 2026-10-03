@@ -90,7 +90,7 @@ function Tile({ label, value, hint, tone }) {
         <div className="card p-4">
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</div>
             <div className={`mt-1 text-2xl font-bold ${toneClass}`}>{value}</div>
-            {hint && <div className="mt-1 text-xs text-gray-500">{hint}</div>}
+            {hint && <div className="form-hint">{hint}</div>}
         </div>
     );
 }

@@ -62,7 +62,7 @@ export default function GridToolbar({ grid, state, selectedCount }) {
                     value={term}
                     onChange={(e) => setTerm(e.target.value)}
                     placeholder="Search…"
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)]"
+                    className="form-input w-full pl-10 pr-4 py-2 text-sm"
                 />
             </div>
 
@@ -73,7 +73,7 @@ export default function GridToolbar({ grid, state, selectedCount }) {
                         id={`grid-filter-${filter.key}`}
                         value={filter.value || ''}
                         onChange={(e) => state.update({ filters: { [filter.key]: e.target.value } })}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white"
+                        className="form-select pl-3 py-2 text-sm text-gray-700"
                     >
                         <option value="">{filter.label}</option>
                         {filter.options.map((o) => (
@@ -123,7 +123,7 @@ export default function GridToolbar({ grid, state, selectedCount }) {
                                     onChange={(e) => setViewName(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && saveView(false, close)}
                                     placeholder="Save current as…"
-                                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs"
+                                    className="form-input w-full px-2 py-1.5 text-xs"
                                 />
                                 <div className="flex gap-1.5">
                                     <button type="button" onClick={() => saveView(false, close)} className="flex-1 px-2 py-1.5 bg-[var(--color-primary)] text-white rounded-lg text-xs font-medium hover:opacity-90">Save</button>
@@ -160,7 +160,7 @@ export default function GridToolbar({ grid, state, selectedCount }) {
                                                 : grid.columns.map((c) => c.key).filter((k) => k === column.key || grid.state.columns.includes(k));
                                             state.update({ columns: next }, { resetPage: false });
                                         }}
-                                        className="form-checkbox rounded border-gray-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]/30"
+                                        className="form-checkbox"
                                     />
                                     <span className="text-sm text-gray-700">{column.label}</span>
                                 </label>
@@ -188,7 +188,7 @@ export default function GridToolbar({ grid, state, selectedCount }) {
                     id={`grid-per-page-${grid.name}`}
                     value={grid.state.perPage}
                     onChange={(e) => state.update({ per_page: Number(e.target.value) })}
-                    className="border border-gray-300 rounded-lg px-2 py-2 text-sm text-gray-700 bg-white"
+                    className="form-select pl-2 py-2 text-sm text-gray-700"
                 >
                     {grid.perPageOptions.map((n) => (
                         <option key={n} value={n}>{n}/page</option>

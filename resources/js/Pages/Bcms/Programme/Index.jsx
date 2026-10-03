@@ -1,6 +1,7 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -31,38 +32,34 @@ export default function Index({
 
                 <form
                     onSubmit={(e) => { e.preventDefault(); create.post(tryRoute('bcms.programme.store')); }}
-                    className="max-w-2xl space-y-4 rounded-lg border border-gray-200 bg-white p-6"
+                    className="card max-w-2xl"
                 >
-                    <p className="text-sm text-gray-600">
-                        A programme is the scope of the BCMS for a year — what it covers, what it deliberately does
-                        not, and who owns it. ISO 22301 clause 4.3 asks for the boundary and for any exclusion to be
-                        justified.
-                    </p>
-                    <label className="block text-sm">
-                        <span className="text-gray-700">Name</span>
-                        <input className="mt-1 w-full rounded border-gray-300 text-sm" value={create.data.name}
-                            onChange={(e) => create.setData('name', e.target.value)} />
-                        {create.errors.name && <span className="text-xs text-red-600">{create.errors.name}</span>}
-                    </label>
-                    <label className="block text-sm">
-                        <span className="text-gray-700">Year</span>
-                        <input type="number" className="mt-1 w-full rounded border-gray-300 text-sm" value={create.data.year}
-                            onChange={(e) => create.setData('year', e.target.value)} />
-                    </label>
-                    <label className="block text-sm">
-                        <span className="text-gray-700">Scope statement</span>
-                        <textarea rows={4} className="mt-1 w-full rounded border-gray-300 text-sm" value={create.data.scope_statement}
-                            onChange={(e) => create.setData('scope_statement', e.target.value)} />
-                        {create.errors.scope_statement && <span className="text-xs text-red-600">{create.errors.scope_statement}</span>}
-                    </label>
-                    <label className="block text-sm">
-                        <span className="text-gray-700">What is deliberately out of scope</span>
-                        <textarea rows={3} className="mt-1 w-full rounded border-gray-300 text-sm" value={create.data.out_of_scope_statement}
-                            onChange={(e) => create.setData('out_of_scope_statement', e.target.value)} />
-                    </label>
-                    <button type="submit" className="btn-primary text-sm" disabled={!can.manage || create.processing}>
-                        Create programme
-                    </button>
+                    <div className="card-body space-y-4">
+                        <p className="text-sm text-gray-600">
+                            A programme is the scope of the BCMS for a year — what it covers, what it deliberately does
+                            not, and who owns it. ISO 22301 clause 4.3 asks for the boundary and for any exclusion to be
+                            justified.
+                        </p>
+                        <FormField label="Name" error={create.errors.name}>
+                            <input className="form-input" value={create.data.name}
+                                onChange={(e) => create.setData('name', e.target.value)} />
+                        </FormField>
+                        <FormField label="Year">
+                            <input type="number" className="form-input" value={create.data.year}
+                                onChange={(e) => create.setData('year', e.target.value)} />
+                        </FormField>
+                        <FormField label="Scope statement" error={create.errors.scope_statement}>
+                            <textarea rows={4} className="form-textarea" value={create.data.scope_statement}
+                                onChange={(e) => create.setData('scope_statement', e.target.value)} />
+                        </FormField>
+                        <FormField label="What is deliberately out of scope">
+                            <textarea rows={3} className="form-textarea" value={create.data.out_of_scope_statement}
+                                onChange={(e) => create.setData('out_of_scope_statement', e.target.value)} />
+                        </FormField>
+                        <button type="submit" className="btn-primary text-sm" disabled={!can.manage || create.processing}>
+                            Create programme
+                        </button>
+                    </div>
                 </form>
             </AppLayout>
         );
@@ -149,25 +146,27 @@ export default function Index({
                                 cannot show movement.
                             </p>
                         ) : (
-                            <table className="mt-3 w-full text-sm">
-                                <thead className="text-left text-xs uppercase tracking-wide text-gray-500">
-                                    <tr><th className="pb-2">Objective</th><th className="pb-2">Baseline</th><th className="pb-2">Target</th><th className="pb-2">KRI</th></tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {objectives.map((o) => (
-                                        <tr key={o.id}>
-                                            <td className="py-2 text-gray-800">{o.title}</td>
-                                            <td className="py-2 font-mono text-gray-700">
-                                                {o.baselined ? `${o.baseline} ${o.unit ?? ''}` : <span className="text-gray-400">no baseline</span>}
-                                            </td>
-                                            <td className="py-2 font-mono text-gray-700">
-                                                {o.measurable ? `${o.target} ${o.unit ?? ''}` : <span className="text-gray-400">not measurable</span>}
-                                            </td>
-                                            <td className="py-2 text-gray-600">{o.kri ?? <span className="text-gray-400">not linked</span>}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                            <div className="mt-3 overflow-x-auto rounded border border-gray-200">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr><th>Objective</th><th>Baseline</th><th>Target</th><th>KRI</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {objectives.map((o) => (
+                                            <tr key={o.id}>
+                                                <td className="text-gray-800">{o.title}</td>
+                                                <td className="font-mono text-gray-700">
+                                                    {o.baselined ? `${o.baseline} ${o.unit ?? ''}` : <span className="text-gray-400">no baseline</span>}
+                                                </td>
+                                                <td className="font-mono text-gray-700">
+                                                    {o.measurable ? `${o.target} ${o.unit ?? ''}` : <span className="text-gray-400">not measurable</span>}
+                                                </td>
+                                                <td className="text-gray-600">{o.kri ?? <span className="text-gray-400">not linked</span>}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         )}
                     </div>
 
@@ -200,7 +199,7 @@ export default function Index({
                                             </span>
                                         </div>
                                         {!o.applies && o.applicability_note && (
-                                            <p className="mt-1 text-xs text-gray-500">{o.applicability_note}</p>
+                                            <p className="form-hint">{o.applicability_note}</p>
                                         )}
                                     </li>
                                 ))}

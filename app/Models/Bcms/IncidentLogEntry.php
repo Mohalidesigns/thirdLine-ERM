@@ -2,6 +2,8 @@
 
 namespace App\Models\Bcms;
 
+use App\Enums\Bcms\IncidentLogEntryType;
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -20,7 +22,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property int $incident_id
  * @property \Illuminate\Support\Carbon $logged_at
  * @property ?int $logged_by
- * @property string $entry_type
+ * @property \App\Enums\Bcms\IncidentLogEntryType $entry_type
  * @property string $content
  * @property array<array-key, mixed> $attachments
  * @property ?int $supersedes_entry_id
@@ -29,7 +31,16 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class IncidentLogEntry extends Model
 {
-    use BelongsToOrganization, HasFactory;
+    use BelongsToOrganization, BindsToVisibleRecord, HasFactory;
+
+    /**
+     * Derived (ADR 0017 §2): a log entry has no unit column of its own and
+     * takes the shortest path to its anchor — the incident it belongs to.
+     */
+    public function orgAnchorPath(): string
+    {
+        return 'incident';
+    }
 
     protected $table = 'bcms_incident_log';
 
@@ -49,6 +60,7 @@ class IncidentLogEntry extends Model
             'logged_at' => 'datetime',
             'logged_by' => 'integer',
             'supersedes_entry_id' => 'integer',
+            'entry_type' => IncidentLogEntryType::class,
         ];
     }
 

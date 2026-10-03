@@ -23,6 +23,11 @@ class PlanActivationFactory extends Factory
     {
         return [
             'plan_id' => \App\Models\Bcms\Plan::factory(),
+            // ADR 0022: activated_at is DATETIME NOT NULL with no database
+            // default (a bare timestamp() used to silently rewrite itself on
+            // any unrelated UPDATE). The application always writes this
+            // explicitly; the factory must too.
+            'activated_at' => now(),
         ];
     }
 }

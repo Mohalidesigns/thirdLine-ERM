@@ -82,18 +82,35 @@ class ExportTest extends ReviewTestCase
         $this->assertEmpty($group[15] ?? null, 'C.E modifier (P) must sit under no group header.');
         $this->assertEmpty($group[16] ?? null, 'Residual risk (Q) must sit under no group header.');
 
-        // 23 workbook columns + 8 system columns.
-        $this->assertCount(31, array_filter($header, fn ($cell) => filled($cell)));
+        // THE LITERAL COUNTS, not just a comparison against the writer's own
+        // constants. Pinning the header to `COLUMNS + SYSTEM_COLUMNS` alone
+        // proves the two agree with each other, not that either is still 23
+        // and 8 — a 32nd column added to SYSTEM_COLUMNS would pass that
+        // assertion happily while making the exports page's "23 + 8" copy a
+        // lie. These three numbers are the actual contract §10.1 and the
+        // client's workbook set.
+        $this->assertCount(23, RcsaWorkbookWriter::COLUMNS, "The regulator's own workbook is columns A to W — 23.");
+        $this->assertCount(8, RcsaWorkbookWriter::SYSTEM_COLUMNS, '§10.1 appends eight tracking columns after W.');
+
+        $filledHeader = array_values(array_filter($header, fn ($cell) => filled($cell)));
+
+        $this->assertCount(31, $filledHeader);
+
+        // The FULL header, in order, pinned against RcsaWorkbookWriter::COLUMNS
+        // + ::SYSTEM_COLUMNS rather than merely checked for presence. This
+        // assertion used to be `assertContains` on the last seven system
+        // columns, which would not have caught one arriving out of order.
+        $this->assertSame(
+            array_values(array_merge(RcsaWorkbookWriter::COLUMNS, RcsaWorkbookWriter::SYSTEM_COLUMNS)),
+            $filledHeader,
+        );
 
         $this->assertSame('Risk No.', $header[0]);
         $this->assertSame('Business Unit', $header[1]);
         // W is the last workbook column, and X the first appended one.
         $this->assertSame('Implementation Date', $header[22]);
         $this->assertSame('Assessment Cycle', $header[23]);
-
-        foreach (['Assessor', 'Submitted Date', 'ORM Status', 'Reviewer', 'Action Plan Status', 'Days Overdue', 'Last Review Date'] as $expected) {
-            $this->assertContains($expected, $header);
-        }
+        $this->assertSame('Last Review Date', $header[30]);
 
         $this->assertCount(2 + 2, $rows);
     }

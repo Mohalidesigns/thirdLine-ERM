@@ -21,7 +21,7 @@ import InputLabel from './InputLabel';
  */
 
 const INPUT =
-    'form-input mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:border-[#1A365D] focus:ring-1 focus:ring-[#1A365D]';
+    'form-input mt-1 w-full px-3 py-2 text-sm';
 const SELECT = INPUT.replace('form-input', 'form-select') + ' bg-white';
 
 /** Every field in the schema, in render order, regardless of section. */

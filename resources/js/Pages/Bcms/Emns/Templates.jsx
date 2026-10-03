@@ -58,24 +58,24 @@ export default function Templates({ coverage = {}, templates = [], can = {} }) {
                 {coverage.note}
             </p>
 
-            <section className="mb-6 rounded border border-slate-200 bg-white">
+            <div className="card mb-6">
                 <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <table className="data-table">
+                        <thead>
                             <tr>
-                                <th className="px-4 py-2">Scenario</th>
+                                <th>Scenario</th>
                                 {locales.map((l) => (
-                                    <th key={l.code} className="px-3 py-2 text-center">{l.label}</th>
+                                    <th key={l.code} className="text-center">{l.label}</th>
                                 ))}
-                                <th className="px-4 py-2 text-right">Cover</th>
+                                <th className="text-right">Cover</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody>
                             {scenarios.map((s) => (
                                 <tr key={s.code}
                                     className={`cursor-pointer hover:bg-slate-50 ${selected === s.code ? 'bg-slate-50' : ''}`}
                                     onClick={() => setSelected(selected === s.code ? null : s.code)}>
-                                    <td className="px-4 py-2">
+                                    <td>
                                         <span className="font-medium text-slate-800">{s.name}</span>
                                         {s.is_life_safety && (
                                             <span className="ml-2 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
@@ -87,13 +87,13 @@ export default function Templates({ coverage = {}, templates = [], can = {} }) {
                                     {locales.map((l) => {
                                         const cell = s.locales?.[l.code] ?? { state: 'not_authored' };
                                         return (
-                                            <td key={l.code} className="px-3 py-2 text-center">
+                                            <td key={l.code} className="text-center">
                                                 <span title={STATE_LABELS[cell.state]}
                                                     className={`inline-block h-3 w-3 rounded-full ${STATE_STYLES[cell.state]}`} />
                                             </td>
                                         );
                                     })}
-                                    <td className="px-4 py-2 text-right text-xs tabular-nums text-slate-600">
+                                    <td className="text-right text-xs tabular-nums text-slate-600">
                                         {s.live_locales} / {locales.length}
                                     </td>
                                 </tr>
@@ -108,7 +108,7 @@ export default function Templates({ coverage = {}, templates = [], can = {} }) {
                         </span>
                     ))}
                 </div>
-            </section>
+            </div>
 
             {selected && (
                 <section className="rounded border border-slate-200 bg-white p-4">

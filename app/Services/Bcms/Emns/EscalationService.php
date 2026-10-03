@@ -126,23 +126,32 @@ class EscalationService
     /**
      * The contact record for somebody's line manager.
      *
-     * `manager_user_id` points at a USER — that is the shape a directory export
-     * gives — and the manager has to be resolved back to a CONTACT before they
-     * can be reached, because a user has a login and a contact has a phone
-     * number. Never query `users` for a channel (the G0 contract).
+     * PHASE 2C (ADR 0018 §2.1): `manager_contact_id` IS READ FIRST. It is the
+     * edge the directory sync writes and the only one that exists at all for
+     * somebody with no login — a guard, a cleaner, a contractor. Before this
+     * phase `manager_user_id` was the only edge, which is why it stays as the
+     * fallback: it points at a USER — the shape a directory export used to
+     * give this class — and the manager has to be resolved back to a CONTACT
+     * before they can be reached, because a user has a login and a contact
+     * has a phone number. Never query `users` for a channel (the G0
+     * contract).
      */
     private function managerContactFor(AlertRecipient $recipient): ?Contact
     {
-        $managerUserId = $recipient->contact?->manager_user_id;
+        $contact = $recipient->contact;
+        $managerContactId = $contact?->manager_contact_id;
 
-        if ($managerUserId === null) {
-            return null;
+        $manager = $managerContactId !== null
+            ? Contact::query()->whereKey($managerContactId)->where('is_active', true)->first()
+            : null;
+
+        if ($manager === null) {
+            $managerUserId = $contact?->manager_user_id;
+
+            $manager = $managerUserId === null
+                ? null
+                : Contact::query()->where('user_id', $managerUserId)->where('is_active', true)->first();
         }
-
-        $manager = Contact::query()
-            ->where('user_id', $managerUserId)
-            ->where('is_active', true)
-            ->first();
 
         // A manager who is themselves an unanswered recipient of this alert is
         // no use as an escalation target — they are already being looked for.

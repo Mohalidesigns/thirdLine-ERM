@@ -22,9 +22,9 @@
 return [
     'bcms_aars' => [
         'ai_draft_generated_at', 'ai_generated', 'approved_at', 'approved_by', 'created_at',
-        'created_by', 'deleted_at', 'distributed_at', 'id', 'iso_clause_ref', 'occurrence_id',
-        'organization_id', 'participant_feedback', 'quantitative_results', 'status', 'summary',
-        'updated_at', 'updated_by', 'uuid', 'what_failed', 'what_worked',
+        'created_by', 'deleted_at', 'distributed_at', 'id', 'incident_id', 'iso_clause_ref',
+        'occurrence_id', 'organization_id', 'participant_feedback', 'quantitative_results',
+        'status', 'summary', 'updated_at', 'updated_by', 'uuid', 'what_failed', 'what_worked',
     ],
     'bcms_alert_recipients' => [
         'acknowledged_at', 'alert_id', 'contact_id', 'contact_name_snapshot', 'created_at',
@@ -44,8 +44,8 @@ return [
         'dispatched_at', 'escalation_enabled', 'estimated_cost_minor', 'id', 'incident_id',
         'initiated_by', 'is_simulation', 'iso_clause_ref', 'message', 'occurrence_id',
         'organization_id', 'recipient_count', 'response_options', 'response_required',
-        'second_approved_at', 'second_approved_by', 'severity', 'status', 'template_id', 'title',
-        'updated_at', 'updated_by', 'uuid',
+        'second_approved_at', 'second_approved_by', 'severity', 'status', 'template_id',
+        'template_variables', 'title', 'updated_at', 'updated_by', 'uuid',
     ],
     'bcms_applications' => [
         'code', 'created_at', 'created_by', 'deleted_at', 'description', 'external_ref',
@@ -114,9 +114,10 @@ return [
         'consecutive_failures', 'consent_captured_at', 'consent_status', 'consent_withdrawn_at',
         'created_at', 'created_by', 'deleted_at', 'email', 'employee_id', 'full_name',
         'geo_last_known', 'id', 'is_active', 'last_verified_at', 'latitude', 'longitude',
-        'manager_user_id', 'mobile_primary', 'mobile_secondary', 'next_of_kin', 'organization_id',
-        'preferred_language', 'push_token', 'site_id', 'slack_id', 'source', 'teams_id', 'title',
-        'updated_at', 'updated_by', 'user_id', 'uuid', 'verification_status', 'whatsapp',
+        'manager_contact_id', 'manager_user_id', 'mobile_primary', 'mobile_secondary',
+        'next_of_kin', 'organization_id', 'preferred_language', 'push_token', 'site_id',
+        'slack_id', 'source', 'teams_id', 'title', 'updated_at', 'updated_by', 'user_id', 'uuid',
+        'verification_status', 'whatsapp',
     ],
     'bcms_corrective_actions' => [
         'acceptance_expires_on', 'acceptance_rationale', 'accepted_at', 'accepted_by',
@@ -153,6 +154,11 @@ return [
     'bcms_equipment' => [
         'code', 'created_at', 'created_by', 'deleted_at', 'equipment_type', 'external_ref', 'id',
         'is_active', 'name', 'organization_id', 'quantity', 'site_id', 'updated_at', 'updated_by',
+    ],
+    'bcms_evidence' => [
+        'caption', 'captured_at', 'created_at', 'deleted_at', 'file_name', 'file_path', 'hash',
+        'id', 'iso_clause_ref', 'kind', 'locked_at', 'locked_by', 'mime', 'occurrence_id',
+        'organization_id', 'owner_id', 'owner_type', 'size', 'updated_at', 'uploaded_by', 'uuid',
     ],
     'bcms_exercise_definitions' => [
         'blackout_overrides', 'business_unit_id', 'created_at', 'created_by',
@@ -208,9 +214,32 @@ return [
         'raised_by', 'reference', 'root_cause', 'severity', 'source', 'status', 'updated_at',
         'updated_by', 'uuid',
     ],
+    'bcms_identity_connectors' => [
+        'attribute_map', 'auto_apply_policy', 'client_id', 'client_secret', 'created_at',
+        'created_by', 'credential_expires_on', 'delta_link', 'directory_filter',
+        'directory_tenant_id', 'graph_base_url', 'id', 'is_active', 'name', 'organization_id',
+        'provider', 'sync_schedule', 'token_base_url', 'updated_at', 'updated_by', 'uuid',
+    ],
+    'bcms_identity_sync_changes' => [
+        'after_json', 'applied_at', 'apply_error_class', 'before_json', 'contact_id', 'created_at',
+        'decided_at', 'decided_by', 'decision', 'directory_object_id', 'id', 'impact_json', 'kind',
+        'organization_id', 'requires_ack', 'subject_name', 'sync_run_id', 'updated_at',
+    ],
+    'bcms_identity_sync_runs' => [
+        'auto_applied_count', 'contact_change_count', 'created_at', 'directory_objects_read',
+        'error_class', 'error_code', 'finished_at', 'id', 'identity_connector_id', 'joiner_count',
+        'leaver_count', 'mover_count', 'organization_id', 'pages_fetched', 'pending_count',
+        'started_at', 'status', 'trigger', 'triggered_by', 'updated_at', 'uuid',
+    ],
     'bcms_incident_log' => [
         'attachments', 'content', 'created_at', 'entry_type', 'id', 'incident_id', 'logged_at',
         'logged_by', 'organization_id', 'supersedes_entry_id', 'updated_at',
+    ],
+    'bcms_incident_notifications' => [
+        'awareness_at', 'basis_clause_ref', 'content_snapshot', 'created_at', 'created_by',
+        'due_at', 'id', 'incident_id', 'kind', 'organization_id', 'reference', 'regulator',
+        'sequence', 'submitted_at', 'submitted_by', 'updated_at', 'updated_by',
+        'withdrawal_entry_id', 'withdrawn_at', 'withdrawn_by',
     ],
     'bcms_incident_tasks' => [
         'completed_at', 'created_at', 'description', 'due_at', 'id', 'incident_id',
@@ -252,7 +281,8 @@ return [
     ],
     'bcms_plan_activations' => [
         'activated_at', 'activated_by', 'activation_reason', 'created_at', 'deactivated_at', 'id',
-        'incident_id', 'is_exercise', 'occurrence_id', 'organization_id', 'plan_id', 'updated_at',
+        'incident_id', 'is_exercise', 'kept_active_entry_id', 'occurrence_id', 'organization_id',
+        'plan_id', 'updated_at',
     ],
     'bcms_plan_attestations' => [
         'attestation_type', 'attested_at', 'attested_by', 'attested_by_name', 'attested_by_role',

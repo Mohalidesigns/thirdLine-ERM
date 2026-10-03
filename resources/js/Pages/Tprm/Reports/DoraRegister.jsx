@@ -65,22 +65,22 @@ export default function DoraRegister({ tables = [], provenance = {}, caveat = ''
             )}
 
             <div className="card overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <table className="data-table">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Template</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Title</th>
-                            <th scope="col" className="px-4 py-2 text-right font-medium text-gray-600">Rows</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Coverage</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Note</th>
-                            <th scope="col" className="px-4 py-2" />
+                            <th scope="col" className="text-left">Template</th>
+                            <th scope="col" className="text-left">Title</th>
+                            <th scope="col" className="text-right">Rows</th>
+                            <th scope="col" className="text-left">Coverage</th>
+                            <th scope="col" className="text-left">Note</th>
+                            <th scope="col" />
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {tables.map((table) => (
                             <Fragment key={table.code}>
                                 <tr>
-                                    <td className="px-4 py-2 font-medium">
+                                    <td className="font-medium">
                                         <button
                                             type="button"
                                             className="text-indigo-600"
@@ -89,9 +89,9 @@ export default function DoraRegister({ tables = [], provenance = {}, caveat = ''
                                             {table.code}
                                         </button>
                                     </td>
-                                    <td className="px-4 py-2">{table.title}</td>
-                                    <td className="px-4 py-2 text-right tabular-nums">{table.row_count}</td>
-                                    <td className="px-4 py-2">
+                                    <td>{table.title}</td>
+                                    <td className="text-right tabular-nums">{table.row_count}</td>
+                                    <td>
                                         <span
                                             className={`rounded px-2 py-0.5 text-xs font-medium ${
                                                 table.coverage === 'complete'
@@ -102,8 +102,8 @@ export default function DoraRegister({ tables = [], provenance = {}, caveat = ''
                                             {table.coverage === 'complete' ? 'Complete' : 'Partial'}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-2 text-xs text-gray-600">{table.note ?? '—'}</td>
-                                    <td className="px-4 py-2 text-right">
+                                    <td className="text-xs text-gray-600">{table.note ?? '—'}</td>
+                                    <td className="text-right">
                                         {can.export && (
                                             <a className="text-xs text-indigo-600" href={exportUrl('csv', table.code)}>
                                                 CSV
@@ -113,7 +113,7 @@ export default function DoraRegister({ tables = [], provenance = {}, caveat = ''
                                 </tr>
                                 {open === table.code && (
                                     <tr>
-                                        <td colSpan={6} className="bg-gray-50 px-4 py-3">
+                                        <td colSpan={6} className="bg-gray-50">
                                             {table.row_count === 0 ? (
                                                 <p className="text-sm text-gray-600">
                                                     No rows. Read that against the coverage note before treating it
@@ -125,14 +125,14 @@ export default function DoraRegister({ tables = [], provenance = {}, caveat = ''
                                                         First {Math.min(10, table.row_count)} of {table.row_count} rows.
                                                         The export holds all of them.
                                                     </p>
-                                                    <table className="min-w-full text-xs">
+                                                    <table className="data-table text-xs">
                                                         <thead>
                                                             <tr>
                                                                 {table.headers.map((header) => (
                                                                     <th
                                                                         key={header}
                                                                         scope="col"
-                                                                        className="whitespace-nowrap px-2 py-1 text-left font-medium text-gray-600"
+                                                                        className="whitespace-nowrap text-left"
                                                                     >
                                                                         {header}
                                                                     </th>
@@ -143,7 +143,7 @@ export default function DoraRegister({ tables = [], provenance = {}, caveat = ''
                                                             {table.preview.map((row, index) => (
                                                                 <tr key={index}>
                                                                     {row.map((value, cell) => (
-                                                                        <td key={cell} className="whitespace-nowrap px-2 py-1">
+                                                                        <td key={cell} className="whitespace-nowrap">
                                                                             {value === null || value === '' ? '—' : String(value)}
                                                                         </td>
                                                                     ))}
@@ -172,7 +172,7 @@ function Tile({ label, value, hint, tone }) {
         <div className="card p-4">
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</div>
             <div className={`mt-1 text-2xl font-bold ${toneClass}`}>{value}</div>
-            {hint && <div className="mt-1 text-xs text-gray-500">{hint}</div>}
+            {hint && <div className="form-hint">{hint}</div>}
         </div>
     );
 }

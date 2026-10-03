@@ -10,7 +10,6 @@ use App\Services\Widgets\WidgetContext;
 use App\Services\Widgets\WidgetQueryEngine;
 use App\Services\Widgets\WidgetScope;
 use App\Services\Widgets\WidgetTypeResolver;
-use Carbon\CarbonImmutable;
 
 /**
  * heatmap — Probability × Consequence with a COUNT BADGE in every cell and
@@ -110,7 +109,7 @@ class HeatmapResolver implements WidgetTypeResolver
         $period = $periods->primary;
         $counts = [];
 
-        if ($period !== null && CarbonImmutable::parse($period->end_date)->isPast()) {
+        if ($period?->hasEnded()) {
             // The register as it stood at the end of the selected period.
             $register = $this->risks->asOf($period, ['status' => ['active', 'monitoring']], $context->organizationId());
 

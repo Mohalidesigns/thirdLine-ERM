@@ -155,9 +155,7 @@ class CommandCentreService
         // Null unless the view below is genuinely historic — the banner keys
         // off this, and labelling a live dashboard "as at" would be worse than
         // not labelling it at all.
-        $asOfPeriod = $selectedPeriod !== null && $selectedPeriod->end_date?->isPast()
-            ? $selectedPeriod
-            : null;
+        $asOfPeriod = $selectedPeriod?->hasEnded() ? $selectedPeriod : null;
 
         if ($asOfPeriod !== null) {
             $asOfRisks = app(\App\Repositories\RiskRepository::class)

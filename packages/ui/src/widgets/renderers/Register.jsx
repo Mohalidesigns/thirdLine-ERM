@@ -41,10 +41,11 @@ export default function Register({ data, envelope, onFilters }) {
                         type="search"
                         value={search}
                         placeholder="Search…"
+                        aria-label="Search"
                         onChange={(e) => setSearch(e.target.value)}
                         onBlur={submitSearch}
                         onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
-                        className="form-input w-full rounded-md border-gray-200 py-1 pl-7 pr-2 text-xs focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                        className="form-input w-full py-1 pl-7 pr-2 text-xs"
                     />
                 </div>
                 {envelope?.urls?.create && (
@@ -55,7 +56,7 @@ export default function Register({ data, envelope, onFilters }) {
             </div>
 
             <div className="min-h-0 flex-1 overflow-auto">
-                <table className="min-w-full divide-y divide-gray-100 text-xs">
+                <table data-table-exempt="dashboard widget, compact by design" className="min-w-full divide-y divide-gray-100 text-xs">
                     <thead>
                         <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400">
                             {columns.map((column) => (

@@ -10,6 +10,7 @@ use App\Support\Scoring\ScoringProfileTemplates;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Support\AssertsCanonicalJson;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
 use ThirdLine\Platform\Tenancy\TenantContext;
@@ -26,7 +27,7 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  */
 class ScoringProfileTest extends TestCase
 {
-    use CreatesDomainFixtures, RefreshDatabase;
+    use AssertsCanonicalJson, CreatesDomainFixtures, RefreshDatabase;
 
     private RiskScoringService $service;
 
@@ -123,7 +124,9 @@ class ScoringProfileTest extends TestCase
         $this->assertNull($profile->organization_id, 'a tenant with no profile of its own resolves the system one');
         $this->assertSame(5, $profile->matrix_rows);
         $this->assertSame(5, $profile->matrix_cols);
-        $this->assertSame(ScoringProfileTemplates::DEFAULT_RATING_BANDS, $profile->rating_bands);
+        // The bands stay in order (a list), but each band's keys are read by name
+        // everywhere, and MySQL 8 returns a json column's keys re-sorted.
+        $this->assertSameJson(ScoringProfileTemplates::DEFAULT_RATING_BANDS, $profile->rating_bands);
     }
 
     #[Test]

@@ -89,7 +89,7 @@ class AuthenticationRateLimitTest extends TestCase
                 fn ($m) => is_string($m) && str_starts_with($m, 'throttle:')
             ),
             "{$method} {$uri} carries no throttle middleware. Every unauthenticated write on the "
-            .'authentication surface has to have one — see the limiter definitions at the top of routes/web.php.'
+            .'authentication surface has to have one — see the limiter definitions in AppServiceProvider::registerAuthRateLimiters().'
         );
     }
 

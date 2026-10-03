@@ -101,6 +101,55 @@ class WorkingCalendar
     }
 
     /**
+     * `$fromDate` plus `$days` WORKING days — weekends and hard blackouts
+     * skipped, exactly as the generator's own placement does.
+     *
+     * BUILT FOR PHASE 9's CAPA DUE-DATE RULE (compliance analyst §3.3): "do
+     * not add days" is the instruction this method exists to satisfy, so a
+     * corrective action's due date is not quietly wrong the week it lands on
+     * a bank holiday. `$days` may be negative, which is how "5 working days
+     * before the next occurrence" is computed.
+     *
+     * A period scoped to a business unit is included only when `$definition`
+     * is in that unit, matching `build()`'s own rule — a due date has to
+     * agree with the calendar the occurrence itself was placed against.
+     */
+    public function addWorkingDays(Carbon $fromDate, int $days, ?ExerciseDefinition $definition = null): Carbon
+    {
+        if ($days === 0) {
+            return $fromDate->copy();
+        }
+
+        $direction = $days > 0 ? 1 : -1;
+        $remaining = abs($days);
+        $cursor = $fromDate->copy();
+        $periods = BlackoutPeriod::query()->where('is_active', true)->get();
+
+        // A year at a time so a due date that crosses a year boundary (a
+        // finding raised in December with a January due date) still resolves
+        // — the working set is built per calendar year (§ class docblock).
+        $yearsSeen = [];
+
+        while ($remaining > 0) {
+            $cursor->addDays($direction);
+
+            $year = $cursor->year;
+
+            if (! isset($yearsSeen[$year])) {
+                $yearsSeen[$year] = $this->build($year, $periods, $definition);
+            }
+
+            $calendar = $yearsSeen[$year];
+
+            if ($calendar->isWorkingDay($cursor->toDateString())) {
+                $remaining--;
+            }
+        }
+
+        return $cursor;
+    }
+
+    /**
      * Blackout names this definition has explicitly opted out of.
      *
      * `blackout_overrides` is a list of period names rather than ids because it

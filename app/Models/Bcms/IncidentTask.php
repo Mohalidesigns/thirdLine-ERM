@@ -2,6 +2,8 @@
 
 namespace App\Models\Bcms;
 
+use App\Models\Bcms\Concerns\BcmsAuditable;
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,6 +12,11 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
 
 /**
  * A task assigned during an incident.
+ *
+ * `BcmsAuditable` (Gate 2 review #1 defect 3): a task's status, owner and due
+ * date change through the incident lifecycle with no other record of who
+ * changed what and when — the incident log records decisions, not a task
+ * board's own field-by-field history.
  *
  * @property int $id
  * @property int $organization_id
@@ -26,7 +33,16 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class IncidentTask extends Model
 {
-    use BelongsToOrganization, HasFactory;
+    use BcmsAuditable, BelongsToOrganization, BindsToVisibleRecord, HasFactory;
+
+    /**
+     * Derived (ADR 0017 §2): a task has no unit column of its own and takes
+     * the shortest path to its anchor — the incident it belongs to.
+     */
+    public function orgAnchorPath(): string
+    {
+        return 'incident';
+    }
 
     protected $table = 'bcms_incident_tasks';
 

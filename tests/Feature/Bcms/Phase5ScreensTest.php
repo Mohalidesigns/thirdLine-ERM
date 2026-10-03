@@ -95,6 +95,42 @@ class Phase5ScreensTest extends TestCase
             );
     }
 
+    /**
+     * Gap 1 — no UI could start an occurrence because no screen carried what
+     * a Start button needs. The readiness screen is where a facilitator
+     * decides to go, so it carries `can.start`, the existing readiness gate,
+     * and the date guard's own confirmation flag.
+     */
+    #[Test]
+    public function the_readiness_screen_carries_what_a_start_button_needs(): void
+    {
+        $occurrence = $this->occurrence(gating: false);
+
+        $this->actingAs($this->userWith(['bcms.exercise.view']))
+            ->get(route('bcms.occurrences.readiness', $occurrence))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Bcms/Exercises/Readiness')
+                // A viewer without `facilitate` may never start it.
+                ->where('can.start', false)
+                ->where('start.already_started', false)
+                ->where('start.requires_override', false)
+                // The helper schedules ten days out — the date guard's flag
+                // must say so, unprompted, before the facilitator ever POSTs.
+                ->where('start.requires_early_confirmation', true)
+                ->has('start.url')
+                ->where('start.scheduled_date', $occurrence->scheduled_date->toDateString())
+            );
+
+        $this->actingAs($this->userWith(['bcms.exercise.facilitate', 'bcms.exercise.view'], 'facilitator@khb.test'))
+            ->get(route('bcms.occurrences.readiness', $occurrence))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Bcms/Exercises/Readiness')
+                ->where('can.start', true)
+            );
+    }
+
     #[Test]
     public function my_readiness_tasks_lists_what_i_owe_across_every_exercise(): void
     {
@@ -114,6 +150,178 @@ class Phase5ScreensTest extends TestCase
                 ->component('Bcms/Exercises/MyReadiness')
                 ->has('tasks', ReadinessTask::query()->whereIn('status', ['open', 'in_progress', 'overdue'])->count())
             );
+    }
+
+    /**
+     * Gap 5 — Oluwaseun's case: a `my.view`-only employee sees his own
+     * readiness task on this page (he lacked `bcms.exercise.view` and 403'd
+     * before this fix) and may complete it (he lacked `bcms.exercise.
+     * facilitate` and 403'd on that too), but only his own — never a
+     * colleague's, and never with the broad `bcms.exercise.view`/`.
+     * facilitate` grants.
+     */
+    #[Test]
+    public function a_my_view_only_employee_sees_and_completes_only_their_own_readiness_task(): void
+    {
+        $occurrence = $this->occurrence();
+        $employee = $this->userWith(['my.view'], 'oluwaseun@khb.test');
+        $colleague = $this->userWith(['my.view'], 'colleague@khb.test');
+
+        $this->assertFalse($employee->can('bcms.exercise.view'));
+        $this->assertFalse($employee->can('bcms.exercise.facilitate'));
+
+        // Created directly, non-blocking and evidence-free, so completing
+        // exercises only the ownership check this test is about — the
+        // template's own requirements are `overriding_a_blocking_task_…`'s
+        // concern, not this one's.
+        $mine = ReadinessTask::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'title' => 'Confirm my own attendance', 'owner_id' => $employee->id,
+            'is_blocking' => false, 'status' => 'open',
+        ]);
+        $theirs = ReadinessTask::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'title' => "Confirm colleague's attendance", 'owner_id' => $colleague->id,
+            'is_blocking' => false, 'status' => 'open',
+        ]);
+
+        $this->actingAs($employee)
+            ->get(route('bcms.readiness.mine'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Bcms/Exercises/MyReadiness')
+                ->has('tasks', 1)
+                ->where('tasks.0.id', $mine->getKey())
+                ->has('tasks.0.complete_url')
+                // D3: `my.view` alone does not carry `bcms.exercise.view`,
+                // which the full occurrence readiness screen needs — the
+                // key is ABSENT, not null, so a `my.view`-only owner never
+                // sees a link that would 403 them.
+                ->missing('tasks.0.readiness_url')
+            );
+
+        // D3's other half: a user who DOES hold `bcms.exercise.view` gets
+        // the key, pointing at the same occurrence readiness screen.
+        $viewer = $this->userWith(['my.view', 'bcms.exercise.view'], 'viewer@khb.test');
+        ReadinessTask::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'title' => "Confirm viewer's attendance", 'owner_id' => $viewer->id,
+            'is_blocking' => false, 'status' => 'open',
+        ]);
+        $this->actingAs($viewer)
+            ->get(route('bcms.readiness.mine'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->has('tasks', 1)
+                ->where('tasks.0.readiness_url', route('bcms.occurrences.readiness', $occurrence))
+            );
+
+        // Completes their own.
+        $this->actingAs($employee)
+            ->post(route('bcms.readiness-tasks.complete', $mine))
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+        $this->assertSame('complete', $mine->refresh()->status);
+
+        // Refused on a colleague's.
+        $this->actingAs($employee)
+            ->post(route('bcms.readiness-tasks.complete', $theirs))
+            ->assertForbidden();
+        $this->assertNotSame('complete', $theirs->refresh()->status);
+
+        // Refused outright with neither permission.
+        $noGrant = $this->userWith([], 'no-grant@khb.test');
+        $this->actingAs($noGrant)
+            ->get(route('bcms.readiness.mine'))
+            ->assertForbidden();
+    }
+
+    /**
+     * Demo fix 3 — the My Readiness page shows a "Calendar" header button to
+     * every user, but `bcms.calendar.index` needs `bcms.exercise.view`, and a
+     * `my.view`-only employee (Oluwaseun's case again) got a live 403. The
+     * key is ABSENT for him, not null — the same presence rule D3 already
+     * settled for `tasks.*.readiness_url` — and PRESENT, pointing at the real
+     * route, for a user who actually holds the calendar's own grant.
+     */
+    #[Test]
+    public function calendar_url_is_present_only_for_a_user_who_may_open_the_calendar(): void
+    {
+        $occurrence = $this->occurrence();
+        $employee = $this->userWith(['my.view'], 'oluwaseun@khb.test');
+
+        ReadinessTask::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'title' => 'Confirm my own attendance', 'owner_id' => $employee->id,
+            'is_blocking' => false, 'status' => 'open',
+        ]);
+
+        $this->actingAs($employee)
+            ->get(route('bcms.readiness.mine'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Bcms/Exercises/MyReadiness')
+                ->missing('calendar_url')
+            );
+
+        $viewer = $this->userWith(['my.view', 'bcms.exercise.view'], 'viewer@khb.test');
+        ReadinessTask::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'title' => "Confirm viewer's attendance", 'owner_id' => $viewer->id,
+            'is_blocking' => false, 'status' => 'open',
+        ]);
+
+        $this->actingAs($viewer)
+            ->get(route('bcms.readiness.mine'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('calendar_url', route('bcms.calendar.index'))
+            );
+    }
+
+    /**
+     * QA gate coverage — A8 (code review, non-EMNS demo-gap set): moving the
+     * inline `Gate::authorize()`/`abort(403, …)` calls into
+     * `CompleteReadinessTaskRequest` must preserve BOTH distinct 403
+     * messages, not collapse them into one generic denial —
+     * `failedAuthorization()`'s own docblock names this as the point of the
+     * refactor.
+     */
+    #[Test]
+    public function completing_a_readiness_task_preserves_both_403_messages(): void
+    {
+        $occurrence = $this->occurrence();
+        $employee = $this->userWith(['my.view'], 'oluwaseun@khb.test');
+        $colleague = $this->userWith(['my.view'], 'colleague@khb.test');
+        $noGrant = $this->userWith([], 'no-grant@khb.test');
+
+        $theirs = ReadinessTask::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'title' => "Confirm colleague's attendance", 'owner_id' => $colleague->id,
+            'is_blocking' => false, 'status' => 'open',
+        ]);
+
+        // my.view, but not the owner of this task: the specific message.
+        $this->withoutExceptionHandling();
+        try {
+            $this->actingAs($employee)->post(route('bcms.readiness-tasks.complete', $theirs));
+            $this->fail('Expected an AuthorizationException.');
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            $this->assertSame('This readiness task is not assigned to you.', $e->getMessage());
+        }
+
+        // Neither grant at all: refused by the route's own permission
+        // middleware, before `CompleteReadinessTaskRequest` is ever reached
+        // — a generic denial, never the ownership message, which would
+        // wrongly imply the task might otherwise have been theirs to
+        // complete.
+        try {
+            $this->actingAs($noGrant)->post(route('bcms.readiness-tasks.complete', $theirs));
+            $this->fail('Expected an authorization failure.');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e) {
+            $this->assertSame(403, $e->getStatusCode());
+            $this->assertNotSame('This readiness task is not assigned to you.', $e->getMessage());
+        }
     }
 
     #[Test]
@@ -143,6 +351,72 @@ class Phase5ScreensTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame('waived', $task->refresh()->status);
+    }
+
+    /**
+     * Demo fix 4 — verified live: completing task 225 set `completed_by`/
+     * `completed_at` but wrote no `bcms_audit_logs` row at all. `ReadinessTask`
+     * now carries `BcmsAuditable`, the same way `ExerciseInject` does, and
+     * `ReadinessService::complete()` also records the named
+     * `readiness_task_completed` event on top of the automatic column diff.
+     */
+    #[Test]
+    public function completing_a_readiness_task_writes_an_audit_row(): void
+    {
+        $occurrence = $this->occurrence();
+        $employee = $this->userWith(['my.view'], 'oluwaseun@khb.test');
+
+        $task = ReadinessTask::query()->create([
+            'organization_id' => $this->organization->id, 'occurrence_id' => $occurrence->getKey(),
+            'title' => 'Confirm my own attendance', 'owner_id' => $employee->id,
+            'is_blocking' => false, 'status' => 'open',
+        ]);
+
+        $this->actingAs($employee)
+            ->post(route('bcms.readiness-tasks.complete', $task))
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('bcms_audit_logs', [
+            'auditable_type' => ReadinessTask::class,
+            'auditable_id' => $task->getKey(),
+            'event' => 'readiness_task_completed',
+            'actor_id' => $employee->getKey(),
+        ]);
+
+        $this->assertDatabaseHas('bcms_audit_logs', [
+            'auditable_type' => ReadinessTask::class,
+            'auditable_id' => $task->getKey(),
+            'event' => 'updated',
+            'actor_id' => $employee->getKey(),
+        ]);
+    }
+
+    /** Demo fix 4's other half — an override is audited on the task too. */
+    #[Test]
+    public function overriding_a_readiness_task_writes_an_audit_row(): void
+    {
+        $occurrence = $this->occurrence(gating: true);
+
+        $task = ReadinessTask::query()
+            ->where('occurrence_id', $occurrence->getKey())
+            ->where('is_blocking', true)
+            ->first();
+
+        $chief = $this->userWith(['bcms.exercise.view', 'bcms.readiness.override'], 'chief@khb.test');
+
+        $this->actingAs($chief)
+            ->post(route('bcms.readiness-tasks.override', $task), [
+                'reason' => 'The vendor confirmed by telephone and the written note follows.',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('bcms_audit_logs', [
+            'auditable_type' => ReadinessTask::class,
+            'auditable_id' => $task->getKey(),
+            'event' => 'readiness_task_overridden',
+            'actor_id' => $chief->getKey(),
+        ]);
     }
 
     #[Test]

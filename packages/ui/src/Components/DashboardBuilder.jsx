@@ -104,7 +104,7 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
                         <div className="relative">
                             <span className="material-symbols-outlined pointer-events-none absolute left-2 top-1.5 text-[18px] text-gray-400">search</span>
                             <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search widgets" aria-label="Search widgets"
-                                className="form-input w-full rounded-md border-gray-200 py-1.5 pl-8 pr-2 text-xs focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)]" />
+                                className="form-input w-full py-1.5 pl-8 pr-2 text-xs" />
                         </div>
                         <div className="mt-2 flex flex-wrap gap-1">
                             {['', ...categories].map((c) => (
@@ -151,12 +151,12 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
                     <div className="flex flex-wrap items-center gap-3 px-4 py-3">
                         <input type="text" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name !== dashboard.name && patch(urls.update, { name })}
                             aria-label="Dashboard name"
-                            className="form-input w-64 rounded-md border-gray-200 text-sm font-semibold focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)]" />
+                            className="form-input w-64 text-sm font-semibold" />
 
                         <div className="flex items-center gap-1.5 text-xs text-gray-500">
                             <span>Shows on</span>
                             <select value={dashboard.objectTypeId ?? ''} onChange={(e) => patch(urls.update, { object_type_id: e.target.value === '' ? null : Number(e.target.value) })}
-                                aria-label="Object type" className="form-select rounded-md border-gray-200 text-xs">
+                                aria-label="Object type" className="form-select text-xs">
                                 {objectTypes.map((t) => (
                                     <option key={t.id ?? 'any'} value={t.id ?? ''}>
                                         {t.name}{!t.is_node_type ? ' — not a node type' : t.node_count === 0 ? ' — no nodes yet' : ` (${t.node_count})`}
@@ -174,7 +174,7 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
                             {roles.map((role) => (
                                 <label key={role.id} className="flex items-center gap-2 rounded px-2 py-1 text-xs text-gray-700 hover:bg-gray-50">
                                     <input type="checkbox" checked={dashboard.roleIds.includes(role.id)} onChange={() => toggleRole(role.id)}
-                                        className="form-checkbox rounded border-gray-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]" />
+                                        className="form-checkbox" />
                                     {role.name}
                                 </label>
                             ))}
@@ -256,7 +256,7 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
                                     <input autoFocus type="text" defaultValue={tab.label} aria-label="Tab name"
                                         onKeyDown={(e) => { if (e.key === 'Enter') { patch(tabsUrl(tab.code), { label: e.target.value }); setRenaming(null); } if (e.key === 'Escape') setRenaming(null); }}
                                         onBlur={(e) => { if (e.target.value !== tab.label) patch(tabsUrl(tab.code), { label: e.target.value }); setRenaming(null); }}
-                                        className="form-input mx-2 my-1 w-28 rounded border-0 bg-white/20 px-1 py-0 text-xs text-inherit" />
+                                        className="form-input mx-2 my-1 w-28 border-0 bg-white/20 px-1 py-0 text-xs text-inherit" />
                                 ) : (
                                     <Link href={tabUrl(tab.code)} preserveScroll onDoubleClick={(e) => { e.preventDefault(); setRenaming(tab.code); }}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${active ? '' : 'rounded-md hover:bg-gray-100'}`}>
@@ -291,8 +291,8 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
                                         <div className="flex items-center justify-between gap-1 border-b border-gray-100 px-3 py-2">
                                             <input type="text" defaultValue={placement.overrides?.title ?? ''} placeholder={placement.widget?.name ?? 'Missing widget'}
                                                 onBlur={(e) => e.target.value !== (placement.overrides?.title ?? '') && patch(tabsUrl(current.code, `/widgets/${placement.position}`), { title: e.target.value })}
-                                                className="form-input w-full truncate rounded border-0 p-0 text-xs font-semibold text-gray-800 placeholder-gray-400 focus:ring-0"
-                                                title="Title override — blank uses the widget's own name" />
+                                                className="form-input w-full truncate border-0 bg-transparent p-0 text-xs font-semibold text-gray-800 focus:ring-0"
+                                                aria-label="Widget title" title="Title override — blank uses the widget's own name" />
                                             <button type="button" onClick={() => destroy(tabsUrl(current.code, `/widgets/${placement.position}`))} className="shrink-0 text-gray-300 hover:text-red-500" title="Remove">
                                                 <span className="material-symbols-outlined text-[16px] leading-none">delete</span>
                                             </button>

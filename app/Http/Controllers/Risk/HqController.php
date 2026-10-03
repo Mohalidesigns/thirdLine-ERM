@@ -290,7 +290,10 @@ class HqController extends Controller
                 ->where('object_type_id', $object->object_type_id)
                 ->orWhereNull('object_type_id'))
             ->whereNotNull('role_ids')
-            ->where('role_ids', '!=', '[]')
+            // Not ->where('role_ids', '!=', '[]'): on MySQL 8 that compares the
+            // JSON column with a JSON *string* "[]", which no array equals, so
+            // every unrestricted dashboard would be reported as role-blocked.
+            ->whereJsonLength('role_ids', '>', 0)
             ->get(['id', 'name', 'object_type_id', 'role_ids'])
             ->reject(fn (Dashboard $d) => array_intersect($roleIds, array_map('intval', $d->role_ids ?? [])) !== [])
             ->each(function (Dashboard $d) use ($roleNames) {

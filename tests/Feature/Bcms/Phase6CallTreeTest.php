@@ -894,6 +894,53 @@ class Phase6CallTreeTest extends TestCase
         TenantContext::set($this->organization->id);
     }
 
+    #[Test]
+    public function chain_coverage_counts_a_directory_sourced_manager_contact_link(): void
+    {
+        // Phase 2C (ADR 0018 §2.1): a directory-sourced contact carries
+        // `manager_contact_id`, never `manager_user_id` — a guard, a
+        // cleaner or a contractor has no `bcms_users` row to link at all.
+        // `arrange()` already reads `manager_contact_id` first (:162);
+        // `chainCoverage()` counting only `manager_user_id` (gate 2
+        // rejection #3, blocking defect 2) reported 0% for a fully-linked
+        // directory-sourced department — the exact figure that decides
+        // whether the "generate a call tree" button is worth pressing.
+        $manager = Contact::query()->create([
+            'organization_id' => $this->organization->id,
+            'source' => ContactSource::Entra->value,
+            'full_name' => 'Directory Manager',
+            'business_unit_id' => $this->unit->id,
+            'title' => 'Head of Operations',
+            'ad_object_guid' => 'CHAIN-MGR-1',
+            'email' => 'chain-mgr@khb.test',
+            'mobile_primary' => '+2348000009001',
+            'is_active' => true,
+        ]);
+
+        Contact::query()->create([
+            'organization_id' => $this->organization->id,
+            'source' => ContactSource::Entra->value,
+            'full_name' => 'Directory Report',
+            'business_unit_id' => $this->unit->id,
+            'title' => 'Operations Officer',
+            'ad_object_guid' => 'CHAIN-RPT-1',
+            'manager_contact_id' => $manager->id,
+            'email' => 'chain-rpt@khb.test',
+            'mobile_primary' => '+2348000009002',
+            'is_active' => true,
+        ]);
+
+        $coverage = app(TreeProposalService::class)->chainCoverage($this->unit);
+
+        $this->assertSame(2, $coverage['contacts']);
+        $this->assertSame(
+            1,
+            $coverage['with_manager'],
+            'The report carries manager_contact_id, not manager_user_id — it must still count as linked.',
+        );
+        $this->assertSame(50.0, $coverage['coverage']);
+    }
+
     /* ================================================================== */
     /*  Helpers
     /* ================================================================== */

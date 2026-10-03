@@ -3,6 +3,7 @@ import { Head, router, useForm, usePage } from "@inertiajs/react";
 import AppLayout from "@/Layouts/AppLayout";
 import PageHeader from "@thirdline/ui/Components/PageHeader";
 import StatusBadge from "@thirdline/ui/Components/StatusBadge";
+import FormField from "@thirdline/ui/Components/FormField";
 
 /**
  * The band colours the workspace uses, so a reviewer reading a residual sees
@@ -364,7 +365,7 @@ function RowGroup({ line, assessment, open, onToggle, onMark, canReview }) {
 
             {open && (
                 <tr>
-                    <td colSpan={11} className="bg-gray-50 p-4">
+                    <td colSpan={11} className="bg-gray-50">
                         <ChallengePanel line={line} assessment={assessment} />
                     </td>
                 </tr>
@@ -372,10 +373,7 @@ function RowGroup({ line, assessment, open, onToggle, onMark, canReview }) {
 
             {!open && line.comments.length > 0 && (
                 <tr>
-                    <td
-                        colSpan={11}
-                        className="bg-gray-50/60 px-4 py-2 text-xs text-gray-600"
-                    >
+                    <td colSpan={11} className="bg-gray-50/60 text-xs text-gray-600">
                         {line.comments.length} comment
                         {line.comments.length === 1 ? "" : "s"} — latest: “
                         {line.comments[line.comments.length - 1].body}”
@@ -441,7 +439,7 @@ function ChallengePanel({ line, assessment }) {
                             <p className="text-gray-700">{c.body}</p>
                             {c.suggested &&
                                 Object.keys(c.suggested).length > 0 && (
-                                    <p className="mt-1 text-xs text-gray-500">
+                                    <p className="form-hint">
                                         Suggested:{" "}
                                         {Object.entries(c.suggested)
                                             .map(
@@ -464,32 +462,23 @@ function ChallengePanel({ line, assessment }) {
             </div>
 
             <form onSubmit={submit} className="space-y-3">
-                <div>
-                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        Challenge
-                    </label>
+                <FormField label="Challenge" error={form.errors.body}>
                     <textarea
-                        className="form-textarea w-full text-sm"
+                        className="form-textarea"
                         rows={3}
                         value={form.data.body}
                         onChange={(e) => form.setData("body", e.target.value)}
                         placeholder="What do you want the assessor to change, and why?"
                     />
-                    {form.errors.body && (
-                        <p className="mt-1 text-xs text-red-600">
-                            {form.errors.body}
-                        </p>
-                    )}
-                </div>
+                </FormField>
 
                 <div className="grid grid-cols-3 gap-2">
-                    <label className="text-xs text-gray-600">
-                        <span className="mb-1 block">Suggested L</span>
+                    <FormField label="Suggested L">
                         <input
                             type="number"
                             min="1"
                             max="5"
-                            className="form-input w-full text-sm"
+                            className="form-input"
                             value={form.data.suggested.inherent_likelihood}
                             onChange={(e) =>
                                 form.setData("suggested", {
@@ -498,14 +487,13 @@ function ChallengePanel({ line, assessment }) {
                                 })
                             }
                         />
-                    </label>
-                    <label className="text-xs text-gray-600">
-                        <span className="mb-1 block">Suggested I</span>
+                    </FormField>
+                    <FormField label="Suggested I">
                         <input
                             type="number"
                             min="1"
                             max="5"
-                            className="form-input w-full text-sm"
+                            className="form-input"
                             value={form.data.suggested.inherent_impact}
                             onChange={(e) =>
                                 form.setData("suggested", {
@@ -514,11 +502,10 @@ function ChallengePanel({ line, assessment }) {
                                 })
                             }
                         />
-                    </label>
-                    <label className="text-xs text-gray-600">
-                        <span className="mb-1 block">Verdict</span>
+                    </FormField>
+                    <FormField label="Verdict">
                         <select
-                            className="form-select w-full text-sm"
+                            className="form-select"
                             value={form.data.verdict}
                             onChange={(e) =>
                                 form.setData("verdict", e.target.value)
@@ -527,7 +514,7 @@ function ChallengePanel({ line, assessment }) {
                             <option value="challenged">Challenged</option>
                             <option value="flagged">Flagged</option>
                         </select>
-                    </label>
+                    </FormField>
                 </div>
 
                 <p className="text-xs text-gray-500">
@@ -592,8 +579,8 @@ function DecisionForm({ kind, assessment, flaggedCount, onCancel }) {
             </h4>
             <p className="mb-2 text-xs text-gray-600">{copy.help}</p>
 
-            <textarea
-                className="form-textarea w-full text-sm"
+            <textarea aria-label={copy.title}
+                className="form-textarea"
                 rows={3}
                 value={form.data.reason}
                 onChange={(e) => form.setData("reason", e.target.value)}
@@ -604,7 +591,7 @@ function DecisionForm({ kind, assessment, flaggedCount, onCancel }) {
                 }
             />
             {form.errors.reason && (
-                <p className="mt-1 text-xs text-red-600">
+                <p className="form-error">
                     {form.errors.reason}
                 </p>
             )}

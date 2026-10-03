@@ -165,10 +165,10 @@ export default function Ai({
                 />
 
                 <section className="card p-4">
-                    <label className="block text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Endpoint profile</span>
                         <select
-                            className="w-full rounded border-gray-300 text-sm md:w-96"
+                            className="form-select md:w-96"
                             value={data.ai_endpoint_profile}
                             onChange={(event) => setData('ai_endpoint_profile', event.target.value)}
                             aria-describedby={errors.ai_endpoint_profile ? 'ai-endpoint-profile-error' : undefined}
@@ -182,7 +182,7 @@ export default function Ai({
                             ))}
                         </select>
                         {errors.ai_endpoint_profile && (
-                            <p id="ai-endpoint-profile-error" role="alert" className="mt-1 text-xs text-red-600">
+                            <p id="ai-endpoint-profile-error" role="alert" className="form-error">
                                 {errors.ai_endpoint_profile}
                             </p>
                         )}
@@ -277,42 +277,42 @@ function LayerTable({ deployment, tenant, effective }) {
 
     return (
         <section className="card overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="data-table">
                 <caption className="p-4 text-left text-sm font-semibold text-gray-800">
                     How AI is switched on for this tenant, by layer
                 </caption>
                 <thead>
                     <tr className="border-t border-gray-200 bg-gray-50">
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Layer</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">State</th>
+                        <th scope="col">Layer</th>
+                        <th scope="col">State</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr className="border-t border-gray-100">
-                        <th scope="row" className="px-4 py-2 text-left font-normal text-gray-700">
+                        <th scope="row" className="font-normal">
                             Deployment — model available
                         </th>
-                        <td className="px-4 py-2">
+                        <td>
                             <Badge tone={deployment.llm_enabled ? 'emerald' : 'red'}>
                                 {deployment.llm_enabled ? 'On' : 'Off'}
                             </Badge>
                         </td>
                     </tr>
                     <tr className="border-t border-gray-100">
-                        <th scope="row" className="px-4 py-2 text-left font-normal text-gray-700">
+                        <th scope="row" className="font-normal">
                             Deployment — TPRM module
                         </th>
-                        <td className="px-4 py-2">
+                        <td>
                             <Badge tone={deployment.module_enabled ? 'emerald' : 'red'}>
                                 {deployment.module_enabled ? 'On' : 'Off'}
                             </Badge>
                         </td>
                     </tr>
                     <tr className="border-t border-gray-100">
-                        <th scope="row" className="px-4 py-2 text-left font-normal text-gray-700">
+                        <th scope="row" className="font-normal">
                             Tenant — master switch
                         </th>
-                        <td className="px-4 py-2">
+                        <td>
                             {tenant.ai_enabled === null ? (
                                 <Badge tone="grey">Not set — follows deployment (currently {followsCurrently})</Badge>
                             ) : tenant.ai_enabled ? (
@@ -323,10 +323,10 @@ function LayerTable({ deployment, tenant, effective }) {
                         </td>
                     </tr>
                     <tr className="border-t border-gray-100">
-                        <th scope="row" className="px-4 py-2 text-left font-normal text-gray-700">
+                        <th scope="row" className="font-normal">
                             Effective master
                         </th>
-                        <td className="px-4 py-2">
+                        <td>
                             {effective.enabled ? (
                                 <Badge tone="emerald">On</Badge>
                             ) : (
@@ -359,7 +359,7 @@ function TriStateRadios({ name, legend, hideLegend = true, value, onChange, disa
         <fieldset disabled={disabled} className="space-y-1.5">
             <legend className={hideLegend ? 'sr-only' : 'mb-1 text-sm font-semibold text-gray-800'}>{legend}</legend>
             <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
+                <input className="form-radio"
                     type="radio"
                     name={name}
                     disabled={disabled}
@@ -369,7 +369,7 @@ function TriStateRadios({ name, legend, hideLegend = true, value, onChange, disa
                 {followLabel}
             </label>
             <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
+                <input className="form-radio"
                     type="radio"
                     name={name}
                     disabled={disabled}
@@ -379,7 +379,7 @@ function TriStateRadios({ name, legend, hideLegend = true, value, onChange, disa
                 {onLabel}
             </label>
             <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
+                <input className="form-radio"
                     type="radio"
                     name={name}
                     disabled={disabled}
@@ -401,14 +401,14 @@ function ServicesTable({ services, deploymentFullyOff, choices, onChoice, servic
                     {servicesError}
                 </p>
             )}
-            <table className="mt-2 w-full text-sm">
+            <table className="data-table mt-2">
                 <caption className="sr-only">Which AI services this tenant may use, and why</caption>
                 <thead>
                     <tr className="border-t border-gray-200 bg-gray-50">
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Service</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Deployment</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Tenant</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Effective</th>
+                        <th scope="col">Service</th>
+                        <th scope="col">Deployment</th>
+                        <th scope="col">Tenant</th>
+                        <th scope="col">Effective</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -431,11 +431,11 @@ function ServiceRow({ row, deploymentFullyOff, choice, onChoice }) {
     if (!row.implemented) {
         return (
             <tr className="border-t border-gray-100">
-                <th scope="row" className="px-4 py-3 text-left font-normal text-gray-700">{row.label}</th>
-                <td colSpan={2} className="px-4 py-3">
+                <th scope="row" className="font-normal">{row.label}</th>
+                <td colSpan={2}>
                     <Badge tone="grey">Not built in this release</Badge>
                 </td>
-                <td className="px-4 py-3 text-gray-500">—</td>
+                <td className="text-gray-500">—</td>
             </tr>
         );
     }
@@ -450,13 +450,13 @@ function ServiceRow({ row, deploymentFullyOff, choice, onChoice }) {
 
     return (
         <tr className="border-t border-gray-100 align-top">
-            <th scope="row" className="px-4 py-3 text-left font-normal text-gray-700">{row.label}</th>
-            <td className="px-4 py-3">
+            <th scope="row" className="font-normal">{row.label}</th>
+            <td>
                 <Badge tone={row.deployment_enabled ? 'emerald' : 'red'}>
                     {row.deployment_enabled ? 'On' : 'Off'}
                 </Badge>
             </td>
-            <td className="px-4 py-3">
+            <td>
                 {disabled && (
                     <p className="mb-2 text-xs text-gray-700">{disabledReason}</p>
                 )}
@@ -477,7 +477,7 @@ function ServiceRow({ row, deploymentFullyOff, choice, onChoice }) {
                     offLabel="Off for this tenant"
                 />
             </td>
-            <td className="px-4 py-3 text-gray-700">
+            <td className="text-gray-700">
                 {row.effective ? (
                     <Badge tone="emerald">On</Badge>
                 ) : (
@@ -504,36 +504,36 @@ function UsageLimitSection({ data, setData, errors, month }) {
             </p>
 
             <div className="grid gap-4 md:grid-cols-2">
-                <label className="block text-sm">
+                <label className="form-label">
                     <span className="mb-1 block font-medium text-gray-700">Token limit</span>
                     <input
                         type="number"
                         min={0}
-                        className="w-full rounded border-gray-300 text-sm"
+                        className="form-input"
                         value={data.ai_monthly_token_cap}
                         onChange={(event) => setData('ai_monthly_token_cap', event.target.value)}
                     />
                     {!errors.ai_monthly_token_cap && (
-                        <span className="mt-1 block text-xs text-gray-500">Leave blank for no limit</span>
+                        <span className="form-hint">Leave blank for no limit</span>
                     )}
                     {errors.ai_monthly_token_cap && (
-                        <span role="alert" className="mt-1 block text-xs text-red-600">{errors.ai_monthly_token_cap}</span>
+                        <span role="alert" className="form-error">{errors.ai_monthly_token_cap}</span>
                     )}
                 </label>
-                <label className="block text-sm">
+                <label className="form-label">
                     <span className="mb-1 block font-medium text-gray-700">Call limit</span>
                     <input
                         type="number"
                         min={0}
-                        className="w-full rounded border-gray-300 text-sm"
+                        className="form-input"
                         value={data.ai_monthly_call_cap}
                         onChange={(event) => setData('ai_monthly_call_cap', event.target.value)}
                     />
                     {!errors.ai_monthly_call_cap && (
-                        <span className="mt-1 block text-xs text-gray-500">Leave blank for no limit</span>
+                        <span className="form-hint">Leave blank for no limit</span>
                     )}
                     {errors.ai_monthly_call_cap && (
-                        <span role="alert" className="mt-1 block text-xs text-red-600">{errors.ai_monthly_call_cap}</span>
+                        <span role="alert" className="form-error">{errors.ai_monthly_call_cap}</span>
                     )}
                 </label>
             </div>

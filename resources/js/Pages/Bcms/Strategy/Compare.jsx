@@ -50,13 +50,17 @@ export default function Compare({ process = {}, required = null, options = [], c
                     No strategy options have been proposed for this process.
                 </div>
             ) : (
+                // A side-by-side option comparison, not a row listing — a layout
+                // matrix (attribute × option) kept border-separate like the other
+                // matrices in this module, so its row headers and dense figures
+                // are not squeezed by data-table's listing padding.
                 <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                    <table className="min-w-full text-sm">
-                        <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                    <table className="w-full border-separate border-spacing-0 text-sm [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:font-semibold [&_th]:text-gray-700 [&_td]:px-4 [&_td]:py-3 [&_thead_th]:bg-gray-50 [&_thead_th]:text-xs [&_thead_th]:uppercase [&_thead_th]:tracking-wider [&_thead_th]:text-gray-500">
+                        <thead>
                             <tr>
-                                <th className="px-4 py-3 text-left">&nbsp;</th>
+                                <th>&nbsp;</th>
                                 {options.map((o) => (
-                                    <th key={o.id} className="px-4 py-3 text-left">
+                                    <th key={o.id}>
                                         {o.is_selected && (
                                             <span className="mr-1 rounded bg-gray-900 px-1.5 py-0.5 text-[10px] text-white">Selected</span>
                                         )}
@@ -67,29 +71,29 @@ export default function Compare({ process = {}, required = null, options = [], c
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Title</th>
-                                {options.map((o) => <td key={o.id} className="px-4 py-3">{o.title ?? '—'}</td>)}
+                                <th>Title</th>
+                                {options.map((o) => <td key={o.id}>{o.title ?? '—'}</td>)}
                             </tr>
                             <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Cost</th>
+                                <th>Cost</th>
                                 {options.map((o) => (
-                                    <td key={o.id} className="px-4 py-3 font-mono">{money(o.cost_estimate_minor, o.currency)}</td>
+                                    <td key={o.id} className="font-mono">{money(o.cost_estimate_minor, o.currency)}</td>
                                 ))}
                             </tr>
                             <tr className="bg-gray-50">
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Required RTO</th>
+                                <th>Required RTO</th>
                                 {options.map((o) => (
-                                    <td key={o.id} className="px-4 py-3 font-mono text-gray-600">
+                                    <td key={o.id} className="font-mono text-gray-600">
                                         {o.rto_required_hours != null ? `${o.rto_required_hours}h` : '—'}
                                     </td>
                                 ))}
                             </tr>
                             <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Achievable RTO</th>
+                                <th>Achievable RTO</th>
                                 {options.map((o) => (
                                     <td
                                         key={o.id}
-                                        className={`px-4 py-3 font-mono ${o.meets_requirement === false ? 'text-red-700' : o.meets_requirement === true ? 'text-green-700' : ''}`}
+                                        className={`font-mono ${o.meets_requirement === false ? 'text-red-700' : o.meets_requirement === true ? 'text-green-700' : ''}`}
                                     >
                                         {o.rto_achievable_hours != null ? `${Number(o.rto_achievable_hours)}h` : '—'}
                                         {o.meets_requirement === false && <span className="ml-2 text-xs">misses it</span>}
@@ -97,9 +101,9 @@ export default function Compare({ process = {}, required = null, options = [], c
                                 ))}
                             </tr>
                             <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Gap at assessment</th>
+                                <th>Gap at assessment</th>
                                 {options.map((o) => (
-                                    <td key={o.id} className="px-4 py-3 font-mono text-xs text-gray-500">
+                                    <td key={o.id} className="font-mono text-xs text-gray-500">
                                         {o.gap_vs_required_hours == null
                                             ? '—'
                                             : `${o.gap_vs_required_hours > 0 ? '+' : ''}${o.gap_vs_required_hours}h`}
@@ -107,19 +111,19 @@ export default function Compare({ process = {}, required = null, options = [], c
                                 ))}
                             </tr>
                             <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">What it involves</th>
+                                <th>What it involves</th>
                                 {options.map((o) => (
-                                    <td key={o.id} className="px-4 py-3 text-xs text-gray-600">{o.description ?? '—'}</td>
+                                    <td key={o.id} className="text-xs text-gray-600">{o.description ?? '—'}</td>
                                 ))}
                             </tr>
                             {resourceKeys.map((key) => (
                                 <tr key={key}>
-                                    <th className="px-4 py-3 text-left text-xs font-medium capitalize text-gray-500">{key}</th>
+                                    <th className="capitalize">{key}</th>
                                     {options.map((o) => {
                                         const value = o.resource_requirements?.[key];
 
                                         return (
-                                            <td key={o.id} className="px-4 py-3 text-xs text-gray-600">
+                                            <td key={o.id} className="text-xs text-gray-600">
                                                 {Array.isArray(value) ? value.join(', ') : (value ?? '—')}
                                             </td>
                                         );
@@ -127,15 +131,15 @@ export default function Compare({ process = {}, required = null, options = [], c
                                 </tr>
                             ))}
                             <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Rationale</th>
+                                <th>Rationale</th>
                                 {options.map((o) => (
-                                    <td key={o.id} className="px-4 py-3 text-xs italic text-gray-600">{o.selection_rationale ?? '—'}</td>
+                                    <td key={o.id} className="text-xs italic text-gray-600">{o.selection_rationale ?? '—'}</td>
                                 ))}
                             </tr>
                             <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Status</th>
+                                <th>Status</th>
                                 {options.map((o) => (
-                                    <td key={o.id} className="px-4 py-3 text-xs">
+                                    <td key={o.id} className="text-xs">
                                         <span className={`rounded px-2 py-1 ${o.approval_status === 'approved'
                                             ? 'bg-green-100 text-green-800'
                                             : o.approval_status === 'rejected'
@@ -148,9 +152,9 @@ export default function Compare({ process = {}, required = null, options = [], c
                             </tr>
                             {can.approve && (
                                 <tr>
-                                    <th className="px-4 py-3">&nbsp;</th>
+                                    <th>&nbsp;</th>
                                     {options.map((o) => (
-                                        <td key={o.id} className="space-x-3 px-4 py-3 text-xs">
+                                        <td key={o.id} className="space-x-3 text-xs">
                                             {!o.is_selected && (
                                                 <button
                                                     type="button"

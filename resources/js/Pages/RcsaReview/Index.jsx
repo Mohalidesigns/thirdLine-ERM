@@ -74,14 +74,12 @@ export default function Index({
                 />
             </div>
 
-            <div className="card mb-4">
-                <div className="flex flex-wrap items-end gap-3 p-4">
-                    <label className="text-xs text-gray-600">
-                        <span className="mb-1 block uppercase tracking-wider">
-                            Cycle
-                        </span>
-                        <select
-                            className="form-select text-sm"
+            <div className="filter-bar">
+                <div className="filter-bar-inner">
+                    <div className="filter-group min-w-[160px]">
+                        <label className="filter-label">Cycle</label>
+                        <select aria-label="Cycle"
+                            className="filter-select"
                             value={filters.cycle ?? ""}
                             onChange={(e) =>
                                 filter({ cycle: e.target.value || undefined })
@@ -94,14 +92,12 @@ export default function Index({
                                 </option>
                             ))}
                         </select>
-                    </label>
+                    </div>
 
-                    <label className="text-xs text-gray-600">
-                        <span className="mb-1 block uppercase tracking-wider">
-                            State
-                        </span>
-                        <select
-                            className="form-select text-sm"
+                    <div className="filter-group min-w-[190px]">
+                        <label className="filter-label">State</label>
+                        <select aria-label="State"
+                            className="filter-select"
                             value={filters.status ?? ""}
                             onChange={(e) =>
                                 filter({ status: e.target.value || undefined })
@@ -111,18 +107,21 @@ export default function Index({
                             <option value="submitted">Not yet picked up</option>
                             <option value="under_review">Being reviewed</option>
                         </select>
-                    </label>
+                    </div>
 
                     {(filters.cycle || filters.status) && (
-                        <button
-                            type="button"
-                            className="btn-secondary text-xs"
-                            onClick={() =>
-                                router.get(route("rcsa.review.index"))
-                            }
-                        >
-                            Clear
-                        </button>
+                        <div className="filter-group">
+                            <label className="filter-label">&nbsp;</label>
+                            <button
+                                type="button"
+                                className="filter-reset"
+                                onClick={() =>
+                                    router.get(route("rcsa.review.index"))
+                                }
+                            >
+                                Clear
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -153,11 +152,10 @@ export default function Index({
                         <tbody>
                             {queue.length === 0 && (
                                 <tr>
-                                    <td
-                                        colSpan={11}
-                                        className="py-10 text-center text-sm text-gray-400"
-                                    >
-                                        Nothing is waiting for review.
+                                    <td colSpan={11} className="text-center py-12">
+                                        <div className="text-gray-400">
+                                            <p className="text-sm font-medium">Nothing is waiting for review</p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -225,15 +223,18 @@ export default function Index({
                                         {row.priority}
                                     </td>
                                     <td className="text-right">
-                                        <Link
-                                            href={route(
-                                                "rcsa.review.show",
-                                                row.id,
-                                            )}
-                                            className="text-xs text-[var(--color-primary)] hover:underline"
-                                        >
-                                            Review
-                                        </Link>
+                                        <div className="row-actions">
+                                            <Link
+                                                href={route(
+                                                    "rcsa.review.show",
+                                                    row.id,
+                                                )}
+                                                className="row-action"
+                                                aria-label="Review" title="Review"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                            </Link>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

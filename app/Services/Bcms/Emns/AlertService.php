@@ -5,15 +5,19 @@ namespace App\Services\Bcms\Emns;
 use App\Enums\Bcms\AlertSeverity;
 use App\Enums\Bcms\ChannelKey;
 use App\Enums\Bcms\RecipientStatus;
+use App\Exceptions\Bcms\AlertRenderingRefusedException;
 use App\Models\Bcms\Alert;
 use App\Models\Bcms\AlertRecipient;
 use App\Models\Bcms\AlertTemplate;
 use App\Models\Bcms\Contact;
+use App\Models\Bcms\Incident;
 use App\Models\User;
 use App\Services\Bcms\AudienceResolver;
 use App\Services\Bcms\BcmsSettings;
 use App\Services\Bcms\ContactResolver;
 use App\Services\Bcms\Notification\ChannelRegistry;
+use App\Services\Bcms\Notification\Channels\SmsSegmenter;
+use App\Support\Bcms\AlertTemplateVariables;
 use App\Support\Bcms\AudienceRule;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -64,7 +68,129 @@ class AlertService
             ? AlertTemplate::query()->find($attributes['template_id'])
             : null;
 
+        // AN INACTIVE TEMPLATE CANNOT BE COMPOSED. This is the compose-time
+        // half; `TemplateRenderer::render()`/`TemplateNotActiveException`
+        // is the other half, for a template deactivated AFTER an alert
+        // already exists in draft (item 9) — this check alone only stops an
+        // operator picking one directly, never a mid-life withdrawal.
+        //
+        // THE MESSAGE IS NEUTRAL, NOT "awaiting review". A row that never
+        // went live is one reason a template is inactive; an admin
+        // deliberately withdrawing a previously-live one is another, and
+        // "awaiting review" is simply false for the second case — see
+        // `TemplateNotActiveException`'s docblock.
+        if ($template !== null && ! $template->is_active) {
+            throw new InvalidArgumentException('This template is not active.');
+        }
+
+        // ADR 0024 §3.3, DEFENSE IN DEPTH. `StoreBcmsAlertRequest::withValidator()`
+        // already refuses this over HTTP; this is the same rule for a
+        // direct caller (a seeder, a console command, a future crisis-room
+        // path) that never went through that request.
+        $declaredVariables = $template === null
+            ? []
+            : array_values(array_filter((array) $template->variables, 'is_string'));
+
+        if ($template !== null && AlertTemplateVariables::needsPerRecipientVariable($declaredVariables)) {
+            throw new InvalidArgumentException(AlertTemplateVariables::PER_RECIPIENT_MESSAGE);
+        }
+
+        // ADR 0024 §3.1, DEFENCE IN DEPTH — GATE 2 DEFECT, LIFE-SAFETY
+        // SEVERITY, PERMANENT REGRESSION GUARD. `StoreBcmsAlertRequest::
+        // withValidator()` already refuses a key that is not this
+        // template's own declared operator variable over HTTP; this is the
+        // same rule for a direct caller — every seeder, a console command,
+        // a future crisis-room path — that never went through that
+        // request. Naming a DERIVED variable here (`site_name`, a link) is
+        // exactly the shape that shipped once: a stored `template_variables`
+        // row holding `site_name` rendered `EVACUATE` as "EVACUATE THE
+        // WRONG BUILDING NOW", because the merge order let a stored value
+        // shadow a derived one. `variablesFor()`'s merge order is fixed too
+        // (derived now applies AFTER stored, so it wins structurally) — this
+        // check is what stops the bad value from ever being written at all.
+        if (isset($attributes['template_variables']) && is_array($attributes['template_variables'])) {
+            // A NUMERIC KEY IS REFUSED, NOT SKIPPED — same reasoning as
+            // `StoreBcmsAlertRequest::withValidator()`'s identical check: a
+            // bare list decodes to integer keys, and silently ignoring them
+            // let a caller's mistake vanish rather than being refused.
+            foreach (array_keys($attributes['template_variables']) as $key) {
+                if (! is_string($key)
+                    || ! in_array($key, $declaredVariables, true)
+                    || ! AlertTemplateVariables::isOperatorEntered($key)
+                ) {
+                    throw new InvalidArgumentException(
+                        is_string($key)
+                            ? sprintf('"%s" is not a variable this template accepts.', $key)
+                            : sprintf('"%s" is not a valid template variable name.', $key),
+                    );
+                }
+            }
+        }
+
+        // ADR 0024 §3.1 — AN OPTIONAL VARIABLE LEFT EMPTY IS NORMALISED TO
+        // `''`, NEVER STORED AS NULL. Laravel's `ConvertEmptyStringsToNull`
+        // middleware turns the operator's empty-string answer into `null`
+        // before validation ever sees it, so by the time it reaches here an
+        // explicit "nothing to add" and "never answered" are already the
+        // same bit — this is the one place left to put them back apart, and
+        // it must happen before the row is written, since there is no edit
+        // route to fix it afterwards (§1: write once).
+        if ($template !== null && isset($attributes['template_variables']) && is_array($attributes['template_variables'])) {
+            foreach ($declaredVariables as $name) {
+                if (AlertTemplateVariables::isOperatorOptional($name)
+                    && array_key_exists($name, $attributes['template_variables'])
+                    && $attributes['template_variables'][$name] === null
+                ) {
+                    $attributes['template_variables'][$name] = '';
+                }
+            }
+        }
+
+        // `message` IS `NOT NULL` WITH NO DEFAULT. `StoreBcmsAlertRequest`
+        // now requires it over HTTP, but `compose()` is also called
+        // directly — every seeder does — and a missing or `null` value
+        // there used to reach `Alert::create()` as `NULL` and 500 at
+        // insert. A template's own body is what actually renders (`message`
+        // is the free-text fallback for a template-less alert only), so
+        // defaulting to the template's name here is never a lie about what
+        // was sent — it is a label for the draft, not the wire text.
+        if (! array_key_exists('message', $attributes) || $attributes['message'] === null) {
+            // Not `$template?->name ?? ''`: the same nullsafe-feeding-`??`
+            // shape PHPStan misjudges elsewhere in this module (see
+            // `TemplateRenderer::render()`'s identical note).
+            $attributes['message'] = $template === null ? '' : $template->name;
+        }
+
+        // `channels` IS `json NOT NULL` WITH NO DEFAULT, AND AN EMPTY LIST IS
+        // A LEGITIMATE, DELIBERATE VALUE — "use the tenant's default channels
+        // at dispatch time" (`channelKeys()`, `estimate()`, `release()` all
+        // fall back to `BcmsSettings::defaultChannels`/`lifeSafetyChannels`
+        // when this is `[]`). The crisis room's roll-call, SitRep and
+        // stakeholder composers all send no `channels` key at all for exactly
+        // that reason. Without this, `StoreBcmsAlertRequest`'s
+        // `'channels' => ['nullable', 'array']` lets the key arrive absent or
+        // `null`, and `Alert::query()->create()` below would either omit the
+        // column entirely or pass `null` — both a 500 at insert, not a
+        // validation error, because MariaDB will not silently invent a value
+        // for a `NOT NULL` json column. This normalises to `[]` here, at
+        // compose time, WITHOUT resolving the actual default channels — that
+        // stays a dispatch-time decision, so an alert composed today still
+        // picks up a channel default changed in settings tomorrow.
+        if (! array_key_exists('channels', $attributes) || $attributes['channels'] === null) {
+            $attributes['channels'] = [];
+        }
+
         $severity = $this->severityFor($attributes, $template);
+
+        // ADVISORY F — AN ALERT LINKED TO AN INCIDENT DECLARED AS AN
+        // EXERCISE DEFAULTS TO SIMULATION, THE SAME WAY `occurrence_id`
+        // ALREADY DOES. The crisis room tells an operator exactly this
+        // ("This incident is flagged as an exercise; the alert stays a
+        // simulation") for an incident whose `is_exercise` is true, but
+        // nothing mapped it to `is_simulation` here — the screen's own
+        // promise was not code, just text next to the button.
+        $incidentIsExercise = filled($attributes['incident_id'] ?? null)
+            && (bool) (Incident::query()->find($attributes['incident_id'])?->is_exercise);
 
         return Alert::query()->create(array_merge([
             'status' => 'draft',
@@ -73,7 +199,7 @@ class AlertService
             // (criterion 5). Not "can be set to" — an exercise that reached a
             // branch for real is the failure this default exists to prevent,
             // and turning it off is a deliberate act with its own permission.
-            'is_simulation' => filled($attributes['occurrence_id'] ?? null),
+            'is_simulation' => filled($attributes['occurrence_id'] ?? null) || $incidentIsExercise,
             'response_required' => (bool) ($template?->is_life_safety),
             'ack_window_minutes' => 30,
             'escalation_enabled' => true,
@@ -125,6 +251,15 @@ class AlertService
         $perChannel = [];
         $unreachable = 0;
 
+        // ADR 0024 §3.7 — the FIRST real rendering per (channel, rendered
+        // locale), keyed on the RENDERED locale (after any pcm→en style
+        // fallback) rather than the contact's requested one, so a fallback
+        // does not produce two "different" previews of the same text.
+        // Built through the same `TemplateRenderer::render()` every send
+        // uses, with the simulation prefix applied (`wireBody()`), so this
+        // is the text that would actually be sent, not a re-derivation of it.
+        $preview = [];
+
         foreach ($contacts as $contact) {
             $usable = $this->contacts->channelsFor($contact, $channels, $alert->severity === AlertSeverity::LifeSafety);
 
@@ -144,13 +279,27 @@ class AlertService
                 if ($cost === null) {
                     $unpriced++;
                     $perChannel[$channel->value]['unpriced'] = ($perChannel[$channel->value]['unpriced'] ?? 0) + 1;
-
-                    continue;
+                } else {
+                    $priced++;
+                    $costMinor += $cost;
+                    $perChannel[$channel->value]['cost_minor'] = ($perChannel[$channel->value]['cost_minor'] ?? 0) + $cost;
                 }
 
-                $priced++;
-                $costMinor += $cost;
-                $perChannel[$channel->value]['cost_minor'] = ($perChannel[$channel->value]['cost_minor'] ?? 0) + $cost;
+                $previewKey = $channel->value.'|'.$message->locale;
+
+                if (! array_key_exists($previewKey, $preview)) {
+                    $isSegmented = in_array($channel, [ChannelKey::Sms, ChannelKey::Ussd], true);
+                    $wireBody = $message->wireBody();
+
+                    $preview[$previewKey] = [
+                        'channel' => $channel->value,
+                        'locale' => $message->locale,
+                        'body' => $wireBody,
+                        'subject' => $message->wireSubject(),
+                        'segments' => $isSegmented ? SmsSegmenter::segments($wireBody) : null,
+                        'encoding' => $isSegmented ? (SmsSegmenter::isGsm7($wireBody) ? 'gsm7' : 'ucs2') : null,
+                    ];
+                }
             }
         }
 
@@ -174,6 +323,7 @@ class AlertService
             )),
             'requires_dual_approval' => $this->requiresDualApproval($alert, $contacts->count()),
             'offline_capable' => $this->hasOfflineChannel($channels),
+            'preview' => array_values($preview),
         ];
 
         $alert->forceFill([
@@ -387,6 +537,10 @@ class AlertService
             'stage' => $field,
             'severity' => $alert->severity->value,
             'recipients' => (int) $alert->recipient_count,
+            // Same resolved-vs-stored distinction as `alert.dispatched` — an
+            // approver signing off on a fallback alert should see what it
+            // will actually send on, not `[]`.
+            'channels' => array_map(fn (ChannelKey $c) => $c->value, $this->channelKeys($alert)),
         ]);
 
         return $alert->refresh();
@@ -453,8 +607,21 @@ class AlertService
             );
         }
 
-        DB::transaction(function () use ($alert, $contacts, $userId) {
-            $channels = $this->channelKeys($alert);
+        $this->assertRenderable($alert, $contacts);
+
+        // RESOLVED ONCE, BEFORE THE TRANSACTION, AND REUSED FOR THE AUDIT
+        // ROW BELOW. `channelKeys()` is what actually decided who got sent
+        // what — the tenant's default/life-safety set when `$alert->channels`
+        // is `[]` (an alert composed without an explicit choice, e.g. every
+        // crisis-room composer), or the alert's own stored set otherwise.
+        // `$alert->channels` alone is not that answer: for a fallback alert
+        // it is `[]`, and an audit row saying `channels: []` reads as "this
+        // reached nobody on any channel" for a roll-call that actually went
+        // out on the tenant's SMS/voice/email defaults.
+        $resolvedChannels = $this->channelKeys($alert);
+
+        DB::transaction(function () use ($alert, $contacts, $userId, $resolvedChannels) {
+            $channels = $resolvedChannels;
             $isLifeSafety = $alert->severity === AlertSeverity::LifeSafety;
             $now = now();
             $rows = [];
@@ -495,12 +662,67 @@ class AlertService
 
         $alert->recordAudit('alert.dispatched', [
             'recipients' => $contacts->count(),
-            'channels' => $alert->channels,
+            // The RESOLVED set — what actually went out — not the raw stored
+            // column, which is `[]` for a fallback alert (see above).
+            'channels' => array_map(fn (ChannelKey $c) => $c->value, $resolvedChannels),
+            // `channels_requested` keeps the raw stored value alongside, so
+            // an auditor can still tell an alert that explicitly asked for
+            // this exact set apart from one that fell back to it.
+            'channels_requested' => $alert->channels,
+            'channels_source' => $alert->channels === [] ? 'tenant_default' : 'alert',
             'severity' => $alert->severity->value,
             'is_simulation' => (bool) $alert->is_simulation,
         ]);
 
         return $contacts;
+    }
+
+    /**
+     * FAIL CLOSED, BEFORE A SINGLE RECIPIENT ROW IS WRITTEN. Every channel this
+     * alert will actually use, in every language its resolved audience
+     * actually prefers, must render with no unfilled `{{variable}}` before
+     * `release()` commits anything. `TemplateRenderer::render()` is the one
+     * substitution path for every channel; this only exercises it ahead of
+     * time and turns its refusal into the same `InvalidArgumentException`
+     * `AlertController::dispatchAlert()` already converts to a named
+     * validation error and records with `alert.dispatch_refused` — so an
+     * `EVACUATE` alert missing `assembly_point` is refused here, loudly, and
+     * never reaches `DispatchAlertChunkJob`.
+     *
+     * @param  Collection<int, Contact>  $contacts
+     */
+    private function assertRenderable(Alert $alert, Collection $contacts): void
+    {
+        $channels = $this->channelKeys($alert);
+
+        // MAP `$l ?: 'en'` BEFORE `unique()`, NOT AFTER `filter()`. `filter()`
+        // used to DROP a contact whose `preferred_language` is null or ''
+        // rather than counting them as 'en' — the exact fallback
+        // `AlertDispatcher::sendOne()` applies at send time
+        // (`$contact->preferred_language ?: 'en'`). If even one contact in
+        // the audience has a real locale (say 'ha') and others have none,
+        // the dropped ones' actual locale — 'en' — was never in the
+        // preflighted set at all, so a template that renders for 'ha' but
+        // not for 'en' would pass this check and still fail at send.
+        $locales = $contacts->pluck('preferred_language')
+            ->map(fn ($l) => $l ?: 'en')
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($locales === []) {
+            $locales = ['en'];
+        }
+
+        foreach ($channels as $channel) {
+            foreach ($locales as $locale) {
+                try {
+                    $this->renderer->render($alert, $channel, (string) $locale);
+                } catch (AlertRenderingRefusedException $e) {
+                    throw new InvalidArgumentException($e->getMessage(), previous: $e);
+                }
+            }
+        }
     }
 
     /**

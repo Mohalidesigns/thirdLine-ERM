@@ -1,4 +1,5 @@
 import InputError from '@thirdline/ui/Components/InputError';
+import FormField from '@thirdline/ui/Components/FormField';
 
 /**
  * The editable worksheet table (migration Phase 3.8).
@@ -39,8 +40,6 @@ export const EMPTY_LINE = {
     action_plan: '',
 };
 
-const INPUT = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]';
-
 function scoreTone(score) {
     if (score >= 20) return 'bg-red-100 text-red-700';
     if (score >= 12) return 'bg-orange-100 text-orange-700';
@@ -52,7 +51,7 @@ function scoreTone(score) {
 function ScoreSelect({ value, onChange, anchors, error }) {
     return (
         <div>
-            <select value={value} onChange={(e) => onChange(Number(e.target.value))} className={INPUT}>
+            <select aria-label="Score" value={value} onChange={(e) => onChange(Number(e.target.value))} className="form-select">
                 {Object.entries(anchors).map(([score, label]) => (
                     <option key={score} value={score}>{score}: {label}</option>
                 ))}
@@ -63,14 +62,7 @@ function ScoreSelect({ value, onChange, anchors, error }) {
 }
 
 function Field({ label, required = false, children }) {
-    return (
-        <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-                {label} {required && <span className="text-red-500">*</span>}
-            </label>
-            {children}
-        </div>
-    );
+    return <FormField label={label} required={required}>{children}</FormField>;
 }
 
 function Line({ line, index, categories, assessableRisks, onChange, onRemove, removable, errors }) {
@@ -102,7 +94,7 @@ function Line({ line, index, categories, assessableRisks, onChange, onRemove, re
                         value={line.description}
                         onChange={(e) => set('description')(e.target.value)}
                         placeholder="Describe the risk..."
-                        className={INPUT}
+                        className="form-textarea"
                     />
                     <InputError message={error('description')} className="mt-1" />
                 </Field>
@@ -123,7 +115,7 @@ function Line({ line, index, categories, assessableRisks, onChange, onRemove, re
                                 if (picked && !line.description) onChange(index, 'description', picked.title);
                                 if (picked && !line.category && picked.category) onChange(index, 'category', picked.category);
                             }}
-                            className={INPUT}
+                            className="form-select"
                         >
                             <option value="">Not linked to the register</option>
                             {assessableRisks.map((risk) => (
@@ -134,7 +126,7 @@ function Line({ line, index, categories, assessableRisks, onChange, onRemove, re
                     </Field>
 
                     <Field label="Risk Category">
-                        <select value={line.category ?? ''} onChange={(e) => set('category')(e.target.value)} className={INPUT}>
+                        <select value={line.category ?? ''} onChange={(e) => set('category')(e.target.value)} className="form-select">
                             <option value="">Select</option>
                             {categories.map((category) => (
                                 <option key={category.id} value={category.name}>{category.name}</option>
@@ -177,7 +169,7 @@ function Line({ line, index, categories, assessableRisks, onChange, onRemove, re
 
             <div className="mb-4">
                 <Field label="Control Effectiveness">
-                    <select value={line.control_effectiveness ?? ''} onChange={(e) => set('control_effectiveness')(e.target.value)} className={INPUT}>
+                    <select value={line.control_effectiveness ?? ''} onChange={(e) => set('control_effectiveness')(e.target.value)} className="form-select">
                         <option value="">Not assessed</option>
                         {Object.entries(EFFECTIVENESS).map(([value, label]) => (
                             <option key={value} value={value}>{label}</option>
@@ -189,11 +181,11 @@ function Line({ line, index, categories, assessableRisks, onChange, onRemove, re
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <Field label="Existing Controls">
-                    <textarea rows={2} value={line.existing_controls ?? ''} onChange={(e) => set('existing_controls')(e.target.value)} placeholder="List existing controls..." className={INPUT} />
+                    <textarea rows={2} value={line.existing_controls ?? ''} onChange={(e) => set('existing_controls')(e.target.value)} placeholder="List existing controls..." className="form-textarea" />
                     <InputError message={error('existing_controls')} className="mt-1" />
                 </Field>
                 <Field label="Action Plan">
-                    <textarea rows={2} value={line.action_plan ?? ''} onChange={(e) => set('action_plan')(e.target.value)} placeholder="Recommended actions..." className={INPUT} />
+                    <textarea rows={2} value={line.action_plan ?? ''} onChange={(e) => set('action_plan')(e.target.value)} placeholder="Recommended actions..." className="form-textarea" />
                     <InputError message={error('action_plan')} className="mt-1" />
                 </Field>
             </div>

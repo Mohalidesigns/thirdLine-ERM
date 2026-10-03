@@ -64,39 +64,39 @@ export default function Index({ batches }) {
 
             <div className="card overflow-hidden">
                 {rows.length ? (
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                    <table className="data-table">
+                        <thead>
                             <tr>
-                                <th className="px-4 py-3 font-medium">File</th>
-                                <th className="px-4 py-3 font-medium">Status</th>
-                                <th className="px-4 py-3 text-right font-medium">Rows</th>
-                                <th className="px-4 py-3 text-right font-medium">Imported</th>
-                                <th className="px-4 py-3 font-medium">By</th>
-                                <th className="px-4 py-3 font-medium">When</th>
-                                <th className="px-4 py-3" />
+                                <th>File</th>
+                                <th>Status</th>
+                                <th className="text-right">Rows</th>
+                                <th className="text-right">Imported</th>
+                                <th>By</th>
+                                <th>When</th>
+                                <th />
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {rows.map((batch) => (
                                 <tr key={batch.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3">
+                                    <td>
                                         <a href={batch.url} className="text-blue-700 hover:underline">{batch.filename}</a>
                                     </td>
-                                    <td className="px-4 py-3">
+                                    <td>
                                         <StatusChip status={batch.status} />
                                     </td>
-                                    <td className="px-4 py-3 text-right tabular-nums">
+                                    <td className="text-right tabular-nums">
                                         {batch.rows_total || '—'}
                                         {batch.rows_failed > 0 && (
                                             <span className="ml-1 text-xs text-red-700">({batch.rows_failed} failed)</span>
                                         )}
                                     </td>
-                                    <td className="px-4 py-3 text-right tabular-nums">{batch.created_count || '—'}</td>
-                                    <td className="px-4 py-3 text-xs text-gray-600">{batch.created_by}</td>
-                                    <td className="px-4 py-3 text-xs text-gray-500">
+                                    <td className="text-right tabular-nums">{batch.created_count || '—'}</td>
+                                    <td className="text-xs text-gray-600">{batch.created_by}</td>
+                                    <td className="text-xs text-gray-500">
                                         {batch.committed_at ?? batch.created_at}
                                     </td>
-                                    <td className="px-4 py-3 text-right">
+                                    <td className="text-right">
                                         {batch.can_roll_back && (
                                             <button type="button"
                                                 onClick={() => router.post(tryRoute('tprm.imports.roll-back', batch.id), {}, { preserveScroll: true })}

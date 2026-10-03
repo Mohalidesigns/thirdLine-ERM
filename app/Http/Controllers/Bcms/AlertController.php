@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers\Bcms;
 
-use App\Enums\Bcms\AlertSeverity;
-use App\Enums\Bcms\ChannelKey;
+use App\Exceptions\Bcms\AlertRenderingRefusedException;
 use App\Exceptions\Bcms\CircularAudienceRuleException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Bcms\StoreBcmsAlertRequest;
 use App\Jobs\Bcms\DispatchAlertChunkJob;
 use App\Jobs\Bcms\EscalateAlertRecipientsJob;
 use App\Models\Bcms\Alert;
 use App\Models\Bcms\AlertRecipient;
-use App\Models\Bcms\AlertTemplate;
+use App\Models\Bcms\Incident;
 use App\Presenters\Bcms\EmnsPresenter;
 use App\Services\Bcms\Emns\AlertService;
 use App\Services\Bcms\Emns\EvidenceExport;
@@ -79,33 +79,48 @@ class AlertController extends Controller
         return response()->json($this->presenter->alert($alert));
     }
 
-    public function store(Request $request): RedirectResponse
+    /**
+     * `incident_id` (Gate 2 review #1 defect 13) arrives as the incident's
+     * uuid and is resolved through `Incident::visibleTo()` before it is
+     * stored as the integer FK `AlertService::compose()` already passes
+     * through — see `StoreBcmsAlertRequest`'s own docblock for why this is
+     * not a bare tenant `Rule::exists()`.
+     */
+    public function store(StoreBcmsAlertRequest $request): RedirectResponse
     {
-        Gate::authorize('bcms.alert.compose');
+        $data = $request->validated();
 
-        $data = $request->validate([
-            'title' => ['required', 'string', 'max:200'],
-            'message' => ['nullable', 'string', 'max:4000'],
-            'template_id' => ['nullable', 'integer'],
-            'severity' => ['required', 'string', 'in:'.implode(',', array_column(AlertSeverity::cases(), 'value'))],
-            'channels' => ['nullable', 'array'],
-            'channels.*' => ['string', 'in:'.implode(',', array_column(ChannelKey::cases(), 'value'))],
-            'audience_rule' => ['nullable', 'array'],
-            'occurrence_id' => ['nullable', 'integer'],
-            'response_required' => ['nullable', 'boolean'],
-            'ack_window_minutes' => ['nullable', 'integer', 'min:1', 'max:1440'],
-        ]);
+        // `template_id`'s existence (and tenant/system-catalogue bound) is
+        // now the request's own `Rule::exists()` — see
+        // `StoreBcmsAlertRequest`'s docblock.
+        if (filled($data['incident_id'] ?? null)) {
+            $incident = Incident::query()->visibleTo($request->user())
+                ->where('uuid', $data['incident_id'])->first();
 
-        if (filled($data['template_id'] ?? null) && AlertTemplate::query()->find($data['template_id']) === null) {
-            throw ValidationException::withMessages(['template_id' => 'That template does not exist.']);
+            abort_if($incident === null, 404);
+
+            $data['incident_id'] = $incident->getKey();
+        } else {
+            unset($data['incident_id']);
         }
 
-        $alert = $this->alerts->compose($data, (int) $request->user()?->getKey());
+        try {
+            $alert = $this->alerts->compose($data, (int) $request->user()?->getKey());
+        } catch (InvalidArgumentException $e) {
+            // An inactive template reached here directly (never through the
+            // compose picker, which already excludes it) — see
+            // `AlertService::compose()`'s own guard.
+            throw ValidationException::withMessages(['template_id' => $e->getMessage()]);
+        }
 
         return redirect()->route('bcms.alerts.show', $alert);
     }
 
-    /** Recipient count and cost, before anything is sent. */
+    /**
+     * Recipient count and cost, before anything is sent — and, because it
+     * renders every channel's real message to price it, the only place today
+     * an operator would meet an unrendered `{{variable}}` before release.
+     */
     public function estimate(Request $request, Alert $alert): JsonResponse
     {
         Gate::authorize('bcms.alert.compose');
@@ -116,6 +131,14 @@ class AlertController extends Controller
             // The live recipient counter is operated during an incident; the
             // exception carries a careful, named explanation and the operator
             // must see it rather than a bare 500 (Gate 1, defect 4).
+            return response()->json(['error' => $e->getMessage()], 422);
+        } catch (AlertRenderingRefusedException $e) {
+            // FAIL CLOSED, SURFACED HERE TOO. `TemplateRenderer::render()`
+            // refuses a rendering with any unfilled placeholder, or one
+            // whose template is not active; the estimate panel is where
+            // that reaches an operator before `release()` would refuse it
+            // again — same shape of response as the circular audience rule
+            // above, so the console needs no new handling.
             return response()->json(['error' => $e->getMessage()], 422);
         }
     }

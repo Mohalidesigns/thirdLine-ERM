@@ -14,22 +14,22 @@ export default function PackSections({ sections = [], exportUrl, canExport = fal
 
     return (
         <div className="card overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <table className="data-table">
                 <thead className="bg-gray-50">
                     <tr>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Section</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Title</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Authority</th>
-                        <th scope="col" className="px-4 py-2 text-right font-medium text-gray-600">Rows</th>
-                        <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Coverage</th>
-                        <th scope="col" className="px-4 py-2" />
+                        <th scope="col" className="text-left">Section</th>
+                        <th scope="col" className="text-left">Title</th>
+                        <th scope="col" className="text-left">Authority</th>
+                        <th scope="col" className="text-right">Rows</th>
+                        <th scope="col" className="text-left">Coverage</th>
+                        <th scope="col" />
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                     {sections.map((section) => (
                         <Fragment key={section.code}>
                             <tr>
-                                <td className="px-4 py-2 font-medium">
+                                <td className="font-medium">
                                     <button
                                         type="button"
                                         className="text-indigo-600"
@@ -38,15 +38,15 @@ export default function PackSections({ sections = [], exportUrl, canExport = fal
                                         {section.code}
                                     </button>
                                 </td>
-                                <td className="px-4 py-2">
+                                <td>
                                     {section.title}
                                     {section.note && (
-                                        <div className="mt-1 text-xs text-gray-500">{section.note}</div>
+                                        <div className="form-hint">{section.note}</div>
                                     )}
                                 </td>
-                                <td className="px-4 py-2 text-xs text-gray-600">{section.citation}</td>
-                                <td className="px-4 py-2 text-right tabular-nums">{section.row_count}</td>
-                                <td className="px-4 py-2">
+                                <td className="text-xs text-gray-600">{section.citation}</td>
+                                <td className="text-right tabular-nums">{section.row_count}</td>
+                                <td>
                                     <span
                                         className={`rounded px-2 py-0.5 text-xs font-medium ${
                                             section.coverage === 'complete'
@@ -57,7 +57,7 @@ export default function PackSections({ sections = [], exportUrl, canExport = fal
                                         {section.coverage === 'complete' ? 'Complete' : 'Gaps'}
                                     </span>
                                 </td>
-                                <td className="px-4 py-2 text-right">
+                                <td className="text-right">
                                     {canExport && (
                                         <a className="text-xs text-indigo-600" href={exportUrl('csv', section.code)}>
                                             CSV
@@ -67,7 +67,7 @@ export default function PackSections({ sections = [], exportUrl, canExport = fal
                             </tr>
                             {open === section.code && (
                                 <tr>
-                                    <td colSpan={6} className="bg-gray-50 px-4 py-3">
+                                    <td colSpan={6} className="bg-gray-50">
                                         {section.row_count === 0 ? (
                                             <p className="text-sm text-gray-600">
                                                 No rows. Read that against the note before treating it as a
@@ -79,14 +79,14 @@ export default function PackSections({ sections = [], exportUrl, canExport = fal
                                                     First {Math.min(10, section.row_count)} of {section.row_count} rows.
                                                     The export holds all of them.
                                                 </p>
-                                                <table className="min-w-full text-xs">
+                                                <table className="data-table text-xs">
                                                     <thead>
                                                         <tr>
                                                             {section.headers.map((header) => (
                                                                 <th
                                                                     key={header}
                                                                     scope="col"
-                                                                    className="whitespace-nowrap px-2 py-1 text-left font-medium text-gray-600"
+                                                                    className="whitespace-nowrap text-left"
                                                                 >
                                                                     {header}
                                                                 </th>
@@ -97,7 +97,7 @@ export default function PackSections({ sections = [], exportUrl, canExport = fal
                                                         {section.preview.map((row, index) => (
                                                             <tr key={index}>
                                                                 {row.map((value, cell) => (
-                                                                    <td key={cell} className="whitespace-nowrap px-2 py-1">
+                                                                    <td key={cell} className="whitespace-nowrap">
                                                                         {value === null || value === '' ? '—' : String(value)}
                                                                     </td>
                                                                 ))}

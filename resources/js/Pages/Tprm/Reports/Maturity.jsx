@@ -50,29 +50,29 @@ export default function Maturity({ assessments = [], trend = {}, levels = {}, ca
 
             {can.assess && (
                 <form onSubmit={submit} className="card mb-6 flex flex-wrap items-end gap-4 p-4">
-                    <label className="text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Period</span>
                         <input
                             type="text"
-                            className="w-40 rounded border-gray-300 text-sm"
+                            className="form-input w-40"
                             placeholder="H1 2027"
                             value={data.period_label}
                             onChange={(event) => setData('period_label', event.target.value)}
                         />
                         {errors.period_label && (
-                            <span className="mt-1 block text-xs text-red-600">{errors.period_label}</span>
+                            <span className="form-error">{errors.period_label}</span>
                         )}
                     </label>
 
-                    <label className="text-sm">
+                    <label className="form-label">
                         <span className="mb-1 block font-medium text-gray-700">Position as at</span>
                         <input
                             type="date"
-                            className="rounded border-gray-300 text-sm"
+                            className="form-input"
                             value={data.as_at}
                             onChange={(event) => setData('as_at', event.target.value)}
                         />
-                        {errors.as_at && <span className="mt-1 block text-xs text-red-600">{errors.as_at}</span>}
+                        {errors.as_at && <span className="form-error">{errors.as_at}</span>}
                     </label>
 
                     <button type="submit" className="btn-primary" disabled={processing}>
@@ -89,12 +89,12 @@ export default function Maturity({ assessments = [], trend = {}, levels = {}, ca
             {periods.length > 1 && (
                 <div className="card mb-6 overflow-x-auto p-4">
                     <h2 className="mb-2 text-sm font-semibold text-gray-800">Mean level across approved periods</h2>
-                    <table className="min-w-full text-sm">
+                    <table className="data-table">
                         <thead>
                             <tr>
-                                <th scope="col" className="px-3 py-1 text-left font-medium text-gray-600">Lens</th>
+                                <th scope="col">Lens</th>
                                 {periods.map((period) => (
-                                    <th key={period.period_label} scope="col" className="px-3 py-1 text-right font-medium text-gray-600">
+                                    <th key={period.period_label} scope="col" className="text-right">
                                         {period.period_label}
                                     </th>
                                 ))}
@@ -103,11 +103,11 @@ export default function Maturity({ assessments = [], trend = {}, levels = {}, ca
                         <tbody>
                             {['vrmmm', 'nist_csf'].map((framework) => (
                                 <tr key={framework}>
-                                    <td className="px-3 py-1">
+                                    <td>
                                         {framework === 'vrmmm' ? 'VRMMM categories' : 'NIST CSF GV.SC'}
                                     </td>
                                     {(means[framework] ?? []).map((point) => (
-                                        <td key={point.period_label} className="px-3 py-1 text-right tabular-nums">
+                                        <td key={point.period_label} className="text-right tabular-nums">
                                             {point.mean === null ? (
                                                 <span className="text-gray-400" title="Nothing scored in this lens">—</span>
                                             ) : (
@@ -131,30 +131,30 @@ export default function Maturity({ assessments = [], trend = {}, levels = {}, ca
             )}
 
             <div className="card overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead className="bg-gray-50">
+                <table className="data-table">
+                    <thead>
                         <tr>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Period</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">As at</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Coverage</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Status</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Rubric</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Approved by</th>
+                            <th scope="col">Period</th>
+                            <th scope="col">As at</th>
+                            <th scope="col">Coverage</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Rubric</th>
+                            <th scope="col">Approved by</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {assessments.map((assessment) => (
                             <tr key={assessment.uuid}>
-                                <td className="px-4 py-2 font-medium">
+                                <td className="font-medium">
                                     <Link className="text-indigo-600" href={assessment.url}>
                                         {assessment.period_label}
                                     </Link>
                                 </td>
-                                <td className="px-4 py-2">{assessment.as_at}</td>
-                                <td className="px-4 py-2">
+                                <td>{assessment.as_at}</td>
+                                <td>
                                     {assessment.scored} of {assessment.categories} categories scored
                                 </td>
-                                <td className="px-4 py-2">
+                                <td>
                                     <span
                                         className={`rounded px-2 py-0.5 text-xs font-medium ${
                                             assessment.status === 'approved'
@@ -165,13 +165,13 @@ export default function Maturity({ assessments = [], trend = {}, levels = {}, ca
                                         {assessment.status === 'approved' ? 'Approved — frozen' : 'Draft'}
                                     </span>
                                 </td>
-                                <td className="px-4 py-2 text-xs text-gray-600">{assessment.framework_version}</td>
-                                <td className="px-4 py-2">{assessment.approved_by ?? '—'}</td>
+                                <td className="text-xs text-gray-600">{assessment.framework_version}</td>
+                                <td>{assessment.approved_by ?? '—'}</td>
                             </tr>
                         ))}
                         {assessments.length === 0 && (
                             <tr>
-                                <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">
+                                <td colSpan={6} className="py-10 text-center text-sm text-gray-500">
                                     No maturity assessment has been made. The first one is the baseline every
                                     later period is measured against.
                                 </td>

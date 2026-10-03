@@ -6,43 +6,21 @@ on:
   pull_request:
   workflow_dispatch:
 
-jobs:
-  test:
-    name: Lint, guards, build and tests (MariaDB)
-    runs-on: ubuntu-latest
+# Two jobs. `guards` runs everything that does not need a database, once.
+# `tests` runs the suite once per engine, and CI is green only when BOTH legs
+# pass. deploy.yml keys off this workflow's overall conclusion, which is
+# `success` only when every job, and every matrix leg, succeeded — so a red
+# leg on either engine blocks the deploy.
+#
+# They are separate jobs, not one matrix job with `if: matrix.db == ...` on
+# the guards, so that a Pint or UI-audit failure cannot stop a leg before it
+# reaches the suite. Steps in one job run in sequence and stop at the first
+# failure, so in the old single job a lint slip hid the test result entirely.
 
-    services:
-      # MariaDB, not MySQL, and 10.4 to match production and what developers
-      # actually run.
-      #
-      # The matrix that used to live here was [sqlite, mysql:8.0], and neither
-      # arm was the customer's database. The sqlite arm was obviously not
-      # production and nobody trusted it; the mysql arm was the dangerous one,
-      # because it looks like real database coverage while having the CTEs,
-      # window functions and native JSON type that MariaDB 10.4 largely does
-      # not — so it went green on SQL production cannot run.
-      #
-      # The two are not interchangeable where it matters here: MariaDB stores a
-      # `json` column as LONGTEXT behind a `json_valid()` CHECK constraint,
-      # MySQL 8 has a native JSON type, and they fail differently.
-      #
-      # `mariadb:10.4` tracks 10.4.x; the machines it is matching are on
-      # 10.4.28. NOTE that 10.4 reached end of life in June 2024, so this pin
-      # follows the estate rather than endorsing it — when the estate upgrades,
-      # this moves with it. The image takes the legacy MYSQL_* variables; the
-      # MARIADB_* names arrived after 10.4.
-      mariadb:
-        image: mariadb:10.4
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: risk_test
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -proot"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
+jobs:
+  guards:
+    name: Lint, guards and build
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -81,8 +59,8 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
-      # Runs before the test suite: a fabricated figure is a product defect, and
-      # it should be the first thing a reviewer sees fail.
+      # Runs first: a fabricated figure is a product defect, and it should be
+      # the first thing a reviewer sees fail.
       - name: Guard — no RNG in user-facing code
         run: ./scripts/check-no-rng.sh
 
@@ -147,24 +125,143 @@ jobs:
         continue-on-error: true
         run: ./vendor/bin/phpstan analyse --memory-limit=2G --no-progress
 
-      - name: Tests (MariaDB)
-        run: php vendor/bin/phpunit
+  tests:
+    # Named by engine, not image, so the check name stays put when a pin moves.
+    name: Tests (${{ matrix.engine }})
+    runs-on: ubuntu-latest
+
+    # BOTH ENGINES, AND BOTH MUST PASS. The production VPS runs MySQL 8.0.46;
+    # the bank's environment, the developers' machines and this suite's
+    # history are MariaDB 10.4. Code is therefore held to the INTERSECTION of
+    # the two, and neither leg alone is enough:
+    #
+    #   - MySQL 8 alone is the trap CLAUDE.md describes. It has the CTEs,
+    #     window functions and full JSON function set MariaDB 10.4 largely
+    #     does not, so it goes green on SQL MariaDB cannot run.
+    #   - MariaDB alone certifies nothing about the server production actually
+    #     runs. MySQL 8 stores `json` natively (normalised text, re-ordered
+    #     keys) where MariaDB keeps LONGTEXT behind a json_valid() CHECK; it
+    #     defaults explicit_defaults_for_timestamp ON where MariaDB 10.4 has it
+    #     OFF (ADR 0022); and it refuses an UPDATE or DELETE whose subquery
+    #     reads the same table (error 1093), which MariaDB 10.3+ accepts.
+    #
+    # fail-fast is off so one leg failing never cancels the other: the
+    # question on every red run is "which engine, or both?", and a cancelled
+    # leg cannot answer it.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `mariadb:10.4` tracks 10.4.x; the machines it is matching are on
+          # 10.4.28. NOTE that 10.4 reached end of life in June 2024, so this
+          # pin follows the estate rather than endorsing it.
+          - engine: MariaDB
+            image: mariadb:10.4
+          # Pinned to the patch release production runs, so this leg moves
+          # when production does and not before. On 2026-10-03 the floating
+          # `mysql:8.0` tag resolved to the same amd64 digest.
+          - engine: MySQL
+            image: mysql:8.0.46
+
+    services:
+      database:
+        image: ${{ matrix.image }}
+        # The same two variables serve both images: the MariaDB 10.4 image
+        # predates the MARIADB_* names and reads the legacy MYSQL_* ones, and
+        # the MySQL image only knows MYSQL_*. Root is `root` on both.
+        #
+        # MySQL 8's root authenticates with caching_sha2_password. PHP 8.4's
+        # mysqlnd supports it (fully since 7.4.4), and over plain TCP the
+        # first, uncached login falls back to the RSA key pair the image
+        # generates at init — so no auth-plugin override. The "Database under
+        # test" step below makes PHP itself log in before the suite does, so a
+        # handshake failure is reported as one rather than as 4,000 errors.
+        #
+        # Binary logging is ON by default in MySQL 8, which makes CREATE
+        # TRIGGER (2026_08_09_100004) need SUPER or
+        # log_bin_trust_function_creators=1. Root has SUPER, so CI is fine;
+        # a non-root production DB user needs one or the other.
         env:
-          DB_CONNECTION: mysql
-          DB_HOST: 127.0.0.1
-          DB_PORT: 3306
-          DB_DATABASE: risk_test
-          DB_USERNAME: root
-          DB_PASSWORD: root
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: risk_test
+        ports:
+          - 3306:3306
+        # `-h 127.0.0.1` forces TCP. Both images initialise behind a
+        # temporary socket-only server (--skip-networking) and then restart;
+        # pinging the socket can report healthy against that temporary server.
+        # The start period gives MySQL 8's first init on a cold runner a margin
+        # before failed probes start counting against the retries.
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-start-period=30s
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: risk_test
+      DB_USERNAME: root
+      DB_PASSWORD: root
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo, pdo_sqlite, pdo_mysql, sqlite3, gd, zip, bcmath
+          coverage: none
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # Not a guard (that is the `guards` job's Build front-end). The suite
+      # needs the real bundle: AssetResidencyTest scans public/build for
+      # foreign CDN hosts and SKIPS itself when there is no build — so a test
+      # job without this step would lose that check silently, and still be
+      # green.
+      - name: Build front-end assets for the suite
+        run: |
+          npm ci
+          npm run build
+
+      # What the first red run on a new engine is asked first: which server,
+      # and with which of the settings these two engines disagree on.
+      - name: Database under test
+        run: >-
+          php -r '$p = new PDO("mysql:host=127.0.0.1;port=3306;dbname=risk_test", "root", "root");
+          foreach ($p->query("select version() as version, @@explicit_defaults_for_timestamp as explicit_defaults_for_timestamp,
+          @@log_bin as log_bin, @@collation_server as collation_server, @@collation_database as collation_database")->fetch(PDO::FETCH_ASSOC) as $k => $v)
+          { echo str_pad($k, 32), $v, PHP_EOL; }'
+
+      - name: Tests (${{ matrix.engine }})
+        run: php vendor/bin/phpunit
 
       # Legacy dual-path tables must not gain new readers during the port
-      # (docs/schema/deprecations.md).
+      # (docs/schema/deprecations.md). Runs on both legs: it is not a static
+      # guard but a set of queries against the schema the suite just migrated,
+      # so each engine answers it for itself.
       - name: Guard — deprecated schema paths
         run: php artisan schema:audit-deprecated
-        env:
-          DB_CONNECTION: mysql
-          DB_HOST: 127.0.0.1
-          DB_PORT: 3306
-          DB_DATABASE: risk_test
-          DB_USERNAME: root
-          DB_PASSWORD: root

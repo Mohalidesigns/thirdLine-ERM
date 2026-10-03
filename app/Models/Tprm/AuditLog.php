@@ -4,6 +4,7 @@ namespace App\Models\Tprm;
 
 use App\Models\AuditTrailIsAppendOnly;
 use App\Models\Organization;
+use App\Support\CanonicalJson;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use ThirdLine\Platform\Tenancy\BelongsToOrganization;
@@ -38,11 +39,19 @@ class AuditLog extends Model
     public const UPDATED_AT = null;
 
     /**
+     * The recipe's version, carried in the preimage as a domain-separation tag
+     * so a digest sealed under another recipe can never verify by accident.
+     * No column holds it. See ADR 0025.
+     */
+    public const HASH_RECIPE = 'tp_audit_logs/v2';
+
+    /**
      * Fields covered by the digest, in a fixed order.
      *
      * Order is load-bearing: the hash is computed over a canonical
      * serialisation, so changing this list or its order invalidates every
-     * stored hash and means re-sealing the chain in a migration. `id` is
+     * stored hash and means a new HASH_RECIPE and the in-chain cutover of
+     * ADR 0025 section 3; a re-seal is forbidden. `id` is
      * excluded deliberately — the digest has to be final before the row is
      * written, and ordering is still covered because each row commits to its
      * predecessor.
@@ -95,6 +104,27 @@ class AuditLog extends Model
         static::creating(function (self $row): void {
             $row->created_at ??= now();
 
+            // ADR 0025 section 2a: a PHP float is stored as a JSON string, BEFORE
+            // the digest, because MySQL 8 does not read every double back exactly.
+            foreach (['before', 'after'] as $field) {
+                $raw = $row->getAttributes()[$field] ?? null;
+
+                if ($raw === null) {
+                    continue;
+                }
+
+                if (is_array($raw)) {
+                    $raw = json_encode($raw, JSON_THROW_ON_ERROR);
+                }
+
+                $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+                $quoted = static::quoteFloats($decoded);
+
+                if ($quoted !== $decoded) {
+                    $row->setAttribute($field, $quoted);
+                }
+            }
+
             $row->previous_hash = static::query()
                 ->withoutGlobalScopes()
                 ->where('organization_id', $row->organization_id)
@@ -118,7 +148,17 @@ class AuditLog extends Model
     }
 
     /**
-     * sha256(previous_hash || canonical row payload).
+     * sha256(HASH_RECIPE | previous_hash | canonical row payload).
+     *
+     * `before` and `after` are hashed as the canonical text of their DECODED
+     * value, never as the column's text: MySQL 8 returns a `json` column
+     * re-serialised and MariaDB returns it verbatim, so the text is not the
+     * same thing on both. See CanonicalJson and ADR 0025.
+     *
+     * Floats never reach this function: `creating` has already stored each one
+     * as a string (see quoteFloats()). This function must NOT quote them itself.
+     * If it did, a stored `72.5` and a stored `"72.5"` would hash alike, and a
+     * raw edit that changes a value's type would go undetected.
      *
      * @param  array<string, mixed>  $attributes
      */
@@ -129,22 +169,65 @@ class AuditLog extends Model
         foreach (self::HASHED_FIELDS as $field) {
             $value = $attributes[$field] ?? null;
 
-            if ($value instanceof \DateTimeInterface) {
-                $value = $value->format('Y-m-d H:i:s');
+            if ($field === 'before' || $field === 'after') {
+                $payload[$field] = CanonicalJson::fromColumn($value);
+
+                continue;
             }
 
-            // `before` and `after` arrive as arrays before the cast has run on
-            // a fresh model and as JSON strings when read back. Encoding both
-            // to the same canonical JSON is what makes a rehydrated row's
-            // recomputed digest match the one sealed at insert.
-            if (is_array($value)) {
-                $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if ($value instanceof \DateTimeInterface) {
+                $value = $value->format('Y-m-d H:i:s');
             }
 
             $payload[$field] = $value === null ? null : (string) $value;
         }
 
-        return hash('sha256', ($previousHash ?? '').'|'.json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $envelope = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+
+        return hash('sha256', self::HASH_RECIPE.'|'.($previousHash ?? '').'|'.$envelope);
+    }
+
+    /**
+     * Replace every PHP float anywhere in a decoded payload with its shortest
+     * round-trip JSON text, as a string. Everything else, including keys and
+     * list order, is untouched.
+     *
+     * Why: MySQL 8.0.46's JSON parser does not read every double back exactly
+     * (`9.018867924528301` returns as `9.0188679245283`, `1.0e25` as
+     * `9.999999999999999e24`), so an honest row holding one would read as
+     * tampered. A JSON string never passes through that number parser. See
+     * ADR 0025 section 2a.
+     *
+     * Never `(string) $float`: that rounds to `precision` (14) and would turn
+     * `0.1 + 0.2` into `"0.3"`.
+     *
+     * @throws \JsonException on NAN or INF.
+     */
+    public static function quoteFloats(mixed $value): mixed
+    {
+        $previous = ini_get('serialize_precision');
+        ini_set('serialize_precision', '-1');
+
+        try {
+            return self::quoteFloatsPinned($value);
+        } finally {
+            ini_set('serialize_precision', $previous === false ? '-1' : $previous);
+        }
+    }
+
+    private static function quoteFloatsPinned(mixed $value): mixed
+    {
+        if (is_float($value)) {
+            return json_encode($value, JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $key => $item) {
+                $value[$key] = self::quoteFloatsPinned($item);
+            }
+        }
+
+        return $value;
     }
 
     /** Recompute this row's digest from its stored contents. */

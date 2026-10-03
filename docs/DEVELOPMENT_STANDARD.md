@@ -131,6 +131,7 @@ record before the tenant is known.
 | A dashboard tile | `WidgetPayloadPresenter` |
 | A long job | `hooks/useJobProgress` |
 | A document | `ThirdLine\Reporting\DocumentRenderer` |
+| A digest or comparison over a `json` column's value | `App\Support\CanonicalJson` (see section 15). It is stable on MySQL 8 only for values with no non-integral or out-of-range doubles. Quote floats before storing, as `Tprm\AuditLog::quoteFloats()` does. |
 
 Charts are Chart.js — a deliberate divergence from ThirdLine, settled as
 Decision 4 of the migration strategy.
@@ -167,6 +168,7 @@ Be explicit about this rather than trusting a green run.
 `RouteAuthorizationTest`, `TenancyIsolationTest`, `NoFabricatedNumbersTest`,
 `AdminNavigationTest`, `PreflightRouteGuardTest`, `SecurityHeadersTest`,
 `PermissionCatalogCoversRoutesTest`, `NoSelfUpdatingTimestampColumnsTest`,
+`CanonicalJsonTest`, `AuditChainCrossEngineTest`, `AuditLogHashRecipeTest`,
 `scripts/parity-check.php`.
 
 **When one turns red, find out which of three kinds it is before touching it:**
@@ -207,3 +209,25 @@ days: `DateBounds::endOfDay()`, `whereDate($col, '<', now()->toDateString())`.
 Never `->isPast()`/`->isFuture()` on a date cast, and never a bare `now()`
 against a DATE column. The same shape remains on some due-date readers,
 where "due today" reads as overdue; they are booked, not exempt.
+
+## 15. A digest over a `json` column hashes the decoded value, never the column's text
+
+MySQL 8 stores `json` as a binary type and returns it re-serialised (keys
+re-ordered, spacing and escaping changed). MariaDB returns the stored text
+verbatim. Seal and verify through `App\Support\CanonicalJson`.
+
+**Canonicalising is not enough for doubles.** MySQL 8.0.46's JSON parser does
+not read every double back exactly. `9.018867924528301` comes back as
+`9.0188679245283`, `1.0e25` as `9.999999999999999e24`, and integers above
+`2^64` drift too. The server has already stored a different number before
+anything reads it, so no canonicaliser can undo the drift. Unrounded ratios
+mismatched about 1 time in 10 in the gate-2 measurement. A digest over a MySQL
+`json` column is therefore stable only for values with **no non-integral or
+out-of-range doubles**. A writer must quote floats (store each float's
+`serialize_precision = -1` text as a JSON string) or quantise them **before**
+storing. Do it at write time, never inside the digest: quoting at verify time
+makes `72.5` and `"72.5"` hash alike and hides a type change. Do not rely on
+"we round to 4 dp" either. Nothing enforces it, and an audit trait records raw
+attributes, where a `decimal:N` cast has not run. Ints within int64 are exact
+on both engines. Guarded by `CanonicalJsonTest`, `AuditChainCrossEngineTest`
+and `AuditLogHashRecipeTest`. See ADR 0025 §1 and §2a.

@@ -10,6 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
+use Tests\Support\AssertsCanonicalJson;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
 
@@ -22,7 +23,7 @@ use Tests\TestCase;
  */
 class SavedViewCompatibilityTest extends TestCase
 {
-    use CreatesDomainFixtures, RefreshDatabase;
+    use AssertsCanonicalJson, CreatesDomainFixtures, RefreshDatabase;
 
     private const LEGACY_STATE = [
         'search' => 'access',
@@ -134,6 +135,8 @@ class SavedViewCompatibilityTest extends TestCase
 
         $this->assertSame($this->actor->id, $view->user_id);
         $this->assertTrue($view->is_default);
-        $this->assertSame(self::LEGACY_STATE, $view->state);
+        // Key order is not the contract: MySQL 8 returns a native json column's
+        // keys re-sorted, and GridState reads every key by name.
+        $this->assertSameJson(self::LEGACY_STATE, $view->state);
     }
 }

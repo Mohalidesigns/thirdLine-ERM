@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
+use Tests\Support\AssertsCanonicalJson;
 use Tests\Support\CreatesDomainFixtures;
 use Tests\TestCase;
 use ThirdLine\Platform\Tenancy\TenantContext;
@@ -44,7 +45,7 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  */
 class ImportMappingSecurityTest extends TestCase
 {
-    use CreatesDomainFixtures, RefreshDatabase;
+    use AssertsCanonicalJson, CreatesDomainFixtures, RefreshDatabase;
 
     private Organization $otherOrg;
 
@@ -113,7 +114,9 @@ class ImportMappingSecurityTest extends TestCase
 
         $this->assertSame('queued', $fresh->status, 'The column could not hold this value until Phase 5.5.');
         Queue::assertPushed(ProcessDataImportJob::class);
-        $this->assertSame(['title' => '0', 'description' => '1', 'status' => '2'], array_map('strval', $fresh->column_mapping));
+        // Key order is not the contract (MySQL 8 re-sorts a json column's keys);
+        // DataImportProcessor::mapRow() treats each field independently.
+        $this->assertSameJson(['title' => '0', 'description' => '1', 'status' => '2'], array_map('strval', $fresh->column_mapping));
     }
 
     /**

@@ -147,8 +147,14 @@ class DashboardResolver
         // NULL and [] both mean "not restricted to any role". Storing the
         // second and matching only the first is how a published dashboard
         // becomes unreachable with nothing on screen to say why.
+        //
+        // whereJsonLength, not orWhere('role_ids', '[]'): on MySQL 8 a native
+        // JSON column compared with a bound string compares against the JSON
+        // *string scalar* "[]", which is never equal to an empty array, while
+        // MariaDB's LONGTEXT-backed json compared text and matched.
+        // JSON_LENGTH('[]') is 0 on both engines.
         return $base()
-            ->where(fn ($q) => $q->whereNull('role_ids')->orWhere('role_ids', '[]'))
+            ->where(fn ($q) => $q->whereNull('role_ids')->orWhereJsonLength('role_ids', 0))
             ->first();
     }
 }

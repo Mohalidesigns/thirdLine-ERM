@@ -220,6 +220,8 @@ class ApprovalService
 
     /**
      * Get pending approvals for an organization
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, ApprovalRequest>
      */
     public function getPendingApprovals(int $orgId, ?string $entityType = null): \Illuminate\Database\Eloquent\Collection
     {

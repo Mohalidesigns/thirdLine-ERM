@@ -37,6 +37,13 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * available for vendors who can hold a secret, and is the stronger of the two:
  * an emailed code shares a channel with password recovery, so one compromised
  * mailbox is both factors, where a TOTP secret lives on a separate device.
+ *
+ * BelongsToOrganization declares organization() with no generic, because the
+ * tenant class is configuration there (`platform.tenancy.organization_model`),
+ * so static analysis sees a bare Model and every `->organization?->settings` is
+ * an undefined property. This application configures App\Models\Organization.
+ *
+ * @property-read \App\Models\Organization|null $organization
  */
 class PortalUser extends Authenticatable
 {

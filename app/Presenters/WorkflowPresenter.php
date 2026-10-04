@@ -40,7 +40,7 @@ class WorkflowPresenter
             'name' => $task->node_name ?? $task->node_code,
             'process' => $task->instance?->definition?->name,
             'subject' => $subject,
-            'delegated_by' => $task->delegated_from ? ($task->delegatedFrom?->name ?? 'a colleague') : null,
+            'delegated_by' => $task->delegated_from ? ($task->delegatedFrom?->name ?? 'a colleague') : null, // @phpstan-ignore nullsafe.neverNull (User is soft-deleting and tenant-scoped: a set FK can still resolve to null)
             'due_at' => $task->due_at?->toIso8601String(),
             'due_display' => $task->due_at?->format('d M H:i'),
             'overdue' => $task->isOverdue(),
@@ -158,7 +158,7 @@ class WorkflowPresenter
     {
         $waiting = $instance->tasks->filter->isOpen()->map(fn (WorkflowTask $task) => [
             'name' => $task->node_name ?? $task->node_code,
-            'who' => $task->assignee?->name ?? ($task->assignee_role ? 'any '.$task->assignee_role : 'unassigned'),
+            'who' => $task->assignee?->name ?? ($task->assignee_role ? 'any '.$task->assignee_role : 'unassigned'), // @phpstan-ignore nullsafe.neverNull (User is soft-deleting and tenant-scoped: a set FK can still resolve to null)
             'hours_overdue' => $task->hoursOverdue(),
         ])->values()->all();
 
@@ -203,8 +203,8 @@ class WorkflowPresenter
             'entity_id' => $approval->entity_id,
             'action' => $approval->action,
             'requested_by' => [
-                'name' => $approval->requestedBy?->name ?? 'Unknown',
-                'email' => $approval->requestedBy?->email ?? '',
+                'name' => $approval->requestedBy?->name ?? 'Unknown', // @phpstan-ignore nullsafe.neverNull (User is soft-deleting and tenant-scoped: a set FK can still resolve to null)
+                'email' => $approval->requestedBy?->email ?? '', // @phpstan-ignore nullsafe.neverNull (User is soft-deleting and tenant-scoped: a set FK can still resolve to null)
             ],
             'requested_at' => $approval->requested_at?->format('d M Y H:i'),
             'requested_human' => $approval->requested_at?->diffForHumans(),

@@ -5,8 +5,8 @@ namespace App\Services\Workflow;
 use App\Enums\WorkflowTaskStatus;
 use App\Models\User;
 use App\Models\WorkflowTask;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 /**
@@ -26,7 +26,11 @@ class TaskQueryService
     /**
      * A user's open tasks, newest deadline first, with the subject loaded.
      *
-     * @return LengthAwarePaginator<WorkflowTask>
+     * The CONCRETE paginator, not the contract: that is what Builder::paginate()
+     * returns at runtime, and WorkflowPresenter::paginate() reads linkCollection(),
+     * which the contract does not declare.
+     *
+     * @return LengthAwarePaginator<int, WorkflowTask>
      */
     public function paginateFor(User $user, array $filters = [], int $perPage = 25): LengthAwarePaginator
     {
@@ -90,6 +94,7 @@ class TaskQueryService
 
     /**
      * @param  array{status?:string, overdue?:bool, definition?:string, entity_type?:string}  $filters
+     * @return Builder<WorkflowTask>
      */
     private function baseQuery(User $user, array $filters = []): Builder
     {

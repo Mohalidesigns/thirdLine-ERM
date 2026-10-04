@@ -8,6 +8,7 @@ use App\Enums\Bcms\VerificationStatus;
 use App\Models\Bcms\Concerns\BcmsAuditable;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\Bcms\Concerns\ScopedToOrgHierarchy;
+use App\Models\Bcms\Concerns\ScopedToOrgHierarchyContract;
 use App\Models\BusinessUnit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -44,6 +45,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?int $site_id
  * @property ?string $title
  * @property ?int $manager_user_id
+ * @property ?int $manager_contact_id
  * @property ?string $email
  * @property ?string $mobile_primary
  * @property ?string $mobile_secondary
@@ -72,7 +74,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property ?\Illuminate\Support\Carbon $updated_at
  * @property ?\Illuminate\Support\Carbon $deleted_at
  */
-class Contact extends Model
+class Contact extends Model implements ScopedToOrgHierarchyContract
 {
     use BcmsAuditable, BelongsToOrganization, HasBcmsUuid, HasFactory, ScopedToOrgHierarchy, SoftDeletes;
 
@@ -81,7 +83,7 @@ class Contact extends Model
     /** @var list<string> */
     protected $fillable = [
         'organization_id', 'user_id', 'source', 'full_name', 'employee_id', 'business_unit_id',
-        'site_id', 'title', 'manager_user_id', 'email', 'mobile_primary', 'mobile_secondary',
+        'site_id', 'title', 'manager_user_id', 'manager_contact_id', 'email', 'mobile_primary', 'mobile_secondary',
         'whatsapp', 'teams_id', 'slack_id', 'push_token', 'next_of_kin', 'preferred_language',
         'channel_preferences', 'geo_last_known', 'latitude', 'longitude', 'consent_status',
         'consent_captured_at', 'consent_withdrawn_at', 'verification_status', 'last_verified_at',
@@ -101,6 +103,7 @@ class Contact extends Model
             'business_unit_id' => 'integer',
             'site_id' => 'integer',
             'manager_user_id' => 'integer',
+            'manager_contact_id' => 'integer',
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'consent_captured_at' => 'datetime',
@@ -143,5 +146,20 @@ class Contact extends Model
     public function manager(): BelongsTo
     {
         return $this->belongsTo(User::class, 'manager_user_id');
+    }
+
+    /**
+     * The reporting edge Phase 2C adds (ADR 0018 §2.1) — THE edge for a
+     * directory-sourced roster, because `manager_user_id` cannot be expressed
+     * for a contact with no login. `manager_user_id` stays as the
+     * denormalisation to a manager who DOES have one, and for any row the
+     * sync touches it is derived from this relation rather than set
+     * independently.
+     *
+     * @return BelongsTo<Contact, $this>
+     */
+    public function managerContact(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'manager_contact_id');
     }
 }

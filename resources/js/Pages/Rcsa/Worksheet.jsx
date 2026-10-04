@@ -9,15 +9,15 @@ import RcsaWorksheetTable, { EMPTY_LINE } from './RcsaWorksheetTable';
 /** Migration Phase 3.8: risk/rcsa/worksheet.blade.php. */
 function Section({ index, title, children }) {
     return (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <div className="flex items-center gap-2 mb-6">
+        <section className="card mb-6">
+            <div className="card-header flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-[#1A365D] text-white flex items-center justify-center text-sm font-bold">
                     {index}
                 </div>
-                <h2 className="text-lg font-semibold text-[#1A365D]">{title}</h2>
+                <h2 className="form-section-title text-base">{title}</h2>
             </div>
-            {children}
-        </div>
+            <div className="card-body space-y-4">{children}</div>
+        </section>
     );
 }
 
@@ -76,11 +76,12 @@ export default function Worksheet({
             />
 
             {mySubmissions.length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-                    <div className="flex items-center justify-between mb-3">
-                        <h2 className="text-sm font-semibold text-[#1A365D]">Your recent worksheets</h2>
+                <div className="card mb-6">
+                    <div className="card-header flex items-center justify-between">
+                        <h2 className="form-section-title">Your recent worksheets</h2>
                         <span className="text-xs text-gray-400">Filed as campaign assignments</span>
                     </div>
+                    <div className="card-body">
                     <ul className="divide-y divide-gray-100">
                         {mySubmissions.map((submission) => (
                             <li key={submission.id} className="flex items-center justify-between gap-4 py-2.5">
@@ -106,6 +107,7 @@ export default function Worksheet({
                             </li>
                         ))}
                     </ul>
+                    </div>
                 </div>
             )}
 
@@ -113,11 +115,11 @@ export default function Worksheet({
                 <Section index={1} title="Assessment Context">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Assessment Campaign</label>
-                            <select
+                            <label className="form-label">Assessment Campaign</label>
+                            <select aria-label="Assessment Campaign"
                                 value={data.campaign_id}
                                 onChange={(e) => setData('campaign_id', e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]"
+                                className="form-select"
                             >
                                 <option value="">Current open RCSA campaign</option>
                                 {campaigns.map((campaign) => (
@@ -131,14 +133,14 @@ export default function Worksheet({
                             <InputError message={errors.campaign_id} className="mt-1" />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Assessment Date <span className="text-red-500">*</span>
+                            <label className="form-label">
+                                Assessment Date <span className="form-required" aria-hidden="true">*</span>
                             </label>
-                            <input
+                            <input aria-label="Assessment Date"
                                 type="date"
                                 value={data.assessment_date}
                                 onChange={(e) => setData('assessment_date', e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]"
+                                className="form-input"
                             />
                             <InputError message={errors.assessment_date} className="mt-1" />
                         </div>
@@ -146,13 +148,13 @@ export default function Worksheet({
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Business Unit <span className="text-red-500">*</span>
+                            <label className="form-label">
+                                Business Unit <span className="form-required" aria-hidden="true">*</span>
                             </label>
-                            <select
+                            <select aria-label="Business Unit"
                                 value={data.business_unit_id}
                                 onChange={(e) => setData('business_unit_id', e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]"
+                                className="form-select"
                             >
                                 <option value="">Select Unit</option>
                                 {businessUnits.map((unit) => (
@@ -165,11 +167,11 @@ export default function Worksheet({
                             {/* Optional, and labelled so. The Blade form marked
                                 this required in the markup while the server has
                                 always accepted it as nullable. */}
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Process</label>
-                            <select
+                            <label className="form-label">Process</label>
+                            <select aria-label="Process"
                                 value={data.process_id}
                                 onChange={(e) => setData('process_id', e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]"
+                                className="form-select"
                             >
                                 <option value="">Select Process</option>
                                 {processes.map((process) => (

@@ -21,14 +21,22 @@ use Illuminate\Support\Facades\Schema;
 class Preflight extends Command
 {
     /**
-     * The engine the test suite and CI are pinned to.
+     * The engines the test suite runs against in CI — every one of them.
      *
-     * Kept honest by PreflightDatabaseEngineTest, which reads the service image
-     * out of .github/workflows/ci.yml and fails if the two drift apart — a
-     * constant whose only guarantee is a comment saying "keep this in step" is
-     * the same defect one level up from the one this check exists to catch.
+     * CI runs the suite on MariaDB 10.4 (the bank's estate and the developers')
+     * AND on MySQL 8.0 (the production VPS, found on 8.0.46), and CI is green
+     * only when both pass. A server running either is one a green suite has
+     * spoken for; a server running anything else is not.
+     *
+     * Kept honest by PreflightDatabaseEngineTest, which reads every service
+     * image out of .github/workflows/ci.yml and fails if the two sets drift
+     * apart — a constant whose only guarantee is a comment saying "keep this in
+     * step" is the same defect one level up from the one this check exists to
+     * catch.
+     *
+     * @var list<string>
      */
-    public const EXPECTED_DB_ENGINE = 'MariaDB';
+    public const EXPECTED_DB_ENGINES = ['MariaDB', 'MySQL'];
 
     /**
      * The sentence in docs/bcms/phase-7-handoff.md that means "not certified".
@@ -303,6 +311,18 @@ class Preflight extends Command
             'bcms/alert-reply/{provider}',
             'bcms/provider-status/{provider}',
 
+            // BCMS Phase 9 — exercise check-in, the same signed-capability
+            // category once more. A participant scanning a poster (or
+            // texting the printed short code) has no session; the credential
+            // is the per-participant HMAC token `CheckInService` mints,
+            // verified with `hash_equals`, exactly like the cascade-ack pair
+            // above. `bcms/check-in` with no token is the SMS/marshal
+            // short-code fallback form — see `RouteAuthorizationTest`'s
+            // allowlist, which carries the same two entries for the same
+            // reason.
+            'bcms/check-in',
+            'bcms/check-in/{token}',
+
             // Livewire's two framework endpoints were here — upload-file and
             // preview-file/{filename}, neither mapping to a feature and so
             // neither taking a permission. Migration Phase 6.8 uninstalled
@@ -448,8 +468,8 @@ class Preflight extends Command
      * It does NOT fail on a particular engine. Which engine is right is a
      * decision for whoever owns the estate, and a preflight check is the wrong
      * place to litigate it. It fails only when the engine cannot be determined
-     * at all, and warns when what is running disagrees with what the test suite
-     * and CI are pinned to — because that gap is the one that ships defects a
+     * at all, and warns when what is running is not an engine the test suite
+     * and CI run against — because that gap is the one that ships defects a
      * green suite promised were not there.
      */
     private function checkDatabaseEngine(): void
@@ -493,9 +513,9 @@ class Preflight extends Command
         $number = trim((string) preg_replace('/-mariadb.*$/i', '', $version));
         $detail = "{$engine} {$number} (driver: {$driver})";
 
-        if ($engine !== self::EXPECTED_DB_ENGINE) {
-            $this->warn_('Database engine', $detail.' — the suite and CI are pinned to '.self::EXPECTED_DB_ENGINE.
-                '. One of the two is wrong, and a green suite is not evidence about this server until they agree.');
+        if (! in_array($engine, self::EXPECTED_DB_ENGINES, true)) {
+            $this->warn_('Database engine', $detail.' — the suite and CI run '.implode(' and ', self::EXPECTED_DB_ENGINES).
+                '. A green suite is not evidence about this server until it runs on this engine too.');
 
             return;
         }

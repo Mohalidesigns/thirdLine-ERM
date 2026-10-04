@@ -260,14 +260,14 @@ export default function ScorePanel({ engagement, derivation, score = null }) {
                             <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                                 Weighted factors
                             </h4>
-                            <table className="mt-2 w-full text-xs">
+                            <table className="data-table mt-2 text-xs">
                                 <thead>
                                     <tr className="text-left text-gray-500">
-                                        <th className="pb-1 font-medium">Factor</th>
-                                        <th className="pb-1 font-medium">Answer</th>
-                                        <th className="pb-1 text-right font-medium">Score</th>
-                                        <th className="pb-1 text-right font-medium">Weight</th>
-                                        <th className="pb-1 text-right font-medium">Weighted</th>
+                                        <th>Factor</th>
+                                        <th>Answer</th>
+                                        <th className="text-right">Score</th>
+                                        <th className="text-right">Weight</th>
+                                        <th className="text-right">Weighted</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">

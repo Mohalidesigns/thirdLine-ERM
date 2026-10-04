@@ -63,6 +63,20 @@ class Period extends Model
         return $this->hasMany(self::class, 'parent_period_id');
     }
 
+    /**
+     * Whether this period is over — the whole of its last day included.
+     *
+     * `end_date` is a date, which Carbon holds as midnight at the START of that
+     * day, so `end_date->isPast()` is true for the entire last day of the
+     * period. The register and the dashboard used exactly that test, and every
+     * user saw the historic "as at" view on the last day of every month. CI
+     * caught it on 30 September; the same suite had been green on the 29th.
+     */
+    public function hasEnded(): bool
+    {
+        return $this->end_date !== null && $this->end_date->copy()->endOfDay()->isPast();
+    }
+
     /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
     public function closedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {

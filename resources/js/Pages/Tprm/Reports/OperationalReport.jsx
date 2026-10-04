@@ -52,19 +52,19 @@ export default function OperationalReport({ report = {}, provenance = {}, can = 
             </div>
 
             <div className="card overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <table className="data-table">
                     <caption className="px-4 py-2 text-left text-xs text-gray-500">
                         {hidden > 0
                             ? `Showing the first ${rows.length} of ${report.row_count} rows. The export holds all of them.`
                             : `All ${report.row_count} rows.`}
                     </caption>
-                    <thead className="bg-gray-50">
+                    <thead>
                         <tr>
                             {(report.headers ?? []).map((header) => (
                                 <th
                                     key={header}
                                     scope="col"
-                                    className="whitespace-nowrap px-4 py-2 text-left font-medium text-gray-600"
+                                    className="whitespace-nowrap"
                                 >
                                     {header}
                                 </th>
@@ -75,7 +75,7 @@ export default function OperationalReport({ report = {}, provenance = {}, can = 
                         {rows.map((row, index) => (
                             <tr key={index}>
                                 {row.map((cell, cellIndex) => (
-                                    <td key={cellIndex} className="whitespace-nowrap px-4 py-2 align-top">
+                                    <td key={cellIndex} className="whitespace-nowrap align-top">
                                         {cell === null || cell === undefined || cell === '' ? (
                                             <span className="text-gray-400">—</span>
                                         ) : (
@@ -89,7 +89,7 @@ export default function OperationalReport({ report = {}, provenance = {}, can = 
                             <tr>
                                 <td
                                     colSpan={(report.headers ?? []).length}
-                                    className="px-4 py-10 text-center text-sm text-gray-500"
+                                    className="py-10 text-center text-sm text-gray-500"
                                 >
                                     No rows. Read that against the scope above before treating it as a statement
                                     that there is nothing outstanding.

@@ -116,12 +116,12 @@ export default function RulesetEditor({ ruleset, derivedFactors = [] }) {
                                                 <p className="mt-0.5 text-xs text-gray-500">{factor.description}</p>
                                             )}
                                         </div>
-                                        <input
+                                        <input aria-label="Weight"
                                             type="number" min="0" max="100" step="1"
                                             value={factor.weight ?? 0}
                                             disabled={!ruleset.editable}
                                             onChange={(e) => setWeight(code, e.target.value)}
-                                            className="w-20 rounded-md border-gray-300 text-right text-sm shadow-sm disabled:bg-gray-50"
+                                            className="form-input w-20 text-right"
                                         />
                                     </div>
 
@@ -129,13 +129,13 @@ export default function RulesetEditor({ ruleset, derivedFactors = [] }) {
                                         <summary className="cursor-pointer text-xs text-gray-500">
                                             {(factor.options ?? []).length} options
                                         </summary>
-                                        <table className="mt-2 w-full text-xs">
+                                        <table className="data-table mt-2 text-xs">
                                             <tbody className="divide-y divide-gray-100">
                                                 {(factor.options ?? []).map((option) => (
                                                     <tr key={option.value}>
-                                                        <td className="py-1 font-mono text-gray-400">{option.value}</td>
-                                                        <td className="py-1 text-gray-700">{option.label}</td>
-                                                        <td className="py-1 text-right tabular-nums">{option.score}</td>
+                                                        <td className="font-mono text-gray-400">{option.value}</td>
+                                                        <td className="text-gray-700">{option.label}</td>
+                                                        <td className="text-right tabular-nums">{option.score}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -171,7 +171,7 @@ export default function RulesetEditor({ ruleset, derivedFactors = [] }) {
                 <div className="lg:col-span-1">
                     <div className="sticky top-6 card p-5">
                         <h3 className="text-sm font-semibold text-gray-900">Portfolio simulator</h3>
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="form-hint">
                             Replays every engagement's stored answers through this draft. Writes nothing.
                         </p>
 

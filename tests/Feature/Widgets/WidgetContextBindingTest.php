@@ -262,6 +262,44 @@ class WidgetContextBindingTest extends TestCase
         ], $attributes));
     }
 
+    /**
+     * `Period::end_date` is a date — midnight at the START of the period's last
+     * day — and the heatmap decided "historic" with `end_date->isPast()`, which
+     * is true for the whole of that day. So on the last day of every month the
+     * widget showed the register as it stood at the month's close, and its
+     * "as at" label, a day early (CI, 2026-09-30). Two clocks either side of
+     * this month's end pin both halves.
+     */
+    #[Test]
+    public function the_heatmap_stays_live_on_the_last_day_of_the_period_and_goes_as_at_the_day_after(): void
+    {
+        $definition = $this->makeDefinition([
+            'widget_type' => 'heatmap',
+            'context_binding' => 'inherit_subtree',
+            'query' => ['source' => 'risks', 'filters' => [
+                ['field' => 'status', 'op' => 'eq', 'value' => 'active'],
+            ]],
+        ]);
+
+        $lastDay = now()->endOfMonth()->setTime(12, 0);
+        $this->travelTo($lastDay);
+        $month = app(\App\Services\PeriodService::class)->current('month', $this->actor->organization_id);
+        $this->assertSame($lastDay->toDateString(), $month->end_date->toDateString());
+
+        $live = $this->widgets->render($definition, new WidgetContext($this->actor, $this->retail->graphObject(), $month));
+
+        $this->assertSame('ok', $live['state']);
+        $this->assertNull($live['data']['as_of'], 'The month is not over until midnight.');
+        $this->assertSame(3, $live['data']['total']);
+
+        $this->travelTo($lastDay->copy()->addDay()->setTime(0, 5));
+
+        $historic = $this->widgets->render($definition, new WidgetContext($this->actor, $this->retail->graphObject(), $month));
+
+        $this->assertSame('ok', $historic['state']);
+        $this->assertNotNull($historic['data']['as_of'], 'The day after, the month is over and the widget is "as at".');
+    }
+
     private function contextAt(BusinessUnit $unit): WidgetContext
     {
         return new WidgetContext($this->actor, $unit->graphObject());

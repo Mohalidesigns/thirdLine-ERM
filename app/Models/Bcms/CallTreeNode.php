@@ -2,6 +2,7 @@
 
 namespace App\Models\Bcms;
 
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -36,9 +37,18 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class CallTreeNode extends Model
 {
-    use BelongsToOrganization, HasFactory;
+    use BelongsToOrganization, BindsToVisibleRecord, HasFactory;
 
     protected $table = 'bcms_call_tree_nodes';
+
+    /**
+     * Derived (ADR 0017 §2): a node has no unit column of its own and takes
+     * the shortest path to an anchor — its call tree.
+     */
+    public function orgAnchorPath(): string
+    {
+        return 'callTree';
+    }
 
     /** @var list<string> */
     protected $fillable = [

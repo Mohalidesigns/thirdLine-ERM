@@ -57,7 +57,7 @@ export default function Overview({
                         >
                             {tile.value}
                         </div>
-                        <div className="mt-1 text-xs text-gray-500">{tile.hint}</div>
+                        <div className="form-hint">{tile.hint}</div>
                     </Link>
                 ))}
             </div>
@@ -82,14 +82,14 @@ export default function Overview({
                         />
                     </dl>
 
-                    <table className="min-w-full text-sm">
+                    <table className="data-table">
                         <tbody className="divide-y divide-gray-100">
                             {tiers.map((tier) => (
                                 <tr key={tier.label}>
-                                    <td className="py-1">
+                                    <td>
                                         <Link className="text-indigo-600" href={tier.href}>{tier.label}</Link>
                                     </td>
-                                    <td className="py-1 text-right tabular-nums">{tier.count}</td>
+                                    <td className="text-right tabular-nums">{tier.count}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -179,30 +179,30 @@ export default function Overview({
                     </div>
 
                     <div className="card overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <table className="data-table">
                             <caption className="px-4 py-2 text-left text-xs text-gray-500">
                                 A metric with no computable value shows its reason rather than a number. Nothing
                                 is published for those — a zero on an empty denominator would open a breach and
                                 reach a board pack from a division by nothing.
                             </caption>
-                            <thead className="bg-gray-50">
+                            <thead>
                                 <tr>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">KRI</th>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Indicator</th>
-                                    <th scope="col" className="px-4 py-2 text-right font-medium text-gray-600">Now</th>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Basis</th>
-                                    <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">In the register</th>
+                                    <th scope="col">KRI</th>
+                                    <th scope="col">Indicator</th>
+                                    <th scope="col" className="text-right">Now</th>
+                                    <th scope="col">Basis</th>
+                                    <th scope="col">In the register</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {kris.map((kri) => (
                                     <tr key={kri.code}>
-                                        <td className="px-4 py-2 font-medium">{kri.kri_code}</td>
-                                        <td className="px-4 py-2">
+                                        <td className="font-medium">{kri.kri_code}</td>
+                                        <td>
                                             {kri.name}
                                             <div className="text-xs text-gray-500">{kri.description}</div>
                                         </td>
-                                        <td className="px-4 py-2 text-right tabular-nums">
+                                        <td className="text-right tabular-nums">
                                             {kri.value === null || kri.value === undefined ? (
                                                 <span className="text-gray-400">Not computable</span>
                                             ) : (
@@ -212,8 +212,8 @@ export default function Overview({
                                                 </>
                                             )}
                                         </td>
-                                        <td className="px-4 py-2 text-xs text-gray-600">{kri.note}</td>
-                                        <td className="px-4 py-2 text-xs">
+                                        <td className="text-xs text-gray-600">{kri.note}</td>
+                                        <td className="text-xs">
                                             {kri.published ? (
                                                 <span className="text-emerald-700">
                                                     Published

@@ -1,5 +1,6 @@
 export default function InputLabel({
     value,
+    required = false,
     className = '',
     children,
     ...props
@@ -7,12 +8,15 @@ export default function InputLabel({
     return (
         <label
             {...props}
-            className={
-                `block text-sm font-medium text-gray-700 ` +
-                className
-            }
+            className={`form-label ` + className}
         >
             {value ? value : children}
+            {required && (
+                <>
+                    <span className="form-required" aria-hidden="true">*</span>
+                    <span className="sr-only"> (required)</span>
+                </>
+            )}
         </label>
     );
 }

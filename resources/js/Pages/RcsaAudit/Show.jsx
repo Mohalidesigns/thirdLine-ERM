@@ -34,6 +34,35 @@ function label(value) {
     return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/**
+ * The workflow log's own wording, per event.
+ *
+ * `open` and `close` are not an assessor's own step through the state
+ * machine — see RcsaWorkflowService::recordTransition — they are the
+ * cycle's. OPEN has no prior status to move FROM: the row lands straight in
+ * `in_progress`, so `event.from` is `null`, not "none". CLOSE moves several
+ * assessments through several different from-states in one call, and only
+ * the DECIDED ones (validated, submitted, under review) actually reach
+ * `closed` — an undecided assessment (in_progress, returned) is frozen
+ * exactly where it stood, which RcsaCycleService records as `from === to`.
+ * That is a real event, not a data error, and "moved it from returned to
+ * returned" would say something that did not happen.
+ */
+function describeTransition(event) {
+    switch (event.event) {
+        case "escalate":
+            return "escalated it";
+        case "open":
+            return "opened the cycle, creating this assessment";
+        case "close":
+            return event.from === event.to
+                ? `closed the cycle while this was still ${label(event.from).toLowerCase()}; it is now read-only`
+                : `closed the cycle, moving it from ${label(event.from).toLowerCase()} to ${label(event.to).toLowerCase()}`;
+        default:
+            return `moved it ${event.from ? `from ${label(event.from).toLowerCase()} ` : ""}to ${label(event.to).toLowerCase()}`;
+    }
+}
+
 export default function Show({
     assessment,
     transitions = [],
@@ -127,9 +156,7 @@ export default function Show({
                                     </span>
                                     <span className="text-gray-700">
                                         <strong>{event.by ?? "System"}</strong>{" "}
-                                        {event.event === "escalate"
-                                            ? "escalated it"
-                                            : `moved it ${event.from ? `from ${label(event.from).toLowerCase()} ` : ""}to ${label(event.to).toLowerCase()}`}
+                                        {describeTransition(event)}
                                         {event.reason && (
                                             <span className="mt-0.5 block text-xs text-gray-500">
                                                 “{event.reason}”
@@ -161,11 +188,10 @@ export default function Show({
                             <tbody>
                                 {revisions.length === 0 && (
                                     <tr>
-                                        <td
-                                            colSpan={7}
-                                            className="py-10 text-center text-sm text-gray-400"
-                                        >
-                                            No ratings have been changed yet.
+                                        <td colSpan={7} className="text-center py-12">
+                                            <div className="text-gray-400">
+                                                <p className="text-sm font-medium">No ratings have been changed yet</p>
+                                            </div>
                                         </td>
                                     </tr>
                                 )}
@@ -220,11 +246,10 @@ export default function Show({
                             <tbody>
                                 {(estate ?? []).length === 0 && (
                                     <tr>
-                                        <td
-                                            colSpan={8}
-                                            className="py-10 text-center text-sm text-gray-400"
-                                        >
-                                            Nothing recorded yet.
+                                        <td colSpan={8} className="text-center py-12">
+                                            <div className="text-gray-400">
+                                                <p className="text-sm font-medium">Nothing recorded yet</p>
+                                            </div>
                                         </td>
                                     </tr>
                                 )}

@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Services\Workflow\WorkflowTriggerService;
+use App\Support\MigrationWindow;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -18,21 +19,42 @@ use Illuminate\Database\Eloquent\Model;
  * state is this in" — status, issue_status, current_status, lifecycle_state —
  * because each was named by whoever built that module. Rather than pretend
  * otherwise, all four are watched.
+ *
+ * SILENT WHILE THE MIGRATOR RUNS (`MigrationWindow`). A backfill that creates
+ * records is not somebody creating them: a published on_create definition must
+ * not open a review — and assign tasks, and notify approvers — for every row a
+ * data migration writes. And on an upgrading database the lookup itself is
+ * unsafe: `workflow_definitions.trigger` arrives in
+ * `2026_08_14_120001_upgrade_workflow_engine_v2`, after data migrations
+ * (`2026_08_12_120004_migrate_kris_into_the_measure_engine`) that save
+ * observed models, which is where the production upgrade stopped once the
+ * webhook observer was silenced.
  */
 class WorkflowTriggerObserver
 {
     /** The columns that mean "what state is this record in". */
     private const STATE_COLUMNS = ['status', 'issue_status', 'current_status', 'lifecycle_state'];
 
-    public function __construct(private WorkflowTriggerService $triggers) {}
+    public function __construct(
+        private WorkflowTriggerService $triggers,
+        private MigrationWindow $migrations,
+    ) {}
 
     public function created(Model $model): void
     {
+        if ($this->migrations->isOpen()) {
+            return;
+        }
+
         $this->triggers->handleCreated($model);
     }
 
     public function updated(Model $model): void
     {
+        if ($this->migrations->isOpen()) {
+            return;
+        }
+
         foreach (self::STATE_COLUMNS as $column) {
             if (! $model->wasChanged($column)) {
                 continue;

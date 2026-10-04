@@ -64,7 +64,7 @@ export default function TrustProfile({
                         <div className="mt-3 h-2 w-full overflow-hidden rounded bg-gray-100">
                             <div className="h-full bg-green-600" style={{ width: `${completeness.pct ?? 0}%` }} />
                         </div>
-                        <p className="mt-1 text-xs text-gray-500">{completeness.pct ?? 0}% of the published profile</p>
+                        <p className="form-hint">{completeness.pct ?? 0}% of the published profile</p>
 
                         {profile.has_unpublished_changes && (
                             <p className="mt-3 rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
@@ -138,12 +138,12 @@ function Section({ section, draft, score, isOpen, onToggle }) {
                 >
                     {section.fields.map((field) => (
                         <div key={field}>
-                            <label className="mb-1 block text-xs font-medium text-gray-700" htmlFor={`${section.key}-${field}`}>
+                            <label className="form-label" htmlFor={`${section.key}-${field}`}>
                                 {field.replaceAll('_', ' ').replace(/^./, (c) => c.toUpperCase())}
                             </label>
                             <textarea
                                 id={`${section.key}-${field}`}
-                                className="w-full rounded border border-gray-200 p-2 text-sm"
+                                className="form-textarea"
                                 rows="2"
                                 value={form.data.sections[section.key]?.[field] ?? ''}
                                 onChange={(event) => setField(field, event.target.value)}

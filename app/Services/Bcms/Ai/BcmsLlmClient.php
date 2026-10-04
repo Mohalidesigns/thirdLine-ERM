@@ -46,6 +46,14 @@ class BcmsLlmClient
 
     public const PROGRAMME_ADVISOR = 'programme_advisor';
 
+    /**
+     * Phase 10, Blueprint §12(8). "What the exercises predicted, and what
+     * reality exposed" — the post-incident review's own extra section, draft
+     * only, human-reviewed. Matches `config('bcms.ai.capabilities.
+     * post_incident_learning')`.
+     */
+    public const POST_INCIDENT_LEARNING = 'post_incident_learning';
+
     public function __construct(
         private LlmService $llm,
         private BcmsSettings $settings,

@@ -140,6 +140,21 @@ return [
     | prove it is the gateway; each vendor signs differently and the secret is
     | per provider.
     */
+    /*
+    | ADR 0020 Amendment 1 (2026-09-17). DR ingestion used to share this map
+    | with the EMNS gateways — 'zerto', 'veeam', 'azure-site-recovery' were
+    | keys here, and both DrIngestionWebhookController and
+    | AlertWebhookController accepted any key in it, which meant a DR
+    | vendor's secret could forge an EMNS roll-call reply ("SAFE" on behalf
+    | of somebody who is not), and one global secret per DR provider — shared
+    | by every tenant on the deployment — could post results against any
+    | tenant's DR system. THE DR KEYS ARE GONE FROM HERE, DELIBERATELY, NOT
+    | EVEN AS A DEVELOPMENT FALLBACK: DR ingestion authenticates with a
+    | per-tenant `ApiToken` (scope `bcms.dr.test.record`) at
+    | `POST /api/v1/bcms/dr-tests/ingest/{provider}`, which resolves its
+    | tenant from the token rather than from anything in the payload. See
+    | DrIngestionWebhookController's docblock and routes/api.php.
+    */
     'webhook_secrets' => [
         'termii' => env('BCMS_WEBHOOK_SECRET_TERMII'),
         'africastalking' => env('BCMS_WEBHOOK_SECRET_AT'),
@@ -182,4 +197,10 @@ return [
     */
     'alert_reply_rate_limit_per_minute' => (int) env('BCMS_ALERT_REPLY_RATE_LIMIT_PER_MINUTE', 600),
     'provider_status_rate_limit_per_minute' => (int) env('BCMS_PROVIDER_STATUS_RATE_LIMIT_PER_MINUTE', 600),
+
+    // `dr_ingestion_rate_limit_per_minute` is gone: ADR 0020 Amendment 1
+    // moved DR ingestion to `/api/v1/bcms/dr-tests/ingest/{provider}` under
+    // `throttle:api-token` — the per-token ceiling on `ApiToken` itself — and
+    // the `bcms-dr-ingest` named limiter that used to read this key has been
+    // removed from `AppServiceProvider` alongside it.
 ];

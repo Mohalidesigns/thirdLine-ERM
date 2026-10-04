@@ -261,6 +261,30 @@ class RcsaWorkflowService
         return $assessment->refresh();
     }
 
+    /**
+     * Log a transition without checking EDGES.
+     *
+     * RcsaCycleService is the only caller. OPENING a cycle creates assessments
+     * straight into `in_progress` — there is no prior `draft` row to move
+     * FROM, so `transition()`'s EDGES lookup has nothing to check against.
+     * CLOSING a cycle moves several assessments through several different
+     * from-states in one call, which is not any single assessment's own step
+     * through the machine — it is the cycle's. Both still belong in the log:
+     * `history()` is what the audit screen reads, and an assessment whose
+     * history stops at `validated` while its status says `closed` is a screen
+     * that stopped explaining itself.
+     */
+    public function recordTransition(
+        RcsaAssessment $assessment,
+        ?string $from,
+        string $to,
+        ?User $actor,
+        string $event,
+        ?string $reason = null,
+    ): void {
+        $this->log($assessment, $actor, $from, $to, $event, $reason, null);
+    }
+
     /* ------------------------------------------------------------------ */
     /*  The core */
     /* ------------------------------------------------------------------ */
@@ -337,7 +361,7 @@ class RcsaWorkflowService
         ?string $reason,
         ?Request $request,
     ): void {
-        $this->audit->transition($assessment, $from, $to, $actor, $reason);
+        $this->audit->transition($assessment, $from, $to, $actor, $this->estateReason($event, $reason));
 
         RcsaAssessmentTransition::create([
             'organization_id' => $assessment->organization_id,
@@ -351,6 +375,31 @@ class RcsaWorkflowService
             'ip_address' => $request?->ip(),
             'created_at' => now(),
         ]);
+    }
+
+    /**
+     * What the ESTATE-WIDE trail's `change_reason` carries for a transition.
+     *
+     * `risk_audit_trail` has no `event` column — its schema is shared by every
+     * module in the house, and none of the others has anything to put there —
+     * so without this, the estate trail showed a bare "status: submitted ->
+     * bu_approval" beside `rcsa_assessment_transitions`, which DOES have an
+     * `event` column, saying `approve`. An examiner reading the correlated,
+     * cross-module view had the move but not the verb.
+     *
+     * `rcsa_assessment_transitions.reason` — the row §9.1 actually requires —
+     * is untouched; this only prefixes the SECOND, estate-wide copy, and only
+     * with the event's own name, which is a fixed, short, non-secret string.
+     * It does not change `write()`'s hash inputs in shape, only in the value
+     * one of them already carried — the chain verifies exactly as before.
+     */
+    private function estateReason(?string $event, ?string $reason): ?string
+    {
+        return match (true) {
+            $event === null => $reason,
+            $reason === null => $event,
+            default => "{$event}: {$reason}",
+        };
     }
 
     /* ------------------------------------------------------------------ */

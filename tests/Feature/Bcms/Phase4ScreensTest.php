@@ -148,6 +148,107 @@ class Phase4ScreensTest extends TestCase
             ->assertInertia(fn (AssertableInertia $p) => $p->has('compliance')->missing('year_grid'));
     }
 
+    /**
+     * Gap 6 — the calendar side panel's Phase 4 placeholder ("…appear here
+     * once Phase 5 lands") had no readiness/ladder data to replace it with.
+     * The occurrence row itself now carries what the panel needs, so the
+     * frontend can drop the placeholder.
+     */
+    #[Test]
+    public function the_agenda_view_carries_the_side_panels_readiness_and_ladder_data(): void
+    {
+        $definition = $this->definition('DRFAILOVER', 1);
+        app(OccurrenceGenerator::class)->generate($definition);
+
+        $occurrence = \App\Models\Bcms\ExerciseOccurrence::query()->where('definition_id', $definition->getKey())->sole();
+        app(\App\Services\Bcms\Reminders\ReadinessService::class)->materialise($occurrence);
+        app(\App\Services\Bcms\Reminders\ReminderScheduleBuilder::class)->build(
+            $occurrence->refresh(), $definition,
+        );
+
+        $this->actingAs($this->userWith(['bcms.exercise.view']))
+            ->get(route('bcms.calendar.index', [
+                'view' => 'agenda', 'year' => $this->year,
+                'from' => $this->year.'-01-01', 'to' => $this->year.'-12-31',
+            ]))
+            ->assertInertia(fn (AssertableInertia $p) => $p
+                ->has('occurrences', 1)
+                ->where('occurrences.0.readiness_url', route('bcms.occurrences.readiness', $occurrence))
+                ->has('occurrences.0.ladder_summary.pending_count')
+                ->has('occurrences.0.ladder_summary.next_send')
+                ->has('occurrences.0.readiness_task_counts.total')
+                ->has('occurrences.0.readiness_task_counts.complete')
+                ->has('occurrences.0.readiness_task_counts.blocking_open')
+                ->has('occurrences.0.countdown_days')
+            );
+    }
+
+    /**
+     * QA gate coverage — `CalendarService::presentMany()` batches
+     * `ladderSummaries()`/`readinessTaskCounts()` rather than querying per
+     * occurrence (gap 6's own docblock names the 500+/1.5s NFR this is
+     * spent against). Six occurrences, each with its own reminder schedule
+     * and readiness tasks, must cost the agenda view the SAME number of
+     * queries as one does — never six times as many.
+     */
+    #[Test]
+    public function the_agenda_views_query_count_does_not_grow_with_the_number_of_occurrences(): void
+    {
+        // FREEZE THE CLOCK. EnsureAuthenticated touches `users.last_activity_at`
+        // with `now()` on every request, and Eloquent skips the UPDATE when the
+        // stored value already equals `now()` at second precision — so whether
+        // a measured request carries that one query depends on the wall clock.
+        // With time frozen, the warm-up request in the closure writes the
+        // timestamp once and no measured request does (see
+        // WorkspacePerformanceTest, 4db428e).
+        $this->freezeTime();
+
+        $queryCountFor = function (int $occurrenceCount): int {
+            $definition = $this->definition('DRFAILOVER', $occurrenceCount, ['name' => 'Batch '.$occurrenceCount]);
+            app(OccurrenceGenerator::class)->generate($definition);
+
+            $occurrences = \App\Models\Bcms\ExerciseOccurrence::query()
+                ->where('definition_id', $definition->getKey())->get();
+            $this->assertSame($occurrenceCount, $occurrences->count());
+
+            foreach ($occurrences as $occurrence) {
+                app(\App\Services\Bcms\Reminders\ReadinessService::class)->materialise($occurrence);
+                app(\App\Services\Bcms\Reminders\ReminderScheduleBuilder::class)->build(
+                    $occurrence->refresh(), $definition,
+                );
+            }
+
+            $url = route('bcms.calendar.index', [
+                'view' => 'agenda', 'year' => $this->year,
+                'from' => $this->year.'-01-01', 'to' => $this->year.'-12-31',
+            ]);
+            $user = $this->userWith(['bcms.exercise.view']);
+
+            // Warm-up, unmeasured: the first request in a process also pays for
+            // the permission cache, which is not what this test is counting.
+            $this->actingAs($user)->get($url)->assertOk();
+
+            DB::enableQueryLog();
+            DB::flushQueryLog();
+
+            $this->actingAs($user)->get($url)->assertOk();
+
+            $count = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            return $count;
+        };
+
+        $one = $queryCountFor(1);
+        $six = $queryCountFor(6);
+
+        $this->assertLessThanOrEqual(
+            $one + 3, $six,
+            "Six occurrences cost {$six} queries against one occurrence's {$one} — "
+                .'ladderSummaries()/readinessTaskCounts() must be batched, not per-occurrence.',
+        );
+    }
+
     #[Test]
     public function the_programme_dashboard_carries_delivery_coverage_and_the_computed_gaps(): void
     {

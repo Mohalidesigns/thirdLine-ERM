@@ -3,6 +3,7 @@
 namespace Database\Seeders\Bcms\Reference;
 
 use App\Enums\Bcms\AlertSeverity;
+use App\Enums\Bcms\IsoClauseRef;
 
 /**
  * The shipped EMNS message templates.
@@ -59,6 +60,10 @@ class AlertTemplates
                 'sms' => 'COMOT {{site_name}} NOW. Use closest safe door. No lift. Go {{assembly_point}}.',
                 'voice' => 'Dis na emergency. Comot from {{site_name}} now now. Use di closest safe door. No enter lift. Go {{assembly_point}}.',
                 'variables' => ['site_name', 'assembly_point'],
+                // Pending native-speaker review — shipped inactive until a
+                // Pidgin speaker signs off on the wording (see
+                // `AlertTemplateController::activate()`).
+                'active' => false,
             ],
             [
                 'code' => 'ROLLCALL', 'locale' => 'en',
@@ -95,6 +100,10 @@ class AlertTemplates
                     ['value' => '2', 'label' => 'I need help'],
                     ['value' => '3', 'label' => 'Safe, no fit reach work'],
                 ],
+                // Pending native-speaker review — shipped inactive until a
+                // Pidgin speaker signs off on the wording (see
+                // `AlertTemplateController::activate()`).
+                'active' => false,
             ],
             [
                 'code' => 'ALLCLEAR', 'locale' => 'en',
@@ -186,6 +195,63 @@ class AlertTemplates
                 'sms' => 'Please confirm your emergency contact details: {{profile_link}}. Used for emergencies only.',
                 'voice' => null,
                 'variables' => ['last_verified', 'profile_link'],
+                // Phase 11 spec §2.2: the ONE awareness campaign with a KRI
+                // attached — sending it, and the acknowledgements it collects,
+                // is what moves `BCMS-CT-CONFIDENCE`. That is the whole reason
+                // this template exists rather than a passive reminder.
+                'clause' => IsoClauseRef::Iso22301_7_3,
+            ],
+
+            /*
+             * Phase 11 spec §2.2 — awareness campaigns are EMNS alerts, not a
+             * second register. `bcms_alerts` already carries `audience_rule`,
+             * `recipient_count` and acknowledgement tracking through
+             * `bcms_alert_recipients`/`bcms_notification_deliveries`, and that
+             * IS clause 7.3's reach-and-engagement evidence. These four
+             * templates are the shipped content; composing and sending one is
+             * the existing EMNS compose/send screen, not a new one.
+             */
+            [
+                'code' => 'BCAWAREWEEK', 'locale' => 'en',
+                'name' => 'Annual BC awareness week',
+                'category' => 'awareness',
+                'severity' => AlertSeverity::Informational->value,
+                'life_safety' => false,
+                'dual_approval' => false,
+                'subject' => 'Business continuity awareness week is here',
+                'body' => 'This week is business continuity awareness week. Take five minutes to know your plan at {{plan_link}}, your assembly point, and how we will contact you if something happens.',
+                'sms' => 'BC awareness week: know your plan and assembly point. {{plan_link}}',
+                'voice' => null,
+                'variables' => ['plan_link'],
+                'clause' => IsoClauseRef::Iso22301_7_3,
+            ],
+            [
+                'code' => 'LESSONSBULLETIN', 'locale' => 'en',
+                'name' => 'Post-incident lessons bulletin',
+                'category' => 'awareness',
+                'severity' => AlertSeverity::Informational->value,
+                'life_safety' => false,
+                'dual_approval' => false,
+                'subject' => 'What we learned from {{incident_reference}}',
+                'body' => 'Following {{incident_reference}}, here is what we learned and what is changing: {{lessons_summary}}. Full post-incident review: {{pir_link}}.',
+                'sms' => 'Lessons from {{incident_reference}}: {{lessons_summary}}. {{pir_link}}',
+                'voice' => null,
+                'variables' => ['incident_reference', 'lessons_summary', 'pir_link'],
+                'clause' => IsoClauseRef::Iso22301_7_3,
+            ],
+            [
+                'code' => 'NEWJOINERBC', 'locale' => 'en',
+                'name' => 'New-joiner BC induction',
+                'category' => 'awareness',
+                'severity' => AlertSeverity::Informational->value,
+                'life_safety' => false,
+                'dual_approval' => false,
+                'subject' => 'Welcome — your business continuity induction',
+                'body' => 'Welcome to the bank. Before your first week is out, complete the business continuity awareness curriculum at {{training_link}} and confirm your emergency contact details at {{profile_link}}.',
+                'sms' => 'Welcome. Complete your BC induction: {{training_link}}',
+                'voice' => null,
+                'variables' => ['training_link', 'profile_link'],
+                'clause' => IsoClauseRef::Iso22301_7_3,
             ],
         ];
     }

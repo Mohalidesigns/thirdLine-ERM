@@ -65,23 +65,27 @@ For BCMS, `plans/bcms/BCMS-ORCHESTRATION.md` §7 is the Definition of Done. For 
 2. Read the code under test before writing tests against it. Do not test the interface you assume; test the one that exists.
 3. Run the suite: `php artisan test`. Scope it while iterating (`--filter=Tprm`, `--filter=Bcms`, `--filter=Rcsa`), but the gate verdict requires a **full** run — a change in one module that breaks another is a failed gate, and the four modules share a register, a permission catalogue and a tenancy layer, so they do break each other. Existing coverage: 31 feature files under `tests/Feature/Tprm`, 33 under `tests/Feature/Rcsa`, and 344 BCMS tests on `feature/bcms-module`.
 4. Static analysis is part of the gate: `./vendor/bin/phpstan analyse` must not add new baseline entries, and `./vendor/bin/pint --test` must be clean.
-5. **The suite runs on the database production runs — and that is a prerequisite, not a
-   default.** `phpunit.xml` sets `DB_CONNECTION=mysql`, `DB_DATABASE=risk_test` against a local
-   **MariaDB 10.4** server, and CI is a single `mariadb:10.4` job. **Production is MariaDB 10.4**
-   (the hosting panel says "MySQL"; the server does not). A green run therefore does say something
-   about the customer's database on this branch; it says nothing on `main`, which still carries
-   the SQLite config and a `mysql:8.0` CI arm. Two operational rules: never run two test
-   invocations against the same database (DDL commits implicitly on MariaDB and the runs corrupt
-   each other), and use `php artisan test --parallel` (each worker gets `risk_test_N`).
+5. **CI runs the suite on both engines; locally you run one.** `phpunit.xml` sets
+   `DB_CONNECTION=mysql`, `DB_DATABASE=risk_test` against a local **MariaDB 10.4** server. CI runs
+   the same suite on **`mariadb:10.4` and `mysql:8.0.46`** (a `tests` matrix, `fail-fast: false`),
+   because **the production VPS runs MySQL 8.0.46** while the bank's estate assumes MariaDB 10.4.
+   A change is green only when both legs are, so a local MariaDB run is necessary but not
+   sufficient — name anything you could only verify on one engine as `[verify at integration]`.
+   Two operational rules: never run two test invocations against the same database (DDL commits
+   implicitly and the runs corrupt each other), and use `php artisan test --parallel` (each worker
+   gets `risk_test_N`).
 
    Still hunt, by reading, the SQL that MariaDB 10.4 tolerates today but a portable spelling would
    not need: raw `JSON_CONTAINS` and the other JSON
    functions, CTEs and window functions (MySQL 8 has them, MariaDB 10.4 largely does not),
    `information_schema` reads, `ONLY_FULL_GROUP_BY` grouping, date and string functions, and
-   strict-mode differences on inserts. `CalendarService.php:410` is the shape of a good outcome:
+   strict-mode differences on inserts. Hunt the other direction too: anything that hashes or
+   string-compares a raw `json` column (MySQL 8 hands JSON back normalised — `Tprm\AuditLog::chainHash`
+   is the known case), and bare NOT NULL `timestamp()`/`dateTime()` columns an insert omits
+   (`explicit_defaults_for_timestamp` is ON in MySQL 8). `CalendarService.php:410` is the shape of a good outcome:
    the ids are resolved in PHP and matched with Laravel's `whereJsonContains` precisely because a
    raw `JSON_CONTAINS` "would pass every test and fail on the only database a customer runs". Flag
-   any raw SQL you cannot vouch for on MariaDB 10.4 as a defect even when the suite is green.
+   any raw SQL you cannot vouch for on BOTH MariaDB 10.4 and MySQL 8.0 as a defect even when the suite is green.
 
 ## The defect families you actively hunt
 

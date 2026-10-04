@@ -2,6 +2,7 @@ import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import CascadeTree from '@/Components/Bcms/CascadeTree';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
@@ -203,33 +204,35 @@ export default function Designer({
                             {can.manage && tree.editable && (
                                 <div className="space-y-3 border-t border-slate-100 pt-3">
                                     <form onSubmit={(e) => { e.preventDefault(); deputy.post(tryRoute('bcms.call-trees.nodes.deputy', [tree.uuid, selected.id]), { preserveScroll: true }); }}>
-                                        <label className="mb-1 block text-xs font-medium text-slate-600">Assign a deputy</label>
-                                        <div className="flex gap-2">
-                                            <select value={deputy.data.deputy_contact_id}
-                                                onChange={(e) => deputy.setData('deputy_contact_id', e.target.value)}
-                                                className="flex-1 rounded border-slate-300 text-xs">
-                                                <option value="">Choose…</option>
-                                                {candidates.filter((c) => c.id !== selected.contact_id).map((c) => (
-                                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                                ))}
-                                            </select>
-                                            <button type="submit" className="rounded bg-slate-800 px-3 text-xs text-white">Set</button>
-                                        </div>
+                                        <FormField label="Assign a deputy" htmlFor="deputy-contact">
+                                            <div className="flex gap-2">
+                                                <select id="deputy-contact" value={deputy.data.deputy_contact_id}
+                                                    onChange={(e) => deputy.setData('deputy_contact_id', e.target.value)}
+                                                    className="form-select flex-1 text-xs">
+                                                    <option value="">Choose…</option>
+                                                    {candidates.filter((c) => c.id !== selected.contact_id).map((c) => (
+                                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                                    ))}
+                                                </select>
+                                                <button type="submit" className="rounded bg-slate-800 px-3 text-xs text-white">Set</button>
+                                            </div>
+                                        </FormField>
                                     </form>
 
                                     <form onSubmit={(e) => { e.preventDefault(); reparent.post(tryRoute('bcms.call-trees.nodes.reparent', [tree.uuid, selected.id]), { preserveScroll: true }); }}>
-                                        <label className="mb-1 block text-xs font-medium text-slate-600">Move under</label>
-                                        <div className="flex gap-2">
-                                            <select value={reparent.data.parent_node_id}
-                                                onChange={(e) => reparent.setData('parent_node_id', e.target.value)}
-                                                className="flex-1 rounded border-slate-300 text-xs">
-                                                <option value="">Top of the tree</option>
-                                                {flat.filter((n) => n.id !== selected.id).map((n) => (
-                                                    <option key={n.id} value={n.id}>T{n.tier} · {n.name}</option>
-                                                ))}
-                                            </select>
-                                            <button type="submit" className="rounded bg-slate-800 px-3 text-xs text-white">Move</button>
-                                        </div>
+                                        <FormField label="Move under" htmlFor="reparent-parent">
+                                            <div className="flex gap-2">
+                                                <select id="reparent-parent" value={reparent.data.parent_node_id}
+                                                    onChange={(e) => reparent.setData('parent_node_id', e.target.value)}
+                                                    className="form-select flex-1 text-xs">
+                                                    <option value="">Top of the tree</option>
+                                                    {flat.filter((n) => n.id !== selected.id).map((n) => (
+                                                        <option key={n.id} value={n.id}>T{n.tier} · {n.name}</option>
+                                                    ))}
+                                                </select>
+                                                <button type="submit" className="rounded bg-slate-800 px-3 text-xs text-white">Move</button>
+                                            </div>
+                                        </FormField>
                                     </form>
                                 </div>
                             )}
@@ -276,34 +279,30 @@ export default function Designer({
             {adding && (
                 <Modal title="Add somebody to the tree" onClose={() => setAdding(false)}>
                     <form onSubmit={submitAdd} className="space-y-3">
-                        <label className="block">
-                            <span className="mb-1 block text-xs font-medium text-slate-600">Search the roster</span>
+                        <FormField label="Search the roster">
                             <input value={search} onChange={(e) => setSearch(e.target.value)}
-                                className="w-full rounded border-slate-300 text-sm" placeholder="Name or job title" />
-                        </label>
-                        <label className="block">
-                            <span className="mb-1 block text-xs font-medium text-slate-600">Person</span>
+                                className="form-input" placeholder="Name or job title" />
+                        </FormField>
+                        <FormField label="Person" error={add.errors.contact_id}>
                             <select value={add.data.contact_id} onChange={(e) => add.setData('contact_id', e.target.value)}
-                                className="w-full rounded border-slate-300 text-sm" required size={6}>
+                                className="form-select" required size={6}>
                                 {candidates.map((c) => (
                                     <option key={c.id} value={c.id}>
                                         {c.name}{c.title ? ` — ${c.title}` : ''}{c.has_mobile ? '' : ' (no mobile)'}
                                     </option>
                                 ))}
                             </select>
-                            {add.errors.contact_id && <span className="mt-1 block text-xs text-rose-600">{add.errors.contact_id}</span>}
-                        </label>
-                        <label className="block">
-                            <span className="mb-1 block text-xs font-medium text-slate-600">Reports to (in the cascade)</span>
+                        </FormField>
+                        <FormField label="Reports to (in the cascade)">
                             <select value={add.data.parent_node_id} onChange={(e) => add.setData('parent_node_id', e.target.value)}
-                                className="w-full rounded border-slate-300 text-sm">
+                                className="form-select">
                                 <option value="">Top of the tree (tier 0)</option>
                                 {flat.map((n) => <option key={n.id} value={n.id}>T{n.tier} · {n.name}</option>)}
                             </select>
-                        </label>
+                        </FormField>
                         <label className="flex items-center gap-2 text-xs text-slate-600">
                             <input type="checkbox" checked={add.data.is_must_reach}
-                                onChange={(e) => add.setData('is_must_reach', e.target.checked)} className="rounded" />
+                                onChange={(e) => add.setData('is_must_reach', e.target.checked)} className="form-checkbox" />
                             Must be reached for the cascade to score complete
                         </label>
                         <button type="submit" disabled={add.processing}
@@ -317,10 +316,9 @@ export default function Designer({
             {testing && (
                 <Modal title="Test this tree" onClose={() => setTesting(false)}>
                     <form onSubmit={submitTest} className="space-y-3">
-                        <label className="block">
-                            <span className="mb-1 block text-xs font-medium text-slate-600">Mode</span>
+                        <FormField label="Mode">
                             <select value={test.data.mode} onChange={(e) => test.setData('mode', e.target.value)}
-                                className="w-full rounded border-slate-300 text-sm">
+                                className="form-select">
                                 {modes.map((m) => (
                                     <option key={m.value} value={m.value}>
                                         {m.label}
@@ -330,10 +328,10 @@ export default function Designer({
                                     </option>
                                 ))}
                             </select>
-                        </label>
+                        </FormField>
                         <label className="flex items-center gap-2 text-xs text-slate-600">
                             <input type="checkbox" checked={test.data.announced}
-                                onChange={(e) => test.setData('announced', e.target.checked)} className="rounded" />
+                                onChange={(e) => test.setData('announced', e.target.checked)} className="form-checkbox" />
                             Announced — participants get the countdown ladder
                         </label>
                         {!test.data.announced && (

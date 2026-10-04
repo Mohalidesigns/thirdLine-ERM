@@ -2,6 +2,8 @@
 
 namespace App\Models\Bcms;
 
+use App\Models\Bcms\Concerns\BcmsAuditable;
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -28,7 +30,40 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class ExerciseInject extends Model
 {
-    use BelongsToOrganization, HasFactory;
+    // GAP 2: authoring — create/update/delete now go through `InjectService`,
+    // so `BcmsAuditable` gives every one of those a `bcms_audit_logs` row for
+    // free, the same way `Evidence` does. `release()` still logs its own
+    // `inject` timeline entry on top; that is the AAR's record of what
+    // happened during the exercise, this is the audit trail of who authored
+    // and changed the script.
+    use BcmsAuditable, BelongsToOrganization, BindsToVisibleRecord, HasFactory;
+
+    /**
+     * Derived (ADR 0017 §2): an inject has no unit column of its own and takes
+     * the shortest path to an anchor — through its occurrence to the
+     * definition that carries the unit, the same path `ReadinessTask` takes.
+     */
+    public function orgAnchorPath(): string
+    {
+        return 'occurrence.definition';
+    }
+
+    /**
+     * ADR 0017 Amendment 1, extended to Phase 9 (Gate 2 finding from Phase
+     * 7.5's review): declared here, not inherited transitively from
+     * `ExerciseOccurrence`'s own arm — `constrainAnchorPath()`'s
+     * `whereHas('occurrence', …)` chain consults only the occurrence's
+     * `scopeVisibleTo()`, so a cross-unit facilitator who reaches the
+     * occurrence through ITS arm still 404s on `bcms.occurrences.injects.
+     * release` without this. Only the facilitator releases an inject
+     * (`bcms.exercise.facilitate`); no other role writes this table.
+     *
+     * @return list<string>
+     */
+    public function orgVisibilityNamedUsers(): array
+    {
+        return ['occurrence.facilitator_id'];
+    }
 
     protected $table = 'bcms_exercise_injects';
 

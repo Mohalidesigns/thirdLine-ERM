@@ -91,7 +91,7 @@ function EditableCell({ grid, column, row, onSaved }) {
                 onChange={(e) => { setValue(e.target.value); save(e.target.value); }}
                 onKeyDown={(e) => e.key === 'Escape' && setEditing(false)}
                 onBlur={() => !saving && setEditing(false)}
-                className="border border-[var(--color-primary)] rounded-lg px-2 py-1 text-xs bg-white"
+                className="form-select border-[var(--color-primary)] pl-2 py-1 text-xs" aria-label={`Edit ${column.label}`}
             >
                 {column.editable.options.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -112,7 +112,7 @@ function EditableCell({ grid, column, row, onSaved }) {
                 if (e.key === 'Escape') setEditing(false);
             }}
             onBlur={() => save(value)}
-            className="border border-[var(--color-primary)] rounded-lg px-2 py-1 text-xs w-full"
+            className="form-input border-[var(--color-primary)] px-2 py-1 text-xs" aria-label={`Edit ${column.label}`}
         />
     );
 }
@@ -147,19 +147,19 @@ export default function GridTable({ grid, state, selected, selectingAll, onToggl
     return (
         <div className={`relative bg-white rounded-xl border border-gray-200 overflow-hidden ${state.loading ? 'opacity-60' : ''}`} aria-busy={state.loading}>
             <div className="overflow-x-auto">
-                <table className="w-full text-sm" data-testid="grid-table">
+                <table className="data-table" data-testid="grid-table">
                     <thead>
                         <tr className="bg-gray-50 border-b border-gray-200 text-left">
                             {hasBulk && (
-                                <th scope="col" className="w-10 px-4 py-3">
-                                    <input type="checkbox" aria-label="Select page" checked={pageAllSelected} onChange={() => onTogglePage(pageIds)} className="form-checkbox rounded border-gray-300 text-[var(--color-primary)]" />
+                                <th scope="col" className="w-10">
+                                    <input type="checkbox" aria-label="Select page" checked={pageAllSelected} onChange={() => onTogglePage(pageIds)} className="form-checkbox" />
                                 </th>
                             )}
                             {columns.map((column) => (
                                 <th
                                     key={column.key}
                                     scope="col"
-                                    className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
+                                    className="whitespace-nowrap"
                                     aria-sort={grid.state.sort === column.key ? (grid.state.dir === 'asc' ? 'ascending' : 'descending') : undefined}
                                 >
                                     {column.sortable ? (
@@ -179,7 +179,7 @@ export default function GridTable({ grid, state, selected, selectingAll, onToggl
                                 </th>
                             ))}
                             {hasActions && (
-                                <th scope="col" className="w-12 px-4 py-3">
+                                <th scope="col" className="w-12">
                                     <span className="sr-only">Actions</span>
                                 </th>
                             )}
@@ -196,12 +196,12 @@ export default function GridTable({ grid, state, selected, selectingAll, onToggl
                                     className={`hover:bg-blue-50/50 focus:outline-none focus:bg-blue-50 ${isSelected ? 'bg-blue-50/60' : ''}`}
                                 >
                                     {hasBulk && (
-                                        <td className="px-4 py-2.5">
-                                            <input type="checkbox" aria-label="Select row" checked={isSelected} onChange={() => onToggleRow(row.id)} className="form-checkbox rounded border-gray-300 text-[var(--color-primary)]" />
+                                        <td>
+                                            <input type="checkbox" aria-label="Select row" checked={isSelected} onChange={() => onToggleRow(row.id)} className="form-checkbox" />
                                         </td>
                                     )}
                                     {columns.map((column) => (
-                                        <td key={column.key} className="px-4 py-2.5">
+                                        <td key={column.key}>
                                             {column.editable ? (
                                                 <EditableCell grid={grid} column={column} row={row} onSaved={onCellSaved} />
                                             ) : (
@@ -210,7 +210,7 @@ export default function GridTable({ grid, state, selected, selectingAll, onToggl
                                         </td>
                                     ))}
                                     {hasActions && (
-                                        <td className="px-4 py-2.5 text-right">
+                                        <td className="text-right">
                                             {row.actions.length > 0 && (
                                                 <Menu
                                                     width="w-40"

@@ -244,7 +244,7 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
 
                     <div className="filter-group min-w-[160px]">
                         <label className="filter-label">Owner</label>
-                        <select
+                        <select aria-label="Owner"
                             className="filter-select"
                             value={bulk.owner_id}
                             onChange={(e) => setBulk({ ...bulk, owner_id: e.target.value })}
@@ -260,7 +260,7 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
 
                     <div className="filter-group min-w-[160px]">
                         <label className="filter-label">Category</label>
-                        <select
+                        <select aria-label="Category"
                             className="filter-select"
                             value={bulk.risk_category}
                             onChange={(e) => setBulk({ ...bulk, risk_category: e.target.value })}
@@ -315,7 +315,7 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
 
                     <div className="filter-group min-w-[200px]">
                         <label className="filter-label">Business Unit</label>
-                        <select
+                        <select aria-label="Business Unit"
                             autoFocus
                             className="filter-select"
                             value={duplicateUnit}
@@ -363,7 +363,7 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                                         checked={allSelected}
                                         onChange={toggleAll}
                                         aria-label="Select all risks on this page"
-                                        className="rounded border-gray-300"
+                                        className="form-checkbox"
                                     />
                                 </th>
                                 <th className="w-8" />
@@ -399,7 +399,7 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                                                 checked={selected.includes(risk.id)}
                                                 onChange={() => toggle(risk.id)}
                                                 aria-label={`Select ${risk.risk_no}`}
-                                                className="rounded border-gray-300"
+                                                className="form-checkbox"
                                             />
                                         </td>
                                         <td>
@@ -422,12 +422,12 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                                             </button>
                                         </td>
                                         <td>
-                                            <span className="whitespace-nowrap font-mono text-xs text-gray-500">
+                                            <span className="cell-id whitespace-nowrap">
                                                 {risk.risk_no}
                                             </span>
                                         </td>
-                                        <td className="text-sm text-gray-600">{risk.business_unit ?? '—'}</td>
-                                        <td className="text-sm text-gray-600">
+                                        <td className="cell-muted">{risk.business_unit ?? '—'}</td>
+                                        <td className="cell-muted">
                                             {risk.process ?? '—'}
                                             {risk.sub_process && (
                                                 <span className="block text-xs text-gray-400">{risk.sub_process}</span>
@@ -445,7 +445,7 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                                                 <span className="text-xs text-gray-400">—</span>
                                             )}
                                         </td>
-                                        <td className="text-sm text-gray-600">
+                                        <td className="cell-muted">
                                             {risk.controls_count > 0 ? (
                                                 risk.controls_count
                                             ) : (
@@ -455,7 +455,7 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                                         <td>
                                             <StatusBadge status={risk.status} />
                                         </td>
-                                        <td className="text-sm text-gray-500">{risk.updated_at ?? '—'}</td>
+                                        <td className="cell-muted">{risk.updated_at ?? '—'}</td>
                                         <td className="text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 {can.create && (
@@ -515,7 +515,7 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
 
                                     {expanded === risk.id && (
                                         <tr className="bg-gray-50/70">
-                                            <td colSpan={11} className="px-6 py-4">
+                                            <td colSpan={11}>
                                                 <div className="grid gap-6 md:grid-cols-2">
                                                     <div>
                                                         <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -676,7 +676,7 @@ function UploadCard({ onClose }) {
                     ) : (
                         <>
                             <p className="text-sm text-gray-600">Choose a file or drag it here</p>
-                            <p className="mt-1 text-xs text-gray-500">Excel or CSV, up to 10 MB</p>
+                            <p className="form-hint">Excel or CSV, up to 10 MB</p>
                         </>
                     )}
                 </label>

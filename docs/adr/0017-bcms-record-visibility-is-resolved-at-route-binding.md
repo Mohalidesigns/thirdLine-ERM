@@ -4,6 +4,14 @@
 **Author:** architect · **Requested by:** two retrospective reviews (Phase 2 BIA, Phase 3 Plans), independently
 **Consumers:** all BCMS tracks · qa-engineer · code-reviewer · Phases 9–12 · ERM/RCSA (reads `RcsaScope`, unchanged)
 
+**Amendments:** **1 — 2026-09-14**, §4 point 5 (the named-user arm is a reviewed
+map; the anchor-path walk is deliberately not transitive) · **2 — 2026-09-14**,
+§1 (the "every list is scoped" premise was never true of findings; scoping them
+is in Phase 7.5) · **3 — 2026-09-14**, Consequences (a sentence that was
+mechanically false, corrected). All three raised by `code-reviewer` at the Phase
+7.5 gate 2, which rejected the phase. The ADR was written before the trait
+existed; these are what building it found.
+
 ## Context
 
 Two reviewers, on two phases, found the same hole from opposite ends, which is
@@ -18,6 +26,48 @@ use it. Every BCMS **list** goes through it — `BiaController::index`,
 `OrganizationScope` alone and then checks a bare permission string. There are
 about 120 such routes across Phases 1–7 and not one of them asks whether this
 user may see this row.
+
+> **Amendment 2 — 2026-09-14. "Every BCMS list goes through it" was false, and
+> the exception is findings.** The eight call sites named above are the eight
+> that were checked; `FindingController` was not among them and does not scope.
+> Its `index` runs a bare `Finding::query()`, its `summary()` counts the same
+> unscoped set, and two of its picker option lists — `Process::query()` and
+> `Plan::query()`, both models that *do* use `ScopedToOrgHierarchy` — are built
+> without `visibleTo()`. So a Kano holder of `bcms.finding.view` reads every
+> Lagos finding, with its description and its clause ref, from the list screen
+> and never needs a uuid. Stating the premise as universal is what let one
+> controller sit outside it unnoticed; the premise is now "eight lists were
+> checked and scoped, one was missed", which is a claim a reviewer can test.
+>
+> **Ruling: scoping findings is in Phase 7.5, not deferred.** Three reasons. It
+> is the same defect this ADR exists for, one layer up — the record fix would
+> otherwise ship beside a list that shows the record's contents anyway, which is
+> the remediation certifying itself. It is four call sites in one controller
+> against ~24 model declarations already in this pass. And Phase 9 opens against
+> the finding register: every producer phase writes to it, so a finding list
+> retrofitted later is this cost paid twice, which is the argument §"Severity"
+> already makes for doing the whole thing before Phase 9.
+>
+> **And the fix is not finished when the query is scoped.** `Finding` now
+> overrides `orgScopeColumn()` to `affected_business_unit_id` correctly — but
+> `grep -rn "affected_business_unit_id" app` shows exactly **one** writer,
+> `CallTreeRemediation.php:193`. Findings raised from an AAR, a plan review, a
+> BIA, an incident, a DR test or a management review all leave it null, and a
+> null unit is visible to the whole tenant by ADR 0006's null arm — deliberately,
+> for the group BCP, and accidentally here. So scoping the list changes almost
+> nothing on today's data while *looking* like it changed everything, which is
+> the worst kind of fix. Phase 7.5 therefore also derives the column at raise
+> time in `FindingService`, from whichever source the finding carries
+> (`affected_process_id` → process unit; `affected_plan_id` → plan unit;
+> `aar_id` → occurrence → definition unit; `call_tree_test_id` → tree unit), and
+> leaves it null only when the source genuinely has no unit. A test asserts a
+> finding raised from each source lands with the unit its source carries. Owner:
+> `backend-engineer`, in the 7.5 work order, before the phase returns to
+> `qa-engineer`.
+>
+> **Out of scope, stated so it is not read as an oversight:** the `users` picker
+> on the same screen is a tenant-scoped list of colleagues, not another
+> division's continuity data, and it stays as it is.
 
 So a Kano branch manager holding `bcms.bia.complete` can `GET` Lagos's
 assessment, change its RTO and submit it. A user assigned to Retail holding
@@ -181,6 +231,95 @@ somebody can edit. Cross-unit plan *readership* is therefore granted by 1, 2 or
 3 above. If Phase 11's training-and-distribution work finds that insufficient,
 that is an amendment to this ADR, not a local override.
 
+> **Amendment 1 — 2026-09-14. The arm is a reviewed map across models, and the
+> anchor-path walk is deliberately not transitive.**
+>
+> **The defect gate 2 rejected the phase on.** `ExerciseOccurrence` declares the
+> arm (`facilitator_id`, `participants.user_id`) and is itself derived on
+> `definition`. `ReadinessTask` is derived on `occurrence.definition`, and
+> `BindsToVisibleRecord::constrainAnchorPath()` walks that path as a bare
+> `whereHas` chain terminating in the **anchor's** `scopeVisibleTo()` — nothing
+> consults the intermediate occurrence's arm. Meanwhile `ReadinessService`
+> (`app/Services/Bcms/Reminders/ReadinessService.php:83`) sets every task's
+> `owner_id` to `occurrence.facilitator_id`. So a cross-unit facilitator — a
+> configuration `ExerciseOccurrence`'s own docblock endorses — opens the
+> readiness screen through the occurrence's arm and then gets 404 from
+> `bcms.readiness-tasks.complete` and `.override` on every task, **including the
+> ones they own**. The screen loads and every button on it fails, which is worse
+> than a 404 on the screen: it reads as a broken product rather than a
+> permission.
+>
+> **Decision: the map.** `orgVisibilityNamedUsers()` stays a per-model
+> declaration, its specs already support a `relation.column` pair, and a derived
+> model reaches a named user on an intermediate **explicitly**. The declarations
+> are pinned as one map, asserted whole, with a reason per row:
+>
+> | Model | Specs | Reason |
+> |---|---|---|
+> | `ExerciseOccurrence` | `facilitator_id`, `participants.user_id` | Phase 5's core loop, above: the T-10 invitation the product itself sent must not 404. The facilitator runs an occurrence in a unit they may not be assigned to. |
+> | `ReadinessTask` | `owner_id`, `occurrence.facilitator_id` | `owner_id`: `ReadinessService:83` makes the facilitator the default owner, and a reassignee must be able to act on their own task. `occurrence.facilitator_id`: the facilitator holds `bcms.readiness.override` and answers for the gate — the person who decides whether the exercise may start must be able to clear what blocks it, including tasks owned by somebody else. |
+>
+> **Why not the transitive walk.** Three reasons, and the first is the one that
+> decides it:
+>
+> 1. **It makes one model's arm silently grant record visibility on every model
+>    downstream of it, and that set grows every phase.** `participants.user_id`
+>    is already on `ExerciseOccurrence`; transitively it would hand every
+>    participant of a Treasury drill the readiness checklist, and then — as they
+>    are built — the evidence rows of ADR 0019, the observer scores, the injects
+>    and the timeline. Nobody would have decided that. The path would have
+>    decided it, at the moment an unrelated model declared an anchor path.
+> 2. **It answers "who can see this row" by walking N models instead of reading
+>    one.** This ADR's entire enforcement style is enumeration — the pinned
+>    organisation-level map in §2, modelled on `RouteAuthorizationTest`'s pinned
+>    allowlist — because the thing that catches a mistake is a reviewer reading a
+>    diff with a sentence attached to it. A rule computed across a relation chain
+>    cannot be diffed.
+> 3. **Its failure mode is silent and permissive.** An intermediate's arm has to
+>    be OR'd with the *continuation of the walk*, not with the whole predicate. A
+>    closure nested one level out turns that OR into an AND, or the reverse, and
+>    nothing fails loudly either way.
+>
+> **"One anchor, one unit, one answer" is preserved literally.** The anchor path
+> is still exactly one — `occurrence.definition` — and the named-user arms are
+> still a union on top of it, which is what point 5 always was. What changes is
+> only that the union is *declared* per model instead of assumed to propagate.
+>
+> **The duplication is the accepted cost.** `occurrence.facilitator_id` on
+> `ReadinessTask` restates a fact `ExerciseOccurrence` also declares. If the
+> facilitator ever moves to a pivot table, two declarations change — and the
+> pinned map is exactly what makes the second one visible to whoever changes the
+> first.
+>
+> **The guard test changes shape.**
+> `no_model_but_exercise_occurrence_declares_a_named_user_visibility_arm` is
+> **retired**: it pinned a fact that was only true because the second model had
+> not been written yet, which is a test asserting the state of the work rather
+> than a rule. It is replaced by three assertions:
+>
+> 1. **the map asserted whole** — model → specs → reason — in the shape of §6
+>    point 3's organisation-level map;
+> 2. **a behavioural test per entry**: the named user gets 200 on a record whose
+>    unit they are not assigned to, on a GET **and on that phase's real write
+>    verb** — for `ReadinessTask` that is `complete` and `override`, the two the
+>    defect broke, not a GET that would have passed throughout;
+> 3. **every spec resolves**: a local column exists on the table
+>    (`Schema::hasColumn`), and a `relation.column` pair names a real relation
+>    whose related table has that column. This is §6 point 2's `Finding`
+>    assertion applied to the other half of the trait — a spec naming a column
+>    that does not exist throws on first use, and only for the user it was
+>    written to help.
+>
+> **Where else the same hole is, to be closed in this pass rather than found by
+> the next gate.** Any model whose `orgAnchorPath()` has two or more segments and
+> whose intermediate carries an arm. Today that is `ReadinessTask`; under ADR
+> 0019 it will be `bcms_evidence` (`occurrence.definition`), and any Phase 9
+> score, inject or timeline route the same. The rule for the implementer, and for
+> every phase after: **if a derived model's route is reachable from a screen a
+> named user of an intermediate can open, that model needs its own row in the
+> map.** A model that does not need one still gets read at review, because the
+> map is asserted whole.
+
 ### 5. Nested routes bind their children through the parent
 
 No BCMS route group calls `->scopeBindings()`. `plans/{plan}/sections/{section}`
@@ -270,9 +409,27 @@ one. They are fixed in this pass.
   to re-read their list queries: `CalendarService`, `CallTreeService`,
   `SourceResolver`, `GapAnalysisService`, `PlanLibraryPresenter`,
   `StrategyRegisterPresenter`, `ResilienceCalendarPresenter`, `BiaReportController`.
-  None of them needs a code change; all of them will return *more* rows for a
-  named participant, which is the intended fix to a second, quieter bug — a
-  cross-unit participant could not see their own exercise on their own calendar.
+  None of them needs a code change.
+
+  > **Amendment 3 — 2026-09-14.** This bullet used to end: *"all of them will
+  > return more rows for a named participant, which is the intended fix to a
+  > second, quieter bug — a cross-unit participant could not see their own
+  > exercise on their own calendar."* That is mechanically false and is
+  > withdrawn. **No list calls `ExerciseOccurrence::scopeVisibleTo()`** — the
+  > occurrence is a *derived* model and does not use `ScopedToOrgHierarchy` at
+  > all, so there is no scope on it for a named-user arm to widen. And the bug it
+  > claimed to fix did not exist: `CalendarService::forUser()`
+  > (`app/Services/Bcms/Exercises/CalendarService.php:307–310`) already ORs
+  > `facilitator_id`, `participants.user_id` and the definition's
+  > `owner_id`/`facilitator_id`, so the cross-unit participant could always see
+  > their own exercise on their own calendar. What is true is narrower and worth
+  > keeping: **the named-user arm makes the record answer what the list already
+  > answered.** Before it, `CalendarService` showed a cross-unit participant
+  > their exercise and the record route 404'd the link on it — a list and a
+  > record disagreeing, which is the specific inconsistency point 5 exists to
+  > remove. The lesson for the rest of this ADR: a consequence asserted about
+  > eight call sites should be checked against all eight before it is written
+  > down, and this one was not.
 - **Test breakage should be near zero, and where it is not, it is the point.**
   No BCMS factory sets `business_unit_id`, so every fixture row is currently
   organisation-level and stays visible. The tests that will move are the ones

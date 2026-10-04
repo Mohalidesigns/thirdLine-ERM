@@ -47,7 +47,7 @@ export default function Home({ programme, counts, plans_current_rate: plansCurre
                     <div key={tile.label} className="rounded-lg border border-gray-200 bg-white p-4">
                         <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{tile.label}</p>
                         <p className="mt-2 font-mono text-2xl text-gray-900">{tile.value ?? '—'}</p>
-                        <p className="mt-1 text-xs text-gray-500">{tile.hint}</p>
+                        <p className="form-hint">{tile.hint}</p>
                     </div>
                 ))}
             </div>

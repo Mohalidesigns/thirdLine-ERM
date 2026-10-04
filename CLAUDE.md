@@ -11,31 +11,37 @@ notes and ADRs in `docs/`.
 
 ## The database gap
 
-**CLOSED ON THIS BRANCH, 2026-09-09.** `phpunit.xml` runs on **MariaDB 10.4** (`risk_test`) and
-`ci.yml` is a single `mariadb:10.4` job — the `[sqlite, mysql:8.0]` matrix is gone. Production is
-MariaDB 10.4; the hosting panel says "MySQL", the server does not. `main` still has the old
-config, so the gap below still describes it.
+**Production runs MySQL 8.0.46** (found on the VPS, `/var/www/thirdLine-ERM`, 2026-10-03). The
+bank's environment, the developers' machines and this suite's history all assumed **MariaDB
+10.4**. Both are real, so **CI runs the suite on both** — `ci.yml`'s `tests` matrix,
+`mariadb:10.4` and `mysql:8.0.46`, `fail-fast: false` — and a change is green only when both legs
+are. Code is held to the **intersection** of the two engines. `phpunit.xml` serves both unchanged
+(`mysql` driver, `risk_test`); locally you run whichever you have; CI runs both.
+`Preflight::EXPECTED_DB_ENGINES` names both, and `PreflightDatabaseEngineTest` fails if it drifts
+from `ci.yml`'s images.
 
-Closing it took the suite from 0 failures to 72, then to 6. None were regressions: they were
-defects SQLite had concealed, including a `connectors.config` json column holding encrypted
-ciphertext, which meant creating a connector had **never once succeeded on a real database**.
-Every one of the 72 had already been diagnosed and fixed on `migration/phase-7-shared-packages`
-months earlier — **diff against that branch before writing any MariaDB-compatibility fix.**
+The SQLite → MariaDB switch (`e24f3b6`, on `main` since PR #9) took the suite from 0 failures to
+72, then to 6. None were regressions: they were defects SQLite had concealed, including a
+`connectors.config` json column holding encrypted ciphertext, which meant creating a connector had
+**never once succeeded on a real database**. Every one of the 72 had already been diagnosed and
+fixed on `migration/phase-7-shared-packages` months earlier — **diff against that branch before
+writing any MariaDB-compatibility fix.** MySQL 8 had never run the suite before the matrix: the old
+`[sqlite, mysql:8.0]` legs died at `composer install` on every run and never reached a test.
 
-Portable SQL remains a correctness requirement rather than a style preference — the suite now
-catches the difference on this branch, but `main` still cannot. Raw JSON
-functions, CTEs and window functions are the usual offenders — MySQL 8 has them, MariaDB 10.4
-largely does not. `app/Services/Bcms/Exercises/CalendarService.php:410` shows the shape of a good
-outcome and states the reason: a raw `JSON_CONTAINS` "would pass every test and fail on the only
-database a customer runs".
+**MySQL-8-only SQL is still the trap.** Raw JSON functions, CTEs and window functions — MySQL 8
+has them, MariaDB 10.4 largely does not. A MySQL 8 leg on its own goes green on SQL the MariaDB
+estate cannot run, which is why MySQL was added as a second leg and not swapped in.
+`app/Services/Bcms/Exercises/CalendarService.php:410` shows the shape of a good outcome and states
+the reason: a raw `JSON_CONTAINS` "would pass every test and fail on the only database a customer
+runs".
 
-**When `main` is done, the fix is two files, not one** — that is how it was done here. Switching `phpunit.xml` to MariaDB leaves CI still running its
-second leg against `mysql:8.0` — and that arm is the more dangerous of the two, because MySQL 8 has
-the CTEs, window functions and full JSON function set that MariaDB 10.4 largely does not. The
-sqlite arm is obviously not production and nobody trusts it; the mysql arm looks like real database
-coverage and goes green on SQL production cannot run. `ci.yml`'s service image must become
-`mariadb:10.4` alongside the `phpunit.xml` change, or CI keeps certifying against a database nobody
-ships. See `e24f3b6` for both halves.
+**The gap now runs both ways.** MySQL 8 stores `json` natively and hands it back normalised (spaces
+added, keys re-ordered), so anything that hashes or string-compares a raw json column passes on
+MariaDB and fails on MySQL — `App\Models\Tprm\AuditLog::chainHash` over `tp_audit_logs.before/after`
+is the known case. MySQL 8 also defaults `explicit_defaults_for_timestamp` ON (ADR 0022), refuses an
+UPDATE or DELETE whose subquery reads the same table (error 1093), and has binary logging ON, so
+`CREATE TRIGGER` (`2026_08_09_100004`) needs SUPER or `log_bin_trust_function_creators=1`. CI's
+root has SUPER; the production DB user needs one or the other.
 
 ## Module work is agent-driven
 

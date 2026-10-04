@@ -119,6 +119,42 @@ class RiskPagesTest extends RegisterTestCase
             );
     }
 
+    /**
+     * `end_date` is a date — midnight at the START of the period's last day —
+     * so "is the end date past?" was true for the whole of that day, and the
+     * live register turned into the historic "as at" view a day early, for
+     * everyone, on the last day of every month. CI ran at 04:03 on 30
+     * September and saw Register/Historic where the 29th had seen
+     * Register/Index. The default period is the current month, so the two
+     * clocks below sit on either side of this month's end.
+     */
+    #[Test]
+    public function the_register_stays_live_on_the_last_day_of_the_period_and_goes_historic_the_day_after(): void
+    {
+        $lastDay = now()->endOfMonth()->setTime(12, 0);
+
+        $this->travelTo($lastDay);
+        $this->actingAs($this->actor)
+            ->get(route('risk.register.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('Register/Index'));
+
+        $thisMonth = \App\Models\Period::query()->where('type', 'month')
+            ->where('organization_id', $this->actor->organization_id)
+            ->whereDate('end_date', $lastDay->toDateString())->firstOrFail();
+
+        $this->travelTo($lastDay->copy()->addDay()->setTime(0, 5));
+        // Twelve hours have "passed": EnsureAuthenticated would log the actor
+        // out for inactivity, which is right, and not what this test is about.
+        $this->actor->forceFill(['last_activity_at' => now()])->save();
+        $this->actingAs($this->actor)
+            ->get(route('risk.register.index', ['period' => $thisMonth->getKey()]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('Register/Historic'));
+
+        $this->travelBack();
+    }
+
     /* ------------------------------------------------------------------ */
     /*  Writes */
     /* ------------------------------------------------------------------ */

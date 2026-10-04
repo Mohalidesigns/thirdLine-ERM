@@ -1,7 +1,7 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
-import InputError from '@thirdline/ui/Components/InputError';
+import { FormSection, FormField, FormActions } from '@thirdline/ui';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -105,94 +105,123 @@ export default function Form({ thirdParty, options = {} }) {
                 </div>
             )}
 
-            <form onSubmit={submit(false)} className="space-y-6">
-                <div className="card p-5">
-                    <h3 className="mb-4 text-sm font-semibold text-gray-900">Identity</h3>
+            <form onSubmit={submit(false)} className="form-page">
+                <FormSection title="Identity">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <Text label="Legal name" required value={data.legal_name} onChange={(v) => setData('legal_name', v)} error={errors.legal_name} />
-                        <Text label="Trading name" value={data.trading_name} onChange={(v) => setData('trading_name', v)} error={errors.trading_name} />
-                        <Text label="RC number" hint="CAC registration number" value={data.registration_number} onChange={(v) => setData('registration_number', v)} error={errors.registration_number} />
-                        <Text label="TIN" value={data.tax_id} onChange={(v) => setData('tax_id', v)} error={errors.tax_id} />
-                        <Text label="LEI" hint="20 characters, if the vendor has one" value={data.lei} onChange={(v) => setData('lei', v)} error={errors.lei} />
-                        <Select label="Entity type" value={data.entity_type} onChange={(v) => setData('entity_type', v)} error={errors.entity_type} options={options.entityTypes ?? []} />
-                        <Text label="Country of incorporation" hint="ISO 3166 two-letter code" value={data.country_of_incorporation} onChange={(v) => setData('country_of_incorporation', v.toUpperCase())} error={errors.country_of_incorporation} />
-                        <Text label="Country of HQ" value={data.country_of_hq} onChange={(v) => setData('country_of_hq', v.toUpperCase())} error={errors.country_of_hq} />
-                        <Text label="Website" value={data.website} onChange={(v) => setData('website', v)} error={errors.website} />
-                        <Text label="Year established" type="number" value={data.year_established} onChange={(v) => setData('year_established', v)} error={errors.year_established} />
+                        <FormField label="Legal name" required error={errors.legal_name} htmlFor="legal_name">
+                            <input id="legal_name" type="text" value={data.legal_name}
+                                onChange={(e) => setData('legal_name', e.target.value)}
+                                className="form-input" placeholder="e.g., Interlink Systems Ltd" />
+                        </FormField>
+                        <FormField label="Trading name" error={errors.trading_name} htmlFor="trading_name">
+                            <input id="trading_name" type="text" value={data.trading_name}
+                                onChange={(e) => setData('trading_name', e.target.value)} className="form-input" />
+                        </FormField>
+                        <FormField label="RC number" hint="CAC registration number" error={errors.registration_number} htmlFor="registration_number">
+                            <input id="registration_number" type="text" value={data.registration_number}
+                                onChange={(e) => setData('registration_number', e.target.value)} className="form-input" />
+                        </FormField>
+                        <FormField label="TIN" error={errors.tax_id} htmlFor="tax_id">
+                            <input id="tax_id" type="text" value={data.tax_id}
+                                onChange={(e) => setData('tax_id', e.target.value)} className="form-input" />
+                        </FormField>
+                        <FormField label="LEI" hint="20 characters, if the vendor has one" error={errors.lei} htmlFor="lei">
+                            <input id="lei" type="text" value={data.lei}
+                                onChange={(e) => setData('lei', e.target.value)} className="form-input" />
+                        </FormField>
+                        <FormField label="Entity type" error={errors.entity_type} htmlFor="entity_type">
+                            <select id="entity_type" value={data.entity_type}
+                                onChange={(e) => setData('entity_type', e.target.value)} className="form-select">
+                                <option value="">Select type...</option>
+                                {(options.entityTypes ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                        </FormField>
+                        <FormField label="Country of incorporation" hint="ISO 3166 two-letter code" error={errors.country_of_incorporation} htmlFor="country_of_incorporation">
+                            <input id="country_of_incorporation" type="text" value={data.country_of_incorporation}
+                                onChange={(e) => setData('country_of_incorporation', e.target.value.toUpperCase())}
+                                className="form-input" />
+                        </FormField>
+                        <FormField label="Country of HQ" error={errors.country_of_hq} htmlFor="country_of_hq">
+                            <input id="country_of_hq" type="text" value={data.country_of_hq}
+                                onChange={(e) => setData('country_of_hq', e.target.value.toUpperCase())}
+                                className="form-input" />
+                        </FormField>
+                        <FormField label="Website" error={errors.website} htmlFor="website">
+                            <input id="website" type="text" value={data.website}
+                                onChange={(e) => setData('website', e.target.value)} className="form-input" placeholder="https://" />
+                        </FormField>
+                        <FormField label="Year established" error={errors.year_established} htmlFor="year_established">
+                            <input id="year_established" type="number" value={data.year_established}
+                                onChange={(e) => setData('year_established', e.target.value)} className="form-input" />
+                        </FormField>
                     </div>
-                </div>
+                </FormSection>
 
-                <div className="card p-5">
-                    <h3 className="mb-4 text-sm font-semibold text-gray-900">Classification and ownership</h3>
+                <FormSection title="Classification and ownership">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <Select label="Category" value={data.category_id} onChange={(v) => setData('category_id', v)} error={errors.category_id}
-                            options={(options.categories ?? []).map((c) => ({ value: c.id, label: c.name }))} />
-                        <Select label="Ultimate parent" value={data.ultimate_parent_id} onChange={(v) => setData('ultimate_parent_id', v)} error={errors.ultimate_parent_id}
-                            options={(options.parents ?? []).map((p) => ({ value: p.id, label: p.legal_name }))} />
-                        <Select label="Status" value={data.status} onChange={(v) => setData('status', v)} error={errors.status} options={options.statuses ?? []} />
-                        <label className="flex items-center gap-2 self-end pb-2 text-sm">
-                            <input type="checkbox" checked={data.is_intra_group} onChange={(e) => setData('is_intra_group', e.target.checked)} className="rounded border-gray-300" />
-                            Intra-group arrangement
-                        </label>
+                        <FormField label="Category" error={errors.category_id} htmlFor="category_id">
+                            <select id="category_id" value={data.category_id}
+                                onChange={(e) => setData('category_id', e.target.value)} className="form-select">
+                                <option value="">Select...</option>
+                                {(options.categories ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </FormField>
+                        <FormField label="Ultimate parent" error={errors.ultimate_parent_id} htmlFor="ultimate_parent_id">
+                            <select id="ultimate_parent_id" value={data.ultimate_parent_id}
+                                onChange={(e) => setData('ultimate_parent_id', e.target.value)} className="form-select">
+                                <option value="">Select...</option>
+                                {(options.parents ?? []).map((p) => <option key={p.id} value={p.id}>{p.legal_name}</option>)}
+                            </select>
+                        </FormField>
+                        <FormField label="Status" error={errors.status} htmlFor="status">
+                            <select id="status" value={data.status}
+                                onChange={(e) => setData('status', e.target.value)} className="form-select">
+                                {(options.statuses ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                        </FormField>
+                        <div className="flex items-end pb-2">
+                            <label className="flex items-center gap-2 text-sm text-gray-700">
+                                <input type="checkbox" checked={data.is_intra_group}
+                                    onChange={(e) => setData('is_intra_group', e.target.checked)} className="form-checkbox" />
+                                Intra-group arrangement
+                            </label>
+                        </div>
                     </div>
-                </div>
+                </FormSection>
 
-                <div className="card p-5">
-                    <h3 className="mb-1 text-sm font-semibold text-gray-900">Ownership of the relationship</h3>
-                    <p className="mb-4 text-xs text-gray-500">
-                        Neither may be vacant while the third party is active (FR-TPR-06).
-                    </p>
+                <FormSection title="Ownership of the relationship" description="Neither may be vacant while the third party is active (FR-TPR-06).">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <Select label="Relationship owner" value={data.relationship_owner_id} onChange={(v) => setData('relationship_owner_id', v)} error={errors.relationship_owner_id}
-                            options={(options.users ?? []).map((u) => ({ value: u.id, label: u.name }))} />
-                        <Select label="Oversight owner" hint="Risk or compliance" value={data.oversight_owner_id} onChange={(v) => setData('oversight_owner_id', v)} error={errors.oversight_owner_id}
-                            options={(options.users ?? []).map((u) => ({ value: u.id, label: u.name }))} />
+                        <FormField label="Relationship owner" error={errors.relationship_owner_id} htmlFor="relationship_owner_id">
+                            <select id="relationship_owner_id" value={data.relationship_owner_id}
+                                onChange={(e) => setData('relationship_owner_id', e.target.value)} className="form-select">
+                                <option value="">Select...</option>
+                                {(options.users ?? []).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                            </select>
+                        </FormField>
+                        <FormField label="Oversight owner" hint="Risk or compliance" error={errors.oversight_owner_id} htmlFor="oversight_owner_id">
+                            <select id="oversight_owner_id" value={data.oversight_owner_id}
+                                onChange={(e) => setData('oversight_owner_id', e.target.value)} className="form-select">
+                                <option value="">Select...</option>
+                                {(options.users ?? []).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                            </select>
+                        </FormField>
                     </div>
-                </div>
+                </FormSection>
 
-                <div className="card p-5">
-                    <label className="block text-sm font-medium text-gray-700">Notes</label>
-                    <textarea rows="3" value={data.notes} onChange={(e) => setData('notes', e.target.value)}
-                        className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500" />
-                    <InputError message={errors.notes} className="mt-1" />
-                </div>
+                <FormSection title="Notes" badge="Optional">
+                    <FormField error={errors.notes} htmlFor="notes">
+                        <textarea id="notes" aria-label="Notes" rows="3" value={data.notes}
+                            onChange={(e) => setData('notes', e.target.value)} className="form-textarea" />
+                    </FormField>
+                </FormSection>
 
-                <div className="flex items-center justify-end gap-3">
-                    <a href={tryRoute('tprm.third-parties.index')} className="btn-secondary text-sm">Cancel</a>
-                    <button type="submit" disabled={processing} className="btn-primary text-sm">
-                        {editing ? 'Save changes' : 'Register'}
-                    </button>
-                </div>
+                <FormActions
+                    submitLabel={editing ? 'Save changes' : 'Register'}
+                    processingLabel="Saving..."
+                    processing={processing}
+                    cancelHref={tryRoute('tprm.third-parties.index')}
+                />
             </form>
         </AppLayout>
-    );
-}
-
-function Text({ label, value, onChange, error, hint, required = false, type = 'text' }) {
-    return (
-        <div>
-            <label className="block text-sm font-medium text-gray-700">
-                {label}{required && <span className="ml-0.5 text-red-600">*</span>}
-            </label>
-            {hint && <p className="text-xs text-gray-500">{hint}</p>}
-            <input type={type} value={value ?? ''} onChange={(e) => onChange(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500" />
-            <InputError message={error} className="mt-1" />
-        </div>
-    );
-}
-
-function Select({ label, value, onChange, error, options = [], hint }) {
-    return (
-        <div>
-            <label className="block text-sm font-medium text-gray-700">{label}</label>
-            {hint && <p className="text-xs text-gray-500">{hint}</p>}
-            <select value={value ?? ''} onChange={(e) => onChange(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                <option value="">Select…</option>
-                {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <InputError message={error} className="mt-1" />
-        </div>
     );
 }

@@ -3,6 +3,7 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
+import FormField from '@thirdline/ui/Components/FormField';
 
 /**
  * The import preview (plan §7.2) — the screen that makes bulk upload
@@ -197,25 +198,29 @@ export default function ImportPreview({ batch, rows, filters = {}, columns = [] 
                         <tbody>
                             {(rows?.data ?? []).length === 0 && (
                                 <tr>
-                                    <td colSpan={8} className="py-10 text-center text-sm text-gray-400">
-                                        {inFlight ? 'Still checking…' : 'No rows in this view.'}
+                                    <td colSpan={8} className="text-center py-12">
+                                        <div className="text-gray-400">
+                                            <p className="text-sm font-medium">
+                                                {inFlight ? 'Still checking…' : 'No rows in this view'}
+                                            </p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
 
                             {(rows?.data ?? []).map((row) => (
                                 <tr key={row.id}>
-                                    <td className="font-mono text-xs text-gray-500">{row.row_number}</td>
+                                    <td className="cell-id">{row.row_number}</td>
                                     <td>
                                         <span className={`badge ${STATUS_TONE[row.status] ?? ''}`}>{row.status}</span>
                                     </td>
-                                    <td className="text-sm text-gray-700">{row.raw.business_unit || '—'}</td>
+                                    <td className="cell-muted">{row.raw.business_unit || '—'}</td>
                                     <td>
                                         <p className="max-w-[280px] truncate text-sm text-gray-700">
                                             {row.raw.potential_risk || '—'}
                                         </p>
                                     </td>
-                                    <td className="text-sm text-gray-600">{row.raw.risk_category || '—'}</td>
+                                    <td className="cell-muted">{row.raw.risk_category || '—'}</td>
                                     <td>
                                         <p className="max-w-[220px] truncate text-sm text-gray-600">
                                             {row.raw.existing_control || '—'}
@@ -275,7 +280,7 @@ export default function ImportPreview({ batch, rows, filters = {}, columns = [] 
                     <div className="mt-3 flex flex-wrap items-end gap-4">
                         <div className="filter-group min-w-[220px]">
                             <label className="filter-label">Rows already in the universe</label>
-                            <select className="filter-select" value={mode} onChange={(e) => setMode(e.target.value)}>
+                            <select aria-label="Rows already in the universe" className="filter-select" value={mode} onChange={(e) => setMode(e.target.value)}>
                                 <option value="create">Skip them — add only what is new</option>
                                 <option value="create_update">Update them, and add what is new</option>
                                 <option value="update">Update them only — add nothing</option>
@@ -288,7 +293,7 @@ export default function ImportPreview({ batch, rows, filters = {}, columns = [] 
                                     type="checkbox"
                                     checked={validOnly}
                                     onChange={(e) => setValidOnly(e.target.checked)}
-                                    className="rounded border-gray-300"
+                                    className="form-checkbox"
                                 />
                                 Publish the valid rows only, and leave the {batch.error_rows} with errors behind
                             </label>
@@ -363,7 +368,7 @@ function FixRowPanel({ batch, row, columns, onClose }) {
         Object.fromEntries(columns.map((column) => [column.field, row.raw[column.field] ?? ''])),
     );
 
-    const failed = new Set(row.errors.map((error) => error.field));
+    const failureMessage = (field) => row.errors.find((error) => error.field === field)?.message;
 
     const submit = () => {
         form.transform((data) => ({ values: data })).patch(
@@ -394,18 +399,19 @@ function FixRowPanel({ batch, row, columns, onClose }) {
                     )}
 
                     {columns.map((column) => (
-                        <div key={column.field}>
-                            <label className="mb-1 block text-sm font-medium text-gray-700">
-                                {column.label}
-                                {column.required && <span className="ml-0.5 text-red-500">*</span>}
-                            </label>
+                        <FormField
+                            key={column.field}
+                            label={column.label}
+                            required={column.required}
+                            error={failureMessage(column.field)}
+                        >
                             <textarea
                                 rows={column.field === 'potential_risk' ? 3 : 1}
-                                className={`filter-input w-full ${failed.has(column.field) ? 'border-red-400' : ''}`}
+                                className="form-textarea"
                                 value={form.data[column.field] ?? ''}
                                 onChange={(e) => form.setData(column.field, e.target.value)}
                             />
-                        </div>
+                        </FormField>
                     ))}
                 </div>
 

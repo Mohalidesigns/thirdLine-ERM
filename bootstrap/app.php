@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -286,5 +287,80 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->route('login')
                 ->withInput($request->except('password', 'password_confirmation'))
                 ->with('error', 'That page had been open too long and the security token expired. Please sign in again.');
+        });
+
+        /*
+         * A throttled request on the unauthenticated exercise check-in
+         * surface must not dead-end either (BCMS Phase 9, Gate 1 defect,
+         * this pass; docs/bcms/screens/qr-checkin.md §3, the "Rate-limited"
+         * state). Laravel's default answer to a tripped named limiter is a
+         * bare "429 | Too Many Requests" page — no X-Inertia header, no
+         * product shell — reached by someone standing at an assembly point
+         * with nothing but a phone and, for a plain HTTP client (an SMS
+         * gateway retrying a webhook, `curl`), no body worth parsing at
+         * all.
+         *
+         * Scoped to the four check-in route names ONLY — the same shape as
+         * the 419 handler above, matched on the route's NAME here rather
+         * than its path because (unlike the single, deliberately-unnamed
+         * `POST /login`) all four of these routes are named, and nothing
+         * else in the application — the API's token-scoped limiters
+         * included — should ever be answered this way.
+         */
+        $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
+            $checkInRoutes = [
+                'bcms.check-in.code',
+                'bcms.check-in.code.store',
+                'bcms.check-in.show',
+                'bcms.check-in.store',
+            ];
+
+            $routeName = $request->route()?->getName();
+
+            if (! in_array($routeName, $checkInRoutes, true)) {
+                return null;
+            }
+
+            // Same discriminator as the 419 handler above, `expectsJson()`
+            // — a real browser hitting these routes (the QR/SMS link's
+            // first load, or the SPA's own client-side Inertia navigation
+            // once loaded, which sends `X-Inertia: true` but an `Accept`
+            // header Inertia's axios client sets to `text/html,
+            // application/xhtml+xml`, not `application/json`) is
+            // `expectsJson() === false` either way, so both land here and
+            // `CheckInController::renderThrottled()`'s own `Inertia::render()`
+            // call — via `toResponse()` — still answers each correctly:
+            // the full HTML shell with no `X-Inertia` header on the
+            // request, the JSON page-morph with one. Only a client that
+            // explicitly wants JSON (or is ajax without pjax, accepting
+            // any type) — `curl -H Accept:application/json`, a gateway
+            // probe, never a browser — falls to the plain-text branch.
+            // `CheckInController::renderThrottled()` builds the page: the
+            // short-code form gets its usual `code_form_url`, but the token
+            // pair gets a neutral page that NEVER resolves the token (no
+            // participant name, no `check_in_url`, identical for a valid and
+            // a guessed token), because a throttled request must do none of
+            // the work an allowed one does (review #3, ADR 0016 §4). This
+            // handler only forces the status to 429 and carries over the `Retry-After`
+            // (and sibling `X-RateLimit-*`) headers the throttle middleware
+            // already computed, rather than recomputing them.
+            if (! $request->expectsJson()) {
+                $response = app(\App\Http\Controllers\Bcms\CheckInController::class)
+                    ->renderThrottled($routeName, $request->route('token'))
+                    ->toResponse($request)
+                    ->setStatusCode(429);
+            } else {
+                $response = response(
+                    'Too many attempts — wait a moment and try again.',
+                    429,
+                    ['Content-Type' => 'text/plain'],
+                );
+            }
+
+            foreach ($e->getHeaders() as $name => $value) {
+                $response->headers->set($name, $value);
+            }
+
+            return $response;
         });
     })->create();

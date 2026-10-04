@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\WebhookSubscription;
 use App\Services\Webhooks\WebhookDispatcher;
+use App\Support\MigrationWindow;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 use ThirdLine\Platform\Tenancy\TenantContext;
@@ -26,6 +27,15 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  * "the residual rating moved to Critical" should not have to diff two payloads
  * to discover that, and a webhook body crosses the network and is stored in the
  * delivery log — so it names the fields rather than dumping the row.
+ *
+ * SILENT WHILE THE MIGRATOR RUNS (`MigrationWindow`). A data migration that
+ * saves a model is a schema change, not a business event: it must not tell an
+ * integrator a record was created, and it must not read `webhook_subscriptions`
+ * at all, because on an upgrading database that table may be a dozen
+ * migrations away from existing — which is exactly how the first production
+ * upgrade stopped at `2026_08_12_120003_seed_units_and_period_calendars`. The
+ * check comes before the subscription lookup, so a migration costs no query
+ * and leaves nothing cached.
  */
 class WebhookEventObserver
 {
@@ -35,7 +45,10 @@ class WebhookEventObserver
      */
     private const NOISE = ['updated_at', 'last_used_at', 'remember_token'];
 
-    public function __construct(private WebhookDispatcher $dispatcher) {}
+    public function __construct(
+        private WebhookDispatcher $dispatcher,
+        private MigrationWindow $migrations,
+    ) {}
 
     public function created(Model $model): void
     {
@@ -84,6 +97,10 @@ class WebhookEventObserver
     /** @param array<string, mixed> $data */
     private function publish(Model $model, string $action, array $data): void
     {
+        if ($this->migrations->isOpen()) {
+            return;
+        }
+
         $organizationId = $model->getAttribute('organization_id') ?? TenantContext::organizationIdOrNull();
 
         if ($organizationId === null || ! $this->anySubscriptions($organizationId)) {

@@ -114,7 +114,7 @@ function ApproveDialog({ share, sections, onClose }) {
                 <div className="mt-3 space-y-2">
                     {sections.map((section) => (
                         <label key={section.key} className="flex items-center gap-2 text-sm">
-                            <input
+                            <input className="form-checkbox"
                                 type="checkbox"
                                 checked={selected.includes(section.key)}
                                 onChange={(event) => setSelected(

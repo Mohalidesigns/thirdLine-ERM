@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Rcsa;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Rcsa\CloseCycleRequest;
 use App\Http\Requests\Rcsa\OpenCycleRequest;
 use App\Http\Requests\Rcsa\StoreCycleRequest;
 use App\Models\BusinessUnit;
@@ -173,12 +174,10 @@ class CycleController extends Controller
             ));
     }
 
-    public function close(Request $request, RcsaCycle $cycle)
+    public function close(CloseCycleRequest $request, RcsaCycle $cycle)
     {
-        Gate::authorize('close', $cycle);
-
         try {
-            $this->cycles->close($cycle, $request->user());
+            $this->cycles->close($cycle, $request->user(), $request->validated('reason'));
         } catch (RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }

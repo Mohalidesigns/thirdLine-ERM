@@ -2,6 +2,7 @@ import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -180,21 +181,23 @@ export default function Programme({
                 )}
 
                 {(advisor.gaps?.unmet_cadences ?? []).length > 0 && (
-                    <table className="mt-4 min-w-full text-xs">
-                        <thead className="text-left text-[11px] uppercase tracking-wide text-gray-500">
-                            <tr><th className="py-1">Regulatory cadence</th><th>Required</th><th>Declared</th><th>Short by</th></tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {advisor.gaps.unmet_cadences.map((u) => (
-                                <tr key={u.clause}>
-                                    <td className="py-1.5">{u.exercise_type_name} <span className="text-gray-500">({u.clause})</span></td>
-                                    <td className="font-mono">{u.required_per_year}</td>
-                                    <td className="font-mono">{u.declared_per_year}</td>
-                                    <td className="font-mono text-red-700">{u.shortfall}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    <div className="mt-4 overflow-x-auto rounded border border-gray-200">
+                        <table className="data-table text-xs">
+                            <thead>
+                                <tr><th>Regulatory cadence</th><th>Required</th><th>Declared</th><th>Short by</th></tr>
+                            </thead>
+                            <tbody>
+                                {advisor.gaps.unmet_cadences.map((u) => (
+                                    <tr key={u.clause}>
+                                        <td>{u.exercise_type_name} <span className="text-gray-500">({u.clause})</span></td>
+                                        <td className="font-mono">{u.required_per_year}</td>
+                                        <td className="font-mono">{u.declared_per_year}</td>
+                                        <td className="font-mono text-red-700">{u.shortfall}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </div>
 
@@ -217,10 +220,12 @@ export default function Programme({
 
                     {step === 1 && (
                         <div className="grid gap-4 sm:grid-cols-2">
-                            <label className="text-sm">
-                                <span className="text-gray-700">Exercise type</span>
+                            <FormField label="Exercise type" required
+                                hint={type?.cadence_clause_ref
+                                    ? `Regulatory cadence: ${type.default_frequency_per_year}× a year (${type.cadence_clause_ref}).`
+                                    : undefined}>
                                 <select
-                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                    className="form-select"
                                     value={form.data.exercise_type_id}
                                     onChange={(e) => pickType(e.target.value)}
                                     required
@@ -230,66 +235,54 @@ export default function Programme({
                                         <option key={t.id} value={t.id}>{t.name} — {t.ladder_label}</option>
                                     ))}
                                 </select>
-                                {type?.cadence_clause_ref && (
-                                    <span className="mt-1 block text-xs text-amber-800">
-                                        Regulatory cadence: {type.default_frequency_per_year}× a year ({type.cadence_clause_ref}).
-                                    </span>
-                                )}
-                            </label>
-                            <label className="text-sm">
-                                <span className="text-gray-700">Name</span>
+                            </FormField>
+                            <FormField label="Name" required>
                                 <input
                                     type="text" required
-                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                    className="form-input"
                                     value={form.data.name}
                                     onChange={(e) => form.setData('name', e.target.value)}
                                 />
-                            </label>
+                            </FormField>
                         </div>
                     )}
 
                     {step === 2 && (
                         <div className="grid gap-4 sm:grid-cols-2">
-                            <label className="text-sm">
-                                <span className="text-gray-700">Business unit</span>
+                            <FormField label="Business unit">
                                 <input
                                     type="number"
                                     placeholder="Leave blank for organisation-wide"
-                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                    className="form-input"
                                     value={form.data.business_unit_id}
                                     onChange={(e) => form.setData('business_unit_id', e.target.value)}
                                 />
-                            </label>
-                            <label className="text-sm">
-                                <span className="text-gray-700">Processes tested (ids, comma separated)</span>
+                            </FormField>
+                            <FormField label="Processes tested (ids, comma separated)"
+                                hint="An exercise bound to no process cannot be credited to one on the coverage matrix.">
                                 <input
                                     type="text"
-                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                    className="form-input"
                                     value={form.data.process_ids.join(',')}
                                     onChange={(e) => form.setData('process_ids', e.target.value.split(',').map((v) => v.trim()).filter(Boolean).map(Number))}
                                 />
-                                <span className="mt-1 block text-xs text-gray-500">
-                                    An exercise bound to no process cannot be credited to one on the coverage matrix.
-                                </span>
-                            </label>
+                            </FormField>
                         </div>
                     )}
 
                     {step === 3 && (
                         <div className="grid gap-4 sm:grid-cols-3">
-                            <label className="text-sm">
-                                <span className="text-gray-700">Times per year</span>
+                            <FormField label="Times per year" required>
                                 <input
                                     type="number" min="1" max="52" required
-                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                    className="form-input"
                                     value={form.data.frequency_per_year}
                                     onChange={(e) => form.setData('frequency_per_year', Number(e.target.value))}
                                 />
-                            </label>
-                            <label className="text-sm">
-                                <span className="text-gray-700">Spread</span>
+                            </FormField>
+                            <FormField label="Spread">
                                 <select
-                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                    className="form-select"
                                     value={form.data.distribution_mode}
                                     onChange={(e) => form.setData('distribution_mode', e.target.value)}
                                 >
@@ -298,42 +291,37 @@ export default function Programme({
                                     <option value="month_specific">In named months</option>
                                     <option value="manual">Placed by hand</option>
                                 </select>
-                            </label>
-                            <label className="text-sm">
-                                <span className="text-gray-700">Duration (minutes)</span>
+                            </FormField>
+                            <FormField label="Duration (minutes)" required>
                                 <input
                                     type="number" min="15" max="10080" required
-                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                    className="form-input"
                                     value={form.data.duration_minutes}
                                     onChange={(e) => form.setData('duration_minutes', Number(e.target.value))}
                                 />
-                            </label>
+                            </FormField>
                         </div>
                     )}
 
                     {step === 4 && (
                         <div className="grid gap-4 sm:grid-cols-3">
-                            <label className="text-sm">
-                                <span className="text-gray-700">Countdown starts (days before)</span>
+                            <FormField label="Countdown starts (days before)" required>
                                 <input
                                     type="number" min="0" max="90" required
-                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                    className="form-input"
                                     value={form.data.lead_time_days}
                                     onChange={(e) => form.setData('lead_time_days', Number(e.target.value))}
                                 />
-                            </label>
-                            <label className="text-sm">
-                                <span className="text-gray-700">Minimum notice to move it (days)</span>
+                            </FormField>
+                            <FormField label="Minimum notice to move it (days)" required
+                                hint="Inside this window a move needs the programme owner's approval.">
                                 <input
                                     type="number" min="0" max="90" required
-                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                    className="form-input"
                                     value={form.data.min_notice_days}
                                     onChange={(e) => form.setData('min_notice_days', Number(e.target.value))}
                                 />
-                                <span className="mt-1 block text-xs text-gray-500">
-                                    Inside this window a move needs the programme owner&rsquo;s approval.
-                                </span>
-                            </label>
+                            </FormField>
                             <div className="space-y-2 text-sm">
                                 {[
                                     ['mandatory', 'Mandatory — cannot be cancelled without a waiver'],
@@ -341,7 +329,7 @@ export default function Programme({
                                     ['daily_reminder_enabled', 'Send the daily countdown'],
                                 ].map(([key, label]) => (
                                     <label key={key} className="flex items-start gap-2 text-xs text-gray-700">
-                                        <input
+                                        <input className="form-checkbox"
                                             type="checkbox"
                                             checked={form.data[key]}
                                             onChange={(e) => form.setData(key, e.target.checked)}
@@ -349,7 +337,7 @@ export default function Programme({
                                         {label}
                                     </label>
                                 ))}
-                                {form.errors.unannounced && <p className="text-xs text-red-600">{form.errors.unannounced}</p>}
+                                {form.errors.unannounced && <p className="form-error">{form.errors.unannounced}</p>}
                             </div>
                         </div>
                     )}
@@ -394,105 +382,113 @@ export default function Programme({
 
             {/* ---- Definitions ------------------------------------------- */}
 
-            <div className="mb-6 overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                        <tr>
-                            <th className="px-4 py-3 text-left">Exercise</th>
-                            <th className="px-4 py-3 text-left">Level</th>
-                            <th className="px-4 py-3 text-right">Per year</th>
-                            <th className="px-4 py-3 text-right">Generated</th>
-                            <th className="px-4 py-3 text-left">Last generation</th>
-                            <th className="px-4 py-3" />
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {definitions.length === 0 && (
-                            <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-600">No exercises defined yet.</td></tr>
-                        )}
-                        {definitions.map((d) => (
-                            <tr key={d.id}>
-                                <td className="px-4 py-3">
-                                    <span className="font-medium text-gray-900">{d.name}</span>
-                                    <span className="block text-xs text-gray-500">
-                                        {d.type} · {d.business_unit ?? 'Organisation-wide'}
-                                        {d.mandatory && ' · mandatory'}
-                                        {d.unannounced && ' · unannounced'}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3 text-xs text-gray-600">{d.ladder_label}</td>
-                                <td className="px-4 py-3 text-right font-mono text-xs">{d.frequency_per_year}</td>
-                                <td className="px-4 py-3 text-right font-mono text-xs">{d.occurrence_count}</td>
-                                <td className="px-4 py-3 text-xs text-gray-600">
-                                    {!d.generation_log && <span className="text-amber-700">never generated</span>}
-                                    {d.generation_log && (
-                                        <>
-                                            {d.generation_log.placed} placed
-                                            {d.generation_log.shifted > 0 && `, ${d.generation_log.shifted} shifted`}
-                                            {d.generation_log.needs_scheduling > 0 && (
-                                                <span className="text-amber-700">, {d.generation_log.needs_scheduling} unplaced</span>
-                                            )}
-                                        </>
-                                    )}
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                    {can.manage && (
-                                        <button
-                                            type="button"
-                                            className="text-xs text-blue-700 hover:underline"
-                                            onClick={() => router.post(tryRoute('bcms.exercise-definitions.generate', d.uuid), {}, { preserveScroll: true })}
-                                        >
-                                            Generate
-                                        </button>
-                                    )}
-                                </td>
+            <div className="card mb-6">
+                <div className="overflow-x-auto">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Exercise</th>
+                                <th>Level</th>
+                                <th className="text-right">Per year</th>
+                                <th className="text-right">Generated</th>
+                                <th>Last generation</th>
+                                <th />
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {definitions.length === 0 && (
+                                <tr><td colSpan={6} className="text-center py-12">
+                                    <div className="text-gray-400"><p className="text-sm font-medium">No exercises defined yet</p></div>
+                                </td></tr>
+                            )}
+                            {definitions.map((d) => (
+                                <tr key={d.id}>
+                                    <td>
+                                        <span className="cell-title">{d.name}</span>
+                                        <p className="cell-subtitle">
+                                            {d.type} · {d.business_unit ?? 'Organisation-wide'}
+                                            {d.mandatory && ' · mandatory'}
+                                            {d.unannounced && ' · unannounced'}
+                                        </p>
+                                    </td>
+                                    <td className="cell-muted">{d.ladder_label}</td>
+                                    <td className="text-right font-mono text-xs">{d.frequency_per_year}</td>
+                                    <td className="text-right font-mono text-xs">{d.occurrence_count}</td>
+                                    <td className="cell-muted">
+                                        {!d.generation_log && <span className="text-amber-700">never generated</span>}
+                                        {d.generation_log && (
+                                            <>
+                                                {d.generation_log.placed} placed
+                                                {d.generation_log.shifted > 0 && `, ${d.generation_log.shifted} shifted`}
+                                                {d.generation_log.needs_scheduling > 0 && (
+                                                    <span className="text-amber-700">, {d.generation_log.needs_scheduling} unplaced</span>
+                                                )}
+                                            </>
+                                        )}
+                                    </td>
+                                    <td className="text-right">
+                                        {can.manage && (
+                                            <button
+                                                type="button"
+                                                className="text-xs text-blue-700 hover:underline"
+                                                onClick={() => router.post(tryRoute('bcms.exercise-definitions.generate', d.uuid), {}, { preserveScroll: true })}
+                                            >
+                                                Generate
+                                            </button>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* ---- Ladder coverage matrix -------------------------------- */}
 
-            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                <div className="border-b border-gray-100 px-4 py-3">
-                    <h2 className="text-sm font-semibold text-gray-900">Ladder coverage</h2>
-                    <p className="text-xs text-gray-600">
+            <div className="card">
+                <div className="card-header">
+                    <h2 className="form-section-title">Ladder coverage</h2>
+                    <p className="mt-0.5 text-xs text-gray-500">
                         Which activities have been proven at which rung of the ISO 22398 ladder, and when. A blank row
                         is a process nobody has ever exercised.
                     </p>
                 </div>
-                <table className="min-w-full divide-y divide-gray-200 text-xs">
-                    <thead className="bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
-                        <tr>
-                            <th className="px-4 py-3 text-left">Process</th>
-                            <th className="px-4 py-3 text-left">Tier</th>
-                            {LADDER.map((l) => <th key={l} className="px-3 py-3 text-center">{l.replace('_', ' ')}</th>)}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {coverage.map((row) => (
-                            <tr key={row.process_id} className={row.never_exercised ? 'bg-red-50' : undefined}>
-                                <td className="px-4 py-2">
-                                    <span className="font-medium text-gray-900">{row.code}</span>
-                                    <span className="block text-gray-500">{row.name}</span>
-                                </td>
-                                <td className="px-4 py-2">{row.tier ?? '—'}</td>
-                                {LADDER.map((l) => {
-                                    const cell = row.levels[l] ?? {};
-
-                                    return (
-                                        <td key={l} className="px-3 py-2 text-center">
-                                            {cell.successful > 0
-                                                ? <span className="text-green-700" title={cell.last_at ?? ''}>{cell.successful}</span>
-                                                : <span className="text-gray-300">·</span>}
-                                        </td>
-                                    );
-                                })}
+                {/* A process × ladder-rung matrix, not a listing — kept as a compact
+                    border-separate grid (like YearHeatGrid) rather than data-table. */}
+                <div className="overflow-x-auto p-2">
+                    <table className="w-full border-separate border-spacing-0 text-xs">
+                        <thead>
+                            <tr className="text-left text-[11px] uppercase tracking-wide text-gray-500">
+                                <th className="px-4 py-3">Process</th>
+                                <th className="px-4 py-3">Tier</th>
+                                {LADDER.map((l) => <th key={l} className="px-3 py-3 text-center">{l.replace('_', ' ')}</th>)}
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {coverage.map((row) => (
+                                <tr key={row.process_id} className={row.never_exercised ? 'bg-red-50' : undefined}>
+                                    <td className="px-4 py-2">
+                                        <span className="font-medium text-gray-900">{row.code}</span>
+                                        <span className="block text-gray-500">{row.name}</span>
+                                    </td>
+                                    <td className="px-4 py-2">{row.tier ?? '—'}</td>
+                                    {LADDER.map((l) => {
+                                        const cell = row.levels[l] ?? {};
+
+                                        return (
+                                            <td key={l} className="px-3 py-2 text-center">
+                                                {cell.successful > 0
+                                                    ? <span className="text-green-700" title={cell.last_at ?? ''}>{cell.successful}</span>
+                                                    : <span className="text-gray-300">·</span>}
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </AppLayout>
     );

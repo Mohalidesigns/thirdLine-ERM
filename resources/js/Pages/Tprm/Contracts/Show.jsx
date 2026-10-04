@@ -52,21 +52,21 @@ export default function Show({
                 }
                 actions={
                     <div className="flex flex-wrap gap-2">
-                        <a href={route('tprm.contracts.gap-report', contract.id)} target="_blank" rel="noreferrer" className="btn btn-secondary">
+                        <a href={route('tprm.contracts.gap-report', contract.id)} target="_blank" rel="noreferrer" className="btn-secondary">
                             Gap report
                         </a>
                         {can.manage && (
                             <>
                                 <button
                                     type="button"
-                                    className="btn btn-secondary"
+                                    className="btn-secondary"
                                     onClick={() => router.post(route('tprm.contracts.analyse', contract.id))}
                                 >
                                     {capabilities.ai_clause_analysis ? 'Analyse clauses' : 'List clauses'}
                                 </button>
                                 <button
                                     type="button"
-                                    className="btn btn-secondary"
+                                    className="btn-secondary"
                                     onClick={() => router.post(route('tprm.contracts.obligations.generate', contract.id))}
                                 >
                                     Generate obligations
@@ -314,7 +314,7 @@ function ClauseRow({ contract, row, can, onWaive }) {
                         <>
                             <button
                                 type="button"
-                                className="btn btn-secondary text-xs"
+                                className="btn-secondary text-xs"
                                 onClick={() => router.post(
                                     route('tprm.contracts.clauses.review', [contract.id, row.contract_clause_id]),
                                     { accept: true },
@@ -324,7 +324,7 @@ function ClauseRow({ contract, row, can, onWaive }) {
                             </button>
                             <button
                                 type="button"
-                                className="btn btn-secondary text-xs"
+                                className="btn-secondary text-xs"
                                 onClick={() => router.post(
                                     route('tprm.contracts.clauses.review', [contract.id, row.contract_clause_id]),
                                     { accept: false },
@@ -335,12 +335,12 @@ function ClauseRow({ contract, row, can, onWaive }) {
                         </>
                     )}
 
-                    <button type="button" className="btn btn-secondary text-xs" onClick={() => setDetermining(true)}>
+                    <button type="button" className="btn-secondary text-xs" onClick={() => setDetermining(true)}>
                         Record by hand
                     </button>
 
                     {row.blocks_activation && can.waive && (
-                        <button type="button" className="btn btn-secondary text-xs" onClick={onWaive}>
+                        <button type="button" className="btn-secondary text-xs" onClick={onWaive}>
                             Waive
                         </button>
                     )}
@@ -385,10 +385,10 @@ function DetermineDialog({ contract, row, onClose }) {
     return (
         <Dialog title={`${row.code} — record a determination`} onClose={onClose}>
             <form onSubmit={submit} className="space-y-4">
-                <label className="block">
+                <label className="form-label">
                     <span className="text-sm font-medium text-gray-700">What does the contract say?</span>
                     <select
-                        className="input mt-1"
+                        className="form-select mt-1"
                         value={form.data.presence}
                         onChange={(event) => form.setData('presence', event.target.value)}
                     >
@@ -397,27 +397,27 @@ function DetermineDialog({ contract, row, onClose }) {
                         <option value="absent">Absent — it does not address this</option>
                         <option value="not_applicable">Not applicable to this contract</option>
                     </select>
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="form-hint">
                         A notification duty with no timeframe, or an audit right needing the provider&rsquo;s
                         consent, is partial rather than present. Partial blocks activation just as absent does.
                     </p>
                 </label>
 
-                <label className="block">
+                <label className="form-label">
                     <span className="text-sm font-medium text-gray-700">The wording you relied on</span>
                     <textarea
                         rows={4}
-                        className="input mt-1"
+                        className="form-textarea mt-1"
                         value={form.data.located_text}
                         onChange={(event) => form.setData('located_text', event.target.value)}
                     />
                 </label>
 
-                <label className="block">
+                <label className="form-label">
                     <span className="text-sm font-medium text-gray-700">Clause or page</span>
                     <input
                         type="text"
-                        className="input mt-1"
+                        className="form-input mt-1"
                         value={form.data.page_reference}
                         onChange={(event) => form.setData('page_reference', event.target.value)}
                     />
@@ -446,44 +446,44 @@ function WaiverDialog({ contract, row, onClose }) {
             </p>
 
             <form onSubmit={submit} className="space-y-4">
-                <label className="block">
+                <label className="form-label">
                     <span className="text-sm font-medium text-gray-700">Why is this acceptable?</span>
                     <textarea
                         rows={4}
-                        className="input mt-1"
+                        className="form-textarea mt-1"
                         value={form.data.rationale}
                         onChange={(event) => form.setData('rationale', event.target.value)}
                     />
-                    {form.errors.rationale && <p className="mt-1 text-xs text-red-600">{form.errors.rationale}</p>}
+                    {form.errors.rationale && <p className="form-error">{form.errors.rationale}</p>}
                 </label>
 
-                <label className="block">
+                <label className="form-label">
                     <span className="text-sm font-medium text-gray-700">Compensating controls</span>
                     <textarea
                         rows={3}
-                        className="input mt-1"
+                        className="form-textarea mt-1"
                         value={form.data.compensating_controls}
                         onChange={(event) => form.setData('compensating_controls', event.target.value)}
                     />
                 </label>
 
                 <div className="grid grid-cols-2 gap-4">
-                    <label className="block">
+                    <label className="form-label">
                         <span className="text-sm font-medium text-gray-700">Expires</span>
                         <input
                             type="date"
-                            className="input mt-1"
+                            className="form-input mt-1"
                             value={form.data.expires_at}
                             onChange={(event) => form.setData('expires_at', event.target.value)}
                         />
-                        {form.errors.expires_at && <p className="mt-1 text-xs text-red-600">{form.errors.expires_at}</p>}
+                        {form.errors.expires_at && <p className="form-error">{form.errors.expires_at}</p>}
                     </label>
 
-                    <label className="block">
+                    <label className="form-label">
                         <span className="text-sm font-medium text-gray-700">Approver role</span>
                         <input
                             type="text"
-                            className="input mt-1"
+                            className="form-input mt-1"
                             placeholder="Chief Risk Officer"
                             value={form.data.approver_role}
                             onChange={(event) => form.setData('approver_role', event.target.value)}
@@ -632,8 +632,8 @@ function Dialog({ title, onClose, children }) {
 function DialogActions({ onClose, processing, submitLabel }) {
     return (
         <div className="mt-6 flex justify-end gap-2">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={processing}>{submitLabel}</button>
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={processing}>{submitLabel}</button>
         </div>
     );
 }

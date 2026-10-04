@@ -217,7 +217,7 @@ export default function Review({ assessment, sections = [], liveScore = {}, scop
                                     {showScoping ? 'expand_less' : 'expand_more'}
                                 </span>
                             </button>
-                            <p className="mt-1 text-xs text-gray-500">
+                            <p className="form-hint">
                                 {scoping.included_count} of {scoping.total_count} questions in the pack apply to
                                 this engagement.
                             </p>
@@ -358,27 +358,27 @@ function Answer({ assessment, response, messages, options, canReview, open, onTo
                 <form onSubmit={submit} className="mt-4 space-y-3 rounded-md bg-gray-50 p-3">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                         <div>
-                            <label className="block text-xs font-medium text-gray-700">Verdict</label>
-                            <select value={data.reviewer_status} onChange={(e) => setData('reviewer_status', e.target.value)}
-                                className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm">
+                            <label className="form-label">Verdict</label>
+                            <select aria-label="Verdict" value={data.reviewer_status} onChange={(e) => setData('reviewer_status', e.target.value)}
+                                className="form-select mt-1">
                                 <option value="accepted">Accept</option>
                                 <option value="rejected">Reject</option>
                                 <option value="clarification_requested">Ask for clarification</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-700">Compliance</label>
-                            <select value={data.compliance} onChange={(e) => setData('compliance', e.target.value)}
-                                className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm">
+                            <label className="form-label">Compliance</label>
+                            <select aria-label="Compliance" value={data.compliance} onChange={(e) => setData('compliance', e.target.value)}
+                                className="form-select mt-1">
                                 {(options.compliance ?? []).map((o) => (
                                     <option key={o.value} value={o.value}>{o.label}</option>
                                 ))}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-700">Assurance</label>
-                            <select value={data.assurance_level} onChange={(e) => setData('assurance_level', e.target.value)}
-                                className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm">
+                            <label className="form-label">Assurance</label>
+                            <select aria-label="Assurance" value={data.assurance_level} onChange={(e) => setData('assurance_level', e.target.value)}
+                                className="form-select mt-1">
                                 <option value="">Not stated</option>
                                 {(options.assurance ?? []).map((o) => (
                                     <option key={o.value} value={o.value} title={o.definition}>{o.label}</option>
@@ -388,15 +388,15 @@ function Answer({ assessment, response, messages, options, canReview, open, onTo
                     </div>
 
                     <div>
-                        <label className="block text-xs font-medium text-gray-700">
+                        <label className="form-label" htmlFor="reviewer_comment">
                             Reviewer note
                             {['rejected', 'clarification_requested'].includes(data.reviewer_status) && (
                                 <span className="ml-0.5 text-red-600">*</span>
                             )}
                         </label>
-                        <textarea rows="2" value={data.reviewer_comment} onChange={(e) => setData('reviewer_comment', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm" />
-                        {errors.reviewer_comment && <p className="mt-1 text-xs text-red-600">{errors.reviewer_comment}</p>}
+                        <textarea id="reviewer_comment" rows="2" value={data.reviewer_comment} onChange={(e) => setData('reviewer_comment', e.target.value)}
+                            className="form-textarea mt-1" />
+                        {errors.reviewer_comment && <p className="form-error">{errors.reviewer_comment}</p>}
                     </div>
 
                     <div className="flex justify-end gap-2">

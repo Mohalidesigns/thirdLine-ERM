@@ -13,10 +13,16 @@ use Tests\TestCase;
  *
  * The rest of the suite runs against an in-memory SQLite database in a single
  * process, where "concurrent" cannot mean anything. This test therefore builds
- * a real database file and drives it from several OS processes at once, which
- * is the only arrangement in which the FOR UPDATE lock is actually load
- * bearing: without it, two workers read the same next_value and hand out the
- * same reference code.
+ * a real database file and drives it from several OS processes at once, so
+ * that two workers genuinely can read the same next_value at the same moment.
+ *
+ * What this proves, and what it does not. SQLite ignores FOR UPDATE
+ * (SQLiteGrammar::compileLock() returns an empty string), so the lockForUpdate()
+ * in ReferenceCodeService does nothing here. The serialising lock in this test
+ * is the transaction plus SQLite's single-writer lock, taken at BEGIN under
+ * IMMEDIATE. The test therefore proves: no duplicate and no skipped numbers
+ * when allocators are serialised by a writer lock. It does NOT prove MariaDB
+ * row-lock semantics; that would need a MariaDB multi-process variant.
  *
  * It is deliberately the only test in the suite that forks processes — it is
  * slow, and it is worth it precisely once, for the invariant that a duplicate
@@ -27,6 +33,12 @@ class ReferenceCodeConcurrencyTest extends TestCase
     private const WORKERS = 5;
 
     private const CODES_PER_WORKER = 10;
+
+    /**
+     * The only shape a worker may print: PREFIX-YEAR-NNNN, as generate() is
+     * called by the worker script ('LE', four digits).
+     */
+    private const CODE_PATTERN = '/^LE-\d{4}-\d{4}$/';
 
     private string $databasePath;
 
@@ -45,7 +57,13 @@ class ReferenceCodeConcurrencyTest extends TestCase
 
     protected function tearDown(): void
     {
-        File::delete([$this->databasePath, $this->workerPath]);
+        // WAL leaves -wal and -shm sidecars next to the database file.
+        File::delete([
+            $this->databasePath,
+            $this->databasePath.'-wal',
+            $this->databasePath.'-shm',
+            $this->workerPath,
+        ]);
 
         parent::tearDown();
     }
@@ -99,13 +117,29 @@ class ReferenceCodeConcurrencyTest extends TestCase
 
             $exitCode = proc_close($process);
 
-            $this->assertSame(0, $exitCode, "worker {$worker} failed: {$stderr}");
+            // A worker that failed is reported as a failed worker, with
+            // everything it said. Never counted: an exception message printed
+            // to STDOUT is not a reference code, and a line count that happens
+            // to be off by two says nothing about what actually went wrong.
+            $report = "worker {$worker} (exit {$exitCode})\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}";
 
-            $emitted = array_values(array_filter(explode("\n", trim($stdout))));
+            $this->assertSame(0, $exitCode, "worker {$worker} exited non-zero.\n{$report}");
+            $this->assertSame('', trim($stderr), "worker {$worker} wrote to STDERR.\n{$report}");
+
+            $emitted = $stdout === '' ? [] : explode("\n", rtrim($stdout, "\n"));
+
+            foreach ($emitted as $line) {
+                $this->assertMatchesRegularExpression(
+                    self::CODE_PATTERN,
+                    $line,
+                    "worker {$worker} emitted a line that is not a reference code: [{$line}].\n{$report}"
+                );
+            }
+
             $this->assertCount(
                 self::CODES_PER_WORKER,
                 $emitted,
-                "worker {$worker} emitted ".count($emitted)." codes.\nSTDOUT:\n{$stdout}\nSTDERR:\n{$stderr}"
+                "worker {$worker} emitted ".count($emitted).' codes, expected '.self::CODES_PER_WORKER.".\n{$report}"
             );
 
             $codes = array_merge($codes, $emitted);
@@ -231,9 +265,29 @@ $app = require __DIR__.'/../../../bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 // SQLite serialises writers, so a worker that arrives while another holds the
-// write lock must wait rather than fail. This is the file-database equivalent
-// of the row lock MySQL gives us.
-Illuminate\Support\Facades\DB::statement('PRAGMA busy_timeout = 10000');
+// write lock must WAIT, as it would on the row lock MariaDB gives us. Two
+// settings, both needed:
+//
+//  - busy_timeout: how long a blocked connection waits for the lock.
+//  - transaction_mode IMMEDIATE: take the write lock at BEGIN. Laravel's default
+//    is DEFERRED, so the service's transaction starts as a READER (the SELECT),
+//    then tries to upgrade to a writer (the UPDATE/INSERT). In WAL mode, if
+//    another connection committed in between, that upgrade fails at once with
+//    SQLITE_BUSY ("database is locked") and busy_timeout is never consulted,
+//    because waiting could not help: the snapshot is already stale. That is the
+//    CI failure this replaces — an insert into reference_sequences that died
+//    after the service's short retry budget ran out on a slow runner. With
+//    IMMEDIATE the contention happens at BEGIN, where busy_timeout does apply,
+//    and the SELECT ... UPDATE pair then runs as the SQLite analogue of MariaDB's
+//    SELECT ... FOR UPDATE: one allocator at a time, the others queued.
+//
+// Set through Laravel's own connection options so every connection the worker
+// opens gets them, not just whichever one happened to run a PRAGMA.
+config([
+    'database.connections.sqlite.busy_timeout' => 10000,
+    'database.connections.sqlite.transaction_mode' => 'IMMEDIATE',
+]);
+Illuminate\Support\Facades\DB::purge('sqlite');
 
 // Line the workers up on a common start, so they contend on the counter
 // instead of politely queueing behind one another's framework boot.

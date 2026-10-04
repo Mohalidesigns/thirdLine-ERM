@@ -83,60 +83,66 @@ export default function CbnRegister({
             </div>
 
             {/* ---------------------------------------------------- filters */}
-            <div className="card mb-4 flex flex-wrap items-end gap-4 p-4">
-                <label className="text-sm">
-                    <span className="mb-1 block text-xs font-medium text-gray-600">Tier</span>
-                    <select
-                        className="filter-input"
-                        value={filters.tier ?? ''}
-                        onChange={(event) => apply('tier', event.target.value)}
-                    >
-                        <option value="">All tiers</option>
-                        <option value="critical">Critical</option>
-                        <option value="high">High</option>
-                        <option value="moderate">Moderate</option>
-                        <option value="low">Low</option>
-                    </select>
-                </label>
+            <div className="filter-bar mb-4">
+                <div className="filter-bar-inner items-end">
+                    <div className="filter-group min-w-[140px]">
+                        <label className="filter-label">Tier</label>
+                        <select aria-label="Tier"
+                            className="filter-select"
+                            value={filters.tier ?? ''}
+                            onChange={(event) => apply('tier', event.target.value)}
+                        >
+                            <option value="">All tiers</option>
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="moderate">Moderate</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
 
-                <label className="text-sm">
-                    <span className="mb-1 block text-xs font-medium text-gray-600">Business unit</span>
-                    <select
-                        className="filter-input"
-                        value={filters.business_unit ?? ''}
-                        onChange={(event) => apply('business_unit', event.target.value)}
-                    >
-                        <option value="">All business units</option>
-                        {(options.business_units ?? []).map((unit) => (
-                            <option key={unit.value} value={unit.value}>{unit.label}</option>
-                        ))}
-                    </select>
-                </label>
+                    <div className="filter-group min-w-[180px]">
+                        <label className="filter-label">Business unit</label>
+                        <select aria-label="Business unit"
+                            className="filter-select"
+                            value={filters.business_unit ?? ''}
+                            onChange={(event) => apply('business_unit', event.target.value)}
+                        >
+                            <option value="">All business units</option>
+                            {(options.business_units ?? []).map((unit) => (
+                                <option key={unit.value} value={unit.value}>{unit.label}</option>
+                            ))}
+                        </select>
+                    </div>
 
-                <label className="flex items-center gap-2 text-sm">
-                    <input
-                        type="checkbox"
-                        checked={Boolean(filters.critical_only)}
-                        onChange={(event) => apply('critical_only', event.target.checked ? 1 : '')}
-                    />
-                    Critical functions only
-                </label>
+                    <div className="filter-group">
+                        <label className="filter-label">&nbsp;</label>
+                        <label className="flex items-center gap-2 text-sm h-[42px]">
+                            <input className="form-checkbox"
+                                type="checkbox"
+                                checked={Boolean(filters.critical_only)}
+                                onChange={(event) => apply('critical_only', event.target.checked ? 1 : '')}
+                            />
+                            Critical functions only
+                        </label>
+                    </div>
 
-                <label className="flex items-center gap-2 text-sm">
-                    <input
-                        type="checkbox"
-                        checked={Boolean(filters.include_inactive)}
-                        onChange={(event) => apply('include_inactive', event.target.checked ? 1 : '')}
-                    />
-                    Include terminated and archived
-                </label>
+                    <div className="filter-group">
+                        <label className="filter-label">&nbsp;</label>
+                        <label className="flex items-center gap-2 text-sm h-[42px]">
+                            <input className="form-checkbox"
+                                type="checkbox"
+                                checked={Boolean(filters.include_inactive)}
+                                onChange={(event) => apply('include_inactive', event.target.checked ? 1 : '')}
+                            />
+                            Include terminated and archived
+                        </label>
+                    </div>
 
-                <div className="ml-auto flex items-end gap-2">
                     {can.export && (
-                        <label className="text-sm">
-                            <span className="mb-1 block text-xs font-medium text-gray-600">Reviewed by</span>
-                            <select
-                                className="filter-input"
+                        <div className="filter-group min-w-[160px]">
+                            <label className="filter-label">Reviewed by</label>
+                            <select aria-label="Reviewed by"
+                                className="filter-select"
                                 value={reviewerId}
                                 onChange={(event) => setReviewerId(event.target.value)}
                             >
@@ -145,14 +151,17 @@ export default function CbnRegister({
                                     <option key={reviewer.value} value={reviewer.value}>{reviewer.label}</option>
                                 ))}
                             </select>
-                        </label>
+                        </div>
                     )}
 
                     {can.export && (
-                        <div className="flex gap-2">
-                            <a className="btn-secondary" href={exportUrl('xlsx')}>XLSX</a>
-                            <a className="btn-secondary" href={exportUrl('csv')}>CSV</a>
-                            <a className="btn-primary" href={exportUrl('pdf')}>Signed PDF</a>
+                        <div className="filter-group ml-auto">
+                            <label className="filter-label">&nbsp;</label>
+                            <div className="flex gap-2">
+                                <a className="btn-secondary" href={exportUrl('xlsx')}>XLSX</a>
+                                <a className="btn-secondary" href={exportUrl('csv')}>CSV</a>
+                                <a className="btn-primary" href={exportUrl('pdf')}>Signed PDF</a>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -193,16 +202,16 @@ export default function CbnRegister({
             </div>
 
             <div className="card overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <table className="data-table">
                     <caption className="px-4 py-2 text-left text-xs text-gray-500">
                         Thirty columns do not fit on one screen and would not be readable if they did. The groups above
                         switch which set is shown; every group holds the same {rows.length} rows in the same order, and
                         so does every export.
                     </caption>
-                    <thead className="bg-gray-50">
+                    <thead>
                         <tr>
                             {visible.map((column) => (
-                                <th key={column.key} scope="col" className="whitespace-nowrap px-4 py-2 text-left font-medium text-gray-600">
+                                <th key={column.key} scope="col" className="whitespace-nowrap">
                                     {column.label}
                                 </th>
                             ))}
@@ -212,7 +221,7 @@ export default function CbnRegister({
                         {rows.map((row) => (
                             <tr key={row.uuid}>
                                 {visible.map((column) => (
-                                    <td key={column.key} className="whitespace-nowrap px-4 py-2 align-top">
+                                    <td key={column.key} className="whitespace-nowrap align-top">
                                         {column.key === 'reference' ? (
                                             <a className="font-medium text-indigo-600" href={row.url}>{row.reference}</a>
                                         ) : (
@@ -224,9 +233,11 @@ export default function CbnRegister({
                         ))}
                         {rows.length === 0 && (
                             <tr>
-                                <td colSpan={visible.length} className="px-4 py-10 text-center text-sm text-gray-500">
-                                    No ICT arrangements match this view. That is a statement about the filters above,
-                                    not about the estate.
+                                <td colSpan={visible.length} className="text-center py-12">
+                                    <div className="text-gray-400">
+                                        <p className="text-sm font-medium">No ICT arrangements match this view.</p>
+                                        <p className="text-xs mt-1">That is a statement about the filters above, not about the estate.</p>
+                                    </div>
                                 </td>
                             </tr>
                         )}
@@ -279,7 +290,7 @@ function Tile({ label, value, hint, tone }) {
         <div className="card p-4">
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</div>
             <div className={`mt-1 text-2xl font-bold ${toneClass}`}>{value}</div>
-            {hint && <div className="mt-1 text-xs text-gray-500">{hint}</div>}
+            {hint && <div className="form-hint">{hint}</div>}
         </div>
     );
 }

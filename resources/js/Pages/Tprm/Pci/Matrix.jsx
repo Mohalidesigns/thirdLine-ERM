@@ -34,13 +34,13 @@ export default function Matrix({ matrix, engagementUrl, prepopulateUrl, exportUr
                         {can.manage && (
                             <button
                                 type="button"
-                                className="btn btn-secondary"
+                                className="btn-secondary"
                                 onClick={() => router.post(prepopulateUrl)}
                             >
                                 Pull the vendor&rsquo;s view
                             </button>
                         )}
-                        <a href={exportUrl} className="btn btn-primary">
+                        <a href={exportUrl} className="btn-primary">
                             Export for the QSA
                         </a>
                     </div>
@@ -75,41 +75,41 @@ export default function Matrix({ matrix, engagementUrl, prepopulateUrl, exportUr
             </div>
 
             <div className="card overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="data-table">
                     <thead className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
                         <tr>
-                            <th className="p-3 font-medium">Req.</th>
-                            <th className="p-3 font-medium">Requirement</th>
-                            <th className="p-3 font-medium">Responsibility</th>
-                            <th className="p-3 font-medium">Source</th>
-                            <th className="p-3 font-medium">Confirmed</th>
-                            {can.manage && <th className="p-3 font-medium" />}
+                            <th>Req.</th>
+                            <th>Requirement</th>
+                            <th>Responsibility</th>
+                            <th>Source</th>
+                            <th>Confirmed</th>
+                            {can.manage && <th />}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {matrix.rows.map((row) => (
                             <tr key={row.requirement} className={row.confirmed ? '' : 'bg-amber-50/40'}>
-                                <td className="p-3 font-mono text-xs">{row.requirement}</td>
-                                <td className="p-3 text-gray-700">
+                                <td className="font-mono text-xs">{row.requirement}</td>
+                                <td className="text-gray-700">
                                     {row.description}
-                                    {row.notes && <p className="mt-1 text-xs text-gray-500">{row.notes}</p>}
+                                    {row.notes && <p className="form-hint">{row.notes}</p>}
                                 </td>
-                                <td className="p-3">
+                                <td>
                                     <ResponsibilityChip value={row.responsibility} label={row.responsibility_label} />
                                 </td>
-                                <td className="p-3 text-xs text-gray-500">
+                                <td className="text-xs text-gray-500">
                                     {row.source === 'caiq_ssrm' ? 'Provider’s answers' : 'Recorded here'}
                                 </td>
-                                <td className="p-3 text-xs">
+                                <td className="text-xs">
                                     {row.confirmed
                                         ? <span className="text-gray-600">{row.confirmed_at} · {row.confirmed_by}</span>
                                         : <span className="text-amber-700">Not confirmed</span>}
                                 </td>
                                 {can.manage && (
-                                    <td className="p-3 text-right">
+                                    <td className="text-right">
                                         <button
                                             type="button"
-                                            className="btn btn-secondary text-xs"
+                                            className="btn-secondary text-xs"
                                             onClick={() => setEditing(row)}
                                         >
                                             {row.confirmed ? 'Change' : 'Confirm'}
@@ -159,10 +159,10 @@ function ConfirmDialog({ row, onClose }) {
                 </h2>
                 <p className="mt-1 text-sm text-gray-600">{row.description}</p>
 
-                <label className="mt-5 block">
+                <label className="form-label mt-5">
                     <span className="text-sm font-medium text-gray-700">Who is responsible?</span>
                     <select
-                        className="input mt-1"
+                        className="form-select mt-1"
                         value={form.data.responsibility}
                         onChange={(event) => form.setData('responsibility', event.target.value)}
                     >
@@ -171,25 +171,25 @@ function ConfirmDialog({ row, onClose }) {
                         <option value="shared">Shared between us</option>
                         <option value="na">Not applicable to this service</option>
                     </select>
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="form-hint">
                         &ldquo;Shared&rdquo; needs a note saying which part each side holds — a shared
                         requirement nobody split is the shape of a duty each party believes the other has.
                     </p>
                 </label>
 
-                <label className="mt-4 block">
+                <label className="form-label mt-4">
                     <span className="text-sm font-medium text-gray-700">Notes</span>
                     <textarea
                         rows={3}
-                        className="input mt-1"
+                        className="form-textarea mt-1"
                         value={form.data.notes}
                         onChange={(event) => form.setData('notes', event.target.value)}
                     />
                 </label>
 
                 <div className="mt-6 flex justify-end gap-2">
-                    <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" disabled={form.processing}>Confirm</button>
+                    <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn-primary" disabled={form.processing}>Confirm</button>
                 </div>
             </form>
         </div>

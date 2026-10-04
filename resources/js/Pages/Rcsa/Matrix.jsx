@@ -49,10 +49,10 @@ export default function Matrix({ risks = [], controls = [], businessUnits = [], 
                 breadcrumbs={[{ label: 'RCSA', href: route('risk.rcsa.dashboard') }, { label: 'Risk-Control Matrix' }]}
                 actions={
                     <>
-                        <select
+                        <select aria-label="Business unit"
                             value={filters.business_unit_id ?? ''}
                             onChange={(e) => filter(e.target.value)}
-                            className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700"
+                            className="form-select"
                         >
                             <option value="">All Business Units</option>
                             {businessUnits.map((unit) => (

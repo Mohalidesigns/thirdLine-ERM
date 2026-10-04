@@ -1,5 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
+/**
+ * A text-like input in the product look. The classes are `.form-input`; the
+ * field baseline in app.css would draw the same box on a bare <input>, so the
+ * component exists for `isFocused` and the imperative focus handle, not for
+ * the styling.
+ */
 export default forwardRef(function TextInput(
     { type = 'text', className = '', isFocused = false, ...props },
     ref,
@@ -20,10 +26,7 @@ export default forwardRef(function TextInput(
         <input
             {...props}
             type={type}
-            className={
-                'rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ' +
-                className
-            }
+            className={'form-input ' + className}
             ref={localRef}
         />
     );

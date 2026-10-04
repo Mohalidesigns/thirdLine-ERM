@@ -4,6 +4,7 @@ namespace App\Models\Bcms;
 
 use App\Enums\Bcms\StrategyType;
 use App\Models\Bcms\Concerns\BcmsAuditable;
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -46,9 +47,18 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class Strategy extends Model
 {
-    use BcmsAuditable, BelongsToOrganization, HasBcmsUuid, HasFactory, SoftDeletes;
+    use BcmsAuditable, BelongsToOrganization, BindsToVisibleRecord, HasBcmsUuid, HasFactory, SoftDeletes;
 
     protected $table = 'bcms_strategies';
+
+    /**
+     * Derived (ADR 0017 §2): a strategy has no unit column of its own and
+     * takes the shortest path to an anchor — the process it is a strategy for.
+     */
+    public function orgAnchorPath(): string
+    {
+        return 'process';
+    }
 
     /** @var list<string> */
     protected $fillable = [

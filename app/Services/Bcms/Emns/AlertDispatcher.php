@@ -6,6 +6,8 @@ use App\Enums\Bcms\AlertSeverity;
 use App\Enums\Bcms\ChannelKey;
 use App\Enums\Bcms\DeliveryStatus;
 use App\Enums\Bcms\RecipientStatus;
+use App\Exceptions\Bcms\AlertRenderingRefusedException;
+use App\Exceptions\Bcms\UnresolvedTemplateVariableException;
 use App\Models\Bcms\Alert;
 use App\Models\Bcms\AlertRecipient;
 use App\Models\Bcms\Contact;
@@ -112,15 +114,10 @@ class AlertDispatcher
         $adapter = $this->channels->for($channel);
         $to = $this->contacts->recipient($contact);
 
-        $message = $this->renderer->render(
-            $alert,
-            $channel,
-            $contact->preferred_language ?: 'en',
-            [],
-            $this->tokenFor($recipient),
-        );
-
-        // Standing rule 8: the row exists before the provider is called.
+        // Standing rule 8: the row exists before the provider is called —
+        // and before rendering is even attempted, so a render failure is
+        // recorded on the same row a provider failure would be, rather than
+        // this person silently having no delivery row at all.
         $delivery = NotificationDelivery::query()->create([
             'organization_id' => $alert->organization_id,
             'alert_id' => $alert->getKey(),
@@ -130,6 +127,47 @@ class AlertDispatcher
             'status' => DeliveryStatus::Queued->value,
             'attempts' => 0,
         ]);
+
+        /*
+         * FAIL CLOSED, LAST LINE OF DEFENCE. `AlertService::release()` already
+         * refused to materialise a single recipient row if any channel/locale
+         * combination in play could not render — reaching this catch means
+         * something changed between release and send (a template edited or
+         * deactivated mid-dispatch, a locale-fallback path release() did not
+         * preflight). Never call the adapter with a body that still carries
+         * an unfilled `{{variable}}`: the delivery row is marked FAILED,
+         * naming what was missing, so the roll-call denominator and the
+         * evidence pack both show this person was not reached rather than
+         * silently omitting them or sending them broken text.
+         */
+        try {
+            $message = $this->renderer->render(
+                $alert,
+                $channel,
+                $contact->preferred_language ?: 'en',
+                [],
+                $this->tokenFor($recipient),
+            );
+        } catch (AlertRenderingRefusedException $e) {
+            // `failed_reason` IS A FIXED, GREPPABLE STRING (item 5) — not
+            // `getMessage()`, which is a full sentence tuned for an operator
+            // reading it once. `EvidenceExport` prints this column verbatim
+            // on every row with no delivery, so an examiner reading the pack
+            // months later sees exactly what was missing, not "see raw
+            // response" with nothing to see it in.
+            $delivery->forceFill([
+                'status' => DeliveryStatus::Failed->value,
+                'failed_reason' => $e->failedReason(),
+                'raw_response' => array_filter([
+                    'error' => $e instanceof UnresolvedTemplateVariableException
+                        ? 'unresolved_template_variable' : 'template_not_active',
+                    'message' => $e->getMessage(),
+                    'variables' => $e instanceof UnresolvedTemplateVariableException ? $e->variables : null,
+                ], fn ($v) => $v !== null),
+            ])->save();
+
+            return false;
+        }
 
         /*
          * A SIMULATION WRITES THE ROW AND CALLS NOBODY (criterion 5). It has to

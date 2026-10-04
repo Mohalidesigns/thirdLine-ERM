@@ -23,7 +23,7 @@ export default function History({ thirdParty, status = {}, checks = [], retentio
                 title="Screening history"
                 subtitle={<Link className="underline" href={thirdParty.url}>{thirdParty.legal_name}</Link>}
                 actions={can.decide ? (
-                    <button type="button" className="btn btn-primary"
+                    <button type="button" className="btn-primary"
                         onClick={() => router.post(thirdParty.run_url)}>
                         Screen now
                     </button>
@@ -83,7 +83,7 @@ export default function History({ thirdParty, status = {}, checks = [], retentio
                                         {!check.retainable && (
                                             <span className="text-xs text-gray-400">beyond retention</span>
                                         )}
-                                        <button type="button" className="btn btn-secondary text-xs"
+                                        <button type="button" className="btn-secondary text-xs"
                                             onClick={() => setExpanded(expanded === check.id ? null : check.id)}>
                                             {expanded === check.id ? 'Hide' : 'The provider’s answer'}
                                         </button>

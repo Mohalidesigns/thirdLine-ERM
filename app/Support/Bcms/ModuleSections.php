@@ -22,6 +22,17 @@ namespace App\Support\Bcms;
 class ModuleSections
 {
     /**
+     * TEST-ONLY override — see {@see fake()}. Nothing outside a test sets
+     * this.
+     *
+     * @var list<array{
+     *     key: string, label: string, permission: string, phase: string,
+     *     summary: string, lands: string, clause: string, live: bool
+     * }>|null
+     */
+    private static ?array $fake = null;
+
+    /**
      * `live` says whether the section's real screen has been built. Phase 0
      * shipped twelve shells; each phase flips its own to true and registers a
      * real controller under the SAME route name, so navigation, permissions and
@@ -34,6 +45,10 @@ class ModuleSections
      */
     public static function all(): array
     {
+        if (self::$fake !== null) {
+            return self::$fake;
+        }
+
         return [
             [
                 'key' => 'programme',
@@ -125,7 +140,7 @@ class ModuleSections
                 'summary' => 'Readiness checklists that gate the exercise, the execution workspace, and the after-action report.',
                 'lands' => 'The T-10 daily alerting, blocking readiness tasks with recorded overrides, the live timeline and injects, scoring, and the AAR that feeds the CAPA register.',
                 'clause' => 'ISO 22301 clause 8.5 · ISO 22398',
-                'live' => false,
+                'live' => true,
             ],
             [
                 'key' => 'call-trees',
@@ -155,7 +170,7 @@ class ModuleSections
                 'summary' => 'Declaration, the crisis room, the decision log, situation reports and the post-incident review.',
                 'lands' => 'Activation criteria, the war room, an append-only decision log, task assignment, and the regulatory notification clock.',
                 'clause' => 'ISO 22320 · ISO 22361',
-                'live' => false,
+                'live' => true,
             ],
             [
                 'key' => 'it-dr',
@@ -165,7 +180,7 @@ class ModuleSections
                 'summary' => 'Recovery tiers, runbooks, and the DR test register with actual RTO and RPO against target.',
                 'lands' => 'The DR system register, failover and failback test records, and backup verification attestations. We govern and evidence failover; we do not execute it.',
                 'clause' => 'CBN Open Banking · ISO 22301 clause 8.4.5',
-                'live' => false,
+                'live' => true,
             ],
             [
                 'key' => 'compliance',
@@ -175,9 +190,55 @@ class ModuleSections
                 'summary' => 'Competency records, the clause-by-clause evidence matrix, the board pack and the regulator evidence pack.',
                 'lands' => 'Role-based curricula with competency assessment, the ISO 22301 and CBN matrix with every cell drilling into the artefacts that prove it, and a one-click evidence pack.',
                 'clause' => 'ISO 22301 clauses 7.2, 9 and 10 · CBN CSAT',
-                'live' => false,
+                'live' => true,
             ],
         ];
+    }
+
+    /**
+     * TEST-ONLY. Replaces the whole section list for whichever test calls
+     * this, so a test that needs "a section whose phase has not landed" can
+     * assert against a section it manufactures itself rather than a real
+     * key that breaks the day that phase ships — exactly what happened here
+     * twice (`incidents` at Phase 10, then `compliance` at Phase 11).
+     *
+     * MUST BE CALLED BEFORE `parent::setUp()` in the test's own `setUp()`.
+     * `routes/web.php` reads `all()` once, at application boot, to decide
+     * which sections still get the generic placeholder route
+     * ({@see \App\Http\Controllers\Bcms\SectionController}) — calling this
+     * after boot changes what {@see find()} returns for a request but
+     * cannot retroactively register a route that boot already skipped.
+     * Call {@see reset()} in `tearDown()`, or the fake leaks into whichever
+     * test in the same process runs next.
+     *
+     * @param  list<array{
+     *     key: string, label: string, permission: string, phase: string,
+     *     summary: string, lands: string, clause: string, live: bool
+     * }>  $sections
+     */
+    public static function fake(array $sections): void
+    {
+        // A3: this is a static override of a registry `routes/web.php` reads
+        // at boot to register every section's placeholder route (see the
+        // class docblock) — set in a test's own `setUp()` BEFORE
+        // `parent::setUp()` boots the application, which is exactly why this
+        // check reads the raw environment rather than `app()->environment()`
+        // or `app()->runningUnitTests()`: the container is not safely
+        // resolvable yet at the point this is legitimately called, and
+        // `APP_RUNNING_UNIT_TESTS` is not a variable this repository's
+        // `phpunit.xml` sets — `APP_ENV=testing` is, and it is present as a
+        // real process environment variable before Laravel ever boots.
+        if (getenv('APP_ENV') !== 'testing') {
+            throw new \RuntimeException(self::class.'::fake() is test-only and must not be called outside a unit test.');
+        }
+
+        self::$fake = $sections;
+    }
+
+    /** TEST-ONLY. Undoes {@see fake()}. */
+    public static function reset(): void
+    {
+        self::$fake = null;
     }
 
     /** @return array<string, mixed>|null */

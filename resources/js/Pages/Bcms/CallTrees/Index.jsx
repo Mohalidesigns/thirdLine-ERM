@@ -2,6 +2,7 @@ import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -123,35 +124,34 @@ export default function Index({ dashboard = {}, units = [], types = [], scope_no
                 </section>
             </div>
 
-            <section className="rounded border border-slate-200 bg-white">
+            <div className="card">
                 <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <table className="data-table">
+                        <thead>
                             <tr>
-                                <th className="px-4 py-2">Tree</th>
-                                <th className="px-4 py-2">Type</th>
-                                <th className="px-4 py-2">Status</th>
-                                <th className="px-4 py-2 text-right">Nodes</th>
-                                <th className="px-4 py-2 text-right">Problems</th>
-                                <th className="px-4 py-2">Reviewed</th>
-                                <th className="px-4 py-2">Last test</th>
+                                <th>Tree</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th className="text-right">Nodes</th>
+                                <th className="text-right">Problems</th>
+                                <th>Reviewed</th>
+                                <th>Last test</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody>
                             {visible.map((tree) => (
-                                <tr key={tree.uuid} className="hover:bg-slate-50">
-                                    <td className="px-4 py-2">
-                                        <Link href={tryRoute('bcms.call-trees.show', tree.uuid)}
-                                            className="font-medium text-slate-800 hover:underline">
+                                <tr key={tree.uuid}>
+                                    <td>
+                                        <Link href={tryRoute('bcms.call-trees.show', tree.uuid)} className="cell-title">
                                             {tree.name}
                                         </Link>
-                                        <div className="text-[11px] text-slate-500">
+                                        <p className="cell-subtitle">
                                             v{tree.version} · {tree.business_unit ?? 'Organisation-wide'}
                                             {tree.never_human_checked && ' · generated, never checked by a person'}
-                                        </div>
+                                        </p>
                                     </td>
-                                    <td className="px-4 py-2 text-slate-600">{tree.type_label}</td>
-                                    <td className="px-4 py-2">
+                                    <td className="cell-muted">{tree.type_label}</td>
+                                    <td>
                                         <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">
                                             {tree.status_label}
                                         </span>
@@ -161,19 +161,19 @@ export default function Index({ dashboard = {}, units = [], types = [], scope_no
                                             </span>
                                         )}
                                     </td>
-                                    <td className="px-4 py-2 text-right tabular-nums text-slate-700">{tree.nodes}</td>
-                                    <td className="px-4 py-2 text-right text-[11px]">
+                                    <td className="text-right tabular-nums text-slate-700">{tree.nodes}</td>
+                                    <td className="text-right text-[11px]">
                                         {tree.orphans > 0 && <div className="text-rose-600">{tree.orphans} unreachable</div>}
                                         {tree.missing_deputies > 0 && <div className="text-amber-600">{tree.missing_deputies} without a deputy</div>}
                                         {tree.orphans === 0 && tree.missing_deputies === 0 && <span className="text-slate-400">—</span>}
                                     </td>
-                                    <td className="px-4 py-2 text-[11px] text-slate-600">
+                                    <td className="text-[11px] text-slate-600">
                                         {tree.last_reviewed_at ?? <span className="text-slate-400">never</span>}
                                         {tree.days_overdue != null && (
                                             <div className="text-rose-600">{tree.days_overdue} days overdue</div>
                                         )}
                                     </td>
-                                    <td className="px-4 py-2 text-[11px]">
+                                    <td className="text-[11px]">
                                         {tree.last_test ? (
                                             <Link href={tryRoute('bcms.call-tree-tests.show', tree.last_test.uuid)}
                                                 className="text-slate-700 hover:underline">
@@ -185,14 +185,14 @@ export default function Index({ dashboard = {}, units = [], types = [], scope_no
                                 </tr>
                             ))}
                             {visible.length === 0 && (
-                                <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">
-                                    Nothing matches this filter.
+                                <tr><td colSpan={7} className="text-center py-12">
+                                    <div className="text-gray-400"><p className="text-sm font-medium">Nothing matches this filter</p></div>
                                 </td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
-            </section>
+            </div>
 
             {recent_tests.length > 0 && (
                 <section className="mt-6 rounded border border-slate-200 bg-white p-4">
@@ -225,17 +225,17 @@ export default function Index({ dashboard = {}, units = [], types = [], scope_no
                     <form onSubmit={submitCreate} className="space-y-3">
                         <Field label="Name" error={create.errors.name}>
                             <input value={create.data.name} onChange={(e) => create.setData('name', e.target.value)}
-                                className="w-full rounded border-slate-300 text-sm" required />
+                                className="form-input" required />
                         </Field>
                         <Field label="Type" error={create.errors.tree_type}>
                             <select value={create.data.tree_type} onChange={(e) => create.setData('tree_type', e.target.value)}
-                                className="w-full rounded border-slate-300 text-sm">
+                                className="form-select">
                                 {types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                             </select>
                         </Field>
                         <Field label="Business unit" error={create.errors.business_unit_id}>
                             <select value={create.data.business_unit_id} onChange={(e) => create.setData('business_unit_id', e.target.value)}
-                                className="w-full rounded border-slate-300 text-sm">
+                                className="form-select">
                                 <option value="">Organisation-wide</option>
                                 {units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                             </select>
@@ -257,14 +257,14 @@ export default function Index({ dashboard = {}, units = [], types = [], scope_no
                     <form onSubmit={submitGenerate} className="space-y-3">
                         <Field label="Business unit" error={generate.errors.business_unit_id}>
                             <select value={generate.data.business_unit_id} onChange={(e) => generate.setData('business_unit_id', e.target.value)}
-                                className="w-full rounded border-slate-300 text-sm" required>
+                                className="form-select" required>
                                 <option value="">Choose…</option>
                                 {units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                             </select>
                         </Field>
                         <Field label="Type" error={generate.errors.tree_type}>
                             <select value={generate.data.tree_type} onChange={(e) => generate.setData('tree_type', e.target.value)}
-                                className="w-full rounded border-slate-300 text-sm">
+                                className="form-select">
                                 {types.filter((t) => t.generatable).map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                             </select>
                         </Field>
@@ -292,10 +292,8 @@ function Modal({ title, children, onClose }) {
 
 function Field({ label, error, children }) {
     return (
-        <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
+        <FormField label={label} error={error}>
             {children}
-            {error && <span className="mt-1 block text-xs text-rose-600">{error}</span>}
-        </label>
+        </FormField>
     );
 }

@@ -41,7 +41,7 @@ export default function Index({
                 <div className="filter-bar-inner">
                     <div className="filter-group min-w-[180px]">
                         <label className="filter-label">Status</label>
-                        <select
+                        <select aria-label="Status"
                             className="filter-select"
                             value={filters.status ?? ""}
                             onChange={(e) =>
@@ -91,23 +91,25 @@ export default function Index({
                                 <tr>
                                     <td
                                         colSpan={7}
-                                        className="py-10 text-center text-sm text-gray-400"
+                                        className="text-center py-12"
                                     >
-                                        Nothing to assess. An assessment appears
-                                        here once a cycle is opened.
+                                        <div className="text-gray-400">
+                                            <p className="text-sm font-medium">Nothing to assess</p>
+                                            <p className="text-xs mt-1">An assessment appears here once a cycle is opened</p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
 
                             {(assessments?.data ?? []).map((assessment) => (
                                 <tr key={assessment.id}>
-                                    <td className="text-sm text-gray-700">
+                                    <td className="cell-muted">
                                         {assessment.cycle}
                                     </td>
-                                    <td className="text-sm font-medium text-gray-700">
+                                    <td className="cell-title">
                                         {assessment.business_unit}
                                     </td>
-                                    <td className="text-sm text-gray-600">
+                                    <td className="cell-muted">
                                         {assessment.lines_count}
                                     </td>
                                     <td>
@@ -125,7 +127,7 @@ export default function Index({
                                             </span>
                                         </div>
                                     </td>
-                                    <td className="text-sm text-gray-600">
+                                    <td className="cell-muted">
                                         {assessment.due_date ?? "—"}
                                     </td>
                                     <td>
@@ -134,15 +136,18 @@ export default function Index({
                                         />
                                     </td>
                                     <td className="text-right">
-                                        <Link
-                                            href={route(
-                                                "rcsa.assessments.show",
-                                                assessment.id,
-                                            )}
-                                            className="text-xs text-[var(--color-primary)] hover:underline"
-                                        >
-                                            Open
-                                        </Link>
+                                        <div className="row-actions">
+                                            <Link
+                                                href={route(
+                                                    "rcsa.assessments.show",
+                                                    assessment.id,
+                                                )}
+                                                className="row-action"
+                                                aria-label="Open" title="Open"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                            </Link>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

@@ -45,25 +45,25 @@ export default function Index({ waivers, summary = {}, includeLapsed = false }) 
 
             <div className="card overflow-hidden">
                 {rows.length ? (
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                    <table className="data-table">
+                        <thead>
                             <tr>
-                                <th className="px-4 py-3 font-medium">Type</th>
-                                <th className="px-4 py-3 font-medium">Engagement</th>
-                                <th className="px-4 py-3 font-medium">Rationale</th>
-                                <th className="px-4 py-3 font-medium">Approved by</th>
-                                <th className="px-4 py-3 font-medium">Expires</th>
+                                <th>Type</th>
+                                <th>Engagement</th>
+                                <th>Rationale</th>
+                                <th>Approved by</th>
+                                <th>Expires</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {rows.map((row) => (
                                 <tr key={row.id} className={row.in_force ? '' : 'bg-gray-50 text-gray-500'}>
-                                    <td className="px-4 py-3">
+                                    <td>
                                         <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-700">
                                             {row.type_label}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3">
+                                    <td>
                                         {row.url ? (
                                             <a href={row.url} className="font-mono text-xs text-blue-700 hover:underline">
                                                 {row.engagement}
@@ -71,14 +71,14 @@ export default function Index({ waivers, summary = {}, includeLapsed = false }) 
                                         ) : <span className="text-xs">—</span>}
                                         <p className="text-xs text-gray-500">{row.third_party}</p>
                                     </td>
-                                    <td className="px-4 py-3 max-w-md">
+                                    <td className="max-w-md">
                                         <p className="line-clamp-2 text-xs text-gray-700">{row.rationale}</p>
                                     </td>
-                                    <td className="px-4 py-3 text-xs">
+                                    <td className="text-xs">
                                         {row.approver ?? '—'}
                                         {row.approver_role && <p className="text-gray-500">{row.approver_role}</p>}
                                     </td>
-                                    <td className="px-4 py-3 text-xs">
+                                    <td className="text-xs">
                                         {row.expires_at ?? 'No expiry'}
                                         {row.days_remaining !== null && row.in_force && (
                                             <p className={row.days_remaining <= 30 ? 'font-medium text-amber-700' : 'text-gray-500'}>

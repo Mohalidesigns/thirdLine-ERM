@@ -3,6 +3,8 @@ import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
+import FormField from '@thirdline/ui/Components/FormField';
+import InputError from '@thirdline/ui/Components/InputError';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -32,6 +34,16 @@ export default function Index({ findings, filters = {}, summary = {}, options = 
         source: 'gap_analysis', classification: 'observation', description: '',
         severity: 'medium', iso_clause_ref: '', affected_process_id: '',
     });
+    // The fields that render their OWN error below. Anything else
+    // `raise.errors` names is shown as a form-level alert instead of
+    // silently never appearing (the same "no field, no dead end" rule as
+    // `RaiseFinding.jsx`): `aar_id` and `dr_test_id`, which this form never
+    // sends but the shared store route can refuse; `source`,
+    // `classification` and `severity`, which have a control here but no
+    // error slot; and `affected_process_id`, which this form posts empty
+    // and has no control for.
+    const RAISE_FORM_FIELDS = ['description', 'iso_clause_ref'];
+    const raiseFormLevelErrors = Object.entries(raise.errors).filter(([key]) => !RAISE_FORM_FIELDS.includes(key));
 
     const tiles = [
         { label: 'Open findings', value: summary.open },
@@ -67,79 +79,102 @@ export default function Index({ findings, filters = {}, summary = {}, options = 
             {raising && can.manage && (
                 <form
                     onSubmit={(e) => { e.preventDefault(); raise.post(tryRoute('bcms.findings.store'), { preserveScroll: true, onSuccess: () => raise.reset() }); }}
-                    className="mb-6 space-y-4 rounded-lg border border-gray-200 bg-white p-6"
+                    className="card mb-6"
                 >
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Source</span>
-                            <select className="mt-1 w-full rounded border-gray-300 text-sm" value={raise.data.source}
-                                onChange={(e) => raise.setData('source', e.target.value)}>
-                                {(options.sources ?? []).map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    <div className="card-body space-y-4">
+                        {raiseFormLevelErrors.length > 0 && (
+                            <div className="space-y-1">
+                                {raiseFormLevelErrors.map(([key, message]) => (
+                                    <InputError key={key} role="alert" message={message} />
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                            <FormField label="Source">
+                                <select className="form-select" value={raise.data.source}
+                                    onChange={(e) => raise.setData('source', e.target.value)}>
+                                    {(options.sources ?? []).map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                </select>
+                            </FormField>
+                            <FormField label="Classification">
+                                <select className="form-select" value={raise.data.classification}
+                                    onChange={(e) => raise.setData('classification', e.target.value)}>
+                                    {(options.classifications ?? []).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                </select>
+                            </FormField>
+                            <FormField label="Severity">
+                                <select className="form-select" value={raise.data.severity}
+                                    onChange={(e) => raise.setData('severity', e.target.value)}>
+                                    {['low', 'medium', 'high', 'critical'].map((s) => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </FormField>
+                        </div>
+
+                        <FormField label="What was found" error={raise.errors.description}>
+                            <textarea rows={3} className="form-textarea" value={raise.data.description}
+                                onChange={(e) => raise.setData('description', e.target.value)} />
+                        </FormField>
+
+                        <FormField label="Clause it failed" error={raise.errors.iso_clause_ref}
+                            hint="Required for a nonconformity: clause 10.1 defines one as a failure to meet a stated requirement, so it has to name the requirement.">
+                            <select className="form-select" value={raise.data.iso_clause_ref}
+                                onChange={(e) => raise.setData('iso_clause_ref', e.target.value)}>
+                                <option value="">Take it from the source</option>
+                                {(options.clause_refs ?? []).map((c) => (
+                                    <option key={c.value} value={c.value}>{c.standard} — {c.value}</option>
+                                ))}
                             </select>
-                        </label>
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Classification</span>
-                            <select className="mt-1 w-full rounded border-gray-300 text-sm" value={raise.data.classification}
-                                onChange={(e) => raise.setData('classification', e.target.value)}>
-                                {(options.classifications ?? []).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                            </select>
-                        </label>
-                        <label className="block text-sm">
-                            <span className="text-gray-700">Severity</span>
-                            <select className="mt-1 w-full rounded border-gray-300 text-sm" value={raise.data.severity}
-                                onChange={(e) => raise.setData('severity', e.target.value)}>
-                                {['low', 'medium', 'high', 'critical'].map((s) => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                        </label>
+                        </FormField>
+
+                        <button type="submit" className="btn-primary text-sm" disabled={raise.processing}>Raise</button>
                     </div>
-
-                    <label className="block text-sm">
-                        <span className="text-gray-700">What was found</span>
-                        <textarea rows={3} className="mt-1 w-full rounded border-gray-300 text-sm" value={raise.data.description}
-                            onChange={(e) => raise.setData('description', e.target.value)} />
-                        {raise.errors.description && <span className="text-xs text-red-600">{raise.errors.description}</span>}
-                    </label>
-
-                    <label className="block text-sm">
-                        <span className="text-gray-700">Clause it failed</span>
-                        <select className="mt-1 w-full rounded border-gray-300 text-sm" value={raise.data.iso_clause_ref}
-                            onChange={(e) => raise.setData('iso_clause_ref', e.target.value)}>
-                            <option value="">Take it from the source</option>
-                            {(options.clause_refs ?? []).map((c) => (
-                                <option key={c.value} value={c.value}>{c.standard} — {c.value}</option>
-                            ))}
-                        </select>
-                        <span className="mt-1 block text-xs text-gray-500">
-                            Required for a nonconformity: clause 10.1 defines one as a failure to meet a stated
-                            requirement, so it has to name the requirement.
-                        </span>
-                    </label>
-
-                    <button type="submit" className="btn-primary text-sm" disabled={raise.processing}>Raise</button>
                 </form>
             )}
 
-            <div className="mb-4 flex flex-wrap gap-3">
-                <select className="rounded border-gray-300 text-sm" value={filters.status ?? ''} onChange={(e) => filter('status', e.target.value)}>
-                    <option value="">Any status</option>
-                    {['open', 'in_progress', 'closed', 'accepted_risk'].map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <select className="rounded border-gray-300 text-sm" value={filters.classification ?? ''} onChange={(e) => filter('classification', e.target.value)}>
-                    <option value="">Any classification</option>
-                    {(options.classifications ?? []).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </select>
-                <select className="rounded border-gray-300 text-sm" value={filters.source ?? ''} onChange={(e) => filter('source', e.target.value)}>
-                    <option value="">Any source</option>
-                    {(options.sources ?? []).map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-                <select className="rounded border-gray-300 text-sm" value={filters.owner ?? ''} onChange={(e) => filter('owner', e.target.value)}>
-                    <option value="">Any owner</option>
-                    {(options.users ?? []).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
-                <select className="rounded border-gray-300 text-sm" value={filters.due ?? ''} onChange={(e) => filter('due', e.target.value)}>
-                    <option value="">Any due date</option>
-                    <option value="overdue">Overdue only</option>
-                </select>
+            <div className="filter-bar">
+                <div className="filter-bar-inner">
+                    <div className="filter-group min-w-[140px]">
+                        <label className="filter-label">Status</label>
+                        <select aria-label="Status" className="filter-select" value={filters.status ?? ''} onChange={(e) => filter('status', e.target.value)}>
+                            <option value="">Any status</option>
+                            {['open', 'in_progress', 'closed', 'accepted_risk'].map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                    </div>
+                    <div className="filter-group min-w-[160px]">
+                        <label className="filter-label">Classification</label>
+                        <select aria-label="Classification" className="filter-select" value={filters.classification ?? ''} onChange={(e) => filter('classification', e.target.value)}>
+                            <option value="">Any classification</option>
+                            {(options.classifications ?? []).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </select>
+                    </div>
+                    <div className="filter-group min-w-[150px]">
+                        <label className="filter-label">Source</label>
+                        {/* The register's filter needs every source a finding can carry,
+                            including `incident` and `dr_test` — `options.sources` is the
+                            narrower RAISE-form list (those two are raised from their own
+                            screens, not this one), so filtering by it would make a real
+                            finding's own source unreachable in this dropdown. */}
+                        <select aria-label="Source" className="filter-select" value={filters.source ?? ''} onChange={(e) => filter('source', e.target.value)}>
+                            <option value="">Any source</option>
+                            {(options.filter_sources ?? options.sources ?? []).map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        </select>
+                    </div>
+                    <div className="filter-group min-w-[150px]">
+                        <label className="filter-label">Owner</label>
+                        <select aria-label="Owner" className="filter-select" value={filters.owner ?? ''} onChange={(e) => filter('owner', e.target.value)}>
+                            <option value="">Any owner</option>
+                            {(options.users ?? []).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="filter-group min-w-[150px]">
+                        <label className="filter-label">Due date</label>
+                        <select aria-label="Due date" className="filter-select" value={filters.due ?? ''} onChange={(e) => filter('due', e.target.value)}>
+                            <option value="">Any due date</option>
+                            <option value="overdue">Overdue only</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
             <div className="space-y-4">
@@ -151,19 +186,23 @@ export default function Index({ findings, filters = {}, summary = {}, options = 
                 )}
 
                 {rows.map((f) => (
-                    <article key={f.id} className="rounded-lg border border-gray-200 bg-white p-5">
+                    <article key={f.id} className="card card-body">
                         <header className="flex flex-wrap items-start justify-between gap-3">
                             <div>
                                 <p className="font-mono text-xs text-gray-500">{f.reference} · {f.source_label}</p>
                                 <p className="mt-1 text-sm text-gray-900">{f.description}</p>
-                                <p className="mt-1 text-xs text-gray-500">
+                                <p className="form-hint">
                                     {f.classification} · {f.severity ?? 'unrated'} · {f.iso_clause_ref}
                                     {f.process ? ` · ${f.process}` : ''}
                                     {f.erm_issue_id ? ' · mirrored to the issue register' : ''}
                                 </p>
                             </div>
-                            <span className={`rounded px-2 py-1 text-xs ${f.status === 'open' ? 'bg-amber-50 text-amber-800' : 'bg-gray-100 text-gray-700'}`}>
-                                {f.status}
+                            {/* Open is the only state that needs attention — amber; every other
+                                state (in progress, closed, accepted risk) is the resting grey.
+                                The shared StatusBadge map would paint open green and closed
+                                purple, and has no entry for accepted_risk. */}
+                            <span className={`badge ${f.status === 'open' ? 'badge-medium' : 'badge-status-draft'}`}>
+                                {f.status.replace(/_/g, ' ')}
                             </span>
                         </header>
 
@@ -233,14 +272,14 @@ function AddAction({ storeActionUrl, users }) {
             onSubmit={(e) => { e.preventDefault(); form.post(storeActionUrl, { preserveScroll: true, onSuccess: () => form.reset() }); }}
             className="flex flex-wrap items-end gap-2 rounded border border-dashed border-gray-300 p-3"
         >
-            <input className="min-w-48 flex-1 rounded border-gray-300 text-sm" placeholder="Corrective action"
+            <input className="form-input min-w-48 flex-1" placeholder="Corrective action" aria-label="Corrective action"
                 value={form.data.title} onChange={(e) => form.setData('title', e.target.value)} />
-            <select className="rounded border-gray-300 text-sm" value={form.data.owner_id}
+            <select className="form-select" aria-label="Owner" value={form.data.owner_id}
                 onChange={(e) => form.setData('owner_id', e.target.value)}>
                 <option value="">Owner</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
-            <input type="date" className="rounded border-gray-300 text-sm" value={form.data.due_date}
+            <input type="date" className="form-input" aria-label="Due date" value={form.data.due_date}
                 onChange={(e) => form.setData('due_date', e.target.value)} />
             <button type="submit" className="btn-secondary text-sm" disabled={form.processing}>Add</button>
         </form>

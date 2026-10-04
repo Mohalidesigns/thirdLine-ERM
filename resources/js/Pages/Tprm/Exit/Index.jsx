@@ -49,27 +49,27 @@ export default function Index({ engagements = [], summary = {}, can = {} }) {
             </div>
 
             <div className="card overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <table className="data-table">
                     <caption className="px-4 py-2 text-left text-xs text-gray-500">
                         Red means the institution cannot demonstrate it could leave — whether because there is no
                         plan, or because the plan has never been exercised.
                     </caption>
-                    <thead className="bg-gray-50">
+                    <thead>
                         <tr>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600" />
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Engagement</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Provider</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Tier</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Plan</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Last tested</th>
-                            <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Next due</th>
+                            <th scope="col" />
+                            <th scope="col">Engagement</th>
+                            <th scope="col">Provider</th>
+                            <th scope="col">Tier</th>
+                            <th scope="col">Plan</th>
+                            <th scope="col">Last tested</th>
+                            <th scope="col">Next due</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {engagements.map((row) => (
                             <tr key={row.uuid}>
-                                <td className="px-4 py-2"><Light value={row.light} /></td>
-                                <th scope="row" className="px-4 py-2 text-left font-medium text-gray-900">
+                                <td><Light value={row.light} /></td>
+                                <th scope="row">
                                     <Link
                                         href={route('tprm.engagements.show', row.uuid)}
                                         className="text-blue-700 hover:underline"
@@ -82,13 +82,13 @@ export default function Index({ engagements = [], summary = {}, can = {} }) {
                                         </span>
                                     )}
                                 </th>
-                                <td className="px-4 py-2">{row.third_party}</td>
-                                <td className="px-4 py-2 capitalize">{row.tier}</td>
-                                <td className="px-4 py-2 text-xs">
+                                <td>{row.third_party}</td>
+                                <td className="capitalize">{row.tier}</td>
+                                <td className="text-xs">
                                     {row.has_plan ? row.credibility : <span className="text-red-700">none</span>}
                                 </td>
-                                <td className="px-4 py-2 text-xs">{row.last_tested_at ?? '—'}</td>
-                                <td className="px-4 py-2 text-xs">{row.next_test_due ?? '—'}</td>
+                                <td className="text-xs">{row.last_tested_at ?? '—'}</td>
+                                <td className="text-xs">{row.next_test_due ?? '—'}</td>
                             </tr>
                         ))}
                     </tbody>

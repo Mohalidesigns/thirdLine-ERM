@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import InputError from '@thirdline/ui/Components/InputError';
+import FormField from '@thirdline/ui/Components/FormField';
 
 /**
  * Add Risk — the three-step slide-over of plan §6.2.
@@ -182,10 +183,10 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
     const inlineCreate = (which) =>
         creating !== which ? null : (
             <div className="mt-2 flex gap-2">
-                <input
+                <input aria-label="Name"
                     autoFocus
                     type="text"
-                    className="filter-input flex-1"
+                    className="form-input flex-1"
                     placeholder={which === 'process' ? 'New process name' : 'New sub-process name'}
                     value={newProcessName}
                     onChange={(e) => setNewProcessName(e.target.value)}
@@ -413,7 +414,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                             <Field label="Business Unit" error={err('business_unit_id')} required>
                                 <select
                                     autoFocus
-                                    className="filter-select w-full"
+                                    className="form-select"
                                     value={form.data.business_unit_id}
                                     onChange={(e) => {
                                         form.setData((d) => ({
@@ -447,8 +448,8 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                                     </button>
                                 }
                             >
-                                <select
-                                    className="filter-select w-full"
+                                <select aria-label="Process"
+                                    className="form-select"
                                     value={form.data.process_id}
                                     onChange={(e) =>
                                         form.setData((d) => ({ ...d, process_id: e.target.value, sub_process_id: '' }))
@@ -479,8 +480,8 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                                     </button>
                                 }
                             >
-                                <select
-                                    className="filter-select w-full"
+                                <select aria-label="Sub-process"
+                                    className="form-select"
                                     value={form.data.sub_process_id}
                                     onChange={(e) => form.setData('sub_process_id', e.target.value)}
                                     disabled={!form.data.process_id}
@@ -540,12 +541,12 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                             <Field label="Risk No." error={err('risk_no')}>
                                 <input
                                     type="text"
-                                    className="filter-input w-full"
+                                    className="form-input"
                                     placeholder="Generated on save — e.g. RETAIL-R7"
                                     value={form.data.risk_no}
                                     onChange={(e) => form.setData('risk_no', e.target.value)}
                                 />
-                                <p className="mt-1 text-xs text-gray-500">
+                                <p className="form-hint">
                                     Leave blank and the next number for this business unit is generated.
                                 </p>
                             </Field>
@@ -554,7 +555,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                                 <textarea
                                     ref={potentialRiskRef}
                                     rows={3}
-                                    className="filter-input w-full"
+                                    className="form-textarea"
                                     placeholder="What could go wrong, and what would follow from it?"
                                     value={form.data.potential_risk}
                                     onChange={(e) => form.setData('potential_risk', e.target.value)}
@@ -564,7 +565,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                             <Field label="Risk Driver (root cause)" error={err('risk_driver')}>
                                 <textarea
                                     rows={2}
-                                    className="filter-input w-full"
+                                    className="form-textarea"
                                     value={form.data.risk_driver}
                                     onChange={(e) => form.setData('risk_driver', e.target.value)}
                                 />
@@ -572,7 +573,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
 
                             <Field label="Risk Category" error={err('risk_category')} required>
                                 <select
-                                    className="filter-select w-full"
+                                    className="form-select"
                                     value={form.data.risk_category}
                                     onChange={(e) => form.setData('risk_category', e.target.value)}
                                 >
@@ -600,7 +601,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
 
                             <Field label="Risk Owner" error={err('owner_id')}>
                                 <select
-                                    className="filter-select w-full"
+                                    className="form-select"
                                     value={form.data.owner_id}
                                     onChange={(e) => form.setData('owner_id', e.target.value)}
                                 >
@@ -642,7 +643,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                                     <Field label="Description" error={err(`controls.${index}.description`)}>
                                         <textarea
                                             rows={2}
-                                            className="filter-input w-full"
+                                            className="form-textarea"
                                             value={control.description}
                                             onChange={(e) => setControl(index, 'description', e.target.value)}
                                         />
@@ -651,7 +652,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                                     <div className="mt-3 grid grid-cols-2 gap-3">
                                         <Field label="Type">
                                             <select
-                                                className="filter-select w-full"
+                                                className="form-select"
                                                 value={control.control_type}
                                                 onChange={(e) => setControl(index, 'control_type', e.target.value)}
                                             >
@@ -666,7 +667,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
 
                                         <Field label="Frequency">
                                             <select
-                                                className="filter-select w-full"
+                                                className="form-select"
                                                 value={control.frequency}
                                                 onChange={(e) => setControl(index, 'frequency', e.target.value)}
                                             >
@@ -681,7 +682,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
 
                                         <Field label="Control Owner">
                                             <select
-                                                className="filter-select w-full"
+                                                className="form-select"
                                                 value={control.control_owner_id}
                                                 onChange={(e) => setControl(index, 'control_owner_id', e.target.value)}
                                             >
@@ -699,7 +700,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                                                 type="checkbox"
                                                 checked={!!control.is_key}
                                                 onChange={(e) => setControl(index, 'is_key', e.target.checked)}
-                                                className="rounded border-gray-300"
+                                                className="form-checkbox"
                                             />
                                             Key control
                                         </label>
@@ -753,19 +754,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
 }
 
 function Field({ label, error, required, action, children }) {
-    return (
-        <div>
-            <div className="mb-1 flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700">
-                    {label}
-                    {required && <span className="ml-0.5 text-red-500">*</span>}
-                </label>
-                {action}
-            </div>
-            {children}
-            <InputError message={error} className="mt-1" />
-        </div>
-    );
+    return <FormField label={label} error={error} required={required} action={action}>{children}</FormField>;
 }
 
 /**
@@ -806,9 +795,9 @@ function TagInput({ values, onChange }) {
                     </span>
                 ))}
             </div>
-            <input
+            <input aria-label="Add tag"
                 type="text"
-                className="filter-input w-full"
+                className="form-input"
                 placeholder="Type a category and press Enter"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}

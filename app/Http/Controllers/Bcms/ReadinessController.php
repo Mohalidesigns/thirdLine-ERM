@@ -2,11 +2,16 @@
 
 namespace App\Http\Controllers\Bcms;
 
+use App\Enums\Bcms\OccurrenceStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Bcms\CompleteReadinessTaskRequest;
+use App\Models\Bcms\Evidence;
 use App\Models\Bcms\ExerciseOccurrence;
 use App\Models\Bcms\NotificationDelivery;
 use App\Models\Bcms\ReadinessTask;
 use App\Models\User;
+use App\Services\Bcms\Exercises\EvidenceService;
+use App\Services\Bcms\Exercises\OccurrenceExecutionService;
 use App\Services\Bcms\Reminders\AttendanceService;
 use App\Services\Bcms\Reminders\ReadinessService;
 use App\Services\Bcms\Reminders\ReminderAudienceResolver;
@@ -35,6 +40,8 @@ class ReadinessController extends Controller
         private ReminderScheduleBuilder $builder,
         private ReminderAudienceResolver $audience,
         private AttendanceService $attendance,
+        private EvidenceService $evidence,
+        private OccurrenceExecutionService $execution,
     ) {}
 
     /** The occurrence's readiness checklist and its alert plan. */
@@ -53,10 +60,31 @@ class ReadinessController extends Controller
 
         $gate = $this->readiness->gate($occurrence);
 
+        // `evidence_file_id` is retired (ADR 0019 §3) — "has evidence" is now
+        // answered from the real `bcms_evidence` table, one query for every
+        // task on the screen rather than N.
+        $taskIdsWithEvidence = Evidence::query()
+            ->where('owner_type', Evidence::KIND_READINESS_TASK)
+            ->whereIn('owner_id', $tasks->pluck('id'))
+            ->pluck('owner_id')
+            ->all();
+
         // A local, because a belongsTo on a nullable key is genuinely nullable
         // at runtime and typed non-null by static analysis — and the complaint
         // that follows a `?->… ??` is how somebody eventually deletes the check.
         $definition = $occurrence->definition;
+
+        $canFacilitate = $request->user()?->can('bcms.exercise.facilitate') === true;
+
+        // GAP 1: no page linked to `occurrences.start` before this — the
+        // readiness screen is where a facilitator decides to go, so it is the
+        // one that carries what the Start button needs: whether the actor
+        // may press it at all, the existing readiness gate (`$gate`, already
+        // built), and the OTHER gate `start()` now checks — today being
+        // before `scheduled_date` — so the button can ask for confirmation
+        // once rather than the facilitator discovering it as a rejected POST.
+        $alreadyStarted = $occurrence->actual_start !== null;
+        $notStartable = in_array($occurrence->status, [OccurrenceStatus::Cancelled, OccurrenceStatus::Missed], true);
 
         return Inertia::render('Bcms/Exercises/Readiness', [
             'occurrence' => [
@@ -85,7 +113,7 @@ class ReadinessController extends Controller
                 'status' => $t->status,
                 'is_blocking' => (bool) $t->is_blocking,
                 'requires_evidence' => $t->templateTask !== null && (bool) $t->templateTask->requires_evidence,
-                'has_evidence' => $t->evidence_file_id !== null,
+                'has_evidence' => $t->evidence_file_id !== null || in_array($t->getKey(), $taskIdsWithEvidence, true),
                 'override_reason' => $t->override_reason,
                 'overridden_at' => $t->overridden_at?->toDateString(),
                 'is_overdue' => $t->status === 'overdue',
@@ -95,31 +123,94 @@ class ReadinessController extends Controller
             'attendance' => $this->attendance->summary($occurrence),
             'can' => [
                 'manage' => $request->user()?->can('bcms.exercise.manage') === true,
-                'facilitate' => $request->user()?->can('bcms.exercise.facilitate') === true,
+                'facilitate' => $canFacilitate,
                 'override' => $request->user()?->can('bcms.readiness.override') === true,
                 'export' => $request->user()?->can('bcms.report.export') === true,
+                'start' => $canFacilitate && ! $alreadyStarted && ! $notStartable,
+            ],
+            // GAP 1. `requires_override` restates `gate.allowed === false` under
+            // the name a Start button reads; `requires_early_confirmation` is the
+            // date guard `OccurrenceExecutionService::start()` added — nothing
+            // previously stopped a 2027-dated exercise starting today. Neither
+            // one blocks the button: both ask the caller to send the matching
+            // `confirmed_*` flag, exactly as the gate override already does.
+            'start' => [
+                'url' => route('bcms.occurrences.start', $occurrence),
+                'already_started' => $alreadyStarted,
+                'requires_override' => $gate['allowed'] === false,
+                'requires_early_confirmation' => $this->execution->startsEarly($occurrence),
+                'scheduled_date' => $occurrence->scheduled_date?->toDateString(),
             ],
         ]);
     }
 
-    /** What I owe, across every exercise. */
+    /**
+     * What I owe, across every exercise.
+     *
+     * GAP 5: gated on `bcms.exercise.view` OR `my.view` — the route
+     * middleware's own conjunction — because `forUser()` below is already
+     * scoped to `owner_id = $request->user()`. Nobody sees another
+     * employee's readiness tasks through either grant.
+     */
     public function mine(Request $request): Response
     {
-        Gate::authorize('bcms.exercise.view');
+        $canOpenCalendar = $request->user()?->can('bcms.exercise.view') === true;
 
-        return Inertia::render('Bcms/Exercises/MyReadiness', [
+        if (! $canOpenCalendar) {
+            Gate::authorize('my.view');
+        }
+
+        $props = [
             'tasks' => $this->readiness->forUser($request->user()),
-        ]);
+        ];
+
+        // Sent ONLY when the user actually passes `calendar.index`'s own
+        // middleware (`permission:bcms.exercise.view`) — the same rule
+        // `ReadinessService::forUser()` already applies to `readiness_url`.
+        // A `my.view`-only employee gets no key at all, not a link that 403s.
+        if ($canOpenCalendar) {
+            $props['calendar_url'] = route('bcms.calendar.index');
+        }
+
+        return Inertia::render('Bcms/Exercises/MyReadiness', $props);
     }
 
-    public function complete(Request $request, ReadinessTask $task): RedirectResponse
+    /**
+     * `evidence_file_id` IS RETIRED (ADR 0019 §3): it was a bare, unconstrained
+     * integer pointing at no table — the same defect family as standard §4's
+     * bare `exists:`. Evidence is now a real, permissioned upload into
+     * `bcms_evidence`, `owner_type = 'readiness_task'`.
+     *
+     * GAP 5, OWNERSHIP-SCOPED: a holder of `bcms.exercise.facilitate` may
+     * complete any task, as before. Someone who holds only `my.view` may
+     * complete only a task THEY OWN — `readiness_tasks.owner_id`, the exact
+     * column `ReadinessService::forUser()` filters on for `me/readiness-
+     * tasks` — never any other employee's. This is not a broader grant than
+     * "let me tick off my own item": a `my.view`-only caller naming a task
+     * that is not theirs is refused before anything else runs.
+     *
+     * A8: authorization and the file/caption rules both moved into
+     * `CompleteReadinessTaskRequest` — identical logic, the `my.view`-but-
+     * not-owner message preserved via its own `failedAuthorization()`.
+     */
+    public function complete(CompleteReadinessTaskRequest $request, ReadinessTask $task): RedirectResponse
     {
-        Gate::authorize('bcms.exercise.facilitate');
-
-        $data = $request->validate(['evidence_file_id' => ['nullable', 'integer']]);
+        $data = $request->validated();
 
         try {
-            $this->readiness->complete($task, $request->user(), $data['evidence_file_id'] ?? null);
+            if ($request->hasFile('evidence')) {
+                $this->evidence->upload(
+                    $task->occurrence,
+                    $request->file('evidence'),
+                    Evidence::KIND_READINESS_TASK,
+                    $task->getKey(),
+                    'file',
+                    $request->user(),
+                    $data['caption'] ?? null,
+                );
+            }
+
+            $this->readiness->complete($task, $request->user());
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
         }

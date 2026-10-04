@@ -73,7 +73,8 @@ export default function Show({ finding = {}, thread = [] }) {
                         }}
                     >
                         <textarea
-                            className="w-full rounded border border-gray-200 p-2 text-sm"
+                            aria-label="Message"
+                            className="form-textarea"
                             rows="3"
                             value={form.data.body}
                             onChange={(event) => form.setData('body', event.target.value)}

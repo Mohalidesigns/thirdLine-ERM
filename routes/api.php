@@ -6,64 +6,10 @@ use App\Http\Controllers\Api\V1\JobRunController;
 use App\Http\Controllers\Api\V1\MeasureSeriesController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\ResourceController;
+use App\Http\Controllers\Bcms\DrIngestionWebhookController;
 use App\Http\Controllers\Scim\ScimGroupController;
 use App\Http\Controllers\Scim\ScimUserController;
-use App\Models\ApiToken;
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
-
-/*
- * WP-07 — the rate limit is PER TOKEN, and each token carries its own ceiling.
- *
- * Per IP would be wrong in both directions here: several integrations behind
- * one corporate NAT would throttle each other, and one runaway script would be
- * indistinguishable from the rest of the building. Per token also means a
- * misbehaving integration can be given a lower ceiling without touching anyone
- * else's.
- */
-RateLimiter::for('api-token', function (Request $request) {
-    /** @var ApiToken|null $token */
-    $token = $request->attributes->get('api_token');
-
-    if ($token === null) {
-        // Unauthenticated attempts, keyed by IP. Deliberately tight: the only
-        // thing an unauthenticated caller can be doing here is guessing tokens.
-        return Limit::perMinute(20)->by('api-anon:'.$request->ip());
-    }
-
-    return Limit::perMinute(max(1, (int) $token->rate_limit_per_minute))->by('api-token:'.$token->id);
-});
-
-/*
- * SCIM 2.0 PROVISIONING.
- *
- * Keyed on the PRESENTED BEARER TOKEN, not the IP: the callers are directory
- * services (Entra ID, Okta), one per customer, and several customers may egress
- * through the same cloud address. Keying on the credential also means the limit
- * applies before AuthenticateScim resolves it, so token guessing is throttled
- * too — which is why `throttle:scim` is listed BEFORE `scim.auth` on the group.
- *
- *   300 per minute per token — Entra ID sends one HTTP request per user or group
- *   change and bursts hard on the first full sync of a directory. A 5,000-staff
- *   bank's initial import is a long tail of requests, not a spike, but the
- *   ceiling has to clear the burst or provisioning fails silently at the
- *   customer end and nobody hears about it for a week.
- *
- *   20 per minute per IP when NO token is presented at all. The only thing an
- *   unauthenticated caller can be doing on these endpoints is probing, and this
- *   mirrors the `api-anon` limit already used in routes/api.php.
- */
-RateLimiter::for('scim', function (Request $request) {
-    $bearer = $request->bearerToken();
-
-    if ($bearer === null || $bearer === '') {
-        return Limit::perMinute(20)->by('scim-anon:'.$request->ip());
-    }
-
-    return Limit::perMinute(300)->by('scim:'.hash('sha256', $bearer));
-});
 
 /*
 |--------------------------------------------------------------------------
@@ -92,7 +38,8 @@ RateLimiter::for('scim', function (Request $request) {
  * limit callers who had already succeeded, which is the wrong half.
  *
  * The limiter keys on the PRESENTED BEARER TOKEN rather than the IP, for the
- * same reason `api-token` above does — see its definition for the numbers.
+ * same reason `api-token` does — see `AppServiceProvider::registerApiRateLimiters()`
+ * for the numbers.
  */
 Route::prefix('scim/v2')
     ->middleware(['throttle:scim', 'scim.auth'])
@@ -157,6 +104,24 @@ Route::prefix('api/v1')
 
         Route::get('jobs/{jobRun}', [JobRunController::class, 'show'])
             ->middleware('scope:job.view')->name('api.v1.jobs.show');
+
+        /*
+         * BCMS Phase 10 — IT DR result ingestion (ADR 0020 §3, Amendment 1).
+         * A tenant's own replication appliance posts a test result here with
+         * its OWN `ApiToken` (scope `bcms.dr.test.record`) — `api.auth`
+         * binds the tenant from that token before the controller runs, so
+         * there is no payload field that can name a different tenant's
+         * system. `{provider}` is data (which vendor produced the result),
+         * never authentication: DrIngestionWebhookController constrains it
+         * to a known DR-provider list before anything else runs.
+         * `feature:bcms` keeps it dark alongside every other BCMS route
+         * while the module is off; `idempotency` (from the group) is a
+         * second, independent safety net over the endpoint's own
+         * (provider, external_test_id) idempotency key.
+         */
+        Route::post('bcms/dr-tests/ingest/{provider}', [DrIngestionWebhookController::class, 'ingest'])
+            ->middleware(['feature:bcms', 'scope:bcms.dr.test.record'])
+            ->name('api.v1.bcms.dr-tests.ingest');
 
         // The generic resource surface. One controller, one allowlist per
         // resource — see App\Http\Api\ApiResourceRegistry.

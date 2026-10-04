@@ -3,6 +3,7 @@ import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import CostRtoScatter from '@/Components/Bcms/CostRtoScatter';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -134,7 +135,7 @@ export default function Index({ cards = [], gap = {}, scatter = {}, strategy_typ
                                         {card.code} — {card.name}
                                     </Link>
                                 </p>
-                                <p className="mt-1 text-xs text-gray-500">
+                                <p className="form-hint">
                                     {card.business_unit ?? 'Organisation-level'}
                                     {card.tier != null && ` · Tier ${card.tier}`}
                                     {card.is_critical_service && ' · Regulatory critical service'}
@@ -233,10 +234,9 @@ export default function Index({ cards = [], gap = {}, scatter = {}, strategy_typ
                                 {openProcess === card.process_id ? (
                                     <form onSubmit={submit} className="space-y-3">
                                         <div className="grid gap-3 sm:grid-cols-3">
-                                            <label className="text-xs">
-                                                <span className="text-gray-600">Strategy</span>
+                                            <FormField label="Strategy">
                                                 <select
-                                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                                    className="form-select"
                                                     value={propose.data.strategy_type}
                                                     onChange={(e) => propose.setData('strategy_type', e.target.value)}
                                                 >
@@ -244,43 +244,41 @@ export default function Index({ cards = [], gap = {}, scatter = {}, strategy_typ
                                                         <option key={t.value} value={t.value}>{t.label}</option>
                                                     ))}
                                                 </select>
-                                            </label>
-                                            <label className="text-xs">
-                                                <span className="text-gray-600">Cost (whole naira)</span>
+                                            </FormField>
+                                            <FormField label="Cost (whole naira)">
                                                 <input
                                                     type="number" min="0"
-                                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                                    className="form-input"
                                                     value={propose.data.cost_estimate_minor === '' ? '' : propose.data.cost_estimate_minor / 100}
                                                     onChange={(e) => propose.setData('cost_estimate_minor', e.target.value === '' ? '' : Math.round(Number(e.target.value) * 100))}
                                                 />
-                                            </label>
-                                            <label className="text-xs">
-                                                <span className="text-gray-600">Achievable RTO (hours)</span>
+                                            </FormField>
+                                            <FormField label="Achievable RTO (hours)">
                                                 <input
                                                     type="number" step="0.25" min="0"
-                                                    className="mt-1 w-full rounded border-gray-300 text-sm"
+                                                    className="form-input"
                                                     value={propose.data.rto_achievable_hours}
                                                     onChange={(e) => propose.setData('rto_achievable_hours', e.target.value)}
                                                 />
-                                            </label>
+                                            </FormField>
                                         </div>
-                                        <input
+                                        <input aria-label="Strategy title"
                                             type="text" placeholder="Short title"
-                                            className="w-full rounded border-gray-300 text-sm"
+                                            className="form-input"
                                             value={propose.data.title}
                                             onChange={(e) => propose.setData('title', e.target.value)}
                                         />
-                                        <textarea
+                                        <textarea aria-label="Strategy description"
                                             rows={2} placeholder="What this strategy actually involves"
-                                            className="w-full rounded border-gray-300 text-sm"
+                                            className="form-textarea"
                                             value={propose.data.description}
                                             onChange={(e) => propose.setData('description', e.target.value)}
                                         />
                                         {strategy_types.find((t) => t.value === propose.data.strategy_type)?.requires_rationale && (
-                                            <textarea
+                                            <textarea aria-label="Rationale"
                                                 rows={2}
                                                 placeholder="Why this option — required for accepting the outage or relying on a peer"
-                                                className="w-full rounded border-amber-300 text-sm"
+                                                className="form-textarea border-amber-300"
                                                 value={propose.data.selection_rationale}
                                                 onChange={(e) => propose.setData('selection_rationale', e.target.value)}
                                             />

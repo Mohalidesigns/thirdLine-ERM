@@ -1,4 +1,4 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
@@ -22,8 +22,10 @@ import tryRoute from '@thirdline/ui/lib/tryRoute';
  * being hidden.
  */
 export default function Alert({ alert = {}, roll_call = null, channels = [], mocked_channels = [], can = {} }) {
+    const { errors = {} } = usePage().props;
     const [state, setState] = useState({ alert, roll_call });
     const [estimate, setEstimate] = useState(null);
+    const [estimateError, setEstimateError] = useState(null);
     const [estimating, setEstimating] = useState(false);
 
     const running = state.alert.dispatched_at && (state.roll_call?.unaccounted_for ?? 0) > 0;
@@ -44,8 +46,14 @@ export default function Alert({ alert = {}, roll_call = null, channels = [], moc
     // A plain fetch rather than an Inertia visit: the estimate is a number to
     // read, not a page to navigate to, and re-rendering the console under
     // somebody who is mid-decision is exactly what this screen must not do.
+    //
+    // The controller returns the same `{error: "..."}` 422 shape whether the
+    // audience rule is circular or a template placeholder was left unfilled
+    // (AlertController::estimate() catches both and responds identically), so
+    // one handler covers both refusals rather than guessing which happened.
     const runEstimate = () => {
         setEstimating(true);
+        setEstimateError(null);
         fetch(tryRoute('bcms.alerts.estimate', alert.uuid), {
             method: 'POST',
             headers: {
@@ -53,9 +61,16 @@ export default function Alert({ alert = {}, roll_call = null, channels = [], moc
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
             },
         })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((d) => d && setEstimate(d))
-            .catch(() => {})
+            .then((r) => r.json().then((body) => ({ ok: r.ok, body })))
+            .then(({ ok, body }) => {
+                if (ok) {
+                    setEstimate(body);
+                } else {
+                    setEstimate(null);
+                    setEstimateError(body?.error ?? 'Could not estimate reach and cost.');
+                }
+            })
+            .catch(() => setEstimateError('Could not estimate reach and cost.'))
             .finally(() => setEstimating(false));
     };
 
@@ -115,6 +130,12 @@ export default function Alert({ alert = {}, roll_call = null, channels = [], moc
                             {estimating ? 'Working out who this reaches…' : 'Estimate reach and cost'}
                         </button>
 
+                        {estimateError && (
+                            <p role="alert" className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">
+                                {estimateError}
+                            </p>
+                        )}
+
                         {estimate && (
                             <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                                 <Figure label="Recipients" value={estimate.recipients} />
@@ -134,6 +155,19 @@ export default function Alert({ alert = {}, roll_call = null, channels = [], moc
                                 emergency the network is usually the first thing to fail — consider adding
                                 SMS, voice or USSD.
                             </p>
+                        )}
+
+                        {estimate && (estimate.preview ?? []).length > 0 && (
+                            <div className="mt-4">
+                                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Exactly what would be sent
+                                </h3>
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                    {estimate.preview.map((p) => (
+                                        <PreviewCard key={`${p.channel}|${p.locale}`} preview={p} />
+                                    ))}
+                                </div>
+                            </div>
                         )}
                     </section>
 
@@ -168,6 +202,7 @@ export default function Alert({ alert = {}, roll_call = null, channels = [], moc
                         {can.dispatch ? (
                             <button type="button"
                                 disabled={!a.is_dispatchable || a.held_by_quiet_hours}
+                                aria-describedby={errors.dispatch ? 'dispatch-error' : undefined}
                                 onClick={() => {
                                     if (window.confirm(
                                         `Send "${a.title}" to ${a.recipient_count || 'the resolved'} recipients?`
@@ -185,6 +220,12 @@ export default function Alert({ alert = {}, roll_call = null, channels = [], moc
                             </button>
                         ) : (
                             <p className="text-sm text-slate-500">You do not hold the dispatch permission.</p>
+                        )}
+
+                        {errors.dispatch && (
+                            <p id="dispatch-error" role="alert" className="mt-2 rounded bg-rose-50 p-2 text-xs text-rose-700">
+                                {errors.dispatch}
+                            </p>
                         )}
 
                         {!a.is_dispatchable && (
@@ -320,6 +361,40 @@ function Big({ label, value, tone, detail }) {
             <div className={`text-3xl font-semibold ${tone}`}>{value}</div>
             <div className="text-xs text-slate-500">{label}</div>
             {detail && <div className="mt-0.5 text-[11px] text-slate-400">{detail}</div>}
+        </div>
+    );
+}
+
+/**
+ * One rendered (channel, locale) pair from `AlertService::estimate()`'s
+ * `preview` — the same `TemplateRenderer::render()`/`wireBody()` output a
+ * real send would use, including the simulation prefix, never a
+ * re-derivation of it client-side (ADR 0024 §3.7).
+ */
+function PreviewCard({ preview }) {
+    const isExercise = (preview.body ?? '').includes('THIS IS AN EXERCISE');
+
+    return (
+        <div className="rounded border border-slate-200 bg-slate-50 p-3 text-xs">
+            <div className="mb-1 flex items-center justify-between">
+                <span className="font-semibold uppercase tracking-wide text-slate-600">{preview.channel}</span>
+                <span className="text-slate-400">{preview.locale}</span>
+            </div>
+            {isExercise && (
+                <p className="mb-1 inline-block rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800">
+                    THIS IS AN EXERCISE
+                </p>
+            )}
+            {preview.channel === 'email' && preview.subject && (
+                <p className="mb-1 font-medium text-slate-700">{preview.subject}</p>
+            )}
+            <p className="whitespace-pre-wrap text-slate-700">{preview.body}</p>
+            {preview.segments != null && (
+                <p className="mt-2 text-[11px] text-slate-500">
+                    {preview.segments} SMS segment{preview.segments === 1 ? '' : 's'}
+                    {' · '}{preview.encoding === 'gsm7' ? 'GSM-7' : 'UCS-2'}
+                </p>
+            )}
         </div>
     );
 }

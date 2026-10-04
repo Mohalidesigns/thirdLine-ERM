@@ -4,6 +4,7 @@ namespace App\Models\Bcms;
 
 use App\Enums\Bcms\CorrectiveActionStatus;
 use App\Models\Bcms\Concerns\BcmsAuditable;
+use App\Models\Bcms\Concerns\BindsToVisibleRecord;
 use App\Models\Bcms\Concerns\HasBcmsUuid;
 use App\Models\Issue;
 use App\Models\User;
@@ -58,9 +59,18 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  */
 class CorrectiveAction extends Model
 {
-    use BcmsAuditable, BelongsToOrganization, HasBcmsUuid, HasFactory, SoftDeletes;
+    use BcmsAuditable, BelongsToOrganization, BindsToVisibleRecord, HasBcmsUuid, HasFactory, SoftDeletes;
 
     protected $table = 'bcms_corrective_actions';
+
+    /**
+     * Derived (ADR 0017 §2): an action has no unit column of its own and
+     * takes the shortest path to an anchor — the finding it corrects.
+     */
+    public function orgAnchorPath(): string
+    {
+        return 'finding';
+    }
 
     /** @var list<string> */
     protected $fillable = [

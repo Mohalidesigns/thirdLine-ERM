@@ -209,6 +209,44 @@ class PlanAcknowledgementService
             ->all();
     }
 
+    /**
+     * Whether this user counts as a recipient of this plan — TWO
+     * independent routes to "yes", either is enough:
+     *
+     *  1. It is one of the plans `MyResilienceService::plans()` already
+     *     shows this exact user on their own My Resilience page: approved,
+     *     and either the user's own business unit or org-wide
+     *     (`business_unit_id` null). Deliberately the SAME test that screen
+     *     uses, so "I can see it there" and "I may acknowledge it" never
+     *     disagree — the ordinary case a `my.view`-only employee is in.
+     *  2. The user resolves out of the plan's `distribution_rule` through
+     *     the audience grammar `coverage()` already measures against — the
+     *     broader case of a named cross-unit recipient.
+     *
+     * GAP 5. Acknowledging is gated on `bcms.plan.view` at the route, which a
+     * `my.view`-only employee does not hold. This is the ownership-scoped
+     * check `PlanDocumentController::acknowledge()` falls back to for that
+     * caller, so a person the plan was actually distributed to may say they
+     * read it without holding the broader grant that lets someone browse
+     * every plan in the tenant.
+     */
+    public function isDistributedTo(Plan $plan, User $user): bool
+    {
+        if ($plan->status === 'approved'
+            && ($plan->business_unit_id === null || (int) $plan->business_unit_id === (int) $user->business_unit_id)) {
+            return true;
+        }
+
+        $rule = AudienceRule::fromJson($plan->distribution_rule);
+
+        if ($rule === null) {
+            return false;
+        }
+
+        return $this->audience->resolve($rule)
+            ->contains(fn ($contact) => (int) $contact->user_id === $user->getKey());
+    }
+
     /** Whether this user has acknowledged this plan in the given year. */
     public function hasAcknowledged(Plan $plan, User $user, ?int $periodYear = null): bool
     {

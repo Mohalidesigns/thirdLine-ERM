@@ -3,6 +3,7 @@ import { Head, Link, router, useForm, usePage } from "@inertiajs/react";
 import AppLayout from "@/Layouts/AppLayout";
 import PageHeader from "@thirdline/ui/Components/PageHeader";
 import StatusBadge from "@thirdline/ui/Components/StatusBadge";
+import Pagination from "@thirdline/ui/Components/Pagination";
 
 /**
  * The action-plan tracking register (§9.3), and the owner dashboard inside it.
@@ -96,14 +97,12 @@ export default function Index({
                 <Tile label="Verified closed" value={summary.verified ?? 0} />
             </div>
 
-            <div className="card mb-4">
-                <div className="flex flex-wrap items-end gap-3 p-4">
-                    <label className="text-xs text-gray-600">
-                        <span className="mb-1 block uppercase tracking-wider">
-                            Status
-                        </span>
-                        <select
-                            className="form-select text-sm"
+            <div className="filter-bar">
+                <div className="filter-bar-inner">
+                    <div className="filter-group min-w-[160px]">
+                        <label className="filter-label">Status</label>
+                        <select aria-label="Status"
+                            className="filter-select"
                             value={filters.status ?? ""}
                             onChange={(e) =>
                                 filter({ status: e.target.value || undefined })
@@ -116,14 +115,12 @@ export default function Index({
                                 </option>
                             ))}
                         </select>
-                    </label>
+                    </div>
 
-                    <label className="text-xs text-gray-600">
-                        <span className="mb-1 block uppercase tracking-wider">
-                            Cycle
-                        </span>
-                        <select
-                            className="form-select text-sm"
+                    <div className="filter-group min-w-[160px]">
+                        <label className="filter-label">Cycle</label>
+                        <select aria-label="Cycle"
+                            className="filter-select"
                             value={filters.cycle ?? ""}
                             onChange={(e) =>
                                 filter({ cycle: e.target.value || undefined })
@@ -136,50 +133,59 @@ export default function Index({
                                 </option>
                             ))}
                         </select>
-                    </label>
+                    </div>
 
-                    <button
-                        type="button"
-                        className={
-                            filters.overdue
-                                ? "btn-primary text-xs"
-                                : "btn-secondary text-xs"
-                        }
-                        onClick={() =>
-                            filter({ overdue: filters.overdue ? undefined : 1 })
-                        }
-                    >
-                        Overdue only
-                    </button>
+                    <div className="filter-group">
+                        <label className="filter-label">&nbsp;</label>
+                        <button
+                            type="button"
+                            className={
+                                filters.overdue
+                                    ? "btn-primary text-xs"
+                                    : "btn-secondary text-xs"
+                            }
+                            onClick={() =>
+                                filter({ overdue: filters.overdue ? undefined : 1 })
+                            }
+                        >
+                            Overdue only
+                        </button>
+                    </div>
 
-                    <button
-                        type="button"
-                        className={
-                            filters.pending_verification
-                                ? "btn-primary text-xs"
-                                : "btn-secondary text-xs"
-                        }
-                        onClick={() =>
-                            filter({
-                                pending_verification:
-                                    filters.pending_verification
-                                        ? undefined
-                                        : 1,
-                            })
-                        }
-                    >
-                        Awaiting verification
-                    </button>
+                    <div className="filter-group">
+                        <label className="filter-label">&nbsp;</label>
+                        <button
+                            type="button"
+                            className={
+                                filters.pending_verification
+                                    ? "btn-primary text-xs"
+                                    : "btn-secondary text-xs"
+                            }
+                            onClick={() =>
+                                filter({
+                                    pending_verification:
+                                        filters.pending_verification
+                                            ? undefined
+                                            : 1,
+                                })
+                            }
+                        >
+                            Awaiting verification
+                        </button>
+                    </div>
 
-                    <button
-                        type="button"
-                        className="btn-secondary text-xs"
-                        onClick={() =>
-                            router.get(route("rcsa.action-plans.index"))
-                        }
-                    >
-                        Clear
-                    </button>
+                    <div className="filter-group">
+                        <label className="filter-label">&nbsp;</label>
+                        <button
+                            type="button"
+                            className="filter-reset"
+                            onClick={() =>
+                                router.get(route("rcsa.action-plans.index"))
+                            }
+                        >
+                            Clear
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -202,9 +208,11 @@ export default function Index({
                                 <tr>
                                     <td
                                         colSpan={7}
-                                        className="py-10 text-center text-sm text-gray-400"
+                                        className="text-center py-12"
                                     >
-                                        No action plans match.
+                                        <div className="text-gray-400">
+                                            <p className="text-sm font-medium">No action plans match</p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -226,24 +234,8 @@ export default function Index({
                         </tbody>
                     </table>
                 </div>
+                <Pagination links={plans.links} />
             </div>
-
-            {plans.links && plans.links.length > 3 && (
-                <div className="mt-4 flex flex-wrap gap-1">
-                    {plans.links.map((link, i) => (
-                        <Link
-                            key={i}
-                            href={link.url ?? "#"}
-                            className={`rounded px-3 py-1 text-xs ${
-                                link.active
-                                    ? "bg-[var(--color-primary)] text-white"
-                                    : "bg-white text-gray-600"
-                            } ${link.url ? "" : "pointer-events-none opacity-40"}`}
-                            dangerouslySetInnerHTML={{ __html: link.label }}
-                        />
-                    ))}
-                </div>
-            )}
         </AppLayout>
     );
 }
@@ -254,18 +246,18 @@ function PlanRow({ plan, open, onToggle }) {
     return (
         <>
             <tr className={overdue ? "bg-red-50/40" : undefined}>
-                <td className="text-sm">
-                    <span className="font-medium text-gray-700">
+                <td>
+                    <span className="cell-title">
                         {plan.risk_no}
                     </span>
-                    <span className="block text-xs text-gray-500">
+                    <p className="cell-subtitle">
                         {plan.business_unit}
-                    </span>
+                    </p>
                 </td>
-                <td className="max-w-md text-sm text-gray-600">
+                <td className="max-w-md cell-muted">
                     {plan.control_to_implement}
                 </td>
-                <td className="text-sm text-gray-600">
+                <td className="cell-muted">
                     {plan.owner ?? "Unassigned"}
                 </td>
                 <td className="whitespace-nowrap text-sm">
@@ -335,7 +327,7 @@ function PlanRow({ plan, open, onToggle }) {
 
             {open && (
                 <tr>
-                    <td colSpan={7} className="bg-gray-50 p-4">
+                    <td colSpan={7} className="bg-gray-50">
                         <PlanPanel plan={plan} />
                     </td>
                 </tr>
@@ -411,7 +403,7 @@ function PlanPanel({ plan }) {
                         <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
                             Progress
                         </label>
-                        <input
+                        <input aria-label="Progress"
                             type="range"
                             min="0"
                             max="100"
@@ -425,9 +417,9 @@ function PlanPanel({ plan }) {
                                 )
                             }
                         />
-                        <input
+                        <input aria-label="Progress note"
                             type="text"
-                            className="form-input w-full text-sm"
+                            className="form-input"
                             placeholder="What has moved? (optional)"
                             value={progress.data.note}
                             onChange={(e) =>
@@ -456,8 +448,8 @@ function PlanPanel({ plan }) {
                         <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
                             Mark complete
                         </label>
-                        <textarea
-                            className="form-textarea w-full text-sm"
+                        <textarea aria-label="Completion evidence"
+                            className="form-textarea"
                             rows={2}
                             placeholder="What was put in place, and how can somebody else check it?"
                             value={complete.data.completion_evidence}
@@ -469,7 +461,7 @@ function PlanPanel({ plan }) {
                             }
                         />
                         {complete.errors.completion_evidence && (
-                            <p className="text-xs text-red-600">
+                            <p className="form-error">
                                 {complete.errors.completion_evidence}
                             </p>
                         )}
@@ -499,9 +491,9 @@ function PlanPanel({ plan }) {
                             <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
                                 Ask for more time
                             </label>
-                            <input
+                            <input aria-label="Ask for more time"
                                 type="date"
-                                className="form-input w-full text-sm"
+                                className="form-input"
                                 value={extension.data.proposed_target_date}
                                 onChange={(e) =>
                                     extension.setData(
@@ -511,12 +503,12 @@ function PlanPanel({ plan }) {
                                 }
                             />
                             {extension.errors.proposed_target_date && (
-                                <p className="text-xs text-red-600">
+                                <p className="form-error">
                                     {extension.errors.proposed_target_date}
                                 </p>
                             )}
-                            <textarea
-                                className="form-textarea w-full text-sm"
+                            <textarea aria-label="Extension justification"
+                                className="form-textarea"
                                 rows={2}
                                 placeholder="Why can the original date not be met?"
                                 value={extension.data.extension_reason}
@@ -528,7 +520,7 @@ function PlanPanel({ plan }) {
                                 }
                             />
                             {extension.errors.extension_reason && (
-                                <p className="text-xs text-red-600">
+                                <p className="form-error">
                                     {extension.errors.extension_reason}
                                 </p>
                             )}
@@ -644,8 +636,8 @@ function PlanPanel({ plan }) {
                                 Send back
                             </button>
                         </div>
-                        <textarea
-                            className="form-textarea mt-2 w-full text-sm"
+                        <textarea aria-label="Review comment"
+                            className="form-textarea mt-2"
                             rows={2}
                             placeholder="If sending back: what is missing?"
                             value={verdict.data.reason}
@@ -654,7 +646,7 @@ function PlanPanel({ plan }) {
                             }
                         />
                         {verdict.errors.reason && (
-                            <p className="text-xs text-red-600">
+                            <p className="form-error">
                                 {verdict.errors.reason}
                             </p>
                         )}

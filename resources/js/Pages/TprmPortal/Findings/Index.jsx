@@ -15,20 +15,20 @@ export default function Index({ findings = [] }) {
                 </div>
             ) : (
                 <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-50">
+                    <table className="data-table">
+                        <thead>
                             <tr>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Reference</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Finding</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Severity</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Status</th>
-                                <th scope="col" className="px-4 py-2 text-left font-medium text-gray-600">Due</th>
+                                <th scope="col">Reference</th>
+                                <th scope="col">Finding</th>
+                                <th scope="col">Severity</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Due</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {findings.map((finding) => (
                                 <tr key={finding.uuid}>
-                                    <th scope="row" className="px-4 py-2 text-left font-mono text-xs text-gray-600">
+                                    <th scope="row" className="font-mono">
                                         <Link
                                             href={route('tprm-portal.findings.show', finding.uuid)}
                                             className="text-blue-700 hover:underline"
@@ -36,9 +36,9 @@ export default function Index({ findings = [] }) {
                                             {finding.reference}
                                         </Link>
                                     </th>
-                                    <td className="px-4 py-2">{finding.title}</td>
-                                    <td className="px-4 py-2">{finding.severity_label}</td>
-                                    <td className="px-4 py-2">{finding.status_label}</td>
+                                    <td>{finding.title}</td>
+                                    <td>{finding.severity_label}</td>
+                                    <td>{finding.status_label}</td>
                                     <td className={`px-4 py-2 ${finding.overdue ? 'font-semibold text-red-700' : ''}`}>
                                         {finding.target_date ?? '—'}
                                     </td>

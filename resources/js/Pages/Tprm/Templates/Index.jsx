@@ -22,21 +22,21 @@ export default function Index({ templates = [], can = {} }) {
             />
 
             <div className="card overflow-hidden">
-                <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                <table className="data-table">
+                    <thead>
                         <tr>
-                            <th className="px-4 py-3 font-medium">Questionnaire</th>
-                            <th className="px-4 py-3 font-medium">Owner</th>
-                            <th className="px-4 py-3 font-medium">Status</th>
-                            <th className="px-4 py-3 text-right font-medium">Questions</th>
-                            <th className="px-4 py-3 text-right font-medium">Unmapped</th>
-                            <th className="px-4 py-3" />
+                            <th>Questionnaire</th>
+                            <th>Owner</th>
+                            <th>Status</th>
+                            <th className="text-right">Questions</th>
+                            <th className="text-right">Unmapped</th>
+                            <th />
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {templates.map((template) => (
                             <tr key={template.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3">
+                                <td>
                                     <a href={template.url} className="font-medium text-blue-700 hover:underline">
                                         {template.name}
                                     </a>
@@ -50,19 +50,19 @@ export default function Index({ templates = [], can = {} }) {
                                         </p>
                                     )}
                                 </td>
-                                <td className="px-4 py-3 text-xs">
+                                <td className="text-xs">
                                     {template.is_system_pack
                                         ? <span className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600">Shipped</span>
                                         : <span className="text-gray-600">Your organisation</span>}
                                 </td>
-                                <td className="px-4 py-3 text-xs capitalize">{template.status}</td>
-                                <td className="px-4 py-3 text-right tabular-nums">{template.question_count}</td>
-                                <td className="px-4 py-3 text-right tabular-nums">
+                                <td className="text-xs capitalize">{template.status}</td>
+                                <td className="text-right tabular-nums">{template.question_count}</td>
+                                <td className="text-right tabular-nums">
                                     {template.unmapped_count > 0
                                         ? <span className="font-medium text-red-700">{template.unmapped_count}</span>
                                         : <span className="text-gray-400">0</span>}
                                 </td>
-                                <td className="px-4 py-3 text-right">
+                                <td className="text-right">
                                     {can.manage && (
                                         <button
                                             type="button"

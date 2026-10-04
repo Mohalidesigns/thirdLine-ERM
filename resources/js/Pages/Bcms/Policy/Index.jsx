@@ -2,6 +2,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FormField from '@thirdline/ui/Components/FormField';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 
 /**
@@ -32,25 +33,25 @@ export default function Index({ current, versions = [], default_statement: defau
             />
 
             {versions.length === 0 ? (
-                <form onSubmit={submitDraft} className="max-w-2xl space-y-4 rounded-lg border border-gray-200 bg-white p-6">
-                    <p className="text-sm text-gray-600">
-                        ISO 22301 clause 5.2 requires a policy that is documented, communicated and available. Once a
-                        version is approved it can never be edited — only superseded by the next one, which is what
-                        makes the version history worth anything to an auditor.
-                    </p>
-                    <label className="block text-sm">
-                        <span className="text-gray-700">Title</span>
-                        <input className="mt-1 w-full rounded border-gray-300 text-sm" value={draft.data.title}
-                            onChange={(e) => draft.setData('title', e.target.value)} />
-                    </label>
-                    <label className="block text-sm">
-                        <span className="text-gray-700">Next review date</span>
-                        <input type="date" className="mt-1 w-full rounded border-gray-300 text-sm" value={draft.data.next_review_date}
-                            onChange={(e) => draft.setData('next_review_date', e.target.value)} />
-                    </label>
-                    <button type="submit" className="btn-primary text-sm" disabled={!can.manage || draft.processing}>
-                        Draft version 1.0
-                    </button>
+                <form onSubmit={submitDraft} className="card max-w-2xl">
+                    <div className="card-body space-y-4">
+                        <p className="text-sm text-gray-600">
+                            ISO 22301 clause 5.2 requires a policy that is documented, communicated and available. Once a
+                            version is approved it can never be edited — only superseded by the next one, which is what
+                            makes the version history worth anything to an auditor.
+                        </p>
+                        <FormField label="Title">
+                            <input className="form-input" value={draft.data.title}
+                                onChange={(e) => draft.setData('title', e.target.value)} />
+                        </FormField>
+                        <FormField label="Next review date">
+                            <input type="date" className="form-input" value={draft.data.next_review_date}
+                                onChange={(e) => draft.setData('next_review_date', e.target.value)} />
+                        </FormField>
+                        <button type="submit" className="btn-primary text-sm" disabled={!can.manage || draft.processing}>
+                            Draft version 1.0
+                        </button>
+                    </div>
                 </form>
             ) : (
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -96,7 +97,7 @@ export default function Index({ current, versions = [], default_statement: defau
                                                     onSubmit={(e) => { e.preventDefault(); supersede.post(tryRoute('bcms.policy.supersede', version.uuid), { preserveScroll: true }); }}
                                                     className="flex gap-2"
                                                 >
-                                                    <input placeholder="2.0" className="w-20 rounded border-gray-300 text-sm"
+                                                    <input placeholder="2.0" aria-label="New version number" className="form-input w-20"
                                                         value={supersede.data.version}
                                                         onChange={(e) => supersede.setData('version', e.target.value)} />
                                                     <button type="submit" className="btn-secondary text-sm">Supersede</button>
@@ -137,15 +138,12 @@ export default function Index({ current, versions = [], default_statement: defau
                                             onSubmit={(e) => { e.preventDefault(); attest.post(tryRoute('bcms.policy.attest', version.uuid), { preserveScroll: true }); }}
                                             className="mt-4 space-y-3 border-t border-gray-100 pt-4"
                                         >
-                                            <label className="block text-sm">
-                                                <span className="text-gray-700">Statement you are attesting to</span>
-                                                <textarea rows={3} className="mt-1 w-full rounded border-gray-300 text-sm"
+                                            <FormField label="Statement you are attesting to"
+                                                hint="Stored with your name, role and the time. It cannot be edited afterwards.">
+                                                <textarea rows={3} className="form-textarea"
                                                     value={attest.data.statement}
                                                     onChange={(e) => attest.setData('statement', e.target.value)} />
-                                                <span className="mt-1 block text-xs text-gray-500">
-                                                    Stored with your name, role and the time. It cannot be edited afterwards.
-                                                </span>
-                                            </label>
+                                            </FormField>
                                             <button type="submit" className="btn-primary text-sm" disabled={attest.processing}>
                                                 Attest
                                             </button>

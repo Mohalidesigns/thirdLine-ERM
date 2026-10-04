@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
-import InputError from '@thirdline/ui/Components/InputError';
+import FormField from '@thirdline/ui/Components/FormField';
 
 /**
  * The workbook's columns U, V and W — what will be done about a risk above
@@ -83,7 +83,7 @@ export default function ActionPlans({ assessmentId, line, owners = [], editable,
                             >
                                 <div className="min-w-0">
                                     <p className="text-sm text-gray-800">{plan.control_to_implement}</p>
-                                    <p className="mt-1 text-xs text-gray-500">
+                                    <p className="form-hint">
                                         {plan.owner ?? (
                                             <span className="text-red-600">No owner</span>
                                         )}{' '}
@@ -169,26 +169,21 @@ function PlanForm({ assessmentId, line, plan = null, owners, onDone, onCancel })
 
     return (
         <form onSubmit={submit} className="space-y-3 rounded-md border border-gray-200 bg-white p-3">
-            <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Control to be implemented</label>
+            <FormField label="Control to be implemented" error={form.errors.control_to_implement}>
                 <textarea
                     rows={2}
                     autoFocus
-                    className="filter-input w-full"
+                    className="form-textarea"
                     placeholder="What will be put in place to bring this risk within appetite?"
                     value={form.data.control_to_implement}
                     onChange={(e) => form.setData('control_to_implement', e.target.value)}
                 />
-                <InputError message={form.errors.control_to_implement} className="mt-1" />
-            </div>
+            </FormField>
 
             <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">
-                        Person to act / risk owner
-                    </label>
+                <FormField label="Person to act / risk owner" error={form.errors.owner_id}>
                     <select
-                        className="filter-select w-full"
+                        className="form-select"
                         value={form.data.owner_id}
                         onChange={(e) => form.setData('owner_id', e.target.value)}
                     >
@@ -199,22 +194,19 @@ function PlanForm({ assessmentId, line, plan = null, owners, onDone, onCancel })
                             </option>
                         ))}
                     </select>
-                    <InputError message={form.errors.owner_id} className="mt-1" />
-                </div>
+                </FormField>
 
-                <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Implementation date</label>
+                <FormField label="Implementation date" error={form.errors.target_date}>
                     <input
                         type="date"
-                        className="filter-input w-full"
+                        className="form-input"
                         value={form.data.target_date}
                         onChange={(e) => form.setData('target_date', e.target.value)}
                     />
-                    <InputError message={form.errors.target_date} className="mt-1" />
-                </div>
+                </FormField>
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="form-actions">
                 <button type="button" onClick={onCancel} className="btn-secondary text-sm">
                     Cancel
                 </button>

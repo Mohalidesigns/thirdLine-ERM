@@ -161,6 +161,18 @@ class DatabaseSeeder extends Seeder
         $this->call(\Database\Seeders\Bcms\BcmsReferenceSeeder::class);
 
         /* ------------------------------------------------------------------ */
+        /*  15b. The BCMS widget library (ADR 0021 Amendment 1). */
+        /* */
+        /*      System rows with a null organization_id, like the TPRM widget */
+        /*      library this follows. Seeded after the BCMS reference data for */
+        /*      the same reason TPRM's is seeded after its own: a widget names */
+        /*      a source, and a source is only meaningful once the tables */
+        /*      behind it exist. */
+        /* ------------------------------------------------------------------ */
+
+        $this->call(\Database\Seeders\Bcms\BcmsWidgetSeeder::class);
+
+        /* ------------------------------------------------------------------ */
         /*  16. BCMS demonstration estate. */
         /* */
         /*      After DemoDataSeeder, and the dependency is real: the BCM */

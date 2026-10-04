@@ -53,6 +53,104 @@ export default function Workspace({
     const [outstanding, setOutstanding] = useState(initialOutstanding);
 
     /**
+     * Rows with an autosave PATCH in flight right now, as a REFERENCE COUNT
+     * keyed by line id, not a Set. Arrow keys move a row down a column fast
+     * enough that a second edit can reach the server before the first one's
+     * response does — two overlapping saves on the same row — and a Set's
+     * `delete` on the first one to settle would mark the row no-longer-in-
+     * flight while the second save is still out. `begin`/`end` keep a count
+     * per id instead, so the row stays "in flight" until every save that
+     * started on it has settled, not just the most recent.
+     *
+     * A ref, not state: the resync effect below only needs the current value
+     * at the moment `initialLines` changes, and a ref reading does not need
+     * to be a dependency or cause an extra render.
+     */
+    const inFlightRef = useRef(new Map());
+
+    const beginInFlight = useCallback((id) => {
+        inFlightRef.current.set(id, (inFlightRef.current.get(id) ?? 0) + 1);
+    }, []);
+
+    const endInFlight = useCallback((id) => {
+        const remaining = (inFlightRef.current.get(id) ?? 0) - 1;
+
+        if (remaining <= 0) {
+            inFlightRef.current.delete(id);
+        } else {
+            inFlightRef.current.set(id, remaining);
+        }
+    }, []);
+
+    const isInFlight = useCallback(
+        (id) => (inFlightRef.current.get(id) ?? 0) > 0,
+        [],
+    );
+
+    /**
+     * Inertia keeps this same component instance mounted across a reload of
+     * this page — a partial `router.reload({ only: [...] })` after a plan
+     * change, or the full visit a `form.post` redirect produces after
+     * replying to a challenge. Both land as new `lines`/`outstanding` PROPS,
+     * but `useState(initialLines)` only reads its argument on the very first
+     * render, so without these the grid kept showing "Plan needed" and a
+     * dropped thread until the user forced a real browser reload, which is a
+     * new component instance and so a new initial value.
+     *
+     * A ROW WITH A SAVE IN FLIGHT IS SKIPPED, wholesale. A reload triggered
+     * by an edit on a DIFFERENT row — another line's plan change, a bulk
+     * apply — can be built from a SELECT that ran before THIS row's own
+     * PATCH committed, and taking `initialLines` wholesale would overwrite
+     * the rating this row just painted with the stale value the reload
+     * fetched. It self-heals once the PATCH resolves and `mergeServerLine`
+     * applies the authoritative answer, but a demo should not show a
+     * keystroke visibly reverting itself first. Relations still come off
+     * the fresh prop even for a skipped row — they are what the reload was
+     * for, and a rating edit never changes them anyway.
+     *
+     * A ROW WHOSE LOCAL `version` IS AHEAD IS ALSO SKIPPED, even once the
+     * save that got it there has settled. `isInFlight` alone only covers
+     * the request itself; a reload built off a SELECT that ran BEFORE this
+     * row's PATCH committed can still arrive AFTER the PATCH's own response
+     * already updated `lines` via `mergeServerLine` — there is no window
+     * where `isInFlight` is true but the stale reload is what's landing.
+     * Without this, the resync would put the row back to a value the
+     * server no longer holds, and the assessor's very next edit would send
+     * that stale `version` and be refused with a 409 it did nothing to
+     * cause. `RcsaAssessmentService::apply()` only ever increments
+     * `version` (never resets it), so "higher wins" is always correct
+     * here, not just usually.
+     */
+    useEffect(() => {
+        setLines((current) => {
+            const byId = new Map(current.map((row) => [row.id, row]));
+
+            return initialLines.map((incoming) => {
+                const local = byId.get(incoming.id);
+
+                if (!local) return incoming;
+
+                const keepLocal =
+                    isInFlight(incoming.id) ||
+                    Number(local.version) > Number(incoming.version);
+
+                if (!keepLocal) return incoming;
+
+                return {
+                    ...local,
+                    comments: incoming.comments ?? [],
+                    action_plans: incoming.action_plans ?? [],
+                    action_plans_count: incoming.action_plans_count,
+                };
+            });
+        });
+    }, [initialLines, isInFlight]);
+
+    useEffect(() => {
+        setOutstanding(initialOutstanding);
+    }, [initialOutstanding]);
+
+    /**
      * The TRUE number outstanding, which is not `issues.length`.
      *
      * The server caps the list it sends — the panel renders forty and a
@@ -106,6 +204,93 @@ export default function Workspace({
     }, []);
 
     /**
+     * The autosave endpoint's `line` never carries the reviewer's thread or
+     * the action plans.
+     *
+     * `updateLine()` reads the row off route-model binding and calls
+     * `$line->refresh()`, which only reloads relations that were ALREADY
+     * loaded on that instance — and this one never eager-loaded `comments`
+     * or `actionPlans`. So every autosave response's row has an empty
+     * `comments` array and a zeroed `action_plans`, not because the reviewer's
+     * challenge or the plan was deleted, but because the endpoint never asked
+     * the database about either. Blindly replacing the row with that response
+     * is what made a reopened row's challenge thread and Reply box vanish the
+     * moment a rating changed.
+     *
+     * MERGED AGAINST LIVE STATE, via the functional updater, not against the
+     * `line` closed over when `save()` was called. Autosave is in flight for
+     * real seconds; a plan can be deleted, or a reply can land through the F3
+     * resync, on this very row before the PATCH resolves. Reading `comments`/
+     * `action_plans` off the stale closure would restore whatever had just
+     * been removed, and the staleness would compound on every further edit
+     * until a hard reload. Every OTHER field comes from `incoming` — the
+     * rating and every calculated column the server just computed are
+     * authoritative — only the two relations the endpoint never queried are
+     * taken from the row as it stands right now.
+     */
+    const mergeServerLine = useCallback((incoming) => {
+        setLines((current) =>
+            current.map((row) =>
+                row.id === incoming.id
+                    ? {
+                          ...incoming,
+                          comments: row.comments ?? [],
+                          action_plans: row.action_plans ?? [],
+                          action_plans_count:
+                              row.action_plans_count ??
+                              (row.action_plans ?? []).length,
+                      }
+                    : row,
+            ),
+        );
+    }, []);
+
+    /**
+     * `mergeServerLine`'s sibling for when the PATCH never reached the
+     * server at all — a network failure, not a 409/423 — and the optimistic
+     * paint has to come back off.
+     *
+     * NARROWER than `replaceLine(line)`, on purpose. `line` is the closure
+     * captured when `save()` was called: replacing the whole row with it
+     * would revert a plan delete or a reply that landed on this same row
+     * while the request was in flight, exactly the staleness
+     * `mergeServerLine` exists to avoid on the success path. Only the fields
+     * the optimistic paint touched — the answered inputs (`changes`), the
+     * columns `calculate()` repainted, and `version`, which the paint never
+     * bumped but is included for the same belt-and-braces reason the
+     * calculated columns are — are put back to what `line` had; everything
+     * else, including `comments`/`action_plans`/`action_plans_count`, comes
+     * off the row as it stands right now.
+     */
+    const mergeLocalRevert = useCallback((line, changes) => {
+        const revertedFields = [
+            ...Object.keys(changes),
+            "inherent_score",
+            "inherent_level",
+            "ce_modifier",
+            "residual_score",
+            "residual_level",
+            "risk_treatment",
+            "appetite_status",
+            "is_scored",
+            "version",
+        ];
+
+        setLines((current) =>
+            current.map((row) => {
+                if (row.id !== line.id) return row;
+
+                const reverted = { ...row };
+                revertedFields.forEach((field) => {
+                    reverted[field] = line[field];
+                });
+
+                return reverted;
+            }),
+        );
+    }, []);
+
+    /**
      * Paint the computed columns locally, then save.
      *
      * The optimistic values come from the same engine the server uses, so in
@@ -117,6 +302,12 @@ export default function Workspace({
         (line, changes) => {
             if (!editable) return;
 
+            // Every synchronous, throwable step happens BEFORE begin(): if
+            // calculate() or a state setter were ever to throw, the in-flight
+            // count must not have been incremented with no matching end() to
+            // come. begin() itself cannot throw, so it sits immediately
+            // before the one call that can genuinely leave it outstanding —
+            // the request.
             const next = { ...line, ...changes };
             const local = calculate(
                 {
@@ -143,6 +334,8 @@ export default function Workspace({
 
             setSaving((s) => ({ ...s, [line.id]: true }));
 
+            beginInFlight(line.id);
+
             window.axios
                 .patch(
                     route("rcsa.assessments.lines.update", [
@@ -153,12 +346,20 @@ export default function Workspace({
                         ...changes,
                         version: line.version,
                     },
+                    // Per-request, not global: a stalled PATCH must not hang
+                    // the row's in-flight count forever, but every other
+                    // call on `window.axios` keeps its own timeout behaviour.
+                    // A timeout settles through the network-failure branch
+                    // below exactly like any other failed request —
+                    // mergeLocalRevert() puts the row back, and end() runs in
+                    // .finally() either way.
+                    { timeout: 20000 },
                 )
                 .then(({ data }) => {
                     // The server's figures replace the painted ones. They agree
                     // unless the two implementations have drifted, which is what
                     // the shared truth table exists to prevent.
-                    replaceLine(data.line);
+                    mergeServerLine(data.line);
                     setCompletion(data.completion_pct);
                     setConflict(null);
                     refreshOutstanding();
@@ -171,21 +372,47 @@ export default function Workspace({
                         // the other person's answer rather than only be told
                         // that they lost.
                         if (error.response.data?.line)
-                            replaceLine(error.response.data.line);
+                            mergeServerLine(error.response.data.line);
                         setConflict(
                             error.response.data?.message ??
                                 "That risk changed while you were working on it.",
                         );
                     } else {
+                        // A timeout or a network error means the RESPONSE
+                        // never arrived — it does not mean the PATCH never
+                        // reached the server. The request may well have
+                        // committed; only the acknowledgement was lost. So
+                        // the row is put back to what it looked like before
+                        // this edit, honestly, rather than left showing a
+                        // value the assessor typed but the server may or may
+                        // not hold — and then reconciled with a reload, so
+                        // the screen shows whatever the server actually has
+                        // within one round-trip. If the save DID land, its
+                        // `version` is higher than what mergeLocalRevert just
+                        // put back, and the resync above keeps the reload's
+                        // answer rather than the reverted one.
                         setConflict(
-                            "That did not save. Check your connection and try again.",
+                            "That may not have saved — checking…",
                         );
-                        replaceLine(line);
+                        mergeLocalRevert(line, changes);
+                        router.reload({ only: ["lines", "outstanding"] });
                     }
                 })
-                .finally(() => setSaving((s) => ({ ...s, [line.id]: false })));
+                .finally(() => {
+                    endInFlight(line.id);
+                    setSaving((s) => ({ ...s, [line.id]: false }));
+                });
         },
-        [assessment.id, editable, methodology, replaceLine],
+        [
+            assessment.id,
+            editable,
+            methodology,
+            replaceLine,
+            mergeServerLine,
+            mergeLocalRevert,
+            beginInFlight,
+            endInFlight,
+        ],
     );
 
     const afterPlanChange = useCallback(() => {
@@ -523,8 +750,8 @@ export default function Workspace({
                         risk in the assessment. Say why — this is what the
                         assessor reads.
                     </p>
-                    <textarea
-                        className="form-textarea w-full text-sm"
+                    <textarea aria-label="Reason for reopening"
+                        className="form-textarea"
                         rows={2}
                         value={rejectReason}
                         onChange={(e) => setRejectReason(e.target.value)}
@@ -593,7 +820,7 @@ export default function Workspace({
                                 onChange={(e) =>
                                     setIncompleteOnly(e.target.checked)
                                 }
-                                className="rounded border-gray-300"
+                                className="form-checkbox"
                             />
                             Incomplete only
                         </label>
@@ -607,7 +834,7 @@ export default function Workspace({
                                 <span className="text-sm text-gray-600">
                                     {selected.length} selected
                                 </span>
-                                <select
+                                <select aria-label="Bulk action"
                                     className="filter-select"
                                     value={bulkValue}
                                     onChange={(e) =>
@@ -707,7 +934,7 @@ export default function Workspace({
                                                                 )
                                                             }
                                                             aria-label={`Select ${line.risk_no}`}
-                                                            className="rounded border-gray-300"
+                                                            className="form-checkbox"
                                                         />
                                                     </td>
 
@@ -819,7 +1046,7 @@ export default function Workspace({
                                                     </td>
 
                                                     <td>
-                                                        <select
+                                                        <select aria-label="Control effectiveness"
                                                             className="filter-select w-full"
                                                             disabled={
                                                                 !canEditLine(
@@ -976,7 +1203,6 @@ export default function Workspace({
                                                     <tr className="bg-gray-50/70">
                                                         <td
                                                             colSpan={9}
-                                                            className="px-4 py-3"
                                                         >
                                                             <ActionPlans
                                                                 assessmentId={
@@ -1000,7 +1226,6 @@ export default function Workspace({
                                                     <tr className="bg-amber-50/50">
                                                         <td
                                                             colSpan={9}
-                                                            className="px-4 py-2"
                                                         >
                                                             <OrmThread
                                                                 assessmentId={
@@ -1211,7 +1436,7 @@ function OrmThread({ assessmentId, line, canReply }) {
 
             {canReply && (
                 <form onSubmit={send} className="mt-2 flex gap-2">
-                    <input
+                    <input aria-label="Reply"
                         type="text"
                         className="form-input flex-1 text-xs"
                         placeholder="Reply to the reviewer…"
@@ -1241,7 +1466,7 @@ function ScaleSelect({
     title,
 }) {
     return (
-        <select
+        <select aria-label={title}
             className="filter-select w-full"
             disabled={disabled}
             value={value ?? ""}

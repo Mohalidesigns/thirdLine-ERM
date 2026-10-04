@@ -17,6 +17,7 @@ use App\Services\Bcms\Findings\CorrectiveActionService;
 use App\Services\Bcms\Findings\FindingService;
 use App\Services\Bcms\ProgrammeService;
 use App\Services\Bcms\RaciService;
+use App\Support\Bcms\ModuleSections;
 use Database\Seeders\Bcms\BcmsReferenceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -48,8 +49,39 @@ class Phase1ScreensTest extends TestCase
 
     private BusinessUnit $lagos;
 
+    /**
+     * The synthetic, always-non-live section
+     * `the_live_sections_replaced_their_shells_and_kept_their_route_names`
+     * asserts the shell against, now that every REAL `ModuleSections` entry
+     * has a landed screen (`compliance` was the last, Phase 11) — kept as a
+     * constant so the `fake()` call and the test's own assertion cannot
+     * drift apart. See `ModuleShellTest`'s identical treatment.
+     *
+     * @var array{
+     *     key: string, label: string, permission: string, phase: string,
+     *     summary: string, lands: string, clause: string, live: bool
+     * }
+     */
+    private const SHELL_EXAMPLE_SECTION = [
+        'key' => 'shell-example',
+        'label' => 'Shell Example',
+        'permission' => 'bcms.view',
+        'phase' => 'n/a',
+        'summary' => 'A section that exists only so this test has a non-live example once every real one has landed.',
+        'lands' => 'Nothing — this key names no real capability and never will.',
+        'clause' => 'n/a',
+        'live' => false,
+    ];
+
     protected function setUp(): void
     {
+        // MUST run before parent::setUp() — see ModuleShellTest's own note on
+        // why: routes/web.php reads ModuleSections::all() once, at boot, to
+        // register the generic placeholder route for every non-live section.
+        if ($this->name() === 'the_live_sections_replaced_their_shells_and_kept_their_route_names') {
+            ModuleSections::fake([self::SHELL_EXAMPLE_SECTION]);
+        }
+
         parent::setUp();
 
         config()->set('features.bcms', true);
@@ -73,6 +105,7 @@ class Phase1ScreensTest extends TestCase
 
     protected function tearDown(): void
     {
+        ModuleSections::reset();
         TenantContext::clear();
 
         parent::tearDown();
@@ -353,7 +386,45 @@ class Phase1ScreensTest extends TestCase
                 ->has('findings.data', 1)
                 ->where('summary.open', 1)
                 ->where('summary.nonconformities_open', 1)
-                ->has('options.sources', count(FindingSource::cases()))
+                // QA re-gate cycle 3: `incident` and `dr_test` are excluded
+                // from this register's own generic raise-form source picker
+                // — the form has no `aar_id`/`dr_test_id` field, and
+                // `FindingController::store()`'s per-source switch now
+                // refuses both without one. Both sources are still raised
+                // (from the PIR screen and the DR-test record, which DO
+                // supply the id) and still show up in the register itself —
+                // only this form's own picker excludes them.
+                ->has('options.sources', count(FindingSource::cases()) - 2)
+                ->where('options.sources', function ($sources) {
+                    $values = collect($sources)->pluck('value')->all();
+                    $this->assertNotContains('incident', $values);
+                    $this->assertNotContains('dr_test', $values);
+
+                    foreach (FindingSource::cases() as $case) {
+                        if (! in_array($case, [FindingSource::Incident, FindingSource::DrTest], true)) {
+                            $this->assertContains($case->value, $values, "{$case->value} should still be offered.");
+                        }
+                    }
+
+                    return true;
+                })
+                // The register's own SOURCE FILTER carries all eight —
+                // filtering rows that already exist (raised elsewhere, with
+                // their id already attached) is not the same as raising one
+                // with no id to give it, which is what the picker above is
+                // restricted against.
+                ->has('options.filter_sources', count(FindingSource::cases()))
+                ->where('options.filter_sources', function ($sources) {
+                    $values = collect($sources)->pluck('value')->all();
+                    $this->assertContains('incident', $values);
+                    $this->assertContains('dr_test', $values);
+
+                    foreach (FindingSource::cases() as $case) {
+                        $this->assertContains($case->value, $values, "{$case->value} should be offered as a filter.");
+                    }
+
+                    return true;
+                })
                 ->where('can.manage', true)
                 ->where('can.verify', false)
             );
@@ -437,7 +508,10 @@ class Phase1ScreensTest extends TestCase
                 'description' => 'Something is wrong',
             ])
             ->assertRedirect()
-            ->assertSessionHas('error');
+            // A field error, not a flash: a redirect with no error bag reads
+            // to Inertia as success, and the raise form would close and
+            // discard what was typed.
+            ->assertSessionHasErrors('iso_clause_ref');
 
         $this->assertSame(0, Finding::query()->count());
     }
@@ -479,7 +553,7 @@ class Phase1ScreensTest extends TestCase
         // The `live` flag exists so a phase can swap a shell for a real screen
         // without moving a URL, a permission or a bookmark.
         $user = $this->userWith([
-            'bcms.view', 'bcms.process.view', 'bcms.finding.view', 'bcms.incident.view',
+            'bcms.view', 'bcms.process.view', 'bcms.finding.view', 'bcms.incident.view', 'bcms.report.view',
         ], 'risk@khb.test');
 
         $this->actingAs($user)->get(route('bcms.programme.index'))
@@ -492,8 +566,12 @@ class Phase1ScreensTest extends TestCase
         // A section whose phase has not landed still shows the shell. The
         // example has to be one that has not landed, or this half asserts
         // nothing: `calendar` was it until Phase 4, `call-trees` until Phase 6,
-        // `emns` until Phase 7, and `incidents` is Phase 10's.
-        $this->actingAs($user)->get(route('bcms.incidents.index'))
+        // `emns` until Phase 7, `incidents`/`it-dr` until Phase 10 (see
+        // Phase10IncidentTest/Phase10DrTest), and `compliance` until Phase 11
+        // (see Phase11ScreensTest) — every real section now has a landed
+        // screen, so `setUp()` fakes a synthetic one
+        // (`self::SHELL_EXAMPLE_SECTION`) for this test alone.
+        $this->actingAs($user)->get(route('bcms.shell-example.index'))
             ->assertInertia(fn (AssertableInertia $p) => $p->component('Bcms/Section'));
     }
 }

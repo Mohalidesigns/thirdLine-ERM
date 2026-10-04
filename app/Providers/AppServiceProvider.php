@@ -5,9 +5,13 @@ namespace App\Providers;
 use App\Models\User;
 use App\Observers\WebhookEventObserver;
 use App\Observers\WorkflowTriggerObserver;
+use App\Support\MigrationWindow;
 use App\Support\MorphTypes;
 use Dedoc\Scramble\Scramble;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Database\Events\MigrationsEnded;
+use Illuminate\Database\Events\MigrationsStarted;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
@@ -29,6 +33,10 @@ class AppServiceProvider extends ServiceProvider
         // same lifetime as the tenant. Stays here: a reporting period is this
         // product's idea, not a platform primitive.
         $this->app->singleton(\App\Support\Periods\PeriodContext::class);
+
+        // Whether the migrator is running in this process — a fact about the
+        // process, not a tenant, so one instance. See App\Support\MigrationWindow.
+        $this->app->singleton(MigrationWindow::class);
 
         /*
          * BCMS tenant settings — a SINGLETON, because the service memoises the
@@ -117,6 +125,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->registerWorkflowTriggers();
         $this->registerWebhookEvents();
+        $this->trackMigrationWindow();
 
         // WP-07. The spec lives at /api/docs, not Scramble's default /docs/api,
         // because that is where the work package says it is and where an
@@ -589,6 +598,21 @@ class AppServiceProvider extends ServiceProvider
                 $model::observe(WebhookEventObserver::class);
             }
         }
+    }
+
+    /**
+     * Open MigrationWindow for exactly the span the migrator is applying
+     * migrations, so a data migration that saves a model does not publish a
+     * webhook for it — see the class docblock for the deploy it broke.
+     *
+     * Laravel's own migrator events rather than a flag set by a command: they
+     * fire for `migrate`, `migrate:fresh`, `migrate:refresh` and
+     * `RefreshDatabase` alike, and for nothing else.
+     */
+    private function trackMigrationWindow(): void
+    {
+        Event::listen(MigrationsStarted::class, fn () => $this->app->make(MigrationWindow::class)->open());
+        Event::listen(MigrationsEnded::class, fn () => $this->app->make(MigrationWindow::class)->close());
     }
 
     /**

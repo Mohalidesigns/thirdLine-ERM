@@ -37,7 +37,14 @@ trait TracksJobProgress
      * compose. Declaring it here as well would mean either a fatal error at
      * class-composition time or every job having to accept it some other way.
      *
-     * The contract is therefore: `public ?int $jobRunId` on the job.
+     * The contract is therefore: `public ?int $jobRunId` on the job, and an
+     * attempts() method — normally from InteractsWithQueue, which answers 1 when
+     * there is no queue job behind it, so a synchronous run needs no guard. The
+     * abstract declaration below enforces that: a class that lacks attempts()
+     * does not compose, and fails when it is loaded rather than on the worker in
+     * startRun(). It is deliberately UNTYPED, because InteractsWithQueue::
+     * attempts() declares no return type and a typed abstract would be an
+     * incompatible signature.
      */
     private ?JobRun $jobRun = null;
 
@@ -72,6 +79,12 @@ trait TracksJobProgress
         ]);
     }
 
+    /**
+     * Supplied by InteractsWithQueue; declared here so a job without it cannot
+     * compose. Untyped on purpose — see the contract note above.
+     */
+    abstract public function attempts();
+
     public function jobRun(): ?JobRun
     {
         if ($this->jobRunId === null) {
@@ -92,7 +105,7 @@ trait TracksJobProgress
             'started_at' => now(),
             'queue' => $this->queue ?? 'default',
             'total' => $total,
-            'attempts' => method_exists($this, 'attempts') ? $this->attempts() : 1,
+            'attempts' => $this->attempts(),
         ], fn ($value) => $value !== null))->save();
     }
 

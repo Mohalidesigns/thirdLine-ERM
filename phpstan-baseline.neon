@@ -28,29 +28,30 @@
 #
 #    3  method.notFound — a scope resolved off a generic Builder. EnforcesNodeScope
 #       calls ->visibleTo() on $record->newQuery() for any model using
-#       ScopedToGraph, and MyTaskController calls ->getCollection() on the
-#       paginator CONTRACT rather than the concrete class. Both are correct at
-#       runtime; typing them means naming a concrete class the code is
-#       deliberately generic over.
+#       ScopedToGraph. Correct at runtime; typing it means naming a concrete
+#       class the code is deliberately generic over.
 #
 #    4  return.type — Collection's TValue is invariant, so PHPStan reports the
 #       declared and actual array shapes as different while printing two
 #       identical types. Annotating it more precisely does not help; it was tried.
 #
-# NOT baselined, and deliberately still red: the six long-standing errors in
-# WorkflowPresenter, ApprovalController and MyTaskController. Regenerating this
-# file swept them in and they were stripped back out — they have been the
-# programme's known-red marker since Phase 3 and hiding them here would lose it.
+# CLEARED 2026-10-02: the twelve deliberately-red errors are gone, and with them
+# the "known-red marker" this header used to defend. `phpstan analyse` now
+# reports 0 errors, so ANY error it prints is new. How each went:
 #
-# THE COUNT IS TWELVE FROM TPRM PHASE 11a, NOT ELEVEN. `TracksJobProgress.php:95`
-# (`method_exists($this, 'attempts')`, function.alreadyNarrowedType) is reported
-# ONCE PER CLASS THAT USES THE TRAIT, and `RunTprmDocumentExtraction` (ADR 0015
-# §6a) is its second consumer after `ProcessRcsaImportJob`. Same line, same
-# reason, same decision: the guard is there for a job that does not use the
-# `Queueable` trait, and PHPStan cannot see that this trait is written for
-# more than the two classes that happen to use it today. ci.yml's step is
-# reporting-only and compares against the base branch, so the number to
-# expect there is now 12.
+#   - ApprovalController, MyTaskController, TracksJobProgress, SsoSettingResolver,
+#     Branding, ObjectDetailSchema: genuine, fixed in code with types only
+#     (a generic on getPendingApprovals(), TaskQueryService returning the concrete
+#     paginator it always returned, `attempts()` called directly because every
+#     consumer uses InteractsWithQueue, and a @property-read on PortalUser, whose
+#     trait-supplied organization() has no generic). Their baseline entries were
+#     pruned, not regenerated.
+#   - the four WorkflowPresenter nullsafe.neverNull: STILL PHPStan being wrong.
+#     Each carries an inline `@phpstan-ignore nullsafe.neverNull (reason)` rather
+#     than a baseline entry, so the reason sits next to the `?->` that must not
+#     be deleted. A @property-read X|null docblock was tried and does not
+#     override it. If one of those ?-> is ever removed, the ignore becomes an
+#     `ignore.unmatched` error, which is the reminder to delete it.
 #
 parameters:
 	ignoreErrors:
@@ -281,12 +282,6 @@ parameters:
 			path: app/Http/Controllers/Risk/LossEventController.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\>\:\:getCollection\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/Risk/MyTaskController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>start_date" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -341,28 +336,10 @@ parameters:
 			path: app/Jobs/DeliverWebhookJob.php
 
 		-
-			message: '#^Call to function method_exists\(\) with \$this\(App\\Jobs\\ProcessDataImportJob\) and ''attempts'' will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: app/Jobs/ProcessDataImportJob.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\GraphObject\>\:\:orWhereKey\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: app/Jobs/RebuildHierarchyPaths.php
-
-		-
-			message: '#^Call to function method_exists\(\) with \$this\(App\\Jobs\\RunConnectorJob\) and ''attempts'' will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: app/Jobs/RunConnectorJob.php
-
-		-
-			message: '#^Call to function method_exists\(\) with \$this\(App\\Jobs\\RunSimulationJob\) and ''attempts'' will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: app/Jobs/RunSimulationJob.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\KeyRiskIndicator\:\:\$risks\.$#'
@@ -1655,38 +1632,8 @@ parameters:
 			path: app/Services/Workflow/Subjects/TreatmentPlanBinding.php
 
 		-
-			message: '#^Generic type Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\> in PHPDoc tag @return does not specify all template types of interface Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\: TKey, TValue$#'
-			identifier: generics.lessTypes
-			count: 1
-			path: app/Services/Workflow/TaskQueryService.php
-
-		-
-			message: '#^Method App\\Services\\Workflow\\TaskQueryService\:\:openFor\(\) should return Illuminate\\Support\\Collection\<int, App\\Models\\WorkflowTask\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Services/Workflow/TaskQueryService.php
-
-		-
-			message: '#^Method App\\Services\\Workflow\\TaskQueryService\:\:paginateFor\(\) should return Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\> but returns Illuminate\\Pagination\\LengthAwarePaginator\<int, Illuminate\\Database\\Eloquent\\Model\>\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Services/Workflow/TaskQueryService.php
-
-		-
 			message: '#^Method App\\Services\\Workflow\\TaskQueryService\:\:workloadFor\(\) should return Illuminate\\Support\\Collection\<int, object\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\WorkflowTask\>\.$#'
 			identifier: return.type
-			count: 1
-			path: app/Services/Workflow/TaskQueryService.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\WorkflowTask\)\: bool given\.$#'
-			identifier: argument.type
-			count: 2
-			path: app/Services/Workflow/TaskQueryService.php
-
-		-
-			message: '#^Type App\\Models\\WorkflowTask in generic type Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\<App\\Models\\WorkflowTask\> in PHPDoc tag @return is not subtype of template type TKey of \(int\|string\) of interface Illuminate\\Contracts\\Pagination\\LengthAwarePaginator\.$#'
-			identifier: generics.notSubtype
 			count: 1
 			path: app/Services/Workflow/TaskQueryService.php
 

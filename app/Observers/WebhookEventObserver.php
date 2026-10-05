@@ -34,8 +34,12 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  * at all, because on an upgrading database that table may be a dozen
  * migrations away from existing — which is exactly how the first production
  * upgrade stopped at `2026_08_12_120003_seed_units_and_period_calendars`. The
- * check comes before the subscription lookup, so a migration costs no query
- * and leaves nothing cached.
+ * check is the FIRST statement of `created`, `updated` and `deleted` — before
+ * the `.updated` diff and the `safe()` allowlist walk, not only before the
+ * subscription lookup — so a migration that saves ten thousand rows does no
+ * work here at all, costs no query and leaves nothing cached. `publish()`
+ * checks again as a backstop for any future entry point that forgets.
+ * DEVELOPMENT_STANDARD §16; guarded by `OutwardObserversHonourMigrationWindowTest`.
  */
 class WebhookEventObserver
 {
@@ -52,11 +56,19 @@ class WebhookEventObserver
 
     public function created(Model $model): void
     {
+        if ($this->migrations->isOpen()) {
+            return;
+        }
+
         $this->publish($model, 'created', ['attributes' => $this->safe($model, $model->getAttributes())]);
     }
 
     public function updated(Model $model): void
     {
+        if ($this->migrations->isOpen()) {
+            return;
+        }
+
         $changes = collect($model->getChanges())
             ->except(self::NOISE)
             ->all();
@@ -89,6 +101,10 @@ class WebhookEventObserver
 
     public function deleted(Model $model): void
     {
+        if ($this->migrations->isOpen()) {
+            return;
+        }
+
         $this->publish($model, 'deleted', []);
     }
 
@@ -97,6 +113,7 @@ class WebhookEventObserver
     /** @param array<string, mixed> $data */
     private function publish(Model $model, string $action, array $data): void
     {
+        // Backstop. Every public entry point has already returned by now.
         if ($this->migrations->isOpen()) {
             return;
         }

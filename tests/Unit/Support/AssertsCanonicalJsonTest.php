@@ -39,6 +39,29 @@ class AssertsCanonicalJsonTest extends TestCase
     }
 
     #[Test]
+    public function mixed_numeric_and_string_keys_sort_deterministically(): void
+    {
+        // "10" and "9" become int keys in PHP; "a" stays a string.
+        $this->assertSameJson(
+            ['10' => 'x', '9' => 'y', 'a' => 'z'],
+            ['a' => 'z', '9' => 'y', '10' => 'x'],
+        );
+        $this->assertSameJson(
+            ['a' => ['10' => 1, '9' => 2], '9' => 'y'],
+            ['9' => 'y', 'a' => ['9' => 2, '10' => 1]],
+        );
+        $this->assertRejected(['10' => 'x', '9' => 'y', 'a' => 'z'], ['10' => 'x', '9' => 'z', 'a' => 'y']);
+    }
+
+    #[Test]
+    public function the_canonical_key_order_is_bytewise_whatever_the_php_default(): void
+    {
+        // assertSameJson() canonicalises BOTH sides, so it cannot see the order
+        // itself; pin it. 10 and 9 arrive as int keys, 'a' as a string.
+        $this->assertSame([10, 9, 'a'], array_keys(self::canonicaliseJson(['a' => 1, 9 => 2, 10 => 3])));
+    }
+
+    #[Test]
     public function list_order_is_still_checked(): void
     {
         $this->assertRejected(['low', 'high'], ['high', 'low']);

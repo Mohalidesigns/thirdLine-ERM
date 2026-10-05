@@ -186,7 +186,7 @@ class ClauseAnalyzer
                         'applicable' => $applicable->count(),
                     ],
                     'ip' => request()?->ip(),
-                    'user_agent' => substr((string) request()?->userAgent(), 0, 500) ?: null,
+                    'user_agent' => \App\Support\Audit\AuditText::userAgent(),
                 ]);
             } catch (\Throwable $exception) {
                 // Auditing never fails the write (TprmAuditable's rule). By

@@ -177,7 +177,7 @@ class EvidenceService
                 'hash' => $document->hash,
             ],
             'ip' => request()?->ip(),
-            'user_agent' => substr((string) request()?->userAgent(), 0, 500) ?: null,
+            'user_agent' => \App\Support\Audit\AuditText::userAgent(),
         ]);
     }
 

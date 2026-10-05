@@ -3,6 +3,7 @@
 namespace App\Models\Tprm\Concerns;
 
 use App\Models\Tprm\AuditLog;
+use App\Support\Audit\AuditText;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 
@@ -123,12 +124,12 @@ trait TprmAuditable
                 'event' => $event,
                 'actor_type' => $actor !== null ? 'user' : 'system',
                 'actor_id' => $actor?->getKey(),
-                'actor_label' => $actor?->name,
+                'actor_label' => AuditText::clip($actor?->name, 200),
                 'before' => $before,
                 'after' => $after,
                 'ip' => $request?->ip(),
-                'user_agent' => substr((string) $request?->userAgent(), 0, 500) ?: null,
-                'correlation_id' => $request?->header('X-Correlation-Id'),
+                'user_agent' => AuditText::userAgent($request),
+                'correlation_id' => AuditText::clip($request?->header('X-Correlation-Id'), 64),
             ]);
         } catch (\Throwable $exception) {
             Log::error('TPRM audit write failed', [

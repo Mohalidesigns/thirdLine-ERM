@@ -170,7 +170,7 @@ class VendorIdentityService
             'before' => null,
             'after' => $after + ['email' => $user->email],
             'ip' => request()?->ip(),
-            'user_agent' => substr((string) request()?->userAgent(), 0, 500) ?: null,
+            'user_agent' => \App\Support\Audit\AuditText::userAgent(),
         ]);
     }
 }

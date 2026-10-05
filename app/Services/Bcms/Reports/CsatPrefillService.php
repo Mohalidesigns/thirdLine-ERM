@@ -257,7 +257,7 @@ class CsatPrefillService
                     'occupied_count' => count($occupied),
                 ],
                 'actor_id' => $actor->getKey(),
-                'actor_label' => $actor->name,
+                'actor_label' => \App\Support\Audit\AuditText::clip($actor->name, 150),
                 'created_at' => now(),
             ]);
         } catch (\Throwable $e) {

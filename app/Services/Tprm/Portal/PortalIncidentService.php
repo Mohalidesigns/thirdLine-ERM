@@ -113,7 +113,7 @@ class PortalIncidentService
                 'customer_impact' => $incident->customer_impact,
             ],
             'ip' => request()?->ip(),
-            'user_agent' => substr((string) request()?->userAgent(), 0, 500) ?: null,
+            'user_agent' => \App\Support\Audit\AuditText::userAgent(),
         ]);
     }
 

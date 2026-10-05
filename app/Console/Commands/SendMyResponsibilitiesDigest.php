@@ -18,7 +18,9 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  * owed, send the digest mail and (when the tenant has configured a chat
  * webhook) post a summary card with deep links. A user with an empty queue
  * gets NOTHING — a daily "you have 0 items" email trains everyone to delete
- * the one that finally matters.
+ * the one that finally matters. The same goes for a queue that is only
+ * `later` (not yet due, or undated): the digest counts, lists and decides to
+ * send from overdue, today and this-week items alone.
  *
  * The chat webhook URL lives in organizations.settings->notifications->
  * chat_webhook_url and is posted a plain MessageCard-compatible JSON that
@@ -48,7 +50,9 @@ class SendMyResponsibilitiesDigest extends Command
                 ->get();
 
             foreach ($users as $user) {
-                $queue = $responsibilities->for($user);
+                // Only what is due soon. The page also shows `later`; a user
+                // whose items are all `later` gets neither mail nor card.
+                $queue = MyResponsibilitiesDigest::dueSoon($responsibilities->for($user));
 
                 if ($queue['total_items'] === 0) {
                     continue;

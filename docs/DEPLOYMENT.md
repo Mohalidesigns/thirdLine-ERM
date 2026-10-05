@@ -19,6 +19,7 @@ the real deploy breaks at 3am. It has been deleted; this file replaces it.
 | Web/PHP | `php8.4-fpm` |
 | Queue | `risk-queue` (systemd unit) |
 | Restarts | scoped passwordless sudo, limited to those two units |
+| Scheduler | `schedule:run` — user **not documented**; verify with the step 0 check under "When the permissions step warns". It must be `www-data` or a member of `www-data`: RCSA commands it runs write to the `local` disk |
 
 `deploy` cannot become root. It can restart exactly the two services the
 deploy needs, and nothing else.
@@ -35,7 +36,8 @@ half-migrated application serving traffic.
 3. `npm ci && npm run build`
 4. `php artisan migrate --force`
 5. `php artisan config:cache route:cache view:cache`
-6. Re-apply runtime-writable permissions on `storage` and `bootstrap/cache`
+6. Re-apply runtime-writable permissions on `storage` and `bootstrap/cache` —
+   the one step that is never fatal; see below
 7. Restart `php8.4-fpm` and `risk-queue`
 
 ### Why the cache step matters more than it looks
@@ -56,6 +58,93 @@ somewhere with `APP_ENV=local` carries `session.secure => null` and
 perfectly while sending an unencrypted session cookie over plain HTTP.
 `AppServiceProvider::assertSessionCookieIsHardened()` refuses to boot on that,
 which is the only reason it cannot ship silently.
+
+### When the permissions step warns
+
+The step re-applies `2775`/`0664` under `storage/` and `bootstrap/cache`, and
+`2770`/`0660` under `storage/app/private` — the `local` disk root, which holds
+every module's evidence and the RCSA/TPRM import workbooks and must never be
+world-readable. It chmods only what `deploy` owns, skips any directory `deploy`
+cannot list and enter, and never fails the deploy. What it skipped is printed:
+
+```
+!!  WARNING: 'deploy' cannot list or enter these directories under storage/ or
+!!  bootstrap/cache; they and everything below them were skipped:
+!!    storage/app/private/rcsa
+```
+
+It was fatal until 2026-10-05. The day after RCSA v2 was enabled php-fpm, as
+`www-data`, created `storage/app/private/rcsa` at Flysystem's private default of
+`0700`; `find` could not list it and the deploy of PR #12 aborted before
+preflight and the restart. `config/filesystems.php` now gives the `local` and
+`public` disks an explicit `permissions` map (private `0770`/`0660`, public
+`0775`/`0664`), so a directory the app creates is owner+group and nothing for
+anyone else — `0750` under systemd's default `UMask=0022`, which `deploy` can
+list through the `www-data` group.
+
+#### The first deploy after this fix still runs the old step
+
+The deploy that **ships** this fix does not run it. `git reset --hard` writes a
+new `scripts/deploy.sh`, but bash keeps reading the copy it already opened, so
+that one deploy runs the old, fatal step. Until the fix is live the app also
+keeps creating owner-only (`0700`) directories, so any `www-data`-owned `0700`
+directory created under `storage/` since the last root fix will abort it at
+"Ensure runtime-writable permissions".
+
+- **(a) Before the merge deploys,** run steps 0–4 of the root runbook below.
+- **(b) If you do not,** expect that deploy to fail at the permissions step —
+  migrations and the config/route/view caches done, preflight not run, services
+  not restarted. Recover by re-running the deploy: re-run the failed workflow
+  run, or start one with `workflow_dispatch`. The second run executes the new
+  script, and every step before the permissions step is safe to repeat.
+- **(c) Either way,** the old step runs one last time and reopens the
+  `deploy`-owned files under `storage/app/private` to `2775`/`0664`. The next
+  deploy closes them again; to close them at once, re-run step 3 of the
+  runbook after that deploy.
+
+The warning means a directory predates that config or was created some other
+way. Fix it as root — group to `www-data`, group `rwX`, setgid on directories,
+**nothing made world-readable**, and "other" removed under the private root:
+
+```bash
+APP=/var/www/thirdLine-ERM
+cd /    # so `sudo -u deploy find` never starts in a directory deploy cannot enter
+
+# 0. Preconditions. deploy must be in the runtime group, and php-fpm's pool,
+#    the queue worker and the scheduler must run as www-data (or, for the
+#    scheduler, a member of www-data). If any is false, stop and fix that first.
+id -nG deploy | tr ' ' '\n' | grep -qx www-data && echo "deploy is in www-data" || echo "!! deploy is NOT in www-data"
+#    Expect one `root root` line here — the php-fpm master process — and the
+#    pool workers as www-data.
+ps -o user=,group= -C php-fpm8.4 | sort | uniq -c
+systemctl show -p User -p Group risk-queue
+#    The scheduler's user is not documented; RCSA commands it runs write to the
+#    local disk. Whichever user's crontab or timer runs `schedule:run` must be
+#    www-data or a member of www-data.
+for u in root deploy www-data; do echo "== $u"; crontab -l -u "$u" 2>/dev/null | grep -F 'schedule:run'; done; systemctl list-timers --all | grep -i -E 'schedule|laravel' || true
+
+# 1. What deploy cannot reach (the directories that abort or warn the deploy) ...
+sudo -u deploy find "$APP/storage" "$APP/bootstrap/cache" -type d \( ! -readable -o ! -executable \) -prune -print
+#    ... and everything not group-owned by www-data or lacking group access.
+sudo find "$APP/storage" "$APP/bootstrap/cache" \( -type d -o -type f \) \( ! -group www-data -o \( -type d ! -perm -g=rwx \) -o \( -type f ! -perm -g=rw \) \) -printf '%M %u:%g %p\n'
+
+# 2. Fix: group, then group rwX (never touches "other"), then setgid on directories.
+sudo find "$APP/storage" "$APP/bootstrap/cache" \( -type d -o -type f \) ! -group www-data -exec chgrp www-data {} +
+sudo find "$APP/storage" "$APP/bootstrap/cache" \( -type d -o -type f \) -exec chmod g+rwX {} +
+sudo find "$APP/storage" "$APP/bootstrap/cache" -type d -exec chmod g+s {} +
+
+# 3. Close the private root to "other" (evidence; nothing serves it directly).
+sudo find "$APP/storage/app/private" \( -type d -o -type f \) -exec chmod o-rwx {} +
+
+# 4. Verify: both print nothing. Symlinks are excluded from the second — they
+#    are always lrwxrwxrwx and their mode means nothing.
+sudo -u deploy find "$APP/storage" "$APP/bootstrap/cache" -type d \( ! -readable -o ! -executable \) -prune -print
+sudo find "$APP/storage/app/private" ! -type l -perm /o=rwx -printf '%M %u:%g %p\n'
+```
+
+The OWNER is left alone — step 2 changes the group, never the owner: a
+`www-data`-owned entry stays `www-data`-owned, which is why the deploy chmods
+only its own. Symlinks are excluded throughout.
 
 ## Before serving traffic
 

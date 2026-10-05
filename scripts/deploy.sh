@@ -5,6 +5,83 @@
 set -euo pipefail
 
 APP_DIR=/var/www/thirdLine-ERM
+
+# Re-apply runtime-writable permissions on storage/ and bootstrap/cache, run
+# from the current directory.
+#
+# This is housekeeping, and it must never stop a deploy. Until 2026-10-05 it
+# was two bare `find … -exec chmod` lines under `set -e`. The day after RCSA v2
+# was switched on, php-fpm had created storage/app/private/rcsa as www-data
+# with Laravel's private-directory default of 0700; `deploy` could not list it,
+# find exited 1, and the deploy died here — before preflight, before the
+# restart — and would have died the same way on every deploy after it.
+#
+# So, deliberately:
+#   - a directory this user cannot list AND enter is pruned, not descended
+#     into, and named in a warning. The test is `test -r && test -x` through
+#     -exec rather than GNU find's -readable: it is POSIX, so the one code path
+#     tests/Feature/DeployScriptRuntimePermissionsTest exercises on a developer
+#     Mac is the same one that runs on the Ubuntu host, and it also catches a
+#     directory that is readable but not searchable, which -readable does not;
+#   - only entries this user owns are chmod'ed. Anything php-fpm or the queue
+#     worker created belongs to www-data, and chmod on it would fail anyway;
+#   - storage/app/private — the `local` disk root, holding loss-event, issue,
+#     control-test, TPRM and BCMS evidence and the RCSA import/export
+#     workbooks — is 2770/0660, never world-readable. Everything else keeps
+#     2775/0664. config/filesystems.php gives the app the same split;
+#   - find's exit status is captured, not trusted to `set -e`: a cache or
+#     session file deleted by php-fpm between find listing it and chmod
+#     reaching it is a normal race on a live host, not a reason to abort.
+#
+# Returns 0 always. What it could not reach is printed for an operator to fix
+# as root — see docs/DEPLOYMENT.md, "When the permissions step warns".
+ensure_runtime_permissions() {
+    local me errlog unreachable status=0
+    me="$(id -un)"
+    errlog="$(mktemp 2>/dev/null)" || errlog=/dev/null
+
+    unreachable="$(
+        find storage bootstrap/cache \
+            -type d \( ! -exec test -r {} \; -o ! -exec test -x {} \; \) -prune -print \
+            -o -user "$me" \( -path storage/app/private -o -path 'storage/app/private/*' \) \
+                \( -type d -exec chmod 2770 {} + -o -type f -exec chmod 0660 {} + \) \
+            -o -user "$me" -type d -exec chmod 2775 {} + \
+            -o -user "$me" -type f -exec chmod 0664 {} + \
+            2>"$errlog"
+    )" || status=$?
+
+    if [[ -n "$unreachable" ]]; then
+        echo "!!  WARNING: '$me' cannot list or enter these directories under storage/ or"
+        echo "!!  bootstrap/cache; they and everything below them were skipped:"
+        printf '%s\n' "$unreachable" | sed 's/^/!!    /'
+        echo "!!  The app will keep working, but fix them as root before they hide more:"
+        echo "!!  see docs/DEPLOYMENT.md, 'When the permissions step warns'."
+    fi
+
+    if [[ "$status" -ne 0 ]]; then
+        echo "!!  WARNING: permissions step finished with status $status; continuing. find/chmod reported:"
+        if [[ "$errlog" != /dev/null ]]; then
+            sed 's/^/!!    /' "$errlog"
+        fi
+    fi
+
+    if [[ "$errlog" != /dev/null ]]; then
+        rm -f "$errlog"
+    fi
+
+    return 0
+}
+
+# `deploy.sh --permissions-only DIR` runs ONLY the step above, against DIR,
+# under this script's own `set -euo pipefail`, and exits. It exists so a test
+# can execute the real function rather than a copy of it. It touches nothing
+# outside DIR and runs no other step.
+if [[ "${1:-}" == "--permissions-only" ]]; then
+    cd "${2:?--permissions-only needs a directory}"
+    ensure_runtime_permissions
+    exit 0
+fi
+
 cd "$APP_DIR"
 
 echo "==> Pulling latest main"
@@ -38,9 +115,9 @@ php artisan view:cache
 
 # Files are owned deploy:www-data with setgid dirs, so www-data inherits
 # group ownership automatically — only runtime-writable trees need g+w.
+# Never fatal: see ensure_runtime_permissions above.
 echo "==> Ensure runtime-writable permissions"
-find storage bootstrap/cache -type d -exec chmod 2775 {} \;
-find storage bootstrap/cache -type f -exec chmod 664 {} \;
+ensure_runtime_permissions
 
 # Deliberately AFTER migrate and the config/route/view caches, so preflight
 # inspects the configuration and schema this deploy actually produced rather

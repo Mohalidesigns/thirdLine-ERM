@@ -197,8 +197,17 @@ class ConfigImport extends Command
 
         $decoded = json_decode((string) file_get_contents($source), true);
 
-        if (! is_array($decoded) || ! isset($decoded['payload'])) {
+        if (! is_array($decoded) || ! isset($decoded['payload']) || ! is_array($decoded['payload'])) {
             $this->error('That file is not a bundle exported by config:export.');
+
+            return null;
+        }
+
+        try {
+            $checksum = $decoded['checksum'] ?? ConfigurationExporter::checksum($decoded['payload']);
+        } catch (\InvalidArgumentException $error) {
+            // A format this release does not read (ADR 0026 section 2).
+            $this->error($error->getMessage());
 
             return null;
         }
@@ -212,7 +221,7 @@ class ConfigImport extends Command
             'name' => $decoded['name'] ?? 'Imported bundle',
             'version' => $decoded['version'] ?? 1,
             'payload' => $decoded['payload'],
-            'checksum' => $decoded['checksum'] ?? ConfigurationExporter::checksum($decoded['payload']),
+            'checksum' => $checksum,
             'source_environment' => $decoded['payload']['exported_from'] ?? null,
         ]);
 

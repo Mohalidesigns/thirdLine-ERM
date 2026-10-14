@@ -3,6 +3,7 @@
 namespace App\Services\Configuration;
 
 use App\Models\ConfigBundle;
+use App\Support\CanonicalJson;
 use Illuminate\Support\Facades\DB;
 use ThirdLine\Platform\Tenancy\TenantContext;
 
@@ -16,6 +17,9 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  */
 class ConfigurationExporter
 {
+    /** Domain tag of the v2 checksum recipe (ADR 0026 section 2). */
+    public const CHECKSUM_TAG_V2 = 'config_bundles/v2';
+
     /**
      * Build the payload without persisting it. Used by the diff and the
      * snapshot path as well as by export proper.
@@ -38,7 +42,7 @@ class ConfigurationExporter
         }
 
         return [
-            'format_version' => 1,
+            'format_version' => 2,
             'exported_from' => config('app.env'),
             'sections' => $sections,
         ];
@@ -78,21 +82,83 @@ class ConfigurationExporter
     }
 
     /**
-     * sha256 over the canonical payload.
+     * The bundle as the file an operator carries to another environment.
      *
-     * Canonical means recursively key-sorted, so re-exporting the same
-     * configuration produces the same checksum regardless of the order the
-     * database returned columns in. A hand-edited value still changes it,
-     * which is the point.
+     * The one writer for the screen's download and `config:export --file`.
+     * JSON_PRESERVE_ZERO_FRACTION is load-bearing: without it a float `100.0`
+     * in the payload is written as `100` and read back as an int, and a format
+     * 2 bundle then reads as altered. `serialize_precision` is pinned to -1 for
+     * the call so the file does not depend on the php.ini it was written under.
+     * ADR 0026 section 3.
+     */
+    public function document(ConfigBundle $bundle): string
+    {
+        $previous = ini_get('serialize_precision');
+        ini_set('serialize_precision', '-1');
+
+        try {
+            return json_encode([
+                'code' => $bundle->code,
+                'name' => $bundle->name,
+                'version' => $bundle->version,
+                'checksum' => $bundle->checksum,
+                'exported_at' => $bundle->exported_at?->toIso8601String(),
+                'source_environment' => $bundle->source_environment,
+                'payload' => $bundle->payload,
+            ], JSON_PRETTY_PRINT
+                | JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+                | JSON_PRESERVE_ZERO_FRACTION
+                | JSON_THROW_ON_ERROR);
+        } finally {
+            ini_set('serialize_precision', $previous === false ? '-1' : $previous);
+        }
+    }
+
+    /**
+     * sha256 over the payload, by the recipe its `format_version` names.
+     *
+     * The recipe is chosen by a field the digest covers, never by trial
+     * (ADR 0026 section 2): absent or 1 is the frozen v1 recipe that every
+     * bundle exported before the ADR was sealed under; 2 is the tagged
+     * canonical-text recipe; anything else is a newer release's and is refused
+     * rather than guessed at.
+     *
+     * @param  array<string, mixed>  $payload
+     *
+     * @throws \InvalidArgumentException for a format this release does not read
+     */
+    public static function checksum(array $payload): string
+    {
+        $format = (int) ($payload['format_version'] ?? 1);
+
+        return match ($format) {
+            1 => self::checksumV1($payload),
+            2 => hash('sha256', self::CHECKSUM_TAG_V2.'|'.CanonicalJson::encode($payload)),
+            default => throw new \InvalidArgumentException(
+                "This bundle was exported by a newer release (format {$format}); this release reads formats 1 and 2."
+            ),
+        };
+    }
+
+    /**
+     * FROZEN. Legacy bundles are verified under this exact recipe; changing a
+     * byte of it makes every bundle exported before ADR 0026 read as altered.
+     * Pinned by BundleChecksumRecipeTest. ADR 0026 section 2.
      *
      * @param  array<string, mixed>  $payload
      */
-    public static function checksum(array $payload): string
+    private static function checksumV1(array $payload): string
     {
         return hash('sha256', json_encode(self::canonicalise($payload), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     /**
+     * Recursively key-sorted, lists kept in order. Serves the v1 checksum
+     * recipe (frozen) and ConfigurationDiffer::equivalent(). It is not the v2
+     * canonical form: `ksort` here is the default `SORT_REGULAR`, which is not
+     * transitive over mixed int and string keys. `CanonicalJson` is.
+     *
      * @param  mixed  $value
      * @return mixed
      */

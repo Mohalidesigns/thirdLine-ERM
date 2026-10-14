@@ -123,7 +123,7 @@ systemctl show -p User -p Group risk-queue
 #    none for any other user. `sudo` matters: `crontab -l` for another user
 #    fails without it, and the old check hid that failure behind 2>/dev/null
 #    and printed nothing.
-sudo crontab -u www-data -l | grep -F 'schedule:run' || echo "!! no schedule:run in www-data's crontab"
+sudo crontab -u www-data -l | grep -F 'schedule:run' || echo "(none in www-data's crontab; it must then be a www-data line in /etc/crontab or /etc/cron.d below)"
 for u in root deploy; do sudo crontab -u "$u" -l 2>/dev/null | grep -F 'schedule:run' && echo "!! the line above is in $u's crontab"; done
 #    System crontabs name the user in the sixth field; it must be www-data.
 sudo grep -H -F 'schedule:run' /etc/crontab /etc/cron.d/* 2>/dev/null || echo "(none in /etc/crontab or /etc/cron.d)"
@@ -217,7 +217,11 @@ re-run `php artisan config:cache`.
 `git reset --hard origin/main`. A `git reset --hard <previous sha>` on the
 server followed by `scripts/deploy.sh` therefore re-deploys `main` and undoes
 the rollback. Put the previous code on `main` (a revert commit) and deploy
-that. Migrations are **not** rolled back automatically and mostly should not be:
+that. If the revert changes `scripts/deploy.sh` itself, the deploy that
+ships it runs the copy bash already opened, not the new one; see "The first
+deploy after this fix still runs the old step" above.
+
+Migrations are **not** rolled back automatically and mostly should not be:
 a `down()` that drops a column discards the rows written since the deploy. Roll
 the code back first, then decide about the schema deliberately.
 

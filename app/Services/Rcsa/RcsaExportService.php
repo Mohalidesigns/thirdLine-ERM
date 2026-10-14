@@ -163,7 +163,9 @@ class RcsaExportService
             'status' => $status,
             'row_count' => $rowCount,
             'ip_address' => $request?->ip(),
-            'user_agent' => (string) AuditText::userAgent($request, 512),
+            // No request (console, queue): NULL. Not '', and not whatever the
+            // worker's synthetic global request() happens to hold.
+            'user_agent' => $request === null ? null : AuditText::userAgent($request, 512),
             'expires_at' => now()->addHours(self::LINK_TTL_HOURS),
         ]);
 

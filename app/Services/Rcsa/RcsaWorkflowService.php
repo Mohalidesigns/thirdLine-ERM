@@ -8,6 +8,7 @@ use App\Models\Rcsa\RcsaAssessmentLine;
 use App\Models\Rcsa\RcsaAssessmentTransition;
 use App\Models\User;
 use App\Services\NotificationService;
+use App\Support\Audit\AuditText;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -376,7 +377,8 @@ class RcsaWorkflowService
             'to_status' => $to,
             'event' => $event,
             'reason' => $reason,
-            'request_id' => $request?->header('X-Request-Id'),
+            // Client-supplied and the column is string(64): clip it.
+            'request_id' => AuditText::clip($request?->header('X-Request-Id'), 64),
             'ip_address' => $request?->ip(),
             'created_at' => now(),
         ]);

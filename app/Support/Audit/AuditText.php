@@ -26,7 +26,9 @@ use Illuminate\Http\Request;
  *    `Tprm\Evidence\EvidenceService` and `ClauseAnalyzer`;
  *  - `bcms_audit_logs` (`actor_label` 150): `BcmsAuditable`, `DrService`, and
  *    the board, evidence and CSAT pack services;
- *  - `rcsa_export_jobs` (`user_agent` 512): `RcsaExportService`.
+ *  - `rcsa_export_jobs` (`user_agent` 512): `RcsaExportService`;
+ *  - `rcsa_line_revisions` (`request_id` 64): `RcsaAssessmentService`;
+ *  - `rcsa_assessment_transitions` (`request_id` 64): `RcsaWorkflowService`.
  * A new writer of any of these columns calls `clip()` with the column's width.
  *
  * TWO THINGS, IN THIS ORDER.

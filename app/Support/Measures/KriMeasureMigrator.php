@@ -35,6 +35,17 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  */
 class KriMeasureMigrator
 {
+    /**
+     * The note on every breach this class reconstructs from a notification.
+     *
+     * It is an IDENTIFIER, not prose: ADR 0027's repair migration and any later
+     * work that has to tell a reconstructed row from a real one match on it
+     * byte for byte. A test pins it. Rewording it orphans those rows.
+     */
+    public const RECONSTRUCTED_NOTE = 'Reconstructed from the notification log during the WP-04 measure-engine migration. '
+        .'The pre-WP-04 platform kept no breach register, so acknowledgement and resolution times '
+        .'are not recoverable for this row.';
+
     /** What a KRI's measurement_frequency means in period terms. */
     private const FREQUENCY_TO_PERIOD_TYPE = [
         'daily' => 'month',
@@ -556,13 +567,34 @@ class KriMeasureMigrator
             // open so the backfill does not land as a queue of stale alerts,
             // with a note saying where it came from and what is missing.
             'status' => 'resolved',
-            'resolved_at' => Period::withoutGlobalScopes()->whereKey($periodId)->value('end_date') ?? $breachedAt,
+            'resolved_at' => $this->reconstructedResolution($periodId, $breachedAt),
             'linked_risk_id' => $riskId,
-            'note' => 'Reconstructed from the notification log during the WP-04 measure-engine migration. '
-                .'The pre-WP-04 platform kept no breach register, so acknowledgement and resolution times '
-                .'are not recoverable for this row.',
+            'note' => self::RECONSTRUCTED_NOTE,
         ])->save();
 
         return true;
+    }
+
+    /**
+     * When a reconstructed breach is stamped as resolved (ADR 0027).
+     *
+     * The end of the period's LAST DAY, never earlier than the breach itself.
+     * `Period::end_date` is a date cast, which Carbon holds as 00:00 at the
+     * START of that day, so using it directly resolved every breach notified on
+     * a month's last day before it began. Truncated to the second so the
+     * in-memory value equals a fresh read and no fractional second reaches a
+     * TIMESTAMP(0), where MySQL rounds 23:59:59.999999 up to the next midnight.
+     */
+    private function reconstructedResolution(int $periodId, CarbonImmutable $breachedAt): CarbonImmutable
+    {
+        $endDate = Period::withoutGlobalScopes()->whereKey($periodId)->value('end_date');
+
+        if ($endDate === null) {
+            return $breachedAt;
+        }
+
+        $endOfPeriod = CarbonImmutable::instance($endDate)->endOfDay()->startOfSecond();
+
+        return $endOfPeriod->lessThan($breachedAt) ? $breachedAt : $endOfPeriod;
     }
 }

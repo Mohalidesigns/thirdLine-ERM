@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -106,38 +107,60 @@ class MeasureBreach extends Model
     /*  Helpers */
     /* ------------------------------------------------------------------ */
 
-    /** Hours from breach to acknowledgement; null while unacknowledged. */
+    /** Hours from breach to acknowledgement; null while unacknowledged, or if the interval is impossible. */
     public function hoursToAcknowledge(): ?float
     {
-        return $this->acknowledged_at
-            ? round($this->breached_at->diffInMinutes($this->acknowledged_at) / 60, 2)
-            : null;
+        return self::hoursBetween($this->breached_at, $this->acknowledged_at);
     }
 
-    /** Hours from breach to resolution; null while open. */
+    /** Hours from breach to resolution; null while open, or if the interval is impossible. */
     public function hoursToResolve(): ?float
     {
-        return $this->resolved_at
-            ? round($this->breached_at->diffInMinutes($this->resolved_at) / 60, 2)
-            : null;
+        return self::hoursBetween($this->breached_at, $this->resolved_at);
     }
 
     /**
      * Mean time to resolve, in hours, over the resolved breaches in a query.
      *
      * Computed from the rows, not stored: a stored MTTR is a number that goes
-     * stale the moment a breach is reopened.
+     * stale the moment a breach is reopened. A row whose resolution precedes its
+     * breach is unmeasurable and is left out of numerator AND denominator
+     * (ADR 0027): neither clamped to zero, which would invent "resolved
+     * instantly", nor allowed to pull the mean down as a negative.
      */
     public static function meanTimeToResolveHours(?Builder $query = null): ?float
     {
         $rows = ($query ?? static::query())->resolved()->whereNotNull('resolved_at')->get(['breached_at', 'resolved_at']);
 
-        if ($rows->isEmpty()) {
+        $minutes = $rows
+            ->map(fn (self $breach) => self::minutesBetween($breach->breached_at, $breach->resolved_at))
+            ->filter(fn (?float $m) => $m !== null);
+
+        if ($minutes->isEmpty()) {
             return null;
         }
 
-        $total = $rows->sum(fn (self $breach) => $breach->breached_at->diffInMinutes($breach->resolved_at));
+        return round($minutes->sum() / $minutes->count() / 60, 2);
+    }
 
-        return round($total / $rows->count() / 60, 2);
+    /**
+     * Minutes (fractional, as Carbon 3 returns them) from $from to $to, or null when either is absent or $to is
+     * before $from. An interval that ends before it starts is not a short one;
+     * it is not a measurement.
+     */
+    private static function minutesBetween(?CarbonInterface $from, ?CarbonInterface $to): ?float
+    {
+        if ($from === null || $to === null || $to->lessThan($from)) {
+            return null;
+        }
+
+        return (float) $from->diffInMinutes($to);
+    }
+
+    private static function hoursBetween(?CarbonInterface $from, ?CarbonInterface $to): ?float
+    {
+        $minutes = self::minutesBetween($from, $to);
+
+        return $minutes === null ? null : round($minutes / 60, 2);
     }
 }

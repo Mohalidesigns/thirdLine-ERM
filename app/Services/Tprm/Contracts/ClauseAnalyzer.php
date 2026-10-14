@@ -12,6 +12,7 @@ use App\Services\Tprm\Evidence\ExtractionGuard;
 use App\Services\Tprm\Extraction\DocumentTextExtractor;
 use App\Services\Tprm\Extraction\LlmClient;
 use App\Services\Tprm\Extraction\PromptRegistry;
+use App\Support\Audit\AuditText;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -186,7 +187,7 @@ class ClauseAnalyzer
                         'applicable' => $applicable->count(),
                     ],
                     'ip' => request()?->ip(),
-                    'user_agent' => \App\Support\Audit\AuditText::userAgent(),
+                    'user_agent' => AuditText::userAgent(),
                 ]);
             } catch (\Throwable $exception) {
                 // Auditing never fails the write (TprmAuditable's rule). By

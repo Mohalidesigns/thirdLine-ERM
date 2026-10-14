@@ -36,8 +36,11 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  * upgrade stopped at `2026_08_12_120003_seed_units_and_period_calendars`. The
  * check is the FIRST statement of `created`, `updated` and `deleted` — before
  * the `.updated` diff and the `safe()` allowlist walk, not only before the
- * subscription lookup — so a migration that saves ten thousand rows does no
- * work here at all, costs no query and leaves nothing cached. `publish()`
+ * subscription lookup. The observer still runs on every save: the event
+ * dispatcher resolves it from the container each time (so a new instance,
+ * with its `WebhookDispatcher`) and calls the method. But the method returns
+ * after one `isOpen()` check, so a migration that saves ten thousand rows
+ * builds no payload, runs no query and leaves nothing cached. `publish()`
  * checks again as a backstop for any future entry point that forgets.
  * DEVELOPMENT_STANDARD §16; guarded by `OutwardObserversHonourMigrationWindowTest`.
  */

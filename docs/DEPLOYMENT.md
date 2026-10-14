@@ -19,7 +19,7 @@ the real deploy breaks at 3am. It has been deleted; this file replaces it.
 | Web/PHP | `php8.4-fpm` |
 | Queue | `risk-queue` (systemd unit) |
 | Restarts | scoped passwordless sudo, limited to those two units |
-| Scheduler | `schedule:run` — user **not documented**; verify with the step 0 check under "When the permissions step warns". It must be `www-data` or a member of `www-data`: RCSA commands it runs write to the `local` disk |
+| Scheduler | `php artisan schedule:run` every minute, and it **must run as `www-data`**. Which user's crontab runs it on the VPS has not been recorded; confirm it with the step 0 check under "When the permissions step warns". Anything a scheduled command logs goes to `storage/logs/laravel.log`, and a log file another user creates is `0644` under the usual `umask 022`, which php-fpm cannot append to. None of the scheduled commands writes to the `local` disk. Two RCSA commands are scheduled, `rcsa:check-action-plans` and `rcsa:check-cycle-deadlines`, and neither writes a file. The RCSA commands that do write there, `rcsa:migrate-legacy` and `rcsa:parallel-run`, are run by hand, as `www-data` (`sudo -u www-data php artisan …`). |
 
 `deploy` cannot become root. It can restart exactly the two services the
 deploy needs, and nothing else.
@@ -111,17 +111,23 @@ APP=/var/www/thirdLine-ERM
 cd /    # so `sudo -u deploy find` never starts in a directory deploy cannot enter
 
 # 0. Preconditions. deploy must be in the runtime group, and php-fpm's pool,
-#    the queue worker and the scheduler must run as www-data (or, for the
-#    scheduler, a member of www-data). If any is false, stop and fix that first.
+#    the queue worker and the scheduler must run as www-data. If any is false,
+#    stop and fix that first.
 id -nG deploy | tr ' ' '\n' | grep -qx www-data && echo "deploy is in www-data" || echo "!! deploy is NOT in www-data"
 #    Expect one `root root` line here — the php-fpm master process — and the
 #    pool workers as www-data.
 ps -o user=,group= -C php-fpm8.4 | sort | uniq -c
 systemctl show -p User -p Group risk-queue
-#    The scheduler's user is not documented; RCSA commands it runs write to the
-#    local disk. Whichever user's crontab or timer runs `schedule:run` must be
-#    www-data or a member of www-data.
-for u in root deploy www-data; do echo "== $u"; crontab -l -u "$u" 2>/dev/null | grep -F 'schedule:run'; done; systemctl list-timers --all | grep -i -E 'schedule|laravel' || true
+#    The scheduler: expect exactly one `schedule:run` entry, in www-data's
+#    crontab or as a `www-data` line in /etc/crontab or /etc/cron.d, and
+#    none for any other user. `sudo` matters: `crontab -l` for another user
+#    fails without it, and the old check hid that failure behind 2>/dev/null
+#    and printed nothing.
+sudo crontab -u www-data -l | grep -F 'schedule:run' || echo "!! no schedule:run in www-data's crontab"
+for u in root deploy; do sudo crontab -u "$u" -l 2>/dev/null | grep -F 'schedule:run' && echo "!! the line above is in $u's crontab"; done
+#    System crontabs name the user in the sixth field; it must be www-data.
+sudo grep -H -F 'schedule:run' /etc/crontab /etc/cron.d/* 2>/dev/null || echo "(none in /etc/crontab or /etc/cron.d)"
+systemctl list-timers --all | grep -i -E 'schedule|laravel' || true
 
 # 1. What deploy cannot reach (the directories that abort or warn the deploy) ...
 sudo -u deploy find "$APP/storage" "$APP/bootstrap/cache" -type d \( ! -readable -o ! -executable \) -prune -print
@@ -207,7 +213,29 @@ re-run `php artisan config:cache`.
 
 ## Rollback
 
-`git reset --hard <previous sha>` and re-run `scripts/deploy.sh`. Migrations
-are **not** rolled back automatically and mostly should not be: a `down()` that
-drops a column discards the rows written since the deploy. Roll the code back
-first, then decide about the schema deliberately.
+`scripts/deploy.sh` always deploys `origin/main`: its first step is
+`git reset --hard origin/main`. A `git reset --hard <previous sha>` on the
+server followed by `scripts/deploy.sh` therefore re-deploys `main` and undoes
+the rollback. Put the previous code on `main` (a revert commit) and deploy
+that. Migrations are **not** rolled back automatically and mostly should not be:
+a `down()` that drops a column discards the rows written since the deploy. Roll
+the code back first, then decide about the schema deliberately.
+
+### Releases that cannot be rolled back past cleanly
+
+- **Before `58662ca` (ADR 0026), for example to `056ec5a`, once a format-2
+  configuration bundle exists.** From `58662ca` every `config_bundles` row is
+  written sealed: its `payload` is one JSON string. That includes the snapshot
+  each apply takes. Older code reads the column through an `array` cast, gets
+  the string back, and passes it where an `array` is required. The result is a
+  `TypeError`, which is HTTP 500 on the Configuration bundles screen and a crash
+  in `config:import <id>`. It happens when you apply such a bundle, diff
+  against it, or roll back to its snapshot. It also happens when you diff or
+  apply any bundle at all, format 1 or a file, in an organisation whose last
+  applied bundle is format 2, because the importer reads that bundle as the
+  merge ancestor. The bundle list still loads, but shows such a bundle with 0
+  rows. Count them first. This query runs on MySQL 8.0.46 and MariaDB 10.4:
+  `SELECT COUNT(*) FROM config_bundles WHERE JSON_TYPE(payload) = 'STRING';`
+  Nothing converts sealed rows back, and ADR 0026 §4 forbids re-checksumming
+  bundle rows. Roll back past this release only when that count is 0, or accept that
+  those bundles stay unusable until you roll forward again.

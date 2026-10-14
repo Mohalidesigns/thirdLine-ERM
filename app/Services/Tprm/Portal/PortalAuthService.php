@@ -8,6 +8,7 @@ use App\Models\Tprm\AuditLog;
 use App\Models\Tprm\PortalInvitation;
 use App\Models\Tprm\PortalUser;
 use App\Models\Tprm\ThirdParty;
+use App\Support\Audit\AuditText;
 use App\Support\Auth\Totp;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -499,7 +500,7 @@ class PortalAuthService
             'before' => null,
             'after' => $after,
             'ip' => request()?->ip(),
-            'user_agent' => \App\Support\Audit\AuditText::userAgent(),
+            'user_agent' => AuditText::userAgent(),
         ]);
     }
 }

@@ -51,12 +51,19 @@ namespace App\Support;
  * hand) must not leave the counter at -1, where the next real `open()` would
  * bring it to 0 and leave a genuine migrate run unguarded.
  *
- * A failed migration never fires `MigrationsEnded`, so the window stays open
- * for the rest of that process. Every caller of the migrator in this product
- * (`migrate`, `migrate:fresh` under `RefreshDatabase`) is a process that then
- * exits or fails the suite, so nothing runs afterwards with webhooks wrongly
- * suppressed — but `reset()` is public for anything that ever needs to recover
- * in-process, and it closes every level at once.
+ * A FAILED RUN LEAVES THE WINDOW OPEN. `Migrator::runPending()` fires
+ * `MigrationsEnded` only after its last migration succeeds, so a migration
+ * that throws leaves its level open for the rest of this application
+ * instance. A later migrate run in the same instance does NOT close it: it
+ * opens one level and closes only that one, and the depth comes back to where
+ * the failed run left it, still open. `php artisan migrate` exits on the
+ * failure, php-fpm and the queue worker are other processes with their own
+ * window, and every test boots its own application, so none of those inherits
+ * it. Anything that retries in-process does: a tinker session, a command or
+ * test that catches the failure and migrates again, or an outer run that
+ * catches an inner one. Every observer guarded here then stays silent for
+ * every save that follows. `reset()` is the recovery: it closes every level at
+ * once. Nothing in app/ calls it today.
  *
  * Bound as a SINGLETON on purpose: the state is a fact about the process (is
  * the migrator running in it?), not about a tenant or a request, so there is no

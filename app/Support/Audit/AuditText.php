@@ -5,16 +5,29 @@ namespace App\Support\Audit;
 use Illuminate\Http\Request;
 
 /**
- * Makes a caller-influenced string safe to put in an audit row's varchar column.
+ * The one place a caller-influenced string is made safe for an audit row's
+ * varchar column.
  *
- * THE DEFECT THIS EXISTS FOR. `substr($userAgent, 0, 500)` counts BYTES, so on a
- * header full of multi-byte characters it cuts one in half. The result is not
- * valid UTF-8, and a strict-mode `utf8mb4` insert (MariaDB 10.4 and MySQL 8
- * alike) refuses it. Every audit writer in this product catches the failure
- * ("auditing never fails the write") and logs it, so the business change commits
- * and the audit row is silently gone. On the vendor portal the User-Agent is
- * written by the person being audited: anyone could suppress the record of their
- * own actions by sending a long enough header of the right characters.
+ * WHY THIS EXISTS. `substr($userAgent, 0, 500)` counts BYTES, so on a header
+ * full of multi-byte characters it cuts one in half. The result is not valid
+ * UTF-8, and a strict-mode `utf8mb4` insert (MariaDB 10.4 and MySQL 8 alike)
+ * refuses it. The TPRM and BCMS auditable traits, the clause analyser and the
+ * BCMS pack exports catch that failure and only log it ("auditing never fails
+ * the write"), so the business change commits and the audit row is silently
+ * gone. On the vendor portal the User-Agent is written by the person being
+ * audited: anyone could suppress the record of their own actions by sending a
+ * long enough header of the right characters. An over-long actor name or
+ * X-Correlation-Id did the same.
+ *
+ * EVERY WRITER OF THESE AUDIT COLUMNS GOES THROUGH HERE:
+ *  - `tp_audit_logs` (`user_agent` 500, `actor_label` 200, `correlation_id`
+ *    64): `TprmAuditable`, the four portal services (`PortalAuthService`,
+ *    `PortalIncidentService`, `TrustProfileService`, `VendorIdentityService`),
+ *    `Tprm\Evidence\EvidenceService` and `ClauseAnalyzer`;
+ *  - `bcms_audit_logs` (`actor_label` 150): `BcmsAuditable`, `DrService`, and
+ *    the board, evidence and CSAT pack services;
+ *  - `rcsa_export_jobs` (`user_agent` 512): `RcsaExportService`.
+ * A new writer of any of these columns calls `clip()` with the column's width.
  *
  * TWO THINGS, IN THIS ORDER.
  *

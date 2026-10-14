@@ -6,6 +6,7 @@ use App\Models\Tprm\AuditLog;
 use App\Models\Tprm\Document;
 use App\Models\Tprm\DocumentType;
 use App\Services\FileUploadService;
+use App\Support\Audit\AuditText;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -177,7 +178,7 @@ class EvidenceService
                 'hash' => $document->hash,
             ],
             'ip' => request()?->ip(),
-            'user_agent' => \App\Support\Audit\AuditText::userAgent(),
+            'user_agent' => AuditText::userAgent(),
         ]);
     }
 

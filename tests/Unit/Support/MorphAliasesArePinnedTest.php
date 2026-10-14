@@ -132,7 +132,17 @@ class MorphAliasesArePinnedTest extends TestCase
             ."     database/migrations/2026_10_03_100001_rewrite_legacy_morph_class_names_to_aliases.php\n"
             ."     that updates every morph column holding the old alias to the new one (and handles\n"
             ."     unique-key collisions the way that migration does).\n"
-            ."  2. Only then update PINNED in tests/Unit/Support/MorphAliasesArePinnedTest.php.\n"
+            ."  2. Only then update PINNED in tests/Unit/Support/MorphAliasesArePinnedTest.php.\n\n"
+            ."If the alias is unchanged and only its CLASS MOVED (same model, new name or namespace),\n"
+            ."rows that store the alias still resolve, so step 1 is not needed for them: update the\n"
+            ."class in PINNED. But some columns store the class name itself, not the alias, and still\n"
+            ."hold the old name. tp_audit_logs.auditable_type and bcms_audit_logs.auditable_type are\n"
+            ."written as static::class by TprmAuditable and BcmsAuditable, and by the services that\n"
+            ."write audit rows directly. A reader that matches on the new class name, as\n"
+            ."TprmAuditable::auditLogs() does, finds none of the moved model's history.\n"
+            ."tp_audit_logs is append-only and hashes auditable_type into its chain\n"
+            ."(Tprm\\AuditLog::HASHED_FIELDS), so its rows cannot be rewritten. Grep for ::class writes\n"
+            ."of the old name, and do not move an audited model without an ADR.\n\n"
             .'If you did not mean to change an alias, revert your edit to MorphTypes::map().';
     }
 }

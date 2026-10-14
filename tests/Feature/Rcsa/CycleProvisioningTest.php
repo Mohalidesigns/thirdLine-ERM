@@ -44,7 +44,8 @@ class CycleProvisioningTest extends CycleTestCase
 
         $retail = RcsaAssessment::where('business_unit_id', $this->retail->id)->sole();
         $this->assertSame(2, $retail->lines()->count());
-        $this->assertSame(RcsaAssessment::IN_PROGRESS, $retail->status);
+        // RCSA-05: born `draft` (not started); the first saved rating starts it.
+        $this->assertSame(RcsaAssessment::DRAFT, $retail->status);
         $this->assertSame(0, $retail->completion_pct);
     }
 
@@ -257,14 +258,15 @@ class CycleProvisioningTest extends CycleTestCase
 
         app(RcsaCycleService::class)->close($cycle, $this->actor);
 
-        // The assessment is still `in_progress`; the CYCLE is what freezes it.
+        // The assessment is still `draft` (nobody started it); the CYCLE is what
+        // freezes it.
         // Without consulting the cycle, a unit left unfinished when the quarter
         // closed would go on accepting edits and drift away from the figures
         // the closed cycle reported.
         $assessment = $assessment->fresh();
         $assessment->load('cycle');
 
-        $this->assertSame(RcsaAssessment::IN_PROGRESS, $assessment->status);
+        $this->assertSame(RcsaAssessment::DRAFT, $assessment->status);
         $this->assertFalse($assessment->acceptsEdits());
     }
 }

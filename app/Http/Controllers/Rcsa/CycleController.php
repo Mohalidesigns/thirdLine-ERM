@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Rcsa;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Rcsa\AssignAssessmentsRequest;
 use App\Http\Requests\Rcsa\CloseCycleRequest;
 use App\Http\Requests\Rcsa\OpenCycleRequest;
 use App\Http\Requests\Rcsa\StoreCycleRequest;
@@ -11,10 +12,13 @@ use App\Models\Rcsa\RcsaAssessment;
 use App\Models\Rcsa\RcsaCycle;
 use App\Models\Rcsa\RcsaMethodology;
 use App\Models\Rcsa\RcsaRegisterRisk;
+use App\Models\User;
+use App\Services\Rcsa\RcsaAssignmentService;
 use App\Services\Rcsa\RcsaCycleService;
 use App\Support\Rcsa\RcsaScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use RuntimeException;
 use ThirdLine\Platform\Tenancy\TenantContext;
@@ -24,7 +28,10 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  */
 class CycleController extends Controller
 {
-    public function __construct(private readonly RcsaCycleService $cycles) {}
+    public function __construct(
+        private readonly RcsaCycleService $cycles,
+        private readonly RcsaAssignmentService $assignments,
+    ) {}
 
     public function index(Request $request)
     {
@@ -89,6 +96,8 @@ class CycleController extends Controller
         // §11. A coordinator sees the whole cycle; a risk champion sees the
         // rows for their own units and the tiles above them count the same set,
         // so the progress they read is progress they are responsible for.
+        $canAssign = $request->user()->can('assign', $cycle);
+
         $assessments = app(RcsaScope::class)->apply($cycle->assessments(), $request->user())
             ->with(['businessUnit:id,name,code', 'assignee:id,name'])
             ->withCount('lines')
@@ -100,6 +109,7 @@ class CycleController extends Controller
                 'completion_pct' => $assessment->completion_pct,
                 'lines_count' => $assessment->lines_count,
                 'assignee' => $assessment->getRelationValue('assignee')?->name,
+                'assignee_id' => $assessment->assigned_to,
                 'submitted_at' => $assessment->submitted_at?->toDateString(),
             ])
             ->values()
@@ -118,11 +128,63 @@ class CycleController extends Controller
                 'methodology' => $cycle->getRelationValue('methodology')?->name,
             ],
             'assessments' => $assessments,
+            // Who an assessment can be given to: active users of this tenant
+            // who may complete one. Only sent to someone who can assign — the
+            // list of every assessor is not something a read-only viewer needs.
+            'assignees' => $canAssign
+                ? $this->assignments->eligibleAssignees((int) $cycle->organization_id)
+                    ->map(fn (User $user) => ['id' => $user->id, 'name' => $user->name])
+                    ->values()
+                    ->all()
+                : [],
             'can' => [
                 'open' => $request->user()->can('open', $cycle),
                 'close' => $request->user()->can('close', $cycle),
+                'assign' => $canAssign,
             ],
         ]);
+    }
+
+    /**
+     * Give some of this cycle's assessments to an assessor, or take them back.
+     *
+     * The domain rules (the assignee can do the work and reach the unit; the
+     * assessments still accept edits) live in RcsaAssignmentService. A rule
+     * about the assignee answers as a validation error on `assigned_to`; a
+     * rule about the lifecycle — a closed cycle, an assessment already filed —
+     * answers with a flash message, not a 403.
+     */
+    public function assign(AssignAssessmentsRequest $request, RcsaCycle $cycle)
+    {
+        $assigneeId = $request->validated('assigned_to');
+
+        $assignee = $assigneeId === null
+            ? null
+            : User::query()->where('organization_id', $cycle->organization_id)->findOrFail($assigneeId);
+
+        try {
+            $result = $this->assignments->assign(
+                $cycle,
+                array_map('intval', $request->validated('assessment_ids')),
+                $assignee,
+                $request->user(),
+                $request,
+            );
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $changed = $result['changed'];
+
+        if ($changed === 0) {
+            return back()->with('success', $assignee === null
+                ? 'Nothing to change: those assessments were already unassigned.'
+                : sprintf('Nothing to change: %s already has %s.', $assignee->name, $result['matched'] === 1 ? 'that assessment' : 'those assessments'));
+        }
+
+        return back()->with('success', $assignee === null
+            ? sprintf('%d %s unassigned.', $changed, Str::plural('assessment', $changed))
+            : sprintf('%d %s assigned to %s.', $changed, Str::plural('assessment', $changed), $assignee->name));
     }
 
     public function store(StoreCycleRequest $request)
@@ -167,10 +229,12 @@ class CycleController extends Controller
         return redirect()
             ->route('rcsa.cycles.show', $cycle)
             ->with('success', sprintf(
-                '%s is open: %d assessments provisioned with %d risks in total.',
+                '%s is open: %d %s provisioned with %d %s in total.',
                 $cycle->name,
                 $result['assessments'],
+                Str::plural('assessment', $result['assessments']),
                 $result['lines'],
+                Str::plural('risk', $result['lines']),
             ));
     }
 

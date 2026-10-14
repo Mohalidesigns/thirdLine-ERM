@@ -7,9 +7,13 @@ use App\Models\Rcsa\RcsaAssessmentLine;
 use App\Models\Rcsa\RcsaAssessmentTransition;
 use App\Models\User;
 use App\Services\NotificationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use RuntimeException;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use ThirdLine\Reporting\DocumentRenderer;
 
 /**
@@ -34,6 +38,12 @@ use ThirdLine\Reporting\DocumentRenderer;
  */
 class RcsaSubmissionService
 {
+    /** Who is told when an assessment reaches the ORM with no reviewer of its own. */
+    private const REVIEW_PERMISSION = 'rcsa_assessment.review';
+
+    /** The role `Gate::before` (AppServiceProvider) lets through every ability. */
+    private const SUPER_ADMIN_ROLE = 'super-admin';
+
     public function __construct(
         private readonly RcsaAssessmentService $assessments,
         private readonly RcsaWorkflowService $workflow,
@@ -100,6 +110,22 @@ class RcsaSubmissionService
             throw new RuntimeException('This assessment is closed and cannot be submitted.');
         }
 
+        // Heal, then gate. A line whose answers were stored but whose scores
+        // were lost (see RcsaAssessmentService's invariant) is repaired here so
+        // the gate judges its real band; one that cannot be repaired stays
+        // unscored and blocks.
+        //
+        // The repair is the SYSTEM's, not the submitter's: its revisions and
+        // audit rows carry no user and say why, so the trail never claims the
+        // person pressing Submit changed a score. Locked lines are not
+        // touched (the default) — a returned assessment's unflagged lines were
+        // filed as they stand.
+        $this->assessments->recomputeUnscored(
+            $assessment,
+            $request,
+            reason: 'Recomputed at submission — scores were missing',
+        );
+
         $blockers = $this->blockers($assessment, $actor->id);
 
         if ($blockers['issues'] !== []) {
@@ -161,6 +187,116 @@ class RcsaSubmissionService
     }
 
     /**
+     * Who submitting this assessment would notify, right now, for this actor.
+     *
+     * THE SEND AND THE COUNT SHARE THIS. The workspace tells the assessor
+     * "N people will be notified" (or that nobody will) before they press
+     * Submit, and a count computed by a second copy of the rule is a count that
+     * drifts the first time either changes — so notifyReviewers() and
+     * notifyBusinessUnitHead() read their recipients from the same two
+     * methods this does.
+     *
+     * @return list<int>
+     */
+    public function submissionRecipients(RcsaAssessment $assessment, User $actor): array
+    {
+        return $this->workflow->submissionTarget($assessment) === RcsaAssessment::BU_APPROVAL
+            ? $this->businessUnitHeadRecipients($assessment, $actor)
+            : $this->reviewerRecipients($assessment, $actor);
+    }
+
+    /**
+     * `business_units.head_id`, and nobody else — see notifyBusinessUnitHead().
+     *
+     * @return list<int>
+     */
+    private function businessUnitHeadRecipients(RcsaAssessment $assessment, User $actor): array
+    {
+        // The relation may have been loaded with a column list that leaves out
+        // `head_id` (the workspace selects id, name and code only), in which
+        // case reading it would answer "no head" for a unit that has one.
+        $unit = $assessment->getRelationValue('businessUnit');
+
+        $headId = $unit !== null && array_key_exists('head_id', $unit->getAttributes())
+            ? $unit->head_id
+            : DB::table('business_units')->where('id', $assessment->business_unit_id)->value('head_id');
+
+        if ($headId === null || (int) $headId === $actor->id) {
+            return [];
+        }
+
+        return [(int) $headId];
+    }
+
+    /**
+     * The assessment's own reviewer when one is set, otherwise everyone who
+     * may review — see notifyReviewers().
+     *
+     * THE FILTER IS IN SQL, and it returns ids only. This sits behind the
+     * workspace's "N people will be notified" prop, so it runs on EVERY GET of
+     * an open assessment; loading every active user of the tenant with their
+     * roles and permissions and asking `can()` of each made that page's cost
+     * grow with the size of the bank. Now it is one query, whatever the tenant
+     * holds.
+     *
+     * IT MUST ANSWER WHAT `can('rcsa_assessment.review')` WOULD, so that the
+     * count and the send cannot disagree with the Gate:
+     *
+     *   - role-granted and direct permissions — Spatie's `permission()` scope
+     *     matches both (a `model_has_permissions` row, or a role carrying the
+     *     permission). Teams are off in this app (`config/permission.php`), so
+     *     there is no team/tenant dimension on roles to reproduce; the tenant
+     *     bound is the users' own `organization_id`.
+     *   - the super-admin bypass — `Gate::before` in AppServiceProvider grants
+     *     `super-admin` every ability, so `can()` is BROADER than the scope: a
+     *     super-admin holding no review permission at all passes `can()` and
+     *     would be missed by the scope alone. The `super-admin` role is
+     *     therefore OR-ed in explicitly, with the same role-name test
+     *     `hasRole('super-admin')` makes.
+     *   - a permission row that does not exist — the scope throws where
+     *     `can()` quietly answers no. Treated as "nobody holds it", which
+     *     leaves only the super-admins.
+     *
+     * @return list<int>
+     */
+    private function reviewerRecipients(RcsaAssessment $assessment, User $actor): array
+    {
+        if ($assessment->reviewer_id !== null) {
+            return [(int) $assessment->reviewer_id];
+        }
+
+        $query = User::query()
+            ->where('organization_id', $assessment->organization_id)
+            ->where('is_active', true)
+            ->whereKeyNot($actor->id);
+
+        $query->where(function (Builder $who) {
+            try {
+                $who->permission(self::REVIEW_PERMISSION);
+            } catch (PermissionDoesNotExist) {
+                // Nobody can hold a permission that has never been created; the
+                // super-admin branch below is all that is left. `where(0 = 1)`
+                // keeps the OR well-formed.
+                $who->whereRaw('1 = 0');
+            }
+
+            $who->orWhereHas('roles', fn (Builder $roles) => $roles->where('name', self::SUPER_ADMIN_ROLE));
+        });
+
+        // toBase(): ids straight off the result set. Eloquent's own pluck()
+        // builds a model per row when the model casts or mutates the column
+        // (users.id is cast), and a hydrated User per recipient is exactly the
+        // cost this method exists to avoid. Global scopes (tenant, soft
+        // deletes) are applied by toBase().
+        return $query->orderBy('id')
+            ->toBase()
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
      * Tell the head of the business unit their unit has filed.
      *
      * `business_units.head_id`, and nothing else — an approval step with no
@@ -170,11 +306,13 @@ class RcsaSubmissionService
      */
     private function notifyBusinessUnitHead(RcsaAssessment $assessment, User $actor): int
     {
-        $head = $assessment->getRelationValue('businessUnit')?->head_id;
+        $recipients = $this->businessUnitHeadRecipients($assessment, $actor);
 
-        if ($head === null || (int) $head === $actor->id) {
+        if ($recipients === []) {
             return 0;
         }
+
+        $head = $recipients[0];
 
         NotificationService::send(
             organizationId: (int) $assessment->organization_id,
@@ -182,11 +320,12 @@ class RcsaSubmissionService
             type: 'rcsa.assessment.awaiting_approval',
             subject: sprintf('%s needs your approval', $this->unitName($assessment)),
             body: sprintf(
-                '%s completed the %s assessment for %s: %d risks, %d above appetite. It reaches ORM once you approve it.',
+                '%s completed the %s assessment for %s: %d %s, %d above appetite. It reaches ORM once you approve it.',
                 $actor->name,
                 $this->cycleName($assessment),
                 $this->unitName($assessment),
-                $assessment->lines()->count(),
+                $lineCount = $assessment->lines()->count(),
+                Str::plural('risk', $lineCount),
                 $this->aboveAppetiteCount($assessment),
             ),
             metadata: ['assessment_id' => $assessment->id, 'cycle_id' => $assessment->cycle_id],
@@ -269,16 +408,7 @@ class RcsaSubmissionService
      */
     private function notifyReviewers(RcsaAssessment $assessment, User $actor): int
     {
-        $recipients = $assessment->reviewer_id !== null
-            ? [$assessment->reviewer_id]
-            : User::query()
-                ->where('organization_id', $assessment->organization_id)
-                ->where('is_active', true)
-                ->whereKeyNot($actor->id)
-                ->get()
-                ->filter(fn (User $user) => $user->can('rcsa_assessment.review'))
-                ->pluck('id')
-                ->all();
+        $recipients = $this->reviewerRecipients($assessment, $actor);
 
         if ($recipients === []) {
             return 0;
@@ -286,15 +416,16 @@ class RcsaSubmissionService
 
         NotificationService::sendMany(
             organizationId: (int) $assessment->organization_id,
-            userIds: array_values(array_map('intval', $recipients)),
+            userIds: $recipients,
             type: 'rcsa.assessment.submitted',
             subject: sprintf('%s submitted their RCSA', $this->unitName($assessment)),
             body: sprintf(
-                '%s submitted the %s assessment for %s: %d risks, %d above appetite.',
+                '%s submitted the %s assessment for %s: %d %s, %d above appetite.',
                 $actor->name,
                 $this->cycleName($assessment),
                 $this->unitName($assessment),
-                $assessment->lines()->count(),
+                $lineCount = $assessment->lines()->count(),
+                Str::plural('risk', $lineCount),
                 $this->aboveAppetiteCount($assessment),
             ),
             metadata: ['assessment_id' => $assessment->id, 'cycle_id' => $assessment->cycle_id],

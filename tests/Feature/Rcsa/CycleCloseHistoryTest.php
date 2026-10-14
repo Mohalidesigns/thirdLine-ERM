@@ -57,7 +57,7 @@ class CycleCloseHistoryTest extends ReviewTestCase
                 ->sole();
 
             $this->assertNull($open->from_status);
-            $this->assertSame(RcsaAssessment::IN_PROGRESS, $open->to_status);
+            $this->assertSame(RcsaAssessment::DRAFT, $open->to_status);
             $this->assertSame($this->actor->id, $open->user_id);
         }
 
@@ -72,7 +72,9 @@ class CycleCloseHistoryTest extends ReviewTestCase
         $workflow->claim($treasuryAssessment->fresh(), $this->reviewer);
         $workflow->validate($treasuryAssessment->fresh(), $this->reviewer);
 
-        // $opsAssessment is left exactly `in_progress` — nobody ever submitted it.
+        // $opsAssessment is rated (scoreAll started it) but never submitted, so
+        // it is left exactly `in_progress`. The unit nobody started stays `draft`
+        // — that case has its own test in AssessmentStartTest.
 
         $this->assertSame(RcsaAssessment::SUBMITTED, $retailAssessment->fresh()->status);
         $this->assertSame(RcsaAssessment::VALIDATED, $treasuryAssessment->fresh()->status);

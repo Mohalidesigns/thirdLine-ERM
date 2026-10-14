@@ -9,7 +9,11 @@ import {
 import { Head, Link, router, usePage } from "@inertiajs/react";
 import AppLayout from "@/Layouts/AppLayout";
 import PageHeader from "@thirdline/ui/Components/PageHeader";
+import ConfirmDialog from "@thirdline/ui/Components/ConfirmDialog";
+import StatusBadge from "@thirdline/ui/Components/StatusBadge";
+import { assessmentStatusLabel } from "@/lib/labels";
 import { calculate } from "@/lib/rcsa-calc";
+import { formatScore, pluralise } from "@/lib/rcsa-format";
 import ActionPlans from "./ActionPlans";
 import GuidedStep from "./GuidedStep";
 import HeatPosition from "./HeatPosition";
@@ -29,6 +33,37 @@ import HeatPosition from "./HeatPosition";
  * RcsaAssessmentService, which reads only the assessed inputs.
  */
 
+/**
+ * GRID OR GUIDED, remembered per user (RCSA-10). Not per assessment: somebody
+ * who prefers the guided walk-through prefers it on every unit they open, and
+ * the choice is a habit of the person, not a property of the data. Storage is
+ * a convenience, never a dependency — Safari private mode, a blocked cookie
+ * policy and a full quota all make `localStorage` throw, and a workspace that
+ * could not open because of a view preference would be absurd. Anything
+ * unreadable or unrecognised falls back to the grid.
+ */
+const MODES = ["grid", "guided"];
+
+const modeKey = (userId) => `rcsa.workspace.mode.${userId ?? "anonymous"}`;
+
+function readMode(userId) {
+    try {
+        const stored = window.localStorage.getItem(modeKey(userId));
+
+        return MODES.includes(stored) ? stored : "grid";
+    } catch {
+        return "grid";
+    }
+}
+
+function writeMode(userId, mode) {
+    try {
+        window.localStorage.setItem(modeKey(userId), mode);
+    } catch {
+        // The choice simply does not persist. Nothing else depends on it.
+    }
+}
+
 const LEVEL_TONE = {
     very_low: "bg-green-100 text-green-800",
     low: "bg-lime-100 text-lime-800",
@@ -47,7 +82,8 @@ export default function Workspace({
     owners = [],
     can = {},
 }) {
-    const { flash } = usePage().props;
+    const { flash, auth } = usePage().props;
+    const userId = auth?.user?.id;
 
     const [lines, setLines] = useState(initialLines);
     const [outstanding, setOutstanding] = useState(initialOutstanding);
@@ -161,7 +197,25 @@ export default function Workspace({
      */
     const issueCount = outstanding.issue_count ?? outstanding.issues.length;
     const [completion, setCompletion] = useState(assessment.completion_pct);
-    const [mode, setMode] = useState("grid");
+
+    // The header badge. The first saved rating moves a "Not started" assessment
+    // to "In progress" on the server, and the line save answers with the new
+    // status — the badge follows that instead of waiting for a reload (and
+    // instead of guessing). A fresh page load resets it to the prop.
+    const [liveStatus, setLiveStatus] = useState(assessment.status);
+
+    useEffect(() => setLiveStatus(assessment.status), [assessment.status]);
+    // Lazy initialiser: read storage once, on mount, not on every render.
+    const [mode, setModeState] = useState(() => readMode(userId));
+    const setMode = useCallback(
+        (next) => {
+            setModeState(next);
+            writeMode(userId, next);
+        },
+        [userId],
+    );
+    const [confirmingSubmit, setConfirmingSubmit] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
     const [cursor, setCursor] = useState(0);
     const [incompleteOnly, setIncompleteOnly] = useState(false);
     const [selected, setSelected] = useState([]);
@@ -197,11 +251,54 @@ export default function Workspace({
     /*  Saving                                                             */
     /* ------------------------------------------------------------------ */
 
-    const replaceLine = useCallback((row) => {
-        setLines((current) =>
-            current.map((line) => (line.id === row.id ? row : line)),
-        );
-    }, []);
+    /**
+     * The row as the client's own engine would show it after `changes`.
+     *
+     * Pure: it reads nothing but its arguments, so it can run inside a
+     * functional state updater against the row AS IT STANDS rather than the
+     * `line` a handler closed over. Used for the optimistic paint on every
+     * edit, and again to RE-PAINT a still-pending edit on top of a server
+     * answer that arrived underneath it (see the outbox below).
+     */
+    const paintRow = useCallback(
+        (row, changes) => {
+            const next = { ...row, ...changes };
+            const local = calculate(
+                {
+                    likelihood: next.inherent_likelihood,
+                    impact: next.inherent_impact,
+                    controlEffectiveness: next.control_effectiveness,
+                    residualLikelihood: next.residual_likelihood,
+                    residualImpact: next.residual_impact,
+                },
+                methodology,
+            );
+
+            return {
+                ...next,
+                inherent_score: local.inherentScore,
+                inherent_level: local.inherentLevel,
+                ce_modifier: local.ceModifier,
+                residual_score: local.residualScore,
+                residual_level: local.residualLevel,
+                risk_treatment: local.riskTreatment,
+                appetite_status: local.appetiteStatus,
+                is_scored: local.isComplete,
+            };
+        },
+        [methodology],
+    );
+
+    const paintLine = useCallback(
+        (id, changes) => {
+            setLines((current) =>
+                current.map((row) =>
+                    row.id === id ? paintRow(row, changes) : row,
+                ),
+            );
+        },
+        [paintRow],
+    );
 
     /**
      * The autosave endpoint's `line` never carries the reviewer's thread or
@@ -228,29 +325,39 @@ export default function Workspace({
      * authoritative — only the two relations the endpoint never queried are
      * taken from the row as it stands right now.
      */
-    const mergeServerLine = useCallback((incoming) => {
-        setLines((current) =>
-            current.map((row) =>
-                row.id === incoming.id
-                    ? {
-                          ...incoming,
-                          comments: row.comments ?? [],
-                          action_plans: row.action_plans ?? [],
-                          action_plans_count:
-                              row.action_plans_count ??
-                              (row.action_plans ?? []).length,
-                      }
-                    : row,
-            ),
-        );
-    }, []);
+    const mergeServerLine = useCallback(
+        (incoming, overlay = null) => {
+            setLines((current) =>
+                current.map((row) => {
+                    if (row.id !== incoming.id) return row;
+
+                    const merged = {
+                        ...incoming,
+                        comments: row.comments ?? [],
+                        action_plans: row.action_plans ?? [],
+                        action_plans_count:
+                            row.action_plans_count ??
+                            (row.action_plans ?? []).length,
+                    };
+
+                    // `overlay` is an edit the user has already made that the
+                    // server has not been told about yet. It goes back on top
+                    // of the answer so the row does not flicker to the
+                    // previous value between one PATCH settling and the next
+                    // being sent.
+                    return overlay ? paintRow(merged, overlay) : merged;
+                }),
+            );
+        },
+        [paintRow],
+    );
 
     /**
      * `mergeServerLine`'s sibling for when the PATCH never reached the
      * server at all — a network failure, not a 409/423 — and the optimistic
      * paint has to come back off.
      *
-     * NARROWER than `replaceLine(line)`, on purpose. `line` is the closure
+     * NARROWER than putting the whole `line` back, on purpose. `line` is the closure
      * captured when `save()` was called: replacing the whole row with it
      * would revert a plan delete or a reply that landed on this same row
      * while the request was in flight, exactly the staleness
@@ -291,60 +398,79 @@ export default function Workspace({
     }, []);
 
     /**
-     * Paint the computed columns locally, then save.
+     * ONE PATCH IN FLIGHT PER ROW, EDITS ON A BUSY ROW COALESCED (RCSA-01).
      *
-     * The optimistic values come from the same engine the server uses, so in
-     * the normal case the row does not visibly change when the response lands.
-     * When it does — because somebody else got there first — the server wins
-     * and the conflict banner says so.
+     * Likelihood, impact and control effectiveness are three separate
+     * controls, and a fast assessor sets all three inside a second. Each edit
+     * used to fire its own PATCH carrying the `version` the render closure
+     * held, so all three went out with the SAME version and overlapped on the
+     * server; the row ended up holding all three answers and no scores. The
+     * server now treats `version` as a compare-and-swap, which turns the
+     * second and third of those into 409s — so the client must not send them
+     * concurrently in the first place.
+     *
+     * The rule, per line id:
+     *   1. At most one PATCH is out at any moment.
+     *   2. An edit made while one is out is merged into `pending` (a later
+     *      edit to the same field wins) and painted at once through
+     *      calculate(), exactly like any other edit. Nothing is sent yet.
+     *   3. When the in-flight PATCH settles on a 200, the pending object goes
+     *      out as ONE PATCH, with `version` taken from that 200's
+     *      `line.version` — the server's latest row, never the stale closure
+     *      the edit was typed under.
+     *   4. On a 409/423 the pending edits are DROPPED. The response carries
+     *      the current row and the conflict banner shows the other person's
+     *      answer; replaying a stale edit on top of it would overwrite them
+     *      with something typed against a row that no longer exists.
+     *   5. On a network failure or timeout the pending edits are dropped too,
+     *      the optimistic paint is reverted and the page reloaded, as before:
+     *      we do not know what the server holds, so we do not guess.
+     *
+     * `inFlightRef` still counts per id, and the next PATCH is BEGUN before
+     * the settled one is ENDED, so the count never dips to zero between two
+     * chained requests — that dip is a window in which the resync effect
+     * above would let a stale reload overwrite the row's painted edit.
+     *
+     * The outbox lives in a ref, not state: nothing renders from it, and it
+     * has to be read and written synchronously from request callbacks that
+     * outlive the render they were created in.
      */
-    const save = useCallback(
-        (line, changes) => {
-            if (!editable) return;
+    const outboxRef = useRef(new Map());
 
-            // Every synchronous, throwable step happens BEFORE begin(): if
-            // calculate() or a state setter were ever to throw, the in-flight
-            // count must not have been incremented with no matching end() to
-            // come. begin() itself cannot throw, so it sits immediately
-            // before the one call that can genuinely leave it outstanding —
-            // the request.
-            const next = { ...line, ...changes };
-            const local = calculate(
-                {
-                    likelihood: next.inherent_likelihood,
-                    impact: next.inherent_impact,
-                    controlEffectiveness: next.control_effectiveness,
-                    residualLikelihood: next.residual_likelihood,
-                    residualImpact: next.residual_impact,
-                },
-                methodology,
-            );
+    const refreshOutstanding = useCallback(() => {
+        window.axios
+            .get(route("rcsa.assessments.outstanding", assessment.id))
+            .then(({ data }) => setOutstanding(data))
+            .catch(() => {});
+    }, [assessment.id]);
 
-            replaceLine({
-                ...next,
-                inherent_score: local.inherentScore,
-                inherent_level: local.inherentLevel,
-                ce_modifier: local.ceModifier,
-                residual_score: local.residualScore,
-                residual_level: local.residualLevel,
-                risk_treatment: local.riskTreatment,
-                appetite_status: local.appetiteStatus,
-                is_scored: local.isComplete,
-            });
+    const dispatchLine = useCallback(
+        (id) => {
+            const box = outboxRef.current.get(id);
 
-            setSaving((s) => ({ ...s, [line.id]: true }));
+            if (!box || box.sending || !box.pending) return;
 
-            beginInFlight(line.id);
+            const changes = box.pending;
+
+            box.pending = null;
+            box.sending = true;
+            box.inflight = changes;
+
+            setSaving((s) => ({ ...s, [id]: true }));
+
+            beginInFlight(id);
 
             window.axios
                 .patch(
                     route("rcsa.assessments.lines.update", [
                         assessment.id,
-                        line.id,
+                        id,
                     ]),
                     {
                         ...changes,
-                        version: line.version,
+                        // The version of the latest row the server told us
+                        // about — see rule 3.
+                        version: box.version,
                     },
                     // Per-request, not global: a stalled PATCH must not hang
                     // the row's in-flight count forever, but every other
@@ -356,21 +482,32 @@ export default function Workspace({
                     { timeout: 20000 },
                 )
                 .then(({ data }) => {
+                    box.version = data.line.version;
+                    box.confirmed = data.line;
+
                     // The server's figures replace the painted ones. They agree
                     // unless the two implementations have drifted, which is what
-                    // the shared truth table exists to prevent.
-                    mergeServerLine(data.line);
+                    // the shared truth table exists to prevent. A still-pending
+                    // edit is painted back on top (see mergeServerLine).
+                    mergeServerLine(data.line, box.pending);
                     setCompletion(data.completion_pct);
+                    if (data.status) setLiveStatus(data.status);
                     setConflict(null);
-                    refreshOutstanding();
+
+                    // Only the LAST response of a burst refreshes the panel;
+                    // the others would be superseded within the second.
+                    if (!box.pending) refreshOutstanding();
                 })
                 .catch((error) => {
                     const status = error?.response?.status;
+                    const dropped = box.pending;
+
+                    box.pending = null;
 
                     if (status === 409 || status === 423) {
                         // Show what is actually there now, so the user can see
                         // the other person's answer rather than only be told
-                        // that they lost.
+                        // that they lost. Rule 4: pending edits are dropped.
                         if (error.response.data?.line)
                             mergeServerLine(error.response.data.line);
                         setConflict(
@@ -391,40 +528,85 @@ export default function Workspace({
                         // `version` is higher than what mergeLocalRevert just
                         // put back, and the resync above keeps the reload's
                         // answer rather than the reverted one.
-                        setConflict(
-                            "That may not have saved — checking…",
-                        );
-                        mergeLocalRevert(line, changes);
+                        setConflict("That may not have saved — checking…");
+                        mergeLocalRevert(box.confirmed, {
+                            ...changes,
+                            ...(dropped ?? {}),
+                        });
                         router.reload({ only: ["lines", "outstanding"] });
                     }
                 })
                 .finally(() => {
-                    endInFlight(line.id);
-                    setSaving((s) => ({ ...s, [line.id]: false }));
+                    box.sending = false;
+                    box.inflight = null;
+
+                    // Chain BEFORE ending, so the count stays above zero.
+                    if (box.pending) dispatchLine(id);
+
+                    endInFlight(id);
+
+                    if (!box.sending && !box.pending) {
+                        if (outboxRef.current.get(id) === box)
+                            outboxRef.current.delete(id);
+                        setSaving((s) => ({ ...s, [id]: false }));
+                    }
                 });
         },
         [
             assessment.id,
-            editable,
-            methodology,
-            replaceLine,
             mergeServerLine,
             mergeLocalRevert,
+            refreshOutstanding,
             beginInFlight,
             endInFlight,
         ],
     );
 
+    /**
+     * Paint the computed columns locally, then queue the save.
+     *
+     * The optimistic values come from the same engine the server uses, so in
+     * the normal case the row does not visibly change when the response lands.
+     * When it does — because somebody else got there first — the server wins
+     * and the conflict banner says so.
+     */
+    const save = useCallback(
+        (line, changes) => {
+            if (!editable) return;
+
+            // Every synchronous, throwable step happens BEFORE the outbox is
+            // touched: if calculate() or a state setter were ever to throw,
+            // a box with nothing to send must not be left behind to wedge
+            // the row. paintLine's updater runs later, inside React.
+            paintRow(line, changes);
+
+            let box = outboxRef.current.get(line.id);
+
+            if (!box) {
+                // Idle row: the render closure IS the latest row, so its
+                // version is current. `confirmed` is the pre-edit snapshot a
+                // network failure reverts to.
+                box = {
+                    sending: false,
+                    pending: null,
+                    inflight: null,
+                    version: line.version,
+                    confirmed: line,
+                };
+                outboxRef.current.set(line.id, box);
+            }
+
+            box.pending = { ...(box.pending ?? {}), ...changes };
+
+            paintLine(line.id, changes);
+            dispatchLine(line.id);
+        },
+        [editable, paintRow, paintLine, dispatchLine],
+    );
+
     const afterPlanChange = useCallback(() => {
         router.reload({ only: ["lines", "outstanding"] });
     }, []);
-
-    const refreshOutstanding = useCallback(() => {
-        window.axios
-            .get(route("rcsa.assessments.outstanding", assessment.id))
-            .then(({ data }) => setOutstanding(data))
-            .catch(() => {});
-    }, [assessment.id]);
 
     /* ------------------------------------------------------------------ */
     /*  Keyboard                                                           */
@@ -482,7 +664,7 @@ export default function Workspace({
 
         if (
             !window.confirm(
-                `Set control effectiveness to "${bulkValue}" on ${selected.length} risks? This is a material change and is recorded against each one.`,
+                `Set control effectiveness to "${bulkValue}" on ${pluralise(selected.length, "risk")}? This is a material change and is recorded against each one.`,
             )
         ) {
             return;
@@ -504,29 +686,72 @@ export default function Workspace({
         );
     };
 
+    /**
+     * Submitting locks every risk and tells people, and nothing here can take
+     * it back — so it asks first (RCSA-04), in-page, with the consequence
+     * stated as numbers rather than "are you sure?". The blockers check stays
+     * ahead of the dialog: there is no point confirming something the server
+     * is about to refuse.
+     *
+     * `assessment.reviewer_count` is used when the page supplies it. It is not
+     * guessed: the count of people notified is decided server-side (ORM
+     * reviewers, or the BU head when that step is on), so without the prop
+     * the dialog says "reviewers" rather than invent a figure.
+     */
     const submit = () => {
         if (issueCount > 0) {
             window.alert(
-                `${issueCount} thing${issueCount === 1 ? "" : "s"} still to do. They are listed on the right — click one to jump to it.`,
+                `${pluralise(issueCount, "thing")} still to do. They are listed on the right — click one to jump to it.`,
             );
 
             return;
         }
 
-        if (
-            !window.confirm(
-                `Submit ${assessment.business_unit}'s assessment for ORM review?\n\nEvery risk is locked, a PDF record of what you filed is kept, and the operational risk team is told.`,
-            )
-        ) {
-            return;
-        }
+        setConfirmingSubmit(true);
+    };
+
+    const confirmSubmit = () => {
+        setSubmitting(true);
 
         router.post(
             route("rcsa.assessments.submit", assessment.id),
             {},
-            { preserveScroll: true },
+            {
+                preserveScroll: true,
+                onFinish: () => {
+                    setSubmitting(false);
+                    setConfirmingSubmit(false);
+                },
+            },
         );
     };
+
+    const reviewerCount = Number.isInteger(assessment.reviewer_count)
+        ? assessment.reviewer_count
+        : null;
+
+    /*
+     * WHO IT GOES TO is decided server-side (`assessment.submit_target`): the
+     * business-unit head when that step is on, the ORM team otherwise. The copy
+     * and the button follow it, so a unit is never told "ORM review" about a
+     * submission that actually goes to its own head. Absent, it is the ORM
+     * wording — what every cycle said before the step existed.
+     */
+    const toBuHead = assessment.submit_target === "bu_head";
+    const unitName = assessment.business_unit ?? "this assessment";
+
+    const submitTitle = toBuHead
+        ? "Submit for business-unit approval"
+        : "Submit for ORM review";
+    const submitLabel = toBuHead ? "Submit for approval" : "Submit for review";
+
+    const submitMessage = toBuHead
+        ? `Submit ${unitName} to your business-unit head for approval? ${pluralise(lines.length, "risk")} will be locked until they decide. A PDF record of what you filed is kept.`
+        : `Submit ${unitName} for ORM review? ${pluralise(lines.length, "risk")} will be locked and ${
+              reviewerCount === null
+                  ? "reviewers will be notified"
+                  : `${pluralise(reviewerCount, "reviewer")} will be notified`
+          }. A PDF record of what you filed is kept.`;
 
     const jumpTo = (lineId) => {
         const index = visible.findIndex((line) => line.id === lineId);
@@ -539,9 +764,30 @@ export default function Workspace({
             return;
         }
 
-        gridRef.current
-            ?.querySelector(`[data-row="${lineId}"]`)
-            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        // Scroll the TABLE'S container, not the page (RCSA-11).
+        // `scrollIntoView` walks every scrollable ancestor, and one of them is
+        // the app's main pane — at ~1080px it shifted the whole pane left
+        // under the sidebar. Working out the offset against the container and
+        // scrolling only that keeps the rest of the page where it is.
+        const container = gridRef.current;
+        const row = container?.querySelector(`[data-row="${lineId}"]`);
+
+        if (!container || !row) return;
+
+        const header = container.querySelector("thead");
+        const headerHeight = header?.getBoundingClientRect().height ?? 0;
+        const offset =
+            row.getBoundingClientRect().top -
+            container.getBoundingClientRect().top +
+            container.scrollTop;
+
+        container.scrollTo({
+            top: Math.max(
+                offset - headerHeight - container.clientHeight / 3,
+                0,
+            ),
+            behavior: "smooth",
+        });
     };
 
     const current = visible[Math.min(cursor, Math.max(visible.length - 1, 0))];
@@ -567,7 +813,11 @@ export default function Workspace({
                         { label: assessment.business_unit ?? "Assessment" },
                     ]}
                     actions={
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <StatusBadge
+                                status={liveStatus}
+                                label={assessmentStatusLabel(liveStatus)}
+                            />
                             {/*
                              * The optional BU-head step of §9.1. Shown only in
                              * `bu_approval`, and only to somebody other than
@@ -676,12 +926,12 @@ export default function Workspace({
                                     disabled={issueCount > 0}
                                     title={
                                         issueCount > 0
-                                            ? `${issueCount} thing(s) still to do — see the panel on the right`
-                                            : "Submit for ORM review"
+                                            ? `${pluralise(issueCount, "thing")} still to do — see the panel on the right`
+                                            : submitTitle
                                     }
                                     className="btn-primary text-sm disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    Submit for review
+                                    {submitLabel}
                                 </button>
                             )}
 
@@ -721,7 +971,7 @@ export default function Workspace({
                     This assessment is read-only
                     {assessment.cycle.status === "closed"
                         ? " because its cycle is closed."
-                        : ` because it is ${assessment.status.replace(/_/g, " ")}.`}
+                        : ` because it is ${assessment.status === "bu_approval" ? "awaiting BU approval" : assessment.status.replace(/_/g, " ")}.`}
                     {assessment.awaiting &&
                         " It is with somebody else for a decision."}
                 </div>
@@ -788,8 +1038,8 @@ export default function Workspace({
                         <span>“{assessment.returned_reason}” </span>
                     )}
                     <span className="mt-1 block">
-                        {assessment.reopened_count} of {lines.length} risks were
-                        reopened — the ones the reviewer flagged. The rest stay
+                        {assessment.reopened_count} of {pluralise(lines.length, "risk")}{" "}
+                        {lines.length === 1 ? "was" : "were"} reopened — the ones the reviewer flagged. The rest stay
                         locked exactly as they were filed. Reopened rows carry
                         the reviewer's comment; answer it or change your rating,
                         then submit again.
@@ -809,7 +1059,16 @@ export default function Workspace({
                 </div>
             )}
 
-            <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+            {/*
+              * RCSA-11. The side panel only sits BESIDE the grid from `xl`
+              * up. With the app sidebar open, a 1080px window leaves the main
+              * pane ~814px, and a 320px panel took the table down to ~430px —
+              * three columns wide. `minmax(0, 1fr)` is what lets the track
+              * shrink below the table's own min-content, so the table scrolls
+              * inside its card (`overflow-auto` below) instead of widening
+              * the page.
+              */}
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="min-w-0">
                     {/* Toolbar */}
                     <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -826,7 +1085,7 @@ export default function Workspace({
                         </label>
 
                         <span className="text-sm text-gray-500">
-                            {visible.length} of {lines.length} risks
+                            {visible.length} of {pluralise(lines.length, "risk")}
                         </span>
 
                         {selected.length > 0 && editable && (
@@ -971,6 +1230,7 @@ export default function Workspace({
 
                                                     <td>
                                                         <ScaleSelect
+                                                            label={`Likelihood for ${line.risk_no}`}
                                                             scale={
                                                                 methodology.likelihood
                                                             }
@@ -1001,6 +1261,7 @@ export default function Workspace({
 
                                                     <td>
                                                         <ScaleSelect
+                                                            label={`Impact for ${line.risk_no}`}
                                                             scale={
                                                                 methodology.impact
                                                             }
@@ -1046,7 +1307,7 @@ export default function Workspace({
                                                     </td>
 
                                                     <td>
-                                                        <select aria-label="Control effectiveness"
+                                                        <select aria-label={`Control effectiveness for ${line.risk_no}`}
                                                             className="filter-select w-full"
                                                             disabled={
                                                                 !canEditLine(
@@ -1163,7 +1424,7 @@ export default function Workspace({
                                                                             .length ===
                                                                         0
                                                                             ? "Plan needed"
-                                                                            : `${line.action_plans.length} plan(s)`}
+                                                                            : pluralise(line.action_plans.length, "plan")}
                                                                     </button>
                                                                 )}
                                                             </div>
@@ -1184,9 +1445,10 @@ export default function Workspace({
                                                                         : undefined
                                                                 }
                                                             >
-                                                                {line.prior
-                                                                    .inherent_score ??
-                                                                    "—"}
+                                                                {formatScore(
+                                                                    line.prior
+                                                                        .inherent_score,
+                                                                )}
                                                                 {line.moved_materially
                                                                     ? " ⚠"
                                                                     : ""}
@@ -1374,6 +1636,18 @@ export default function Workspace({
                     </Link>
                 </aside>
             </div>
+
+            <ConfirmDialog
+                show={confirmingSubmit}
+                title={submitTitle}
+                message={submitMessage}
+                confirmLabel="Submit"
+                cancelLabel="Cancel"
+                variant="primary"
+                processing={submitting}
+                onConfirm={confirmSubmit}
+                onCancel={() => !submitting && setConfirmingSubmit(false)}
+            />
         </AppLayout>
     );
 }
@@ -1457,6 +1731,7 @@ function OrmThread({ assessmentId, line, canReply }) {
 }
 
 function ScaleSelect({
+    label,
     scale,
     value,
     onChange,
@@ -1466,7 +1741,10 @@ function ScaleSelect({
     title,
 }) {
     return (
-        <select aria-label={title}
+        // The accessible name is the control and the risk it belongs to. It
+        // used to be `title` — the impact criteria, a paragraph — and the
+        // likelihood select, which has no title, had no name at all.
+        <select aria-label={label}
             className="filter-select w-full"
             disabled={disabled}
             value={value ?? ""}
@@ -1500,7 +1778,7 @@ function Badge({ score, level }) {
         <span
             className={`badge ${LEVEL_TONE[level] ?? "bg-gray-100 text-gray-700"}`}
         >
-            {Number(score).toFixed(Number.isInteger(Number(score)) ? 0 : 1)}
+            {formatScore(score)}
         </span>
     );
 }

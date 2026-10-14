@@ -17,6 +17,7 @@ use App\Services\Rcsa\RcsaTemplateWriter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -194,10 +195,13 @@ class ImportController extends Controller
         return redirect()
             ->route('rcsa.universe.index')
             ->with('success', sprintf(
-                '%d risks created, %d updated, %d skipped. They are drafts until you publish them to the universe.',
+                '%d %s created, %d updated, %d skipped. %s until you publish %s to the universe.',
                 $result['created'],
+                Str::plural('risk', $result['created']),
                 $result['updated'],
                 $result['skipped'],
+                $result['created'] === 1 ? 'It is a draft' : 'They are drafts',
+                $result['created'] === 1 ? 'it' : 'them',
             ));
     }
 

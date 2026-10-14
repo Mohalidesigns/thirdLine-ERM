@@ -6,6 +6,7 @@ import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
+import LegacyNotice from './LegacyNotice';
 
 const RATING_COLORS = { Critical: '#C53030', High: '#DD6B20', Medium: '#D4AF37', Low: '#2D7D46' };
 const EFFECTIVENESS_COLORS = ['#2D7D46', '#D4AF37', '#C53030', '#6B7280'];
@@ -48,6 +49,7 @@ function progressTone(progress) {
  * are the house SVG/CSS components, as in 3.1 and 3.5.
  */
 export default function Dashboard({
+    legacyNotice = null,
     kpis = {},
     unitProgress = [],
     topRisks = [],
@@ -82,6 +84,8 @@ export default function Dashboard({
                     </Link>
                 }
             />
+
+            <LegacyNotice notice={legacyNotice} />
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
                 <KpiCard title="Total Assessments" value={kpis.total ?? 0} icon="assignment" color="primary" />

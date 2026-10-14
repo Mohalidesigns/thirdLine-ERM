@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -56,7 +57,7 @@ class ProcessRcsaImportJob implements ShouldQueue
                     onProgress: fn (int $done, int $total) => $this->reportProgress(
                         $done,
                         $total,
-                        "Checked {$done} of {$total} rows.",
+                        "Checked {$done} of {$total} ".Str::plural('row', $total).'.',
                     ),
                 );
             } catch (Throwable $e) {
@@ -72,8 +73,9 @@ class ProcessRcsaImportJob implements ShouldQueue
             }
 
             $this->completeRun($counts, sprintf(
-                '%d rows checked: %d ready, %d with warnings, %d duplicates, %d with errors.',
+                '%d %s checked: %d ready, %d with warnings, %d duplicates, %d with errors.',
                 $counts['total'],
+                Str::plural('row', $counts['total']),
                 $counts['valid'],
                 $counts['warning'],
                 $counts['duplicate'],

@@ -39,8 +39,10 @@ function label(value) {
  *
  * `open` and `close` are not an assessor's own step through the state
  * machine — see RcsaWorkflowService::recordTransition — they are the
- * cycle's. OPEN has no prior status to move FROM: the row lands straight in
- * `in_progress`, so `event.from` is `null`, not "none". CLOSE moves several
+ * cycle's. OPEN has no prior status to move FROM: the row lands in `draft`
+ * ("Not started"), so `event.from` is `null`, not "none". START is the
+ * assessor's first step: the first saved rating moves it from `draft` to
+ * `in_progress`. CLOSE moves several
  * assessments through several different from-states in one call, and only
  * the DECIDED ones (validated, submitted, under review) actually reach
  * `closed` — an undecided assessment (in_progress, returned) is frozen
@@ -54,6 +56,8 @@ function describeTransition(event) {
             return "escalated it";
         case "open":
             return "opened the cycle, creating this assessment";
+        case "start":
+            return "started it by saving the first rating";
         case "close":
             return event.from === event.to
                 ? `closed the cycle while this was still ${label(event.from).toLowerCase()}; it is now read-only`

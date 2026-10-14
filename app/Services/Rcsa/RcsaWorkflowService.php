@@ -15,12 +15,17 @@ use RuntimeException;
 /**
  * The state machine of §9.1, and the only thing allowed to move an assessment.
  *
- *   draft ──open──▶ in_progress ──submit──▶ [bu_approval ──approve──▶] submitted
- *                        ▲                                                 │
- *                        │                                            claim│
- *                        └────── returned ◀──return── under_review ◀───────┘
- *                                                          │
- *                                            validate──────┴──▶ validated ──▶ closed
+ *   (cycle opens) ─▶ draft ──start──▶ in_progress ──submit──▶ [bu_approval ──approve──▶] submitted
+ *                                           ▲                                                  │
+ *                                           │                                             claim│
+ *                                           └────── returned ◀──return── under_review ◀────────┘
+ *                                                                           │
+ *                                                             validate──────┴──▶ validated ──▶ closed
+ *
+ * `draft` MEANS NOT STARTED: the assessment was created when its cycle opened
+ * and nothing has been rated. The first saved rating is the `start` edge
+ * (RcsaAssessmentService::apply()); submitting straight from `draft` is also
+ * legal, for a unit with nothing to rate.
  *
  * EVERY EDGE IS DECLARED, and a move that is not an edge is refused with the
  * state it was in rather than silently writing the status. The alternative —
@@ -265,8 +270,8 @@ class RcsaWorkflowService
      * Log a transition without checking EDGES.
      *
      * RcsaCycleService is the only caller. OPENING a cycle creates assessments
-     * straight into `in_progress` — there is no prior `draft` row to move
-     * FROM, so `transition()`'s EDGES lookup has nothing to check against.
+     * straight into `draft` — there is no prior state to move FROM, so
+     * `transition()`'s EDGES lookup has nothing to check against.
      * CLOSING a cycle moves several assessments through several different
      * from-states in one call, which is not any single assessment's own step
      * through the machine — it is the cycle's. Both still belong in the log:

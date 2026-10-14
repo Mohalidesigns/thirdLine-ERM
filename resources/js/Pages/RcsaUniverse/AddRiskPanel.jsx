@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import InputError from '@thirdline/ui/Components/InputError';
 import FormField from '@thirdline/ui/Components/FormField';
+import { humanise } from '@/lib/labels';
 
 /**
  * Add Risk — the three-step slide-over of plan §6.2.
@@ -42,6 +43,13 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
 
     const form = useForm(blankRisk());
 
+    // What the form looked like when it was last loaded or reset — the
+    // reference "is there anything to lose?" compares against (RCSA-12). A
+    // snapshot string rather than form.isDirty, because an edit loads its row
+    // with setData() and Inertia's own baseline is the blank form.
+    const baseline = useRef(JSON.stringify(blankRisk()));
+    const isDirty = () => JSON.stringify(form.data) !== baseline.current;
+
     function blankRisk() {
         return {
             business_unit_id: '',
@@ -67,7 +75,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
         if (!open) return;
 
         if (isEditing) {
-            form.setData({
+            const loaded = {
                 business_unit_id: editing.business_unit_id ?? '',
                 process_id: editing.process_id ?? '',
                 sub_process_id: editing.sub_process_id ?? '',
@@ -90,10 +98,14 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                           is_key: !!c.is_key,
                       }))
                     : [{ ...EMPTY_CONTROL }],
-            });
+            };
+            baseline.current = JSON.stringify(loaded);
+            form.setData(loaded);
             setStep('placement');
         } else {
-            form.setData(blankRisk());
+            const blank = blankRisk();
+            baseline.current = JSON.stringify(blank);
+            form.setData(blank);
             setStep('placement');
         }
         setJustSaved(null);
@@ -172,9 +184,31 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                 preserveScroll: true,
                 preserveState: true,
                 only: ['options', 'flash', 'errors'],
-                onSuccess: () => {
+                onSuccess: (page) => {
                     setCreating(null);
                     setNewProcessName('');
+
+                    // RCSA-06: select what was just made. The store endpoint
+                    // answers with a redirect and a toast, not the new id, but
+                    // the partial reload above brings back the refreshed
+                    // `options.processes` — so the new row is found there by
+                    // what we sent. Highest id wins if the name already existed.
+                    const made = (page?.props?.options?.processes ?? [])
+                        .filter(
+                            (p) =>
+                                p.name === name &&
+                                String(p.business_unit_id) === String(form.data.business_unit_id) &&
+                                (p.parent_id === null ? parentId === null : String(p.parent_id) === String(parentId)),
+                        )
+                        .sort((a, b) => b.id - a.id)[0];
+
+                    if (!made) return;
+
+                    form.setData((d) =>
+                        parentId === null
+                            ? { ...d, process_id: String(made.id), sub_process_id: '' }
+                            : { ...d, sub_process_id: String(made.id) },
+                    );
                 },
             },
         );
@@ -258,17 +292,22 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
             onSuccess: () => {
                 if (continueAfterSave.current) {
                     // Placement is sticky; the risk and its controls are not.
-                    form.setData((data) => ({
-                        ...data,
-                        risk_no: '',
-                        potential_risk: '',
-                        risk_driver: '',
-                        risk_category: data.risk_category,
-                        secondary_categories: [],
-                        default_likelihood: '',
-                        default_impact: '',
-                        controls: [{ ...EMPTY_CONTROL }],
-                    }));
+                    form.setData((data) => {
+                        const next = {
+                            ...data,
+                            risk_no: '',
+                            potential_risk: '',
+                            risk_driver: '',
+                            risk_category: data.risk_category,
+                            secondary_categories: [],
+                            default_likelihood: '',
+                            default_impact: '',
+                            controls: [{ ...EMPTY_CONTROL }],
+                        };
+                        baseline.current = JSON.stringify(next);
+
+                        return next;
+                    });
                     setStep('risk');
                     setJustSaved(Date.now());
                     window.setTimeout(() => potentialRiskRef.current?.focus(), 0);
@@ -303,12 +342,29 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
     /*  Keyboard                                                           */
     /* ------------------------------------------------------------------ */
 
+    // RCSA-12. Escape is how a user dismisses the open list of a native select, and
+    // Chrome lets that same keydown reach the page — so one Esc used to close
+    // the whole drawer and throw the half-entered risk away. Two rules, the
+    // second only reachable once the first has not applied:
+    //   1. Esc on a select is ignored. The page cannot ask whether the list
+    //      is open, so it assumes it might be; Cancel and the X still close.
+    //   2. Anywhere else, Esc closes at once if there is nothing to lose, and
+    //      asks "Discard unsaved risk?" if there is.
+    // The backdrop click goes through the same guard — it is the same loss.
+    const requestClose = () => {
+        if (isDirty() && !window.confirm('Discard unsaved risk?')) return;
+
+        onClose();
+    };
+
     useEffect(() => {
         if (!open) return;
 
         const onKey = (e) => {
             if (e.key === 'Escape') {
-                onClose();
+                if (e.defaultPrevented || e.target?.tagName === 'SELECT') return;
+
+                requestClose();
                 return;
             }
             // Ctrl/Cmd+Enter is Save & Add Another — the loop this panel exists
@@ -332,7 +388,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
 
     return (
         <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-label="Add risk">
-            <div className="absolute inset-0 bg-black/30" onClick={onClose} aria-hidden="true" />
+            <div className="absolute inset-0 bg-black/30" onClick={requestClose} aria-hidden="true" />
 
             <div className="relative z-10 flex h-full w-full max-w-2xl flex-col bg-white shadow-xl">
                 {/* Header + step rail */}
@@ -659,7 +715,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                                                 <option value="">—</option>
                                                 {(options.controlTypes ?? []).map((t) => (
                                                     <option key={t} value={t}>
-                                                        {t.replace(/_/g, ' ')}
+                                                        {humanise(t)}
                                                     </option>
                                                 ))}
                                             </select>
@@ -674,7 +730,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                                                 <option value="">—</option>
                                                 {(options.controlFrequencies ?? []).map((f) => (
                                                     <option key={f} value={f}>
-                                                        {f.replace(/_/g, ' ')}
+                                                        {humanise(f)}
                                                     </option>
                                                 ))}
                                             </select>

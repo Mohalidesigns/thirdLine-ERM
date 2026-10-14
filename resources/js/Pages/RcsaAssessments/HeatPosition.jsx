@@ -1,3 +1,5 @@
+import { formatScore } from '@/lib/rcsa-format';
+
 /**
  * The live 5×5 heat position of §8.3 — where this risk sits inherent versus
  * residual.
@@ -67,7 +69,7 @@ export default function HeatPosition({ line, methodology }) {
 
             {line.residual_score !== null && line.residual_score !== undefined && (
                 <p className="mt-2 text-sm text-gray-700">
-                    Residual <strong>{Number(line.residual_score).toFixed(2)}</strong>{' '}
+                    Residual <strong>{formatScore(line.residual_score)}</strong>{' '}
                     <span className="text-gray-500">
                         ({bandFor(Number(line.residual_score))?.label ?? '—'})
                     </span>

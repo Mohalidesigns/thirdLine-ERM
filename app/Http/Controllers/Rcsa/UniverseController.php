@@ -19,6 +19,7 @@ use App\Support\Rcsa\RcsaMethodologyTemplate as Template;
 use App\Support\Rcsa\RcsaScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use ThirdLine\Platform\Tenancy\TenantContext;
 
@@ -177,7 +178,7 @@ class UniverseController extends Controller
             actor: $request->user(),
         );
 
-        return back()->with('success', "{$count} risks updated.");
+        return back()->with('success', $count.' '.Str::plural('risk', $count).' updated.');
     }
 
     /**

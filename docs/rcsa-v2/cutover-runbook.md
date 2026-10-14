@@ -100,12 +100,103 @@ but somebody arriving at a refused form is somebody who did not get the email.
 | | Before | After |
 |---|---|---|
 | Legacy worksheet **submit** | Works | **Refuses**, with a message naming where work goes now |
+| Legacy entries in the RCSA **menu** (flag on) | Shown, labelled "Register RCSA (legacy)", "Legacy worksheet", "Legacy risk matrix" | **Hidden.** The URLs still work (RCSA-02) |
+| Legacy screens' banner (flag on) | "Register-based RCSA kept for audit history" | Same, plus "worksheet closed" on the worksheet |
 | Legacy dashboard / worksheet / matrix / controls **screens** | Work | **Still work** — §13 keeps them for at least one audit cycle |
 | `risks`, `controls`, `risk_control_mapping` | Read/write | **Unchanged.** Not legacy tables |
 | Campaign module | Works | **Unchanged.** Migration copies rcsa campaigns, it does not move them |
 | v2 screens | Behind the flag | Behind the flag |
 
 **Nothing is dropped and nothing is truncated.** §13: the regulator may ask.
+
+---
+
+## Repairing lines that have answers but no scores (`rcsa:recompute-scores`)
+
+**Why it exists (RCSA-01).** Before the line save became a locked
+compare-and-swap, three autosaves in quick succession (likelihood, impact,
+control effectiveness) could each compute from a snapshot holding only their own
+field. The three answers were stored; the inherent score, residual score,
+residual band and treatment were not. The submission gate read the empty band as
+"not above appetite", so an above-appetite risk with no action plan could be
+filed. Lines in that state may already exist on the server, including on
+assessments that were then submitted. This command repairs them. **Run it as part
+of the release that carries the fix, before cutover.**
+
+It recalculates through the same engine the workspace uses, from the answers the
+assessor already gave. It never changes an answer, never changes who assessed
+the line, and never deletes or rewrites an audit row.
+
+```bash
+cd /var/www/thirdLine-ERM
+php artisan rcsa:recompute-scores --org=N --dry-run         # 1. what WOULD be repaired; writes nothing
+php artisan rcsa:recompute-scores --org=N                   # 2. repair open (unlocked) lines
+php artisan rcsa:recompute-scores --org=N --include-locked  # 3. ALSO repair lines of submitted assessments
+```
+
+(`--org` is optional; without it every organisation is processed, each in its own
+tenant context. Always run the dry run first and read the table: it lists, per
+assessment, how many lines are stuck, how many would be repaired and how many
+locked lines are skipped.)
+
+**`--include-locked` is REQUIRED to repair lines on already-submitted
+assessments.** A submitted assessment's lines are locked, and what was filed is
+evidence, so without the flag they are reported as "locked, skipped" and left
+exactly as they are. Step 2 therefore leaves a submitted assessment's broken
+lines broken. Whoever runs step 3 is deciding that the stored scores of filed
+assessments may be corrected on the record; say so to the Head of ORM first.
+Submitting an assessment never repairs a locked line either — a returned
+assessment's un-flagged lines stay as they were filed, and they no longer block
+its resubmission.
+
+**What a repair changes — derived scores only.** Per repaired line:
+`inherent_score`, `inherent_level`, `ce_modifier`, `residual_score`,
+`residual_level`, `risk_treatment` and `appetite_status`, recomputed from the
+likelihood, impact and control rating already on the line. Each of the line's
+tracked fields that moves — in practice `residual_score` and `risk_treatment` —
+gets a revision (`rcsa_line_revisions`) and an audit-trail row, both with **no
+user** (the repair is the system's, not a person's) and the reason
+**"Recomputed by rcsa:recompute-scores"**; the line's `version` goes up by one
+(so a workspace open on that line sees a conflict and reloads, rather than
+overwriting the repair). The command is idempotent: a second run repairs nothing.
+
+A line whose control rating matches nothing in the methodology (an import typo,
+say "Partly Achieved") has no residual to compute and is **not** repaired. It
+will still show in the verification query below; correct the rating in the
+workspace (if the line is open) or raise it with the Head of ORM.
+
+**Verification — the Definition of Done is that this returns 0.** Portable SQL
+(MariaDB 10.4 and MySQL 8), run against the application database:
+
+```sql
+SELECT COUNT(*) AS unscored_lines
+FROM rcsa_assessment_lines
+WHERE organization_id = N                       -- drop this line to check every tenant
+  AND deleted_at IS NULL
+  AND inherent_likelihood IS NOT NULL
+  AND inherent_impact IS NOT NULL
+  AND control_effectiveness IS NOT NULL
+  AND (inherent_score IS NULL OR residual_score IS NULL OR residual_level IS NULL);
+```
+
+To see which lines are left (and whether they are locked, i.e. whether step 3
+is still outstanding):
+
+```sql
+SELECT id, assessment_id, risk_no, control_effectiveness, locked_at
+FROM rcsa_assessment_lines
+WHERE organization_id = N
+  AND deleted_at IS NULL
+  AND inherent_likelihood IS NOT NULL
+  AND inherent_impact IS NOT NULL
+  AND control_effectiveness IS NOT NULL
+  AND (inherent_score IS NULL OR residual_score IS NULL OR residual_level IS NULL)
+ORDER BY assessment_id, id;
+```
+
+A non-zero count with `locked_at` set means `--include-locked` has not been run;
+with `locked_at` NULL and an unrecognised `control_effectiveness`, it is the
+typo case above.
 
 ---
 

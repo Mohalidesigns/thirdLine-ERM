@@ -36,6 +36,22 @@ class RcsaCyclePolicy
         return $user->can('rcsa_cycle.manage') && $this->reachable($user, $cycle);
     }
 
+    /**
+     * Who works on which unit is the coordinator's call, the same people who
+     * schedule the cycle — so it rides on `manage`, not on a new permission.
+     *
+     * THIS ANSWERS "MAY THIS USER ASSIGN IN THIS CYCLE", NOT "WHICH UNITS".
+     * The policy sees the cycle and not the assessment ids in the request, so
+     * the per-unit rule — a coordinator assigned only to Retail cannot assign
+     * Treasury's assessment — is enforced by RcsaAssignmentService, which
+     * applies RcsaScope for the ACTOR to the assessments it loads. Do not
+     * read a passing `assign` as permission over every unit of the cycle.
+     */
+    public function assign(User $user, RcsaCycle $cycle): bool
+    {
+        return $user->can('rcsa_cycle.manage') && $this->reachable($user, $cycle);
+    }
+
     public function open(User $user, RcsaCycle $cycle): bool
     {
         return $user->can('rcsa_cycle.open') && $this->reachable($user, $cycle);

@@ -88,21 +88,30 @@ class RcsaCycleService
                     'organization_id' => $cycle->organization_id,
                     'cycle_id' => $cycle->id,
                     'business_unit_id' => $businessUnitId,
-                    'status' => RcsaAssessment::IN_PROGRESS,
+                    // NOT STARTED. The assessment exists because the cycle
+                    // opened, and nobody has rated anything yet — `draft` is
+                    // the honest word for that, and it is what lets the
+                    // dashboard and the deadline reminders tell an idle unit
+                    // from one that is being worked. The first saved rating
+                    // moves it to `in_progress`
+                    // (RcsaAssessmentService::apply()).
+                    'status' => RcsaAssessment::DRAFT,
                     'completion_pct' => 0,
                 ]);
 
                 $assessments++;
 
-                // §9.1's diagram calls this edge "open" — none of the assessor's
-                // own state machine, since the row lands straight in
-                // `in_progress` with no `draft` ever persisted, but it is the
-                // reason the assessment exists and belongs in its history the
-                // same as every later move.
+                // The creation row: `none → draft`, event `open`. The cycle
+                // opening is the reason the assessment exists and belongs in
+                // its history like every later move. It is NOT an edge of the
+                // state machine (there is no state to leave), which is why it
+                // goes through recordTransition() and not transition(). The
+                // edge `draft → in_progress` is the assessor's first saved
+                // rating, event `start`, and is logged when it happens.
                 $this->workflow->recordTransition(
                     $assessment,
                     from: null,
-                    to: RcsaAssessment::IN_PROGRESS,
+                    to: RcsaAssessment::DRAFT,
                     actor: $actor,
                     event: RcsaAssessmentTransition::OPEN,
                 );
@@ -140,7 +149,8 @@ class RcsaCycleService
      * EVERY ASSESSMENT THE CLOSE TOUCHES GETS ONE HISTORY ROW, whether or not
      * its own `status` column moves. `validated`, `submitted` and
      * `under_review` land on `closed` — a decision was reached, or one was
-     * pending, and the cycle ended it. `in_progress` and `returned` (and, if a
+     * pending, and the cycle ended it. `draft` (never started), `in_progress`
+     * and `returned` (and, if a
      * tenant enables the BU-head step, `bu_approval`) are NOT moved to
      * `closed`: `CycleProvisioningTest::closing_a_cycle_freezes_every_
      * assessment_under_it` pins an unfinished assessment staying exactly

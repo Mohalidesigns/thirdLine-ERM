@@ -86,6 +86,11 @@ abstract class ReviewTestCase extends CycleTestCase
 
         $this->scoreAll($assessment, $aboveAppetite);
 
+        // Scoring started the assessment (draft -> in_progress) behind this
+        // instance's back; submit() logs its `from` from the instance it is
+        // handed, so hand it the row as it now is.
+        $assessment->refresh();
+
         app(RcsaSubmissionService::class)->submit($assessment, $this->actor);
 
         return $assessment->refresh();

@@ -3,6 +3,7 @@ import { Head, router, useForm, usePage } from "@inertiajs/react";
 import AppLayout from "@/Layouts/AppLayout";
 import PageHeader from "@thirdline/ui/Components/PageHeader";
 import StatusBadge from "@thirdline/ui/Components/StatusBadge";
+import { assessmentStatusLabel } from "@/lib/labels";
 import FormField from "@thirdline/ui/Components/FormField";
 
 /**
@@ -110,7 +111,10 @@ export default function Show({
                     ]}
                     actions={
                         <div className="flex items-center gap-2">
-                            <StatusBadge status={assessment.status} />
+                            <StatusBadge
+                                status={assessment.status}
+                                label={assessmentStatusLabel(assessment.status)}
+                            />
                             {assessment.has_snapshot && (
                                 <a
                                     href={route(

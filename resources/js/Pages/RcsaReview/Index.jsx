@@ -2,6 +2,7 @@ import { Head, Link, router, usePage } from "@inertiajs/react";
 import AppLayout from "@/Layouts/AppLayout";
 import PageHeader from "@thirdline/ui/Components/PageHeader";
 import StatusBadge from "@thirdline/ui/Components/StatusBadge";
+import { assessmentStatusLabel } from "@/lib/labels";
 
 /**
  * The ORM review queue (§9.2).
@@ -20,6 +21,13 @@ export default function Index({
     scopeNotice = null,
 }) {
     const { flash } = usePage().props;
+
+    // RCSA-03. The queue carries the viewer's OWN filings too, so they can see
+    // that what they submitted is waiting — but segregation of duties means
+    // they cannot work it. Every counter below counts only what the viewer can
+    // act on; the exclusion is stated on the tile, not left to be discovered.
+    const actionable = queue.filter((a) => !a.filed_by_viewer);
+    const ownFilings = queue.length - actionable.length;
 
     const filter = (patch) => {
         router.get(
@@ -59,15 +67,23 @@ export default function Index({
             )}
 
             <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-                <Tile label="Waiting" value={queue.length} />
+                <Tile
+                    label="Waiting"
+                    value={actionable.length}
+                    note={
+                        ownFilings > 0
+                            ? `+ ${ownFilings} filed by you, needing another reviewer`
+                            : undefined
+                    }
+                />
                 <Tile label="Yours" value={mine.length} />
                 <Tile
                     label="Escalated"
-                    value={queue.filter((a) => a.escalated).length}
+                    value={actionable.filter((a) => a.escalated).length}
                 />
                 <Tile
                     label="Risks above appetite"
-                    value={queue.reduce(
+                    value={actionable.reduce(
                         (n, a) => n + (a.above_appetite_count || 0),
                         0,
                     )}
@@ -164,13 +180,23 @@ export default function Index({
                                 <tr
                                     key={row.id}
                                     className={
-                                        row.escalated
-                                            ? "bg-red-50/50"
-                                            : undefined
+                                        row.filed_by_viewer
+                                            ? "bg-gray-50"
+                                            : row.escalated
+                                              ? "bg-red-50/50"
+                                              : undefined
                                     }
                                 >
                                     <td className="text-sm font-medium text-gray-700">
                                         {row.business_unit}
+                                        {row.filed_by_viewer && (
+                                            <span
+                                                className="mt-1 block w-fit whitespace-nowrap rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-blue-800 ring-1 ring-blue-200"
+                                                title="Whoever files an assessment cannot review it. Another reviewer has to pick this one up."
+                                            >
+                                                Filed by you — needs another reviewer
+                                            </span>
+                                        )}
                                         {row.escalated && (
                                             <span
                                                 className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700"
@@ -217,12 +243,20 @@ export default function Index({
                                         {row.reviewer ?? "Unclaimed"}
                                     </td>
                                     <td>
-                                        <StatusBadge status={row.status} />
+                                        <StatusBadge
+                                            status={row.status}
+                                            label={assessmentStatusLabel(row.status)}
+                                        />
                                     </td>
                                     <td className="text-right text-sm tabular-nums text-gray-500">
                                         {row.priority}
                                     </td>
                                     <td className="text-right">
+                                        {row.filed_by_viewer ? (
+                                            <span className="text-xs text-gray-500">
+                                                Read-only
+                                            </span>
+                                        ) : (
                                         <div className="row-actions">
                                             <Link
                                                 href={route(
@@ -235,6 +269,7 @@ export default function Index({
                                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                             </Link>
                                         </div>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -253,13 +288,14 @@ export default function Index({
     );
 }
 
-function Tile({ label, value }) {
+function Tile({ label, value, note }) {
     return (
         <div className="rounded-lg border border-gray-200 bg-white p-4">
             <p className="text-xs uppercase tracking-wider text-gray-500">
                 {label}
             </p>
             <p className="mt-1 text-2xl font-semibold text-gray-800">{value}</p>
+            {note && <p className="mt-1 text-xs text-gray-500">{note}</p>}
         </div>
     );
 }

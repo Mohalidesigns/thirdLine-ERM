@@ -47,13 +47,17 @@ class ReviewController extends Controller
             $request->only(['cycle', 'status', 'business_unit']),
             viewerId: (int) $request->user()->id,
             viewer: $request->user(),
+            includeOwn: true,
         );
 
         // The reviewer's own claimed work, separated out. A queue that mixes
         // "yours, in progress" with "nobody's yet" is one people scroll past.
+        // The viewer's own filings are in `queue` so they can see them, and are
+        // never in `mine`: they cannot be claimed, so they are not their work.
         $mine = array_values(array_filter(
             $queue,
-            fn (array $row) => (int) ($row['reviewer_id'] ?? 0) === (int) $request->user()->id,
+            fn (array $row) => ! $row['filed_by_viewer']
+                && (int) ($row['reviewer_id'] ?? 0) === (int) $request->user()->id,
         ));
 
         return Inertia::render('RcsaReview/Index', [
@@ -78,6 +82,33 @@ class ReviewController extends Controller
      */
     public function show(Request $request, RcsaAssessment $assessment)
     {
+        // Segregation of duties stays: the policy still refuses the submitter.
+        // But the person who followed a link to their own filing is a reviewer
+        // doing nothing wrong, and a bare "403 this action is unauthorised"
+        // does not tell them why. Only THIS case gets the explanation; every
+        // other refusal below is the ordinary 403, which says nothing it should
+        // not about a record the viewer may not know exists.
+        $user = $request->user();
+
+        if ($assessment->submitted_by !== null
+            && (int) $assessment->submitted_by === (int) $user->id
+            && $user->can('rcsa_assessment.review')) {
+            $assessment->loadMissing(['cycle:id,name', 'businessUnit:id,name']);
+
+            return Inertia::render('RcsaReview/SegregationOfDuties', [
+                'assessment' => [
+                    'id' => $assessment->id,
+                    'business_unit' => $assessment->getRelationValue('businessUnit')?->name,
+                    'cycle' => $assessment->getRelationValue('cycle')?->name,
+                    'submitted_at' => $assessment->submitted_at?->toDateTimeString(),
+                ],
+                'urls' => [
+                    'queue' => route('rcsa.review.index'),
+                    'assessment' => route('rcsa.assessments.show', $assessment),
+                ],
+            ])->toResponse($request)->setStatusCode(403);
+        }
+
         Gate::authorize('review', $assessment);
 
         $assessment->load(['cycle:id,name,status,due_date', 'businessUnit:id,name,code', 'submitter:id,name', 'reviewer:id,name']);

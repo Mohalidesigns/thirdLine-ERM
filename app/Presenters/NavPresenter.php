@@ -4,6 +4,7 @@ namespace App\Presenters;
 
 use App\Models\User;
 use App\Support\Migration\Ported;
+use App\Support\Rcsa\RcsaCutover;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -31,6 +32,15 @@ use Illuminate\Support\Facades\Route;
  */
 class NavPresenter
 {
+    /**
+     * Whether the legacy RCSA entries are labelled, or hidden, for the user
+     * `for()` is currently resolving. Set once per call so the tenant is read
+     * once rather than once per menu entry.
+     *
+     * @var array{v2: bool, cutOver: bool, cutOverAt: string|null}
+     */
+    private array $legacyRcsa = ['v2' => false, 'cutOver' => false, 'cutOverAt' => null];
+
     /**
      * Entries that sit above the sections: the four navigation surfaces.
      *
@@ -79,9 +89,17 @@ class NavPresenter
             [
                 'key' => 'rcsa', 'label' => 'RCSA', 'icon' => 'fact_check', 'prefixes' => ['/risk/rcsa'],
                 'items' => [
-                    ['label' => 'Dashboard', 'route' => 'risk.rcsa.dashboard', 'permission' => 'rcsa.view'],
-                    ['label' => 'Worksheet', 'route' => 'risk.rcsa.worksheet', 'permission' => 'rcsa.view'],
-                    ['label' => 'Risk Matrix', 'route' => 'risk.rcsa.matrix', 'permission' => 'rcsa.view'],
+                    // THE LEGACY MODULE (`legacy_label`). With `rcsa_v2` off it is
+                    // the install's only RCSA and keeps the plain label. With it on
+                    // there are two modules and the legacy one reads the enterprise
+                    // register, not the cycle tables — two entries called
+                    // "Dashboard" with different numbers (RCSA-02). So it is
+                    // relabelled while the tenant is still in the parallel run and
+                    // left out of the menu once it has cut over (the URLs stay
+                    // reachable, §13). See RcsaCutover for the rule.
+                    ['label' => 'Dashboard', 'legacy_label' => 'Register RCSA (legacy)', 'route' => 'risk.rcsa.dashboard', 'permission' => 'rcsa.view', 'legacy' => true],
+                    ['label' => 'Worksheet', 'legacy_label' => 'Legacy worksheet', 'route' => 'risk.rcsa.worksheet', 'permission' => 'rcsa.view', 'legacy' => true],
+                    ['label' => 'Risk Matrix', 'legacy_label' => 'Legacy risk matrix', 'route' => 'risk.rcsa.matrix', 'permission' => 'rcsa.view', 'legacy' => true],
                     // RCSA v2. Sits beside the module it will replace for the
                     // duration of the parallel run; the flag is what keeps it
                     // out of every install that has not opted in.
@@ -443,6 +461,8 @@ class NavPresenter
             return ['primary' => [], 'sections' => [], 'admin' => null];
         }
 
+        $this->legacyRcsa = app(RcsaCutover::class)->legacyState($user->organization_id);
+
         $primary = array_values(array_filter(
             array_map(fn (array $item) => $this->resolve($item, $user), self::primary())
         ));
@@ -516,9 +536,20 @@ class NavPresenter
             return null;
         }
 
+        $label = $item['label'];
+
+        if (($item['legacy'] ?? false) === true && $this->legacyRcsa['v2']) {
+            // Cut over: the entry leaves the menu, the route stays reachable.
+            if ($this->legacyRcsa['cutOver']) {
+                return null;
+            }
+
+            $label = $item['legacy_label'] ?? $label;
+        }
+
         return [
             'key' => $item['key'] ?? $item['route'],
-            'label' => $item['label'],
+            'label' => $label,
             'icon' => $item['icon'] ?? null,
             'route' => $item['route'],
             'url' => (string) parse_url(route($item['route']), PHP_URL_PATH),

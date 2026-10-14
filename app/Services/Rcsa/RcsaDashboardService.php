@@ -461,6 +461,12 @@ class RcsaDashboardService
                 : $this->lines($cycleId)->whereIn('residual_level', $levels)->count(),
             'units' => $this->assessments($cycleId)->count(),
             'units_complete' => $this->assessments($cycleId)->where('completion_pct', '>=', 100)->count(),
+            // Units nobody has rated a single risk in yet — `draft`, which
+            // opening a cycle creates and the first saved rating ends. Counted
+            // from the status rather than inferred from `completion_pct = 0`,
+            // so a unit that has been started and then cleared back to zero is
+            // not mistaken for an idle one.
+            'units_not_started' => $this->assessments($cycleId)->where('status', RcsaAssessment::DRAFT)->count(),
             'average_residual' => $total === 0 ? null : round(
                 (float) $this->lines($cycleId)->whereNotNull('residual_score')->avg('residual_score'),
                 2,

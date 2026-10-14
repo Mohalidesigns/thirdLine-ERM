@@ -1,4 +1,6 @@
 import FormField from '@thirdline/ui/Components/FormField';
+import { formatScore } from '@/lib/rcsa-format';
+
 /**
  * Guided mode — one risk at a time, for the occasional assessor (§8.2).
  *
@@ -216,7 +218,7 @@ export default function GuidedStep({
                         </Field>
                         {line.prior && (
                             <p className="form-hint">
-                                Last cycle: inherent {line.prior.inherent_score}, control{' '}
+                                Last cycle: inherent {formatScore(line.prior.inherent_score)}, control{' '}
                                 {line.prior.control_effectiveness ?? '—'}.
                             </p>
                         )}
@@ -259,7 +261,7 @@ function Computed({ label, score, level }) {
                 <span className="text-sm text-gray-400">not yet — answer the questions above</span>
             ) : (
                 <span className="text-lg font-semibold text-gray-800">
-                    {Number(score).toFixed(Number.isInteger(Number(score)) ? 0 : 2)}{' '}
+                    {formatScore(score)}{' '}
                     <span className="text-sm font-normal capitalize text-gray-500">
                         {(level ?? '').replace(/_/g, ' ')}
                     </span>

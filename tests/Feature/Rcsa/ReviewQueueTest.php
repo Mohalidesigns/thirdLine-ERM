@@ -117,18 +117,21 @@ class ReviewQueueTest extends ReviewTestCase
      * because every other test here reviews as somebody else.
      */
     #[Test]
-    public function the_queue_does_not_offer_a_reviewer_their_own_submission(): void
+    public function the_service_does_not_offer_a_reviewer_their_own_submission_unless_asked(): void
     {
         $assessment = $this->submittedAssessment(risks: 1);
 
         $this->grant(self::REVIEW_PERMISSIONS);
 
-        $this->actingAs($this->actor)
-            ->get(route('rcsa.review.index'))
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page->has('queue', 0));
+        // The service's DEFAULT still excludes it — escalation and every other
+        // caller get a queue of work the viewer may actually take. Only the
+        // review screen opts in, to show the filer where their own work is.
+        $this->assertNotContains(
+            $assessment->id,
+            array_column(app(RcsaReviewService::class)->queue(viewerId: $this->actor->id, viewer: $this->actor), 'id'),
+        );
 
-        // The route agrees with the screen.
+        // The route refuses it, as before.
         $this->actingAs($this->actor)->get(route('rcsa.review.show', $assessment))->assertForbidden();
 
         // And it is still there for everybody else.
@@ -206,5 +209,166 @@ class ReviewQueueTest extends ReviewTestCase
         $this->actingAs($this->reviewer)
             ->get(route('rcsa.review.snapshot', $assessment))
             ->assertNotFound();
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA-03: own filings are listed, flagged, and never actionable */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function the_screen_lists_the_viewers_own_filing_flagged_and_keeps_it_out_of_mine(): void
+    {
+        $assessment = $this->submittedAssessment(risks: 2, aboveAppetite: true);
+
+        $this->grant(self::REVIEW_PERMISSIONS);
+
+        $this->actingAs($this->actor)
+            ->get(route('rcsa.review.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('RcsaReview/Index')
+                ->has('queue', 1)
+                ->where('queue.0.id', $assessment->id)
+                ->where('queue.0.filed_by_viewer', true)
+                // Every field the table renders, priority included.
+                ->where('queue.0.lines_count', 2)
+                ->where('queue.0.above_appetite_count', 2)
+                ->has('queue.0.priority')
+                ->has('queue.0.age_days')
+                ->has('mine', 0));
+
+        // For anybody else the same row is not flagged.
+        $this->actingAs($this->reviewer)
+            ->get(route('rcsa.review.index'))
+            ->assertInertia(fn ($page) => $page
+                ->has('queue', 1)
+                ->where('queue.0.filed_by_viewer', false));
+    }
+
+    #[Test]
+    public function an_own_filing_claimed_by_the_viewer_never_appears_in_mine(): void
+    {
+        $assessment = $this->submittedAssessment(risks: 1);
+
+        // Whatever the row says about a reviewer, `mine` is claimable work.
+        DB::table('rcsa_assessments')->where('id', $assessment->id)->update(['reviewer_id' => $this->actor->id]);
+
+        $this->grant(self::REVIEW_PERMISSIONS);
+
+        $this->actingAs($this->actor)
+            ->get(route('rcsa.review.index'))
+            ->assertInertia(fn ($page) => $page->has('queue', 1)->has('mine', 0));
+    }
+
+    #[Test]
+    public function opening_ones_own_filing_explains_segregation_of_duties_with_a_403(): void
+    {
+        $assessment = $this->submittedAssessment(risks: 1);
+
+        $this->grant(self::REVIEW_PERMISSIONS);
+
+        $this->actingAs($this->actor)
+            ->get(route('rcsa.review.show', $assessment))
+            ->assertForbidden()
+            ->assertInertia(fn ($page) => $page
+                ->component('RcsaReview/SegregationOfDuties')
+                ->where('assessment.id', $assessment->id)
+                ->where('assessment.business_unit', 'Retail Banking')
+                ->has('assessment.cycle')
+                ->has('assessment.submitted_at')
+                ->where('urls.queue', route('rcsa.review.index'))
+                ->where('urls.assessment', route('rcsa.assessments.show', $assessment)));
+    }
+
+    #[Test]
+    public function the_submitter_without_review_permission_gets_the_plain_403(): void
+    {
+        $assessment = $this->submittedAssessment(risks: 1);
+
+        $response = $this->actingAs($this->actor)->get(route('rcsa.review.show', $assessment));
+
+        $response->assertForbidden();
+        $this->assertNotSame('RcsaReview/SegregationOfDuties', $response->original?->name ?? null);
+        $this->assertStringNotContainsString('SegregationOfDuties', (string) $response->getContent());
+    }
+
+    #[Test]
+    public function a_stranger_without_the_permission_gets_the_plain_403(): void
+    {
+        $assessment = $this->submittedAssessment(risks: 1);
+        $outsider = $this->userWith(['rcsa_assessment.view']);
+
+        $response = $this->actingAs($outsider)->get(route('rcsa.review.show', $assessment));
+
+        $response->assertForbidden();
+        $this->assertStringNotContainsString('SegregationOfDuties', (string) $response->getContent());
+    }
+
+    #[Test]
+    public function a_reviewer_who_did_not_file_it_still_opens_it(): void
+    {
+        $assessment = $this->submittedAssessment(risks: 1);
+
+        $this->actingAs($this->reviewer)
+            ->get(route('rcsa.review.show', $assessment))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('RcsaReview/Show'));
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  RCSA-08: "1 risks are locked" */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function the_submit_flash_says_one_risk_is_locked_not_one_risks_are(): void
+    {
+        $this->publishedRisk(['risk_no' => 'RETAIL-R1']);
+        $cycle = $this->makeCycle();
+        app(\App\Services\Rcsa\RcsaCycleService::class)->open($cycle, $this->actor);
+        $assessment = RcsaAssessment::query()->where('business_unit_id', $this->retail->id)->sole();
+        $this->scoreAll($assessment);
+
+        $this->actingAs($this->actor)
+            ->post(route('rcsa.assessments.submit', $assessment))
+            ->assertSessionHas('success', fn ($m) => str_contains($m, '1 risk is locked')
+                && ! str_contains($m, '1 risks'));
+    }
+
+    #[Test]
+    public function the_submit_flash_pluralises_several_risks_and_the_bu_approval_branch(): void
+    {
+        $this->publishedRisk(['risk_no' => 'RETAIL-R1']);
+        $this->publishedRisk(['risk_no' => 'RETAIL-R2']);
+        $cycle = $this->makeCycle();
+        app(\App\Services\Rcsa\RcsaCycleService::class)->open($cycle, $this->actor);
+        $assessment = RcsaAssessment::query()->where('business_unit_id', $this->retail->id)->sole();
+        $this->scoreAll($assessment);
+
+        $this->actingAs($this->actor)
+            ->post(route('rcsa.assessments.submit', $assessment))
+            ->assertSessionHas('success', fn ($m) => str_contains($m, '2 risks are locked'));
+    }
+
+    #[Test]
+    public function the_business_unit_approval_flash_says_one_risk_is_locked(): void
+    {
+        $this->organization->forceFill([
+            'settings' => array_merge((array) $this->organization->settings, [
+                'rcsa' => ['bu_approval_required' => true],
+            ]),
+        ])->save();
+        $head = $this->userWith(['rcsa_assessment.view', 'rcsa_assessment.approve']);
+        $this->retail->forceFill(['head_id' => $head->id])->save();
+
+        $this->publishedRisk(['risk_no' => 'RETAIL-R1']);
+        $cycle = $this->makeCycle();
+        app(\App\Services\Rcsa\RcsaCycleService::class)->open($cycle, $this->actor);
+        $assessment = RcsaAssessment::query()->where('business_unit_id', $this->retail->id)->sole();
+        $this->scoreAll($assessment);
+
+        $this->actingAs($this->actor)
+            ->post(route('rcsa.assessments.submit', $assessment))
+            ->assertSessionHas('success', fn ($m) => str_contains($m, '1 risk is locked until they decide')
+                && ! str_contains($m, '1 risks'));
     }
 }

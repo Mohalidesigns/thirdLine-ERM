@@ -86,7 +86,7 @@ class ExportController extends Controller
             'cycles' => RcsaCycle::query()->orderByDesc('period_start')->get(['id', 'name'])->all(),
             'units' => $this->exports->unitOptions($user),
             'statuses' => [
-                RcsaAssessment::IN_PROGRESS, RcsaAssessment::SUBMITTED,
+                RcsaAssessment::DRAFT, RcsaAssessment::IN_PROGRESS, RcsaAssessment::SUBMITTED,
                 RcsaAssessment::UNDER_REVIEW, RcsaAssessment::VALIDATED,
                 RcsaAssessment::RETURNED, RcsaAssessment::CLOSED,
             ],

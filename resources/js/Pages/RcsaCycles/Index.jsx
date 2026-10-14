@@ -6,6 +6,7 @@ import Pagination from '@thirdline/ui/Components/Pagination';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import FormField from '@thirdline/ui/Components/FormField';
 import FormSection from '@thirdline/ui/Components/FormSection';
+import { humanise } from '@/lib/labels';
 
 /**
  * RCSA cycles — step 1 of the process flow.
@@ -150,7 +151,7 @@ export default function Index({ cycles, filters = {}, options = {}, can = {} }) 
                             <option value="">All statuses</option>
                             {(options.statuses ?? []).map((s) => (
                                 <option key={s} value={s}>
-                                    {s.replace(/_/g, ' ')}
+                                    {humanise(s)}
                                 </option>
                             ))}
                         </select>

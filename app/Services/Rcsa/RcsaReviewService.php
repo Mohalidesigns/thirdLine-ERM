@@ -66,13 +66,18 @@ class RcsaReviewService
      * @param  array<string, mixed>  $filters
      * @param  int|null  $viewerId  Whoever is looking, for the self-review exclusion above.
      * @param  User|null  $viewer  The same person, for §11's business-unit scoping.
+     * @param  bool  $includeOwn  Also list the viewer's own filings, flagged `filed_by_viewer`.
+     *                            The ORM screen asks for them so the filer can see their
+     *                            own work is waiting rather than a queue that reads empty;
+     *                            the row carries no Review affordance — the policy still
+     *                            refuses it. Every other caller gets the exclusion above.
      * @return list<array<string, mixed>>
      */
-    public function queue(array $filters = [], ?int $viewerId = null, ?User $viewer = null): array
+    public function queue(array $filters = [], ?int $viewerId = null, ?User $viewer = null, bool $includeOwn = false): array
     {
         $assessments = app(RcsaScope::class)->apply(RcsaAssessment::query(), $viewer)
             ->whereIn('status', RcsaAssessment::REVIEWABLE)
-            ->when($viewerId !== null, fn ($q) => $q->where(
+            ->when($viewerId !== null && ! $includeOwn, fn ($q) => $q->where(
                 fn ($w) => $w->whereNull('submitted_by')->orWhere('submitted_by', '!=', $viewerId),
             ))
             ->whereHas('cycle', fn ($q) => $q->whereIn('status', [RcsaCycle::OPEN, RcsaCycle::IN_REVIEW]))
@@ -91,7 +96,7 @@ class RcsaReviewService
         $flagged = $this->flaggedCounts($assessments);
 
         return $assessments
-            ->map(function (RcsaAssessment $assessment) use ($aboveAppetite, $flagged) {
+            ->map(function (RcsaAssessment $assessment) use ($aboveAppetite, $flagged, $viewerId) {
                 $above = $aboveAppetite[$assessment->id] ?? 0;
 
                 // Days since it was FILED, not since it was created. The queue
@@ -119,6 +124,7 @@ class RcsaReviewService
                     'escalated' => $assessment->isEscalated(),
                     'escalation_reason' => $assessment->escalation_reason,
                     'priority' => $this->priority($above, $age, $assessment->isEscalated()),
+                    'filed_by_viewer' => $viewerId !== null && (int) $assessment->submitted_by === $viewerId,
                 ];
             })
             ->sortByDesc('priority')

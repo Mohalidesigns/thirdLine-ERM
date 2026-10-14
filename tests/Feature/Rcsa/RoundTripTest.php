@@ -247,6 +247,44 @@ class RoundTripTest extends CycleTestCase
     }
 
     /**
+     * RCSA-05: an assessment nobody has started is `draft`, and the first
+     * answer to land from an offline file starts it — the same as a save in the
+     * grid, because apply() is the one writer.
+     */
+    #[Test]
+    public function applying_an_offline_file_starts_an_assessment_nobody_had_started(): void
+    {
+        // refresh(): setUp's saves started it behind this instance's back, so a
+        // stale copy would see no change to write.
+        $this->assessment->refresh()->forceFill(['status' => RcsaAssessment::DRAFT])->save();
+
+        // setUp's own saves already wrote one `start` row; the count below is
+        // what applying the file adds to it.
+        $starts = fn () => \App\Models\Rcsa\RcsaAssessmentTransition::query()
+            ->where('assessment_id', $this->assessment->id)
+            ->where('event', \App\Models\Rcsa\RcsaAssessmentTransition::START)
+            ->count();
+        $before = $starts();
+
+        $edited = $this->edit($this->downloadWorkingCopy(), [
+            1 => ['Likelihood (without control)' => 5, 'Impact (without control)' => 5, 'Control Effectiveness' => 'Not Achieved'],
+        ]);
+
+        $batch = $this->upload($edited);
+
+        // Staging writes nothing, and so starts nothing.
+        $this->assertSame(RcsaAssessment::DRAFT, $this->assessment->fresh()->status);
+
+        $this->actingAs($this->actor)
+            ->post(route('rcsa.round-trip.apply', [$this->assessment, $batch]))
+            ->assertRedirect(route('rcsa.assessments.show', $this->assessment));
+
+        $this->assertSame(RcsaAssessment::IN_PROGRESS, $this->assessment->fresh()->status);
+
+        $this->assertSame($before + 1, $starts());
+    }
+
+    /**
      * The greyed columns are a courtesy; this is the enforcement.
      */
     #[Test]

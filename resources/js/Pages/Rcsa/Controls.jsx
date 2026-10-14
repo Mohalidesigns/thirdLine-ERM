@@ -2,6 +2,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import LegacyNotice from './LegacyNotice';
 import Pagination from '@thirdline/ui/Components/Pagination';
 
 const EFFECTIVENESS = {
@@ -28,7 +29,7 @@ function titleCase(value) {
  * every control on every tenant, forever. The columns here are the ones the
  * model actually has. See the module notes.
  */
-export default function Controls({ summary = {}, controls = {}, businessUnits = [], filters = {} }) {
+export default function Controls({ legacyNotice = null, summary = {}, controls = {}, businessUnits = [], filters = {} }) {
     const apply = (patch) =>
         router.get(route('risk.rcsa.controls'), { ...filters, ...patch }, {
             preserveState: true,
@@ -56,6 +57,8 @@ export default function Controls({ summary = {}, controls = {}, businessUnits = 
                 subtitle="Evaluate the design and operating effectiveness of controls"
                 breadcrumbs={[{ label: 'RCSA', href: route('risk.rcsa.dashboard') }, { label: 'Control Effectiveness' }]}
             />
+
+            <LegacyNotice notice={legacyNotice} />
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <KpiCard title="Total Controls" value={summary.total ?? 0} icon="verified_user" color="primary" />

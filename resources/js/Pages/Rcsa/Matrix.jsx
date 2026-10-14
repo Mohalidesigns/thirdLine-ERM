@@ -1,6 +1,7 @@
 import { Head, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import LegacyNotice from './LegacyNotice';
 import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 
 const CELL = {
@@ -31,7 +32,7 @@ function coverageTone(coverage) {
  * select with no handler, so the controller's `business_unit_id` branch was
  * unreachable from the screen.
  */
-export default function Matrix({ risks = [], controls = [], businessUnits = [], filters = {}, exportUrl }) {
+export default function Matrix({ legacyNotice = null, risks = [], controls = [], businessUnits = [], filters = {}, exportUrl }) {
     const filter = (businessUnitId) =>
         router.get(route('risk.rcsa.matrix'), businessUnitId ? { business_unit_id: businessUnitId } : {}, {
             preserveState: true,
@@ -65,6 +66,8 @@ export default function Matrix({ risks = [], controls = [], businessUnits = [], 
                     </>
                 }
             />
+
+            <LegacyNotice notice={legacyNotice} />
 
             <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
                 <div className="flex flex-wrap items-center gap-6 text-xs text-gray-600">

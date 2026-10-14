@@ -3,6 +3,8 @@ import AppLayout from "@/Layouts/AppLayout";
 import PageHeader from "@thirdline/ui/Components/PageHeader";
 import StatusBadge from "@thirdline/ui/Components/StatusBadge";
 import HBarChart from "@thirdline/ui/Components/HBarChart";
+import { assessmentStatusLabel, humanise } from "@/lib/labels";
+import { formatScore, pluralise } from "@/lib/rcsa-format";
 
 /**
  * The v1 reporting surface of §10.3 — seven views over one cycle.
@@ -37,11 +39,7 @@ const IMPACT = {
     5: "Very High",
 };
 
-function label(value) {
-    if (!value) return "";
-    const words = String(value).replace(/_/g, " ");
-    return words.charAt(0).toUpperCase() + words.slice(1);
-}
+const label = humanise;
 
 export default function Index({
     cycle,
@@ -146,7 +144,7 @@ export default function Index({
                         />
                         <Tile
                             label="Average residual"
-                            value={headline.average_residual ?? "—"}
+                            value={formatScore(headline.average_residual)}
                         />
                     </div>
 
@@ -229,7 +227,7 @@ export default function Index({
                                             <span
                                                 className={`badge shrink-0 border ${LEVEL_TONE[risk.residual_level] ?? "bg-gray-100"}`}
                                             >
-                                                {risk.residual_score}
+                                                {formatScore(risk.residual_score)}
                                             </span>
                                         </li>
                                     ))}
@@ -252,9 +250,12 @@ export default function Index({
                             )}
                             <p className="mt-3 text-xs text-gray-500">
                                 Out of{" "}
-                                {aboveAppetite.reduce((n, r) => n + r.total, 0)}{" "}
-                                risks assessed across {aboveAppetite.length}{" "}
-                                units.
+                                {pluralise(
+                                    aboveAppetite.reduce((n, r) => n + r.total, 0),
+                                    "risk",
+                                )}{" "}
+                                assessed across{" "}
+                                {pluralise(aboveAppetite.length, "unit")}.
                             </p>
                         </Panel>
 
@@ -307,8 +308,7 @@ export default function Index({
                                                             {row.business_unit}
                                                         </Link>
                                                         <p className="cell-subtitle">
-                                                            {row.lines_count}{" "}
-                                                            risks
+                                                            {pluralise(row.lines_count, "risk")}
                                                         </p>
                                                     </td>
                                                     <td>
@@ -332,6 +332,9 @@ export default function Index({
                                                     <td>
                                                         <StatusBadge
                                                             status={row.status}
+                                                            label={assessmentStatusLabel(
+                                                                row.status,
+                                                            )}
                                                         />
                                                     </td>
                                                     <td className="text-right text-sm">
@@ -507,7 +510,7 @@ function HeatMap({ cells = [], total = 0, basis, drill, onDrill }) {
                                                 ? "ring-2 ring-[var(--color-primary)]"
                                                 : ""
                                         }`}
-                                        title={`${LIKELIHOOD[likelihood]} × ${IMPACT[impact]} — ${cell.count} risk(s), ${label(cell.level)}`}
+                                        title={`${LIKELIHOOD[likelihood]} × ${IMPACT[impact]} — ${pluralise(cell.count, "risk")}, ${label(cell.level)}`}
                                     >
                                         {cell.count || ""}
                                     </button>
@@ -567,7 +570,7 @@ function HeatMap({ cells = [], total = 0, basis, drill, onDrill }) {
                                     </span>
                                     <span className="shrink-0 text-xs text-gray-500">
                                         {line.control_effectiveness ?? "—"} ·
-                                        residual {line.residual_score ?? "—"}
+                                        residual {formatScore(line.residual_score)}
                                     </span>
                                 </li>
                             ))}

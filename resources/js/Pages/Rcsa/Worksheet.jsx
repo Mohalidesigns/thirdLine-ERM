@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import InputError from '@thirdline/ui/Components/InputError';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
+import LegacyNotice, { WORKSHEET_CLOSED_MESSAGE } from './LegacyNotice';
 import RcsaWorksheetTable, { EMPTY_LINE } from './RcsaWorksheetTable';
 
 /** Migration Phase 3.8: risk/rcsa/worksheet.blade.php. */
@@ -22,6 +23,7 @@ function Section({ index, title, children }) {
 }
 
 export default function Worksheet({
+    legacyNotice = null,
     canSubmit = false,
     businessUnits = [],
     processes = [],
@@ -74,6 +76,8 @@ export default function Worksheet({
                 subtitle="Assess risks and controls for your business unit processes"
                 breadcrumbs={[{ label: 'RCSA', href: route('risk.rcsa.dashboard') }, { label: 'Worksheet' }]}
             />
+
+            <LegacyNotice notice={legacyNotice} closedMessage={WORKSHEET_CLOSED_MESSAGE} />
 
             {mySubmissions.length > 0 && (
                 <div className="card mb-6">
@@ -197,7 +201,7 @@ export default function Worksheet({
 
                 <div className="flex items-center justify-between">
                     <Link href={route('risk.rcsa.dashboard')} className="btn-secondary text-sm">Cancel</Link>
-                    {canSubmit && (
+                    {canSubmit && !legacyNotice?.cutOver && (
                         <div className="flex gap-2">
                             <button
                                 type="button"

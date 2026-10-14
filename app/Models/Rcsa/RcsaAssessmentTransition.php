@@ -21,12 +21,17 @@ class RcsaAssessmentTransition extends Model
     use BelongsToOrganization;
 
     /**
-     * §9.1's diagram labels the assessment's creation "draft ──open──▶
-     * in_progress"; RcsaCycleService is the only writer, and it writes
-     * straight to `in_progress` with no `draft` row ever persisted, so this is
-     * a `none → in_progress` row rather than a transition FROM anything.
+     * The cycle opened and this assessment came into being: a
+     * `none → draft` row written by RcsaCycleService, the only writer. It is
+     * not a transition FROM anything, so it has no `from_status`.
      */
     public const OPEN = 'open';
+
+    /**
+     * The first saved rating: `draft → in_progress`. Written once per
+     * assessment by RcsaAssessmentService::apply(), through the state machine.
+     */
+    public const START = 'start';
 
     public const SUBMIT = 'submit';
 

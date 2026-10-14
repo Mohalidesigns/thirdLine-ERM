@@ -64,6 +64,7 @@ use App\Http\Controllers\Rcsa\CycleController as RcsaCycleController;
 use App\Http\Controllers\Rcsa\DashboardController as RcsaDashboardController;
 use App\Http\Controllers\Rcsa\ExportController as RcsaExportController;
 use App\Http\Controllers\Rcsa\ImportController as RcsaImportController;
+use App\Http\Controllers\Rcsa\ModuleRootController as RcsaModuleRootController;
 use App\Http\Controllers\Rcsa\ReviewController as RcsaReviewController;
 use App\Http\Controllers\Rcsa\RoundTripController as RcsaRoundTripController;
 use App\Http\Controllers\Rcsa\UniverseController as RcsaUniverseController;
@@ -963,6 +964,11 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::post('{cycle}/close', [RcsaCycleController::class, 'close'])
             ->middleware('permission:rcsa_cycle.close')->name('close');
 
+        // Who does each unit's assessment (RCSA-05). Per row and in bulk — one
+        // body, `assessment_ids` of any length up to 500.
+        Route::post('{cycle}/assign', [RcsaCycleController::class, 'assign'])
+            ->middleware('permission:rcsa_cycle.manage')->name('assign');
+
         Route::delete('{cycle}', [RcsaCycleController::class, 'destroy'])
             ->middleware('permission:rcsa_cycle.manage')->name('destroy');
     });
@@ -1133,6 +1139,23 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::get('/', [RcsaDashboardController::class, 'index'])
             ->middleware('permission:rcsa_assessment.view')->name('index');
     });
+
+    /*
+     * `/risk/rcsa` on its own: the URL a person types, or trims a deeper one
+     * back to. It was a 404 because every RCSA route sits one segment lower.
+     *
+     * NOT behind `feature:rcsa_v2`, because it has to answer in both states —
+     * to the v2 cycle dashboard when the flag is on, to the legacy dashboard
+     * when it is off, so the legacy module stays reachable and untouched
+     * until cutover. It renders nothing and reads nothing. The controller
+     * picks the first target the user can actually OPEN (v2 needs the flag
+     * AND `rcsa_assessment.view`; legacy needs `rcsa.view`) rather than going
+     * by the flag alone, which sent a legacy-only user into a 403. The
+     * middleware here exists because every route carries one; either
+     * module's viewer may land on it.
+     */
+    Route::get('rcsa', RcsaModuleRootController::class)
+        ->middleware('permission:rcsa_assessment.view|rcsa.view')->name('rcsa.landing');
 
     /*
      * The offline round trip of §10.4, nested under the assessment because that

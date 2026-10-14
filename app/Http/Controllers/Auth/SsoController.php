@@ -236,11 +236,20 @@ class SsoController extends Controller
 
     private function genericFailure(string $slug, Throwable $e)
     {
-        // Integration faults are logged in full and shown as nothing: the
-        // detail describes our internals and the IdP exchange.
+        // Integration faults are shown as nothing, and logged by CLASS, code and
+        // HTTP status only. The message is deliberately left out (NDPA): library
+        // exceptions copy a slice of the IdP's response body into it, and an IdP
+        // error body routinely echoes the subject's email address or name.
+        $response = method_exists($e, 'getResponse') ? $e->getResponse() : null;
+
         logger()->error('SSO failed', [
             'slug' => $slug,
-            'exception' => $e->getMessage(),
+            'exception' => $e::class,
+            'code' => $e->getCode() ?: null,
+            'http_status' => is_object($response) && method_exists($response, 'getStatusCode')
+                ? $response->getStatusCode()
+                : null,
+            'previous' => $e->getPrevious() ? $e->getPrevious()::class : null,
         ]);
 
         return redirect()->route('login')

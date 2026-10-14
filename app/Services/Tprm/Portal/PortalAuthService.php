@@ -267,14 +267,14 @@ class PortalAuthService
         } catch (\Throwable $exception) {
             $user->forceFill(['mfa_code_sent_at' => null])->save();
 
-            // The operator needs the transport error; the vendor must not see
-            // it. A mail host and a rejected credential are not a vendor's
-            // business, and an SMTP message quoted into a browser is an
-            // information leak as well as a confusing one.
+            // The vendor must not see the transport error: a mail host and a
+            // rejected credential are not a vendor's business. The log gets
+            // the exception class only, because an SMTP message quotes the
+            // recipient's address back (NDPA log minimisation).
             Log::error('Portal sign-in code could not be sent', [
                 'portal_user_id' => $user->getKey(),
                 'organization_id' => $user->organization_id,
-                'message' => $exception->getMessage(),
+                'exception' => $exception::class,
             ]);
 
             $this->audit($user->organization_id, PortalUser::class, $user->getKey(), 'portal_mfa_code_send_failed', [

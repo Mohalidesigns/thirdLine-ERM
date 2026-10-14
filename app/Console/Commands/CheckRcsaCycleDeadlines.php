@@ -7,6 +7,7 @@ use App\Models\Rcsa\RcsaCycle;
 use App\Models\User;
 use App\Services\NotificationService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 
 /**
  * §11's remaining notification schedule: cycle due dates.
@@ -139,7 +140,7 @@ class CheckRcsaCycleDeadlines extends Command
                         ? sprintf('%s is overdue', $cycle->name)
                         : ($daysToDue === 0
                             ? sprintf('%s is due today', $cycle->name)
-                            : sprintf('%s is due in %d days', $cycle->name, $daysToDue)),
+                            : sprintf('%s is due in %d %s', $cycle->name, $daysToDue, Str::plural('day', $daysToDue))),
                     body: sprintf(
                         '%s is %d%% complete for %s and was due %s. %s',
                         $this->unitName($assessment, 'Your unit'),

@@ -32,11 +32,12 @@ class RcsaController extends Controller
         private readonly RcsaWorksheetService $worksheets,
     ) {}
 
-    public function dashboard()
+    public function dashboard(Request $request)
     {
         Gate::authorize('viewAny', RcsaProgramme::class);
 
         return Inertia::render('Rcsa/Dashboard', [
+            'legacyNotice' => app(RcsaCutover::class)->legacyNotice($request->user()),
             'kpis' => $this->rcsa->dashboardKpis(),
             'unitProgress' => $this->rcsa->unitProgress(),
             'topRisks' => $this->rcsa->topRisks(),
@@ -52,6 +53,7 @@ class RcsaController extends Controller
         $orgId = TenantContext::organizationId();
 
         return Inertia::render('Rcsa/Worksheet', [
+            'legacyNotice' => app(RcsaCutover::class)->legacyNotice($request->user()),
             'canSubmit' => Gate::allows('submit', RcsaProgramme::class),
             'businessUnits' => $this->options(BusinessUnit::where('organization_id', $orgId)->orderBy('name')->get()),
             'processes' => $this->options(\App\Models\BusinessProcess::where('organization_id', $orgId)->orderBy('name')->get()),
@@ -154,6 +156,7 @@ class RcsaController extends Controller
         $controls = $query->orderBy('control_code')->paginate(25)->withQueryString();
 
         return Inertia::render('Rcsa/Controls', [
+            'legacyNotice' => app(RcsaCutover::class)->legacyNotice($request->user()),
             'summary' => $this->rcsa->controlsSummary(),
             'controls' => [
                 'data' => collect($controls->items())->map(fn (Control $control) => [
@@ -195,6 +198,7 @@ class RcsaController extends Controller
         return Inertia::render('Rcsa/Matrix', array_merge(
             $this->rcsa->matrix($businessUnitId),
             [
+                'legacyNotice' => app(RcsaCutover::class)->legacyNotice($request->user()),
                 'businessUnits' => $this->options(
                     BusinessUnit::where('organization_id', TenantContext::organizationId())->orderBy('name')->get()
                 ),

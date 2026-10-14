@@ -1,4 +1,10 @@
-export default function StatusBadge({ status }) {
+/**
+ * `label` is optional: a screen whose vocabulary differs from the generic one
+ * (an RCSA assessment's `draft` is "Not started", `bu_approval` is "BU approval")
+ * passes the words it wants. The colour still follows `status`, and every
+ * caller that passes no label sees exactly what it saw before.
+ */
+export default function StatusBadge({ status, label }) {
     const statusMap = {
         draft: "badge-status-draft",
         planning: "badge-status-pending",
@@ -83,7 +89,7 @@ export default function StatusBadge({ status }) {
     const formatted = status ? status.replace(/_/g, " ") : "unknown";
     return (
         <span className={`badge ${statusMap[status] || "badge-status-draft"}`}>
-            {formatted.charAt(0).toUpperCase() + formatted.slice(1)}
+            {label ?? formatted.charAt(0).toUpperCase() + formatted.slice(1)}
         </span>
     );
 }

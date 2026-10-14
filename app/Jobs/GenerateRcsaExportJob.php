@@ -14,6 +14,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use ThirdLine\Platform\Tenancy\TenantContext;
 use Throwable;
 
@@ -126,8 +127,9 @@ class GenerateRcsaExportJob implements ShouldQueue
             type: 'rcsa.export.ready',
             subject: 'Your RCSA export is ready',
             body: sprintf(
-                '%d rows. The link expires %s.',
+                '%d %s. The link expires %s.',
                 $export->row_count,
+                Str::plural('row', (int) $export->row_count),
                 $export->expires_at?->diffForHumans() ?? 'in 48 hours',
             ),
             metadata: ['export_id' => $export->id],

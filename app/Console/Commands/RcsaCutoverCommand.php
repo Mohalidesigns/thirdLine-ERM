@@ -96,7 +96,8 @@ class RcsaCutoverCommand extends Command
         $this->newLine();
         $this->line('Cutting over '.$organization->name.' will:');
         $this->line('  - close the legacy worksheet write path (it will refuse submissions);');
-        $this->line('  - leave every legacy READ screen reachable, per §13\'s retention requirement;');
+        $this->line('  - remove the legacy entries (Register RCSA, worksheet, risk matrix) from the RCSA menu;');
+        $this->line('  - leave every legacy READ screen reachable by URL, per §13\'s retention requirement;');
         $this->line('  - leave the enterprise risk register and every other module untouched.');
 
         if (! $this->option('commit')) {
@@ -110,7 +111,9 @@ class RcsaCutoverCommand extends Command
 
         $this->newLine();
         $this->info(sprintf('%s cut over at %s.', $organization->name, $cutover->cutOverAt($organization)?->toDateTimeString()));
+        $this->line('The legacy entries have left the RCSA menu; their URLs stay reachable for the audit cycle.');
         $this->line('Turn FEATURE_RCSA_V2 on for this environment if it is not already, and tell the unit heads.');
+        $this->line('(With the flag off the menu is unchanged — the legacy module is then the only RCSA the install has.)');
 
         return self::SUCCESS;
     }
@@ -144,7 +147,7 @@ class RcsaCutoverCommand extends Command
 
         $cutover->reverse($organization);
 
-        $this->info('Reversed. The legacy worksheet accepts submissions again.');
+        $this->info('Reversed. The legacy worksheet accepts submissions again, and its menu entries are back (labelled legacy).');
         $this->line('To remove the migrated data as well, run rcsa:rollback-legacy-migration.');
 
         return self::SUCCESS;

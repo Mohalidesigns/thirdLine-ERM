@@ -74,11 +74,38 @@ class RcsaAuditRecorder
         mixed $new,
         ?User $actor,
         ?string $reason = null,
+        bool $system = false,
     ): void {
         $this->write(
             entity: $line,
             actionType: 'rcsa_line_change',
             field: $field,
+            old: $old,
+            new: $new,
+            actor: $actor,
+            reason: $reason,
+            system: $system,
+        );
+    }
+
+    /**
+     * Who an assessment is assigned to changed (RCSA-05) — assigned,
+     * re-assigned or unassigned.
+     *
+     * `old` and `new` are user ids, which are stable; the reason carries the
+     * names as they were at the time, which are not.
+     */
+    public function assignmentChange(
+        RcsaAssessment $assessment,
+        ?int $old,
+        ?int $new,
+        ?User $actor,
+        ?string $reason = null,
+    ): void {
+        $this->write(
+            entity: $assessment,
+            actionType: 'rcsa_assignment',
+            field: 'assigned_to',
             old: $old,
             new: $new,
             actor: $actor,
@@ -151,6 +178,7 @@ class RcsaAuditRecorder
         mixed $new,
         ?User $actor,
         ?string $reason = null,
+        bool $system = false,
     ): void {
         RiskAuditTrail::create([
             // getAttribute rather than the property: every RCSA model carries
@@ -172,7 +200,11 @@ class RcsaAuditRecorder
             // and a compliance trail naming the wrong person is worse than one
             // that admits it does not know, so this falls through to null
             // rather than to whoever happens to be signed in elsewhere.
-            'changed_by' => $actor === null ? auth()->id() : $actor->id,
+            //
+            // A SYSTEM write (`$system`) names nobody even when somebody is
+            // signed in: a repair run inside a person's request (submit
+            // recomputing lost scores) is not that person's change.
+            'changed_by' => $system ? null : ($actor === null ? auth()->id() : $actor->id),
             'changed_at' => now(),
             'ip_address' => request()->ip(),
             'change_reason' => $reason,

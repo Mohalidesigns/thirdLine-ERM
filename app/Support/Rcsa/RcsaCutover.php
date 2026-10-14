@@ -3,7 +3,9 @@
 namespace App\Support\Rcsa;
 
 use App\Models\Organization;
+use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Route;
 
 /**
  * §13 step 6: "Flip the flag per tenant; legacy routes redirect; legacy tables
@@ -29,6 +31,24 @@ use Illuminate\Support\Carbon;
  * worksheet submission that files into campaign responses. After cutover it
  * refuses. The legacy READ screens stay reachable, because §13 keeps the old
  * module for at least one audit cycle and a regulator may ask what it showed.
+ *
+ * WHAT A USER SEES (RCSA-02, decided 2026-10-05, "cut over + label legacy").
+ * Two RCSAs live side by side was §13's own design — "build alongside, not on
+ * top" — and the plan's step 6 is the rule that ends it: "Flip the flag per
+ * tenant; legacy routes redirect; legacy tables become read-only." The QA run
+ * found the cost of the parallel period: two menu entries called "Dashboard"
+ * showing different numbers, because the legacy screens read the enterprise
+ * register and v2 reads the cycle tables. So, while the flag is on:
+ *
+ *   - BEFORE cutover the three legacy menu entries stay, relabelled so they
+ *     cannot be mistaken for the cycle-based module, and each legacy screen
+ *     carries a notice saying what it is and where the other module lives;
+ *   - AFTER cutover the legacy entries leave the menu. The URLs stay reachable
+ *     (§13 keeps the old module for an audit cycle) and the worksheet says
+ *     plainly that it has closed.
+ *
+ * With the flag off nothing changes: the legacy module is the install's only
+ * RCSA, so there is nothing to disambiguate and nothing to hide.
  */
 class RcsaCutover
 {
@@ -52,6 +72,42 @@ class RcsaCutover
     public function hasCutOver(Organization|int|null $subject): bool
     {
         return $this->cutOverAt($subject) !== null;
+    }
+
+    /**
+     * Whether the legacy RCSA entries are shown as the legacy module, or left
+     * out of the menu — one decision, so the menu and the screens agree.
+     *
+     * `v2` is the per-environment flag. `cutOver` is only meaningful with it
+     * on: a tenant cannot have "moved to" a module this install does not run,
+     * and hiding the legacy entries then would leave no RCSA in the menu at all.
+     *
+     * @return array{v2: bool, cutOver: bool, cutOverAt: string|null}
+     */
+    public function legacyState(Organization|int|null $subject): array
+    {
+        $v2 = filter_var(config('features.rcsa_v2', false), FILTER_VALIDATE_BOOLEAN);
+        $at = $v2 ? $this->cutOverAt($subject) : null;
+
+        return ['v2' => $v2, 'cutOver' => $at !== null, 'cutOverAt' => $at?->toDateString()];
+    }
+
+    /**
+     * The props the legacy screens render their notice from. `v2Url` is null
+     * when the viewer cannot open the cycle dashboard, so the notice never
+     * links to a 403.
+     *
+     * @return array{v2: bool, cutOver: bool, cutOverAt: string|null, v2Url: string|null}
+     */
+    public function legacyNotice(?User $user): array
+    {
+        $state = $this->legacyState($user?->organization_id);
+
+        return $state + [
+            'v2Url' => $state['v2'] && $user?->can('rcsa_assessment.view') && Route::has('rcsa.dashboard.index')
+                ? route('rcsa.dashboard.index')
+                : null,
+        ];
     }
 
     /**

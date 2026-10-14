@@ -6,6 +6,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import AddRiskPanel from './AddRiskPanel';
+import { humanise } from '@/lib/labels';
 
 /**
  * The RCSA Universe (plan §6) — the governed inventory a cycle is populated
@@ -73,7 +74,7 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                 placeholder: 'All Statuses',
                 options: (options.statuses ?? []).map((s) => ({
                     value: s,
-                    label: s.charAt(0).toUpperCase() + s.slice(1),
+                    label: humanise(s),
                 })),
             },
         ],

@@ -4,6 +4,7 @@ import AppLayout from "@/Layouts/AppLayout";
 import PageHeader from "@thirdline/ui/Components/PageHeader";
 import StatusBadge from "@thirdline/ui/Components/StatusBadge";
 import Pagination from "@thirdline/ui/Components/Pagination";
+import { humanise } from "@/lib/labels";
 
 /**
  * The action-plan tracking register (§9.3), and the owner dashboard inside it.
@@ -111,7 +112,7 @@ export default function Index({
                             <option value="">Any status</option>
                             {statuses.map((s) => (
                                 <option key={s} value={s}>
-                                    {s.replace(/_/g, " ")}
+                                    {humanise(s)}
                                 </option>
                             ))}
                         </select>
@@ -195,7 +196,7 @@ export default function Index({
                         <thead>
                             <tr>
                                 <th>Risk</th>
-                                <th>What will be done</th>
+                                <th className="min-w-[16rem]">What will be done</th>
                                 <th>Owner</th>
                                 <th>Due</th>
                                 <th className="w-40">Progress</th>
@@ -254,7 +255,7 @@ function PlanRow({ plan, open, onToggle }) {
                         {plan.business_unit}
                     </p>
                 </td>
-                <td className="max-w-md cell-muted">
+                <td className="min-w-[16rem] max-w-md whitespace-normal break-words cell-muted">
                     {plan.control_to_implement}
                 </td>
                 <td className="cell-muted">
@@ -357,9 +358,7 @@ function PlanPanel({ plan }) {
                 <p className="mb-2 text-xs">
                     Residual{" "}
                     <strong>
-                        {(plan.residual_level ?? "")
-                            .replace(/_/g, " ")
-                            .replace(/^./, (c) => c.toUpperCase())}
+                        {humanise(plan.residual_level)}
                     </strong>{" "}
                     · {plan.cycle}
                 </p>

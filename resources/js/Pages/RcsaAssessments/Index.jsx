@@ -3,6 +3,7 @@ import AppLayout from "@/Layouts/AppLayout";
 import PageHeader from "@thirdline/ui/Components/PageHeader";
 import Pagination from "@thirdline/ui/Components/Pagination";
 import StatusBadge from "@thirdline/ui/Components/StatusBadge";
+import { assessmentStatusLabel } from "@/lib/labels";
 
 /**
  * The assessment picker — steps 1 and 2 of the process flow in one screen.
@@ -56,6 +57,7 @@ export default function Index({
                         >
                             <option value="">All statuses</option>
                             {[
+                                "draft",
                                 "in_progress",
                                 "returned",
                                 "submitted",
@@ -64,7 +66,7 @@ export default function Index({
                                 "closed",
                             ].map((s) => (
                                 <option key={s} value={s}>
-                                    {s.replace(/_/g, " ")}
+                                    {assessmentStatusLabel(s)}
                                 </option>
                             ))}
                         </select>
@@ -106,8 +108,17 @@ export default function Index({
                                     <td className="cell-muted">
                                         {assessment.cycle}
                                     </td>
-                                    <td className="cell-title">
-                                        {assessment.business_unit}
+                                    <td>
+                                        {/* RCSA-13: it is styled as a link (cell-title), so it is one. */}
+                                        <Link
+                                            href={route(
+                                                "rcsa.assessments.show",
+                                                assessment.id,
+                                            )}
+                                            className="cell-title"
+                                        >
+                                            {assessment.business_unit}
+                                        </Link>
                                     </td>
                                     <td className="cell-muted">
                                         {assessment.lines_count}
@@ -133,6 +144,9 @@ export default function Index({
                                     <td>
                                         <StatusBadge
                                             status={assessment.status}
+                                            label={assessmentStatusLabel(
+                                                assessment.status,
+                                            )}
                                         />
                                     </td>
                                     <td className="text-right">

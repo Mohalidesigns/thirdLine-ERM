@@ -4,9 +4,12 @@ namespace Tests\Feature\Rcsa;
 
 use App\Models\Rcsa\RcsaAssessment;
 use App\Models\Rcsa\RcsaCycle;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\Test;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 /**
  * §12's P9 acceptance criterion: "p95 grid render under 1.5s at 500 lines",
@@ -229,6 +232,83 @@ class WorkspacePerformanceTest extends CycleTestCase
         // A ceiling as well as a comparison: equal-but-enormous would pass the
         // assertion above and still be a bad page.
         $this->assertLessThan(60, $large['queries'], 'The workspace is issuing far more queries than it needs.');
+    }
+
+    /**
+     * "N people will be notified" is computed on EVERY GET of an open
+     * assessment, so what it costs must not depend on how many users the tenant
+     * has. It used to load every active user with roles and permissions and ask
+     * `can()` of each — a bank with two thousand staff paid for two thousand on
+     * every autosave-adjacent page load.
+     */
+    #[Test]
+    public function the_reviewer_count_costs_the_same_however_many_users_the_tenant_has(): void
+    {
+        // The permission exists (the production state), so both measurements
+        // take the same path through the lookup.
+        Permission::findOrCreate('rcsa_assessment.review');
+        $role = Role::findOrCreate('orm-reviewer-role');
+        $role->givePermissionTo('rcsa_assessment.review');
+
+        $assessment = $this->assessmentWith(20);
+        $this->freezeTime();
+
+        // Users hydrated by a call. The old scan's cost was not only queries
+        // (Spatie caches the permission lookups, so those stayed flat) but one
+        // hydrated User, with its roles and permissions, per active user of the
+        // tenant — which is what this counts. Measured on the service call
+        // alone: the page's own `owners` prop lists the tenant's users too.
+        $hydrated = 0;
+        \Illuminate\Support\Facades\Event::listen(
+            'eloquent.retrieved: '.User::class,
+            function () use (&$hydrated) {
+                $hydrated++;
+            },
+        );
+
+        // Warm, then the steady-state baseline: a tenant with one reviewer.
+        $this->render($assessment);
+        $few = $this->render($assessment);
+        $this->assertSame(0, $few['props']['assessment']['reviewer_count']);
+
+        // Sixty more active users: twenty by role, twenty directly, twenty with nothing.
+        for ($i = 1; $i <= 60; $i++) {
+            $user = User::create([
+                'name' => "Bulk User {$i}",
+                'email' => "bulk-{$i}-".uniqid().'@example.test',
+                'password' => 'password',
+                'organization_id' => $this->organization->id,
+                'is_active' => true,
+            ]);
+
+            match ($i % 3) {
+                0 => $user->assignRole($role),
+                1 => $user->givePermissionTo('rcsa_assessment.review'),
+                default => null,
+            };
+        }
+
+        $many = $this->render($assessment);
+
+        $this->assertSame(40, $many['props']['assessment']['reviewer_count']);
+
+        $hydrated = 0;
+        $recipients = app(\App\Services\Rcsa\RcsaSubmissionService::class)
+            ->submissionRecipients($assessment->fresh(), $this->actor);
+
+        $this->assertCount(40, $recipients);
+        $this->assertSame(0, $hydrated, 'The reviewer lookup must select ids, not load the tenant\'s users.');
+
+        $this->assertSame(
+            $few['queries'],
+            $many['queries'],
+            sprintf(
+                'The workspace issued %d queries with one user in the tenant and %d with sixty-one — the '
+                .'reviewer count is scanning users again.',
+                $few['queries'],
+                $many['queries'],
+            ),
+        );
     }
 
     #[Test]

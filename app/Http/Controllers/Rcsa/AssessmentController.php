@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Rcsa;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Rcsa\BulkApplyAssessmentLinesRequest;
 use App\Http\Requests\Rcsa\StoreActionPlanRequest;
 use App\Http\Requests\Rcsa\UpdateAssessmentLineRequest;
 use App\Models\Rcsa\RcsaActionPlan;
@@ -17,6 +18,7 @@ use App\Services\Rcsa\RcsaWorkflowService;
 use App\Support\Rcsa\RcsaScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 /**
@@ -119,6 +121,19 @@ class AssessmentController extends Controller
                 'returned_reason' => $assessment->returned_reason,
                 'reopened_count' => $assessment->status === RcsaAssessment::RETURNED
                     ? $assessment->lines()->whereNull('locked_at')->count()
+                    : 0,
+                // Where Submit would send it (`orm`, or `bu_head` when this tenant
+                // puts the unit head between the assessor and the ORM), and how
+                // many people would be told. Both come from the services that
+                // do the submitting, so the sentence beside the button cannot
+                // disagree with what the button then does. The count is 0 when
+                // the assessment no longer accepts edits: submit() would refuse,
+                // and nobody would be notified.
+                'submit_target' => $this->workflow->submissionTarget($assessment) === RcsaAssessment::BU_APPROVAL
+                    ? 'bu_head'
+                    : 'orm',
+                'reviewer_count' => $assessment->acceptsEdits()
+                    ? count($this->submissions->submissionRecipients($assessment, $request->user()))
                     : 0,
                 'cycle' => [
                     'id' => $assessment->cycle->id,
@@ -276,12 +291,14 @@ class AssessmentController extends Controller
             ->route('rcsa.cycles.show', $assessment->cycle_id)
             ->with('success', $result['status'] === RcsaAssessment::BU_APPROVAL
                 ? sprintf(
-                    'Sent to your business-unit head for approval. %d risks are locked until they decide.',
+                    'Sent to your business-unit head for approval. %d %s locked until they decide.',
                     $result['lines'],
+                    $result['lines'] === 1 ? 'risk is' : 'risks are',
                 )
                 : sprintf(
-                    'Submitted for ORM review. %d risks are locked, and %d %s been notified.',
+                    'Submitted for ORM review. %d %s locked, and %d %s been notified.',
                     $result['lines'],
+                    $result['lines'] === 1 ? 'risk is' : 'risks are',
                     $result['notified'],
                     $result['notified'] === 1 ? 'person has' : 'people have',
                 ));
@@ -345,26 +362,23 @@ class AssessmentController extends Controller
             ], 409);
         }
 
+        $fresh = $assessment->fresh();
+
         return response()->json([
             'line' => $this->toRow($result['line']),
-            'completion_pct' => $assessment->fresh()->completion_pct,
+            'completion_pct' => $fresh->completion_pct,
+            // The first saved rating moves a not-started assessment to
+            // in_progress; the page's badge follows this rather than guessing.
+            'status' => $fresh->status,
         ]);
     }
 
     /**
      * Apply one answer to several lines (§8.3).
      */
-    public function bulkApply(Request $request, RcsaAssessment $assessment)
+    public function bulkApply(BulkApplyAssessmentLinesRequest $request, RcsaAssessment $assessment)
     {
-        Gate::authorize('complete', $assessment);
-
-        $validated = $request->validate([
-            'line_ids' => ['required', 'array', 'min:1', 'max:500'],
-            'line_ids.*' => ['integer'],
-            'control_effectiveness' => ['nullable', 'string'],
-            'inherent_likelihood' => ['nullable', 'integer', 'min:1', 'max:10'],
-            'inherent_impact' => ['nullable', 'integer', 'min:1', 'max:10'],
-        ]);
+        $validated = $request->validated();
 
         $answers = array_filter(
             array_intersect_key($validated, array_flip(['control_effectiveness', 'inherent_likelihood', 'inherent_impact'])),
@@ -392,7 +406,7 @@ class AssessmentController extends Controller
 
         $changed = $this->assessments->applyToMany($lines, $answers, $request->user(), $request);
 
-        return back()->with('success', "{$changed} risks updated.");
+        return back()->with('success', sprintf('%d %s updated.', $changed, Str::plural('risk', $changed)));
     }
 
     /**

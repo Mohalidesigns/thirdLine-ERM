@@ -145,7 +145,7 @@ class CheckRcsaActionPlans extends Command
                         type: 'rcsa.actionplan.reminder',
                         subject: $days === 0
                             ? sprintf('Due today: %s', $this->label($plan))
-                            : sprintf('Due in %d days: %s', $days, $this->label($plan)),
+                            : sprintf('Due in %d %s: %s', $days, Str::plural('day', $days), $this->label($plan)),
                         body: sprintf(
                             'Your RCSA action plan for %s is due on %s. %s',
                             $this->riskNo($plan),

@@ -6,6 +6,7 @@ use App\Contracts\Bcms\DeliveryReceipt;
 use App\Contracts\Bcms\Recipient;
 use App\Contracts\Bcms\RenderedMessage;
 use App\Enums\Bcms\ChannelKey;
+use App\Support\Chat\ChatText;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Str;
 
@@ -51,10 +52,15 @@ class WebhookChannel extends HttpChannel
 
     protected function perform(string $address, Recipient $to, RenderedMessage $message): Response
     {
-        $body = $message->wireBody();
-        $subject = $message->wireSubject();
+        // Alert text is typed by a person. Slack would turn `<!channel>` in it
+        // into a channel-wide ping and Teams would render embedded HTML, so it
+        // is escaped for the product it is going to; see ChatText.
+        $isTeams = $this->channel === ChannelKey::Teams;
+        $escape = $isTeams ? ChatText::teams(...) : ChatText::slack(...);
+        $body = $escape($message->wireBody());
+        $subject = $message->wireSubject() === null ? null : $escape($message->wireSubject());
 
-        $payload = $this->channel === ChannelKey::Teams
+        $payload = $isTeams
             ? [
                 // The legacy MessageCard shape, which every Teams webhook
                 // accepts. Adaptive Cards need a Power Automate flow the
@@ -62,7 +68,8 @@ class WebhookChannel extends HttpChannel
                 // on the customer having built something is not one.
                 '@type' => 'MessageCard',
                 '@context' => 'https://schema.org/extensions',
-                'summary' => $subject ?? 'Business continuity notification',
+                // `summary` is plain text, not rendered markup: unescaped.
+                'summary' => $message->wireSubject() ?? 'Business continuity notification',
                 'themeColor' => $message->severity->value === 'life_safety' ? 'D93025' : '1F6FEB',
                 'title' => $subject,
                 'text' => $body,

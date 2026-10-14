@@ -338,7 +338,7 @@ class ObligationClockService
             'auditable_type' => Incident::class,
             'auditable_id' => $incident->getKey(),
             'event' => $event,
-            'actor_type' => 'system',
+            'actor_type' => AuditLog::ACTOR_SYSTEM,
             'actor_id' => null,
             'before' => null,
             'after' => $after,

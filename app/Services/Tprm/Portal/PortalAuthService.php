@@ -61,7 +61,6 @@ class PortalAuthService
         ]);
 
         $this->audit($invitation->organization_id, PortalInvitation::class, $invitation->getKey(), 'portal_invited', [
-            'email' => $invitation->email,
             'third_party_id' => $thirdParty->getKey(),
             'role' => $invitation->role,
         ], $userId);
@@ -134,7 +133,7 @@ class PortalAuthService
             $invitation->forceFill(['accepted_at' => now()])->save();
 
             $this->audit($user->organization_id, PortalUser::class, $user->getKey(), 'portal_account_created', [
-                'email' => $user->email,
+                'portal_user_id' => $user->getKey(),
                 'third_party_id' => $user->third_party_id,
             ]);
 
@@ -279,7 +278,7 @@ class PortalAuthService
             ]);
 
             $this->audit($user->organization_id, PortalUser::class, $user->getKey(), 'portal_mfa_code_send_failed', [
-                'email' => $user->email,
+                'portal_user_id' => $user->getKey(),
             ]);
 
             return [
@@ -296,7 +295,7 @@ class PortalAuthService
          * second factor for one of their vendors.
          */
         $this->audit($user->organization_id, PortalUser::class, $user->getKey(), 'portal_mfa_code_sent', [
-            'email' => $user->email,
+            'portal_user_id' => $user->getKey(),
             'expires_at' => $user->mfa_code_expires_at?->toIso8601String(),
         ]);
 
@@ -380,7 +379,7 @@ class PortalAuthService
         $user->forceFill(['mfa_enabled' => true])->save();
 
         $this->audit($user->organization_id, PortalUser::class, $user->getKey(), 'portal_mfa_enrolled', [
-            'email' => $user->email,
+            'portal_user_id' => $user->getKey(),
         ]);
 
         return true;
@@ -428,8 +427,8 @@ class PortalAuthService
         ])->save();
 
         $this->audit($user->organization_id, PortalUser::class, $user->getKey(), 'portal_signed_in', [
-            'email' => $user->email,
-        ]);
+            'portal_user_id' => $user->getKey(),
+        ], null, $user->getKey());
 
         return true;
     }
@@ -445,8 +444,8 @@ class PortalAuthService
 
         if ($user instanceof PortalUser) {
             $this->audit($user->organization_id, PortalUser::class, $user->getKey(), 'portal_signed_out', [
-                'email' => $user->email,
-            ]);
+                'portal_user_id' => $user->getKey(),
+            ], null, $user->getKey());
         }
     }
 
@@ -463,7 +462,7 @@ class PortalAuthService
 
         if ($attempts >= PortalUser::MAX_ATTEMPTS) {
             $this->audit($user->organization_id, PortalUser::class, $user->getKey(), 'portal_account_locked', [
-                'email' => $user->email,
+                'portal_user_id' => $user->getKey(),
                 'attempts' => $attempts,
             ]);
         }
@@ -483,16 +482,20 @@ class PortalAuthService
 
     /**
      * @param  array<string, mixed>  $after
+     * @param  int|null  $portalUserId  The vendor who has PROVEN who they are on this request (ADR 0028 A3): only
+     *                                  portal_signed_in and portal_signed_out pass it. Pre-authentication events leave it null so an
+     *                                  attempt is never pinned on its target. Never derived from the guard in here.
      */
-    private function audit(int $organizationId, string $type, int $id, string $event, array $after, ?int $userId = null): void
+    private function audit(int $organizationId, string $type, int $id, string $event, array $after, ?int $userId = null, ?int $portalUserId = null): void
     {
         AuditLog::create([
             'organization_id' => $organizationId,
             'auditable_type' => $type,
             'auditable_id' => $id,
             'event' => $event,
-            'actor_type' => $userId !== null ? 'user' : 'portal',
-            'actor_id' => $userId,
+            'actor_type' => $userId !== null ? AuditLog::ACTOR_USER : AuditLog::ACTOR_PORTAL,
+            'actor_id' => $userId ?? $portalUserId,
+            'actor_label' => null,
             'before' => null,
             'after' => $after,
             'ip' => request()?->ip(),

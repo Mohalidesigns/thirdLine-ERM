@@ -298,9 +298,10 @@ return new class extends Migration
             $table->unsignedBigInteger('auditable_id');
             $table->string('event', 60);
 
-            // user | portal_user | system. A portal actor is not a user, and
-            // recording one as the other would make a vendor's action look
-            // like a colleague's on the supervisory export.
+            // user | portal | system (ADR 0028; the TRD's `portal_user` was
+            // never written). A portal actor is not a user, and recording one
+            // as the other would make a vendor's action look like a colleague's
+            // on the supervisory export.
             $table->string('actor_type', 20);
             $table->unsignedBigInteger('actor_id')->nullable();
             $table->string('actor_label', 200)->nullable();

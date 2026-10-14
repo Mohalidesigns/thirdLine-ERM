@@ -5,6 +5,7 @@ namespace App\Models\Tprm\Concerns;
 use App\Models\Tprm\AuditLog;
 use App\Support\Audit\AuditText;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -115,16 +116,16 @@ trait TprmAuditable
     {
         try {
             $request = request();
-            $actor = auth()->user();
+            [$actorType, $actorId, $actorLabel] = $this->resolveAuditActor();
 
             AuditLog::create([
                 'organization_id' => $this->getAttribute('organization_id'),
                 'auditable_type' => static::class,
                 'auditable_id' => $this->getKey(),
                 'event' => $event,
-                'actor_type' => $actor !== null ? 'user' : 'system',
-                'actor_id' => $actor?->getKey(),
-                'actor_label' => AuditText::clip($actor?->name, 200),
+                'actor_type' => $actorType,
+                'actor_id' => $actorId,
+                'actor_label' => $actorLabel,
                 'before' => $before,
                 'after' => $after,
                 'ip' => $request?->ip(),
@@ -139,6 +140,44 @@ trait TprmAuditable
                 'message' => $exception->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Who is writing: [actor_type, actor_id, actor_label]. ADR 0028.
+     *
+     * PORTAL FIRST. A vendor authenticates on the `tprm-portal` guard, which
+     * has its own session, so on a portal request the default guard's
+     * `auth()->user()` is null and the write used to be sealed as `system`.
+     * Checking the portal guard first also guarantees the error the AuditLog
+     * docblock names, a vendor recorded as a colleague, cannot happen.
+     *
+     * `hasUser()`, not `user()`: it reads only what the portal middleware
+     * already resolved on this request, so a queue worker, a console command
+     * or a migration never starts a session lookup and stays `system`.
+     *
+     * @return array{0: string, 1: int|string|null, 2: string|null}
+     */
+    private function resolveAuditActor(): array
+    {
+        $guard = Auth::guard('tprm-portal');
+
+        if ($guard->hasUser()) {
+            $portalUser = $guard->user();
+
+            return [
+                AuditLog::ACTOR_PORTAL,
+                $portalUser?->getKey(),
+                null,
+            ];
+        }
+
+        $user = auth()->user();
+
+        if ($user !== null) {
+            return [AuditLog::ACTOR_USER, $user->getKey(), AuditText::clip($user->name, 200)];
+        }
+
+        return [AuditLog::ACTOR_SYSTEM, null, null];
     }
 
     /**

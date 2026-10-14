@@ -7,6 +7,7 @@ use App\Models\Tprm\PortalUser;
 use App\Models\Tprm\ThirdParty;
 use App\Models\Tprm\TrustProfile;
 use App\Models\Tprm\TrustProfileShare;
+use App\Support\Audit\AuditText;
 use App\Support\Tprm\TrustProfileSchema;
 use Illuminate\Support\Collection;
 use ThirdLine\Platform\Tenancy\OrganizationScope;
@@ -291,12 +292,13 @@ class TrustProfileService
             'auditable_type' => PortalUser::class,
             'auditable_id' => $user->getKey(),
             'event' => $event,
-            'actor_type' => 'portal',
-            'actor_id' => null,
+            'actor_type' => AuditLog::ACTOR_PORTAL,
+            'actor_id' => $user->getKey(),
+            'actor_label' => null,
             'before' => null,
-            'after' => $after + ['email' => $user->email],
+            'after' => $after,
             'ip' => request()?->ip(),
-            'user_agent' => \App\Support\Audit\AuditText::userAgent(),
+            'user_agent' => AuditText::userAgent(),
         ]);
     }
 }

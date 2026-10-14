@@ -174,7 +174,7 @@ class ClauseAnalyzer
                     'auditable_type' => Contract::class,
                     'auditable_id' => $contract->getKey(),
                     'event' => 'clause_analysis_partial',
-                    'actor_type' => $userId !== null ? 'user' : 'system',
+                    'actor_type' => $userId !== null ? AuditLog::ACTOR_USER : AuditLog::ACTOR_SYSTEM,
                     'actor_id' => $userId,
                     'before' => null,
                     'after' => [

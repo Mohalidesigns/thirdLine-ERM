@@ -7,6 +7,7 @@ use App\Models\Tprm\Engagement;
 use App\Models\Tprm\Incident;
 use App\Models\Tprm\PortalUser;
 use App\Services\NotificationService;
+use App\Support\Audit\AuditText;
 use Illuminate\Support\Facades\DB;
 use ThirdLine\Platform\Tenancy\OrganizationScope;
 
@@ -102,18 +103,19 @@ class PortalIncidentService
             'auditable_type' => Incident::class,
             'auditable_id' => $incident->getKey(),
             'event' => 'incident_reported_by_vendor',
-            'actor_type' => 'portal',
-            'actor_id' => null,
+            'actor_type' => AuditLog::ACTOR_PORTAL,
+            'actor_id' => $user->getKey(),
+            'actor_label' => null,
             'before' => null,
             'after' => [
                 'reference' => $incident->reference,
                 'reported_to_us_at' => $incident->reported_to_us_at?->toIso8601String(),
-                'reported_by_email' => $user->email,
+                'reported_by_portal_user_id' => $user->getKey(),
                 'personal_data_involved' => $incident->personal_data_involved,
                 'customer_impact' => $incident->customer_impact,
             ],
             'ip' => request()?->ip(),
-            'user_agent' => \App\Support\Audit\AuditText::userAgent(),
+            'user_agent' => AuditText::userAgent(),
         ]);
     }
 

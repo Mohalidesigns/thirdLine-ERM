@@ -1252,6 +1252,242 @@ for which period, and a human assembles nothing. Three limits:
 
 ---
 
+## 12. `tp_audit_logs` — the TPRM audit trail's actor fields (post-go-live hardening, ADR 0028)
+
+**Why a TPRM table is in a register titled BCMS.** TPRM has no register of its
+own. `ndpa-register-platform.md` is explicitly scoped to unprefixed tables and says
+`tp_*` is TPRM, so it is not the right home either. This file already crosses into
+`tp_*` at §11.1. Until the module registers are folded into one product-wide
+register (the end state `ndpa-register-platform.md` names), TPRM entries go here,
+under their own heading. **Production runs TPRM ON**, so this is live processing,
+not a design.
+
+Checked against the code on `fix/post-golive-hardening`, 2026-10-14, including the
+uncommitted working tree.
+
+### 12.1 The processing activity
+
+| | |
+|---|---|
+| **Table** | `tp_audit_logs`, created by `2026_09_06_110009_create_tprm_portal_governance_tables.php`. Model `App\Models\Tprm\AuditLog` |
+| **Purpose** | An append-only, tamper-evident record of who changed what in the third-party risk programme. It covers engagements, contracts, assessments, risk acceptances, waivers, incidents, access grants and vendor portal activity. It is the trail behind the CBN register, the DORA register, the PCI 12.8 pack and the supervisory export that ADR 0025 has booked. **The actor fields exist so that a vendor's act is never shown as a colleague's, or as the platform's** (model docblock; ADR 0028) |
+| **Writers** | `TprmAuditable::writeAuditRow()` on 26 audited TPRM models. Direct `AuditLog::create()` in `PortalAuthService`, `PortalIncidentService`, `VendorIdentityService`, `TrustProfileService`, `IntakeService`, `EvidenceService`, `AccessService`, `ClauseAnalyzer`, `NotificationDraftService` and `ObligationClockService` |
+| **Readers** | **None in the application** (ADR 0028 §Context, re-checked). `TprmAuditable::auditLogs()` is called only by tests. No screen, grid, export, pack or prompt reads this table |
+| **Data subjects** | (a) **Vendor personnel** who hold `tp_portal_users` accounts. They are not the bank's employees and are not covered by its staff privacy notice. (b) **Internal staff** (`users`). (c) **People named inside payloads**: vendor staff granted access to bank systems, sanctions-screening subjects, and anyone a vendor names in an incident description (§12.5) |
+| **Mutability** | **Append-only and hash-chained.** The `updating` and `deleting` hooks throw. Each row's `hash` is `sha256(HASH_RECIPE \| previous_hash \| canonical(HASHED_FIELDS))` under recipe `tp_audit_logs/v2`. All three actor fields, `before`, `after`, `ip`, `user_agent` and `correlation_id` are in `HASHED_FIELDS`. **ADR 0025 forbids re-sealing.** No field of a written row can be changed without breaking the chain from that row onward. That is the point of the design, and it is also NDPA s.24(1)(f) and s.24(2) (integrity of personal data) working as intended |
+
+### 12.2 The actor fields — the contract, and the state of the tree
+
+**The contract, per the user's decision of 2026-10-14 (ADR 0028 §2, as amended 2026-10-14):**
+
+| `actor_type` | `actor_id` | `actor_label` |
+|---|---|---|
+| `user` | `users.id` | the user's **name**, through `AuditText::clip(…, 200)`. This is existing practice and it is kept |
+| `portal` | `tp_portal_users.id` of the authenticated vendor, or `null` before authentication | **`null`, always.** The vendor's identity is reached only through `actor_id` → `tp_portal_users` |
+| `system` | `null` | `null` |
+
+**Why the label is null for a vendor.** The design aims to meet an NDPA s.34(1)(d)
+erasure request by **pseudonymising the `tp_portal_users` row** without touching a
+sealed row. NDPA s.65 defines pseudonymisation as processing after which data "can
+no longer be attributed to a specific data subject without the use of additional
+information", where that information is kept separately. The `tp_portal_users` row
+is that additional information. **The design only works if no sealed field carries
+the identity directly.** §12.5 shows that today several fields still do.
+
+**State of the tree, re-read 2026-10-14 after the amendment was built. The contract
+is implemented.** Every portal writer now writes `actor_label => null`:
+
+- `TprmAuditable::resolveAuditActor()` returns `[ACTOR_PORTAL, $portalUser?->getKey(), null]`;
+- `PortalIncidentService::auditReceipt()` (line 108), `VendorIdentityService::audit()`
+  (line 171), `TrustProfileService::audit()` (line 297) and
+  `PortalAuthService::audit()` (line 498) all write `null`.
+
+**No production row has ever carried a vendor email in `actor_label`.** An earlier
+read of this tree found the email there, uncommitted. That never reached production
+(`main` @ `056ec5a`), and the amendment removed it before commit.
+
+**Which portal rows name the vendor in `actor_id` (ADR 0028 A3).**
+`PortalAuthService::audit()` takes an explicit `$portalUserId` and writes
+`actor_id => $userId ?? $portalUserId`. Only two events pass it, and both are
+written after the vendor has proven who they are on this request:
+
+- `portal_signed_in` carries the vendor's `tp_portal_users.id`;
+- `portal_signed_out` carries the vendor's `tp_portal_users.id`.
+
+**Pre-authentication events keep `actor_id` null**, so that an attempt is never
+pinned on its target: `portal_account_locked` (the outcome of failed attempts; a
+failed attempt below the threshold writes no trail row), `portal_mfa_code_sent`,
+`portal_mfa_code_send_failed`, `portal_mfa_enrolled` and `portal_account_created`.
+On those rows the account is identified by `auditable_id` → `PortalUser` and by
+`after.portal_user_id`, never by the actor. `portal_invited` is written by an
+internal user (`actor_type = user`). Vendor model writes through the trait, and the
+three portal service writers, carry the authenticated vendor's id.
+
+**Rows written before ADR 0028 deploys.** On those rows, model writes caused by a
+vendor say `system` with null actor fields. The explicit portal events say
+`portal`, also with null actor fields. In both cases the vendor's identity is
+recoverable **only from the payload** (§12.5) or, for auth events, from
+`auditable_id` → `tp_portal_users`.
+
+### 12.3 What is held, field by field
+
+| Field | Personal data? | Notes |
+|---|---|---|
+| `actor_id` | **Yes, pseudonymous** while the `tp_portal_users` or `users` row it points to exists unaltered. There is no foreign key, so deleting either row leaves the id dangling rather than nulling it | After the target row is pseudonymised, the id is personal data only to the extent that something else in the trail re-identifies it. §12.5 says what does |
+| `actor_label` | **Yes** for `user` (a name). **None** for `portal` once the contract is implemented | Sealed. A staff member's name in this column **cannot be erased** (§12.6) |
+| `ip` | **Yes.** NDPA s.65 lists "an online identifier" among the identifiers in its definition of personal data | **Not** passed through `AuditText`: the code writes `request()?->ip()` raw into `string(45)`. Written on every trait row and on every portal row. No `TrustProxies` configuration exists in `bootstrap/`, so whether this is the client's address or a proxy's depends on the deployment. **To confirm** on the VPS |
+| `user_agent` | **Yes in combination** (with `ip` and `created_at` it forms a device fingerprint) | `AuditText::userAgent()`: scrubbed to valid UTF-8 and clipped to 500 characters (`90843bf`). That is an integrity control (a vendor cannot suppress their own row), not a minimisation control |
+| `correlation_id` | No, unless a caller puts an identifier in the header | `AuditText::clip(…, 64)`, trait path only |
+| `auditable_type` / `auditable_id` | **Yes** when the auditable is `PortalUser` (every portal auth event) or `PortalInvitation` | It points at the person's own row |
+| `before` / `after` | **Yes.** See §12.5 | Sealed |
+| `created_at` | Yes in combination | Time of the act, to the second |
+
+### 12.4 Lawful basis
+
+**NDPA s.25(1)(b)(v), legitimate interest.** A bank has a legitimate interest in
+keeping an integrity-protected record of who acted on its third-party risk
+programme, including acts by vendor personnel on its supplier portal. A record that
+cannot attribute an act cannot evidence the oversight that the CBN and DORA
+registers report. The s.25(2) tests are met as follows:
+
+- (a) the interest does not override the subject's rights, because the record holds
+  work identities and acts, not private life;
+- (b) the interest is not incompatible with another basis;
+- (c) a vendor's employee signing into a bank's supplier portal can reasonably expect
+  their actions there to be logged. That expectation has to be **created by notice**
+  (s.27), and the notice is the open question below.
+
+**Legal obligation (s.25(1)(b)(ii)) is not claimed.** This follows §7.3's reasoning.
+CBN's expectations of third-party risk management supply the *purpose*. That
+includes the CBN Risk-Based Cybersecurity Framework for DMBs and PSBs (2024), which
+a secondary mapping places at Part 2.4, and the outsourcing expectations the module
+already cites (`ServiceReviewService`, "CBN Outsourcing Guidelines §5.2"). **I could
+not retrieve the primary text of either instrument in this pass** (cbn.gov.ng
+returned 403), and I have not read any CBN provision that requires *this* trail,
+these fields, or a retention period for them. Claiming one would be inventing a
+Nigerian requirement. Counsel can upgrade the basis if they find one.
+
+**Consent is not the basis and should not be sought.** A vendor's employee cannot
+decline the logging and still use the portal. Under s.26(2), consent made a
+condition of the service would not be freely given.
+
+**Internal staff: the same basis**, alongside the employment contract
+(s.25(1)(b)(i)). This mirrors `ndpa-register-platform.md` §1.
+
+### 12.5 Payloads that carry the vendor's email — the identity the actor contract was meant to keep out
+
+The reviewer's finding was confirmed, and it was wider than one event. Before the
+ADR 0028 amendment, every portal writer below put `$user->email` (or the invitee's
+email) into a sealed `after` payload. **Every one of those historic rows defeats
+§12.2's pseudonymisation on its own**, because the same vendor's `actor_id`, or
+`auditable_id` → `PortalUser`, sits beside an email in the same chain.
+
+**Fixed for new rows by the amendment, 2026-10-14. Re-read in the tree:** no portal
+writer's payload carries an email any more. The left-hand column names writers by
+method because line numbers move. "Historic rows" means production rows written
+before the amendment deploys.
+
+| Writer | `event` | Historic rows: payload key (sealed, permanent) | New rows: payload |
+|---|---|---|---|
+| `PortalAuthService::invite()` | `portal_invited` (actor `user`, auditable `PortalInvitation`) | `after.email` | `third_party_id`, `role`. **No identifier for the invitee at all**: the address is only in `tp_portal_invitations.email`, reached by `auditable_id` |
+| `PortalAuthService::accept()` | `portal_account_created` | `after.email` | `portal_user_id`, `third_party_id` |
+| `PortalAuthService::sendEmailCode()` | `portal_mfa_code_send_failed` | `after.email` | `portal_user_id` |
+| `PortalAuthService::sendEmailCode()` | `portal_mfa_code_sent` | `after.email` | `portal_user_id`, `expires_at` |
+| `PortalAuthService::confirmMfaEnrolment()` | `portal_mfa_enrolled` | `after.email` | `portal_user_id` |
+| `PortalAuthService::completeMfa()` | `portal_signed_in` | `after.email`, on every sign-in by every vendor since go-live | `portal_user_id` (and `actor_id`, §12.2) |
+| `PortalAuthService::logout()` | `portal_signed_out` | `after.email` | `portal_user_id` (and `actor_id`) |
+| `PortalAuthService::recordFailure()` | `portal_account_locked` | `after.email` | `portal_user_id`, `attempts` |
+| `PortalIncidentService::auditReceipt()` | `incident_reported_by_vendor` | `after.reported_by_email` | `after.reported_by_portal_user_id` |
+| `VendorIdentityService::audit()` | identity events | `after.email` | the event's own keys; email no longer appended |
+| `TrustProfileService::audit()` | trust-profile events | `after.email` | the event's own keys; email no longer appended |
+
+**The remaining email-derived value.** `VendorIdentityService`'s `ThirdParty`
+update stores `primary_domain`, which is derived from the vendor's email domain.
+For a corporate domain that is organisational data. For a sole trader on a
+personal-name domain, it could identify a person. This is minor and is recorded
+rather than treated as a defect.
+
+**Why the id-only position costs no evidence.** It was recommended in this
+register's first version and has now been built:
+
+- `tp_portal_users.email` is stable. No code path changes a portal user's email: I
+  grepped `app/` for an assignment or an update of `email` and found only the
+  internal `UserManagementController`.
+- So `actor_id` / `auditable_id` → `tp_portal_users.email` gives the same answer the
+  payload gives, for as long as the person has not asked to be erased. After an
+  erasure, losing that answer is the purpose.
+- For `portal_invited`, no portal user exists yet. The id is the
+  `PortalInvitation`'s `auditable_id`, and `tp_portal_invitations.email` then joins
+  the erasure scope (§12.6).
+- Changing payload **content** does not change `HASH_RECIPE`, `HASHED_FIELDS` or the
+  recipe pin, so `AuditLogHashRecipeTest` is unaffected by this change.
+
+**Historic rows cannot be changed.** Every production row already written with an
+email keeps it for the life of the trail (ADR 0025 §3). The owner must accept this
+as residual risk R1 (§12.8).
+
+**Payload personal data the actor contract does not reach.** These come from the
+trait's full-attribute snapshot on `created`, and its changed-attributes snapshot
+on `updated`. Only `password`, `remember_token`, `mfa_secret`, `credentials`,
+`token_hash` and `updated_at` are excluded.
+
+- `AccessGrant`: `grantee_name` and `grantee_email`, i.e. vendor staff given access to
+  bank systems.
+- `ScreeningMatch`: `matched_name`. This is a sanctions or PEP screening subject's
+  name, and a screening result about an individual is the most sensitive item in
+  this list.
+- `Incident`: `title` and `description`, vendor free text that can name people.
+- `AccessService` line 150: `connection_closed_without_evidence`, `after.reason`,
+  free text.
+
+**These are not a defect to remove.** Who was granted privileged access is itself
+the evidence (PCI 12.8; access recertification). They are registered so that the
+erasure position in §12.6 is not read as covering them.
+
+### 12.6 Retention and erasure
+
+| | |
+|---|---|
+| **Retention** | **The life of the trail.** No purge or prune command touches `tp_audit_logs`: `app/Console/Commands` was enumerated, and only `PruneLlmUsageEvents` and `ConfigImport` mention pruning. The only deletion path is the `organization_id` foreign key's `cascadeOnDelete()`, so deleting a tenant's organisation deletes its trail at database level, bypassing the model's `deleting` hook. **NDPA s.24(1)(d) requires retention "not longer than is necessary"**, and "for ever" is not a figure. This register does not invent one. The DPO sets it against the bank's record-retention schedule (open question 17). Any purge of a hash chain is a chain-truncation design, which needs an ADR (architect), not a `DELETE` |
+| **Erasure, vendor portal user** | **Sealed rows are never altered.** An s.34(1)(d) request is met by **pseudonymising the person's own rows outside the trail**: `tp_portal_users.email` → a unique non-address such as `erased+{id}@invalid` (the `(organization_id, email)` unique index must still hold), `name` → a fixed placeholder, password and MFA cleared, status disabled. The same applies to `tp_portal_invitations.email` and to any `tp_contacts` row for the same person. `PortalUser` is **not** `TprmAuditable` (checked: it is not among the 26 models), so this pseudonymisation writes **no** trail row carrying the old email in `before`. **Any erasure tool built later must keep it that way.** **No such tool exists today.** It is a manual database operation, owned by `backend-engineer` if it is to become a feature |
+| **Erasure, internal user** | Pseudonymising `users` **does not** remove the person from this trail, because `actor_label` holds their name in a sealed column. The retention position rests on s.34(2)(b): erasure is owed where the controller "has no other lawful basis to retain", and §12.4's accountability basis is that other basis for as long as the trail is needed. This is defensible, it is the same trade §11.4 records for competency scores, and it has to be **stated in the staff privacy notice** |
+| **What remains after a vendor is pseudonymised** | `actor_id` and `auditable_id` (now pointing at a placeholder row); `ip`; `user_agent`; `created_at`; every **historic payload email** (§12.5 table); and, on pre-ADR-0028 rows, whatever the payload holds. **On rows written after the payload fix**, what remains is an id, a timestamp, an IP address and a user-agent string. The IP is personal data under s.65. With the user agent it can re-identify a person to anyone holding the vendor's network logs. **There is no erasure path for it** (residual R2) |
+| **Restriction (s.34(1)(e))** | Satisfied structurally: no application reader exists. When the booked supervisory export is built, it must render a pseudonymised portal user as "vendor (portal), identity erased", **not** as an unknown actor. That follows ADR 0028 §4's rule against re-spelling |
+
+### 12.7 Residency, access and DSAR
+
+| | |
+|---|---|
+| **Residency** | The application database. Production runs **MySQL 8.0.46 on the VPS that serves `/var/www/thirdLine-ERM`** (CLAUDE.md, found 2026-10-03). **The VPS provider, the country it is hosted in, and where its database backups go are to be confirmed. I could not verify them and do not assert them.** If any of them is outside Nigeria, NDPA s.41 engages for this table and for every other table in the database. No processor receives this table, and no export of it exists |
+| **Access** | No application screen or route reads it. Access today is database access: whoever holds the production DB credentials, plus backups. **To confirm**: who holds them at the bank |
+| **DSAR (s.34(1)(a)–(b))** | **No export exists.** A response is a developer's query: `actor_type='portal' AND actor_id=?`, plus `auditable_type` = the `PortalUser` FQCN `AND auditable_id=?`, plus a text search of `before`/`after` for the person's portal-user id (new rows store it as `portal_user_id` or `reported_by_portal_user_id`) and for their email (historic rows identify the vendor only there). Keep the search to plain `LIKE`, not MySQL-8-only JSON functions (CLAUDE.md). The same gap as `ndpa-register-platform.md` §3 |
+| **Clause codes** | **None new.** Substance maps to `ndpa.lawful_basis`, `ndpa.retention` and `ndpa.residency`, which are BCMS enum cases with no reach over a `tp_*` table. This is the same platform-taxonomy finding as `ndpa-register-platform.md` §2, and TPRM has none of its own either |
+
+### 12.8 Residual risks the owner must accept, or direct to be fixed
+
+| # | Risk | Can it be fixed? |
+|---|---|---|
+| **R1** | **Historic sealed payloads carry vendor emails** (eleven writers, §12.5): every invitation, account creation, MFA event, sign-in, sign-out and lockout since go-live. For any vendor who has ever signed in, pseudonymising `tp_portal_users` **does not** achieve erasure, because the email is in the chain beside their id | **No, for existing rows** (ADR 0025 forbids re-sealing). **New rows are fixed:** the ADR 0028 amendment of 2026-10-14 replaced each email with the portal-user id (§12.5). What remains for the owner to accept is the historic rows only |
+| **R2** | **`ip` and `user_agent` are sealed personal data with no erasure path.** `ip` is an "online identifier" under s.65 and is stored unminimised (not truncated) | Not for sealed rows. For new rows, truncating the IP before sealing (e.g. /24 for IPv4) is possible, but it weakens the forensic value that is half the trail's purpose. **This is a DPO-and-architect decision; I do not recommend either way without them** |
+| **R3** | **Internal staff names in `actor_label`** are sealed for the trail's life | Accept, with a notice (§12.6). The alternative, id-only for staff as well, is the same design as the vendor decision and could be adopted for new rows by an ADR. It has not been decided |
+| **R4** | **Third-party personal data inside payloads** (§12.5: grantee name and email, screening `matched_name`, incident free text) is outside the actor contract and outside any erasure path | Accept on evidential grounds, or redesign specific models' `auditExcluded()`. The latter loses access-grant evidence, so this register advises against it for `AccessGrant` |
+| **R5** | **No retention period** (§12.6). Indefinite in fact | Needs the DPO's figure, then an ADR for chain truncation |
+| **R6** | ~~**The amendment is not in the tree** (§12.2). If the branch is committed and deployed as read today, vendor emails are sealed into `actor_label`~~ | **RESOLVED by ADR 0028 as amended 2026-10-14.** Re-read in the tree: all five portal `actor_label` sites write `null`, and no portal payload carries an email. Struck rather than deleted, so the record shows that it was found and closed before commit. No production row was affected |
+
+### 12.9 Sufficiency — could an examiner be shown this in one click?
+
+**Ask: "show me everything vendor X's staff did on your portal last quarter, and who
+at the bank approved their access."** **No.** The data is held and its integrity can
+be proven, but no reader, screen or export exists (ADR 0028). The answer today is a
+developer's query. The booked supervisory export (ADR 0025) is what makes it one
+click. That export must also carry the sentence ADR 0028 §7 leaves to this
+register: **"Before 2026-10-05, vendor model writes in this trail are recorded as
+`system`; vendor identity on those rows is in the event payload or the audited
+record, not in the actor fields."** The date in that sentence should become the
+deploy date of ADR 0028 once it is known.
+
+---
+
 ## Open questions for the client's DPO — Week 1 blockers
 
 These are listed as a Week-1 non-engineering blocker in Orchestration §9 and are
@@ -1344,6 +1580,26 @@ not an agent's to answer.
     evidential grounds. Does the DPO accept it, and does the staff privacy notice
     say it?
 
+### Added at post-go-live hardening (ADR 0028), 2026-10-14
+
+17. **A retention period for `tp_audit_logs`** (§12.6). Today the trail is kept
+    for ever and nothing can delete it except deleting the tenant. What figure does
+    the bank's record-retention schedule set for third-party oversight records? Once
+    there is a figure, the architect owes a chain-truncation design. No `DELETE`
+    is acceptable on a hash chain.
+18. **Residual risks R1–R5** (§12.8): historic sealed vendor emails, sealed
+    IP and user-agent values, sealed staff names, and third-party data in payloads.
+    Each needs to be accepted or directed. R2 (truncate IPs before sealing, or not)
+    is a forensic-against-minimisation decision, and only the DPO can make it.
+19. **The portal privacy notice.** Vendor personnel are not covered by the
+    bank's staff notice. Does the supplier portal tell them, as s.27 requires, that
+    their sign-ins, IP address and device string are kept in a tamper-evident log,
+    for how long, and on what basis? If it does not, §12.4's reasonable-expectation
+    limb rests on nothing.
+20. **Where the production VPS and its backups are hosted** (§12.7). This applies
+    to every table, not only this one, and should be answered once for the whole
+    deployment.
+
 ## HANDOFF — Phase 0 (historical)
 
 **Phase:** P0 — Foundations & schema freeze
@@ -1406,3 +1662,16 @@ not an agent's to answer.
 **Known gaps:** no purge command (§10, unchanged). 11.1 case-mismatch vendor id 0. 11.2 no audit row, no upload size limit, temp file left behind on a writer failure. 11.3 finding descriptions printed verbatim into board packs. 11.6 export log capped at 50 rows, with other export doors not checked
 **Next agent:** `backend-engineer` (11.1, 11.2, and 11.4's scoping fix to all five rules), then `qa-engineer` and `code-reviewer`
 **Verification run:** code read 2026-09-23 on `integration/bcms-remaining`, as listed in 11.1–11.4. No suite run, no database touched. Examiner walkthrough "who took personal data out in a report this year": partly one click (11.6)
+
+## HANDOFF — post-go-live hardening, ADR 0028 (TPRM audit-trail actor fields)
+
+**Phase:** post-go-live hardening (`fix/post-golive-hardening`). TPRM `tp_audit_logs` actor contract, ADR 0028 amendment of 2026-10-14
+**Agent:** compliance-analyst
+**Status:** complete. Revised the same day after the ADR 0028 amendment was built: §12.2, §12.5, §12.7 and R1 were updated, and R6 is marked resolved
+**Delivered:** `docs/compliance/ndpa-register.md`, containing a new **§12** (12.1–12.9) and open questions 17–20. `ndpa-register-platform.md` was not touched: it is scoped to unprefixed tables and names `tp_*` as TPRM
+**Clause refs published:** none. The `ndpa.*` codes are BCMS-enum-scoped, which is the same finding as `ndpa-register-platform.md` §2
+**Contracts touched:** none. Documentation only
+**Assumptions made:** the user's decision of 2026-10-14 (vendor `actor_label` null; identity through `actor_id` → `tp_portal_users`) is the contract, and the amended tree now implements it. Legitimate interest is the basis. No CBN clause is claimed, because the primary CBN text could not be retrieved
+**Known gaps:** R1–R5 in §12.8 (R6 resolved). No erasure tool, no DSAR export, no reader, no retention period. VPS hosting country and backup location unconfirmed
+**Next agent:** `qa-engineer` and `code-reviewer`, for the ADR 0028 amendment, which is now built. `architect` for R2, R3 and the chain-truncation question. The client's DPO for questions 17–20
+**Verification run:** read on 2026-10-14 in the worktree: `AuditLog`, `TprmAuditable`, `AuditText`, the `tp_portal_users` and `tp_audit_logs` migrations, all four portal writers, `PortalAuthService` in full, `AccessService`, ADR 0028, `PortalActorAttributionTest`. Grepped every `actor_*` writer, every `TprmAuditable` model, every prune command, every email write in `app/`, and `TrustProxies`. NDPA 2023 ss.24, 25, 26, 34 and 65 read from the gazetted text (DataGuidance copy). The CBN 2024 framework PDF returned 403, and nothing is cited from it beyond its existence. No suite run, no database touched. **Examiner walkthrough, "show me what vendor X's staff did on your portal": not one click. There is no reader; this is the booked supervisory export (§12.9).**

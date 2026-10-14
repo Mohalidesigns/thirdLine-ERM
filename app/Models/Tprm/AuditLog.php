@@ -26,9 +26,12 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  *   append-only" rests on nobody having run an UPDATE, which is not a
  *   statement anyone can make about a production database.
  *
- * `actor_type` distinguishes `user`, `portal_user` and `system`. A vendor's
+ * `actor_type` distinguishes `user`, `portal` and `system`. A vendor's
  * action recorded as a colleague's would misrepresent the record on exactly
- * the export where it matters most — the supervisory one.
+ * the export where it matters most — the supervisory one. The vendor's
+ * spelling is `portal`, not the TRD's `portal_user`: every row ever written
+ * says `portal`, and the chain makes a stored spelling permanent. See
+ * ADR 0028 for the actor contract (`actor_id` and `actor_label` per type).
  */
 class AuditLog extends Model
 {
@@ -74,8 +77,21 @@ class AuditLog extends Model
         'created_at',
     ];
 
+    /**
+     * The only spellings a writer may store in `actor_type` (ADR 0028).
+     *
+     * Writers use these constants, never a literal; AuditActorTypeLiteralsTest
+     * enforces it. A reader compares against them and shows any other value
+     * verbatim as unrecognised. It never maps one onto a known value.
+     */
+    public const ACTOR_USER = 'user';
+
+    public const ACTOR_PORTAL = 'portal';
+
+    public const ACTOR_SYSTEM = 'system';
+
     /** @var list<string> */
-    public const ACTOR_TYPES = ['user', 'portal_user', 'system'];
+    public const ACTOR_TYPES = [self::ACTOR_USER, self::ACTOR_PORTAL, self::ACTOR_SYSTEM];
 
     protected $fillable = [
         'organization_id',

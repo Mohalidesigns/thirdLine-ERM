@@ -113,6 +113,10 @@ class PortalAuditUserAgentTest extends TestCase
 
         $this->assertNotNull($row, 'the sign-in must leave an audit row');
         $this->assertSame('portal', $row->actor_type);
+        // Nobody has proven they are that vendor yet (ADR 0028 section 2).
+        $this->assertNull($row->actor_id);
+        // The POST carried the vendor's email; none of it may become the label.
+        $this->assertNull($row->actor_label);
         $this->assertNotNull($row->user_agent);
         $this->assertTrue(mb_check_encoding($row->user_agent, 'UTF-8'));
         $this->assertLessThanOrEqual(500, mb_strlen($row->user_agent, 'UTF-8'));

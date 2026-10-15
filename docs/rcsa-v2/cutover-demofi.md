@@ -11,7 +11,7 @@ the enterprise risk register; v2 reads the cycle tables. Users saw two
 "Dashboard"s with different numbers. Until a tenant cuts over, the legacy menu
 entries are relabelled **Register RCSA (legacy)**, **Legacy worksheet**,
 **Legacy risk matrix**, and every legacy screen carries a notice pointing at
-RCSA → Cycles / RCSA Dashboard. After cutover those three entries leave the menu.
+RCSA → Dashboard / Cycles. After cutover those three entries leave the menu.
 
 ## Before you run it
 
@@ -54,8 +54,8 @@ lists exactly what the commit will do.
 ## What changes (for DemoFI only)
 
 - The three legacy entries disappear from the **RCSA** menu section. The v2
-  entries (Universe, Cycles, My Assessments, ORM Review, Action Plans, RCSA
-  Dashboard, Export) stay.
+  entries (Dashboard, Universe, Cycles, My Assessments, ORM Review, Action
+  Plans, Export) stay, in that order.
 - The legacy worksheet **refuses submissions** and its Submit/Save buttons are
   hidden; it says work is filed under RCSA → My Assessments.
 - `/risk/rcsa/dashboard`, `/worksheet`, `/matrix`, `/controls` still load by URL

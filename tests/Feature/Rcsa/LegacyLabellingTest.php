@@ -55,6 +55,9 @@ class LegacyLabellingTest extends CycleTestCase
         $this->assertSame('Worksheet', $menu['risk.rcsa.worksheet']);
         $this->assertSame('Risk Matrix', $menu['risk.rcsa.matrix']);
         $this->assertArrayNotHasKey('rcsa.dashboard.index', $menu);
+
+        // Still exactly one entry called "Dashboard": the legacy one.
+        $this->assertSame(['risk.rcsa.dashboard'], array_keys($menu, 'Dashboard', true));
     }
 
     /**
@@ -83,11 +86,10 @@ class LegacyLabellingTest extends CycleTestCase
         $this->assertSame('Register RCSA (legacy)', $menu['risk.rcsa.dashboard']);
         $this->assertSame('Legacy worksheet', $menu['risk.rcsa.worksheet']);
         $this->assertSame('Legacy risk matrix', $menu['risk.rcsa.matrix']);
-        $this->assertSame('RCSA Dashboard', $menu['rcsa.dashboard.index']);
+        $this->assertSame('Dashboard', $menu['rcsa.dashboard.index']);
 
-        // One menu entry called "Dashboard" at most.
-        $this->assertLessThanOrEqual(1, count(array_keys($menu, 'Dashboard', true)));
-        $this->assertCount(0, array_keys($menu, 'Dashboard', true));
+        // One menu entry called "Dashboard", and it is the cycle-based one (RCSA-02).
+        $this->assertSame(['rcsa.dashboard.index'], array_keys($menu, 'Dashboard', true));
     }
 
     #[Test]
@@ -100,9 +102,33 @@ class LegacyLabellingTest extends CycleTestCase
         foreach (self::LEGACY_ROUTES as $route) {
             $this->assertArrayNotHasKey($route, $menu);
         }
-        $this->assertSame('RCSA Dashboard', $menu['rcsa.dashboard.index']);
+        $this->assertSame('Dashboard', $menu['rcsa.dashboard.index']);
         $this->assertArrayHasKey('rcsa.cycles.index', $menu);
         $this->assertArrayHasKey('rcsa.assessments.index', $menu);
+    }
+
+    /**
+     * Once the legacy entries are gone, the section reads in the order the work
+     * happens: overview, inventory, cycle, assessment, review, actions, export.
+     */
+    #[Test]
+    public function after_cutover_the_rcsa_menu_runs_in_the_order_the_work_happens(): void
+    {
+        $this->grant([
+            'rcsa_universe.view', 'rcsa_cycle.view', 'rcsa_assessment.view',
+            'rcsa_assessment.review', 'rcsa_actionplan.view', 'rcsa_export.bulk',
+        ]);
+        app(RcsaCutover::class)->cutOver($this->organization);
+
+        $this->assertSame([
+            'rcsa.dashboard.index' => 'Dashboard',
+            'rcsa.universe.index' => 'Universe',
+            'rcsa.cycles.index' => 'Cycles',
+            'rcsa.assessments.index' => 'My Assessments',
+            'rcsa.review.index' => 'ORM Review',
+            'rcsa.action-plans.index' => 'Action Plans',
+            'rcsa.exports.index' => 'Export',
+        ], $this->rcsaMenu());
     }
 
     /**

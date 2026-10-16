@@ -84,9 +84,41 @@ fi
 
 cd "$APP_DIR"
 
-echo "==> Pulling latest main"
+echo "==> Fetching latest main"
 git config --global --add safe.directory "$APP_DIR" || true
 git fetch --all --prune
+
+# ADR 0029. The site goes down BEFORE `git reset` and `composer install`, not
+# before `migrate`. `composer install` runs Laravel's postAutoloadDump, which
+# deletes bootstrap/cache/config.php, so from that moment every new process
+# reads config/ from disk, not from the previous release's cache. That matters
+# whenever a release changes how a database session behaves: ADR 0029's UTC
+# pin is the case that needs it, and once the pin lands a writer between there
+# and the end of `migrate` would put true-UTC values into tables its
+# conversion has not reached yet, which the conversion would then shift again.
+# The same window keeps new code off the old schema for every deploy.
+#
+# `down` runs here on the PREVIOUS release's code and cached config. php-fpm
+# answers 503 before the framework boots, and schedule:run skips every event.
+# The build time is therefore downtime; that cost is accepted. A failed fetch
+# above costs none.
+#
+# If anything below fails, the site STAYS down: that is deliberate, and the
+# ERR trap says so. Do not run `php artisan up` by hand — see the preflight
+# failure message, and docs/DEPLOYMENT.md.
+echo "==> Maintenance mode on"
+php artisan down --retry=60
+trap 'echo "!!  DEPLOY FAILED IN MAINTENANCE MODE: the site is serving 503. See docs/DEPLOYMENT.md."' ERR
+
+# The drain. SIGTERM lets the job in flight finish and systemctl blocks until
+# the worker has exited. The replacement boots on the previous release and
+# parks, because a worker does not run jobs while the application is down
+# (unless its unit passes --force; docs/DEPLOYMENT.md says to check). It does
+# not run a job until the final restart below replaces it.
+echo "==> Draining the queue worker"
+sudo /usr/bin/systemctl restart risk-queue
+
+echo "==> Resetting to origin/main"
 git reset --hard origin/main
 
 echo "==> PHP dependencies"
@@ -95,6 +127,31 @@ composer install --no-dev --optimize-autoloader --no-interaction
 echo "==> Frontend build"
 npm ci --no-audit --no-fund
 npm run build
+
+# A schedule:run that cron started just before `down` is still running its
+# foreground commands on the old configuration. Let it finish before anything
+# is converted. The build has usually outlasted it already. Two consecutive
+# empty polls are required, so a run cron starts between one poll and the next
+# is seen. The bound is 5 minutes, so drain + build + wait + conversion fit in
+# the workflow's 40m command_timeout. On timeout `false` fires the ERR trap
+# (a bare `exit 1` would not), with the site still down, rather than migrating
+# under a live writer. Needs `deploy` to see other users' processes (no hidepid).
+echo "==> Waiting for any in-flight schedule:run"
+quiet=0
+for _ in $(seq 1 60); do
+    if pgrep -f 'artisan schedule:run' >/dev/null; then
+        quiet=0
+    else
+        quiet=$((quiet + 1))
+        [[ "$quiet" -ge 2 ]] && break
+    fi
+    sleep 5
+done
+if [[ "$quiet" -lt 2 ]]; then
+    echo "!!  schedule:run still running after 5 minutes; not migrating under a live writer."
+    echo "!!  The site is in MAINTENANCE MODE and serving 503."
+    false
+fi
 
 echo "==> Migrations"
 php artisan migrate --force
@@ -124,23 +181,20 @@ ensure_runtime_permissions
 # than the previous one — several checks read the database, and the module gate
 # reads config('features.*') as cached.
 #
-# And deliberately BEFORE the restart. It is the last point where this script
-# can decline to put new workers into service. Not a perfect boundary: the code
-# is already on disk from the git reset above, and php-fpm picks up changed
-# files on its own unless opcache.validate_timestamps=0 — but the queue worker
-# keeps running the old code until it is restarted, and a failed deploy that
-# stops here is far easier to reason about than one that completed.
-#
-# Migrations have already run by this point. That is unavoidable without a
-# more elaborate scheme and is worth knowing: a preflight failure means the
+# And deliberately BEFORE the restart: the last point where this script can
+# decline to put new workers into service. The site is in maintenance mode
+# throughout, so a failure here leaves it serving 503, the worker parked on the
+# previous release, and nothing writing. Migrations have already run: the
 # schema moved and the services did not.
 echo "==> Preflight"
 if ! php artisan app:preflight; then
     echo
     echo "!!  PREFLIGHT FAILED — services were NOT restarted."
-    echo "!!  New code is on disk and migrations have run; the queue worker is still"
-    echo "!!  on the previous release. Fix what preflight reported, then re-run the"
-    echo "!!  deploy. Do not restart the services by hand to 'get it up'."
+    echo "!!  The application is in MAINTENANCE MODE (serving 503), the queue worker is"
+    echo "!!  parked and nothing is writing. Fix what preflight reported, then re-run the"
+    echo "!!  deploy. Do NOT run 'php artisan up' by hand without first running"
+    echo "!!  'sudo systemctl restart risk-queue': the parked worker is on the previous"
+    echo "!!  release's code and configuration and must not resume against this one."
     echo
     exit 1
 fi
@@ -148,5 +202,8 @@ fi
 echo "==> Restart services"
 sudo /usr/bin/systemctl restart php8.4-fpm
 sudo /usr/bin/systemctl restart risk-queue
+
+echo "==> Maintenance mode off"
+php artisan up
 
 echo "==> Deploy complete: $(git rev-parse --short HEAD)"

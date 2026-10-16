@@ -131,7 +131,7 @@ export default function GridTable({ grid, state, selected, selectingAll, onToggl
         return (
             <div className="relative bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="text-center py-14 px-6">
-                    <Icon name={grid.emptyIcon} className="w-10 h-10 text-gray-300 mb-2 block" />
+                    <Icon name={grid.emptyIcon} className="w-10 h-10 text-gray-300 mb-2 block mx-auto" />
                     <p className="text-sm text-gray-500">{grid.emptyMessage}</p>
                     {dirty && (
                         <button type="button" onClick={state.clear} className="mt-3 text-xs text-[var(--color-primary)] font-medium hover:underline">

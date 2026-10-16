@@ -147,6 +147,8 @@ import {
     TagIcon,
     UserCircleIcon,
     ViewfinderCircleIcon,
+    DocumentArrowDownIcon,
+    InboxArrowDownIcon,
 } from '@heroicons/react/24/outline';
 
 // Heroicons has no bare ring; radio_button_unchecked pairs with check_circle/star toggles.
@@ -335,6 +337,13 @@ const MAP = {
     visibility_off: EyeSlashIcon,
     workspace_premium: TrophyIcon,
     radio_button_unchecked: CircleIcon,
+    construction: WrenchScrewdriverIcon,
+    csv: DocumentTextIcon,
+    monitoring: PresentationChartLineIcon,
+    move_to_inbox: InboxArrowDownIcon,
+    outbox: ArrowUpTrayIcon,
+    picture_as_pdf: DocumentArrowDownIcon,
+    table_view: TableCellsIcon,
     // Seeded object-type, entity-type and risk-category icons (stored per row).
     apps: Squares2X2Icon,
     balance: ScaleIcon,

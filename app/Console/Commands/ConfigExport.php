@@ -55,13 +55,7 @@ class ConfigExport extends Command
         $this->line('  '.$bundle->totalRows().' row(s) total.');
 
         if ($path = $this->option('file')) {
-            file_put_contents($path, json_encode([
-                'code' => $bundle->code,
-                'name' => $bundle->name,
-                'version' => $bundle->version,
-                'checksum' => $bundle->checksum,
-                'payload' => $bundle->payload,
-            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            file_put_contents($path, $exporter->document($bundle));
 
             $this->info("Written to {$path}.");
         }

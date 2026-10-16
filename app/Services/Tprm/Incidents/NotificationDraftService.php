@@ -302,7 +302,7 @@ class NotificationDraftService
             'auditable_type' => NotificationDraft::class,
             'auditable_id' => $draft->getKey(),
             'event' => $event,
-            'actor_type' => 'user',
+            'actor_type' => AuditLog::ACTOR_USER,
             'actor_id' => $after['approved_by'] ?? $after['submitted_by'] ?? null,
             'before' => null,
             'after' => $after + ['regulator' => $draft->regulator->value, 'incident_id' => $draft->incident_id],

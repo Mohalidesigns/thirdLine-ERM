@@ -176,6 +176,59 @@ class ObserversAreSilentDuringMigrationsTest extends TestCase
     }
 
     #[Test]
+    public function a_nested_migrate_run_does_not_reopen_the_outer_runs_observers(): void
+    {
+        // A migration that runs the migrator again: the inner run fires its own
+        // MigrationsStarted / MigrationsEnded. With a boolean window the inner
+        // MigrationsEnded closed it while the outer run was still going, and
+        // the save below published a webhook mid-migration.
+        $innerDir = $this->migrationDir.'-inner';
+        File::ensureDirectoryExists($innerDir);
+        File::put($innerDir.'/2099_01_01_000001_an_inner_migration.php', <<<'PHP'
+            <?php
+
+            use Illuminate\Database\Migrations\Migration;
+
+            return new class extends Migration
+            {
+                public function up(): void {}
+
+                public function down(): void {}
+            };
+            PHP);
+
+        $this->subscribe(['risk.*']);
+
+        $openAfterInnerRun = null;
+        $depthAfterInnerRun = null;
+
+        try {
+            $this->runMigrationBody(function () use ($innerDir, &$openAfterInnerRun, &$depthAfterInnerRun) {
+                \Illuminate\Support\Facades\Artisan::call('migrate', [
+                    '--path' => $innerDir,
+                    '--realpath' => true,
+                    '--force' => true,
+                ]);
+
+                $openAfterInnerRun = app(MigrationWindow::class)->isOpen();
+                $depthAfterInnerRun = app(MigrationWindow::class)->depth();
+
+                $this->makeRisk(['title' => 'Backfilled after a nested migrate']);
+            });
+        } finally {
+            File::deleteDirectory($innerDir);
+        }
+
+        $this->assertSame(1, DB::table('migrations')->where('migration', '2099_01_01_000001_an_inner_migration')->count(),
+            'The inner run must actually have applied its migration, or this proves nothing.');
+        $this->assertTrue($openAfterInnerRun, 'The inner run\'s MigrationsEnded must not close the outer run\'s window.');
+        $this->assertSame(1, $depthAfterInnerRun);
+        $this->assertSame(0, WebhookDelivery::withoutGlobalScopes()->count(),
+            'A save after a nested migrate, still inside the outer one, is still a backfill.');
+        $this->assertFalse(app(MigrationWindow::class)->isOpen(), 'Once the outer run ends the window must close.');
+    }
+
+    #[Test]
     public function the_window_follows_the_migrators_own_events(): void
     {
         $window = app(MigrationWindow::class);

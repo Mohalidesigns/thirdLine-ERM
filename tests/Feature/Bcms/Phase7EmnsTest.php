@@ -1522,6 +1522,9 @@ class Phase7EmnsTest extends TestCase
     #[Test]
     public function the_redacted_pack_omits_address_and_response_text_and_says_so_on_its_face(): void
     {
+        // The preamble stamps "Exported" with now(), and it is built twice
+        // below and compared; a second boundary between the two failed CI.
+        $this->freezeSecond();
         $this->contacts(1);
         $alert = $this->alert(AlertSeverity::Urgent, ['sms']);
         app(AlertService::class)->release($this->cleared($alert), $this->operator->id);

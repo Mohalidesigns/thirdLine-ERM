@@ -6,9 +6,11 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Two jobs. `guards` runs everything that does not need a database, once.
+# Three jobs. `guards` runs everything that does not need a database, once.
 # `tests` runs the suite once per engine, and CI is green only when BOTH legs
-# pass. deploy.yml keys off this workflow's overall conclusion, which is
+# pass. `upgrade-rehearsal` upgrades a seeded copy of the release production
+# runs to this one, once per engine — the path a fresh-database suite cannot
+# see. deploy.yml keys off this workflow's overall conclusion, which is
 # `success` only when every job, and every matrix leg, succeeded — so a red
 # leg on either engine blocks the deploy.
 #
@@ -250,3 +252,169 @@ jobs:
       # so each engine answers it for itself.
       - name: Guard — deprecated schema paths
         run: php artisan schema:audit-deprecated
+
+  upgrade-rehearsal:
+    # The upgrade path, not a fresh install. Every other job migrates an EMPTY
+    # database, and an empty database cannot see a migration that breaks only
+    # on rows a real installation already holds. That is how PR #11's
+    # production upgrade stopped at migration 25 of 124 on 2026-10-04: a data
+    # migration saved a model for every existing organisation, an observer
+    # queried a table a later migration creates, and CI was green throughout
+    # (fixed in 02cf6df; DEVELOPMENT_STANDARD §16).
+    #
+    # So this job installs the BASE release — what production runs — seeds it
+    # the way a production server was seeded, and upgrades that populated
+    # database to the HEAD release with scripts/deploy.sh's database and
+    # application steps, in its order: composer install --no-dev, migrate
+    # --force, the permission-catalogue sync, the config/route/view caches and
+    # app:preflight. NOT rehearsed: deploy.sh's git fetch/reset (CI checks the
+    # two releases out instead), the front-end build (npm ci, npm run build),
+    # the runtime-permissions step on storage/ and bootstrap/cache, and the
+    # php8.4-fpm and risk-queue restarts. The logic lives in
+    # scripts/ci/upgrade-rehearsal.sh so it can be run, and tested, off CI.
+    #
+    # Its own job rather than a step in `tests`, so a red rehearsal never hides
+    # a red suite or the other way round; and it runs beside the suite, not
+    # after it, so it adds nothing to the wall-clock time of a run.
+    name: Upgrade rehearsal (${{ matrix.engine }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Read-only token: this job builds and runs code from the PR and needs
+    # nothing from the API but the clone.
+    permissions:
+      contents: read
+
+    # Both engines and not fail-fast, for the reasons on the `tests` job: an
+    # upgrade can break on one engine only (MySQL 8's error 1093, native json,
+    # explicit_defaults_for_timestamp), and production is MySQL 8.0.46 while
+    # the bank's estate is MariaDB 10.4. Keep these pins identical to the
+    # `tests` job's by hand: PreflightDatabaseEngineTest reads every image
+    # here too, but compares only the ENGINE names (MariaDB, MySQL), so a
+    # drifted version pin would pass it.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - engine: MariaDB
+            image: mariadb:10.4
+          - engine: MySQL
+            image: mysql:8.0.46
+
+    services:
+      database:
+        image: ${{ matrix.image }}
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: risk_rehearsal
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-start-period=30s
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: risk_rehearsal
+      DB_USERNAME: root
+      DB_PASSWORD: root
+
+    steps:
+      # Full history: the base commit has to be in the clone, and it is
+      # fetched here, so the later `git worktree add` is purely local and
+      # needs no credentials. On a pull request this checks out the PR's
+      # merge commit, i.e. what the base branch becomes when it merges.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The release production runs before this change deploys:
+      #   - pull_request: the merge-base of the PR's base branch
+      #     (pull_request.base.sha) and the checked-out merge commit, which is
+      #     that branch's tip when the run started;
+      #   - push to main: the commit main pointed at before the push
+      #     (github.event.before), else the first parent;
+      #   - workflow_dispatch: the merge-base with origin/main, or the first
+      #     parent when the run is on main itself.
+      - name: Resolve the base release
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          case "$EVENT_NAME" in
+            pull_request)
+              base="$(git merge-base "$PR_BASE_SHA" HEAD)" ;;
+            push)
+              base="$PUSH_BEFORE"
+              if [[ -z "$base" || "$base" =~ ^0+$ ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+                base="$(git rev-parse HEAD^1)"
+              fi ;;
+            *)
+              base="$(git merge-base origin/main HEAD)"
+              if [[ "$base" == "$head" ]]; then base="$(git rev-parse HEAD^1)"; fi ;;
+          esac
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "Rehearsing the upgrade $(git rev-parse --short "$base") -> $(git rev-parse --short "$head")"
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo, pdo_sqlite, pdo_mysql, sqlite3, gd, zip, bcmath
+          coverage: none
+
+      # The same key as the other jobs, computed before the base checkout
+      # exists (it goes under runner.temp, outside the workspace hashFiles
+      # sees), so this job shares their vendor/ cache. The base reuses head's
+      # vendor/ whenever the two composer.lock files are identical. Restore
+      # only: the script re-installs head with --no-dev, as deploy.sh does,
+      # and that stripped vendor/ must never be saved under the shared key.
+      - name: Restore Composer packages
+        uses: actions/cache/restore@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Check out the base release
+        env:
+          BASE_SHA: ${{ steps.base.outputs.base }}
+        run: git worktree add --detach "$RUNNER_TEMP/base" "$BASE_SHA"
+
+      - name: Database under test
+        run: |
+          # shellcheck disable=SC2016 # PHP variables, deliberately unexpanded
+          php -r '$p = new PDO("mysql:host=127.0.0.1;port=3306;dbname=risk_rehearsal", "root", "root");
+            foreach ($p->query("select version() as version, @@explicit_defaults_for_timestamp as explicit_defaults_for_timestamp,
+            @@log_bin as log_bin, @@collation_server as collation_server")->fetch(PDO::FETCH_ASSOC) as $k => $v)
+            { echo str_pad($k, 32), $v, PHP_EOL; }'
+
+      # Exits 0 early, and says so, ONLY when every path changed since base
+      # is documentation (docs/**, plans/**, *.md). Any other change, with or
+      # without a new migration, is rehearsed in full: deploy.sh runs the
+      # permission seeder, the caches and app:preflight on every deploy.
+      - name: Rehearse the upgrade (base → head)
+        run: ./scripts/ci/upgrade-rehearsal.sh "$RUNNER_TEMP/base" "$GITHUB_WORKSPACE"
+
+      - name: Upload application logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-rehearsal-logs-${{ matrix.engine }}
+          path: |
+            ${{ runner.temp }}/base/storage/logs/*.log
+            storage/logs/*.log
+          if-no-files-found: ignore
+          retention-days: 7

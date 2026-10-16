@@ -131,7 +131,7 @@ record before the tenant is known.
 | A dashboard tile | `WidgetPayloadPresenter` |
 | A long job | `hooks/useJobProgress` |
 | A document | `ThirdLine\Reporting\DocumentRenderer` |
-| A digest or comparison over a `json` column's value | `App\Support\CanonicalJson` (see section 15). It is stable on MySQL 8 only for values with no non-integral or out-of-range doubles. Quote floats before storing, as `Tprm\AuditLog::quoteFloats()` does. |
+| A digest or comparison over a `json` column's value | `App\Support\CanonicalJson` (see section 15). It is stable on MySQL 8 only for values with no non-integral or out-of-range doubles. Quote floats before storing, as `Tprm\AuditLog::quoteFloats()` does, or store the value sealed, as `ConfigBundle` does (ADR 0026). |
 
 Charts are Chart.js — a deliberate divergence from ThirdLine, settled as
 Decision 4 of the migration strategy.
@@ -169,7 +169,8 @@ Be explicit about this rather than trusting a green run.
 `AdminNavigationTest`, `PreflightRouteGuardTest`, `SecurityHeadersTest`,
 `PermissionCatalogCoversRoutesTest`, `NoSelfUpdatingTimestampColumnsTest`,
 `CanonicalJsonTest`, `AuditChainCrossEngineTest`, `AuditLogHashRecipeTest`,
-`scripts/parity-check.php`.
+`ConfigBundleCrossEngineTest`, `BundleChecksumRecipeTest`,
+`OutwardObserversHonourMigrationWindowTest`, `scripts/parity-check.php`.
 
 **When one turns red, find out which of three kinds it is before touching it:**
 bookkeeping that is now stale, a check coupled to the renderer rather than the
@@ -210,6 +211,24 @@ Never `->isPast()`/`->isFuture()` on a date cast, and never a bare `now()`
 against a DATE column. The same shape remains on some due-date readers,
 where "due today" reads as overdue; they are booked, not exempt.
 
+**A date-cast end of period written as an instant is `endOfDay()`, truncated
+to the second.** `KriMeasureMigrator` resolved every backfilled KRI breach at
+`Period::end_date` as cast, which is 00:00 on the period's last day, so a
+breach notified at 15:00 on the 31st resolved fifteen hours before it began
+and pulled the breach register's MTTR down (ADR 0027). Write
+`->endOfDay()->startOfSecond()`, or `DateBounds::endOfDay()`, which returns the
+same instant as a `Y-m-d H:i:s` string. Truncate rather than keep the
+microseconds: a `TIMESTAMP(0)` column stores `23:59:59.999999` as the next
+day's midnight on MySQL 8 and as `23:59:59` on MariaDB.
+
+**A reader of an interval treats end-before-start as null.** Not zero, which
+invents "resolved instantly", and not a negative number. A mean leaves such a
+row out of its numerator and its denominator, and is null when no measurable
+row is left: `MeasureBreach::hoursToResolve()`, `hoursToAcknowledge()` and
+`meanTimeToResolveHours()` do this. The repair cannot reach every source of an
+impossible interval, so the reader guards against all of them. Guarded by
+`MeasureBreachImpossibleIntervalTest` and `RepairBackfilledBreachResolutionTest`.
+
 ## 15. A digest over a `json` column hashes the decoded value, never the column's text
 
 MySQL 8 stores `json` as a binary type and returns it re-serialised (keys
@@ -225,9 +244,133 @@ mismatched about 1 time in 10 in the gate-2 measurement. A digest over a MySQL
 `json` column is therefore stable only for values with **no non-integral or
 out-of-range doubles**. A writer must quote floats (store each float's
 `serialize_precision = -1` text as a JSON string) or quantise them **before**
-storing. Do it at write time, never inside the digest: quoting at verify time
+storing. Or, when the stored value is read back as configuration and its types
+must survive (a config bundle), store it **sealed**: the column holds one JSON
+string whose content is `CanonicalJson::encode()` of the value. Neither engine
+parses a number inside a string. See `ConfigBundle::sealPayload()` and ADR 0026.
+Do it at write time, never inside the digest: quoting at verify time
 makes `72.5` and `"72.5"` hash alike and hides a type change. Do not rely on
 "we round to 4 dp" either. Nothing enforces it, and an audit trait records raw
 attributes, where a `decimal:N` cast has not run. Ints within int64 are exact
 on both engines. Guarded by `CanonicalJsonTest`, `AuditChainCrossEngineTest`
-and `AuditLogHashRecipeTest`. See ADR 0025 §1 and §2a.
+and `AuditLogHashRecipeTest`; the sealed form by `ConfigBundleCrossEngineTest`
+and `BundleChecksumRecipeTest`. See ADR 0025 §1 and §2a, and ADR 0026.
+
+## 16. An observer that turns a save into an outward event is silent while the migrator runs
+
+Any model observer or model-event listener that turns a save into something
+leaving the row returns early, as its **first statement**, while
+`App\Support\MigrationWindow::isOpen()`. That covers a webhook, a workflow
+start, a notification, an external call, or a queued job or event.
+
+```php
+public function created(Model $model): void
+{
+    if ($this->migrations->isOpen()) {
+        return;
+    }
+    // ...
+}
+```
+
+The first production upgrade (PR #11, MySQL 8.0.46, a database with one
+organisation) stopped at migration 25 of 124; 02cf6df silenced the two observers
+it tripped, and 831f65f made the rule below and its guard. Data migrations save
+models, and a saved model fires its observers. `seed_units_and_period_calendars` saved
+`Period`s, so `WebhookEventObserver` queried `webhook_subscriptions`, which is
+created twenty-one migrations later. With that silenced, the KRI backfill tripped
+`WorkflowTriggerObserver` on `workflow_definitions.trigger` in the same way. CI
+never saw either failure, because a fresh database has no organisations for a
+backfill to iterate. Even with every table present it would be wrong: a backfill
+is not a business event. An integrator must not receive a `.created`, and an
+approver must not be assigned a review, for every row a schema change touched.
+
+- **First statement, not merely somewhere.** Until 831f65f
+  `WebhookEventObserver::updated()` built its payload, including the API field
+  allowlist walk, before `publish()` checked the window. A migration that saves
+  ten thousand rows must cost the observer one check per save: no payload, no
+  query, no cache.
+- **Exactly the guard, not something like it.** The condition is
+  `<window>->isOpen()` and nothing else. `<window>` is a `MigrationWindow`-typed
+  property, `app(MigrationWindow::class)` or `resolve(MigrationWindow::class)`.
+  `if (! $this->migrations->isOpen()) { return; }` reads almost the same and does
+  the opposite: it silences every live save and fires during every migration. A
+  comparison (`=== false`), a conjunction, and `isOpen()` on another object are
+  rejected for the same reason.
+- **The audit trail is the exception.** `TprmAuditable`, `BcmsAuditable` and the
+  ERM trail write a row in the same database. A row a migration writes into a
+  governed table is still a change to that table, and a gap in the trail is
+  worse than an entry attributed to the system. Internal projections are not
+  outward either: the graph identity in `HasObjectIdentity`, the pivot edges in
+  `ProjectsGraphEdge` and the hierarchy path on `Entity`.
+- **The window is a depth counter.** A migration that calls `migrate` again fires
+  a second `MigrationsStarted`/`MigrationsEnded` pair, and the inner end must not
+  re-arm the outer run's observers.
+- **A failed run leaves the window open.** The migrator fires `MigrationsEnded`
+  only after its last migration succeeds, so a migration that throws leaves its
+  level open for the rest of that application instance. A later `migrate` in the
+  same instance does not close it: it opens one level and closes only that one.
+  `php artisan migrate` exits on the failure, php-fpm and the queue worker are
+  other processes, and every test boots its own application, so none of those
+  inherits it. Anything that retries in-process does (a tinker session, a
+  command or test that catches the failure and migrates again, an outer run
+  that catches an inner one), and every observer that checks the window stays
+  silent after it. Call `MigrationWindow::reset()`, which closes every level.
+  Nothing in `app/` calls it today.
+- **Not covered: a domain event dispatched by a service a migration calls.**
+  `MeasureService::record()` announces a new KRI breach as `KriBreachDetected`,
+  which queues `SendNotification`. A data migration that records readings through
+  it passes `'detect_breach' => false`, as `RiskMeasureRecorder` does, or writes
+  breaches directly, as `KriMeasureMigrator` does.
+- **Not covered: anything the test cannot enumerate. Guard these by hand.**
+  - Custom Eloquent events. A model's `$dispatchesEvents` map fires its own
+    event classes, which reach ordinary listeners and not `eloquent.*`.
+  - Observers and listeners registered conditionally. One behind a config flag
+    or environment check that is off under test is invisible to the test.
+  - Observers and listeners registered outside a booted provider: in a command,
+    a job, a service at runtime, a deferred provider, or a package provider not
+    loaded in testing.
+  - Any listener whose code lives in `vendor/`.
+
+  Any of these that turns a save into an outward event needs the same
+  first-statement guard, written and reviewed without the test's help.
+
+Guarded by `OutwardObserversHonourMigrationWindowTest`. It boots every model and
+enumerates every `eloquent.*` listener. It classifies a listener as outward if
+any of these holds:
+
+- It injects a dispatcher, notifier, bus, queue, mailer or HTTP type.
+- Its comment-stripped source dispatches. That includes a static call on any of
+  seven `Illuminate\Support\Facades` classes (`Bus`, `Queue`, `Mail`, `Http`,
+  `Notification`, `Event`, `Broadcast`), and indirect routes:
+  `app('events'|'bus'|'queue'|'mailer'|'notifications')`,
+  `app(X::class)`/`resolve(X::class)` of an outward type, Guzzle, `curl_*`, and
+  `file_get_contents`/`fopen` on an `http(s)://` literal.
+- A class it names resolves, through the file's `use` imports, to an outward type
+  or namespace.
+
+The facades are matched by their short name, so a facade imported under an
+alias (`use Illuminate\Support\Facades\Mail as Mailer;`) is not seen. Do not
+alias them in an observer.
+
+**A closure listener is only reference-checked.** For an observer class the test
+demands the exact guard as the first statement of every registered method. For
+a closure (`static::created(fn ...)` in a model or trait) it only checks that
+the closure's code, comments stripped, names `MigrationWindow` somewhere, so a
+negated or late guard in a closure passes. Review a closure's guard by hand.
+
+The heuristic is deliberately over-inclusive, and it is shallow: it reads the
+listener, not what the listener calls. When you write a service that sends
+something outward, add its type or namespace to the test's lists. That way the
+next observer that injects it is caught.
+
+**Running migration tests: one run per database, and stop the child.**
+`RefreshDatabase` drops and rebuilds every table. Two `artisan test` runs against
+one database therefore drop tables under each other. The resulting
+`QueryException` looks exactly like a code defect, and QA reproduced one this way
+while gating this section (831f65f). Give every concurrent run its own
+`DB_DATABASE`. `artisan test` starts `phpunit` as a child process. Killing only the
+`artisan test` parent leaves that child running and still migrating the
+database. Stop the `phpunit` child by its PID (`pgrep -fl phpunit`) and confirm
+it has exited before reusing the database. Never use a blanket `pkill`: other
+people's runs share the machine.

@@ -3,6 +3,7 @@
 namespace App\Models\Bcms\Concerns;
 
 use App\Models\Bcms\AuditLog;
+use App\Support\Audit\AuditText;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -126,7 +127,7 @@ trait BcmsAuditable
                 'before' => $before,
                 'after' => $after,
                 'actor_id' => $actor?->getAuthIdentifier(),
-                'actor_label' => $actor?->name,
+                'actor_label' => AuditText::clip($actor?->name, 150),
                 'ip_address' => Request::hasSession() || app()->runningInConsole() === false
                     ? Request::ip()
                     : null,

@@ -8,6 +8,7 @@ use App\Models\Rcsa\RcsaAssessmentTransition;
 use App\Models\Rcsa\RcsaLineRevision;
 use App\Models\Rcsa\RcsaMethodology;
 use App\Models\User;
+use App\Support\Audit\AuditText;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -658,7 +659,8 @@ class RcsaAssessmentService
                 'old_value' => $old,
                 'new_value' => $new,
                 'reason' => $reason,
-                'request_id' => $request?->header('X-Request-Id'),
+                // Client-supplied and the column is string(64): clip it.
+                'request_id' => AuditText::clip($request?->header('X-Request-Id'), 64),
                 'ip_address' => $request?->ip(),
                 'created_at' => now(),
             ]);

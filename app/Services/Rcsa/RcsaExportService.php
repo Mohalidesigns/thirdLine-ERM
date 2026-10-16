@@ -8,6 +8,7 @@ use App\Models\Rcsa\RcsaCycle;
 use App\Models\Rcsa\RcsaExportJob;
 use App\Models\Rcsa\RcsaMethodology;
 use App\Models\User;
+use App\Support\Audit\AuditText;
 use App\Support\Rcsa\RcsaScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -162,7 +163,9 @@ class RcsaExportService
             'status' => $status,
             'row_count' => $rowCount,
             'ip_address' => $request?->ip(),
-            'user_agent' => substr((string) $request?->userAgent(), 0, 512),
+            // No request (console, queue): NULL. Not '', and not whatever the
+            // worker's synthetic global request() happens to hold.
+            'user_agent' => $request === null ? null : AuditText::userAgent($request, 512),
             'expires_at' => now()->addHours(self::LINK_TTL_HOURS),
         ]);
 

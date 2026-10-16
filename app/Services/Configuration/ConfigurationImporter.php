@@ -74,7 +74,14 @@ class ConfigurationImporter
 
         // A bundle edited between export and import is the most common cause
         // of a half-applied configuration, and the cheapest to detect.
-        if ($bundle->checksum !== ConfigurationExporter::checksum($bundle->payload)) {
+        try {
+            $intact = $bundle->checksum === ConfigurationExporter::checksum($bundle->payload);
+        } catch (\InvalidArgumentException $error) {
+            // A format this release does not read is not an edited bundle.
+            throw ValidationException::withMessages(['bundle' => $error->getMessage()]);
+        }
+
+        if (! $intact) {
             throw ValidationException::withMessages([
                 'bundle' => 'This bundle\'s checksum does not match its contents — it has been modified since '
                     .'it was exported. Re-export it rather than applying it.',

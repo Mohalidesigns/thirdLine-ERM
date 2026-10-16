@@ -7,6 +7,7 @@ use App\Models\Bcms\AuditLog;
 use App\Models\Bcms\ClauseRef;
 use App\Models\User;
 use App\Services\Bcms\Compliance\ClauseComplianceMatrixService;
+use App\Support\Audit\AuditText;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -529,7 +530,7 @@ class EvidencePackService
                     ],
                 ],
                 'actor_id' => $actor->getKey(),
-                'actor_label' => $actor->name,
+                'actor_label' => AuditText::clip($actor->name, 150),
                 'created_at' => now(),
             ]);
         } catch (\Throwable $e) {

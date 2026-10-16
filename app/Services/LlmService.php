@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -147,7 +148,7 @@ class LlmService
 
             if (! $res->successful()) {
                 $this->lastError = 'LLM HTTP '.$res->status();
-                Log::warning('LLM request failed', ['status' => $res->status(), 'body' => $res->body()]);
+                Log::warning('LLM request failed', $this->failureContext($res, (string) ($opts['model'] ?? $this->model)));
 
                 return '';
             }
@@ -155,7 +156,7 @@ class LlmService
             return (string) ($res->json('response') ?? '');
         } catch (Throwable $e) {
             $this->lastError = $e->getMessage();
-            Log::warning('LLM request exception', ['err' => $e->getMessage()]);
+            Log::warning('LLM request exception', $this->exceptionContext($e, (string) ($opts['model'] ?? $this->model)));
 
             return '';
         }
@@ -200,7 +201,7 @@ class LlmService
 
             if (! $res->successful()) {
                 $this->lastError = 'LLM HTTP '.$res->status();
-                Log::warning('LlmService completeJson failed: '.$this->lastError);
+                Log::warning('LLM request failed', $this->failureContext($res, (string) ($opts['model'] ?? $this->model)));
 
                 return [];
             }
@@ -215,7 +216,7 @@ class LlmService
             return $parsed;
         } catch (Throwable $e) {
             $this->lastError = $e->getMessage();
-            Log::warning('LlmService completeJson exception: '.$this->lastError);
+            Log::warning('LlmService completeJson exception', $this->exceptionContext($e, (string) ($opts['model'] ?? $this->model)));
 
             return [];
         }
@@ -284,7 +285,7 @@ class LlmService
 
             if (! $res->successful()) {
                 $this->lastError = 'LLM HTTP '.$res->status();
-                Log::warning('LlmService jsonWithUsage failed: '.$this->lastError);
+                Log::warning('LLM request failed', $this->failureContext($res, $model));
 
                 return $empty($this->lastError, 'http_error', $res->status());
             }
@@ -309,7 +310,6 @@ class LlmService
             ];
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             $this->lastError = $e->getMessage();
-            Log::warning('LlmService jsonWithUsage connection exception: '.$this->lastError);
 
             // Laravel's HTTP client raises the same exception class for a
             // refused connection and for a client-side timeout; the message
@@ -317,13 +317,84 @@ class LlmService
             // rather than by every caller that needs to tell them apart.
             $kind = str_contains(mb_strtolower($e->getMessage()), 'timed out') ? 'timeout' : 'connection';
 
+            Log::warning('LlmService jsonWithUsage connection exception', $this->exceptionContext($e, $model) + ['kind' => $kind]);
+
             return $empty($this->lastError, $kind);
         } catch (Throwable $e) {
             $this->lastError = $e->getMessage();
-            Log::warning('LlmService jsonWithUsage exception: '.$this->lastError);
+            Log::warning('LlmService jsonWithUsage exception', $this->exceptionContext($e, $model));
 
             return $empty($this->lastError, 'connection');
         }
+    }
+
+    /**
+     * What may be logged about a non-2xx answer — and nothing else.
+     *
+     * NDPA: a provider's error body can echo the prompt, and prompts are built
+     * from risks, incidents and vendor records, so no free text from the body
+     * is ever logged. What is kept: the status, which provider and model, the
+     * provider's request id, the body's LENGTH, and — only when the body is
+     * JSON with an `error` OBJECT — its `type` and `code`, and only if each is a
+     * short machine token (letters, digits, `_ . : -`). A string `error`
+     * (Ollama's own shape) is free text and is never treated as a code.
+     *
+     * @return array<string, mixed>
+     */
+    private function failureContext(Response $res, string $model): array
+    {
+        $context = [
+            'status' => $res->status(),
+            'provider' => (string) config('services.llm.driver', 'ollama'),
+            'model' => $model,
+            'body_length' => strlen($res->body()),
+        ];
+
+        $requestId = $this->safeToken($res->header('x-request-id') ?: $res->header('request-id'));
+        if ($requestId !== null) {
+            $context['request_id'] = $requestId;
+        }
+
+        $error = $res->json('error');
+        if (is_array($error)) {
+            foreach (['type', 'code'] as $field) {
+                $token = $this->safeToken($error[$field] ?? null);
+                if ($token !== null) {
+                    $context['error_'.$field] = $token;
+                }
+            }
+        }
+
+        return $context;
+    }
+
+    /**
+     * What may be logged about a thrown exception: its class and code, never
+     * its message. A transport or client exception message can quote the
+     * request URL, headers or a fragment of the prompt, and prompts are built
+     * from risks, incidents and vendor records (NDPA log minimisation).
+     * `lastError` still carries the message for the caller; it is not logged.
+     *
+     * @return array<string, mixed>
+     */
+    private function exceptionContext(Throwable $e, string $model): array
+    {
+        return [
+            'provider' => (string) config('services.llm.driver', 'ollama'),
+            'model' => $model,
+            'exception' => $e::class,
+            'code' => $e->getCode(),
+        ];
+    }
+
+    /** A short machine token, or null: free text and addresses never qualify. */
+    private function safeToken(mixed $value): ?string
+    {
+        if (is_int($value)) {
+            $value = (string) $value;
+        }
+
+        return is_string($value) && preg_match('/^[A-Za-z0-9_.:\-]{1,64}$/', $value) === 1 ? $value : null;
     }
 
     protected function parseJson(string $raw): array

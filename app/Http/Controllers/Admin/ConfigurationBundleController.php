@@ -91,15 +91,7 @@ class ConfigurationBundleController extends Controller
         $filename = "{$bundle->code}-v{$bundle->version}.json";
 
         return response()->streamDownload(function () use ($bundle) {
-            echo json_encode([
-                'code' => $bundle->code,
-                'name' => $bundle->name,
-                'version' => $bundle->version,
-                'checksum' => $bundle->checksum,
-                'exported_at' => $bundle->exported_at?->toIso8601String(),
-                'source_environment' => $bundle->source_environment,
-                'payload' => $bundle->payload,
-            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            echo $this->exporter->document($bundle);
         }, $filename, ['Content-Type' => 'application/json']);
     }
 

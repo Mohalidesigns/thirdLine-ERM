@@ -5,6 +5,7 @@ namespace App\Services\Bcms\Reports;
 use App\Models\Bcms\AuditLog;
 use App\Models\User;
 use App\Services\Bcms\Compliance\ClauseComplianceMatrixService;
+use App\Support\Audit\AuditText;
 use App\Support\Bcms\CsatQuestionMap;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -257,7 +258,7 @@ class CsatPrefillService
                     'occupied_count' => count($occupied),
                 ],
                 'actor_id' => $actor->getKey(),
-                'actor_label' => $actor->name,
+                'actor_label' => AuditText::clip($actor->name, 150),
                 'created_at' => now(),
             ]);
         } catch (\Throwable $e) {

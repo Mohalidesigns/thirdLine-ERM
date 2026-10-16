@@ -14,10 +14,12 @@ use App\Services\Tprm\Contracts\ClauseAnalyzer;
 use App\Services\Tprm\Contracts\ContractService;
 use Database\Seeders\Tprm\TprmReferenceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 use ThirdLine\Platform\Tenancy\TenantContext;
@@ -180,6 +182,43 @@ class ClauseAnalysisTruncationLedgerTest extends TestCase
         // auditable_type must be the FQCN (not a morph alias) — the relation
         // that just found this row joins on exactly that column.
         $this->assertSame(Contract::class, $rows->first()->auditable_type);
+    }
+
+    /** @return array<string, array{string}> */
+    public static function hostileUserAgents(): array
+    {
+        return [
+            'odd-offset two-byte characters' => ['a'.str_repeat('é', 400)],
+            'emoji straddling the byte limit' => [str_repeat('a', 499).str_repeat('😀', 50)],
+            'invalid bytes' => ["Mozilla \xC3\x28"],
+        ];
+    }
+
+    /**
+     * "Auditing never fails the write" turns a refused insert into a log line.
+     * The ledger row is the only record that the model saw a truncated
+     * document, so a header that defeats the old byte-wise `substr()` must not
+     * be able to take it away.
+     */
+    #[Test]
+    #[DataProvider('hostileUserAgents')]
+    public function a_hostile_user_agent_does_not_lose_the_truncation_ledger_row(string $userAgent): void
+    {
+        $this->fakeModel();
+
+        $contract = $this->contractWithDocument(str_repeat("Clause text paragraph.\n\n", 400));
+
+        $this->app->instance('request', Request::create('/', 'GET', [], [], [], ['HTTP_USER_AGENT' => $userAgent]));
+
+        app(ClauseAnalyzer::class)->analyse($contract, $this->reviewer->id);
+
+        $row = $contract->fresh()->auditLogs()->where('event', 'clause_analysis_partial')->first();
+
+        $this->assertNotNull($row, 'the ledger row must be written, not silently lost');
+        $this->assertNotNull($row->user_agent);
+        $this->assertTrue(mb_check_encoding($row->user_agent, 'UTF-8'));
+        $this->assertLessThanOrEqual(500, mb_strlen($row->user_agent, 'UTF-8'));
+        $this->assertTrue($row->isIntact());
     }
 
     #[Test]

@@ -1,6 +1,7 @@
 import Checkbox from './Checkbox';
 import InputError from './InputError';
 import InputLabel from './InputLabel';
+import Icon from './Icon';
 
 /**
  * Renders the fields of an object type from the schema
@@ -101,7 +102,7 @@ export default function DynamicForm({ schema, values = {}, onChange, errors = {}
     if (visibleSections.length === 0) {
         return (
             <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
-                <span className="material-symbols-outlined text-3xl text-gray-400">tune</span>
+                <Icon name="tune" className="w-8 h-8 text-gray-400" />
                 <p className="mt-2 text-sm text-gray-500">
                     No fields are configured on {schema?.objectType?.name ?? 'this type'} yet.
                 </p>

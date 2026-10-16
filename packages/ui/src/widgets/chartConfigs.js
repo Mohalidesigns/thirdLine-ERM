@@ -40,11 +40,11 @@ function legend(t, position = 'bottom') {
         labels: {
             usePointStyle: true,
             pointStyle: 'circle',
-            boxWidth: 8,
-            boxHeight: 8,
+            boxWidth: 12,
+            boxHeight: 12,
             padding: 14,
             color: t.inkSecondary,
-            font: { family: t.fontFamily, size: 11 },
+            font: { family: t.fontFamily, size: 12 },
         },
     };
 }
@@ -53,7 +53,7 @@ function catScale(t, extra = {}) {
     return {
         grid: { display: false },
         border: { display: false },
-        ticks: { color: t.muted, font: { family: t.fontFamily, size: 11 } },
+        ticks: { color: t.muted, font: { family: t.fontFamily, size: 12 } },
         ...extra,
     };
 }
@@ -63,7 +63,7 @@ function linScale(t, extra = {}) {
         beginAtZero: true,
         grid: { color: t.grid, drawTicks: false },
         border: { display: false },
-        ticks: { color: t.muted, font: { family: t.fontFamily, size: 11 }, maxTicksLimit: 6 },
+        ticks: { color: t.muted, font: { family: t.fontFamily, size: 12 }, maxTicksLimit: 6 },
         ...extra,
     };
 }
@@ -139,10 +139,33 @@ function donut(data, env, t, width) {
     }
 
     const total = slices.reduce((a, s) => a + +s.value, 0);
-    const narrow = width > 0 && width < 360;
+    const narrow = width > 0 && width < 200;
+
+    // Centre total, as the reference DonutChart: text-2xl bold over xs gray-500 "Total".
+    const centreTotal = {
+        id: 'donutCentreTotal',
+        afterDraw(chart) {
+            const arc = chart.getDatasetMeta(0).data[0];
+            if (!arc) return;
+            const { ctx } = chart;
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'alphabetic';
+            ctx.fillStyle = t.ink;
+            ctx.font = `700 24px ${t.fontFamily}`;
+            // Honour slices hidden through the legend: sum what is drawn.
+            const shown = slices.reduce((a, sl, i) => (chart.getDataVisibility(i) ? a + +sl.value : a), 0);
+            ctx.fillText(fmtNum(shown), arc.x, arc.y + 4);
+            ctx.fillStyle = t.muted;
+            ctx.font = `400 12px ${t.fontFamily}`;
+            ctx.fillText('Total', arc.x, arc.y + 20);
+            ctx.restore();
+        },
+    };
 
     return {
         type: 'doughnut',
+        plugins: [centreTotal],
         data: {
             labels: slices.map((s) => s.label),
             datasets: [
@@ -156,9 +179,14 @@ function donut(data, env, t, width) {
             ],
         },
         options: baseOptions(t, {
-            cutout: '62%',
+            cutout: '60%',
             plugins: {
-                legend: legend(t, narrow ? 'bottom' : 'right'),
+                legend: (() => {
+                    const l = legend(t, narrow ? 'bottom' : 'right');
+                    l.labels.font = { family: t.fontFamily, size: 14 };
+                    l.labels.color = '#4b5563';
+                    return l;
+                })(),
                 tooltip: tooltip(t, {
                     label: (ctx) => {
                         const pct = total > 0 ? Math.round((ctx.parsed / total) * 1000) / 10 : 0;
@@ -216,7 +244,7 @@ function pareto(data, env, t, width) {
                     grid: { drawOnChartArea: false, drawTicks: false },
                     ticks: {
                         color: t.muted,
-                        font: { family: t.fontFamily, size: 11 },
+                        font: { family: t.fontFamily, size: 12 },
                         maxTicksLimit: 5,
                         callback: (v) => `${v}%`,
                     },
@@ -345,7 +373,7 @@ function bubble(data, env, t, width) {
                         display: true,
                         text: 'Control effectiveness %',
                         color: t.muted,
-                        font: { family: t.fontFamily, size: 11 },
+                        font: { family: t.fontFamily, size: 12 },
                     },
                 }),
                 y: linScale(t, {
@@ -353,7 +381,7 @@ function bubble(data, env, t, width) {
                         display: true,
                         text: 'Exposure (L×C)',
                         color: t.muted,
-                        font: { family: t.fontFamily, size: 11 },
+                        font: { family: t.fontFamily, size: 12 },
                     },
                 }),
             },
@@ -491,7 +519,7 @@ function cumulativeLine(data, env, t, width) {
                     max: 100,
                     ticks: {
                         color: t.muted,
-                        font: { family: t.fontFamily, size: 11 },
+                        font: { family: t.fontFamily, size: 12 },
                         maxTicksLimit: 5,
                         callback: (v) => `${v}%`,
                     },
@@ -642,7 +670,7 @@ function lecCurve(data, env, t, width) {
                     beginAtZero: true,
                     ticks: {
                         color: t.muted,
-                        font: { family: t.fontFamily, size: 11 },
+                        font: { family: t.fontFamily, size: 12 },
                         maxTicksLimit: 6,
                         callback: (v) => fmtNaira(v),
                     },
@@ -650,13 +678,13 @@ function lecCurve(data, env, t, width) {
                         display: true,
                         text: 'Loss',
                         color: t.muted,
-                        font: { family: t.fontFamily, size: 11 },
+                        font: { family: t.fontFamily, size: 12 },
                     },
                 }),
                 y: linScale(t, {
                     ticks: {
                         color: t.muted,
-                        font: { family: t.fontFamily, size: 11 },
+                        font: { family: t.fontFamily, size: 12 },
                         maxTicksLimit: 5,
                         callback: (v) => `${fmtNum(v)}%`,
                     },
@@ -664,7 +692,7 @@ function lecCurve(data, env, t, width) {
                         display: true,
                         text: 'Probability of exceedance',
                         color: t.muted,
-                        font: { family: t.fontFamily, size: 11 },
+                        font: { family: t.fontFamily, size: 12 },
                     },
                 }),
             },
@@ -825,7 +853,7 @@ function timeline(data, env, t, width) {
                     border: { display: false },
                     ticks: {
                         color: t.muted,
-                        font: { family: t.fontFamily, size: 11 },
+                        font: { family: t.fontFamily, size: 12 },
                         maxTicksLimit: 6,
                         callback: (v) => fmtDate(new Date(minMs + v * DAY_MS), withYear),
                     },

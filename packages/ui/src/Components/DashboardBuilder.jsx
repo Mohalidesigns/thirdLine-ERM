@@ -1,6 +1,7 @@
 import { Link, router } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Menu from './DataGrid/Menu';
+import Icon from './Icon';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -102,7 +103,7 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
                     <div className="border-b border-gray-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Widget library</div>
                     <div className="border-b border-gray-100 p-2">
                         <div className="relative">
-                            <span className="material-symbols-outlined pointer-events-none absolute left-2 top-1.5 text-[18px] text-gray-400">search</span>
+                            <Icon name="search" className="pointer-events-none absolute left-2 top-1.5 w-[18px] h-[18px] text-gray-400" />
                             <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search widgets" aria-label="Search widgets"
                                 className="form-input w-full py-1.5 pl-8 pr-2 text-xs" />
                         </div>
@@ -129,7 +130,7 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
                                                 <button type="button" onClick={() => post(tabsUrl(current.code, '/widgets'), { widget_id: w.id })}
                                                     className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-gray-50"
                                                     title={isPlaced ? 'Already on this dashboard — click to add another' : 'Add to the active tab'}>
-                                                    <span className={`material-symbols-outlined mt-px shrink-0 text-[16px] ${isPlaced ? 'text-emerald-500' : 'text-gray-400'}`}>{isPlaced ? 'check_circle' : 'add_box'}</span>
+                                                    <Icon name={isPlaced ? 'check_circle' : 'add_box'} className={`mt-px shrink-0 w-[16px] h-[16px] ${isPlaced ? 'text-emerald-500' : 'text-gray-400'}`} />
                                                     <span className="min-w-0 flex-1">
                                                         <span className="block truncate text-xs font-medium text-gray-700">{w.name}</span>
                                                         <span className="block truncate text-[10px] text-gray-400">{w.description}</span>
@@ -167,7 +168,7 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
 
                         <Menu align="left" width="w-56" button={({ toggle }) => (
                             <button type="button" onClick={toggle} className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50">
-                                <span className="material-symbols-outlined text-[15px]">group</span>
+                                <Icon name="group" className="w-[15px] h-[15px]" />
                                 {roleCount === 0 ? 'All roles' : plural(roleCount, 'role')}
                             </button>
                         )}>
@@ -184,12 +185,12 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
 
                         {dashboard.isPublished && dashboard.hasUnpublishedChanges ? (
                             <>
-                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700"><span className="material-symbols-outlined text-[13px]">edit</span> Unpublished changes</span>
+                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700"><Icon name="edit" className="w-[13px] h-[13px]" /> Unpublished changes</span>
                                 <span className="text-[11px] text-gray-400">v{dashboard.version} is live</span>
                             </>
                         ) : dashboard.isPublished ? (
                             <>
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700"><span className="material-symbols-outlined text-[13px]">check_circle</span> Published</span>
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700"><Icon name="check_circle" className="w-[13px] h-[13px]" /> Published</span>
                                 <span className="text-[11px] text-gray-400">v{dashboard.version}</span>
                             </>
                         ) : (
@@ -201,12 +202,12 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
 
                         {binding?.previewUrl && (
                             <Link href={binding.previewUrl} className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50" title={`See this draft on a real ${binding.name} node, with real data`}>
-                                <span className="material-symbols-outlined text-[15px]">visibility</span> Preview
+                                <Icon name="visibility" className="w-[15px] h-[15px]" /> Preview
                             </Link>
                         )}
 
                         <button type="button" onClick={() => post(urls.duplicate)} className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50">
-                            <span className="material-symbols-outlined text-[15px]">content_copy</span> Save as template
+                            <Icon name="content_copy" className="w-[15px] h-[15px]" /> Save as template
                         </button>
 
                         {dashboard.isPublished && dashboard.hasUnpublishedChanges ? (
@@ -220,7 +221,7 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
                         <button type="button" disabled={!canPublish || blocked} onClick={() => post(urls.publish)}
                             title={blocked ? 'This binding reaches no nodes — nobody would see it.' : canPublish ? 'Copy the draft to Business HQ' : 'Nothing to publish'}
                             className={`inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold ${canPublish && !blocked ? 'bg-[var(--color-primary)] text-white hover:opacity-90' : 'cursor-not-allowed border border-gray-200 bg-gray-50 text-gray-400'}`}>
-                            <span className="material-symbols-outlined text-[15px]">publish</span>
+                            <Icon name="publish" className="w-[15px] h-[15px]" />
                             {dashboard.isPublished ? 'Publish changes' : 'Publish'}
                         </button>
                     </div>
@@ -228,9 +229,9 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
                     {binding && (
                         <div className={`border-t border-gray-100 px-4 py-2 text-[11px] ${binding.renderable ? 'text-gray-500' : 'bg-amber-50 text-amber-800'}`}>
                             {!binding.is_node_type ? (
-                                <><span className="material-symbols-outlined align-[-3px] text-[14px]">warning</span> <b>{binding.name}</b> is not a node type, so Business HQ has no page to render this on. Bind it to a type that appears in the organisation tree.</>
+                                <><Icon name="warning" className="align-[-3px] w-[14px] h-[14px]" /> <b>{binding.name}</b> is not a node type, so Business HQ has no page to render this on. Bind it to a type that appears in the organisation tree.</>
                             ) : binding.node_count === 0 ? (
-                                <><span className="material-symbols-outlined align-[-3px] text-[14px]">warning</span> No <b>{binding.name}</b> nodes exist yet — publishing this would put it nowhere.</>
+                                <><Icon name="warning" className="align-[-3px] w-[14px] h-[14px]" /> No <b>{binding.name}</b> nodes exist yet — publishing this would put it nowhere.</>
                             ) : (
                                 <>
                                     Renders on <b>{plural(binding.node_count, 'node')}</b>{' '}
@@ -267,14 +268,14 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
                                 {tabs.length > 1 && (
                                     <button type="button" onClick={() => window.confirm(`Delete “${tab.label}” and its ${tab.layout.length} widget(s)?`) && destroy(tabsUrl(tab.code))}
                                         className="pr-2 opacity-0 hover:!opacity-100 group-hover:opacity-70" title="Remove tab">
-                                        <span className="material-symbols-outlined text-[13px] leading-none">close</span>
+                                        <Icon name="close" className="w-[13px] h-[13px]" />
                                     </button>
                                 )}
                             </div>
                         );
                     })}
                     <button type="button" onClick={() => post(urls.tabs, { label: 'New tab' })} className="ml-1 rounded-md px-2 py-1.5 text-gray-400 hover:bg-gray-100" title="Add tab">
-                        <span className="material-symbols-outlined text-[16px] leading-none">add</span>
+                        <Icon name="add" className="w-[16px] h-[16px]" />
                     </button>
                     <span className="ml-auto pr-2 text-[10px] text-gray-400">Double-click a tab to rename · drag &amp; resize tiles below</span>
                 </div>
@@ -294,11 +295,11 @@ export default function DashboardBuilder({ dashboard, tabs, activeTab, palette, 
                                                 className="form-input w-full truncate border-0 bg-transparent p-0 text-xs font-semibold text-gray-800 focus:ring-0"
                                                 aria-label="Widget title" title="Title override — blank uses the widget's own name" />
                                             <button type="button" onClick={() => destroy(tabsUrl(current.code, `/widgets/${placement.position}`))} className="shrink-0 text-gray-300 hover:text-red-500" title="Remove">
-                                                <span className="material-symbols-outlined text-[16px] leading-none">delete</span>
+                                                <Icon name="delete" className="w-[16px] h-[16px]" />
                                             </button>
                                         </div>
                                         <div className="flex flex-1 flex-col items-center justify-center gap-1 p-3 text-gray-300">
-                                            <span className="material-symbols-outlined text-2xl">insert_chart</span>
+                                            <Icon name="insert_chart" className="w-6 h-6" />
                                             <span className="text-[10px] uppercase tracking-wide">{(placement.widget?.type ?? '?').replace(/_/g, ' ')}</span>
                                         </div>
                                     </div>

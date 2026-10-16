@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import tryRoute from '../lib/tryRoute';
+import Icon from './Icon';
 
 /**
  * The frame the on-screen reports share (migration Phase 5.4).
@@ -43,7 +44,7 @@ export default function ReportShell({ title, subtitle, routeName, formats = ['pd
                                         : 'px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2'
                                 }
                             >
-                                <span className="material-symbols-outlined text-lg">{icon}</span> {label}
+                                <Icon name={icon} className="w-[18px] h-[18px]" /> {label}
                             </a>
                         ) : null;
                     })}
@@ -53,7 +54,7 @@ export default function ReportShell({ title, subtitle, routeName, formats = ['pd
                         onClick={() => window.print()}
                         className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                     >
-                        <span className="material-symbols-outlined text-lg">print</span> Print
+                        <Icon name="print" className="w-[18px] h-[18px]" /> Print
                     </button>
                 </div>
             </div>
@@ -69,7 +70,7 @@ export function LibraryLink() {
 
     return url ? (
         <Link href={url} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-            <span className="material-symbols-outlined text-lg">folder</span> Library
+            <Icon name="folder" className="w-[18px] h-[18px]" /> Library
         </Link>
     ) : null;
 }

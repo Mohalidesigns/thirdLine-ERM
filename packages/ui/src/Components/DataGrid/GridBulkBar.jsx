@@ -1,4 +1,5 @@
 import { router } from '@inertiajs/react';
+import Icon from '../Icon';
 
 export default function GridBulkBar({ grid, selected, selectingAll, onSelectAll, onClear, state }) {
     const total = grid.rows.meta.total;
@@ -26,12 +27,12 @@ export default function GridBulkBar({ grid, selected, selectingAll, onSelectAll,
             <div className="ml-auto flex items-center gap-2">
                 {grid.bulkActions.map((action) => (
                     <button key={action.key} type="button" onClick={() => run(action)} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-base" aria-hidden="true">{action.icon}</span>
+                        <Icon name={action.icon} className="w-4 h-4" />
                         {action.label}
                     </button>
                 ))}
                 <button type="button" onClick={onClear} className="p-1 rounded hover:bg-white/10" aria-label="Clear selection">
-                    <span className="material-symbols-outlined text-lg" aria-hidden="true">close</span>
+                    <Icon name="close" className="w-[18px] h-[18px]" />
                 </button>
             </div>
         </div>

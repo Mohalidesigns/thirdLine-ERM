@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Icon from '../../Components/Icon';
 
 const BADGE_COLUMNS = ['residual_rating', 'inherent_rating', 'priority', 'event_severity', 'current_status', 'issue_status', 'status'];
 
@@ -36,7 +37,7 @@ export default function Register({ data, envelope, onFilters }) {
         <div className="flex h-full flex-col">
             <div className="mb-2 flex items-center gap-2">
                 <div className="relative flex-1">
-                    <span className="material-symbols-outlined pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[16px] text-gray-400">search</span>
+                    <Icon name="search" className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 w-[16px] h-[16px] text-gray-400" />
                     <input
                         type="search"
                         value={search}
@@ -50,7 +51,7 @@ export default function Register({ data, envelope, onFilters }) {
                 </div>
                 {envelope?.urls?.create && (
                     <a href={envelope.urls.create} className="inline-flex items-center gap-1 rounded-md bg-[var(--color-primary)] px-2 py-1 text-xs font-medium text-white hover:opacity-90">
-                        <span className="material-symbols-outlined text-[16px] leading-none">add</span> New
+                        <Icon name="add" className="w-[16px] h-[16px]" /> New
                     </a>
                 )}
             </div>
@@ -90,7 +91,7 @@ export default function Register({ data, envelope, onFilters }) {
                                 <td className="px-1 text-right">
                                     {row.url && (
                                         <a href={row.url} className="text-gray-300 hover:text-gray-600" title="Open">
-                                            <span className="material-symbols-outlined text-[16px] leading-none">more_vert</span>
+                                            <Icon name="more_vert" className="w-[16px] h-[16px]" />
                                         </a>
                                     )}
                                 </td>

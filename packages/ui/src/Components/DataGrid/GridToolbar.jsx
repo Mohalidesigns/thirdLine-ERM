@@ -1,6 +1,7 @@
 import { router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import Menu from './Menu';
+import Icon from '../Icon';
 
 const btn = 'px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 bg-white';
 
@@ -54,7 +55,7 @@ export default function GridToolbar({ grid, state, selectedCount }) {
     return (
         <div className="bg-white rounded-xl border border-gray-200 p-3 flex flex-wrap items-center gap-2" data-testid="grid-toolbar">
             <div className="relative flex-1 min-w-[200px]">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg" aria-hidden="true">search</span>
+                <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-[18px] h-[18px]" />
                 <label className="sr-only" htmlFor={`grid-search-${grid.name}`}>Search</label>
                 <input
                     id={`grid-search-${grid.name}`}
@@ -95,7 +96,7 @@ export default function GridToolbar({ grid, state, selectedCount }) {
                     width="w-64"
                     button={({ toggle, open }) => (
                         <button type="button" onClick={toggle} aria-expanded={open} className={btn}>
-                            <span className="material-symbols-outlined text-lg" aria-hidden="true">bookmark</span>
+                            <Icon name="bookmark" className="w-[18px] h-[18px]" />
                             <span className="hidden lg:inline">{currentView?.name ?? 'Views'}</span>
                         </button>
                     )}
@@ -110,7 +111,7 @@ export default function GridToolbar({ grid, state, selectedCount }) {
                                         {view.isDefault && <span className="text-[10px] text-gray-400 uppercase ml-1">default</span>}
                                     </button>
                                     <button type="button" onClick={() => deleteView(view.id)} className="p-0.5 rounded hover:bg-gray-100" aria-label={`Delete view ${view.name}`}>
-                                        <span className="material-symbols-outlined text-gray-400 text-base" aria-hidden="true">delete</span>
+                                        <Icon name="delete" className="text-gray-400 w-4 h-4" />
                                     </button>
                                 </div>
                             ))}
@@ -139,7 +140,7 @@ export default function GridToolbar({ grid, state, selectedCount }) {
                     width="w-56"
                     button={({ toggle, open }) => (
                         <button type="button" onClick={toggle} aria-expanded={open} className={btn}>
-                            <span className="material-symbols-outlined text-lg" aria-hidden="true">view_column</span>
+                            <Icon name="view_column" className="w-[18px] h-[18px]" />
                             <span className="hidden lg:inline">Columns</span>
                         </button>
                     )}
@@ -174,7 +175,7 @@ export default function GridToolbar({ grid, state, selectedCount }) {
                     width="w-44"
                     button={({ toggle, open }) => (
                         <button type="button" onClick={toggle} aria-expanded={open} className={btn}>
-                            <span className="material-symbols-outlined text-lg" aria-hidden="true">download</span>
+                            <Icon name="download" className="w-[18px] h-[18px]" />
                             <span className="hidden lg:inline">Export</span>
                         </button>
                     )}

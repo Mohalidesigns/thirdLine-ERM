@@ -209,7 +209,11 @@ HTTPS, session cookie hardening, that no view loads an external CDN, that no
 web installer or dev auto-login remains, that **every** web and api route
 carries an authorization guard, and that the audit hash chain is present.
 
-It also reports three things that are not about hardening:
+It also reports four things that are not about hardening:
+
+- **Database time zone** — FAILS unless the database session is exactly
+  `+00:00` and `db_timezone_conversions` exists (ADR 0029). The detail records
+  what the conversion did, so the deploy log shows what production ran.
 
 - **Database engine** — the server's own `version()`, because nothing in a
   Laravel configuration distinguishes MariaDB from MySQL: `DB_CONNECTION=mysql`
@@ -280,3 +284,41 @@ the code back first, then decide about the schema deliberately.
   Nothing converts sealed rows back, and ADR 0026 §4 forbids re-checksumming
   bundle rows. Roll back past this release only when that count is 0, or accept that
   those bundles stay unusable until you roll forward again.
+
+**The exception is ADR 0029's time-zone migration
+(`2026_10_16_100001_run_every_session_in_utc_and_convert_timestamp_values`).**
+Rolling the code back past it without rolling the data back makes a `SYSTEM`
+session read every converted `TIMESTAMP` one or two hours late. The two move
+together, in this order: `php artisan down`, then
+`php artisan migrate:rollback --step=<n>` (so only migrations from this one
+onward roll back) **while this release's code is still on disk**, then deploy
+the revert commit through `scripts/deploy.sh` (it keeps the site down while it
+runs and brings it up at the end). Never one half without the other. A value
+written under UTC that falls in a future spring-forward hour comes back one
+hour off after the `down()`; that cannot be avoided.
+`risk_audit_trail.changed_at` stays `DATETIME`.
+
+## Database time zone (ADR 0029)
+
+Every database session runs in UTC: `config/database.php` pins
+`'timezone' => '+00:00'` on `mysql` and `mariadb`, hard-coded, not an
+environment variable. The server's own global zone legitimately stays `SYSTEM`.
+
+- **Console sessions.** Run `SET time_zone = '+00:00';` first in an ad-hoc
+  `mysql` session. Without it the console shows every `TIMESTAMP` one or two
+  hours later than the application does.
+- **Backups.** Keep `mysqldump`'s default `--tz-utc`; it dumps and restores the
+  internal UTC exactly. A **pre-conversion** backup must be migrated only on a
+  host whose system zone is the same as production's (Europe/Berlin): the
+  conversion reads the target server's `@@global.time_zone`. Partial restores of
+  single tables from a pre-conversion dump into a converted database are not
+  supported.
+- **After the deploy** (read-only): `SET time_zone = '+00:00';` then
+  `SELECT table_name, outcome, from_zone, system_time_zone, rows_affected,
+  converted_at FROM db_timezone_conversions ORDER BY id;`, compare the
+  `COUNT/MIN/MAX` of `users.created_at` and `risk_audit_trail.changed_at` with
+  the figures taken before the deploy, check `SELECT NOW() = UTC_TIMESTAMP();`
+  is 1, run `php artisan audit:verify`, and confirm preflight's `Database time
+  zone` row is PASS. The pre-deploy checks are in ADR 0029 section 5a.
+- **Size limit.** If the largest `TIMESTAMP` table estimates above 1,000,000
+  rows, or the total above 5,000,000, do not deploy: bring the numbers back.

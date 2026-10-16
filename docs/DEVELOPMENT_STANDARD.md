@@ -170,7 +170,9 @@ Be explicit about this rather than trusting a green run.
 `PermissionCatalogCoversRoutesTest`, `NoSelfUpdatingTimestampColumnsTest`,
 `CanonicalJsonTest`, `AuditChainCrossEngineTest`, `AuditLogHashRecipeTest`,
 `ConfigBundleCrossEngineTest`, `BundleChecksumRecipeTest`,
-`OutwardObserversHonourMigrationWindowTest`, `scripts/parity-check.php`.
+`OutwardObserversHonourMigrationWindowTest`, `DatabaseSessionTimeZoneTest`,
+`TimestampZoneConversionTest`, `PreflightDatabaseTimeZoneTest`,
+`scripts/parity-check.php`.
 
 **When one turns red, find out which of three kinds it is before touching it:**
 bookkeeping that is now stale, a check coupled to the renderer rather than the
@@ -374,3 +376,23 @@ while gating this section (831f65f). Give every concurrent run its own
 database. Stop the `phpunit` child by its PID (`pgrep -fl phpunit`) and confirm
 it has exited before reusing the database. Never use a blanket `pkill`: other
 people's runs share the machine.
+
+## 17. Every database session runs in UTC
+
+`config/database.php` pins `'timezone' => '+00:00'` on the `mysql` and `mariadb`
+connections, matching `config/app.php`'s `UTC`. A `TIMESTAMP` is stored as an
+instant and converted through the **session** zone on every read and write.
+Until ADR 0029 the session was the server's `SYSTEM` zone (CEST on the
+production VPS), so stored instants depended on a host setting,
+`CURRENT_TIMESTAMP` ran two hours ahead, and every UTC write in CEST's
+spring-forward hour was **rejected** (`1292`) on both engines. Never
+`SET time_zone` in application code, and never make the pin an environment
+variable. Use `+00:00`, not `UTC`: named zones need time-zone tables the
+servers do not have. Changing the pin needs an ADR **and** a data conversion in
+the same deploy. The pin alone moves every existing value. Ad-hoc console
+sessions must `SET time_zone = '+00:00'` to see what the application sees.
+The deploy keeps the site down from before `composer install` (which deletes
+the config cache and so makes the pin live) until after the migration has
+converted the data. Guarded by `DatabaseSessionTimeZoneTest`,
+`TimestampZoneConversionTest`, `PreflightDatabaseTimeZoneTest` and preflight's
+`Database time zone` check.

@@ -70,6 +70,7 @@ class Preflight extends Command
         $this->checkEveryRouteIsGuarded();
         $this->checkAuditChainColumns();
         $this->checkDatabaseEngine();
+        $this->checkDatabaseTimeZone();
         $this->checkEnabledModules();
         $this->checkUncertifiedModulesAreOff();
         $this->checkBcmsContactEnumLiterals();
@@ -521,6 +522,63 @@ class Preflight extends Command
         }
 
         $this->pass('Database engine', $detail);
+    }
+
+    /**
+     * The database session must run in UTC (ADR 0029).
+     *
+     * A TIMESTAMP is converted through the session zone on every read and write.
+     * A config cache that predates the pin, or a removed pin, would read every
+     * stored instant through the server's SYSTEM zone: one or two hours off, and
+     * every TPRM audit row failing its hash. The server's own global zone
+     * legitimately stays SYSTEM; only the session is checked.
+     */
+    private function checkDatabaseTimeZone(): void
+    {
+        $driver = DB::connection()->getDriverName();
+
+        if (! in_array($driver, ['mysql', 'mariadb'], true)) {
+            $this->pass('Database time zone', "not applicable (driver {$driver})");
+
+            return;
+        }
+
+        try {
+            $zones = DB::selectOne('select @@session.time_zone as s, @@global.time_zone as g, @@system_time_zone as y');
+            $ledger = Schema::hasTable('db_timezone_conversions');
+            $rows = $ledger ? DB::table('db_timezone_conversions')->orderBy('id')->get() : collect();
+        } catch (\Throwable $e) {
+            $this->fail_('Database time zone', 'could not read the time zone over ['.$driver.']: '.$e->getMessage());
+
+            return;
+        }
+
+        if ($zones->s !== '+00:00') {
+            $this->fail_('Database time zone', "session time zone is {$zones->s}; ADR 0029 pins '+00:00' — the config cache ".
+                "predates this release or the pin was removed; every TIMESTAMP would be read through {$zones->g}");
+
+            return;
+        }
+
+        if (! $ledger) {
+            $this->fail_('Database time zone', "ADR 0029's conversion migration has not run (db_timezone_conversions is missing)");
+
+            return;
+        }
+
+        $skip = $rows->firstWhere('table_name', '*');
+        $converted = $rows->where('outcome', 'converted');
+
+        if ($skip !== null) {
+            $what = 'conversion skipped: '.str_replace('skipped_', '', $skip->outcome);
+        } elseif ($converted->isNotEmpty()) {
+            $what = $converted->count().' tables converted from '.$converted->first()->from_zone.' on '.
+                substr((string) $converted->first()->converted_at, 0, 10);
+        } else {
+            $what = 'ledger is empty';
+        }
+
+        $this->pass('Database time zone', "session +00:00 (server {$zones->g}/{$zones->y}); {$what}");
     }
 
     /**

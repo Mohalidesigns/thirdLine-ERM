@@ -5,6 +5,7 @@ import EmptyState from '@thirdline/ui/Components/EmptyState';
 import Pagination from '@thirdline/ui/Components/Pagination';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 import { number } from '@/Components/Quantification/figures';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The report library (migration Phase 5.2).
@@ -75,7 +76,7 @@ export default function Index({ completedSimulations }) {
                         <div key={report.title} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-lg transition-shadow">
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-[#1A365D]">{report.icon}</span>
+                                    <Icon name={report.icon} className="w-5 h-5 shrink-0 text-[#1A365D]" />
                                 </div>
                                 <h3 className="text-sm font-semibold text-[#1A365D]">{report.title}</h3>
                             </div>
@@ -85,7 +86,7 @@ export default function Index({ completedSimulations }) {
                                     href={url}
                                     className="w-full px-3 py-2 bg-[#1A365D] text-white rounded-lg text-xs font-medium hover:bg-[#2D4A7A] text-center flex items-center justify-center gap-1"
                                 >
-                                    <span className="material-symbols-outlined text-sm">visibility</span> Open
+                                    <Icon name="visibility" className="w-3.5 h-3.5 shrink-0" /> Open
                                 </Link>
                             )}
                         </div>
@@ -101,7 +102,7 @@ export default function Index({ completedSimulations }) {
 
                 {completedSimulations.data.length === 0 ? (
                     <EmptyState
-                        icon={<span className="material-symbols-outlined text-3xl text-gray-400">calculate</span>}
+                        icon={<Icon name="calculate" className="w-8 h-8 shrink-0 text-gray-400" />}
                         title="No completed simulations"
                         description="Run a Monte Carlo simulation over this institution's scenarios to produce a loss distribution these reports can read."
                     />

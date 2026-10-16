@@ -6,6 +6,7 @@ import InputError from '@thirdline/ui/Components/InputError';
 import { FormSection, FormField } from '@thirdline/ui';
 import TierBadge from '@/Components/Tprm/TierBadge';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The Intake Wizard (TRD §11) — Service → Functions → Data & Access →
@@ -128,7 +129,7 @@ export default function Create({ options = {}, questionnaire = {}, preselectedTh
             {(blocked || prohibitedFromServer.length > 0) && (
                 <div className="card mb-6 border-l-4 border-red-500 p-5">
                     <h3 className="flex items-center gap-2 text-sm font-semibold text-red-900">
-                        <span className="material-symbols-outlined text-lg">block</span>
+                        <Icon name="block" className="w-4 h-4 shrink-0" />
                         This service cannot be outsourced
                     </h3>
                     <ul className="mt-3 space-y-2">

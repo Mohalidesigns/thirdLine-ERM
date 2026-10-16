@@ -4,6 +4,7 @@ import InputError from '@thirdline/ui/Components/InputError';
 import InputLabel from '@thirdline/ui/Components/InputLabel';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { INPUT, SELECT, titleCase } from '../Campaigns/format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Start a questionnaire (Phase 4.5: risk/questionnaires/create.blade.php).
@@ -99,7 +100,7 @@ export default function Create({ types = [], scoringMethods = [] }) {
                 <div className="flex items-center justify-between mt-6">
                     <Link href={route('risk.questionnaires.index')} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <span className="material-symbols-outlined text-lg">save</span> Create
+                        <Icon name="save" className="w-4 h-4 shrink-0" /> Create
                     </button>
                 </div>
             </form>

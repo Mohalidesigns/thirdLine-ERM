@@ -4,6 +4,7 @@ import DonutChart from '@thirdline/ui/Components/DonutChart';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import TrendChart from '@thirdline/ui/Components/TrendChart';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const STATUS = {
     red: { dot: 'bg-red-500', tile: 'border-red-300 bg-red-50', text: 'text-red-700' },
@@ -19,10 +20,10 @@ function tone(status) {
 }
 
 function TrendIcon({ trend }) {
-    if (trend === 'up') return <span className="material-symbols-outlined text-xs text-red-500">trending_up</span>;
-    if (trend === 'down') return <span className="material-symbols-outlined text-xs text-green-500">trending_down</span>;
+    if (trend === 'up') return <Icon name="trending_up" className="w-3 h-3 shrink-0 text-red-500" />;
+    if (trend === 'down') return <Icon name="trending_down" className="w-3 h-3 shrink-0 text-green-500" />;
 
-    return <span className="material-symbols-outlined text-xs text-gray-400">trending_flat</span>;
+    return <Icon name="trending_flat" className="w-3 h-3 shrink-0 text-gray-400" />;
 }
 
 /**
@@ -58,7 +59,7 @@ export default function Dashboard({
                 actions={
                     canCreate && (
                         <Link href={route('risk.kri.create')} className="btn-primary inline-flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-lg">add</span> New KRI
+                            <Icon name="add" className="w-4 h-4 shrink-0" /> New KRI
                         </Link>
                     )
                 }
@@ -85,7 +86,7 @@ export default function Dashboard({
 
                 {trafficLights.length === 0 ? (
                     <div className="text-center py-8 text-gray-400">
-                        <span className="material-symbols-outlined text-3xl mb-2 block">speed</span>
+                        <Icon name="speed" className="w-8 h-8 shrink-0 mb-2 block mx-auto" />
                         No KRIs configured.{' '}
                         {canCreate && (
                             <Link href={route('risk.kri.create')} className="text-[#1A365D] hover:underline">Create your first KRI</Link>

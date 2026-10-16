@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The emerging risk register (migration Phase 2) — see
@@ -25,12 +26,12 @@ export default function Index({ grid }) {
                     <>
                         {radarUrl && (
                             <a href={radarUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">radar</span> View radar
+                                <Icon name="radar" className="w-4 h-4 shrink-0" /> View radar
                             </a>
                         )}
                         {permissions.includes('risk.create') && createUrl && (
                             <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">add</span> Add entry
+                                <Icon name="add" className="w-4 h-4 shrink-0" /> Add entry
                             </a>
                         )}
                     </>

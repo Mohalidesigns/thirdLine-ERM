@@ -1,5 +1,6 @@
 import InputError from '@thirdline/ui/Components/InputError';
 import FormField from '@thirdline/ui/Components/FormField';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The editable worksheet table (migration Phase 3.8).
@@ -82,7 +83,7 @@ function Line({ line, index, categories, assessableRisks, onChange, onRemove, re
                         onClick={() => onRemove(index)}
                         className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1"
                     >
-                        <span className="material-symbols-outlined text-sm">delete</span> Remove
+                        <Icon name="delete" className="w-3.5 h-3.5 shrink-0" /> Remove
                     </button>
                 )}
             </div>
@@ -159,7 +160,7 @@ function Line({ line, index, categories, assessableRisks, onChange, onRemove, re
             <div className="flex items-center gap-3 mb-4 text-xs">
                 <span className="text-gray-500">Inherent</span>
                 <span className={`badge ${scoreTone(inherent)}`}>{inherent}</span>
-                <span className="material-symbols-outlined text-gray-300 text-sm">arrow_forward</span>
+                <Icon name="arrow_forward" className="w-3.5 h-3.5 shrink-0 text-gray-300" />
                 <span className="text-gray-500">Residual</span>
                 <span className={`badge ${scoreTone(residual)}`}>{residual}</span>
                 {residual > inherent && (
@@ -215,7 +216,7 @@ export default function RcsaWorksheetTable({ lines, categories = [], assessableR
                 onClick={onAdd}
                 className="flex items-center gap-2 px-4 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-[#1A365D] hover:text-[#1A365D] transition-colors"
             >
-                <span className="material-symbols-outlined text-lg">add</span> Add Another Risk
+                <Icon name="add" className="w-4 h-4 shrink-0" /> Add Another Risk
             </button>
 
             <InputError message={errors.risks} className="mt-2" />

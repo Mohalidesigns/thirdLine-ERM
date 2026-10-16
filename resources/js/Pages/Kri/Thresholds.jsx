@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import InputError from '@thirdline/ui/Components/InputError';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const STATUS_DOT = {
     red: 'bg-red-500',
@@ -62,7 +63,7 @@ export default function Thresholds({ kris = {}, canManage = false }) {
                     actions={
                         canManage && (
                             <button type="submit" form="kri-thresholds-form" disabled={processing || !dirty} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                                <span className="material-symbols-outlined text-lg">save</span>
+                                <Icon name="save" className="w-4 h-4 shrink-0" />
                                 {dirty ? 'Save Changes' : 'No Changes'}
                             </button>
                         )
@@ -99,7 +100,7 @@ export default function Thresholds({ kris = {}, canManage = false }) {
                                 {rows.length === 0 && (
                                     <tr>
                                         <td colSpan={7} className="text-center py-12">
-                                            <span className="material-symbols-outlined text-4xl text-gray-300 mb-2 block">tune</span>
+                                            <Icon name="tune" className="w-9 h-9 shrink-0 text-gray-300 mb-2 block mx-auto" />
                                             <p className="text-sm text-gray-500">
                                                 No KRIs configured.{' '}
                                                 <Link href={route('risk.kri.create')} className="text-[#1A365D] hover:underline">Create your first KRI</Link>

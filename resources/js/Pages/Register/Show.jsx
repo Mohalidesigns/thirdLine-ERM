@@ -11,6 +11,7 @@ import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 import { seedConfigured, ucfirst } from './RiskForm';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const TABS = [
     ['overview', 'Overview'],
@@ -120,12 +121,12 @@ export default function Show({
                     <>
                         {can.update && (
                             <Link href={route('risk.register.edit', risk.id)} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">edit</span> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
                             </Link>
                         )}
                         {can.delete && (
                             <button type="button" onClick={destroy} className="btn-secondary text-sm inline-flex items-center gap-2 text-red-600">
-                                <span className="material-symbols-outlined text-lg">delete</span> Delete
+                                <Icon name="delete" className="w-4 h-4 shrink-0" /> Delete
                             </button>
                         )}
                         <Link href={route('risk.register.index')} className="btn-secondary text-sm">Back to Register</Link>
@@ -348,13 +349,13 @@ export default function Show({
                             <div className="flex gap-2">
                                 {can.mapControl && (
                                     <button type="button" onClick={() => setMapping(!mapping)} className="btn-secondary text-xs inline-flex items-center gap-1">
-                                        <span className="material-symbols-outlined text-sm">link</span>
+                                        <Icon name="link" className="w-3.5 h-3.5 shrink-0" />
                                         {mapping ? 'Cancel' : 'Map Existing'}
                                     </button>
                                 )}
                                 {newControl && (
                                     <a href={newControl} className="btn-primary text-xs inline-flex items-center gap-1">
-                                        <span className="material-symbols-outlined text-sm">add</span> Create New
+                                        <Icon name="add" className="w-3.5 h-3.5 shrink-0" /> Create New
                                     </a>
                                 )}
                             </div>
@@ -416,7 +417,7 @@ export default function Show({
                                 </label>
                                 <div className="flex justify-end">
                                     <button type="submit" disabled={mapForm.processing} className="btn-primary text-xs inline-flex items-center gap-1 disabled:opacity-50">
-                                        <span className="material-symbols-outlined text-sm">link</span> Map Control
+                                        <Icon name="link" className="w-3.5 h-3.5 shrink-0" /> Map Control
                                     </button>
                                 </div>
                             </form>
@@ -472,7 +473,7 @@ export default function Show({
                             <h3 className="text-sm font-semibold text-gray-700">Assessment History</h3>
                             {newAssessment && (
                                 <a href={newAssessment} className="btn-primary text-sm inline-flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-lg">add</span> New Assessment
+                                    <Icon name="add" className="w-4 h-4 shrink-0" /> New Assessment
                                 </a>
                             )}
                         </div>
@@ -511,7 +512,7 @@ export default function Show({
                             <h3 className="text-sm font-semibold text-gray-700">Treatment Plans</h3>
                             {newTreatment && (
                                 <a href={newTreatment} className="btn-primary text-xs inline-flex items-center gap-1">
-                                    <span className="material-symbols-outlined text-sm">add</span> New Treatment Plan
+                                    <Icon name="add" className="w-3.5 h-3.5 shrink-0" /> New Treatment Plan
                                 </a>
                             )}
                         </div>
@@ -545,7 +546,7 @@ export default function Show({
                             <h3 className="text-sm font-semibold text-gray-700">Key Risk Indicators</h3>
                             {newKri && (
                                 <a href={newKri} className="btn-primary text-xs inline-flex items-center gap-1">
-                                    <span className="material-symbols-outlined text-sm">add</span> New KRI
+                                    <Icon name="add" className="w-3.5 h-3.5 shrink-0" /> New KRI
                                 </a>
                             )}
                         </div>
@@ -604,7 +605,7 @@ export default function Show({
                                 {can.update && (
                                     <div className="flex justify-end mt-4">
                                         <button type="submit" disabled={attributesForm.processing} className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-50">
-                                            <span className="material-symbols-outlined text-lg">save</span> Save Attributes
+                                            <Icon name="save" className="w-4 h-4 shrink-0" /> Save Attributes
                                         </button>
                                     </div>
                                 )}
@@ -631,7 +632,7 @@ export default function Show({
                                     return (
                                         <div key={trail.id} className="flex gap-4 items-start">
                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${tone}`}>
-                                                <span className="material-symbols-outlined text-sm">{icon}</span>
+                                                <Icon name={icon} className="w-3.5 h-3.5 shrink-0" />
                                             </div>
                                             <div className="flex-1">
                                                 <p className="text-sm font-medium text-gray-700">

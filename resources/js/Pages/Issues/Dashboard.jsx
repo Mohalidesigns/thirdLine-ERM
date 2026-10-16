@@ -5,6 +5,7 @@ import HBarChart from '@thirdline/ui/Components/HBarChart';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { BAND_COLORS, priorityTone, titleCase } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The issues dashboard (migration Phase 4.4: risk/issues/dashboard.blade.php).
@@ -39,7 +40,7 @@ export default function Dashboard({ stats = {}, ageing = [], overdueIssues = [],
                 actions={
                     canCreate && (
                         <Link href={route('risk.issues.create')} className="btn-primary inline-flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-lg">add</span> Raise Issue
+                            <Icon name="add" className="w-4 h-4 shrink-0" /> Raise Issue
                         </Link>
                     )
                 }
@@ -100,7 +101,7 @@ export default function Dashboard({ stats = {}, ageing = [], overdueIssues = [],
                             {overdueIssues.length === 0 && (
                                 <tr>
                                     <td colSpan={7} className="text-center py-10">
-                                        <span className="material-symbols-outlined text-3xl text-green-300 mb-2 block">task_alt</span>
+                                        <Icon name="task_alt" className="w-8 h-8 shrink-0 text-green-300 mb-2 block mx-auto" />
                                         <p className="text-sm text-gray-500">Nothing is overdue.</p>
                                     </td>
                                 </tr>

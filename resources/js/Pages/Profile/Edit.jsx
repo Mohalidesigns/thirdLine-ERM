@@ -4,6 +4,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm';
 import { formatDateTime } from '@thirdline/ui/utils';
+import Icon from '@thirdline/ui/Components/Icon';
 
 function tryRoute(name) {
     try {
@@ -66,7 +67,7 @@ export default function Edit({ profile, mfaAvailable }) {
                                         : 'Add a second factor: a six-digit code from an authenticator app, required at every sign-in.'}
                                 </p>
                                 <Link href={mfaSetupUrl} className="btn-secondary mt-4 inline-flex items-center gap-2 text-sm">
-                                    <span className="material-symbols-outlined text-[18px]">verified_user</span>
+                                    <Icon name="verified_user" className="w-4.5 h-4.5 shrink-0" />
                                     {profile.mfa_enabled ? 'Re-enrol authenticator' : 'Set up two-factor authentication'}
                                 </Link>
                                 <p className="mt-3 text-xs text-gray-400">Lost your authenticator? Your administrator can reset it from User Management.</p>

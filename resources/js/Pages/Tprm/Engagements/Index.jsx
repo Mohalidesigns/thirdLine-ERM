@@ -3,6 +3,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The Engagement Register — "the real working list" (TRD §11).
@@ -31,7 +32,7 @@ export default function Index({ summary = {}, grid, can = {} }) {
                 actions={
                     can.create && intakeUrl && (
                         <a href={intakeUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">assignment_add</span> Raise an intake
+                            <Icon name="assignment_add" className="w-4 h-4 shrink-0" /> Raise an intake
                         </a>
                     )
                 }

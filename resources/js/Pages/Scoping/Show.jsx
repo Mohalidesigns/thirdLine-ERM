@@ -9,6 +9,7 @@ import RichTextRenderer from '@thirdline/ui/Components/RichTextRenderer';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import { formatDate } from '@thirdline/ui/utils';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const PALETTE = ['#1A365D', '#2D7D46', '#DD6B20', '#3182CE', '#D4AF37', '#ED8936', '#48BB78', '#9F7AEA'];
 
@@ -96,15 +97,15 @@ export default function Show({ entity, riskStats, risks = [], issues = [], kris 
                     <>
                         {can.update && (
                             <Link href={route('risk.scoping.edit', entity.id)} className="btn-primary inline-flex items-center gap-2 text-sm">
-                                <span className="material-symbols-outlined text-lg">edit</span> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
                             </Link>
                         )}
                         <Link href={route('risk.scoping.dashboard')} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-lg">account_tree</span> Hierarchy
+                            <Icon name="account_tree" className="w-4 h-4 shrink-0" /> Hierarchy
                         </Link>
                         {can.delete && (
                             <button type="button" onClick={destroy} className="btn-danger inline-flex items-center gap-2 text-sm">
-                                <span className="material-symbols-outlined text-lg">delete</span> Delete
+                                <Icon name="delete" className="w-4 h-4 shrink-0" /> Delete
                             </button>
                         )}
                     </>
@@ -279,7 +280,7 @@ export default function Show({ entity, riskStats, risks = [], issues = [], kris 
                     title="Sub-Entities"
                     actions={can.create && (
                         <Link href={route('risk.scoping.create')} className="btn-secondary inline-flex items-center gap-1 text-xs">
-                            <span className="material-symbols-outlined text-base">add</span> New Entity
+                            <Icon name="add" className="w-4 h-4 shrink-0" /> New Entity
                         </Link>
                     )}
                 >

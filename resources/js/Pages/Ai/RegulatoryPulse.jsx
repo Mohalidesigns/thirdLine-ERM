@@ -4,6 +4,7 @@ import KpiCard from '@thirdline/ui/Components/KpiCard';
 import SeriesChart from '@/Components/Quantification/SeriesChart';
 import { number } from '@/Components/Quantification/figures';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const IMPACT_CLASSES = {
     critical: 'bg-red-100 text-red-700',
@@ -62,7 +63,7 @@ export default function RegulatoryPulse({ feed, upcomingDeadlines, impactMix, su
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-                <span className="material-symbols-outlined text-blue-600 text-lg">info</span>
+                <Icon name="info" className="w-4 h-4 shrink-0 text-blue-600" />
                 <p className="text-xs text-blue-900 leading-relaxed">
                     This screen reads your own <span className="font-medium">regulatory circulars</span> and{' '}
                     <span className="font-medium">filing deadlines</span> tables. It does not scan external sources,

@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import Figure from '@/Components/Quantification/Figure';
 import { NOT_ASSESSED, number, percent } from '@/Components/Quantification/figures';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const shortDate = (value) =>
     value ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -151,7 +152,7 @@ export default function Forecast({ chart, fit, projection, signals, watchlist, d
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-                <span className="material-symbols-outlined text-blue-600 text-lg">info</span>
+                <Icon name="info" className="w-4 h-4 shrink-0 text-blue-600" />
                 <p className="text-xs text-blue-900 leading-relaxed">
                     This is an ordinary least-squares fit over your recorded assessment scores, not a model. Months
                     with no assessment are left as gaps rather than filled in, and the projection is shown as a range

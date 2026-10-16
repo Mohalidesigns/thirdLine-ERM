@@ -10,6 +10,7 @@ import RadarChart from '@thirdline/ui/Components/RadarChart';
 import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const ucfirst = (value) => (value ? String(value).charAt(0).toUpperCase() + String(value).slice(1) : '');
 
@@ -84,7 +85,7 @@ export default function Show({
                     <>
                         {can.update && (
                             <Link href={route('risk.assessments.edit', assessment.id)} className="btn-secondary text-sm inline-flex items-center gap-1">
-                                <span className="material-symbols-outlined text-lg">edit</span> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
                             </Link>
                         )}
                         <Link href={route('risk.assessments.index')} className="btn-secondary text-sm">Back</Link>
@@ -104,7 +105,7 @@ export default function Show({
                         disabled={submitForm.processing}
                         className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-50"
                     >
-                        <span className="material-symbols-outlined text-lg">send</span> Submit for review
+                        <Icon name="send" className="w-4 h-4 shrink-0" /> Submit for review
                     </button>
                 </div>
             )}
@@ -112,7 +113,7 @@ export default function Show({
             {can.decide && (
                 <div className="mb-6 bg-white rounded-xl border border-blue-200 shadow-sm p-5">
                     <div className="flex items-center gap-2 mb-3">
-                        <span className="material-symbols-outlined text-blue-600">rate_review</span>
+                        <Icon name="rate_review" className="w-5 h-5 shrink-0 text-blue-600" />
                         <h3 className="text-sm font-semibold text-gray-900">Review Required</h3>
                     </div>
 
@@ -288,11 +289,7 @@ export default function Show({
                     <ul className="space-y-3">
                         {causes.map((cause) => (
                             <li key={cause.id} className="flex items-start gap-3">
-                                <span
-                                    className={`material-symbols-outlined text-lg ${cause.is_primary ? 'text-[#1A365D]' : 'text-gray-300'}`}
-                                >
-                                    {cause.is_primary ? 'star' : 'radio_button_unchecked'}
-                                </span>
+                                <Icon name={cause.is_primary ? 'star' : 'radio_button_unchecked'} className={`w-4 h-4 shrink-0 ${cause.is_primary ? 'text-[#1A365D]' : 'text-gray-300'}`} />
                                 <div>
                                     <p className="text-sm text-gray-700">{cause.description}</p>
                                     <p className="text-xs text-gray-500">

@@ -7,6 +7,7 @@ import InputLabel from '@thirdline/ui/Components/InputLabel';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import { INPUT, SELECT, titleCase } from '../Campaigns/format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The questionnaire builder (Phase 4.5: risk/questionnaires/edit.blade.php).
@@ -202,7 +203,7 @@ export default function Edit({ questionnaire, sections = [], questionTypes = {},
                                         className="text-red-400 hover:text-red-600"
                                         aria-label={`Remove question: ${question.text}`}
                                     >
-                                        <span className="material-symbols-outlined text-lg">delete</span>
+                                        <Icon name="delete" className="w-4 h-4 shrink-0" />
                                     </button>
                                 </div>
                             ))}
@@ -214,7 +215,7 @@ export default function Edit({ questionnaire, sections = [], questionTypes = {},
 
                 {sections.length === 0 && (
                     <div className="text-center py-12 text-gray-400">
-                        <span className="material-symbols-outlined text-4xl mb-2 block">quiz</span>
+                        <Icon name="quiz" className="w-9 h-9 shrink-0 mb-2 block mx-auto" />
                         <p className="text-sm">Add sections above to start building your questionnaire.</p>
                     </div>
                 )}

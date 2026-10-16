@@ -2,6 +2,7 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import TestForm from './TestForm';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Migration Phase 3.4: risk/controls/tests/create.blade.php. */
 export default function Create({ controls = [], users = [], options = {}, controlId = null }) {
@@ -39,7 +40,7 @@ export default function Create({ controls = [], users = [], options = {}, contro
                 <div className="flex items-center justify-between">
                     <Link href={route('risk.control-tests.index')} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <span className="material-symbols-outlined text-lg">event_available</span> Schedule Test
+                        <Icon name="event_available" className="w-4 h-4 shrink-0" /> Schedule Test
                     </button>
                 </div>
             </form>

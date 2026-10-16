@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm';
 import KriForm from './KriForm';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Migration Phase 4.1: risk/kri/create.blade.php. */
 export default function Create({ risks = [], users = [], frequencies = [], directions = [], schema = null }) {
@@ -48,7 +49,7 @@ export default function Create({ risks = [], users = [], frequencies = [], direc
                 <div className="flex items-center justify-between">
                     <Link href={route('risk.kri.index')} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <span className="material-symbols-outlined text-lg">save</span> Create KRI
+                        <Icon name="save" className="w-4 h-4 shrink-0" /> Create KRI
                     </button>
                 </div>
             </form>

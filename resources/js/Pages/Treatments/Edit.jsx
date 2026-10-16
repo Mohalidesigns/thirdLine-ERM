@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm';
 import TreatmentForm, { EMPTY_MILESTONE } from './TreatmentForm';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Migration Phase 3.5: risk/treatments/edit.blade.php. */
 export default function Edit({ plan, schema = null }) {
@@ -47,7 +48,7 @@ export default function Edit({ plan, schema = null }) {
                 <div className="flex items-center justify-between">
                     <Link href={route('risk.treatments.show', plan.id)} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <span className="material-symbols-outlined text-lg">save</span>
+                        <Icon name="save" className="w-4 h-4 shrink-0" />
                         Update Plan
                     </button>
                 </div>

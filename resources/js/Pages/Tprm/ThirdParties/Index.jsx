@@ -3,6 +3,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The Third-Party Register — see App\Grids\Definitions\TprmThirdPartiesGrid.
@@ -35,12 +36,12 @@ export default function Index({ summary = {}, grid, can = {} }) {
                     <div className="flex items-center gap-2">
                         {can.create && createUrl && (
                             <a href={createUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">add</span> Register a third party
+                                <Icon name="add" className="w-4 h-4 shrink-0" /> Register a third party
                             </a>
                         )}
                         {can.create && intakeUrl && (
                             <a href={intakeUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">assignment_add</span> Raise an intake
+                                <Icon name="assignment_add" className="w-4 h-4 shrink-0" /> Raise an intake
                             </a>
                         )}
                     </div>

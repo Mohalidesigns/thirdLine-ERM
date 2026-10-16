@@ -4,6 +4,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import TierBadge from '@/Components/Tprm/TierBadge';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The Assessment Review screen — TRD §11's split view, and where the module's
@@ -119,9 +120,7 @@ export default function Review({ assessment, sections = [], liveScore = {}, scop
                                             AC {liveScore.sections[section.code].ac}
                                         </span>
                                     )}
-                                    <span className="material-symbols-outlined text-lg">
-                                        {openSection === section.code ? 'expand_less' : 'expand_more'}
-                                    </span>
+                                    <Icon name={openSection === section.code ? 'expand_less' : 'expand_more'} className="w-4 h-4 shrink-0" />
                                 </span>
                             </button>
 
@@ -213,9 +212,7 @@ export default function Review({ assessment, sections = [], liveScore = {}, scop
                                 aria-expanded={showScoping}
                             >
                                 <span className="text-sm font-semibold text-gray-900">Why these questions</span>
-                                <span className="material-symbols-outlined text-lg">
-                                    {showScoping ? 'expand_less' : 'expand_more'}
-                                </span>
+                                <Icon name={showScoping ? 'expand_less' : 'expand_more'} className="w-4 h-4 shrink-0" />
                             </button>
                             <p className="form-hint">
                                 {scoping.included_count} of {scoping.total_count} questions in the pack apply to

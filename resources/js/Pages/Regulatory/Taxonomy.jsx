@@ -5,6 +5,7 @@ import InputLabel from '@thirdline/ui/Components/InputLabel';
 import TextInput from '@thirdline/ui/Components/TextInput';
 import InputError from '@thirdline/ui/Components/InputError';
 import PrimaryButton from '@thirdline/ui/Components/PrimaryButton';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** One node and everything under it. Recurses to whatever depth the tree has. */
 function Node({ node, depth }) {
@@ -13,7 +14,7 @@ function Node({ node, depth }) {
             <div className="py-2">
                 <div className="flex items-center gap-2">
                     {node.children.length > 0 ? (
-                        <span className="material-symbols-outlined text-gray-400 text-sm">subdirectory_arrow_right</span>
+                        <Icon name="subdirectory_arrow_right" className="w-3.5 h-3.5 shrink-0 text-gray-400" />
                     ) : (
                         <span className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />

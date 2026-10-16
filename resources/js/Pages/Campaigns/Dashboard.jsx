@@ -4,6 +4,7 @@ import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import { titleCase } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The campaign dashboard (Phase 4.5: risk/campaigns/dashboard.blade.php).
@@ -59,7 +60,7 @@ export default function Dashboard({ stats = {}, campaigns = [], canCreate = fals
                 actions={
                     canCreate && (
                         <Link href={route('risk.campaigns.create')} className="btn-primary inline-flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-lg">add_circle</span> New Campaign
+                            <Icon name="add_circle" className="w-4 h-4 shrink-0" /> New Campaign
                         </Link>
                     )
                 }
@@ -103,7 +104,7 @@ export default function Dashboard({ stats = {}, campaigns = [], canCreate = fals
                             {campaigns.length === 0 && (
                                 <tr>
                                     <td colSpan={7} className="text-center py-10">
-                                        <span className="material-symbols-outlined text-3xl text-gray-300 mb-2 block">campaign</span>
+                                        <Icon name="campaign" className="w-8 h-8 shrink-0 text-gray-300 mb-2 block mx-auto" />
                                         <p className="text-sm text-gray-500">No campaigns yet.</p>
                                     </td>
                                 </tr>

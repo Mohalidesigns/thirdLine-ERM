@@ -1,6 +1,7 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import GuestLayout from '@thirdline/ui/Layouts/GuestLayout';
 import InputError from '@thirdline/ui/Components/InputError';
+import Icon from '@thirdline/ui/Components/Icon';
 
 export default function ForgotPassword({ status }) {
     const { data, setData, post, processing, errors } = useForm({ email: '' });
@@ -19,7 +20,7 @@ export default function ForgotPassword({ status }) {
                 <div>
                     <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
                     <div className="relative">
-                        <span className="absolute left-3 top-3 material-symbols-outlined text-gray-400 text-[20px]">mail</span>
+                        <Icon name="mail" className="w-5 h-5 shrink-0 absolute left-3 top-3 text-gray-400" />
                         <input
                             id="email"
                             type="email"

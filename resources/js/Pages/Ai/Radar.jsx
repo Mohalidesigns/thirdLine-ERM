@@ -5,6 +5,7 @@ import EmptyState from '@thirdline/ui/Components/EmptyState';
 import SeriesChart from '@/Components/Quantification/SeriesChart';
 import { number } from '@/Components/Quantification/figures';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const IMPACT_CLASSES = {
     Critical: 'bg-red-100 text-red-700',
@@ -109,13 +110,13 @@ export default function Radar({
                 </div>
                 {registerUrl && (
                     <Link href={registerUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                        <span className="material-symbols-outlined text-lg">list</span> Manage register
+                        <Icon name="list" className="w-4 h-4 shrink-0" /> Manage register
                     </Link>
                 )}
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-                <span className="material-symbols-outlined text-blue-600 text-lg">info</span>
+                <Icon name="info" className="w-4 h-4 shrink-0 text-blue-600" />
                 <p className="text-xs text-blue-900 leading-relaxed">
                     Every point is an entry from your own emerging risk register, scored by your team. Nothing here is
                     scanned from an external source and nothing is inferred.
@@ -133,7 +134,7 @@ export default function Radar({
 
             {totalOnRadar === 0 ? (
                 <EmptyState
-                    icon={<span className="material-symbols-outlined text-3xl text-gray-400">radar</span>}
+                    icon={<Icon name="radar" className="w-8 h-8 shrink-0 text-gray-400" />}
                     title="Nothing on the radar"
                     description="Add entries to the emerging risk register and score them for proximity and velocity to see them plotted here."
                     actionLabel={registerUrl ? 'Open the register' : undefined}

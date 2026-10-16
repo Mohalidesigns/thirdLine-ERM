@@ -5,6 +5,7 @@ import KpiCard from '@thirdline/ui/Components/KpiCard';
 import DonutChart from '@thirdline/ui/Components/DonutChart';
 import EntityTree from '@/Components/EntityTree';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const PALETTE = ['#1A365D', '#2D7D46', '#DD6B20', '#3182CE', '#D4AF37', '#ED8936', '#48BB78', '#9F7AEA'];
 
@@ -43,11 +44,11 @@ export default function Dashboard({ kpis, tree = [], heatmap = [], typeDistribut
                 actions={
                     <>
                         <Link href={route('risk.scoping.index')} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-lg">list</span> Entity Register
+                            <Icon name="list" className="w-4 h-4 shrink-0" /> Entity Register
                         </Link>
                         {canCreate && (
                             <Link href={route('risk.scoping.create')} className="btn-primary inline-flex items-center gap-2 text-sm">
-                                <span className="material-symbols-outlined text-lg">add_circle</span> New Entity
+                                <Icon name="add_circle" className="w-4 h-4 shrink-0" /> New Entity
                             </Link>
                         )}
                     </>
@@ -78,7 +79,7 @@ export default function Dashboard({ kpis, tree = [], heatmap = [], typeDistribut
                         <EntityTree nodes={tree} expandDepth={9} />
                     ) : (
                         <div className="py-12 text-center">
-                            <span className="material-symbols-outlined mb-2 block text-4xl text-gray-300">account_tree</span>
+                            <Icon name="account_tree" className="w-9 h-9 shrink-0 mb-2 block text-gray-300 mx-auto" />
                             <p className="text-sm text-gray-500">No entities found. Create your first entity to build the hierarchy.</p>
                             {canCreate && (
                                 <Link href={route('risk.scoping.create')} className="mt-2 inline-block text-sm font-medium text-[#1A365D] hover:underline">Create Entity</Link>
@@ -143,7 +144,7 @@ export default function Dashboard({ kpis, tree = [], heatmap = [], typeDistribut
                         {recentActivity.length === 0 && <p className="py-4 text-center text-sm text-gray-500">No recent activity.</p>}
                         {recentActivity.map((item, idx) => (
                             <div key={item.id} className={`flex items-start gap-3 pb-3 ${idx < recentActivity.length - 1 ? 'border-b border-gray-200' : ''}`}>
-                                <span className="material-symbols-outlined mt-0.5 text-[18px] text-[#1A365D]">edit</span>
+                                <Icon name="edit" className="w-4.5 h-4.5 shrink-0 mt-0.5 text-[#1A365D]" />
                                 <div className="flex-1">
                                     <p className="text-sm font-semibold text-gray-800">
                                         <Link href={route('risk.scoping.show', item.id)} className="hover:underline">{item.name}</Link>

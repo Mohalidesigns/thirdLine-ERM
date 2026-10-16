@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import InputError from '@thirdline/ui/Components/InputError';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { titleCase } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const INPUT = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]';
 
@@ -154,7 +155,7 @@ export default function CreateNearMiss({
                 <div className="flex items-center justify-between">
                     <Link href={route('risk.loss-events.near-misses')} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <span className="material-symbols-outlined text-lg">save</span> Report Near Miss
+                        <Icon name="save" className="w-4 h-4 shrink-0" /> Report Near Miss
                     </button>
                 </div>
             </form>

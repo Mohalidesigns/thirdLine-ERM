@@ -2,6 +2,7 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import DynamicForm, { formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Migration Phase 4.6: risk/emerging/create.blade.php (+ _form.blade.php).
@@ -44,7 +45,7 @@ export default function Create({ schema = null }) {
             <form onSubmit={submit} className="max-w-5xl">
                 <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
                     <div className="flex items-center gap-2 mb-6">
-                        <span className="material-symbols-outlined text-[#D4AF37]">radar</span>
+                        <Icon name="radar" className="w-5 h-5 shrink-0 text-[#D4AF37]" />
                         <h2 className="text-base font-bold text-[#1A365D]">Horizon Entry</h2>
                     </div>
 
@@ -59,7 +60,7 @@ export default function Create({ schema = null }) {
                 <div className="flex items-center justify-between">
                     <Link href={route('risk.emerging.index')} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <span className="material-symbols-outlined text-lg">save</span> Add to register
+                        <Icon name="save" className="w-4 h-4 shrink-0" /> Add to register
                     </button>
                 </div>
             </form>

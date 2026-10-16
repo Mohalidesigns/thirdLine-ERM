@@ -7,6 +7,7 @@ import SeriesChart from '@/Components/Quantification/SeriesChart';
 import useJobProgress from '@thirdline/ui/hooks/useJobProgress';
 import { NOT_ASSESSED, naira, number, percent } from '@/Components/Quantification/figures';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Naira compacted so six tiles fit without overflowing. */
 function compactNaira(amount) {
@@ -59,7 +60,7 @@ export default function Show({ result, percentiles, expectedShortfall, maxLoss, 
                     <>
                         {isRunning && (
                             <button type="button" onClick={cancel} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">stop_circle</span> Request cancellation
+                                <Icon name="stop_circle" className="w-4 h-4 shrink-0" /> Request cancellation
                             </button>
                         )}
                         <button
@@ -67,7 +68,7 @@ export default function Show({ result, percentiles, expectedShortfall, maxLoss, 
                             onClick={() => window.print()}
                             className="btn-secondary text-sm inline-flex items-center gap-2 print:hidden"
                         >
-                            <span className="material-symbols-outlined text-lg">print</span> Print
+                            <Icon name="print" className="w-4 h-4 shrink-0" /> Print
                         </button>
                         {resultsUrl && (
                             <Link href={resultsUrl} className="btn-secondary text-sm">

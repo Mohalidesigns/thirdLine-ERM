@@ -13,6 +13,7 @@ import InputError from '@thirdline/ui/Components/InputError';
 import PrimaryButton from '@thirdline/ui/Components/PrimaryButton';
 import SecondaryButton from '@thirdline/ui/Components/SecondaryButton';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const shortDate = (value) =>
     value ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -57,7 +58,7 @@ export default function Index({ deadlines, filters, regulators, statuses, canFil
                 actions={
                     createUrl && (
                         <Link href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">add</span> New deadline
+                            <Icon name="add" className="w-4 h-4 shrink-0" /> New deadline
                         </Link>
                     )
                 }
@@ -85,7 +86,7 @@ export default function Index({ deadlines, filters, regulators, statuses, canFil
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 {deadlines.data.length === 0 ? (
                     <EmptyState
-                        icon={<span className="material-symbols-outlined text-3xl text-gray-400">event</span>}
+                        icon={<Icon name="event" className="w-8 h-8 shrink-0 text-gray-400" />}
                         title="No deadlines on the calendar"
                         description="Add the returns this institution owes its regulators, and who is accountable for each."
                         actionLabel={createUrl ? 'Add a deadline' : undefined}

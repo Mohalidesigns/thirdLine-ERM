@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** The loss event register (migration Phase 2) — see App\Grids\Definitions\LossEventsGrid. */
 export default function Index({ total, grid }) {
@@ -19,7 +20,7 @@ export default function Index({ total, grid }) {
                 actions={
                     permissions.includes('loss_event.create') && createUrl && (
                         <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">add</span> Log New Event
+                            <Icon name="add" className="w-4 h-4 shrink-0" /> Log New Event
                         </a>
                     )
                 }

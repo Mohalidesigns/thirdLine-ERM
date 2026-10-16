@@ -5,6 +5,7 @@ import InputError from '@thirdline/ui/Components/InputError';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { priorityTone, statusTone, titleCase } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const TABS = [
     { key: 'details', label: 'Details', icon: 'info' },
@@ -180,7 +181,7 @@ export default function Show({ issue, can = {}, options = {}, users = [] }) {
                 actions={
                     can.update && (
                         <Link href={route('risk.issues.edit', issue.id)} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-lg">edit</span> Amend
+                            <Icon name="edit" className="w-4 h-4 shrink-0" /> Amend
                         </Link>
                     )
                 }
@@ -191,7 +192,7 @@ export default function Show({ issue, can = {}, options = {}, users = [] }) {
                 accessor, so it was null on every issue ever rendered. */}
             {issue.isOverdue && (
                 <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-                    <span className="material-symbols-outlined text-red-600">error</span>
+                    <Icon name="error" className="w-5 h-5 shrink-0 text-red-600" />
                     <div>
                         <p className="text-sm font-semibold text-red-800">
                             Remediation is {issue.daysOverdue} {issue.daysOverdue === 1 ? 'day' : 'days'} overdue
@@ -225,7 +226,7 @@ export default function Show({ issue, can = {}, options = {}, users = [] }) {
                             tab === entry.key ? 'border-[#1A365D] text-[#1A365D]' : 'border-transparent text-gray-500 hover:text-gray-700'
                         }`}
                     >
-                        <span className="material-symbols-outlined text-lg">{entry.icon}</span>
+                        <Icon name={entry.icon} className="w-4 h-4 shrink-0" />
                         {entry.label}
                     </button>
                 ))}

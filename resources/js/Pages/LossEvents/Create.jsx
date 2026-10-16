@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import LossEventForm, { STEPS, errorsInStep } from './LossEventForm';
 import StepNav from './StepNav';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Migration Phase 4.3: risk/loss-events/create.blade.php. */
 export default function Create({ risks = [], businessUnits = [], users = [], options = {} }) {
@@ -76,7 +77,7 @@ export default function Create({ risks = [], businessUnits = [], users = [], opt
                         <button type="button" onClick={() => setStep(step + 1)} className="btn-primary text-sm">Continue</button>
                     ) : (
                         <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                            <span className="material-symbols-outlined text-lg">save</span> Report Event
+                            <Icon name="save" className="w-4 h-4 shrink-0" /> Report Event
                         </button>
                     )}
                 </div>

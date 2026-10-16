@@ -2,6 +2,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import InputError from '@thirdline/ui/Components/InputError';
 import { CsrfField } from '@thirdline/ui/lib/nativeForm';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const FEATURES = ['COSO ERM informed', 'Designed for CBN ORMS', 'ISO 31000 informed', 'Basel III-aligned taxonomy'];
 
@@ -44,7 +45,7 @@ export default function Login({ status, canResetPassword, ssoAvailable }) {
                     />
                     <div className="relative flex items-center gap-3">
                         <div className="w-12 h-12 rounded-lg bg-[var(--color-accent)] flex items-center justify-center shadow-md">
-                            <span className="material-symbols-outlined text-[var(--color-primary)]" style={{ fontSize: 28 }}>verified_user</span>
+                            <Icon name="verified_user" className="w-7 h-7 shrink-0 text-[var(--color-primary)]" />
                         </div>
                         <div>
                             <h1 className="text-xl font-bold leading-tight">Atheris ERM</h1>
@@ -102,7 +103,7 @@ export default function Login({ status, canResetPassword, ssoAvailable }) {
                                             className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                                             aria-label={showPassword ? 'Hide password' : 'Show password'}
                                         >
-                                            <span className="material-symbols-outlined text-[18px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                                            <Icon name={showPassword ? 'visibility_off' : 'visibility'} className="w-4.5 h-4.5 shrink-0" />
                                         </button>
                                     </div>
                                     <InputError message={errors?.password} className="mt-1.5" />

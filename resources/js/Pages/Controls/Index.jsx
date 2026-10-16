@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** The control library (migration Phase 2) — see App\Grids\Definitions\ControlsGrid. */
 export default function Index({ total, grid }) {
@@ -20,7 +21,7 @@ export default function Index({ total, grid }) {
                     permissions.includes('control.create') && createUrl && (
                         // Plain anchor: the create form is Blade until Phase 3.
                         <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">add_circle</span> New Control
+                            <Icon name="add_circle" className="w-4 h-4 shrink-0" /> New Control
                         </a>
                     )
                 }

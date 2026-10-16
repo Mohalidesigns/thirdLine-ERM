@@ -7,6 +7,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import LegacyNotice from './LegacyNotice';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const RATING_COLORS = { Critical: '#C53030', High: '#DD6B20', Medium: '#D4AF37', Low: '#2D7D46' };
 const EFFECTIVENESS_COLORS = ['#2D7D46', '#D4AF37', '#C53030', '#6B7280'];
@@ -80,7 +81,7 @@ export default function Dashboard({
                 breadcrumbs={[{ label: 'RCSA' }, { label: 'Dashboard' }]}
                 actions={
                     <Link href={route('risk.rcsa.worksheet')} className="btn-primary inline-flex items-center gap-2 text-sm">
-                        <span className="material-symbols-outlined text-lg">add</span> New Assessment
+                        <Icon name="add" className="w-4 h-4 shrink-0" /> New Assessment
                     </Link>
                 }
             />
@@ -131,7 +132,7 @@ export default function Dashboard({
                                 <tr>
                                     <td colSpan={6} className="text-center py-12">
                                         <div className="text-gray-400">
-                                            <span className="material-symbols-outlined text-3xl mb-2 block">assignment</span>
+                                            <Icon name="assignment" className="w-8 h-8 shrink-0 mb-2 block mx-auto" />
                                             <p className="text-sm font-medium">No business unit data available</p>
                                         </div>
                                     </td>

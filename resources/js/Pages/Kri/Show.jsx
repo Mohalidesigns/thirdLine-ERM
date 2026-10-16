@@ -6,6 +6,7 @@ import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
 import TrendChart from '@thirdline/ui/Components/TrendChart';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const BAND = {
     red: 'bg-red-100 text-red-700',
@@ -117,12 +118,12 @@ export default function Show({ kri, history = {}, readings = {}, breaches = [], 
                     <>
                         {can.recordMeasurement && !recording && (
                             <button type="button" onClick={() => setRecording(true)} className="btn-primary inline-flex items-center gap-2 text-sm">
-                                <span className="material-symbols-outlined text-lg">add_chart</span> Record Measurement
+                                <Icon name="add_chart" className="w-4 h-4 shrink-0" /> Record Measurement
                             </button>
                         )}
                         {can.update && (
                             <Link href={route('risk.kri.edit', kri.id)} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                                <span className="material-symbols-outlined text-lg">edit</span> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
                             </Link>
                         )}
                     </>

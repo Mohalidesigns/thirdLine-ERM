@@ -1,5 +1,6 @@
 import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const ROLE_COLOURS = {
     'super-admin': 'bg-red-50 border-red-200 text-red-900',
@@ -48,7 +49,7 @@ function ActionButton({ tone, icon, label, hint, onClick }) {
             onClick={onClick}
             className={`w-full px-4 py-3 font-medium rounded-lg border transition flex items-center gap-3 text-left ${tone.surface}`}
         >
-            <span className="material-symbols-outlined text-xl">{icon}</span>
+            <Icon name={icon} className="w-5 h-5 shrink-0" />
             <span>
                 <span className="block text-sm font-semibold">{label}</span>
                 <span className={`block text-xs ${tone.hint}`}>{hint}</span>
@@ -98,7 +99,7 @@ export default function Show({ subject, isSelf, canManage, canDeactivate, canRes
                     href={route('admin.users.index')}
                     className="text-[#1A365D] hover:opacity-80 font-medium inline-flex items-center gap-1 text-sm"
                 >
-                    <span className="material-symbols-outlined text-lg">arrow_back</span>
+                    <Icon name="arrow_back" className="w-4 h-4 shrink-0" />
                     Back to Users
                 </Link>
 
@@ -132,7 +133,7 @@ export default function Show({ subject, isSelf, canManage, canDeactivate, canRes
                                     href={route('admin.users.edit', subject.id)}
                                     className="px-4 py-2 bg-white text-[#1A365D] font-semibold rounded-lg hover:bg-white/90 transition inline-flex items-center gap-2 shrink-0"
                                 >
-                                    <span className="material-symbols-outlined text-lg">edit</span>
+                                    <Icon name="edit" className="w-4 h-4 shrink-0" />
                                     Edit User
                                 </Link>
                             )}

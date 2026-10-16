@@ -4,6 +4,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Bulk import history — FR-TPR-09.
@@ -42,7 +43,7 @@ export default function Index({ batches }) {
                         <input ref={fileInput} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={upload} />
                         <button type="button" disabled={processing} onClick={() => fileInput.current?.click()}
                             className="btn-primary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">upload_file</span>
+                            <Icon name="upload_file" className="w-4 h-4 shrink-0" />
                             Upload a file
                         </button>
                     </>

@@ -5,6 +5,7 @@ import InputError from '@thirdline/ui/Components/InputError';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import useAssessmentPreview from '@/hooks/useAssessmentPreview';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const INPUT =
     'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]';
@@ -244,7 +245,7 @@ export default function Create({
                                 stage === index ? 'bg-[#F0F4F8] text-[#1A365D]' : 'text-gray-500 hover:bg-gray-50'
                             }`}
                         >
-                            <span className="material-symbols-outlined text-lg">{meta.icon}</span>
+                            <Icon name={meta.icon} className="w-4 h-4 shrink-0" />
                             <span className="min-w-0">
                                 <span className="block text-sm font-medium truncate">{meta.label}</span>
                                 <span className="block text-[11px] text-gray-400">Step {meta.steps}</span>
@@ -352,7 +353,7 @@ export default function Create({
                             </div>
 
                             <button type="button" onClick={addCause} className="btn-secondary text-sm mt-4 inline-flex items-center gap-1">
-                                <span className="material-symbols-outlined text-sm">add</span> Add cause
+                                <Icon name="add" className="w-3.5 h-3.5 shrink-0" /> Add cause
                             </button>
                         </Card>
                     </div>
@@ -700,7 +701,7 @@ export default function Create({
                             </div>
 
                             <button type="button" onClick={addAction} className="btn-secondary text-sm mt-4 inline-flex items-center gap-1">
-                                <span className="material-symbols-outlined text-sm">add</span> Add action
+                                <Icon name="add" className="w-3.5 h-3.5 shrink-0" /> Add action
                             </button>
                         </Card>
 
@@ -790,7 +791,7 @@ export default function Create({
                             disabled={processing}
                             className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-50"
                         >
-                            <span className="material-symbols-outlined text-lg">send</span> Submit for review
+                            <Icon name="send" className="w-4 h-4 shrink-0" /> Submit for review
                         </button>
                     </div>
                 </div>

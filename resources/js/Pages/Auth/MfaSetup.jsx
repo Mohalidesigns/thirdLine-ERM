@@ -4,6 +4,7 @@ import InputError from '@thirdline/ui/Components/InputError';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import QrCode from '@thirdline/ui/Components/QrCode';
 import { CsrfField } from '@thirdline/ui/lib/nativeForm';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const STEPS = [
     'Download an authenticator app such as Google Authenticator, Microsoft Authenticator or Authy.',
@@ -38,7 +39,7 @@ export default function MfaSetup({ secret, otpauthUri, issuer, account, alreadyE
                         <div className="card">
                             <div className="card-body">
                                 <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-[var(--color-primary)]">info</span>
+                                    <Icon name="info" className="w-5 h-5 shrink-0 text-[var(--color-primary)]" />
                                     Setup Instructions
                                 </h3>
                                 <ol className="space-y-3 text-sm text-gray-700">

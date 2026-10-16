@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import TierBadge from './TierBadge';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The score panel and its "Why this score" expander — TRD §11's right rail,
@@ -166,9 +167,7 @@ export default function ScorePanel({ engagement, derivation, score = null }) {
                     aria-expanded={open}
                 >
                     Why this score
-                    <span className="material-symbols-outlined text-lg">
-                        {open ? 'expand_less' : 'expand_more'}
-                    </span>
+                    <Icon name={open ? 'expand_less' : 'expand_more'} className="w-4 h-4 shrink-0" />
                 </button>
             )}
 

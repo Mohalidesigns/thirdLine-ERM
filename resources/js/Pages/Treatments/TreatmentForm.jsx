@@ -1,5 +1,6 @@
 import DynamicForm from '@thirdline/ui/Components/DynamicForm';
 import InputError from '@thirdline/ui/Components/InputError';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The create and edit form for a treatment plan (migration Phase 3.5).
@@ -59,7 +60,7 @@ function MilestoneRow({ milestone, index, onChange, onRemove, errors }) {
                     title="Remove"
                     className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                 >
-                    <span className="material-symbols-outlined text-lg">delete</span>
+                    <Icon name="delete" className="w-4 h-4 shrink-0" />
                 </button>
             </div>
         </div>
@@ -111,7 +112,7 @@ export default function TreatmentForm({ schema, data, setData, errors = {}, deta
                     onClick={() => setMilestones([...milestones, { ...EMPTY_MILESTONE }])}
                     className="flex items-center gap-2 px-4 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-[#1A365D] hover:text-[#1A365D] transition-colors"
                 >
-                    <span className="material-symbols-outlined text-lg">add</span> Add Milestone
+                    <Icon name="add" className="w-4 h-4 shrink-0" /> Add Milestone
                 </button>
 
                 <InputError message={errors.milestones} className="mt-1" />

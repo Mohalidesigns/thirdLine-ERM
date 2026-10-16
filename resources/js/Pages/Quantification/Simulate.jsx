@@ -9,6 +9,7 @@ import SecondaryButton from '@thirdline/ui/Components/SecondaryButton';
 import EmptyState from '@thirdline/ui/Components/EmptyState';
 import { naira, number } from '@/Components/Quantification/figures';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Configure and launch a Monte Carlo run (migration Phase 5.2).
@@ -148,7 +149,7 @@ export default function Simulate({ scenarios, defaults, iterationChoices, horizo
 
                     {scenarios.length === 0 ? (
                         <EmptyState
-                            icon={<span className="material-symbols-outlined text-3xl text-gray-400">category</span>}
+                            icon={<Icon name="category" className="w-8 h-8 shrink-0 text-gray-400" />}
                             title="No active scenarios"
                             description="A simulation draws on calibrated scenarios. Create one, or import a template from the library."
                             actionLabel={createUrl ? 'Create a scenario' : undefined}
@@ -194,7 +195,7 @@ export default function Simulate({ scenarios, defaults, iterationChoices, horizo
                         <SecondaryButton type="button">Cancel</SecondaryButton>
                     </Link>
                     <PrimaryButton disabled={processing || scenarios.length === 0}>
-                        <span className="material-symbols-outlined text-lg mr-2">play_arrow</span> Run simulation
+                        <Icon name="play_arrow" className="w-4 h-4 shrink-0 mr-2" /> Run simulation
                     </PrimaryButton>
                 </div>
             </form>

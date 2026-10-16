@@ -4,6 +4,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import EmptyState from '@thirdline/ui/Components/EmptyState';
 import { naira, number } from '@/Components/Quantification/figures';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The shipped scenario library (migration Phase 5.2).
@@ -39,7 +40,7 @@ export default function Library({ libraryScenarios, canImport }) {
                 actions={
                     scenariosUrl && (
                         <Link href={scenariosUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">category</span> Scenario register
+                            <Icon name="category" className="w-4 h-4 shrink-0" /> Scenario register
                         </Link>
                     )
                 }
@@ -54,7 +55,7 @@ export default function Library({ libraryScenarios, canImport }) {
 
             {libraryScenarios.length === 0 ? (
                 <EmptyState
-                    icon={<span className="material-symbols-outlined text-3xl text-gray-400">library_books</span>}
+                    icon={<Icon name="library_books" className="w-8 h-8 shrink-0 text-gray-400" />}
                     title="No pre-built scenarios available"
                     description="The shipped library is empty for this installation."
                 />
@@ -98,7 +99,7 @@ export default function Library({ libraryScenarios, canImport }) {
                                     href={route('risk.quantification.show-scenario', template.imported.id)}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
                                 >
-                                    <span className="material-symbols-outlined text-sm">check_circle</span>
+                                    <Icon name="check_circle" className="w-3.5 h-3.5 shrink-0" />
                                     In your register as {template.imported.scenario_reference}
                                 </Link>
                             ) : (
@@ -108,7 +109,7 @@ export default function Library({ libraryScenarios, canImport }) {
                                         onClick={() => importTemplate(template)}
                                         className="w-full px-4 py-2 bg-[#1A365D] text-white rounded-lg text-xs font-semibold hover:bg-[#2D4A7A] flex items-center justify-center gap-2"
                                     >
-                                        <span className="material-symbols-outlined text-sm">add_circle</span> Import scenario
+                                        <Icon name="add_circle" className="w-3.5 h-3.5 shrink-0" /> Import scenario
                                     </button>
                                 )
                             )}

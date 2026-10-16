@@ -4,6 +4,7 @@ import AiDraftButton from '@thirdline/ui/Components/AiDraftButton';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm';
 import TreatmentForm, { EMPTY_MILESTONE } from './TreatmentForm';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Migration Phase 3.5: risk/treatments/create.blade.php. */
 export default function Create({ schema = null, canDraftWithAi = false }) {
@@ -68,7 +69,7 @@ export default function Create({ schema = null, canDraftWithAi = false }) {
                 <div className="flex items-center justify-between">
                     <Link href={route('risk.treatments.index')} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <span className="material-symbols-outlined text-lg">save</span>
+                        <Icon name="save" className="w-4 h-4 shrink-0" />
                         Create Plan
                     </button>
                 </div>

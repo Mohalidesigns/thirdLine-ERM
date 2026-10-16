@@ -2,6 +2,7 @@ import { Head, router } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Tiering rulesets — FR-TIER-09.
@@ -21,7 +22,7 @@ export default function Rulesets({ rulesets = [], current }) {
                     <button type="button"
                         onClick={() => router.post(tryRoute('tprm.rulesets.draft'))}
                         className="btn-primary text-sm inline-flex items-center gap-2">
-                        <span className="material-symbols-outlined text-lg">add</span> New draft
+                        <Icon name="add" className="w-4 h-4 shrink-0" /> New draft
                     </button>
                 }
             />

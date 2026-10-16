@@ -7,6 +7,7 @@ import Figure from '@/Components/Quantification/Figure';
 import SeriesChart from '@/Components/Quantification/SeriesChart';
 import { NOT_ASSESSED, NOT_RECORDED, naira, number, percent, trimmedPercent } from '@/Components/Quantification/figures';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Naira compacted so six tiles fit without overflowing. */
 function compactNaira(amount) {
@@ -71,10 +72,10 @@ export default function Dashboard({
                 actions={
                     <>
                         <Link href={route('risk.quantification.simulate')} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">play_arrow</span> New simulation
+                            <Icon name="play_arrow" className="w-4 h-4 shrink-0" /> New simulation
                         </Link>
                         <Link href={route('risk.quantification.scenarios')} className="btn-secondary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">category</span> Scenarios
+                            <Icon name="category" className="w-4 h-4 shrink-0" /> Scenarios
                         </Link>
                     </>
                 }
@@ -136,7 +137,7 @@ export default function Dashboard({
                 <section className="bg-white rounded-xl border border-gray-200 p-5">
                     <div className="flex items-center justify-between mb-1">
                         <h3 className="text-sm font-semibold text-[#1A365D]">ICAAP Capital Add-on by Component</h3>
-                        <span className="material-symbols-outlined text-gray-400 text-lg">donut_large</span>
+                        <Icon name="donut_large" className="w-4 h-4 shrink-0 text-gray-400" />
                     </div>
                     <p className="text-xs text-gray-500 mb-4">
                         The Pillar 2A columns and the Pillar 2B stress buffer, named for the columns they read. These
@@ -168,7 +169,7 @@ export default function Dashboard({
                 <section className="bg-white rounded-xl border border-gray-200 p-5">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-semibold text-[#1A365D]">Loss Distribution (Latest Simulation)</h3>
-                        <span className="material-symbols-outlined text-gray-400 text-lg">bar_chart</span>
+                        <Icon name="bar_chart" className="w-4 h-4 shrink-0 text-gray-400" />
                     </div>
                     {lossDistData.labels.length > 0 ? (
                         <SeriesChart
@@ -196,7 +197,7 @@ export default function Dashboard({
 
                     {recentSimulations.length === 0 ? (
                         <p className="py-10 text-center text-gray-400 text-sm">
-                            <span className="material-symbols-outlined text-3xl mb-2 block">calculate</span>
+                            <Icon name="calculate" className="w-8 h-8 shrink-0 mb-2 block mx-auto" />
                             No simulations run yet
                         </p>
                     ) : (

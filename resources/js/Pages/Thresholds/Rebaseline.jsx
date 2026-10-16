@@ -2,6 +2,7 @@ import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import InputError from '@thirdline/ui/Components/InputError';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import Icon from '@thirdline/ui/Components/Icon';
 
 function titleCase(value) {
     return value ? value.charAt(0).toUpperCase() + value.slice(1) : '—';
@@ -136,7 +137,7 @@ export default function Rebaseline({ pending = [], history = [], canDecide = fal
 
             {pending.length === 0 ? (
                 <div className="bg-white rounded-xl border border-gray-200 text-center py-12">
-                    <span className="material-symbols-outlined text-4xl text-green-300 mb-2 block">verified</span>
+                    <Icon name="verified" className="w-9 h-9 shrink-0 text-green-300 mb-2 block mx-auto" />
                     <p className="text-sm text-gray-500">No thresholds have drifted past tolerance.</p>
                 </div>
             ) : (

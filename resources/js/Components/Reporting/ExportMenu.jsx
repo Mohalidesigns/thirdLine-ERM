@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { usePage } from '@inertiajs/react';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The CSV exports, in one menu (migration Phase 5.5).
@@ -76,8 +77,8 @@ export default function ExportMenu({ label = 'Export', className = '' }) {
                 aria-expanded={open}
                 aria-haspopup="menu"
             >
-                <span className="material-symbols-outlined text-lg">download</span> {label}
-                <span className="material-symbols-outlined text-lg">{open ? 'expand_less' : 'expand_more'}</span>
+                <Icon name="download" className="w-4 h-4 shrink-0" /> {label}
+                <Icon name={open ? 'expand_less' : 'expand_more'} className="w-4 h-4 shrink-0" />
             </button>
 
             {open && (

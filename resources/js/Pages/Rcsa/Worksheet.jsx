@@ -6,6 +6,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import LegacyNotice, { WORKSHEET_CLOSED_MESSAGE } from './LegacyNotice';
 import RcsaWorksheetTable, { EMPTY_LINE } from './RcsaWorksheetTable';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Migration Phase 3.8: risk/rcsa/worksheet.blade.php. */
 function Section({ index, title, children }) {
@@ -212,7 +213,7 @@ export default function Worksheet({
                                 Save Draft
                             </button>
                             <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                                <span className="material-symbols-outlined text-lg">send</span> Submit Assessment
+                                <Icon name="send" className="w-4 h-4 shrink-0" /> Submit Assessment
                             </button>
                         </div>
                     )}

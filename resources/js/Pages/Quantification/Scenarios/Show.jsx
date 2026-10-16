@@ -6,6 +6,7 @@ import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import SeriesChart from '@/Components/Quantification/SeriesChart';
 import { NOT_RECORDED, naira, number } from '@/Components/Quantification/figures';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * One scenario (migration Phase 5.2).
@@ -45,12 +46,12 @@ export default function Show({ scenario, values, simulations, distributionVisual
                     <>
                         {editUrl && (
                             <Link href={editUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">edit</span> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
                             </Link>
                         )}
                         {simulateUrl && (
                             <Link href={simulateUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">play_arrow</span> Run simulation
+                                <Icon name="play_arrow" className="w-4 h-4 shrink-0" /> Run simulation
                             </Link>
                         )}
                         {scenariosUrl && (

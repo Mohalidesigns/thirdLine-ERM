@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import InputError from '@thirdline/ui/Components/InputError';
 import Modal from '@thirdline/ui/Components/Modal';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import Icon from '@thirdline/ui/Components/Icon';
 
 function Stat({ label, value, tone, icon }) {
     return (
@@ -13,7 +14,7 @@ function Stat({ label, value, tone, icon }) {
                     <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
                     <p className={`text-3xl font-bold mt-1 ${tone}`}>{value}</p>
                 </div>
-                <span className={`material-symbols-outlined opacity-50 ${tone}`} style={{ fontSize: 36 }}>{icon}</span>
+                <Icon name={icon} className={`w-9 h-9 shrink-0 opacity-50 ${tone}`} />
             </div>
         </div>
     );
@@ -32,7 +33,7 @@ function DecisionModal({ approval, mode, onClose }) {
             <form onSubmit={submit}>
                 <div className="px-5 py-4 border-b flex items-center justify-between">
                     <h5 className="text-base font-semibold text-[var(--color-primary)]">{reject ? 'Reject request' : 'Approve request'}</h5>
-                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><span className="material-symbols-outlined">close</span></button>
+                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><Icon name="close" className="w-5 h-5 shrink-0" /></button>
                 </div>
                 <div className="px-5 py-4">
                     {reject ? (
@@ -53,7 +54,7 @@ function DecisionModal({ approval, mode, onClose }) {
                 <div className="px-5 py-3 border-t bg-gray-50 flex justify-end gap-2">
                     <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100">Cancel</button>
                     <button type="submit" disabled={form.processing} className={`px-3 py-1.5 text-sm rounded-md text-white inline-flex items-center gap-1 ${reject ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{reject ? 'close' : 'check'}</span> {reject ? 'Reject' : 'Approve'}
+                        <Icon name={reject ? 'close' : 'check'} className="w-4 h-4 shrink-0" /> {reject ? 'Reject' : 'Approve'}
                     </button>
                 </div>
             </form>
@@ -73,7 +74,7 @@ export default function Dashboard({ stats, groups, canAct, historyUrl }) {
             <PageHeader
                 title="Approval dashboard"
                 subtitle="Review and manage pending approvals across the platform."
-                actions={<Link href={historyUrl} className="btn-secondary text-sm inline-flex items-center gap-2"><span className="material-symbols-outlined text-lg">history</span> View history</Link>}
+                actions={<Link href={historyUrl} className="btn-secondary text-sm inline-flex items-center gap-2"><Icon name="history" className="w-4 h-4 shrink-0" /> View history</Link>}
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -87,7 +88,7 @@ export default function Dashboard({ stats, groups, canAct, historyUrl }) {
 
             {groups.length === 0 ? (
                 <div className="bg-white rounded-xl border border-gray-200 py-16 text-center">
-                    <span className="material-symbols-outlined text-green-500" style={{ fontSize: 56 }}>check_circle</span>
+                    <Icon name="check_circle" className="w-14 h-14 shrink-0 text-green-500" />
                     <h5 className="mt-3 text-lg font-semibold text-[var(--color-primary)]">All caught up</h5>
                     <p className="text-sm text-gray-500">No pending approvals at this time.</p>
                 </div>
@@ -112,8 +113,8 @@ export default function Dashboard({ stats, groups, canAct, historyUrl }) {
                                         <td className="px-5 py-3 text-right">
                                             {canAct && (
                                                 <div className="inline-flex gap-2">
-                                                    <button type="button" onClick={() => setDecision({ approval: a, mode: 'approve' })} className="px-3 py-1 text-xs rounded-md border border-green-600 text-green-700 hover:bg-green-600 hover:text-white inline-flex items-center gap-1"><span className="material-symbols-outlined" style={{ fontSize: 14 }}>check</span> Approve</button>
-                                                    <button type="button" onClick={() => setDecision({ approval: a, mode: 'reject' })} className="px-3 py-1 text-xs rounded-md border border-red-600 text-red-700 hover:bg-red-600 hover:text-white inline-flex items-center gap-1"><span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span> Reject</button>
+                                                    <button type="button" onClick={() => setDecision({ approval: a, mode: 'approve' })} className="px-3 py-1 text-xs rounded-md border border-green-600 text-green-700 hover:bg-green-600 hover:text-white inline-flex items-center gap-1"><Icon name="check" className="w-3.5 h-3.5 shrink-0" /> Approve</button>
+                                                    <button type="button" onClick={() => setDecision({ approval: a, mode: 'reject' })} className="px-3 py-1 text-xs rounded-md border border-red-600 text-red-700 hover:bg-red-600 hover:text-white inline-flex items-center gap-1"><Icon name="close" className="w-3.5 h-3.5 shrink-0" /> Reject</button>
                                                 </div>
                                             )}
                                         </td>

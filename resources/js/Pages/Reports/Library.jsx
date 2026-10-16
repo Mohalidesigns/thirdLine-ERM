@@ -5,6 +5,7 @@ import InputError from '@thirdline/ui/Components/InputError';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { CsrfField } from '@thirdline/ui/lib/nativeForm';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const humanise = (type) => type.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
@@ -30,7 +31,7 @@ export default function Library({ types, today, grid }) {
                 actions={
                     permissions.includes('report.view') && sectionsUrl && (
                         <a href={sectionsUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">tune</span> Board pack sections
+                            <Icon name="tune" className="w-4 h-4 shrink-0" /> Board pack sections
                         </a>
                     )
                 }

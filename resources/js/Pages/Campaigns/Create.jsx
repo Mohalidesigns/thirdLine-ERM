@@ -4,6 +4,7 @@ import InputError from '@thirdline/ui/Components/InputError';
 import InputLabel from '@thirdline/ui/Components/InputLabel';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { INPUT, SELECT } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -151,7 +152,7 @@ export default function Create({ questionnaires = [], users = [], campaignTypes 
                 <div className="flex items-center justify-between mt-6">
                     <Link href={route('risk.campaigns.index')} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <span className="material-symbols-outlined text-lg">save</span> Create Campaign
+                        <Icon name="save" className="w-4 h-4 shrink-0" /> Create Campaign
                     </button>
                 </div>
             </form>

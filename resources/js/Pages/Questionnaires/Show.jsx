@@ -4,6 +4,7 @@ import EmptyState from '@thirdline/ui/Components/EmptyState';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import { titleCase } from '../Campaigns/format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * A questionnaire as a respondent will meet it (Phase 4.5:
@@ -42,7 +43,7 @@ export default function Show({ questionnaire, sections = [] }) {
 
                 {sections.length === 0 && (
                     <EmptyState
-                        icon={<span className="material-symbols-outlined text-3xl text-gray-400">quiz</span>}
+                        icon={<Icon name="quiz" className="w-8 h-8 shrink-0 text-gray-400" />}
                         title="No sections yet"
                         description="A questionnaire needs at least one section before it can be published."
                         actionLabel="Add sections"

@@ -4,6 +4,7 @@ import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import LegacyNotice from './LegacyNotice';
 import Pagination from '@thirdline/ui/Components/Pagination';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const EFFECTIVENESS = {
     effective: { label: 'Effective', class: 'bg-green-100 text-green-700' },
@@ -109,7 +110,7 @@ export default function Controls({ legacyNotice = null, summary = {}, controls =
                             {(controls.data ?? []).length === 0 && (
                                 <tr>
                                     <td colSpan={8} className="text-center py-12">
-                                        <span className="material-symbols-outlined text-4xl text-gray-300 mb-2 block">verified_user</span>
+                                        <Icon name="verified_user" className="w-9 h-9 shrink-0 text-gray-300 mb-2 block mx-auto" />
                                         <p className="text-sm text-gray-500">No controls match these filters</p>
                                     </td>
                                 </tr>

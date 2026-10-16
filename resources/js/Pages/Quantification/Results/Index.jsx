@@ -7,6 +7,7 @@ import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import FilterBar from '@thirdline/ui/Components/FilterBar';
 import { naira, number } from '@/Components/Quantification/figures';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Every Monte Carlo run (migration Phase 5.2).
@@ -35,7 +36,7 @@ export default function Index({ results, filters }) {
                 actions={
                     simulateUrl && (
                         <Link href={simulateUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">play_arrow</span> New simulation
+                            <Icon name="play_arrow" className="w-4 h-4 shrink-0" /> New simulation
                         </Link>
                     )
                 }
@@ -63,7 +64,7 @@ export default function Index({ results, filters }) {
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 {results.data.length === 0 ? (
                     <EmptyState
-                        icon={<span className="material-symbols-outlined text-3xl text-gray-400">calculate</span>}
+                        icon={<Icon name="calculate" className="w-8 h-8 shrink-0 text-gray-400" />}
                         title="No simulation results yet"
                         description="Run a Monte Carlo simulation over this institution's scenarios to produce a loss distribution."
                         actionLabel={simulateUrl ? 'Run the first simulation' : undefined}

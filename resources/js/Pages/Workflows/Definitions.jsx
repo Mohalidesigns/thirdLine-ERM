@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import InputError from '@thirdline/ui/Components/InputError';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
+import Icon from '@thirdline/ui/Components/Icon';
 
 function StartForm({ definition, url, onClose }) {
     const form = useForm({ definition_id: definition.id, entity_type: definition.entity_type, entity_id: definition.start_options[0]?.id ?? '' });
@@ -61,14 +62,14 @@ export default function Definitions({ definitions, canManage, urls }) {
                                             <>
                                                 {/* Designer: Blade until Phase 6, so a plain anchor. */}
                                                 <a href={d.urls.edit} className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50">
-                                                    <span className="material-symbols-outlined text-sm">edit</span> {d.is_published ? 'New version' : 'Edit'}
+                                                    <Icon name="edit" className="w-3.5 h-3.5 shrink-0" /> {d.is_published ? 'New version' : 'Edit'}
                                                 </a>
                                                 {d.urls.publish && (
                                                     <button type="button" onClick={() => router.post(d.urls.publish, {}, { preserveScroll: true })} className="ml-1 inline-flex items-center gap-1 px-3 py-1.5 bg-[#2D7D46] text-white text-xs font-semibold rounded-lg hover:bg-[#236B38]">Publish</button>
                                                 )}
                                                 {d.start_options.length > 0 && (
                                                     <button type="button" onClick={() => setStarting(starting === d.id ? null : d.id)} className="ml-1 inline-flex items-center gap-1 px-3 py-1.5 bg-[var(--color-primary)] text-white text-xs font-semibold rounded-lg hover:opacity-90">
-                                                        <span className="material-symbols-outlined text-sm">play_arrow</span> Start
+                                                        <Icon name="play_arrow" className="w-3.5 h-3.5 shrink-0" /> Start
                                                     </button>
                                                 )}
                                             </>

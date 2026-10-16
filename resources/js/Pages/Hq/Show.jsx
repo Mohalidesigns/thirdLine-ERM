@@ -3,6 +3,7 @@ import { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import OrgTree from '@thirdline/ui/Components/OrgTree';
 import WidgetGrid from '@thirdline/ui/Components/WidgetGrid';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const article = (name) => (/^[aeiou]/i.test(name || '') ? 'an' : 'a');
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -46,7 +47,7 @@ export default function Show({
 
             {preview ? (
                 <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-800">
-                    <span className="material-symbols-outlined text-[18px]">visibility</span>
+                    <Icon name="visibility" className="w-4.5 h-4.5 shrink-0" />
                     <span className="font-semibold">Preview</span>
                     <span>
                         “{preview.name}” as it would appear on {preview.objectTypeName ?? 'every'} nodes.{' '}
@@ -62,7 +63,7 @@ export default function Show({
                 </div>
             ) : previewRefused ? (
                 <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
-                    <span className="material-symbols-outlined text-[18px]">info</span>
+                    <Icon name="info" className="w-4.5 h-4.5 shrink-0" />
                     <span>{previewRefused}</span>
                 </div>
             ) : null}
@@ -73,7 +74,7 @@ export default function Show({
                         <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2">
                             {treeOpen && <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Organization</span>}
                             <button type="button" onClick={() => setTreeOpen((o) => !o)} className="text-gray-400 hover:text-gray-600" title={treeOpen ? 'Collapse' : 'Expand'}>
-                                <span className="material-symbols-outlined text-[18px]">{treeOpen ? 'left_panel_close' : 'left_panel_open'}</span>
+                                <Icon name={treeOpen ? 'left_panel_close' : 'left_panel_open'} className="w-4.5 h-4.5 shrink-0" />
                             </button>
                         </div>
                         {treeOpen && (
@@ -87,7 +88,7 @@ export default function Show({
                 <div className="min-w-0 flex-1">
                     {dashboard === null ? (
                         <div className="rounded-lg border border-dashed border-gray-300 bg-white p-10 text-center">
-                            <span className="material-symbols-outlined text-4xl text-gray-300">dashboard_customize</span>
+                            <Icon name="dashboard_customize" className="w-9 h-9 shrink-0 text-gray-300" />
 
                             {roleBlocked.length > 0 ? (
                                 <>
@@ -100,7 +101,7 @@ export default function Show({
                                     <ul className="mx-auto mt-3 max-w-lg space-y-1 text-left">
                                         {roleBlocked.map((b) => (
                                             <li key={b.id} className="flex items-center gap-2 rounded-md border border-gray-100 bg-gray-50 px-3 py-1.5 text-xs">
-                                                <span className="material-symbols-outlined text-[15px] text-gray-400">lock_person</span>
+                                                <Icon name="lock_person" className="w-4 h-4 shrink-0 text-gray-400" />
                                                 <span className="min-w-0 flex-1 truncate font-medium text-gray-700">{b.name}</span>
                                                 <span className="shrink-0 text-[11px] text-gray-500">{b.role_names}</span>
                                                 {b.editUrl && <Link href={b.editUrl} className="shrink-0 font-medium text-[var(--color-primary)] hover:underline">Edit</Link>}
@@ -128,13 +129,13 @@ export default function Show({
                                     <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
                                         {draftsForType.map((d) => (
                                             <Link key={d.id} href={d.editUrl} className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50">
-                                                <span className="material-symbols-outlined text-[16px] text-amber-500">edit_note</span>
+                                                <Icon name="edit_note" className="w-4 h-4 shrink-0 text-amber-500" />
                                                 Open draft “{d.name.length > 28 ? `${d.name.slice(0, 28)}…` : d.name}”
                                             </Link>
                                         ))}
                                         {createUrl && (
                                             <Link href={createUrl} className="inline-flex items-center gap-1 rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
-                                                <span className="material-symbols-outlined text-[16px]">add</span>
+                                                <Icon name="add" className="w-4 h-4 shrink-0" />
                                                 Create {article(object.type || '')} {object.type ?? 'node'} dashboard
                                             </Link>
                                         )}
@@ -150,7 +151,7 @@ export default function Show({
                     ) : (
                         <>
                             <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                                <span className="material-symbols-outlined text-[15px] text-gray-400">dashboard</span>
+                                <Icon name="dashboard" className="w-4 h-4 shrink-0 text-gray-400" />
                                 <span className="font-medium text-gray-700">{dashboard.name}</span>
                                 {dashboard.object_type_id === null ? (
                                     <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">default for every type</span>
@@ -179,7 +180,7 @@ export default function Show({
                                 </nav>
                                 {dashboard.editUrl && (
                                     <Link href={dashboard.editUrl} className="inline-flex shrink-0 items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50">
-                                        <span className="material-symbols-outlined text-[16px]">edit</span>
+                                        <Icon name="edit" className="w-4 h-4 shrink-0" />
                                         {preview ? 'Back to editor' : 'Edit layout'}
                                     </Link>
                                 )}

@@ -4,6 +4,7 @@ import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { useGridState } from '@thirdline/ui/Components/DataGrid/useGridState';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The live risk register (migration Phase 2) — see
@@ -30,7 +31,7 @@ export default function Index({ total, ratingCounts, grid }) {
                 actions={
                     permissions.includes('risk.create') && createUrl && (
                         <Link href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">add_circle</span> New Risk
+                            <Icon name="add_circle" className="w-4 h-4 shrink-0" /> New Risk
                         </Link>
                     )
                 }

@@ -2,6 +2,7 @@ import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import Icon from '@thirdline/ui/Components/Icon';
 
 export default function Index({ term, results }) {
     const [q, setQ] = useState(term || '');
@@ -18,7 +19,7 @@ export default function Index({ term, results }) {
             <div className="mx-auto max-w-3xl">
                 <form onSubmit={submit} className="mb-4" role="search">
                     <div className="relative">
-                        <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+                        <Icon name="search" className="w-5 h-5 shrink-0 pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input
                             type="search"
                             name="q"
@@ -45,7 +46,7 @@ export default function Index({ term, results }) {
                                 <li key={result.id}>
                                     {/* Plain anchor: most destinations are Blade pages until their module is ported. */}
                                     <a href={result.url} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50">
-                                        <span className="material-symbols-outlined shrink-0 rounded-lg bg-gray-100 p-2 text-[20px] leading-none text-gray-500">{result.icon || 'topic'}</span>
+                                        <Icon name={result.icon || 'topic'} className="w-5 h-5 shrink-0 rounded-lg bg-gray-100 p-2 text-gray-500" />
                                         <span className="min-w-0 flex-1">
                                             <span className="block truncate text-sm font-medium text-gray-800">{result.name}</span>
                                             <span className="block truncate text-xs text-gray-400">
@@ -54,7 +55,7 @@ export default function Index({ term, results }) {
                                                 {result.description ? ` — ${result.description}` : ''}
                                             </span>
                                         </span>
-                                        <span className="material-symbols-outlined shrink-0 text-[18px] text-gray-300">chevron_right</span>
+                                        <Icon name="chevron_right" className="w-4.5 h-4.5 shrink-0 text-gray-300" />
                                     </a>
                                 </li>
                             ))}

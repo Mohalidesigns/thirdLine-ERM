@@ -4,6 +4,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import EmptyState from '@thirdline/ui/Components/EmptyState';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const IMPACT_CLASSES = {
     critical: 'bg-red-100 text-red-700',
@@ -50,12 +51,12 @@ export default function Dashboard({
                     <>
                         {calendarUrl && (
                             <Link href={calendarUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">calendar_month</span> Calendar
+                                <Icon name="calendar_month" className="w-4 h-4 shrink-0" /> Calendar
                             </Link>
                         )}
                         {circularsUrl && (
                             <Link href={circularsUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">description</span> Circulars
+                                <Icon name="description" className="w-4 h-4 shrink-0" /> Circulars
                             </Link>
                         )}
                     </>
@@ -131,7 +132,7 @@ export default function Dashboard({
 
                     {recentCirculars.length === 0 ? (
                         <EmptyState
-                            icon={<span className="material-symbols-outlined text-3xl text-gray-400">description</span>}
+                            icon={<Icon name="description" className="w-8 h-8 shrink-0 text-gray-400" />}
                             title="No circulars recorded"
                             description="Record a regulator's circular to track this institution's response to it."
                         />

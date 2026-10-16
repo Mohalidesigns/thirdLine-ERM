@@ -7,6 +7,7 @@ import Figure from '@/Components/Quantification/Figure';
 import ReportShell, { LibraryLink } from '@thirdline/ui/Components/ReportShell';
 import { NOT_ASSESSED, naira, number, percent, trimmedPercent } from '@/Components/Quantification/figures';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Board risk report (migration Phase 5.4).
@@ -58,7 +59,7 @@ export default function Board({
                                 href={sectionsUrl}
                                 className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                             >
-                                <span className="material-symbols-outlined text-lg">tune</span> Pack sections
+                                <Icon name="tune" className="w-4 h-4 shrink-0" /> Pack sections
                             </Link>
                         )}
                         <LibraryLink />

@@ -4,6 +4,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import useReportStatus from '@thirdline/ui/hooks/useReportStatus';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const humanise = (value) => (value ? String(value).replaceAll('_', ' ') : '—');
 
@@ -79,7 +80,7 @@ export default function Status({ report }) {
                                 href={downloadUrl}
                                 className="px-4 py-2 bg-[#1A365D] text-white rounded-lg text-sm hover:bg-[#2D4A7A] inline-flex items-center gap-2"
                             >
-                                <span className="material-symbols-outlined text-lg">download</span> Download
+                                <Icon name="download" className="w-4 h-4 shrink-0" /> Download
                             </a>
                         )}
                     </div>

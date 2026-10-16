@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
 import { naira, severityTone, titleCase } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Loss events awaiting a decision (migration Phase 4.3:
@@ -62,7 +63,7 @@ export default function Approvals({ pending = {}, filters = {}, severities = [] 
                             {(pending.data ?? []).length === 0 && (
                                 <tr>
                                     <td colSpan={8} className="text-center py-12">
-                                        <span className="material-symbols-outlined text-4xl text-green-300 mb-2 block">task_alt</span>
+                                        <Icon name="task_alt" className="w-9 h-9 shrink-0 text-green-300 mb-2 block mx-auto" />
                                         <p className="text-sm text-gray-500">Nothing is waiting for a decision.</p>
                                     </td>
                                 </tr>

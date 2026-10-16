@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The frame the four quantification reports share (migration Phase 5.2).
@@ -37,7 +38,7 @@ export default function ReportShell({ title, subtitle, asOf = null, notice = nul
                         onClick={() => window.print()}
                         className="px-4 py-2 bg-[#1A365D] text-white rounded-lg text-sm font-medium hover:bg-[#2D4A7A] flex items-center gap-2"
                     >
-                        <span className="material-symbols-outlined text-lg">print</span> Print
+                        <Icon name="print" className="w-4 h-4 shrink-0" /> Print
                     </button>
                     {libraryUrl && (
                         <Link

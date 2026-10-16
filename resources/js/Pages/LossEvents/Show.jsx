@@ -5,6 +5,7 @@ import InputError from '@thirdline/ui/Components/InputError';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { naira, severityTone, statusTone, titleCase } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const TABS = [
     { key: 'details', label: 'Details', icon: 'info' },
@@ -199,7 +200,7 @@ export default function Show({ event, can = {}, options = {} }) {
                 actions={
                     can.update && (
                         <Link href={route('risk.loss-events.edit', event.id)} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-lg">edit</span> Amend
+                            <Icon name="edit" className="w-4 h-4 shrink-0" /> Amend
                         </Link>
                     )
                 }
@@ -231,7 +232,7 @@ export default function Show({ event, can = {}, options = {} }) {
                                 : 'border-transparent text-gray-500 hover:text-gray-700'
                         }`}
                     >
-                        <span className="material-symbols-outlined text-lg">{entry.icon}</span>
+                        <Icon name={entry.icon} className="w-4 h-4 shrink-0" />
                         {entry.label}
                     </button>
                 ))}
@@ -346,7 +347,7 @@ export default function Show({ event, can = {}, options = {} }) {
                         </dl>
                     ) : (
                         <div className="text-center py-8 text-gray-400">
-                            <span className="material-symbols-outlined text-3xl mb-2 block">psychology</span>
+                            <Icon name="psychology" className="w-8 h-8 shrink-0 mb-2 block mx-auto" />
                             <p className="text-sm">No root cause analysis recorded yet.</p>
                         </div>
                     )}

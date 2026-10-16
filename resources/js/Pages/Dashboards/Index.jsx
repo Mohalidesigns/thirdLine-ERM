@@ -1,6 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -8,7 +9,7 @@ function Row({ row }) {
     return (
         <li>
             <Link href={row.editUrl} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50">
-                <span className="material-symbols-outlined shrink-0 rounded-lg bg-gray-100 p-2 text-[20px] leading-none text-gray-500">dashboard</span>
+                <Icon name="dashboard" className="w-5 h-5 shrink-0 rounded-lg bg-gray-100 p-2 text-gray-500" />
 
                 <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-gray-800">{row.name}</span>
@@ -22,7 +23,7 @@ function Row({ row }) {
                     </span>
                     {row.warning && (
                         <span className={`mt-0.5 flex items-start gap-1 text-[11px] ${row.warning.tone === 'warn' ? 'text-amber-700' : 'text-gray-400'}`}>
-                            {row.warning.tone === 'warn' && <span className="material-symbols-outlined text-[13px] leading-[1.3]">warning</span>}
+                            {row.warning.tone === 'warn' && <Icon name="warning" className="w-3.5 h-3.5 shrink-0" />}
                             <span>{row.warning.text}</span>
                         </span>
                     )}
@@ -41,7 +42,7 @@ function Row({ row }) {
                     )}
                 </span>
 
-                <span className="material-symbols-outlined shrink-0 pt-1 text-[18px] text-gray-300">chevron_right</span>
+                <Icon name="chevron_right" className="w-4.5 h-4.5 shrink-0 pt-1 text-gray-300" />
             </Link>
         </li>
     );
@@ -66,7 +67,7 @@ export default function Index({ live, drafts, createUrl }) {
                     subtitle="A dashboard is a composition of widgets, bound to an object type and published to roles. Business HQ renders the published dashboard matching each node's type — so a dashboard is only ever seen if nodes of its type exist."
                     actions={
                         <Link href={createUrl} className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">
-                            <span className="material-symbols-outlined text-[16px]">add</span> New dashboard
+                            <Icon name="add" className="w-4 h-4 shrink-0" /> New dashboard
                         </Link>
                     }
                 />
@@ -85,12 +86,12 @@ export default function Index({ live, drafts, createUrl }) {
 
                 {live.length === 0 && drafts.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-12 text-center">
-                        <span className="material-symbols-outlined text-4xl text-gray-300">dashboard_customize</span>
+                        <Icon name="dashboard_customize" className="w-9 h-9 shrink-0 text-gray-300" />
                         <p className="mt-2 text-sm text-gray-500">No dashboards yet. Create the first one.</p>
                     </div>
                 ) : live.length === 0 ? (
                     <p className="mt-4 flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
-                        <span className="material-symbols-outlined text-[15px]">info</span>
+                        <Icon name="info" className="w-4 h-4 shrink-0" />
                         Nothing is published, so every node in Business HQ shows an empty state. Publish one of the drafts above.
                     </p>
                 ) : null}

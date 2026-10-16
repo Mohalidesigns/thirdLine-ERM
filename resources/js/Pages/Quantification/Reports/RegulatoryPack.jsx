@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import ReportShell from '@/Components/Quantification/ReportShell';
 import { NOT_ASSESSED, NOT_RECORDED, naira, number, percent } from '@/Components/Quantification/figures';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const STATUS_CLASSES = {
     pass: 'bg-green-100 text-green-700',
@@ -92,9 +93,7 @@ export default function RegulatoryPack({ summary, checklist }) {
                                             <span
                                                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS_CLASSES[row.status]}`}
                                             >
-                                                <span className="material-symbols-outlined text-[14px]">
-                                                    {STATUS_ICONS[row.status]}
-                                                </span>
+                                                <Icon name={STATUS_ICONS[row.status]} className="w-3.5 h-3.5 shrink-0" />
                                                 {row.status.toUpperCase()}
                                             </span>
                                         </td>

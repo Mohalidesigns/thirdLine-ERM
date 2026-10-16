@@ -5,6 +5,7 @@ import EmptyState from '@thirdline/ui/Components/EmptyState';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import { SELECT, effectivenessTone, titleCase } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Bow-tie analysis for one risk (Phase 5.1: risk/analysis/bowtie.blade.php).
@@ -94,7 +95,7 @@ export default function Bowtie({
 
             {selected === null ? (
                 <EmptyState
-                    icon={<span className="material-symbols-outlined text-3xl text-gray-400">account_tree</span>}
+                    icon={<Icon name="account_tree" className="w-8 h-8 shrink-0 text-gray-400" />}
                     title="Choose a risk"
                     description="A bow-tie is drawn for one risk at a time. Pick one above to see its causes, consequences and the controls on each side."
                 />

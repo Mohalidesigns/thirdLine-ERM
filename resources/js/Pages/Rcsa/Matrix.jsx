@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import LegacyNotice from './LegacyNotice';
 import RatingBadge from '@thirdline/ui/Components/RatingBadge';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const CELL = {
     effective: { class: 'bg-green-500', label: 'Effective' },
@@ -61,7 +62,7 @@ export default function Matrix({ legacyNotice = null, risks = [], controls = [],
                             ))}
                         </select>
                         <a href={exportUrl} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-lg">download</span> Export
+                            <Icon name="download" className="w-4 h-4 shrink-0" /> Export
                         </a>
                     </>
                 }
@@ -100,7 +101,7 @@ export default function Matrix({ legacyNotice = null, risks = [], controls = [],
                             {risks.length === 0 && (
                                 <tr>
                                     <td colSpan={controls.length + 2} className="text-center py-12">
-                                        <span className="material-symbols-outlined text-4xl text-gray-300 mb-2 block">grid_on</span>
+                                        <Icon name="grid_on" className="w-9 h-9 shrink-0 text-gray-300 mb-2 block mx-auto" />
                                         <p className="text-sm text-gray-500">No risk-control mappings available</p>
                                     </td>
                                 </tr>

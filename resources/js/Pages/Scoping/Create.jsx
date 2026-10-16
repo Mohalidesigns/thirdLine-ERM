@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import EntityForm, { seedConfigured, toPayload } from './EntityForm';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Migration Phase 3.1: risk/scoping/create.blade.php. */
 export default function Create({ entityTypes = [], parentEntities = [], users = [], frameworks = [], appetiteLevels = [], appetiteCategories = [], schemas = {} }) {
@@ -55,7 +56,7 @@ export default function Create({ entityTypes = [], parentEntities = [], users = 
                 <div className="flex items-center justify-between">
                     <Link href={route('risk.scoping.index')} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <span className="material-symbols-outlined text-lg">save</span>
+                        <Icon name="save" className="w-4 h-4 shrink-0" />
                         Create Entity
                     </button>
                 </div>

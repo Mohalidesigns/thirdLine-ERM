@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { titleCase } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Migration Phase 4.3: risk/loss-events/reports.blade.php.
@@ -36,7 +37,7 @@ export default function Reports({ totalEvents = 0, exports: regulatoryExports = 
                         {/* Plain anchors: these are file responses, not Inertia
                             visits. */}
                         <a href={entry.url} className="btn-secondary inline-flex items-center gap-2 text-xs mt-4 self-start">
-                            <span className="material-symbols-outlined text-base">download</span> Download CSV
+                            <Icon name="download" className="w-4 h-4 shrink-0" /> Download CSV
                         </a>
                     </div>
                 ))}

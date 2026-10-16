@@ -10,6 +10,7 @@ import GroupedBarChart from '@thirdline/ui/Components/GroupedBarChart';
 import ExportMenu from '@/Components/Reporting/ExportMenu';
 import { NOT_ASSESSED, naira, number, percent } from '@/Components/Quantification/figures';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const shortDate = (value) =>
     value ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '—';
@@ -121,7 +122,7 @@ export default function Dashboard({
             */}
             {asOfPeriod && (
                 <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3">
-                    <span className="material-symbols-outlined text-blue-600">history</span>
+                    <Icon name="history" className="w-5 h-5 shrink-0 text-blue-600" />
                     <div className="text-sm text-blue-800">
                         <p className="font-semibold">
                             Risk scores shown as at {asOfPeriod.name}
@@ -325,7 +326,7 @@ export default function Dashboard({
                     </header>
                     {topRisks.length === 0 ? (
                         <EmptyState
-                            icon={<span className="material-symbols-outlined text-3xl text-gray-400">shield</span>}
+                            icon={<Icon name="shield" className="w-8 h-8 shrink-0 text-gray-400" />}
                             title="No scored risks"
                             description="Assess risks in the register to see them ranked here."
                         />
@@ -388,7 +389,7 @@ export default function Dashboard({
                                 {activityFeed.map((item, index) => (
                                     <li key={index} className="px-5 py-3 flex items-start gap-3">
                                         <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${item.icon_bg}`}>
-                                            <span className={`material-symbols-outlined text-sm ${item.icon_color}`}>{item.icon}</span>
+                                            <Icon name={item.icon} className={`w-3.5 h-3.5 shrink-0 ${item.icon_color}`} />
                                         </span>
                                         <div className="flex-1 min-w-0">
                                             <a href={item.url} className="text-sm text-gray-800 hover:underline block truncate">

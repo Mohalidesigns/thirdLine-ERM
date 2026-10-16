@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import AiDraftButton from '@thirdline/ui/Components/AiDraftButton';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import RiskForm, { seedConfigured, toPayload } from './RiskForm';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Migration Phase 3.2: risk/register/create.blade.php. */
 export default function Create({
@@ -96,7 +97,7 @@ export default function Create({
                 <div className="flex items-center justify-between">
                     <Link href={route('risk.register.index')} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <span className="material-symbols-outlined text-lg">save</span>
+                        <Icon name="save" className="w-4 h-4 shrink-0" />
                         Create Risk
                     </button>
                 </div>

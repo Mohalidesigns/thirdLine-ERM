@@ -7,6 +7,7 @@ import Pagination from '@thirdline/ui/Components/Pagination';
 import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The register as at the close of a period that has ended (migration Phase
@@ -40,7 +41,7 @@ export default function Historic({ risks, categories = [], businessUnits = [], a
             <Head title="Risk Register" />
 
             <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3">
-                <span className="material-symbols-outlined text-blue-600">history</span>
+                <Icon name="history" className="w-5 h-5 shrink-0 text-blue-600" />
                 <div className="text-sm text-blue-800">
                     <p className="font-semibold">
                         Showing the register as at {asOfPeriod.name}

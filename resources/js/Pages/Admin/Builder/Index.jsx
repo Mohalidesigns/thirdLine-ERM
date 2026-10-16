@@ -1,6 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The configuration builder landing page (migration Phase 6.3).
@@ -29,7 +30,7 @@ export default function Index({ cards }) {
                         className="block bg-white rounded-xl border border-gray-200 p-5 hover:border-[#1A365D] hover:shadow-sm transition"
                     >
                         <div className="flex items-start justify-between">
-                            <span className="material-symbols-outlined text-[#1A365D] text-2xl">{card.icon}</span>
+                            <Icon name={card.icon} className="w-6 h-6 shrink-0 text-[#1A365D]" />
                             {card.count !== null && (
                                 <span className="text-2xl font-bold text-gray-900">{card.count}</span>
                             )}
@@ -43,7 +44,7 @@ export default function Index({ cards }) {
 
             <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5">
                 <div className="flex gap-3">
-                    <span className="material-symbols-outlined text-amber-600">warning</span>
+                    <Icon name="warning" className="w-5 h-5 shrink-0 text-amber-600" />
                     <div className="text-xs text-amber-900 leading-relaxed">
                         <p className="font-semibold">Changes here affect every record in this organisation.</p>
                         <p className="mt-1">

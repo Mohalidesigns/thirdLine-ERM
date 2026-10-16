@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** The KRI library (migration Phase 2) — see App\Grids\Definitions\KrisGrid. */
 export default function Index({ total, activeBreachCount, grid }) {
@@ -21,12 +22,12 @@ export default function Index({ total, activeBreachCount, grid }) {
                     <>
                         {permissions.includes('kri.create') && createUrl && (
                             <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">add_circle</span> New KRI
+                                <Icon name="add_circle" className="w-4 h-4 shrink-0" /> New KRI
                             </a>
                         )}
                         {thresholdsUrl && (
                             <a href={thresholdsUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">tune</span> Manage Thresholds
+                                <Icon name="tune" className="w-4 h-4 shrink-0" /> Manage Thresholds
                             </a>
                         )}
                     </>

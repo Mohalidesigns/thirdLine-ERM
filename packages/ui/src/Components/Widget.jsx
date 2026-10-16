@@ -74,7 +74,7 @@ export default function Widget({ payload: initial }) {
                     button={({ toggle }) => (
                         <button type="button" onClick={toggle} className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2" aria-label={`Widget menu: ${payload?.title ?? 'Widget'}`} aria-haspopup="menu">
                             {loading ? (
-                                <span className="material-symbols-outlined text-[20px] leading-none animate-spin motion-reduce:animate-none" aria-hidden="true">progress_activity</span>
+                                <Icon name="progress_activity" className="w-5 h-5 shrink-0 animate-spin motion-reduce:animate-none" />
                             ) : (
                                 <Icon name="more_vert" className="w-5 h-5" />
                             )}

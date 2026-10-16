@@ -3,13 +3,14 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 function Stat({ value, label, icon, tone }) {
     return (
         <div className="kpi-card">
             <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${tone.bg}`}>
-                    <span className={`material-symbols-outlined ${tone.text}`}>{icon}</span>
+                    <Icon name={icon} className={`w-5 h-5 shrink-0 ${tone.text}`} />
                 </div>
                 <div>
                     <p className="text-2xl font-bold text-gray-900">{value}</p>
@@ -39,7 +40,7 @@ export default function Index({ totalUsers, activeUsers, inactiveUsers, mfaEnabl
                 actions={
                     permissions.includes('admin.users') && createUrl && (
                         <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">person_add</span> Create User
+                            <Icon name="person_add" className="w-4 h-4 shrink-0" /> Create User
                         </a>
                     )
                 }

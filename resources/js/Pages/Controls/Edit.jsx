@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm';
 import ControlForm from './ControlForm';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Migration Phase 3.4: risk/controls/edit.blade.php. */
 export default function Edit({ control, businessUnits = [], users = [], options = {}, schema = null }) {
@@ -52,7 +53,7 @@ export default function Edit({ control, businessUnits = [], users = [], options 
                 <div className="flex items-center justify-between">
                     <Link href={route('risk.controls.show', control.id)} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <span className="material-symbols-outlined text-lg">save</span> Save Changes
+                        <Icon name="save" className="w-4 h-4 shrink-0" /> Save Changes
                     </button>
                 </div>
             </form>

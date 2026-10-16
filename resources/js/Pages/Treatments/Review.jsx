@@ -5,6 +5,7 @@ import InputError from '@thirdline/ui/Components/InputError';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import { naira, progressTone, strategyTone, titleCase } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Plans pending review (migration Phase 3.5: risk/treatments/review.blade.php).
@@ -50,16 +51,16 @@ function PlanCard({ plan }) {
 
                     <div className="flex flex-wrap gap-4 text-xs text-gray-500">
                         <span className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">link</span> Risk: {plan.riskCode ?? 'N/A'}
+                            <Icon name="link" className="w-3.5 h-3.5 shrink-0" /> Risk: {plan.riskCode ?? 'N/A'}
                         </span>
                         <span className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">person</span> Owner: {plan.owner ?? '-'}
+                            <Icon name="person" className="w-3.5 h-3.5 shrink-0" /> Owner: {plan.owner ?? '-'}
                         </span>
                         <span className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">calendar_today</span> Target: {plan.targetDate ?? '-'}
+                            <Icon name="calendar_today" className="w-3.5 h-3.5 shrink-0" /> Target: {plan.targetDate ?? '-'}
                         </span>
                         <span className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">payments</span> Budget: {naira(plan.budget)}
+                            <Icon name="payments" className="w-3.5 h-3.5 shrink-0" /> Budget: {naira(plan.budget)}
                         </span>
                     </div>
 
@@ -79,14 +80,14 @@ function PlanCard({ plan }) {
                                 onClick={() => setPanel(panel === 'approve' ? null : 'approve')}
                                 className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2 transition-colors"
                             >
-                                <span className="material-symbols-outlined text-lg">check_circle</span> Approve
+                                <Icon name="check_circle" className="w-4 h-4 shrink-0" /> Approve
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setPanel(panel === 'reject' ? null : 'reject')}
                                 className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 flex items-center gap-2 transition-colors"
                             >
-                                <span className="material-symbols-outlined text-lg">cancel</span> Reject
+                                <Icon name="cancel" className="w-4 h-4 shrink-0" /> Reject
                             </button>
                         </>
                     )}
@@ -96,7 +97,7 @@ function PlanCard({ plan }) {
                             onClick={() => setPanel(panel === 'comment' ? null : 'comment')}
                             className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
                         >
-                            <span className="material-symbols-outlined text-lg">comment</span> Comment
+                            <Icon name="comment" className="w-4 h-4 shrink-0" /> Comment
                         </button>
                     )}
                 </div>
@@ -182,7 +183,7 @@ export default function Review({ pendingPlans = [] }) {
 
             {pendingPlans.length === 0 ? (
                 <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-                    <span className="material-symbols-outlined text-4xl text-gray-300 mb-3 block">task_alt</span>
+                    <Icon name="task_alt" className="w-9 h-9 shrink-0 text-gray-300 mb-3 block mx-auto" />
                     <p className="text-gray-500">No treatment plans pending review.</p>
                     <Link href={route('risk.treatments.index')} className="text-sm text-[#1A365D] font-medium hover:underline mt-2 inline-block">
                         View All Plans

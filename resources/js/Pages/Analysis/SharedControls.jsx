@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import EmptyState from '@thirdline/ui/Components/EmptyState';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import { SELECT } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Shared-control concentration (Phase 5.1: risk/analysis/correlation.blade.php).
@@ -120,7 +121,7 @@ export default function SharedControls({
 
                 {matrix.labels.length === 0 ? (
                     <EmptyState
-                        icon={<span className="material-symbols-outlined text-3xl text-gray-400">grid_on</span>}
+                        icon={<Icon name="grid_on" className="w-8 h-8 shrink-0 text-gray-400" />}
                         title="Nothing to compare"
                         description="Map controls to at least two risks to see where they overlap."
                     />

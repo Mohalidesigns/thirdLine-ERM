@@ -6,6 +6,7 @@ import KpiCard from '@thirdline/ui/Components/KpiCard';
 import EmptyState from '@thirdline/ui/Components/EmptyState';
 import FilterBar from '@thirdline/ui/Components/FilterBar';
 import { number } from '@/Components/Quantification/figures';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Bytes, in the units a person reads. */
 function fileSize(bytes) {
@@ -80,7 +81,7 @@ export default function Index({ folders, summary, docTypes, sources, filters }) 
 
             {summary.total === 0 ? (
                 <EmptyState
-                    icon={<span className="material-symbols-outlined text-3xl text-gray-400">folder_open</span>}
+                    icon={<Icon name="folder_open" className="w-8 h-8 shrink-0 text-gray-400" />}
                     title="No documents"
                     description="Files attached to loss events, control tests and issues appear here as they are uploaded."
                 />
@@ -93,14 +94,12 @@ export default function Index({ folders, summary, docTypes, sources, filters }) 
                                 onClick={() => toggle(folder.key)}
                                 className="w-full flex items-center gap-3 px-5 py-4 hover:bg-gray-50 text-left"
                             >
-                                <span className="material-symbols-outlined text-gray-400">{folder.icon}</span>
+                                <Icon name={folder.icon} className="w-5 h-5 shrink-0 text-gray-400" />
                                 <span className="text-sm font-semibold text-[#1A365D] flex-1">{folder.label}</span>
                                 <span className="text-xs text-gray-500">
                                     {folder.count} file{folder.count === 1 ? '' : 's'} · {fileSize(folder.total_size)}
                                 </span>
-                                <span className="material-symbols-outlined text-gray-400">
-                                    {open.includes(folder.key) ? 'expand_less' : 'expand_more'}
-                                </span>
+                                <Icon name={open.includes(folder.key) ? 'expand_less' : 'expand_more'} className="w-5 h-5 shrink-0 text-gray-400" />
                             </button>
 
                             {open.includes(folder.key) && folder.count > 0 && (
@@ -156,7 +155,7 @@ export default function Index({ folders, summary, docTypes, sources, filters }) 
                                                                 className="p-1 hover:bg-gray-100 rounded inline-flex"
                                                                 title={`Download ${file.file_name}`}
                                                             >
-                                                                <span className="material-symbols-outlined text-gray-400 text-lg">download</span>
+                                                                <Icon name="download" className="w-4 h-4 shrink-0 text-gray-400" />
                                                             </a>
                                                         )}
                                                     </td>

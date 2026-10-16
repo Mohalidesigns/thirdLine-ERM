@@ -6,6 +6,7 @@ import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
 import { priorityTone, titleCase } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The closure queue (migration Phase 4.4: risk/issues/closure.blade.php).
@@ -123,7 +124,7 @@ export default function Closure({ stats = {}, pending = {} }) {
 
             {rows.length === 0 ? (
                 <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-                    <span className="material-symbols-outlined text-4xl text-green-300 mb-3 block">task_alt</span>
+                    <Icon name="task_alt" className="w-9 h-9 shrink-0 text-green-300 mb-3 block mx-auto" />
                     <p className="text-gray-500">No closure requests are waiting.</p>
                 </div>
             ) : (

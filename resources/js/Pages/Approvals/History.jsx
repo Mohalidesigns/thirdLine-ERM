@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Approval history (migration Phase 2) — see App\Grids\Definitions\ApprovalsHistoryGrid. */
 export default function History({ grid }) {
@@ -19,7 +20,7 @@ export default function History({ grid }) {
                 actions={
                     permissions.includes('approval.view') && dashboardUrl && (
                         <a href={dashboardUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">arrow_back</span> Back to Dashboard
+                            <Icon name="arrow_back" className="w-4 h-4 shrink-0" /> Back to Dashboard
                         </a>
                     )
                 }

@@ -7,6 +7,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import { compactNaira, deadlineLabel, naira, progressTone, titleCase } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** Migration Phase 3.5: risk/treatments/show.blade.php. */
 function Card({ title, children, className = '' }) {
@@ -41,7 +42,7 @@ function ReviewPanel({ plan }) {
     return (
         <div className="mb-6 bg-white rounded-xl border border-blue-200 shadow-sm p-5">
             <div className="flex items-center gap-2 mb-3">
-                <span className="material-symbols-outlined text-blue-600">rate_review</span>
+                <Icon name="rate_review" className="w-5 h-5 shrink-0 text-blue-600" />
                 <h3 className="text-sm font-semibold text-gray-900">Review Required</h3>
             </div>
             <p className="text-sm text-gray-600 mb-4">
@@ -66,7 +67,7 @@ function ReviewPanel({ plan }) {
                     </div>
                     <div className="flex gap-2">
                         <button type="submit" disabled={rejection.processing} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 flex items-center gap-1 disabled:opacity-50">
-                            <span className="material-symbols-outlined text-sm">close</span> Confirm Rejection
+                            <Icon name="close" className="w-3.5 h-3.5 shrink-0" /> Confirm Rejection
                         </button>
                         <button type="button" onClick={() => setRejecting(false)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
                             Cancel
@@ -87,10 +88,10 @@ function ReviewPanel({ plan }) {
                     </div>
                     <div className="flex gap-2">
                         <button type="submit" disabled={approval.processing} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-1 disabled:opacity-50">
-                            <span className="material-symbols-outlined text-sm">check</span> Approve
+                            <Icon name="check" className="w-3.5 h-3.5 shrink-0" /> Approve
                         </button>
                         <button type="button" onClick={() => setRejecting(true)} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">close</span> Reject
+                            <Icon name="close" className="w-3.5 h-3.5 shrink-0" /> Reject
                         </button>
                     </div>
                 </form>
@@ -110,7 +111,7 @@ function ActionButton({ routeName, planId, icon, children, className }) {
             onClick={() => post(route(routeName, planId), { preserveScroll: true })}
             className={`${className} disabled:opacity-50`}
         >
-            <span className="material-symbols-outlined text-sm">{icon}</span> {children}
+            <Icon name={icon} className="w-3.5 h-3.5 shrink-0" /> {children}
         </button>
     );
 }
@@ -134,11 +135,11 @@ export default function Show({ plan, can = {} }) {
                     <>
                         {can.update && (
                             <Link href={route('risk.treatments.edit', plan.id)} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                                <span className="material-symbols-outlined text-lg">edit</span> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
                             </Link>
                         )}
                         <Link href={route('risk.treatments.index')} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-lg">arrow_back</span> Back
+                            <Icon name="arrow_back" className="w-4 h-4 shrink-0" /> Back
                         </Link>
                     </>
                 }
@@ -153,7 +154,7 @@ export default function Show({ plan, can = {} }) {
                 <ReviewPanel plan={plan} />
             ) : (
                 <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-start gap-3">
-                    <span className="material-symbols-outlined text-yellow-600">hourglass_empty</span>
+                    <Icon name="hourglass_empty" className="w-5 h-5 shrink-0 text-yellow-600" />
                     <div>
                         <p className="text-sm font-semibold text-yellow-800">Pending Approver Review</p>
                         <p className="text-xs text-yellow-700 mt-1">This plan is awaiting review by a risk manager or CRO.</p>
@@ -164,7 +165,7 @@ export default function Show({ plan, can = {} }) {
             {plan.status === 'rejected' && (
                 <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
                     <div className="flex items-start gap-3 mb-3">
-                        <span className="material-symbols-outlined text-red-600">block</span>
+                        <Icon name="block" className="w-5 h-5 shrink-0 text-red-600" />
                         <div className="flex-1">
                             <p className="text-sm font-semibold text-red-800">Plan Rejected</p>
                             {plan.rejectionReason && (
@@ -238,15 +239,13 @@ export default function Show({ plan, can = {} }) {
                     <Card title="Milestones">
                         {plan.milestones.length === 0 ? (
                             <div className="text-center py-6 text-gray-400 text-sm">
-                                <span className="material-symbols-outlined text-2xl mb-1 block">flag</span>
+                                <Icon name="flag" className="w-6 h-6 shrink-0 mb-1 block mx-auto" />
                                 No milestones defined
                             </div>
                         ) : (
                             plan.milestones.map((milestone, index) => (
                                 <div key={index} className="flex items-center gap-4 p-3 border-b border-gray-100 last:border-0">
-                                    <span className={`material-symbols-outlined ${milestone.completed ? 'text-green-500' : 'text-gray-300'}`}>
-                                        {milestone.completed ? 'check_circle' : 'radio_button_unchecked'}
-                                    </span>
+                                    <Icon name={milestone.completed ? 'check_circle' : 'radio_button_unchecked'} className={`w-5 h-5 shrink-0 ${milestone.completed ? 'text-green-500' : 'text-gray-300'}`} />
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium text-gray-700">{milestone.title}</p>
                                         {(milestone.due_date || milestone.responsible) && (

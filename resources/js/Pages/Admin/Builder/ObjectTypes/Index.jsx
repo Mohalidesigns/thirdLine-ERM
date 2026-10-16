@@ -8,6 +8,7 @@ import InputError from '@thirdline/ui/Components/InputError';
 import PrimaryButton from '@thirdline/ui/Components/PrimaryButton';
 import SecondaryButton from '@thirdline/ui/Components/SecondaryButton';
 import Modal from '@thirdline/ui/Components/Modal';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const CATEGORY_LABELS = {
     org_node: 'Organisation node',
@@ -201,12 +202,7 @@ export default function Index({ types, filters, options }) {
                             <tr key={type.id}>
                                 <td>
                                     <div className="flex items-center gap-2">
-                                        <span
-                                            className="material-symbols-outlined text-lg"
-                                            style={{ color: type.color ?? '#1A365D' }}
-                                        >
-                                            {type.icon ?? 'category'}
-                                        </span>
+                                        <Icon name={type.icon ?? 'category'} className="w-4 h-4 shrink-0" style={{ color: type.color ?? '#1A365D' }} />
                                         <div>
                                             <p className="text-sm font-medium text-gray-900">{type.name}</p>
                                             <p className="text-xs text-gray-500 font-mono">{type.code}</p>

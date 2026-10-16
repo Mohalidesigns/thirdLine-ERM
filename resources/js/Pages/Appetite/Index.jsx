@@ -10,6 +10,7 @@ import PrimaryButton from '@thirdline/ui/Components/PrimaryButton';
 import SecondaryButton from '@thirdline/ui/Components/SecondaryButton';
 import TextInput from '@thirdline/ui/Components/TextInput';
 import Widget from '@thirdline/ui/Components/Widget';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const fmt = (v, digits = 1) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('en', { minimumFractionDigits: digits, maximumFractionDigits: digits }));
 const title = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ') : '');
@@ -58,7 +59,7 @@ function StatementForm({ mode, initial, categories, levels, onClose, updateUrl }
     return (
         <form onSubmit={submit} className="p-6">
             <h2 className="text-sm font-bold text-[var(--color-primary)] mb-4 flex items-center gap-2">
-                <span className="material-symbols-outlined text-lg">{mode === 'create' ? 'add_circle' : 'edit'}</span>
+                <Icon name={mode === 'create' ? 'add_circle' : 'edit'} className="w-4 h-4 shrink-0" />
                 {mode === 'create' ? 'Add appetite statement' : `Edit appetite statement — ${initial.risk_category}`}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -92,7 +93,7 @@ function StatementForm({ mode, initial, categories, levels, onClose, updateUrl }
             <div className="flex justify-end gap-2 mt-5">
                 <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
                 <PrimaryButton disabled={form.processing}>
-                    <span className="material-symbols-outlined text-lg mr-1">save</span>
+                    <Icon name="save" className="w-4 h-4 shrink-0 mr-1" />
                     {mode === 'create' ? 'Save appetite statement' : 'Update'}
                 </PrimaryButton>
             </div>
@@ -122,13 +123,13 @@ export default function Index({ metrics, summary, chart, categoriesWithoutStatem
                 subtitle="Board-approved appetite statements, tolerance bands, and current position monitoring"
                 actions={
                     <>
-                        <a href={exportUrl} className="btn-secondary text-sm inline-flex items-center gap-2"><span className="material-symbols-outlined text-lg">download</span> Export</a>
-                        <button type="button" onClick={() => setHistory((h) => !h)} className="btn-secondary text-sm inline-flex items-center gap-2"><span className="material-symbols-outlined text-lg">history</span> Version history</button>
+                        <a href={exportUrl} className="btn-secondary text-sm inline-flex items-center gap-2"><Icon name="download" className="w-4 h-4 shrink-0" /> Export</a>
+                        <button type="button" onClick={() => setHistory((h) => !h)} className="btn-secondary text-sm inline-flex items-center gap-2"><Icon name="history" className="w-4 h-4 shrink-0" /> Version history</button>
                         {canManage && (
                             <button type="button" onClick={() => setAdding(true)} disabled={categoriesWithoutStatement.length === 0}
                                 title={categoriesWithoutStatement.length === 0 ? 'Every category already has a statement' : undefined}
                                 className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-50">
-                                <span className="material-symbols-outlined text-lg">add_circle</span> Add appetite statement
+                                <Icon name="add_circle" className="w-4 h-4 shrink-0" /> Add appetite statement
                             </button>
                         )}
                     </>
@@ -137,15 +138,15 @@ export default function Index({ metrics, summary, chart, categoriesWithoutStatem
 
             {flash?.error && (
                 <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-sm text-red-700">
-                    <span className="material-symbols-outlined text-red-600">error</span>{flash.error}
+                    <Icon name="error" className="w-5 h-5 shrink-0 text-red-600" />{flash.error}
                 </div>
             )}
 
             {history && (
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
                     <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-[var(--color-primary)] flex items-center gap-2"><span className="material-symbols-outlined text-lg">history</span> Version history</h3>
-                        <button type="button" onClick={() => setHistory(false)} className="text-gray-400 hover:text-gray-600"><span className="material-symbols-outlined text-lg">close</span></button>
+                        <h3 className="text-sm font-semibold text-[var(--color-primary)] flex items-center gap-2"><Icon name="history" className="w-4 h-4 shrink-0" /> Version history</h3>
+                        <button type="button" onClick={() => setHistory(false)} className="text-gray-400 hover:text-gray-600"><Icon name="close" className="w-4 h-4 shrink-0" /></button>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="data-table">
@@ -211,7 +212,7 @@ export default function Index({ metrics, summary, chart, categoriesWithoutStatem
                         </thead>
                         <tbody>
                             {metrics.length === 0 && (
-                                <tr><td colSpan={8} className="text-center py-12"><span className="material-symbols-outlined text-4xl text-gray-300 mb-2 block">speed</span><p className="text-sm text-gray-500">No appetite metrics configured</p></td></tr>
+                                <tr><td colSpan={8} className="text-center py-12"><Icon name="speed" className="w-9 h-9 shrink-0 text-gray-300 mb-2 block mx-auto" /><p className="text-sm text-gray-500">No appetite metrics configured</p></td></tr>
                             )}
                             {metrics.map((m) => {
                                 const s = STATUS[m.status] || STATUS.within;
@@ -226,12 +227,12 @@ export default function Index({ metrics, summary, chart, categoriesWithoutStatem
                                             {m.current_value === null ? <span className="text-gray-400 font-normal italic">not recorded</span> : fmt(m.current_value)}
                                         </td>
                                         <td><span className="flex items-center gap-1"><span className={`w-2.5 h-2.5 rounded-full ${s.dot}`} /><span className="text-xs font-medium">{title(m.status)}</span></span></td>
-                                        <td><span className={`material-symbols-outlined text-sm ${trendTone}`}>{trendIcon}</span></td>
+                                        <td><Icon name={trendIcon} className={`w-3.5 h-3.5 shrink-0 ${trendTone}`} /></td>
                                         <td>
                                             <div className="flex items-center gap-2">
                                                 {canManage && (
                                                     <button type="button" onClick={() => setEditing(m)} className="p-1 hover:bg-gray-100 rounded" title="Edit appetite statement">
-                                                        <span className="material-symbols-outlined text-gray-400 text-lg">edit</span>
+                                                        <Icon name="edit" className="w-4 h-4 shrink-0 text-gray-400" />
                                                     </button>
                                                 )}
                                                 {m.status === 'breach' && <span className="badge bg-red-100 text-red-700">Action required</span>}

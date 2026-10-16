@@ -4,6 +4,7 @@ import DataGrid from '@thirdline/ui/Components/DataGrid/DataGrid';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /** The near-miss register (migration Phase 2) — see App\Grids\Definitions\NearMissesGrid. */
 export default function NearMisses({ totalNearMisses, openNearMisses, underReviewNearMisses, potentialLossAvoided, grid }) {
@@ -20,7 +21,7 @@ export default function NearMisses({ totalNearMisses, openNearMisses, underRevie
                 actions={
                     permissions.includes('loss_event.create') && createUrl && (
                         <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">add</span> Log Near Miss
+                            <Icon name="add" className="w-4 h-4 shrink-0" /> Log Near Miss
                         </a>
                     )
                 }

@@ -4,6 +4,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import InputError from '@thirdline/ui/Components/InputError';
 import PrimaryButton from '@thirdline/ui/Components/PrimaryButton';
 import SecondaryButton from '@thirdline/ui/Components/SecondaryButton';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Which sections a board pack contains, and in what order (Phase 5.4).
@@ -78,7 +79,7 @@ export default function BoardPackSections({ available, selected }) {
                                         className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"
                                         aria-label={`Move ${available[key]} up`}
                                     >
-                                        <span className="material-symbols-outlined text-lg text-gray-500">arrow_upward</span>
+                                        <Icon name="arrow_upward" className="w-4 h-4 shrink-0 text-gray-500" />
                                     </button>
                                     <button
                                         type="button"
@@ -87,7 +88,7 @@ export default function BoardPackSections({ available, selected }) {
                                         className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"
                                         aria-label={`Move ${available[key]} down`}
                                     >
-                                        <span className="material-symbols-outlined text-lg text-gray-500">arrow_downward</span>
+                                        <Icon name="arrow_downward" className="w-4 h-4 shrink-0 text-gray-500" />
                                     </button>
                                     <button
                                         type="button"
@@ -95,7 +96,7 @@ export default function BoardPackSections({ available, selected }) {
                                         className="p-1 rounded hover:bg-red-50"
                                         aria-label={`Remove ${available[key]}`}
                                     >
-                                        <span className="material-symbols-outlined text-lg text-red-400">close</span>
+                                        <Icon name="close" className="w-4 h-4 shrink-0 text-red-400" />
                                     </button>
                                 </li>
                             ))}

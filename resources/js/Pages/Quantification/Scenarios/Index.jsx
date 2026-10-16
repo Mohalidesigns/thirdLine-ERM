@@ -7,6 +7,7 @@ import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import FilterBar from '@thirdline/ui/Components/FilterBar';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 import { naira, number } from '@/Components/Quantification/figures';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The scenario register (migration Phase 5.2).
@@ -39,12 +40,12 @@ export default function Index({ scenarios, categories, filters }) {
                     <>
                         {createUrl && (
                             <Link href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">add_circle</span> New Scenario
+                                <Icon name="add_circle" className="w-4 h-4 shrink-0" /> New Scenario
                             </Link>
                         )}
                         {libraryUrl && (
                             <Link href={libraryUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">library_books</span> Scenario Library
+                                <Icon name="library_books" className="w-4 h-4 shrink-0" /> Scenario Library
                             </Link>
                         )}
                     </>
@@ -79,7 +80,7 @@ export default function Index({ scenarios, categories, filters }) {
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 {scenarios.data.length === 0 ? (
                     <EmptyState
-                        icon={<span className="material-symbols-outlined text-3xl text-gray-400">category</span>}
+                        icon={<Icon name="category" className="w-8 h-8 shrink-0 text-gray-400" />}
                         title="No scenarios defined"
                         description="A scenario is one loss event with a frequency and a severity. Create one, or import a calibrated template from the library."
                         actionLabel={createUrl ? 'Create your first scenario' : undefined}
@@ -140,12 +141,12 @@ export default function Index({ scenarios, categories, filters }) {
                                                 <div className="flex items-center gap-1">
                                                     {showUrl && (
                                                         <Link href={showUrl} className="p-1 hover:bg-gray-100 rounded" title="View">
-                                                            <span className="material-symbols-outlined text-gray-400 text-lg">visibility</span>
+                                                            <Icon name="visibility" className="w-4 h-4 shrink-0 text-gray-400" />
                                                         </Link>
                                                     )}
                                                     {editUrl && (
                                                         <Link href={editUrl} className="p-1 hover:bg-gray-100 rounded" title="Edit">
-                                                            <span className="material-symbols-outlined text-gray-400 text-lg">edit</span>
+                                                            <Icon name="edit" className="w-4 h-4 shrink-0 text-gray-400" />
                                                         </Link>
                                                     )}
                                                 </div>

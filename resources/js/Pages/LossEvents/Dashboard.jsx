@@ -5,6 +5,7 @@ import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import TrendChart from '@thirdline/ui/Components/TrendChart';
 import { compactNaira, naira, severityTone, statusTone, titleCase } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * The loss-event dashboard (migration Phase 4.3:
@@ -36,7 +37,7 @@ export default function Dashboard({
                 actions={
                     canCreate && (
                         <Link href={route('risk.loss-events.create')} className="btn-primary inline-flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-lg">add</span> Report Loss Event
+                            <Icon name="add" className="w-4 h-4 shrink-0" /> Report Loss Event
                         </Link>
                     )
                 }
@@ -59,7 +60,7 @@ export default function Dashboard({
             {regulatoryAlerts.length > 0 && (
                 <div className="bg-white rounded-xl border border-red-200 overflow-hidden mb-6">
                     <div className="px-5 py-4 border-b border-red-100 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-red-600">notification_important</span>
+                        <Icon name="notification_important" className="w-5 h-5 shrink-0 text-red-600" />
                         <h3 className="text-sm font-semibold text-[#1A365D]">Regulatory notifications outstanding</h3>
                     </div>
                     <ul className="divide-y divide-gray-100">

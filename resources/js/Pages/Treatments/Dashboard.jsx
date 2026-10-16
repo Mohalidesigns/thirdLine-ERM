@@ -7,6 +7,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import TrendChart from '@thirdline/ui/Components/TrendChart';
 import { compactNaira, naira, progressTone, strategyTone, titleCase } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const STRATEGY_COLORS = ['#1A365D', '#553C9A', '#2D7D46', '#C53030'];
 
@@ -80,7 +81,7 @@ function Panel({ title, icon, children, className = '' }) {
         <div className={`bg-white rounded-xl border border-gray-200 p-5 ${className}`}>
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-[#1A365D]">{title}</h3>
-                <span className="material-symbols-outlined text-gray-400 text-lg">{icon}</span>
+                <Icon name={icon} className="w-4 h-4 shrink-0 text-gray-400" />
             </div>
             {children}
         </div>
@@ -121,7 +122,7 @@ export default function Dashboard({
                 ]}
                 actions={
                     <Link href={route('risk.treatments.create')} className="btn-primary inline-flex items-center gap-2 text-sm">
-                        <span className="material-symbols-outlined text-lg">add</span> New Plan
+                        <Icon name="add" className="w-4 h-4 shrink-0" /> New Plan
                     </Link>
                 }
             />
@@ -180,7 +181,7 @@ export default function Dashboard({
                                 {activeTreatments.length === 0 && (
                                     <tr>
                                         <td colSpan={7} className="text-center py-8 text-gray-400">
-                                            <span className="material-symbols-outlined text-3xl mb-2 block">assignment</span>
+                                            <Icon name="assignment" className="w-8 h-8 shrink-0 mb-2 block mx-auto" />
                                             No active treatment plans found
                                         </td>
                                     </tr>
@@ -217,19 +218,19 @@ export default function Dashboard({
                 <div className="bg-white rounded-xl border border-gray-200">
                     <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                         <h3 className="text-sm font-semibold text-[#1A365D]">Recent Activity</h3>
-                        <span className="material-symbols-outlined text-gray-400 text-lg">history</span>
+                        <Icon name="history" className="w-4 h-4 shrink-0 text-gray-400" />
                     </div>
                     <div className="p-4 space-y-3 max-h-[400px] overflow-y-auto">
                         {recentActivity.length === 0 && (
                             <div className="text-center py-6 text-gray-400 text-sm">
-                                <span className="material-symbols-outlined text-2xl mb-1 block">history</span>
+                                <Icon name="history" className="w-6 h-6 shrink-0 mb-1 block mx-auto" />
                                 No recent activity
                             </div>
                         )}
                         {recentActivity.map((activity) => (
                             <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
                                 <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0">
-                                    <span className="material-symbols-outlined text-sm">{activity.icon}</span>
+                                    <Icon name={activity.icon} className="w-3.5 h-3.5 shrink-0" />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs text-gray-700 font-medium">{activity.description}</p>

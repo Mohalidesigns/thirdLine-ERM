@@ -8,6 +8,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 import { humanise } from './TestForm';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const shortDate = (value) =>
     value ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -86,7 +87,7 @@ export default function Show({ test, control, linkedRisks = [], evidence = [], c
                     <>
                         {can.update && (
                             <Link href={route('risk.control-tests.edit', test.id)} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">edit</span> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
                             </Link>
                         )}
                         <Link href={route('risk.control-tests.index')} className="btn-secondary text-sm">Back</Link>
@@ -107,7 +108,7 @@ export default function Show({ test, control, linkedRisks = [], evidence = [], c
                         disabled={startForm.processing}
                         className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-50"
                     >
-                        <span className="material-symbols-outlined text-lg">play_arrow</span> Start test
+                        <Icon name="play_arrow" className="w-4 h-4 shrink-0" /> Start test
                     </button>
                 </div>
             )}
@@ -170,7 +171,7 @@ export default function Show({ test, control, linkedRisks = [], evidence = [], c
                                     : 'No reviewer is assigned, so this test completes on submission.'}
                             </p>
                             <button type="submit" disabled={completeForm.processing} className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-50">
-                                <span className="material-symbols-outlined text-lg">send</span> Submit result
+                                <Icon name="send" className="w-4 h-4 shrink-0" /> Submit result
                             </button>
                         </div>
                     </form>
@@ -180,7 +181,7 @@ export default function Show({ test, control, linkedRisks = [], evidence = [], c
             {can.review && (
                 <div className="mb-6 bg-white rounded-xl border border-blue-200 shadow-sm p-5">
                     <div className="flex items-center gap-2 mb-3">
-                        <span className="material-symbols-outlined text-blue-600">rate_review</span>
+                        <Icon name="rate_review" className="w-5 h-5 shrink-0 text-blue-600" />
                         <h3 className="text-sm font-semibold text-gray-900">Review Required</h3>
                     </div>
 
@@ -379,7 +380,7 @@ export default function Show({ test, control, linkedRisks = [], evidence = [], c
                                 disabled={evidenceForm.processing || !evidenceForm.data.file}
                                 className="btn-primary text-xs inline-flex items-center gap-1 disabled:opacity-50"
                             >
-                                <span className="material-symbols-outlined text-sm">upload</span> Upload
+                                <Icon name="upload" className="w-3.5 h-3.5 shrink-0" /> Upload
                             </button>
                         </div>
                     </form>

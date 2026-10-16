@@ -2,6 +2,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import InputError from '@thirdline/ui/Components/InputError';
 import { badgeClass } from '@/Pages/MyTasks/Index';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const ICON = { approve: ['bg-green-100', 'text-green-600', 'check'], reject: ['bg-red-100', 'text-red-600', 'close'] };
 
@@ -80,7 +81,7 @@ export default function ShowInstance({ instance, steps, history, actionable, can
                         const [bg, tone, icon] = ICON[h.action] || ['bg-gray-100', 'text-gray-500', 'comment'];
                         return (
                             <div key={h.id} className={`flex gap-4 py-3 ${idx < history.length - 1 ? 'border-b border-gray-50' : ''}`}>
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${bg}`}><span className={`material-symbols-outlined text-sm ${tone}`}>{icon}</span></div>
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${bg}`}><Icon name={icon} className={`w-3.5 h-3.5 shrink-0 ${tone}`} /></div>
                                 <div>
                                     <p className="text-sm"><span className="font-medium">{h.actor}</span> <span className="text-gray-500">{h.action}</span> <span className="text-gray-400">{h.stage}</span></p>
                                     {h.comments && <p className="text-xs text-gray-600 mt-1">{h.comments}</p>}

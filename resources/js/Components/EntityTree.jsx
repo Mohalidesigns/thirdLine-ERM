@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import { useState } from 'react';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Level → colour, as risk/scoping/_tree-node.blade.php had them. A level
@@ -34,7 +35,7 @@ function Node({ node, currentId, hrefFor, expandDepth }) {
                         aria-label={open ? 'Collapse' : 'Expand'}
                         aria-expanded={open}
                     >
-                        <span className="material-symbols-outlined text-[16px] leading-none">{open ? 'expand_more' : 'chevron_right'}</span>
+                        <Icon name={open ? 'expand_more' : 'chevron_right'} className="w-4 h-4 shrink-0" />
                     </button>
                 ) : (
                     <span className="w-4 shrink-0 text-center text-gray-300 text-sm leading-none">•</span>
@@ -44,7 +45,7 @@ function Node({ node, currentId, hrefFor, expandDepth }) {
                     className={`flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 transition-colors ${active ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-blue-50/50'}`}
                     title={node.code}
                 >
-                    <span className={`material-symbols-outlined shrink-0 text-[16px] leading-none ${style.icon}`}>{node.icon || style.fallbackIcon}</span>
+                    <Icon name={node.icon || style.fallbackIcon} className={`w-4 h-4 shrink-0 ${style.icon}`} />
                     <span className={`truncate text-sm font-semibold ${node.depth === 0 ? 'text-[#1A365D]' : 'text-gray-800'} group-hover:text-[#1A365D]`}>{node.name}</span>
                     <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] ${style.chip}`}>
                         L{node.level} {node.type ?? ''}

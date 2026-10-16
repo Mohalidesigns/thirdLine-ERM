@@ -4,6 +4,7 @@ import EmptyState from '@thirdline/ui/Components/EmptyState';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const shortDate = (value) =>
     value ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -83,7 +84,7 @@ export default function Dashboard({
                             All tests
                         </Link>
                         <Link href={route('risk.control-tests.create')} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <span className="material-symbols-outlined text-lg">add_circle</span> Schedule a test
+                            <Icon name="add_circle" className="w-4 h-4 shrink-0" /> Schedule a test
                         </Link>
                     </>
                 }

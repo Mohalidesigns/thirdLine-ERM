@@ -6,6 +6,7 @@ import Figure from '@/Components/Quantification/Figure';
 import { NOT_ASSESSED, NOT_RECORDED, naira, percent, trimmedPercent } from '@/Components/Quantification/figures';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 import { Link } from '@inertiajs/react';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * ICAAP — capital adequacy, the pillars and the stress reconciliation
@@ -82,7 +83,7 @@ export default function Icaap({
                         onClick={() => window.print()}
                         className="btn-secondary text-sm inline-flex items-center gap-2 print:hidden"
                     >
-                        <span className="material-symbols-outlined text-lg">print</span> Print
+                        <Icon name="print" className="w-4 h-4 shrink-0" /> Print
                     </button>
                 }
             />

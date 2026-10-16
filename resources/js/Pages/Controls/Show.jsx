@@ -10,6 +10,7 @@ import RatingBadge from '@thirdline/ui/Components/RatingBadge';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 import { humanise } from './ControlForm';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const shortDate = (value) =>
     value ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -78,12 +79,12 @@ export default function Show({
                     <>
                         {can.update && (
                             <Link href={route('risk.controls.edit', control.id)} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">edit</span> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
                             </Link>
                         )}
                         {can.delete && (
                             <button type="button" onClick={destroy} className="btn-secondary text-sm inline-flex items-center gap-2 text-red-600">
-                                <span className="material-symbols-outlined text-lg">delete</span> Delete
+                                <Icon name="delete" className="w-4 h-4 shrink-0" /> Delete
                             </button>
                         )}
                         <Link href={route('risk.controls.index')} className="btn-secondary text-sm">Back</Link>
@@ -165,7 +166,7 @@ export default function Show({
                 actions={
                     can.linkRisk && (
                         <button type="button" onClick={() => setLinking(!linking)} className="btn-secondary text-xs inline-flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">link</span>
+                            <Icon name="link" className="w-3.5 h-3.5 shrink-0" />
                             {linking ? 'Cancel' : 'Link a risk'}
                         </button>
                     )
@@ -228,7 +229,7 @@ export default function Show({
                         </label>
                         <div className="flex justify-end">
                             <button type="submit" disabled={linkForm.processing} className="btn-primary text-xs inline-flex items-center gap-1 disabled:opacity-50">
-                                <span className="material-symbols-outlined text-sm">link</span> Link
+                                <Icon name="link" className="w-3.5 h-3.5 shrink-0" /> Link
                             </button>
                         </div>
                     </form>
@@ -292,7 +293,7 @@ export default function Show({
                 actions={
                     can.createTest && newTest && (
                         <a href={newTest} className="btn-primary text-xs inline-flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">add</span> Schedule a test
+                            <Icon name="add" className="w-3.5 h-3.5 shrink-0" /> Schedule a test
                         </a>
                     )
                 }

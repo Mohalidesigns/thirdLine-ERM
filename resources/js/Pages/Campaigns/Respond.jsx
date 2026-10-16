@@ -5,6 +5,7 @@ import InputLabel from '@thirdline/ui/Components/InputLabel';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import QuestionnaireSections from './QuestionnaireSections';
 import { EFFECTIVENESS_OPTIONS, IMPACT_LABELS, INPUT, LIKELIHOOD_LABELS, SELECT } from './format';
+import Icon from '@thirdline/ui/Components/Icon';
 
 /**
  * Respond to an assignment (Phase 4.5: risk/campaigns/respond.blade.php).
@@ -200,7 +201,7 @@ export default function Respond({
                     <div className="flex items-center justify-end gap-3">
                         <Link href={campaign.url} className="btn-secondary text-sm">Cancel</Link>
                         <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                            <span className="material-symbols-outlined text-lg">send</span> Submit Assessment
+                            <Icon name="send" className="w-4 h-4 shrink-0" /> Submit Assessment
                         </button>
                     </div>
                 </form>

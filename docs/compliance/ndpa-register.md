@@ -1488,6 +1488,182 @@ deploy date of ADR 0028 once it is known.
 
 ---
 
+## 13. Phase 12: AI prompts and raw model outputs in the audit log
+
+**Opened at Phase 12 stage 0 (2026-09-24), before any Phase 12 code, because ADR 0023 §2.3 asks
+compliance-analyst for this note and work order §11 makes an NDPA note part of every sub-phase's
+definition of done.**
+
+**What is deliberately not in this section.** On 2026-09-24 the owner deferred USSD and the offline
+PWA until a client deployment is being prepared. Their processing does not happen in Phase 12, so no
+entry is written for it. §13.9 lists what those entries will have to cover when the work comes back,
+so that the analysis done for them is not lost.
+
+### 13.1 The processing activity
+
+| | |
+|---|---|
+| **Activity** | For every AI draft, `App\Services\Bcms\Ai\AiProvenance::record()` writes **one** `bcms_audit_logs` row through the subject's `recordAudit('ai.draft_generated', …)`. Its context is `{capability, prompt_version, usage_event_id, model, prompt, output, validator: {accepted, rejected}}` (ADR 0023 §2.3) |
+| **What is new** | `prompt` is the **full prompt text**, and `output` is the model's **parsed JSON before any human edit**. Until Phase 12 a BCMS prompt was logged nowhere, and an output was kept only where a drafter wrote it onto the record (BIA `ai_reasoning`). ADR 0023 Context 2 records this |
+| **What is unchanged** | The platform's LLM usage ledger, which the platform register documents (ADR 0015 §10), still holds **no prompt and no response text**. It records who, when, which capability and the outcome, and is linked to the audit row by `usage_event_id` |
+| **Capabilities that write a row** | Seven: 1 BIA co-pilot, 2 scenario generator, 3 plan drafting, 4 AAR synthesis, 6 alert composer, 7 programme advisor, 8 post-incident learning. Capability 5 (the gap analyser) makes no model call and writes no row (ADR 0023 §2.4) |
+| **Data subjects** | Whoever the source records name. That means staff (in plans, exercise timelines, observer commentary and incident logs) and, **through capability 8 only**, customers and members of the public named in an incident log (§9.1) |
+| **Where the model runs** | **Local Ollama** (`granite4:micro`) on the application host, reached through the shared `LlmGateway` (the owner's binding decision recorded in ADR 0023's header; work order §1.5). No text leaves the deployment. See 13.7 |
+| **Clause codes** | `ndpa.lawful_basis`, `ndpa.retention`, `ndpa.residency`. **No new code is published.** The AI draft is not itself evidence for any ISO clause; the artefact it lands in carries its own stamp |
+
+### 13.2 What reaches a prompt today, checked capability by capability
+
+ADR 0023 §2.1 requires that **no prompt carries a phone number, email address, WhatsApp handle or
+next-of-kin record**, and the guardrail suite scans every captured prompt for E.164 and email
+patterns. Before the rule is enforced, this is what the four drafters that already exist actually send.
+I read their `context()` methods on 2026-09-24.
+
+| # | Capability | What goes into the prompt | Personal data? |
+|---|---|---|---|
+| 1 | BIA co-pilot (`BiaAiDrafter.php:205-229`) | Process name and description, business unit, regulatory flags, dependency labels (application or vendor names), and the assessment's MTPD, RTO, RPO, MBCO and workaround figures | **None found.** A process description is free text and could name someone, but it is not a people field |
+| 3 | **Plan drafting** (`PlanAiDrafter.php:253-261`) | Every bound section's live rows, **up to 20 per section**, from `SourceResolver`. For `CallTree` and `CrisisTeamContacts` each row carries **`name`, `mobile` and `email`** (`SourceResolver.php:499-511`). For `CriticalVendors`, each vendor row carries its contacts' **`name`, `email` and `phone`** (`SourceResolver.php:688-693`) | **Yes: staff and vendor-contact mobile numbers and email addresses, today.** This breaks ADR 0023 §2.1 as things stand. Work order §4 (12A-1) already anticipates it ("a plan-drafting prompt that includes call-tree contact blocks is a finding to fix here"). **This register confirms it in the code.** It is a present fact, not a hypothetical |
+| 4 | AAR synthesis (`AarAiDrafter.php:136-145`) | Timeline entry `content` and observer-score `commentary`, both verbatim free text | **Likely.** §8.2 records that evaluator commentary names individuals and is performance data. Timeline entries are typed live by a facilitator. There are no structured channel fields, but a number typed into a note goes in with it |
+| 7 | Programme advisor | Process codes, names and tiers, the coverage matrix, cadence gaps and exercise-type catalogue | **None found** |
+| 2 | Scenario generator (not built yet) | The template, the threat-catalogue `grounding`, site names with city and state, process names with tier (ADR 0023 §3.3) | **None by design.** The content packs are written to pass the same scan (`docs/bcms/content/scenario-pack.md` §5, `threat-catalogue.md` §1) |
+| 6 | Alert composer (not built yet) | A human's one-line description (≤ 280), the severity, and optional occurrence or incident context | **Possible.** The description is free text written during an emergency ("Musa is trapped on floor 3") |
+| 8 | PIR learning (not built yet) | The incident timeline and the PIR's own sections | **Likely, and not only staff.** §9.1: an incident log names whoever the incident happened to, often customers |
+
+**So the rule has two halves, and ADR 0023 enforces only the first.** The prompt scan catches
+*structured* channel data leaking through a prompt builder, and it will catch `PlanAiDrafter` on day
+one. It does not catch:
+
+- **free text** that a person typed into a source record (commentary, timeline, incident log, the
+  composer's brief), which reaches the prompt verbatim; or
+- **a number or address in the model's output** that was never in the prompt. A small model can
+  produce a plausible phone number, and `output` is stored verbatim.
+
+### 13.3 What this register requires, before `AiProvenance` records a single row
+
+The owner for each item is **backend-engineer** in 12A-1. The gates are **qa-engineer** and then
+**code-reviewer**.
+
+| # | Requirement | Why |
+|---|---|---|
+| **R1** | **`PlanAiDrafter` stops sending `mobile`, `email` and `phone`.** The prompt receives, per bound row, the fields the draft needs: role, tier, must-reach, deputy present, expected response time, and vendor name and criticality. Personal names are also dropped where the role carries the meaning (R3) | This is the finding in 13.2. Once `AiProvenance` lands, every plan draft would otherwise copy up to 20 staff mobile numbers and email addresses per bound section into an **append-only table with no purge path**. That is §7.5.1's defect shape, created deliberately |
+| **R2** | **Redact at the write, as defence in depth.** `AiProvenance::record()` replaces E.164-shaped and email-shaped strings in **both** `prompt` and `output` with a fixed marker (`[redacted:phone]`, `[redacted:email]`) before writing, and stores the counts as `redactions: {phone: n, email: n}`. The guardrail suite asserts that **no** `ai.draft_generated` context matches either pattern | It covers the two paths R1 cannot close: free text typed by a person, and a number the model produced itself. A non-zero count on a capability whose prompt builder is clean tells someone to look. **This refines ADR 0023 §2.3's "prompt is verbatim" to "verbatim except for recorded redactions".** That is a one-sentence amendment, and the architect has to agree to it |
+| **R3** | **Roles, not names, where the draft does not need the name.** For plan rows, use `role` and not `name`. For AAR and PIR, the builder passes the structured fields it already has (entry type, time, objective, score) and the free text as written. It does not add participant or assessor names from joins | A model given names writes names, so the name spreads from the source record into the draft, into the AAR and into the board pack (§11.3). Free text cannot be cleaned reliably by pattern, so the residual is controlled by the evaluator and facilitator curricula ("score the process, name the role", §8.2) and not by code. This register says so rather than claiming a control that does not exist |
+| **R4** | **A kill switch that is off writes nothing.** No prompt is built, no row is written and no usage event is recorded when any of the three switches is off (ADR 0023 §2.1, already asserted) | Restated so it is clear this is also a data-minimisation control, not only a cost control |
+
+### 13.4 Lawful basis
+
+**Legitimate interest (NDPA s.25(1)(b)(v)), with the same purpose as the source record.** A prompt is
+assembled from records the bank already holds for its continuity programme, under the bases already
+registered in §§3, 8 and 9, in order to draft the artefact those records exist to produce. That is a
+compatible purpose, not a new one. The **audit copy** has a second purpose of its own: accountability
+for AI use. Blueprint §12's guardrail "prompts and outputs are logged" exists so that an examiner or
+the bank can see what a model was told and what it said. Neither half needs consent, and neither is
+legal obligation. No Nigerian regulator requires AI prompts to be logged, and this register does not
+claim one does.
+
+### 13.5 Retention: indefinite, and that needs the DPO's decision
+
+`bcms_audit_logs` is append-only and **§10's purge command cannot reach it by design.** Every
+`ai.draft_generated` row, with its prompt and output, is therefore kept **indefinitely**. For the
+structured parts (process data, BIA figures, programme gaps) that is acceptable: they carry little or
+no personal data and have real evidential value.
+
+**For the free-text parts it is the third instance of a pattern this register has now recorded three
+times** (§7.5.1 synced contact payloads, §11.4 competency scores, and here). Material with a short
+proposed retention is copied into a table that keeps it for ever:
+
+- observer commentary: proposed 3 years (§8.4), now also held indefinitely wherever it fed an AAR draft;
+- incident-log narrative, including customer details: 7 years (§9.1), now held indefinitely wherever it
+  fed a PIR draft;
+- the composer's free-text brief, which is not otherwise stored at all.
+
+R1 to R3 shrink the problem. They do not remove it. **Two options for the DPO, open question 21:**
+
+- **(a) Accept indefinite retention** of prompt and output text, with R1 to R3 in force. The evidential
+  argument is that the provenance record is the control Blueprint §12 asks for.
+- **(b) For the three capabilities whose prompts carry free text about people (4, 6, 8), store a hash
+  of the prompt, its length and the structured context, not the text.** Keep full text for 1, 2, 3 and
+  7. The trade-off is that for those three an examiner can see *that* the model was called and what it
+  returned, but not the exact words it was given.
+
+This register recommends **(a) now, with R1 to R3**, because (b) weakens the one AI control an examiner
+is most likely to ask about. The final answer is the DPO's.
+
+### 13.6 DSAR: finding a person's prompts
+
+A person named in a prompt or an output is entitled to the row. Work order §4 (12D-1) already includes
+"the audit rows carrying AI prompts that name them" in `Phase12DsarExportTest`. **Two limits, stated so
+the export does not claim more than it does:**
+
+- **The search is by name text, not by id.** A prompt carries a person's name, not their contact id,
+  and after R3 often not even the name. The export has to search the `prompt` and `output` text for the
+  person's `full_name`. That misses spelling variants and nicknames, and can match another person with
+  the same name. The export should say it searched by name, not claim to be complete.
+- **Portable SQL.** The search is a `LIKE` over the JSON context column read as text. That is portable
+  to MariaDB 10.4. It must not use `JSON_SEARCH` or `JSON_CONTAINS` (work order §10, trap 1).
+
+### 13.7 Residency and processors
+
+| | |
+|---|---|
+| **Where the model runs** | Locally hosted Ollama on the application host, or on the bank's own premises for an on-prem deployment. **No processor and no cross-border transfer:** the prompt goes no further than the deployment's af-south-1-or-on-prem boundary (§1) |
+| **Training** | A locally hosted model is not trained on the prompts it serves. ADR 0023 §2.1 pins this in code: every configured endpoint profile must be self-hosted, and a profile that is not fails the guardrail suite until it declares a no-training attestation |
+| **If a hosted profile is ever added** | That is a new **processor** (§29 written agreement). It is also a **§41 transfer** unless the provider is shown to process wholly in Nigeria, which has to be established provider by provider and not assumed. It is probably a **DPIA** trigger under GAID too. **This section must be reopened before that profile is switched on, not after.** Open question 23 asks the DPO to confirm this in policy as well as in code |
+| **Model weights** | `granite4:micro` is a file of model weights. It is not personal data and it is not registered here |
+
+### 13.8 Access
+
+No BCMS screen renders `ai.draft_generated` context today. `EvidencePackService::log()` reads only
+`pack.exported` rows, and the only readers of prompt text are people with database access. **Any 12A-2
+screen that shows prompt or output text** (for example a variant-review screen that shows the
+validator's verdicts next to the raw output) needs its permission decided in its screen spec. A prompt
+built from observer commentary is §8.2 performance data, and should be readable by the people who could
+read the commentary, not by a wider group.
+
+### 13.9 Deferred with USSD and the offline PWA: what the entries must cover when the work returns
+
+No entry is written, because the processing is not being built. This is the checklist for the analyst
+who writes those entries:
+
+- **The offline pack on devices.** Colleagues' mobile numbers held in browser storage on (often
+  personal) phones. Filter out personal channels whose consent has been withdrawn (the vital-interests
+  exception covers dispatch, not caching). Never include next of kin. Clear the pack when the account is
+  revoked, not only on logout, which covers the leaver case. Audit each pack fetch with the contact ids
+  it included, so that a lost phone can be scoped as a possible s.40 breach. Rule on whether a
+  maximum age is needed (ADR 0023 §6.5 left this to this register).
+- **USSD number lookup.** The caller's number is network-asserted and trustworthy only because the
+  callback is authenticated. Nigerian number recycling needs its own treatment: under the NCC's
+  Quality of Service Business Rules 2024 and the Registration of Communications Subscribers
+  Regulations 2022, a line with no revenue-generating activity for 180 days is inactive, and after 360
+  days it may be recycled
+  ([ThisDay, 5 Mar 2026](https://www.thisdaylive.com/2026/03/05/ncc-moves-to-address-challenges-in-mobile-number-recycling-offers-safeguards/);
+  [TechCabal, 27 Feb 2026](https://techcabal.com/2026/02/27/nigerias-telecom-regulator-plans-revision-of-sim-recycling-policy/)).
+  A stale roster number can therefore let a stranger answer "I'm safe" for a colleague. Also: the
+  aggregator's DPA must cover the inbound leg (§5.2.7), and the backfill that normalises contact
+  numbers must report counts and never values.
+- **Device-reported check-in times.** An accuracy question (s.24) rather than a new category. Record
+  the bounded `captured_at` and the `captured_at_untrusted` flag (ADR 0023 §6.4).
+- **Research already done, to reuse.** Africa's Talking documents a **160-character** USSD menu limit
+  for Nigeria, a 120-second session and a 30-second idle timeout
+  ([AT help centre, 2 Jun 2025](https://help.africastalking.com/en/articles/2298298-how-long-is-the-duration-of-a-ussd-session-for-nigerian-telcos)).
+  That is not the 182 in ADR 0023 §5.1. The "nothing open" USSD text must also be identical in
+  *language* for known and unknown callers, or the locale itself becomes an oracle (ADR 0016 §3).
+
+### 13.10 Sufficiency: could an examiner be shown this in one click?
+
+**Ask: "show me every time an AI model drafted something in your continuity programme, what it was
+told, what it produced, and who accepted it."**
+
+**Not yet, but everything needed is designed.** Each draft will have one audit row holding the prompt
+and output, linked to a usage event (who, when, capability, outcome) and to a subject whose
+`ai_generated` flag survives editing. The human action that made it count is recorded by the existing
+approve, activate, finalise or dispatch audit rows. **What does not exist is a screen that lists
+`ai.draft_generated` rows.** Today the answer is a database query assembled by a person. That is
+acceptable while the capabilities are off by default and nothing has been generated. It must be a
+screen, or an evidence-pack section, before the first tenant switches AI on. That item belongs to
+12A-2's screen specs and is recorded here so it is placed, not discovered.
+
+---
+
 ## Open questions for the client's DPO — Week 1 blockers
 
 These are listed as a Week-1 non-engineering blocker in Orchestration §9 and are
@@ -1600,6 +1776,20 @@ not an agent's to answer.
     to every table, not only this one, and should be answered once for the whole
     deployment.
 
+### Added at Phase 12, 2026-09-24
+
+21. **AI prompt and output text in the append-only audit log** (13.5). Accept indefinite retention with
+    13.3's R1 to R3 in force, which is this register's recommendation, or keep only a hash and the
+    structured context for the three capabilities whose prompts carry free text about people (AAR,
+    alert composer, PIR learning)?
+22. **Transparency.** When a user asks for an AI draft, exercise commentary, incident-log text and plan
+    content are passed to a model running inside the deployment. Nothing leaves the bank, but it is a
+    new use of that text. Should the staff privacy notice say so? For capability 8, the question is
+    whether the customer-facing notice needs to as well, because incident logs can name customers (§9.1).
+23. **Hosted model profiles.** The guardrail suite refuses a non-self-hosted endpoint in code (13.7).
+    Will the DPO also confirm it in policy: no hosted LLM profile for BCMS without a DPIA, a §29
+    agreement, a §41 instrument and a no-training attestation, recorded here first?
+
 ## HANDOFF — Phase 0 (historical)
 
 **Phase:** P0 — Foundations & schema freeze
@@ -1675,3 +1865,16 @@ not an agent's to answer.
 **Known gaps:** R1–R5 in §12.8 (R6 resolved). No erasure tool, no DSAR export, no reader, no retention period. VPS hosting country and backup location unconfirmed
 **Next agent:** `qa-engineer` and `code-reviewer`, for the ADR 0028 amendment, which is now built. `architect` for R2, R3 and the chain-truncation question. The client's DPO for questions 17–20
 **Verification run:** read on 2026-10-14 in the worktree: `AuditLog`, `TprmAuditable`, `AuditText`, the `tp_portal_users` and `tp_audit_logs` migrations, all four portal writers, `PortalAuthService` in full, `AccessService`, ADR 0028, `PortalActorAttributionTest`. Grepped every `actor_*` writer, every `TprmAuditable` model, every prune command, every email write in `app/`, and `TrustProxies`. NDPA 2023 ss.24, 25, 26, 34 and 65 read from the gazetted text (DataGuidance copy). The CBN 2024 framework PDF returned 403, and nothing is cited from it beyond its existence. No suite run, no database touched. **Examiner walkthrough, "show me what vendor X's staff did on your portal": not one click. There is no reader; this is the booked supervisory export (§12.9).**
+
+## HANDOFF — Phase 12, stage 0
+
+**Phase:** BCMS Phase 12, stage 0 (documents only), NDPA part
+**Agent:** compliance-analyst
+**Status:** complete for the scope as changed on 2026-09-24. USSD and offline are deferred by the owner, and their entries are deliberately not written (13.9 lists what they will need)
+**Delivered:** this file. New **§13**: 13.1 the activity, 13.2 what reaches each capability's prompt as read in code, 13.3 four build requirements (R1–R4), 13.4 lawful basis, 13.5 retention and the DPO's choice, 13.6 DSAR limits, 13.7 residency and the hosted-profile trigger, 13.8 access, 13.9 the deferred checklist, 13.10 sufficiency. Open questions 21–23
+**Clause refs published:** none
+**Contracts touched:** proposes one amendment to ADR 0023 §2.3: the prompt is stored "verbatim except for recorded redactions" (R2). It needs the architect's agreement
+**Assumptions made:** the model stays locally hosted (the owner's binding decision). `bcms_audit_logs` stays append-only with no purge path
+**Known gaps:** **`PlanAiDrafter` sends staff and vendor-contact mobile numbers and email addresses to the model today** (13.2, R1). This must be fixed in 12A-1 before `AiProvenance` records anything. There is no screen listing AI drafts (13.10). §10's purge command still does not exist
+**Next agent:** architect (the R2 amendment), then backend-engineer at 12A-1 (R1–R3, plus the guardrail assertion that no `ai.draft_generated` context matches E.164 or email patterns), then qa-engineer and code-reviewer
+**Verification run:** read on 2026-09-24 on `integration/bcms-remaining`: ADR 0023 §§2.1–2.4, 3.3, 4.2, 6.5; `BiaAiDrafter.php:205-229`, `PlanAiDrafter.php:233-273`, `SourceResolver.php:414-511, 620-704`, `AarAiDrafter.php:123-148`, `ProgrammeAdvisor.php` context keys; `rg` for `bcms_audit_logs` readers (only `EvidencePackService::log()` for `pack.exported`). NCC number-recycling rule checked against [ThisDay, 5 Mar 2026](https://www.thisdaylive.com/2026/03/05/ncc-moves-to-address-challenges-in-mobile-number-recycling-offers-safeguards/). Africa's Talking's Nigerian USSD limits checked against [its help centre](https://help.africastalking.com/en/articles/2298298-how-long-is-the-duration-of-a-ussd-session-for-nigerian-telcos). No suite run, no database touched. **Examiner walkthrough, "show me every AI draft, what the model was told and said, and who accepted it": not yet one click (13.10). The data is designed; the listing screen is not.**

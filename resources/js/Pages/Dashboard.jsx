@@ -1,5 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import WidgetGrid from '@thirdline/ui/Components/WidgetGrid';
 import RatingBadge from '@thirdline/ui/Components/RatingBadge';
@@ -107,13 +108,7 @@ export default function Dashboard({
         <AuthenticatedLayout title="Command Centre">
             <Head title="Command Centre" />
 
-            <div className="flex items-start justify-between mb-6">
-                <div>
-                    <h1 className="text-xl font-bold text-[#1A365D]">Command Centre</h1>
-                    <p className="text-sm text-gray-500 mt-1">The organisation&apos;s risk position, at a glance</p>
-                </div>
-                <ExportMenu />
-            </div>
+            <PageHeader title="Command Centre" subtitle="The organisation's risk position, at a glance" actions={<ExportMenu />} />
 
             {/*
                 HISTORIC SCORES, AND WHICH PANELS ARE NOT. When a closed period is

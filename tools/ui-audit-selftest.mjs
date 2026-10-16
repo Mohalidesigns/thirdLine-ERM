@@ -39,9 +39,26 @@ const cases = [
     ['defeated_placeholder_variant', '<input aria-label="a" className="form-input placeholder:text-white/40" />', /baseline defeats/],
     ['variant_bg_with_resting_bg', '<input aria-label="a" className="form-input bg-gray-50 focus:bg-white" />', null],
     ['variant_bg_without_resting_bg', '<input aria-label="a" className="form-input focus:bg-white" />', /baseline defeats/],
+    ['pageheader_submit_in_form', '<form onSubmit={s}><PageHeader title="t" actions={<button type="submit">Save</button>} /></form>', /PageHeader> actions hold a type="submit" <button> with no form=/],
+    ['pageheader_submit_with_form_attr', '<form id="f" onSubmit={s}><PageHeader title="t" actions={<button type="submit" form="f">Save</button>} /></form>', null],
+    ['pageheader_own_form', '<PageHeader title="t" actions={<form onSubmit={s}><button type="submit">Apply</button></form>} />', null],
+    ['pageheader_onclick_submit', '<form onSubmit={s}><PageHeader title="t" actions={<button onClick={() => track()} type="submit">Save</button>} /></form>', /PageHeader> actions hold/],
+    ['pageheader_primarybutton_submit', '<form onSubmit={s}><PageHeader title="t" actions={<PrimaryButton type="submit">Save</PrimaryButton>} /></form>', /PageHeader> actions hold/],
+    ['pageheader_untyped_button', '<form onSubmit={s}><PageHeader title="t" actions={<button className="btn">Save</button>} /></form>', /PageHeader> actions hold/],
+    ['pageheader_button_type_button_in_form', '<form onSubmit={s}><PageHeader title="t" actions={<button type="button" onClick={go}>Go</button>} /></form>', null],
+    ['pageheader_plain_button', '<PageHeader title="t" actions={<button type="button" onClick={go}>Go</button>} />', null],
     ['jsdoc_ignored', '/** <input className="rounded" /> */\n<input aria-label="a" className="form-input" />', null],
 ];
 let failed = 0;
+// --only: other rules' findings are not reported.
+{
+    const f = path.join(dir, 'only_filter.jsx');
+    fs.writeFileSync(f, 'export default function X() { return (<><input aria-label="a" className="w-full border px-3" /><form onSubmit={s}><PageHeader title="t" actions={<button type="submit">S</button>} /></form></>); }\n');
+    const all = spawnSync(process.execPath, [tool, f], { encoding: 'utf8' }).stdout;
+    const only = spawnSync(process.execPath, [tool, '--only=pageheader-submit', f], { encoding: 'utf8' }).stdout;
+    const ok = /lacks a shared class/.test(all) && /PageHeader> actions hold/.test(all) && /PageHeader> actions hold/.test(only) && !/lacks a shared class/.test(only);
+    if (!ok) { failed++; console.log(`FAIL only_filter\n${all}\n---\n${only}`); }
+}
 for (const [name, body, expect] of cases) {
     const f = path.join(dir, `${name}.jsx`);
     fs.writeFileSync(f, `export default function X() { return (<>${body}</>); }\n`);
@@ -51,5 +68,5 @@ for (const [name, body, expect] of cases) {
     if (!ok) { failed++; console.log(`FAIL ${name}\n${out}`); }
 }
 fs.rmSync(dir, { recursive: true, force: true });
-console.log(failed ? `${failed} self-test(s) failed` : `${cases.length} self-tests passed`);
+console.log(failed ? `${failed} self-test(s) failed` : `${cases.length + 1} self-tests passed`);
 process.exit(failed ? 1 : 0);

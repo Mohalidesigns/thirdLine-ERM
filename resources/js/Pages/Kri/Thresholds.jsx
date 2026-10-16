@@ -50,20 +50,18 @@ export default function Thresholds({ kris = {}, canManage = false }) {
         put(route('risk.kri.thresholds.update'), { preserveScroll: true, onSuccess: () => setDirty(false) });
     };
 
-    const cell = 'w-full px-2 py-1 border rounded text-sm text-center';
-
     return (
         <AuthenticatedLayout title="KRI Thresholds">
             <Head title="KRI Thresholds" />
 
-            <form onSubmit={submit}>
+            <form id="kri-thresholds-form" onSubmit={submit}>
                 <PageHeader
                     title="KRI Threshold Management"
                     subtitle="Set the green and red boundaries every indicator is read against"
                     breadcrumbs={[{ label: 'KRI Monitoring', href: route('risk.kri.index') }, { label: 'Thresholds' }]}
                     actions={
                         canManage && (
-                            <button type="submit" disabled={processing || !dirty} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
+                            <button type="submit" form="kri-thresholds-form" disabled={processing || !dirty} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
                                 <span className="material-symbols-outlined text-lg">save</span>
                                 {dirty ? 'Save Changes' : 'No Changes'}
                             </button>
@@ -128,10 +126,11 @@ export default function Thresholds({ kris = {}, canManage = false }) {
                                             <input
                                                 type="number"
                                                 step="0.01"
+                                                aria-label={`${kri.code} green threshold`}
                                                 disabled={!canManage}
                                                 value={data.kris[index]?.green_threshold ?? ''}
                                                 onChange={(e) => change(index, 'green_threshold', e.target.value)}
-                                                className={`${cell} border-green-300 focus:ring-1 focus:ring-green-400 disabled:bg-gray-50`}
+                                                className="form-input w-full px-2 py-1 text-sm text-center border-green-300 focus:ring-1 focus:ring-green-400"
                                             />
                                             <InputError message={errors[`kris.${index}.green_threshold`]} className="mt-1" />
                                         </td>
@@ -139,10 +138,11 @@ export default function Thresholds({ kris = {}, canManage = false }) {
                                             <input
                                                 type="number"
                                                 step="0.01"
+                                                aria-label={`${kri.code} red threshold`}
                                                 disabled={!canManage}
                                                 value={data.kris[index]?.red_threshold ?? ''}
                                                 onChange={(e) => change(index, 'red_threshold', e.target.value)}
-                                                className={`${cell} border-red-300 focus:ring-1 focus:ring-red-400 disabled:bg-gray-50`}
+                                                className="form-input w-full px-2 py-1 text-sm text-center border-red-300 focus:ring-1 focus:ring-red-400"
                                             />
                                             <InputError message={errors[`kris.${index}.red_threshold`]} className="mt-1" />
                                         </td>

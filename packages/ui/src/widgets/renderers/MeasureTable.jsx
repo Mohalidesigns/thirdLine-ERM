@@ -1,3 +1,4 @@
+import Icon from '../../Components/Icon';
 const GLYPHS = {
     effective: ['check_circle', 'text-emerald-600'],
     passed: ['check_circle', 'text-emerald-600'],
@@ -36,13 +37,13 @@ export default function MeasureTable({ data }) {
                                 <td className="px-2 py-1.5 text-gray-600">{row.responsible ?? '—'}</td>
                                 <td className="px-2 py-1.5 text-center">
                                     {row.implemented ? (
-                                        <span className="material-symbols-outlined text-[18px] leading-none text-emerald-600">check</span>
+                                        <Icon name="check" className="w-[18px] h-[18px] text-emerald-600" />
                                     ) : (
                                         <span className="text-gray-300">—</span>
                                     )}
                                 </td>
                                 <td className="px-2 py-1.5 text-center">
-                                    <span className={`material-symbols-outlined text-[18px] leading-none ${tone}`}>{icon}</span>
+                                    <Icon name={icon} className={`w-[18px] h-[18px] ${tone}`} />
                                 </td>
                             </tr>
                         );

@@ -1,4 +1,5 @@
 import { usePage } from '@inertiajs/react';
+import Icon from '../Components/Icon';
 
 /**
  * The unauthenticated shell: brand panel, one card. Flash messages (the
@@ -29,7 +30,7 @@ export default function GuestLayout({ title, subtitle, icon = 'verified_user', s
             <div className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-white/20 backdrop-blur-sm mb-4">
-                        <span className="material-symbols-outlined text-white text-4xl">{icon}</span>
+                        <Icon name={icon} className="text-white w-10 h-10" />
                     </div>
                     <h1 className="text-white text-3xl font-bold">Atheris ERM</h1>
                     <p className="text-white/70 text-sm mt-2">{subtitle || 'Enterprise Risk & Compliance Management'}</p>

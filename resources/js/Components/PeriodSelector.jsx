@@ -1,5 +1,6 @@
 import { usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
+import Icon from '@thirdline/ui/Components/Icon';
 
 const TYPES = [
     ['month', 'Month'],
@@ -32,10 +33,17 @@ export default function PeriodSelector() {
     const { period, auth } = usePage().props;
     const [open, setOpen] = useState(false);
     const box = useRef(null);
+    const labelBtn = useRef(null);
 
     useEffect(() => {
         const onClick = (e) => box.current && !box.current.contains(e.target) && setOpen(false);
-        const onKey = (e) => e.key === 'Escape' && setOpen(false);
+        const onKey = (e) => {
+            if (e.key !== 'Escape') return;
+            setOpen((was) => {
+                if (was) labelBtn.current?.focus();
+                return false;
+            });
+        };
         document.addEventListener('mousedown', onClick);
         document.addEventListener('keydown', onKey);
         return () => {
@@ -62,30 +70,45 @@ export default function PeriodSelector() {
         manageUrl = null;
     }
 
+    const ring = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2';
+
     return (
-        <div ref={box} className="relative flex items-center gap-1 pl-3 pr-1 py-1 rounded-lg border border-gray-200 bg-gray-50" data-testid="period-selector">
-            <a href={link({ direction: 'previous' })} className="p-1 rounded hover:bg-white text-gray-500 hover:text-[var(--color-primary)]" title={`Previous ${period.type}`} aria-label="Previous period">
-                <span className="material-symbols-outlined text-[18px] leading-none">chevron_left</span>
+        <div ref={box} className="relative h-9 flex items-center gap-1 pl-2 pr-1 rounded-lg border border-gray-200 bg-gray-50" data-testid="period-selector">
+            <a href={link({ direction: 'previous' })} className={`p-1.5 rounded hover:bg-white text-gray-500 hover:text-[var(--color-primary)] ${ring}`} title={`Previous ${period.type}`} aria-label="Previous period">
+                <Icon name="chevron_left" className="w-4 h-4" strokeWidth={2} />
             </a>
 
-            <button type="button" onClick={() => setOpen(!open)} className="px-2 py-0.5 text-xs font-semibold text-[var(--color-primary)] hover:bg-white rounded min-w-[104px] inline-flex items-center justify-center gap-1" aria-haspopup="true" aria-expanded={open}>
+            <button
+                ref={labelBtn}
+                type="button"
+                onClick={() => setOpen(!open)}
+                className={`px-2 py-1 text-sm font-semibold text-[var(--color-primary)] hover:bg-white rounded min-w-[120px] inline-flex items-center justify-center gap-1 ${ring}`}
+                aria-haspopup="true"
+                aria-expanded={open}
+                aria-label={`Reporting period: ${period.name}`}
+            >
                 {period.name}
-                {period.is_closed && <span className="material-symbols-outlined text-[13px] text-gray-400" title="Closed — values locked">lock</span>}
+                {period.is_closed && (
+                    <>
+                        <Icon name="lock" className="w-3.5 h-3.5 text-gray-500" />
+                        <span className="sr-only">Closed, values locked</span>
+                    </>
+                )}
             </button>
 
-            <a href={link({ direction: 'next' })} className="p-1 rounded hover:bg-white text-gray-500 hover:text-[var(--color-primary)]" title={`Next ${period.type}`} aria-label="Next period">
-                <span className="material-symbols-outlined text-[18px] leading-none">chevron_right</span>
+            <a href={link({ direction: 'next' })} className={`p-1.5 rounded hover:bg-white text-gray-500 hover:text-[var(--color-primary)] ${ring}`} title={`Next ${period.type}`} aria-label="Next period">
+                <Icon name="chevron_right" className="w-4 h-4" strokeWidth={2} />
             </a>
 
             {open && (
-                <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-50 p-3">
-                    <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold mb-2">Granularity</p>
+                <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Granularity</p>
                     <div className="grid grid-cols-4 gap-1 mb-3">
                         {TYPES.map(([type, label]) => (
                             <a
                                 key={type}
                                 href={link({ type })}
-                                className={`text-center text-[11px] py-1 rounded border ${
+                                className={`text-center text-xs py-1 rounded border ${ring} ${
                                     period.type === type ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                                 }`}
                             >
@@ -93,17 +116,17 @@ export default function PeriodSelector() {
                             </a>
                         ))}
                     </div>
-                    <a href={link({ direction: 'current' })} className="block text-center text-[11px] py-1.5 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 mb-2">
+                    <a href={link({ direction: 'current' })} className={`block text-center text-xs py-1.5 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 mb-2 ${ring}`}>
                         Jump to today
                     </a>
                     {manageUrl && (
-                        <a href={manageUrl} className="block text-center text-[11px] py-1.5 rounded bg-gray-50 text-[var(--color-primary)] font-medium hover:bg-gray-100">
+                        <a href={manageUrl} className={`block text-center text-xs py-1.5 rounded bg-gray-50 text-[var(--color-primary)] font-medium hover:bg-gray-100 ${ring}`}>
                             Manage calendar &amp; close periods
                         </a>
                     )}
-                    <p className="text-[10px] text-gray-400 mt-2 leading-snug">
-                        {formatDate(period.start_date)} – {formatDate(period.end_date)}
-                        {period.is_closed ? ' · closed' : ''}
+                    <p className="text-xs text-gray-500 mt-2 leading-snug">
+                        {formatDate(period.start_date)} &ndash; {formatDate(period.end_date)}
+                        {period.is_closed ? ' \u00b7 closed' : ''}
                     </p>
                 </div>
             )}

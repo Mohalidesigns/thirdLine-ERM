@@ -1,6 +1,7 @@
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 
 export default function Index({ term, results }) {
     const [q, setQ] = useState(term || '');
@@ -13,6 +14,7 @@ export default function Index({ term, results }) {
     return (
         <AuthenticatedLayout title={term ? `“${term}”` : 'Search'}>
             <Head title="Search" />
+            <PageHeader title="Search" subtitle={term ? `Results for “${term}”` : 'Risks, controls, issues, losses, KRIs and units in one place'} />
             <div className="mx-auto max-w-3xl">
                 <form onSubmit={submit} className="mb-4" role="search">
                     <div className="relative">
@@ -24,7 +26,8 @@ export default function Index({ term, results }) {
                             onChange={(e) => setQ(e.target.value)}
                             autoFocus
                             placeholder="Search everything — risks, controls, issues, losses, KRIs, units…"
-                            className="w-full rounded-xl border border-gray-200 py-3 pl-11 pr-4 text-sm shadow-sm focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
+                            aria-label="Search"
+                            className="form-input w-full py-3 pl-11 pr-4 text-sm"
                         />
                     </div>
                 </form>

@@ -38,9 +38,21 @@ php artisan view:cache
 
 # Files are owned deploy:www-data with setgid dirs, so www-data inherits
 # group ownership automatically — only runtime-writable trees need g+w.
+#
+# Only what this user owns. The app and the queue worker run as www-data and
+# create directories of their own under storage (storage/app/private/rcsa was
+# the first); only a file's owner may chmod it, and find cannot descend into a
+# www-data directory it may not read. Either error used to abort the deploy
+# under `set -e` after migrate but before preflight and the restart — the
+# 2026-10-16 deploy of 6ae4611 stopped exactly there. A www-data-owned path is
+# already writable by www-data, so skipping it, subtree and all, loses nothing.
+# It is listed, not hidden: ownership drift is worth seeing in the deploy log.
 echo "==> Ensure runtime-writable permissions"
-find storage bootstrap/cache -type d -exec chmod 2775 {} \;
-find storage bootstrap/cache -type f -exec chmod 664 {} \;
+DEPLOY_USER="$(id -un)"
+find storage bootstrap/cache ! -user "$DEPLOY_USER" -prune -print \
+    | sed 's/^/    skipped, not owned by '"$DEPLOY_USER"': /'
+find storage bootstrap/cache ! -user "$DEPLOY_USER" -prune -o -type d -exec chmod 2775 {} +
+find storage bootstrap/cache ! -user "$DEPLOY_USER" -prune -o -type f -exec chmod 664 {} +
 
 # Deliberately AFTER migrate and the config/route/view caches, so preflight
 # inspects the configuration and schema this deploy actually produced rather

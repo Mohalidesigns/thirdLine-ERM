@@ -71,7 +71,7 @@ class AlertDispatcher
             $contact = $recipient->contact;
 
             if ($contact === null) {
-                $recipient->forceFill(['status' => RecipientStatus::Failed->value])->save();
+                $this->settle($recipient, RecipientStatus::Failed);
                 $failed++;
 
                 continue;
@@ -80,7 +80,7 @@ class AlertDispatcher
             $channels = $this->channelsFor($recipient, $contact, $alert, $isLifeSafety);
 
             if ($channels === []) {
-                $recipient->forceFill(['status' => RecipientStatus::Failed->value])->save();
+                $this->settle($recipient, RecipientStatus::Failed);
                 $failed++;
 
                 continue;
@@ -89,21 +89,56 @@ class AlertDispatcher
             $any = false;
 
             foreach ($channels as $channel) {
+                // IDEMPOTENT PER CHANNEL. DispatchAlertChunkJob retries (tries=3)
+                // re-select a recipient still `queued`, so a worker that died
+                // after the first channel but before the status write would
+                // send that channel again. A channel that already has a
+                // sent/delivered/read row for this person on this alert is done.
+                if ($this->alreadySent($alert, $contact, $channel)) {
+                    $any = true;
+
+                    continue;
+                }
+
                 $result = $this->sendOne($alert, $recipient, $contact, $channel);
 
                 $any = $any || $result;
             }
 
             if ($any) {
-                $recipient->forceFill(['status' => RecipientStatus::Sent->value])->save();
+                $this->settle($recipient, RecipientStatus::Sent);
                 $sent++;
             } else {
-                $recipient->forceFill(['status' => RecipientStatus::Failed->value])->save();
+                $this->settle($recipient, RecipientStatus::Failed);
                 $failed++;
             }
         }
 
         return ['sent' => $sent, 'failed' => $failed, 'skipped' => $skipped];
+    }
+
+    /**
+     * Move a recipient out of `queued` - and ONLY out of `queued`. The model
+     * in hand was loaded before the first channel was sent; a reply that
+     * landed since has already made the row `acknowledged`, and writing the
+     * stale status back would un-account for a person who answered.
+     */
+    private function settle(AlertRecipient $recipient, RecipientStatus $status): void
+    {
+        AlertRecipient::withoutGlobalScopes()
+            ->whereKey($recipient->getKey())
+            ->where('status', RecipientStatus::Queued->value)
+            ->update(['status' => $status->value, 'updated_at' => now()]);
+    }
+
+    private function alreadySent(Alert $alert, Contact $contact, ChannelKey $channel): bool
+    {
+        return NotificationDelivery::query()
+            ->where('alert_id', $alert->getKey())
+            ->where('recipient_contact_id', $contact->getKey())
+            ->where('channel', $channel->value)
+            ->whereIn('status', [DeliveryStatus::Sent->value, DeliveryStatus::Delivered->value, DeliveryStatus::Read->value])
+            ->exists();
     }
 
     /**

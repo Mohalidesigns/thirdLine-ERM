@@ -55,6 +55,9 @@ return [
      * Management), and backup codes are not issued. Turn the flag on per
      * environment once that operating procedure is in place. MfaFeatureGateTest
      * asserts the default; MfaEnforcementTest asserts the flag-on behaviour.
+     *
+     * BCMS REQUIRES IT: with features.bcms on and this off, `app:preflight`
+     * fails the deploy, because alert dispatch would need no second factor.
      */
     'mfa_totp' => env('FEATURE_MFA_TOTP', false),
 

@@ -47,6 +47,8 @@ use InvalidArgumentException;
  */
 class AlertService
 {
+    private const ALREADY_RELEASED = 'This alert has already been dispatched. Nothing further was sent. The attempt has been recorded.';
+
     public function __construct(
         private AudienceResolver $audience,
         private ContactResolver $contacts,
@@ -481,7 +483,7 @@ class AlertService
 
     public function approve(Alert $alert, User $approver): Alert
     {
-        if ($alert->status === 'dispatched') {
+        if ($this->isReleased($alert)) {
             throw new InvalidArgumentException('This alert has already been dispatched.');
         }
 
@@ -556,7 +558,7 @@ class AlertService
      */
     public function isDispatchable(Alert $alert, ?int $recipientCount = null): bool
     {
-        if ($alert->status === 'dispatched') {
+        if ($this->isReleased($alert)) {
             return false;
         }
 
@@ -565,6 +567,18 @@ class AlertService
         }
 
         return $alert->approved_by !== null && $alert->second_approved_by !== null;
+    }
+
+    /**
+     * Has this alert already been released? `release()` sets `dispatching`;
+     * nothing sets `dispatched` today, so refusing only that one let a second
+     * click through to the unique (alert_id, contact_id) index and a 500.
+     * Every post-release status counts, and so does a stamped `dispatched_at`.
+     */
+    private function isReleased(Alert $alert): bool
+    {
+        return in_array($alert->status, ['dispatching', 'dispatched'], true)
+            || $alert->dispatched_at !== null;
     }
 
     /* ------------------------------------------------------------------ */
@@ -582,6 +596,10 @@ class AlertService
      */
     public function release(Alert $alert, ?int $userId = null): Collection
     {
+        if ($this->isReleased($alert)) {
+            throw new InvalidArgumentException(self::ALREADY_RELEASED);
+        }
+
         // THE AUDIENCE IS RESOLVED BEFORE THE DUAL-APPROVAL CHECK, NOT AFTER.
         // `recipient_count` is only ever written by `estimate()` — an optional,
         // manually-triggered button — and by this method itself, so reading
@@ -621,6 +639,16 @@ class AlertService
         $resolvedChannels = $this->channelKeys($alert);
 
         DB::transaction(function () use ($alert, $contacts, $userId, $resolvedChannels) {
+            // RACE-SAFE: re-read the status under a row lock. Two concurrent
+            // POSTs both passed the unlocked check above; the second to get
+            // the lock now sees `dispatching` and is refused before it
+            // writes a single recipient row.
+            $fresh = Alert::query()->whereKey($alert->getKey())->lockForUpdate()->first();
+
+            if ($fresh === null || $this->isReleased($fresh)) {
+                throw new InvalidArgumentException(self::ALREADY_RELEASED);
+            }
+
             $channels = $resolvedChannels;
             $isLifeSafety = $alert->severity === AlertSeverity::LifeSafety;
             $now = now();

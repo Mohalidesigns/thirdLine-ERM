@@ -28,6 +28,8 @@ class PreflightModuleGateTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const UNCERTIFIED_FIXTURE = 'tests/Support/fixtures/uncertified-phase-7-handoff.md';
+
     #[Test]
     public function it_lists_which_modules_this_installation_actually_serves(): void
     {
@@ -53,33 +55,50 @@ class PreflightModuleGateTest extends TestCase
     public function it_fails_the_deploy_when_the_uncertified_module_is_switched_on(): void
     {
         Config::set('features.bcms', true);
+        // The real handoff lost its marker when Phase 7 was certified, so the
+        // uncertified state is reproduced from a fixture with the marker in it.
+        Config::set('preflight.bcms_handoff', self::UNCERTIFIED_FIXTURE);
+        // MFA on, so the BCMS-without-MFA check cannot be what fails this
+        // deploy: only the marker check may. (With MFA off both emit "BCMS IS
+        // ON" and the test passed with the marker check deleted.)
+        Config::set('features.mfa_totp', true);
 
         // A non-zero exit is the point: preflight runs as the last step of a
         // deploy, so this stops the pipeline rather than merely printing a
         // grumble nobody reads.
         $this->artisan('app:preflight', ['--allow-local' => true])
-            ->expectsOutputToContain('BCMS IS ON')
+            ->expectsOutputToContain('BCMS IS ON but docs/bcms/phase-7-handoff.md still says')
             ->assertFailed();
     }
 
     #[Test]
-    public function the_gate_reads_the_handoff_rather_than_a_constant(): void
+    public function the_certified_handoff_lets_the_module_on_and_records_both_gates(): void
     {
-        // The certification state lives in docs/bcms/phase-7-handoff.md, so
-        // certifying Phase 7 is one deliberate edit in the document that
-        // records the decision — and cannot be done by accident from
-        // Preflight.php. This asserts the wiring: if the marker were ignored,
-        // or read from somewhere else, turning the flag on would not fail.
+        // This test used to assert the marker was still PRESENT, and said it
+        // should go the day Phase 7 really passed both gates. That happened on
+        // 2026-10-16 (qa-engineer cycle 4 PASS, code-reviewer MERGE). What
+        // replaces it guards the other direction: the marker was removed by
+        // certification rather than tidied away, so the document has to say
+        // which gates ran — and with the real document in place, the row
+        // PASSES rather than failing for some other reason.
         $handoff = base_path('docs/bcms/phase-7-handoff.md');
 
         $this->assertFileExists($handoff);
-        $this->assertStringContainsString(
-            'THE QA GATE AND THE REVIEW GATE HAVE NOT BEEN RUN',
-            file_get_contents($handoff),
-            'The marker is gone from the Phase 7 handoff. If Phase 7 really has passed both gates that is correct '.
-            'and this test should be deleted with it — but if the line was tidied away, the deploy gate it drives '.
-            'has been silently disarmed.'
-        );
+        $contents = file_get_contents($handoff);
+        $this->assertStringNotContainsString('THE QA GATE AND THE REVIEW GATE HAVE NOT BEEN RUN', $contents);
+        $this->assertStringContainsString('Gate record', $contents,
+            'The marker is gone but the handoff records no gate run. If the line was tidied away rather than '.
+            'removed by certification, the deploy gate it drives has been silently disarmed.');
+        $this->assertStringContainsString('qa-engineer', $contents);
+        $this->assertStringContainsString('code-reviewer', $contents);
+
+        Config::set('features.bcms', true);
+        Config::set('features.mfa_totp', true);
+
+        Artisan::call('app:preflight', ['--allow-local' => true]);
+        $output = Artisan::output();
+
+        $this->assertMatchesRegularExpression('/Uncertified modules\s*\|\s*PASS/', $output, $output);
     }
 
     #[Test]
@@ -144,15 +163,16 @@ class PreflightModuleGateTest extends TestCase
         // File::exists() says true for a directory, and File::get() throws.
         //
         // The gate must fall back to the real document and report normally,
-        // not crash. A release gate that dies is not a release gate.
+        // not crash. A release gate that dies is not a release gate. The real
+        // document is certified (2026-10-16), so falling back to it PASSES.
         Artisan::call('app:preflight', ['--allow-local' => true]);
         $output = Artisan::output();
 
         $this->assertMatchesRegularExpression(
-            '/Uncertified modules\s*\|\s*FAIL/',
+            '/Uncertified modules\s*\|\s*PASS/',
             $output,
-            'A null configured path should fall back to the real handoff document, find the uncertified marker '.
-            "and FAIL cleanly.\n\n".$output
+            'A null configured path should fall back to the real, certified handoff document and report '.
+            "cleanly.\n\n".$output
         );
         $this->assertStringNotContainsString('is missing, so its certification', $output,
             'It fell through to the missing-file branch, so the fallback did not happen.');

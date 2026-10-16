@@ -330,7 +330,7 @@ abstract class HttpChannel implements Configurable, NotificationChannel
      * because it is the term that provider's own API documentation uses, not
      * because it seemed plausible.
      */
-    protected function classifyProviderError(string $text): ?string
+    public static function classifyProviderError(string $text): ?string
     {
         $normalised = strtolower($text);
 

@@ -340,6 +340,13 @@ it and nothing logs it. Processing is still processing under the NDPA, so it is
 registered; but it is registered as a transient match key, not as a stored
 identifier, and the register should not imply otherwise.
 
+> **CORRECTED 2026-10-16 (§12).** "Match exactly one open recipient" is no longer
+> true for a reply that reads as **needs help**. Since the owner ruling of
+> 2026-10-16, a token-less help reply is applied to **every** open recipient the
+> number fits, up to 50, across organisations. A safe, not-on-site or
+> unclassified reply is still matched only when exactly one candidate exists.
+> The `from` number is still not stored. §12 registers the change.
+
 ### 6.1 Retention — proposed, and not yet enforced by anything
 
 | Item | Proposed retention | Reasoning |
@@ -376,6 +383,16 @@ those columns to be evidence at all. The question is who holds the permission,
 and whether the address column should be masked for anyone below the CRO. The
 architect owns the permission decision; the DPO owns whether masked evidence is
 still evidence.
+
+> **Closed in the tree 2026-10-16 (Phase 7 certification; see §12.6).**
+> `AlertController::evidence()` still requires `bcms.report.export`, but
+> `Address` and `Response text` are now included only when the requester also
+> holds `bcms.contact.export` (`EvidenceExport::RESTRICTED_COLUMNS`). Anyone else
+> gets the pack without those two columns, and the pack's preamble says they were
+> withheld. In the shipped catalogue `bcms.contact.export` is the
+> chief-risk-officer's, and compliance-officer is deliberately denied it. Every
+> export now writes an `alert.evidence_exported` audit row. The DPO's half of
+> open question 7, whether masked evidence is still evidence, is unchanged.
 
 ### 6.3 Sufficiency — could an examiner be shown this in one click?
 
@@ -1248,11 +1265,175 @@ for which period, and a human assembles nothing. Three limits:
 - **this pass did not check** whether the other `bcms.report.export` doors write a
   comparable row. Those are §6.2's alert-evidence CSV, the AAR export, the BIA report,
   the plan document and the incident notification log. This register does not claim
-  they do.
+  they do. **Update 2026-10-16:** the alert-evidence CSV now writes
+  `alert.evidence_exported` (§12.6). It writes that row on the alert's own trail,
+  not as a `pack.exported` row, so it does **not** appear in
+  `EvidencePackService::log()`. The other four doors are still unchecked.
 
 ---
 
-## 12. `tp_audit_logs` — the TPRM audit trail's actor fields (post-go-live hardening, ADR 0028)
+## 12. Bare-number HELP replies applied across every matching recipient (Phase 7 certification)
+
+**Opened 2026-10-16 because of an owner ruling made that day. Code review
+requires this entry before Phase 7 can be certified.** §6 registered the inbound
+`from` number as a match key used to find **exactly one** open recipient. The
+ruling changes that for one case: a reply that means *needs help*. I checked
+this section against the code on `claude/bcms-phase-7-certification-8f875a`,
+not against the ruling's wording. The code is
+`InboundResponseHandler::handleReply()` with its docblock,
+`recipientsForNumberHelp()`, `openRecipients()` and `interpret()`,
+`RollCallService::record()`, `AlertWebhookController::reply()`,
+`AlertController::evidence()` and `EvidenceExport`.
+
+### 12.1 The processing activity
+
+| | |
+|---|---|
+| **Trigger** | A **signed** inbound reply by SMS, WhatsApp or USSD on `AlertWebhookController::reply()`. The route rejects an unsigned callback with a 403 even when no secret is configured. The reply's body carries no valid `r-{id}-{tag}` token, and `interpret()` classifies it as `needs_help`, either from a keyword in `HELP_WORDS` matched as a substring in any of the five languages, or from the USSD keypad code `2` sent on its own |
+| **Matching** | The sender's `from` (max 32 characters) is cut down to its digits. Anything under 7 digits is rejected. The **last nine digits** are matched as a suffix (`LIKE '%…'`) against `bcms_contacts.mobile_primary` **or** `mobile_secondary` |
+| **Candidates** | `openRecipients()`: `bcms_alert_recipients` rows whose alert has `dispatched_at` set and **within the last 2 days**. That window is a fixed 48 hours in code. It is not each alert's own configured response window, and this register describes it as it is built. The query runs with **no tenant context**, because a reply cannot name its tenant until it has been matched. It therefore covers **every organisation** on the platform. A recipient who has already answered is still a candidate, because help always supersedes |
+| **Cap** | `limit(50)`, with **no `orderBy`**. If more than 50 rows match, the database engine decides which 50 are written, and the rest are dropped without any record |
+| **What is written, per candidate** | `TenantContext::set()` is called with **that row's own** `organization_id`. `RollCallService::record()` then re-reads the row `FOR UPDATE` and sets `response_value = needs_help`, `status = acknowledged`, `acknowledged_at` (only if the row had not answered before) and **`response_text` = the sender's reply, verbatim and trimmed** (up to 1,000 characters). An earlier `safe` or `not_on_site` is superseded. An earlier `needs_help` is left as it is, so a second help reply is a no-op |
+| **Audit, per candidate** | One `alert.response` row on that alert's own `bcms_audit_logs` trail, carrying `contact` (the name snapshot), `response`, `via`, and `previous_response` / `superseded` when the reply replaced an earlier answer. **No message text and no number.** Checked: `AlertRecipient` does **not** use `BcmsAuditable`, so the `forceFill()->save()` does not copy `response_text` into the audit table by a second route |
+| **What is not done** | A reply that is not a help reply, i.e. safe, not-on-site or unclassified, is **not** fanned out. It is matched only when exactly one candidate is waiting (`recipientForNumber()`, `limit(2)`), and otherwise it is unmatched, not guessed. A tokenised reply always writes exactly one row, found by its key. The `from` number is **not stored** on any path, and nothing logs it |
+| **Owner ruling, and its reasoning** | The two possible errors cost different amounts. A help request that is dropped because a number fits two live alerts means a person nobody looks for. A false help flag on a second alert costs a warden a walk. The ruling therefore accepts false help flags in order to avoid missed calls for help |
+
+### 12.2 Data categories
+
+| Category | Status | Assessment |
+|---|---|---|
+| **MSISDN** (the sender's `from`) | **Used only for matching, and not newly stored.** It is compared against numbers each tenant already holds under §1, then discarded | Still processing (s.65 "processing" includes retrieval, consultation and use). It is registered as a transient match key, as §6 does |
+| **Free-text reply** → `bcms_alert_recipients.response_text` | **Stored**, verbatim, on up to 50 rows | Personal data of the sender. By construction it is also likely to be **sensitive personal data**: every reply on this path matched a help word, and the help vocabulary is *injured*, *hurt*, *trapped*, *stuck* and their equivalents. NDPA s.65 lists **"health status"** as sensitive personal data, limb (d). A reply such as "trapped 3rd floor" also carries **location**. Location is ordinary personal data under the s.65 definition of personal data, not sensitive data, but in an emergency it is the most consequential field in the row. The reply can also name **a third party** ("Musa is hurt") |
+
+**How the sensitive half is handled.** The design does not try to classify or
+strip health content from the text. That is deliberate, because the text is what
+a warden reads before going in. The controls are the ones §6 already asked for:
+a short retention for exercise traffic (12.5), an export gate on the column
+(12.6), audit rows that carry no text (12.1), and the privacy-notice line in open
+question 6. **This section adds one thing to that list:** the same health text
+can now be stored by **more than one controller** (12.4).
+
+### 12.3 Purpose and lawful basis
+
+| | |
+|---|---|
+| **Purpose** | Emergency roll-call and life safety: finding a person who has said they need help, during the 48 hours after an alert. Nothing else. This is §1's purpose, narrowed to its most urgent case |
+| **Lawful basis, ordinary personal data** | **NDPA 2023 s.25(1)(b)(iii)**: processing necessary "to protect the vital interest of the data subject or another person". The paragraph numbering was checked against the enacted text and matches this register's existing s.25(1)(b)(i) and (b)(v) citations in §7.3 and §11.1. The brief proposed "s.25(1)(d)". **That reference does not exist in the Act**: s.25(1) has only limbs (a) consent and (b), and (b) has five sub-paragraphs. The words "or another person" matter here, because a reply that names a trapped colleague is processed for **that colleague's** vital interest too |
+| **Condition, sensitive personal data** | s.25 alone is not enough. **s.30(1)** forbids processing sensitive personal data unless one of its conditions applies. The nearest is **s.30(1)(c)**: necessary to protect the vital interests of the data subject or another person, **"where the data subject is physically or legally incapable of giving consent"**. **That proviso is the weak point and this register will not paper over it.** A person who can type "help, I'm hurt" is arguably able to consent, and they chose to send it, which is close to consent in substance but not consent to *this* processing (fan-out to several controllers). For a *third party* named in the reply ("Musa is trapped") the proviso is much easier to meet. The fallback is **s.30(1)(b)**, processing necessary for the controller's obligations under employment or social security laws. Whether any Nigerian employment law places a workplace-safety duty on the bank that covers this processing has **not been checked** **[verify]**. Neither condition covers a stranger on a recycled number (12.4), because that person is not the bank's employee. **The DPO decides which s.30 condition is relied on.** Open question 17 |
+| **Where it sits relative to §1** | §1 uses vital interests only for **outbound** life-safety traffic over a withdrawn personal channel. This is the **inbound** counterpart, and the same narrowness applies. §5.4's caution still holds: vital interests cannot be the standing basis for drill or reminder traffic. A help reply to an **exercise** alert is still handled on this path, but no real person needed rescue, so the vital-interests argument for an exercise reply is **weak**. For exercise traffic the honest basis is §2's legitimate interest in evidencing the drill **[verify with DPO]** |
+
+### 12.4 The specific risk: recycled and shared numbers
+
+**What can go wrong.** Nigerian operators recycle MSISDNs. Staff also share
+handsets and list a relative's number as `mobile_secondary`. A nine-digit suffix
+match can also catch two different full numbers that end in the same nine digits
+(for example a foreign number and a Nigerian one). In any of these cases, a help
+reply from person X can be written into **organisation B's** record of **its own
+contact Y**. The result:
+
+1. **B now holds X's free text, and that text may be health data, about someone
+   who is not B's data subject in any other sense.** B has no lawful-basis record
+   for X, X has no notice from B, and X does not know B holds it.
+2. **The same message can sit in more than one controller's records**: A's
+   (where X really is a contact) and B's. Each copy has its own retention clock,
+   and X would need a DSAR to each controller to find them. The platform has no
+   cross-tenant view of the fan-out, and it should not have one.
+3. **B may never have messaged X's handset.** Matching checks the contact's
+   mobile columns, **not the channel the alert actually used**. If B's alert
+   reached Y by email or Teams, B still receives X's SMS reply because Y's
+   roster row holds the number.
+4. **Y is wrongly shown as needing help** on B's roll-call board. The ruling
+   accepts that operational cost. It is recorded here because it is also an
+   accuracy problem under s.24(1)(e).
+
+**Why it is accepted.** The ruling's reasoning stands, and this register agrees
+with how it ranks the two errors. A false help flag sends a warden on a walk and
+puts a stranger's words in a record. A dropped help request leaves somebody
+nobody looks for. The NDPA question is not whether the trade is right. It is
+whether the exposure is **bounded** and **corrected afterwards**, and 12.5 and
+12.7 answer that.
+
+### 12.5 Mitigations, and what each one actually bounds
+
+| Mitigation | What it bounds | What it does not bound |
+|---|---|---|
+| **Signed callbacks only** (`reply()` fails closed) | A forged or spoofed help reply. Without this, anyone on the internet could write "help" into 50 rows across tenants | A genuine reply from the wrong person (12.4) |
+| **The 50 cap** | How many rows, and so how many controllers at most, one reply can reach. It also turns a pathological number (a switchboard, a test fixture) into a bounded write | Which 50 are chosen: there is no `orderBy`. When rows beyond 50 are dropped, nothing reports it. **Finding, owner `backend-engineer`**: write one bounded, value-free signal when the cap is reached, such as a count and no number. A live help request truncated at row 50 is the error the ruling exists to prevent, and today nobody would know it happened |
+| **The 48-hour eligibility window** | The time a recycled number is dangerous for: two days after each dispatch, not the life of the roster | Nothing within those two days. During an incident that is exactly the window that matters |
+| **No cross-tenant decisions** | Each row is written under its own organisation's tenant context, from that row plus the sender's message. No organisation's state is decided from another's data, and nothing belonging to A is written into B | The **matching read** does span every tenant's contact numbers. That is unavoidable before a tenant is known, and the "no cross-tenant reads" claim is true only in that narrower sense. The platform operator, as each bank's processor, makes that read. **Whether each bank's §29 agreement covers inbound routing by number across the processor's estate has not been checked [verify]** |
+| **Audit rows hold no text** | The verbatim reply is not copied into append-only `bcms_audit_logs`, which §10's purge cannot reach. Only the name snapshot and the status land there | The name snapshot is Y's name, so a misattribution leaves "Y: needs_help, via sms" in B's permanent trail. That is the cost of the trail being readable, the same trade as §7.5.1's `subject_name` |
+| **Export gate on `bcms.contact.export`** (12.6) | Who can take `response_text` **out** of the product | Who can read it **on screen**: the roll-call board's `help_needed` list shows `response_text` and the contact's mobile to `bcms.alert.view` holders. This is correct during an incident. It is recorded so that nobody reads the export gate as the only access control |
+
+**No rectification path for a misattributed reply. Finding, owner
+`backend-engineer`, with the architect.** Once B's operator finds that a help
+flag came from a stranger, they can clear the status through the in-app respond
+route (`operator: true`). They **cannot remove the stranger's words**:
+`record()` keeps `response_text` when the operator supplies no text, and it can
+only overwrite the text, never null it. The NDPA gives X a right to erasure and
+gives B a duty of accuracy (s.24(1)(e)). Without a path to strike a
+misattributed reply, with an audit row recording that it was struck, B can meet
+neither. This is not a blocker for certification, because the flag can be
+cleared and the evidence trail survives. It should be closed before the first
+inbound gateway goes live.
+
+### 12.6 Related Phase 7 changes registered with this entry
+
+| Change | Where | Register effect |
+|---|---|---|
+| **Status callbacks store a closed failure category, not gateway prose** | `InboundResponseHandler::handleStatusReceipt()` → `failureReason()` → `HttpChannel::classifyProviderError()` | A failed delivery receipt now writes `"Gateway reported the message failed ({category})."` into `bcms_notification_deliveries.failed_reason`. The category is one of `invalid_recipient`, `dnd_blocked`, `recipient_blocked`, `insufficient_balance`, `sender_id_rejected`, `credential_rejected`, `rate_limited`, or "reason not classified". **The gateway's own text, which often echoes the destination MSISDN ("Invalid recipient 2348…"), is never stored.** This closes the inbound counterpart of the §6 `failed_reason` finding that §7.8 recorded as closed for the outbound `reasonFrom()` path. Also, an **unsigned** status callback can no longer move a delivery to `failed` at all |
+| **Evidence export split** | `AlertController::evidence()`, `EvidenceExport::RESTRICTED_COLUMNS` | `Address` and `Response text` require `bcms.contact.export` in addition to `bcms.report.export`. Without it, the pack omits both columns and says so in its preamble. Closes the permission half of §6.2 |
+| **Evidence export audited** | `AlertController::evidence()` | Each export writes `alert.evidence_exported` to the alert's trail with `include_contact_data`, `rows` and `exported_by`. It records **the fact and the size, never the data**, which is §11.3's content-free rule. That answers "who took this alert's addresses and replies out, and when". It is not listed in the evidence-pack export log (§11.6) |
+
+### 12.7 Retention
+
+`response_text` keeps §6.1's clock: **7 years** for an incident-linked alert,
+**12 months** for exercise and reminder traffic. A misattributed reply held by
+organisation B is on **B's** clock for **B's** alert, so the same message can be
+erased from A after 12 months and kept by B for 7 years, or the other way
+round. The audit rows follow `bcms_audit_logs`, which is append-only and outside
+§10's purge by design. They hold no text.
+
+**Not enforced.** §10's purge command still does not exist, so factual retention
+is **indefinite**, as for everything else in this register. The fan-out
+multiplies a short-retention problem across controllers. It does not create a
+new one.
+
+### 12.8 Residency and processors
+
+There is no new transfer. The reply arrives through the inbound leg of the
+SMS, WhatsApp or USSD processor already listed in §5.2. That processor sees the
+text before this product does, which is why §5.2.7 asks for the §29 agreement to
+cover the **inbound** direction. The stored copies stay in the application
+database under §1's af-south-1-or-on-prem commitment. **Clause codes:**
+`ndpa.lawful_basis`, `ndpa.retention`, `ndpa.residency`, all already published.
+No new code.
+
+### 12.9 Owner and review triggers
+
+| | |
+|---|---|
+| **Owner of the ruling** | The product owner (ruling of 2026-10-16) |
+| **Owner of this entry** | compliance-analyst |
+| **Owner of the s.30 condition and the privacy-notice wording** | The client's DPO (open questions 6 and 17) |
+| **Engineering findings** | `backend-engineer`: the silent truncation at 50 (12.5) and the missing strike path for a misattributed reply (12.5) |
+| **Review this entry when** | (1) the cap, the 48-hour window, the nine-digit suffix or the help vocabulary changes; (2) fan-out is extended to any status other than `needs_help`; (3) the first inbound gateway (SMS, WhatsApp or USSD) is configured in any environment, which turns this from a design into live processing; (4) a data subject or a tenant complains that a stranger's reply landed in its records; (5) §10's purge command ships; (6) the DPO answers open question 17 |
+
+### 12.10 Sufficiency: could an examiner be shown this in one click?
+
+**Ask: "show me who told you they needed help during this incident, and what
+they said."** **Yes.** The roll-call board's `help_needed` list shows it on
+screen, and for a holder of `bcms.contact.export` the alert evidence CSV exports
+it with no assembly, while the `alert.evidence_exported` row records that it was
+taken out.
+
+**Ask: "show me every place one help message was stored."** **No, by design.**
+Each controller can show its own copies only. The platform operator could find
+the rest by searching on the text, but no screen does that and none should. This
+is the cost of 12.4, stated rather than solved.
+
+---
+
+## 13. `tp_audit_logs` — the TPRM audit trail's actor fields (post-go-live hardening, ADR 0028)
 
 **Why a TPRM table is in a register titled BCMS.** TPRM has no register of its
 own. `ndpa-register-platform.md` is explicitly scoped to unprefixed tables and says
@@ -1265,7 +1446,7 @@ not a design.
 Checked against the code on `fix/post-golive-hardening`, 2026-10-14, including the
 uncommitted working tree.
 
-### 12.1 The processing activity
+### 13.1 The processing activity
 
 | | |
 |---|---|
@@ -1273,10 +1454,10 @@ uncommitted working tree.
 | **Purpose** | An append-only, tamper-evident record of who changed what in the third-party risk programme. It covers engagements, contracts, assessments, risk acceptances, waivers, incidents, access grants and vendor portal activity. It is the trail behind the CBN register, the DORA register, the PCI 12.8 pack and the supervisory export that ADR 0025 has booked. **The actor fields exist so that a vendor's act is never shown as a colleague's, or as the platform's** (model docblock; ADR 0028) |
 | **Writers** | `TprmAuditable::writeAuditRow()` on 26 audited TPRM models. Direct `AuditLog::create()` in `PortalAuthService`, `PortalIncidentService`, `VendorIdentityService`, `TrustProfileService`, `IntakeService`, `EvidenceService`, `AccessService`, `ClauseAnalyzer`, `NotificationDraftService` and `ObligationClockService` |
 | **Readers** | **None in the application** (ADR 0028 §Context, re-checked). `TprmAuditable::auditLogs()` is called only by tests. No screen, grid, export, pack or prompt reads this table |
-| **Data subjects** | (a) **Vendor personnel** who hold `tp_portal_users` accounts. They are not the bank's employees and are not covered by its staff privacy notice. (b) **Internal staff** (`users`). (c) **People named inside payloads**: vendor staff granted access to bank systems, sanctions-screening subjects, and anyone a vendor names in an incident description (§12.5) |
+| **Data subjects** | (a) **Vendor personnel** who hold `tp_portal_users` accounts. They are not the bank's employees and are not covered by its staff privacy notice. (b) **Internal staff** (`users`). (c) **People named inside payloads**: vendor staff granted access to bank systems, sanctions-screening subjects, and anyone a vendor names in an incident description (§13.5) |
 | **Mutability** | **Append-only and hash-chained.** The `updating` and `deleting` hooks throw. Each row's `hash` is `sha256(HASH_RECIPE \| previous_hash \| canonical(HASHED_FIELDS))` under recipe `tp_audit_logs/v2`. All three actor fields, `before`, `after`, `ip`, `user_agent` and `correlation_id` are in `HASHED_FIELDS`. **ADR 0025 forbids re-sealing.** No field of a written row can be changed without breaking the chain from that row onward. That is the point of the design, and it is also NDPA s.24(1)(f) and s.24(2) (integrity of personal data) working as intended |
 
-### 12.2 The actor fields — the contract, and the state of the tree
+### 13.2 The actor fields — the contract, and the state of the tree
 
 **The contract, per the user's decision of 2026-10-14 (ADR 0028 §2, as amended 2026-10-14):**
 
@@ -1292,7 +1473,7 @@ sealed row. NDPA s.65 defines pseudonymisation as processing after which data "c
 no longer be attributed to a specific data subject without the use of additional
 information", where that information is kept separately. The `tp_portal_users` row
 is that additional information. **The design only works if no sealed field carries
-the identity directly.** §12.5 shows that today several fields still do.
+the identity directly.** §13.5 shows that today several fields still do.
 
 **State of the tree, re-read 2026-10-14 after the amendment was built. The contract
 is implemented.** Every portal writer now writes `actor_label => null`:
@@ -1326,23 +1507,23 @@ three portal service writers, carry the authenticated vendor's id.
 **Rows written before ADR 0028 deploys.** On those rows, model writes caused by a
 vendor say `system` with null actor fields. The explicit portal events say
 `portal`, also with null actor fields. In both cases the vendor's identity is
-recoverable **only from the payload** (§12.5) or, for auth events, from
+recoverable **only from the payload** (§13.5) or, for auth events, from
 `auditable_id` → `tp_portal_users`.
 
-### 12.3 What is held, field by field
+### 13.3 What is held, field by field
 
 | Field | Personal data? | Notes |
 |---|---|---|
-| `actor_id` | **Yes, pseudonymous** while the `tp_portal_users` or `users` row it points to exists unaltered. There is no foreign key, so deleting either row leaves the id dangling rather than nulling it | After the target row is pseudonymised, the id is personal data only to the extent that something else in the trail re-identifies it. §12.5 says what does |
-| `actor_label` | **Yes** for `user` (a name). **None** for `portal` once the contract is implemented | Sealed. A staff member's name in this column **cannot be erased** (§12.6) |
+| `actor_id` | **Yes, pseudonymous** while the `tp_portal_users` or `users` row it points to exists unaltered. There is no foreign key, so deleting either row leaves the id dangling rather than nulling it | After the target row is pseudonymised, the id is personal data only to the extent that something else in the trail re-identifies it. §13.5 says what does |
+| `actor_label` | **Yes** for `user` (a name). **None** for `portal` once the contract is implemented | Sealed. A staff member's name in this column **cannot be erased** (§13.6) |
 | `ip` | **Yes.** NDPA s.65 lists "an online identifier" among the identifiers in its definition of personal data | **Not** passed through `AuditText`: the code writes `request()?->ip()` raw into `string(45)`. Written on every trait row and on every portal row. No `TrustProxies` configuration exists in `bootstrap/`, so whether this is the client's address or a proxy's depends on the deployment. **To confirm** on the VPS |
 | `user_agent` | **Yes in combination** (with `ip` and `created_at` it forms a device fingerprint) | `AuditText::userAgent()`: scrubbed to valid UTF-8 and clipped to 500 characters (`90843bf`). That is an integrity control (a vendor cannot suppress their own row), not a minimisation control |
 | `correlation_id` | No, unless a caller puts an identifier in the header | `AuditText::clip(…, 64)`, trait path only |
 | `auditable_type` / `auditable_id` | **Yes** when the auditable is `PortalUser` (every portal auth event) or `PortalInvitation` | It points at the person's own row |
-| `before` / `after` | **Yes.** See §12.5 | Sealed |
+| `before` / `after` | **Yes.** See §13.5 | Sealed |
 | `created_at` | Yes in combination | Time of the act, to the second |
 
-### 12.4 Lawful basis
+### 13.4 Lawful basis
 
 **NDPA s.25(1)(b)(v), legitimate interest.** A bank has a legitimate interest in
 keeping an integrity-protected record of who acted on its third-party risk
@@ -1374,12 +1555,12 @@ condition of the service would not be freely given.
 **Internal staff: the same basis**, alongside the employment contract
 (s.25(1)(b)(i)). This mirrors `ndpa-register-platform.md` §1.
 
-### 12.5 Payloads that carry the vendor's email — the identity the actor contract was meant to keep out
+### 13.5 Payloads that carry the vendor's email — the identity the actor contract was meant to keep out
 
 The reviewer's finding was confirmed, and it was wider than one event. Before the
 ADR 0028 amendment, every portal writer below put `$user->email` (or the invitee's
 email) into a sealed `after` payload. **Every one of those historic rows defeats
-§12.2's pseudonymisation on its own**, because the same vendor's `actor_id`, or
+§13.2's pseudonymisation on its own**, because the same vendor's `actor_id`, or
 `auditable_id` → `PortalUser`, sits beside an email in the same chain.
 
 **Fixed for new rows by the amendment, 2026-10-14. Re-read in the tree:** no portal
@@ -1394,7 +1575,7 @@ before the amendment deploys.
 | `PortalAuthService::sendEmailCode()` | `portal_mfa_code_send_failed` | `after.email` | `portal_user_id` |
 | `PortalAuthService::sendEmailCode()` | `portal_mfa_code_sent` | `after.email` | `portal_user_id`, `expires_at` |
 | `PortalAuthService::confirmMfaEnrolment()` | `portal_mfa_enrolled` | `after.email` | `portal_user_id` |
-| `PortalAuthService::completeMfa()` | `portal_signed_in` | `after.email`, on every sign-in by every vendor since go-live | `portal_user_id` (and `actor_id`, §12.2) |
+| `PortalAuthService::completeMfa()` | `portal_signed_in` | `after.email`, on every sign-in by every vendor since go-live | `portal_user_id` (and `actor_id`, §13.2) |
 | `PortalAuthService::logout()` | `portal_signed_out` | `after.email` | `portal_user_id` (and `actor_id`) |
 | `PortalAuthService::recordFailure()` | `portal_account_locked` | `after.email` | `portal_user_id`, `attempts` |
 | `PortalIncidentService::auditReceipt()` | `incident_reported_by_vendor` | `after.reported_by_email` | `after.reported_by_portal_user_id` |
@@ -1418,13 +1599,13 @@ register's first version and has now been built:
   erasure, losing that answer is the purpose.
 - For `portal_invited`, no portal user exists yet. The id is the
   `PortalInvitation`'s `auditable_id`, and `tp_portal_invitations.email` then joins
-  the erasure scope (§12.6).
+  the erasure scope (§13.6).
 - Changing payload **content** does not change `HASH_RECIPE`, `HASHED_FIELDS` or the
   recipe pin, so `AuditLogHashRecipeTest` is unaffected by this change.
 
 **Historic rows cannot be changed.** Every production row already written with an
 email keeps it for the life of the trail (ADR 0025 §3). The owner must accept this
-as residual risk R1 (§12.8).
+as residual risk R1 (§13.8).
 
 **Payload personal data the actor contract does not reach.** These come from the
 trait's full-attribute snapshot on `created`, and its changed-attributes snapshot
@@ -1442,19 +1623,19 @@ on `updated`. Only `password`, `remember_token`, `mfa_secret`, `credentials`,
 
 **These are not a defect to remove.** Who was granted privileged access is itself
 the evidence (PCI 12.8; access recertification). They are registered so that the
-erasure position in §12.6 is not read as covering them.
+erasure position in §13.6 is not read as covering them.
 
-### 12.6 Retention and erasure
+### 13.6 Retention and erasure
 
 | | |
 |---|---|
-| **Retention** | **The life of the trail.** No purge or prune command touches `tp_audit_logs`: `app/Console/Commands` was enumerated, and only `PruneLlmUsageEvents` and `ConfigImport` mention pruning. The only deletion path is the `organization_id` foreign key's `cascadeOnDelete()`, so deleting a tenant's organisation deletes its trail at database level, bypassing the model's `deleting` hook. **NDPA s.24(1)(d) requires retention "not longer than is necessary"**, and "for ever" is not a figure. This register does not invent one. The DPO sets it against the bank's record-retention schedule (open question 17). Any purge of a hash chain is a chain-truncation design, which needs an ADR (architect), not a `DELETE` |
+| **Retention** | **The life of the trail.** No purge or prune command touches `tp_audit_logs`: `app/Console/Commands` was enumerated, and only `PruneLlmUsageEvents` and `ConfigImport` mention pruning. The only deletion path is the `organization_id` foreign key's `cascadeOnDelete()`, so deleting a tenant's organisation deletes its trail at database level, bypassing the model's `deleting` hook. **NDPA s.24(1)(d) requires retention "not longer than is necessary"**, and "for ever" is not a figure. This register does not invent one. The DPO sets it against the bank's record-retention schedule (open question 18). Any purge of a hash chain is a chain-truncation design, which needs an ADR (architect), not a `DELETE` |
 | **Erasure, vendor portal user** | **Sealed rows are never altered.** An s.34(1)(d) request is met by **pseudonymising the person's own rows outside the trail**: `tp_portal_users.email` → a unique non-address such as `erased+{id}@invalid` (the `(organization_id, email)` unique index must still hold), `name` → a fixed placeholder, password and MFA cleared, status disabled. The same applies to `tp_portal_invitations.email` and to any `tp_contacts` row for the same person. `PortalUser` is **not** `TprmAuditable` (checked: it is not among the 26 models), so this pseudonymisation writes **no** trail row carrying the old email in `before`. **Any erasure tool built later must keep it that way.** **No such tool exists today.** It is a manual database operation, owned by `backend-engineer` if it is to become a feature |
-| **Erasure, internal user** | Pseudonymising `users` **does not** remove the person from this trail, because `actor_label` holds their name in a sealed column. The retention position rests on s.34(2)(b): erasure is owed where the controller "has no other lawful basis to retain", and §12.4's accountability basis is that other basis for as long as the trail is needed. This is defensible, it is the same trade §11.4 records for competency scores, and it has to be **stated in the staff privacy notice** |
-| **What remains after a vendor is pseudonymised** | `actor_id` and `auditable_id` (now pointing at a placeholder row); `ip`; `user_agent`; `created_at`; every **historic payload email** (§12.5 table); and, on pre-ADR-0028 rows, whatever the payload holds. **On rows written after the payload fix**, what remains is an id, a timestamp, an IP address and a user-agent string. The IP is personal data under s.65. With the user agent it can re-identify a person to anyone holding the vendor's network logs. **There is no erasure path for it** (residual R2) |
+| **Erasure, internal user** | Pseudonymising `users` **does not** remove the person from this trail, because `actor_label` holds their name in a sealed column. The retention position rests on s.34(2)(b): erasure is owed where the controller "has no other lawful basis to retain", and §13.4's accountability basis is that other basis for as long as the trail is needed. This is defensible, it is the same trade §11.4 records for competency scores, and it has to be **stated in the staff privacy notice** |
+| **What remains after a vendor is pseudonymised** | `actor_id` and `auditable_id` (now pointing at a placeholder row); `ip`; `user_agent`; `created_at`; every **historic payload email** (§13.5 table); and, on pre-ADR-0028 rows, whatever the payload holds. **On rows written after the payload fix**, what remains is an id, a timestamp, an IP address and a user-agent string. The IP is personal data under s.65. With the user agent it can re-identify a person to anyone holding the vendor's network logs. **There is no erasure path for it** (residual R2) |
 | **Restriction (s.34(1)(e))** | Satisfied structurally: no application reader exists. When the booked supervisory export is built, it must render a pseudonymised portal user as "vendor (portal), identity erased", **not** as an unknown actor. That follows ADR 0028 §4's rule against re-spelling |
 
-### 12.7 Residency, access and DSAR
+### 13.7 Residency, access and DSAR
 
 | | |
 |---|---|
@@ -1463,18 +1644,18 @@ erasure position in §12.6 is not read as covering them.
 | **DSAR (s.34(1)(a)–(b))** | **No export exists.** A response is a developer's query: `actor_type='portal' AND actor_id=?`, plus `auditable_type` = the `PortalUser` FQCN `AND auditable_id=?`, plus a text search of `before`/`after` for the person's portal-user id (new rows store it as `portal_user_id` or `reported_by_portal_user_id`) and for their email (historic rows identify the vendor only there). Keep the search to plain `LIKE`, not MySQL-8-only JSON functions (CLAUDE.md). The same gap as `ndpa-register-platform.md` §3 |
 | **Clause codes** | **None new.** Substance maps to `ndpa.lawful_basis`, `ndpa.retention` and `ndpa.residency`, which are BCMS enum cases with no reach over a `tp_*` table. This is the same platform-taxonomy finding as `ndpa-register-platform.md` §2, and TPRM has none of its own either |
 
-### 12.8 Residual risks the owner must accept, or direct to be fixed
+### 13.8 Residual risks the owner must accept, or direct to be fixed
 
 | # | Risk | Can it be fixed? |
 |---|---|---|
-| **R1** | **Historic sealed payloads carry vendor emails** (eleven writers, §12.5): every invitation, account creation, MFA event, sign-in, sign-out and lockout since go-live. For any vendor who has ever signed in, pseudonymising `tp_portal_users` **does not** achieve erasure, because the email is in the chain beside their id | **No, for existing rows** (ADR 0025 forbids re-sealing). **New rows are fixed:** the ADR 0028 amendment of 2026-10-14 replaced each email with the portal-user id (§12.5). What remains for the owner to accept is the historic rows only |
+| **R1** | **Historic sealed payloads carry vendor emails** (eleven writers, §13.5): every invitation, account creation, MFA event, sign-in, sign-out and lockout since go-live. For any vendor who has ever signed in, pseudonymising `tp_portal_users` **does not** achieve erasure, because the email is in the chain beside their id | **No, for existing rows** (ADR 0025 forbids re-sealing). **New rows are fixed:** the ADR 0028 amendment of 2026-10-14 replaced each email with the portal-user id (§13.5). What remains for the owner to accept is the historic rows only |
 | **R2** | **`ip` and `user_agent` are sealed personal data with no erasure path.** `ip` is an "online identifier" under s.65 and is stored unminimised (not truncated) | Not for sealed rows. For new rows, truncating the IP before sealing (e.g. /24 for IPv4) is possible, but it weakens the forensic value that is half the trail's purpose. **This is a DPO-and-architect decision; I do not recommend either way without them** |
-| **R3** | **Internal staff names in `actor_label`** are sealed for the trail's life | Accept, with a notice (§12.6). The alternative, id-only for staff as well, is the same design as the vendor decision and could be adopted for new rows by an ADR. It has not been decided |
-| **R4** | **Third-party personal data inside payloads** (§12.5: grantee name and email, screening `matched_name`, incident free text) is outside the actor contract and outside any erasure path | Accept on evidential grounds, or redesign specific models' `auditExcluded()`. The latter loses access-grant evidence, so this register advises against it for `AccessGrant` |
-| **R5** | **No retention period** (§12.6). Indefinite in fact | Needs the DPO's figure, then an ADR for chain truncation |
-| **R6** | ~~**The amendment is not in the tree** (§12.2). If the branch is committed and deployed as read today, vendor emails are sealed into `actor_label`~~ | **RESOLVED by ADR 0028 as amended 2026-10-14.** Re-read in the tree: all five portal `actor_label` sites write `null`, and no portal payload carries an email. Struck rather than deleted, so the record shows that it was found and closed before commit. No production row was affected |
+| **R3** | **Internal staff names in `actor_label`** are sealed for the trail's life | Accept, with a notice (§13.6). The alternative, id-only for staff as well, is the same design as the vendor decision and could be adopted for new rows by an ADR. It has not been decided |
+| **R4** | **Third-party personal data inside payloads** (§13.5: grantee name and email, screening `matched_name`, incident free text) is outside the actor contract and outside any erasure path | Accept on evidential grounds, or redesign specific models' `auditExcluded()`. The latter loses access-grant evidence, so this register advises against it for `AccessGrant` |
+| **R5** | **No retention period** (§13.6). Indefinite in fact | Needs the DPO's figure, then an ADR for chain truncation |
+| **R6** | ~~**The amendment is not in the tree** (§13.2). If the branch is committed and deployed as read today, vendor emails are sealed into `actor_label`~~ | **RESOLVED by ADR 0028 as amended 2026-10-14.** Re-read in the tree: all five portal `actor_label` sites write `null`, and no portal payload carries an email. Struck rather than deleted, so the record shows that it was found and closed before commit. No production row was affected |
 
-### 12.9 Sufficiency — could an examiner be shown this in one click?
+### 13.9 Sufficiency — could an examiner be shown this in one click?
 
 **Ask: "show me everything vendor X's staff did on your portal last quarter, and who
 at the bank approved their access."** **No.** The data is held and its integrity can
@@ -1580,23 +1761,37 @@ not an agent's to answer.
     evidential grounds. Does the DPO accept it, and does the staff privacy notice
     say it?
 
+### Added at Phase 7 certification, 2026-10-16
+
+17. **Which NDPA s.30(1) condition covers storing a help reply's health content?**
+    (§12.3). s.25(1)(b)(iii) vital interests is a sound basis for the ordinary
+    personal data. For the health content, s.30(1)(c) requires that the data
+    subject be "physically or legally incapable of giving consent", and a person
+    able to type a reply arguably is not. s.30(1)(b) depends on an
+    employment-law duty that has not been checked. Neither condition covers a
+    stranger on a recycled number, whose reply may now be stored by several
+    controllers (§12.4). The DPO either names the condition relied on, with
+    reasons, or tells us the ruling needs narrowing. The privacy notice should
+    say that a help reply sent from a number on more than one organisation's
+    roster may reach each of them.
+
 ### Added at post-go-live hardening (ADR 0028), 2026-10-14
 
-17. **A retention period for `tp_audit_logs`** (§12.6). Today the trail is kept
+18. **A retention period for `tp_audit_logs`** (§13.6). Today the trail is kept
     for ever and nothing can delete it except deleting the tenant. What figure does
     the bank's record-retention schedule set for third-party oversight records? Once
     there is a figure, the architect owes a chain-truncation design. No `DELETE`
     is acceptable on a hash chain.
-18. **Residual risks R1–R5** (§12.8): historic sealed vendor emails, sealed
+19. **Residual risks R1–R5** (§13.8): historic sealed vendor emails, sealed
     IP and user-agent values, sealed staff names, and third-party data in payloads.
     Each needs to be accepted or directed. R2 (truncate IPs before sealing, or not)
     is a forensic-against-minimisation decision, and only the DPO can make it.
-19. **The portal privacy notice.** Vendor personnel are not covered by the
+20. **The portal privacy notice.** Vendor personnel are not covered by the
     bank's staff notice. Does the supplier portal tell them, as s.27 requires, that
     their sign-ins, IP address and device string are kept in a tamper-evident log,
-    for how long, and on what basis? If it does not, §12.4's reasonable-expectation
+    for how long, and on what basis? If it does not, §13.4's reasonable-expectation
     limb rests on nothing.
-20. **Where the production VPS and its backups are hosted** (§12.7). This applies
+21. **Where the production VPS and its backups are hosted** (§13.7). This applies
     to every table, not only this one, and should be answered once for the whole
     deployment.
 
@@ -1667,11 +1862,24 @@ not an agent's to answer.
 
 **Phase:** post-go-live hardening (`fix/post-golive-hardening`). TPRM `tp_audit_logs` actor contract, ADR 0028 amendment of 2026-10-14
 **Agent:** compliance-analyst
-**Status:** complete. Revised the same day after the ADR 0028 amendment was built: §12.2, §12.5, §12.7 and R1 were updated, and R6 is marked resolved
-**Delivered:** `docs/compliance/ndpa-register.md`, containing a new **§12** (12.1–12.9) and open questions 17–20. `ndpa-register-platform.md` was not touched: it is scoped to unprefixed tables and names `tp_*` as TPRM
+**Status:** complete. Revised the same day after the ADR 0028 amendment was built: §13.2, §13.5, §13.7 and R1 were updated, and R6 is marked resolved
+**Delivered:** `docs/compliance/ndpa-register.md`, containing a new **§13** (13.1–13.9; numbered §12 when written, renumbered when Phase 7 certification's §12 merged first) and open questions 18–21. `ndpa-register-platform.md` was not touched: it is scoped to unprefixed tables and names `tp_*` as TPRM
 **Clause refs published:** none. The `ndpa.*` codes are BCMS-enum-scoped, which is the same finding as `ndpa-register-platform.md` §2
 **Contracts touched:** none. Documentation only
 **Assumptions made:** the user's decision of 2026-10-14 (vendor `actor_label` null; identity through `actor_id` → `tp_portal_users`) is the contract, and the amended tree now implements it. Legitimate interest is the basis. No CBN clause is claimed, because the primary CBN text could not be retrieved
-**Known gaps:** R1–R5 in §12.8 (R6 resolved). No erasure tool, no DSAR export, no reader, no retention period. VPS hosting country and backup location unconfirmed
-**Next agent:** `qa-engineer` and `code-reviewer`, for the ADR 0028 amendment, which is now built. `architect` for R2, R3 and the chain-truncation question. The client's DPO for questions 17–20
-**Verification run:** read on 2026-10-14 in the worktree: `AuditLog`, `TprmAuditable`, `AuditText`, the `tp_portal_users` and `tp_audit_logs` migrations, all four portal writers, `PortalAuthService` in full, `AccessService`, ADR 0028, `PortalActorAttributionTest`. Grepped every `actor_*` writer, every `TprmAuditable` model, every prune command, every email write in `app/`, and `TrustProxies`. NDPA 2023 ss.24, 25, 26, 34 and 65 read from the gazetted text (DataGuidance copy). The CBN 2024 framework PDF returned 403, and nothing is cited from it beyond its existence. No suite run, no database touched. **Examiner walkthrough, "show me what vendor X's staff did on your portal": not one click. There is no reader; this is the booked supervisory export (§12.9).**
+**Known gaps:** R1–R5 in §13.8 (R6 resolved). No erasure tool, no DSAR export, no reader, no retention period. VPS hosting country and backup location unconfirmed
+**Next agent:** `qa-engineer` and `code-reviewer`, for the ADR 0028 amendment, which is now built. `architect` for R2, R3 and the chain-truncation question. The client's DPO for questions 18–21
+**Verification run:** read on 2026-10-14 in the worktree: `AuditLog`, `TprmAuditable`, `AuditText`, the `tp_portal_users` and `tp_audit_logs` migrations, all four portal writers, `PortalAuthService` in full, `AccessService`, ADR 0028, `PortalActorAttributionTest`. Grepped every `actor_*` writer, every `TprmAuditable` model, every prune command, every email write in `app/`, and `TrustProxies`. NDPA 2023 ss.24, 25, 26, 34 and 65 read from the gazetted text (DataGuidance copy). The CBN 2024 framework PDF returned 403, and nothing is cited from it beyond its existence. No suite run, no database touched. **Examiner walkthrough, "show me what vendor X's staff did on your portal": not one click. There is no reader; this is the booked supervisory export (§13.9).**
+
+## HANDOFF — Phase 7 certification (bare-number HELP fan-out)
+
+**Phase:** P7 — EMNS, certification. This is the register entry that code review requires for the owner ruling of 2026-10-16
+**Agent:** compliance-analyst
+**Status:** complete
+**Delivered:** this file. New **§12** (12.1 to 12.10): the fan-out of a token-less help reply across up to 50 open recipients in every tenant; data categories, including health status as s.65 sensitive data; lawful basis s.25(1)(b)(iii); the s.30(1) condition left open for the DPO; the recycled and shared number risk; mitigations, with what each one does not bound; the related Phase 7 changes (closed-category `failed_reason` on status callbacks, the `bcms.contact.export` column split, the `alert.evidence_exported` audit); retention; residency; owner and review triggers; sufficiency. Correction notes added to §6 (the "exactly one" statement), §6.2 (closed in the tree) and §11.6 (alert CSV now audited). New open question 17
+**Clause refs published:** none. The entry maps to `ndpa.lawful_basis`, `ndpa.retention` and `ndpa.residency`
+**Contracts touched:** none. Documentation only
+**Assumptions made:** that "response window" in the ruling means the code's fixed 48 hours after `dispatched_at` (`openRecipients()`), which is what is built; the entry describes that, and not a per-alert window
+**Known gaps:** **[verify]** which s.30(1) condition applies (open question 17); **[verify]** whether any Nigerian employment law supports s.30(1)(b); **[verify]** whether each bank's §29 agreement covers cross-estate inbound matching by number; **[verify with DPO]** the basis for a help reply to an exercise alert. Two engineering findings for `backend-engineer`: the cap of 50 has no `orderBy` and drops rows beyond 50 without any signal; there is no way to strike a misattributed `response_text`. The purge command (§10) still does not exist
+**Next agent:** `code-reviewer`, to resume the Phase 7 certification gate
+**Verification run:** read on `claude/bcms-phase-7-certification-8f875a`, 2026-10-16: `InboundResponseHandler` (whole file), `RollCallService` (whole file), `AlertWebhookController::reply()` and its class docblock, `AlertController::evidence()` and the roll-call route's gate, `EvidenceExport` (docblock, `RESTRICTED_COLUMNS`), `HttpChannel::classifyProviderError()`, `AlertRecipient` (no `BcmsAuditable`), `BcmsAuditable::recordAudit()`, `EvidencePackService::log()` (filters `pack.exported`, so it excludes the alert export), and the `RiskPermissionCatalog` grants of `bcms.contact.export` to the chief-risk-officer and not to compliance-officer. NDPA 2023 enacted text read for s.25(1) (limbs (a) and (b)(i) to (v)), s.30(1)(a) to (i) and s.65's "sensitive personal data" definition, including (d) health status ([DataGuidance copy of the Act](https://www.dataguidance.com/sites/default/files/data_protection_act_2023.pdf)). The brief's "s.25(1)(d)" does not exist and was corrected to s.25(1)(b)(iii). No suite run, no database touched. Examiner walkthrough: "who asked for help and what did they say": yes, one click. "Every place one help message was stored": no, by design (§12.10)

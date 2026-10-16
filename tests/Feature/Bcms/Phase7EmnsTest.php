@@ -1589,7 +1589,7 @@ class Phase7EmnsTest extends TestCase
             ->first(fn ($r) => $r->getName() === 'bcms.alerts.dispatch')
             ?->gatherMiddleware() ?? [];
 
-        $this->assertContains('mfa', $middleware,
+        $this->assertContains('mfa:strict', $middleware,
             'Criterion 13: live dispatch ships in this phase, so a password alone is not a '
             .'proportionate control over putting a sentence on twelve thousand phones.');
 
@@ -1597,6 +1597,7 @@ class Phase7EmnsTest extends TestCase
         // stress hits the second factor once, at the moment it matters.
         $compose = collect(app('router')->getRoutes()->getRoutes())
             ->first(fn ($r) => $r->getName() === 'bcms.alerts.store')?->gatherMiddleware() ?? [];
+        $this->assertNotContains('mfa:strict', $compose);
         $this->assertNotContains('mfa', $compose);
     }
 

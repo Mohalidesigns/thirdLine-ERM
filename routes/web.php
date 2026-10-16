@@ -2741,9 +2741,9 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::post('alerts/{alert}/escalate-live', [BcmsAlertController::class, 'escalateLive'])
             ->middleware('permission:bcms.alert.life_safety')->name('alerts.escalate-live');
         Route::post('alerts/{alert}/dispatch', [BcmsAlertController::class, 'dispatchAlert'])
-            ->middleware(['permission:bcms.alert.dispatch', 'mfa'])->name('alerts.dispatch');
+            ->middleware(['permission:bcms.alert.dispatch', 'mfa:strict'])->name('alerts.dispatch');
         Route::post('alerts/{alert}/recipients/{recipient}/respond', [BcmsAlertController::class, 'respond'])
-            ->middleware('permission:bcms.alert.view')->name('alerts.respond');
+            ->middleware('permission:bcms.alert.dispatch')->name('alerts.respond');
         /*
          * `bcms.report.export` is the floor for this route, not the whole
          * gate. The controller separately checks `bcms.contact.export` and

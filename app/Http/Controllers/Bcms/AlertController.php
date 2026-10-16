@@ -259,10 +259,16 @@ class AlertController extends Controller
         return response()->json($this->rollCall->summary($alert));
     }
 
-    /** Record somebody's response from inside the app. */
+    /**
+     * Record somebody's response on their behalf, from the board.
+     *
+     * `bcms.alert.dispatch`, not view: this is the only way to clear a
+     * needs_help, and a read-only viewer must not be able to tell the board a
+     * trapped person is safe.
+     */
     public function respond(Request $request, Alert $alert, AlertRecipient $recipient): RedirectResponse
     {
-        Gate::authorize('bcms.alert.view');
+        Gate::authorize('bcms.alert.dispatch');
 
         abort_unless((int) $recipient->alert_id === (int) $alert->getKey(), 404);
 
@@ -271,7 +277,7 @@ class AlertController extends Controller
             'text' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $this->rollCall->record($recipient, $data['response'] ?? null, $data['text'] ?? null, 'in_app');
+        $this->rollCall->record($recipient, $data['response'] ?? null, $data['text'] ?? null, 'in_app', operator: true);
 
         return back()->with('success', 'Response recorded.');
     }
@@ -294,6 +300,14 @@ class AlertController extends Controller
         $preamble = $this->evidence->preamble($alert, $includeContactData);
         $columns = $this->evidence->columns($includeContactData);
         $rows = $this->evidence->rows($alert, $includeContactData);
+
+        // Personal data leaves the building here; the trail must say so. The
+        // row records the fact and the size, never the data itself.
+        $alert->recordAudit('alert.evidence_exported', [
+            'include_contact_data' => $includeContactData,
+            'rows' => count($rows),
+            'exported_by' => $request->user()?->name,
+        ]);
 
         return response()->streamDownload(function () use ($preamble, $columns, $rows): void {
             $out = fopen('php://output', 'wb');

@@ -93,6 +93,19 @@ It also reports three things that are not about hardening:
   `docs/bcms/phase-7-handoff.md` still records that Phase 7 has not passed its
   gates. **That document must exist on the target host** — the check fails if
   it is missing, because a gate that cannot confirm certification must refuse.
+  Phase 7 was certified on 2026-10-16, so with the document in place this row
+  passes.
+- **BCMS dispatch MFA** — FAILS the deploy when `FEATURE_BCMS` is on
+  and `FEATURE_MFA_TOTP` is off. A live mass alert must not be releasable on a
+  password alone. `FEATURE_MFA_TOTP` is app-wide: every enrolled user is
+  challenged at sign-in, and every person who dispatches alerts must enrol
+  before BCMS is switched on.
+- **BCMS gateway webhook secrets** — WARNS when `FEATURE_BCMS` is on and an
+  enabled real gateway (SMS, WhatsApp, voice, USSD) has no
+  `BCMS_WEBHOOK_SECRET_*`. Without one, that provider's status callbacks are
+  accepted unsigned, though they can never mark a delivery failed. Set a secret
+  for every gateway that goes live. If `BCMS_VOICE_PROVIDER` or
+  `BCMS_USSD_PROVIDER` is renamed, rename its secret key to match.
 
 `schema:audit-deprecated` reports columns and tables scheduled for removal and
 what still writes to them. It is informational and exits zero.

@@ -25,8 +25,11 @@ use Illuminate\Http\Request;
  * the worst an unsigned status callback can do is advance a delivery row this
  * system already created, using a provider message id this system already
  * stored, one step forward through queued -> sent -> delivered -> read. It
- * cannot invent a row, cannot name a recipient, and `handleStatusReceipt`
- * refuses to walk the record backwards. Refusing an unsigned status callback
+ * cannot invent a row, cannot name a recipient, `handleStatusReceipt`
+ * refuses to walk the record backwards, and an UNSIGNED callback is never
+ * allowed to move a delivery to FAILED (only a verified one can; the failure
+ * text is mapped to a closed category either way). `app:preflight` WARNS when
+ * an enabled gateway has no webhook secret. Refusing an unsigned status callback
  * outright would mean a customer on a non-signing aggregator gets no delivery
  * evidence at all, which is worse than accepting a callback whose only power
  * is to confirm what this system already believes happened.
@@ -158,12 +161,28 @@ class AlertWebhookController extends Controller
         // covered the query string, so the payload handed downstream must not
         // either. Same GATE 2 ADVISORY 10 content-type handling as `reply()`:
         // read via `signedBody()` rather than assuming JSON.
-        $delivery = $this->handler->handleStatusReceipt($provider, $this->signedBody($request));
+        $delivery = $this->handler->handleStatusReceipt(
+            $provider,
+            $this->signedBody($request),
+            signed: $this->secretConfigured($provider),
+        );
 
         return response()->json([
             'matched' => $delivery !== null,
             'status' => $delivery?->status->value,
         ]);
+    }
+
+    /**
+     * Did this request pass an HMAC check? Reached only after `signatureOk()`
+     * returned true, so a configured secret means it was verified; no secret
+     * means the unsigned branch was taken.
+     */
+    private function secretConfigured(string $provider): bool
+    {
+        $secret = config('bcms-gateways.webhook_secrets.'.$provider);
+
+        return is_string($secret) && $secret !== '';
     }
 
     /**

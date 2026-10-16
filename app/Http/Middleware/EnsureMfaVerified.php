@@ -21,6 +21,15 @@ use Symfony\Component\HttpFoundation\Response;
  * enrolled user without `mfa_verified` in the session is sent to mfa.verify
  * (MfaVerifyController completes sign-in), and a user whose role requires a
  * second factor but who has not enrolled is sent to mfa.setup.
+ *
+ * `mfa:strict` (BCMS alert dispatch) is the stricter spelling for a route that
+ * RELEASES LIVE TRAFFIC. With the flag on, it requires `mfa_verified` from
+ * everybody: an unenrolled user whose role is not in `mfa_required_roles` is
+ * sent to mfa.setup (403 JSON) rather than waved through, because "this role
+ * did not happen to be listed" is not a second factor on a mass send. The plain
+ * `mfa` alias and the `auth` group are unchanged. With the flag off, strict
+ * passes like the plain one - mfa.setup 404s then and would strand the user;
+ * `app:preflight` is what refuses a deploy with BCMS on and MFA off.
  */ class EnsureMfaVerified
 {
     /**
@@ -54,7 +63,7 @@ use Symfony\Component\HttpFoundation\Response;
         return filter_var(config('features.mfa_totp', false), FILTER_VALIDATE_BOOLEAN);
     }
 
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next, ?string $mode = null): Response
     {
         // THE GATE. With the flag off mfa.verify and mfa.setup 404 (see
         // routes/auth.php), so passing through is the only behaviour that does
@@ -84,11 +93,13 @@ use Symfony\Component\HttpFoundation\Response;
         // Not enrolled, but the organization requires a second factor for this
         // user's role: send them to enrol rather than letting them through
         // with the requirement unmet.
-        if ($this->mfaRequiredFor($user)) {
+        if ($mode === 'strict' || $this->mfaRequiredFor($user)) {
             return $this->deny(
                 $request,
                 route('mfa.setup'),
-                'Your role requires multi-factor authentication. Set it up to continue.'
+                $mode === 'strict'
+                    ? 'Releasing an alert requires multi-factor authentication. Set it up to continue.'
+                    : 'Your role requires multi-factor authentication. Set it up to continue.'
             );
         }
 

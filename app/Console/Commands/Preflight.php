@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Enums\Bcms\ConsentStatus;
 use App\Enums\Bcms\VerificationStatus;
+use App\Http\Middleware\EnsureMfaVerified;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -59,6 +60,10 @@ class Preflight extends Command
 
     public function handle(): int
     {
+        // The command instance is reused when called twice in one process
+        // (tests, a REPL); stale rows from an earlier run must not leak.
+        $this->results = [];
+
         $this->checkEnvironment();
         $this->checkDebug();
         $this->checkAppKey();
@@ -72,6 +77,8 @@ class Preflight extends Command
         $this->checkDatabaseEngine();
         $this->checkEnabledModules();
         $this->checkUncertifiedModulesAreOff();
+        $this->checkBcmsDispatchHasASecondFactor();
+        $this->checkBcmsGatewaysHaveWebhookSecrets();
         $this->checkBcmsContactEnumLiterals();
 
         $this->newLine();
@@ -621,6 +628,99 @@ class Preflight extends Command
         }
 
         $this->pass('Uncertified modules', 'BCMS is on and its Phase 7 handoff no longer reports ungated code');
+    }
+
+    /**
+     * BCMS alert dispatch (criterion 13) needs a second factor, and a second
+     * factor only exists when `features.mfa_totp` is on.
+     *
+     * The dispatch route carries the `mfa` middleware, but
+     * EnsureMfaVerified passes EVERYONE while the flag is off (the default),
+     * so with BCMS on and MFA off any holder of `bcms.alert.dispatch` can send a
+     * mass alert - to every phone in the bank, life-safety included - on a
+     * password alone. A route-level annotation cannot fix that: with the flag
+     * off mfa.setup and mfa.verify 404, so requiring a factor there would
+     * strand the user instead of protecting the send. The only honest
+     * enforcement is to refuse the deploy.
+     *
+     * With the flag on, the dispatch route is `mfa:strict` and requires an
+     * asserted factor from everybody, whatever mfa_required_roles says.
+     */
+    private function checkBcmsDispatchHasASecondFactor(): void
+    {
+        if (! config('features.bcms')) {
+            $this->pass('BCMS dispatch MFA', 'BCMS is off, so there is no alert dispatch to protect');
+
+            return;
+        }
+
+        if (! EnsureMfaVerified::featureEnabled()) {
+            $this->fail_('BCMS dispatch MFA', 'BCMS IS ON but multi-factor authentication is off, so alert dispatch '.
+                'would be released on a password alone. Set FEATURE_MFA_TOTP=true and enrol the people who dispatch alerts, '.
+                'or turn FEATURE_BCMS off.');
+
+            return;
+        }
+
+        $this->pass('BCMS dispatch MFA', 'BCMS is on and alert dispatch requires an asserted second factor');
+    }
+
+    /**
+     * WARN when BCMS is on and an enabled real gateway has no webhook secret.
+     *
+     * A provider status callback with no secret is accepted unsigned (some
+     * aggregators do not sign). It cannot fail a delivery or walk it backwards,
+     * but it can still confirm one: an unsigned caller who has guessed a
+     * message id can stamp delivered/read on evidence handed to a regulator.
+     * That is tolerable only knowingly, so it is a warning an operator sees at
+     * every deploy, not a block (a non-signing aggregator is a real contract).
+     * Reply callbacks are unaffected: they refuse without a secret.
+     */
+    private function checkBcmsGatewaysHaveWebhookSecrets(): void
+    {
+        if (! config('features.bcms')) {
+            $this->pass('BCMS gateway webhook secrets', 'BCMS is off');
+
+            return;
+        }
+
+        $enabled = [];
+
+        foreach ((array) config('bcms-gateways.sms', []) as $gateway) {
+            if (filled($gateway['api_key'] ?? null)) {
+                $enabled[] = (string) ($gateway['name'] ?? '');
+            }
+        }
+
+        $whatsapp = (array) config('bcms-gateways.whatsapp', []);
+        if (filled($whatsapp['phone_number_id'] ?? null) && filled($whatsapp['access_token'] ?? null)) {
+            $enabled[] = 'whatsapp-cloud';
+        }
+
+        foreach (['voice', 'ussd'] as $key) {
+            $cfg = (array) config('bcms-gateways.'.$key, []);
+            if (filled($cfg['endpoint'] ?? null) && filled($cfg['api_key'] ?? null)) {
+                $enabled[] = (string) ($cfg['name'] ?? '');
+            }
+        }
+
+        $secrets = (array) config('bcms-gateways.webhook_secrets', []);
+        $missing = array_values(array_filter(
+            array_unique($enabled),
+            fn (string $name) => $name !== '' && blank($secrets[$name] ?? null),
+        ));
+
+        if ($missing === []) {
+            $this->pass('BCMS gateway webhook secrets', $enabled === []
+                ? 'No real gateway is enabled'
+                : 'Every enabled gateway has a webhook secret');
+
+            return;
+        }
+
+        $this->warn_('BCMS gateway webhook secrets', 'Enabled gateway(s) with no webhook secret: '.implode(', ', $missing).
+            '. Status callbacks from them are accepted unsigned (they can confirm, never fail, a delivery) and '.
+            'replies from them are refused. Set BCMS_WEBHOOK_SECRET_* for each.');
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Models\Bcms\Alert;
 use App\Models\Bcms\AlertRecipient;
 use App\Models\Bcms\NotificationDelivery;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * "Is everybody out?" — the screen a crisis manager stands in front of.
@@ -29,9 +30,21 @@ use Illuminate\Support\Collection;
  * roster changes underneath it. A denominator that moved while people were
  * being counted is not a headcount.
  *
- * RESPONSES ARE NEVER OVERWRITTEN. The first answer wins: somebody who replies
- * "I'm safe" and then loses signal stays safe, and a later automated status
- * must not quietly un-account for them.
+ * FIRST ANSWER WINS, EXCEPT THAT HELP ALWAYS WINS (owner ruling, 2026-10-16).
+ * Somebody who replies "I'm safe" and then loses signal stays safe, and a later
+ * automated status must not quietly un-account for them; so a non-help reply
+ * after a status changes nothing. But the two possible errors are not
+ * symmetric. A false "safe" stops somebody looking for a person who is trapped;
+ * a false "needs help" costs a warden a walk. So:
+ *
+ *  - a plain acknowledgement ("received") carries no status and never closes
+ *    the recipient: a later reply that names a status is still recorded;
+ *  - a later NEEDS HELP supersedes safe, not-on-site or no status at all, and
+ *    the change is audited with the value it replaced, so the evidence trail
+ *    shows both answers;
+ *  - a later safe / not-on-site NEVER clears needs-help when it arrives from the
+ *    person (SMS, WhatsApp, USSD). Only an authorised operator on the board
+ *    can, through the in-app respond route (`$operator = true`).
  */
 class RollCallService
 {
@@ -114,26 +127,85 @@ class RollCallService
         ?string $value = null,
         ?string $text = null,
         ?string $via = null,
+        bool $operator = false,
     ): AlertRecipient {
-        if ($recipient->acknowledged_at !== null) {
-            // First answer wins. See the class docblock.
+        /*
+         * DECIDED AND WRITTEN ON THE LOCKED ROW, NEVER ON THE CALLER'S COPY.
+         * Two replies in flight (SAFE and HELP) each loaded the recipient
+         * before either wrote; deciding from that stale copy let SAFE land
+         * last and clear needs_help, and left an audit trail of two "first
+         * answers". The row is re-read FOR UPDATE inside the transaction, so
+         * the second writer sees what the first wrote and the D1 rules apply
+         * to the truth. The audit is written from the locked row after commit.
+         *
+         * `withoutGlobalScopes()`: the key comes from a model the caller has
+         * already resolved (token, route binding), and an ambient tenant that
+         * differs from the row's must not make the row vanish mid-write.
+         */
+        $outcome = DB::transaction(function () use ($recipient, $value, $text, $operator): ?array {
+            $locked = AlertRecipient::withoutGlobalScopes()
+                ->whereKey($recipient->getKey())->lockForUpdate()->first();
+
+            if ($locked === null) {
+                return null;
+            }
+
+            $previous = $locked->response_value;
+            $answered = $locked->acknowledged_at !== null;
+
+            if ($answered) {
+                $supersedes = match (true) {
+                    // An operator on the board is the only way out of needs_help.
+                    $operator && $previous === self::NEEDS_HELP => $value !== null && $value !== self::NEEDS_HELP,
+                    // Help always wins, but only once: help over help is a no-op.
+                    $value === self::NEEDS_HELP => $previous !== self::NEEDS_HELP,
+                    // A status-less acknowledgement does not close the recipient.
+                    $previous === null => $value !== null,
+                    // First answer wins.
+                    default => false,
+                };
+
+                if (! $supersedes) {
+                    return ['row' => $locked, 'changed' => false];
+                }
+            }
+
+            $locked->forceFill([
+                'acknowledged_at' => $answered ? $locked->acknowledged_at : now(),
+                'status' => RecipientStatus::Acknowledged->value,
+                'response_value' => $value,
+                // An operator clearing a flag must not wipe the person's own
+                // words ("HELP trapped 3rd floor"); an inbound help replaces
+                // the text, because the new words are what matter.
+                'response_text' => $operator ? ($text ?? $locked->response_text) : $text,
+            ])->save();
+
+            return ['row' => $locked, 'changed' => true, 'answered' => $answered, 'previous' => $previous];
+        });
+
+        if ($outcome === null) {
             return $recipient;
         }
 
-        $recipient->forceFill([
-            'acknowledged_at' => now(),
-            'status' => RecipientStatus::Acknowledged->value,
-            'response_value' => $value,
-            'response_text' => $text,
-        ])->save();
+        /** @var AlertRecipient $row */
+        $row = $outcome['row'];
 
-        $recipient->alert?->recordAudit('alert.response', [
-            'contact' => $recipient->contact_name_snapshot,
-            'response' => $value ?? 'acknowledged',
-            'via' => $via,
-        ]);
+        if ($outcome['changed']) {
+            $answered = $outcome['answered'];
 
-        return $recipient->refresh();
+            $row->alert?->recordAudit('alert.response', array_filter([
+                'contact' => $row->contact_name_snapshot,
+                'response' => $value ?? 'acknowledged',
+                'via' => $via,
+                'previous_response' => $answered ? ($outcome['previous'] ?? 'acknowledged') : null,
+                'superseded' => $answered ? true : null,
+            ], fn ($v) => $v !== null));
+        }
+
+        // The caller's instance is stale by construction; bring it up to date.
+        $recipient->setRawAttributes($row->getAttributes(), true);
+
+        return $recipient;
     }
 
     /**

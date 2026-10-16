@@ -340,6 +340,13 @@ it and nothing logs it. Processing is still processing under the NDPA, so it is
 registered; but it is registered as a transient match key, not as a stored
 identifier, and the register should not imply otherwise.
 
+> **CORRECTED 2026-10-16 (§12).** "Match exactly one open recipient" is no longer
+> true for a reply that reads as **needs help**. Since the owner ruling of
+> 2026-10-16, a token-less help reply is applied to **every** open recipient the
+> number fits, up to 50, across organisations. A safe, not-on-site or
+> unclassified reply is still matched only when exactly one candidate exists.
+> The `from` number is still not stored. §12 registers the change.
+
 ### 6.1 Retention — proposed, and not yet enforced by anything
 
 | Item | Proposed retention | Reasoning |
@@ -376,6 +383,16 @@ those columns to be evidence at all. The question is who holds the permission,
 and whether the address column should be masked for anyone below the CRO. The
 architect owns the permission decision; the DPO owns whether masked evidence is
 still evidence.
+
+> **Closed in the tree 2026-10-16 (Phase 7 certification; see §12.6).**
+> `AlertController::evidence()` still requires `bcms.report.export`, but
+> `Address` and `Response text` are now included only when the requester also
+> holds `bcms.contact.export` (`EvidenceExport::RESTRICTED_COLUMNS`). Anyone else
+> gets the pack without those two columns, and the pack's preamble says they were
+> withheld. In the shipped catalogue `bcms.contact.export` is the
+> chief-risk-officer's, and compliance-officer is deliberately denied it. Every
+> export now writes an `alert.evidence_exported` audit row. The DPO's half of
+> open question 7, whether masked evidence is still evidence, is unchanged.
 
 ### 6.3 Sufficiency — could an examiner be shown this in one click?
 
@@ -1248,7 +1265,171 @@ for which period, and a human assembles nothing. Three limits:
 - **this pass did not check** whether the other `bcms.report.export` doors write a
   comparable row. Those are §6.2's alert-evidence CSV, the AAR export, the BIA report,
   the plan document and the incident notification log. This register does not claim
-  they do.
+  they do. **Update 2026-10-16:** the alert-evidence CSV now writes
+  `alert.evidence_exported` (§12.6). It writes that row on the alert's own trail,
+  not as a `pack.exported` row, so it does **not** appear in
+  `EvidencePackService::log()`. The other four doors are still unchecked.
+
+---
+
+## 12. Bare-number HELP replies applied across every matching recipient (Phase 7 certification)
+
+**Opened 2026-10-16 because of an owner ruling made that day. Code review
+requires this entry before Phase 7 can be certified.** §6 registered the inbound
+`from` number as a match key used to find **exactly one** open recipient. The
+ruling changes that for one case: a reply that means *needs help*. I checked
+this section against the code on `claude/bcms-phase-7-certification-8f875a`,
+not against the ruling's wording. The code is
+`InboundResponseHandler::handleReply()` with its docblock,
+`recipientsForNumberHelp()`, `openRecipients()` and `interpret()`,
+`RollCallService::record()`, `AlertWebhookController::reply()`,
+`AlertController::evidence()` and `EvidenceExport`.
+
+### 12.1 The processing activity
+
+| | |
+|---|---|
+| **Trigger** | A **signed** inbound reply by SMS, WhatsApp or USSD on `AlertWebhookController::reply()`. The route rejects an unsigned callback with a 403 even when no secret is configured. The reply's body carries no valid `r-{id}-{tag}` token, and `interpret()` classifies it as `needs_help`, either from a keyword in `HELP_WORDS` matched as a substring in any of the five languages, or from the USSD keypad code `2` sent on its own |
+| **Matching** | The sender's `from` (max 32 characters) is cut down to its digits. Anything under 7 digits is rejected. The **last nine digits** are matched as a suffix (`LIKE '%…'`) against `bcms_contacts.mobile_primary` **or** `mobile_secondary` |
+| **Candidates** | `openRecipients()`: `bcms_alert_recipients` rows whose alert has `dispatched_at` set and **within the last 2 days**. That window is a fixed 48 hours in code. It is not each alert's own configured response window, and this register describes it as it is built. The query runs with **no tenant context**, because a reply cannot name its tenant until it has been matched. It therefore covers **every organisation** on the platform. A recipient who has already answered is still a candidate, because help always supersedes |
+| **Cap** | `limit(50)`, with **no `orderBy`**. If more than 50 rows match, the database engine decides which 50 are written, and the rest are dropped without any record |
+| **What is written, per candidate** | `TenantContext::set()` is called with **that row's own** `organization_id`. `RollCallService::record()` then re-reads the row `FOR UPDATE` and sets `response_value = needs_help`, `status = acknowledged`, `acknowledged_at` (only if the row had not answered before) and **`response_text` = the sender's reply, verbatim and trimmed** (up to 1,000 characters). An earlier `safe` or `not_on_site` is superseded. An earlier `needs_help` is left as it is, so a second help reply is a no-op |
+| **Audit, per candidate** | One `alert.response` row on that alert's own `bcms_audit_logs` trail, carrying `contact` (the name snapshot), `response`, `via`, and `previous_response` / `superseded` when the reply replaced an earlier answer. **No message text and no number.** Checked: `AlertRecipient` does **not** use `BcmsAuditable`, so the `forceFill()->save()` does not copy `response_text` into the audit table by a second route |
+| **What is not done** | A reply that is not a help reply, i.e. safe, not-on-site or unclassified, is **not** fanned out. It is matched only when exactly one candidate is waiting (`recipientForNumber()`, `limit(2)`), and otherwise it is unmatched, not guessed. A tokenised reply always writes exactly one row, found by its key. The `from` number is **not stored** on any path, and nothing logs it |
+| **Owner ruling, and its reasoning** | The two possible errors cost different amounts. A help request that is dropped because a number fits two live alerts means a person nobody looks for. A false help flag on a second alert costs a warden a walk. The ruling therefore accepts false help flags in order to avoid missed calls for help |
+
+### 12.2 Data categories
+
+| Category | Status | Assessment |
+|---|---|---|
+| **MSISDN** (the sender's `from`) | **Used only for matching, and not newly stored.** It is compared against numbers each tenant already holds under §1, then discarded | Still processing (s.65 "processing" includes retrieval, consultation and use). It is registered as a transient match key, as §6 does |
+| **Free-text reply** → `bcms_alert_recipients.response_text` | **Stored**, verbatim, on up to 50 rows | Personal data of the sender. By construction it is also likely to be **sensitive personal data**: every reply on this path matched a help word, and the help vocabulary is *injured*, *hurt*, *trapped*, *stuck* and their equivalents. NDPA s.65 lists **"health status"** as sensitive personal data, limb (d). A reply such as "trapped 3rd floor" also carries **location**. Location is ordinary personal data under the s.65 definition of personal data, not sensitive data, but in an emergency it is the most consequential field in the row. The reply can also name **a third party** ("Musa is hurt") |
+
+**How the sensitive half is handled.** The design does not try to classify or
+strip health content from the text. That is deliberate, because the text is what
+a warden reads before going in. The controls are the ones §6 already asked for:
+a short retention for exercise traffic (12.5), an export gate on the column
+(12.6), audit rows that carry no text (12.1), and the privacy-notice line in open
+question 6. **This section adds one thing to that list:** the same health text
+can now be stored by **more than one controller** (12.4).
+
+### 12.3 Purpose and lawful basis
+
+| | |
+|---|---|
+| **Purpose** | Emergency roll-call and life safety: finding a person who has said they need help, during the 48 hours after an alert. Nothing else. This is §1's purpose, narrowed to its most urgent case |
+| **Lawful basis, ordinary personal data** | **NDPA 2023 s.25(1)(b)(iii)**: processing necessary "to protect the vital interest of the data subject or another person". The paragraph numbering was checked against the enacted text and matches this register's existing s.25(1)(b)(i) and (b)(v) citations in §7.3 and §11.1. The brief proposed "s.25(1)(d)". **That reference does not exist in the Act**: s.25(1) has only limbs (a) consent and (b), and (b) has five sub-paragraphs. The words "or another person" matter here, because a reply that names a trapped colleague is processed for **that colleague's** vital interest too |
+| **Condition, sensitive personal data** | s.25 alone is not enough. **s.30(1)** forbids processing sensitive personal data unless one of its conditions applies. The nearest is **s.30(1)(c)**: necessary to protect the vital interests of the data subject or another person, **"where the data subject is physically or legally incapable of giving consent"**. **That proviso is the weak point and this register will not paper over it.** A person who can type "help, I'm hurt" is arguably able to consent, and they chose to send it, which is close to consent in substance but not consent to *this* processing (fan-out to several controllers). For a *third party* named in the reply ("Musa is trapped") the proviso is much easier to meet. The fallback is **s.30(1)(b)**, processing necessary for the controller's obligations under employment or social security laws. Whether any Nigerian employment law places a workplace-safety duty on the bank that covers this processing has **not been checked** **[verify]**. Neither condition covers a stranger on a recycled number (12.4), because that person is not the bank's employee. **The DPO decides which s.30 condition is relied on.** Open question 17 |
+| **Where it sits relative to §1** | §1 uses vital interests only for **outbound** life-safety traffic over a withdrawn personal channel. This is the **inbound** counterpart, and the same narrowness applies. §5.4's caution still holds: vital interests cannot be the standing basis for drill or reminder traffic. A help reply to an **exercise** alert is still handled on this path, but no real person needed rescue, so the vital-interests argument for an exercise reply is **weak**. For exercise traffic the honest basis is §2's legitimate interest in evidencing the drill **[verify with DPO]** |
+
+### 12.4 The specific risk: recycled and shared numbers
+
+**What can go wrong.** Nigerian operators recycle MSISDNs. Staff also share
+handsets and list a relative's number as `mobile_secondary`. A nine-digit suffix
+match can also catch two different full numbers that end in the same nine digits
+(for example a foreign number and a Nigerian one). In any of these cases, a help
+reply from person X can be written into **organisation B's** record of **its own
+contact Y**. The result:
+
+1. **B now holds X's free text, and that text may be health data, about someone
+   who is not B's data subject in any other sense.** B has no lawful-basis record
+   for X, X has no notice from B, and X does not know B holds it.
+2. **The same message can sit in more than one controller's records**: A's
+   (where X really is a contact) and B's. Each copy has its own retention clock,
+   and X would need a DSAR to each controller to find them. The platform has no
+   cross-tenant view of the fan-out, and it should not have one.
+3. **B may never have messaged X's handset.** Matching checks the contact's
+   mobile columns, **not the channel the alert actually used**. If B's alert
+   reached Y by email or Teams, B still receives X's SMS reply because Y's
+   roster row holds the number.
+4. **Y is wrongly shown as needing help** on B's roll-call board. The ruling
+   accepts that operational cost. It is recorded here because it is also an
+   accuracy problem under s.24(1)(e).
+
+**Why it is accepted.** The ruling's reasoning stands, and this register agrees
+with how it ranks the two errors. A false help flag sends a warden on a walk and
+puts a stranger's words in a record. A dropped help request leaves somebody
+nobody looks for. The NDPA question is not whether the trade is right. It is
+whether the exposure is **bounded** and **corrected afterwards**, and 12.5 and
+12.7 answer that.
+
+### 12.5 Mitigations, and what each one actually bounds
+
+| Mitigation | What it bounds | What it does not bound |
+|---|---|---|
+| **Signed callbacks only** (`reply()` fails closed) | A forged or spoofed help reply. Without this, anyone on the internet could write "help" into 50 rows across tenants | A genuine reply from the wrong person (12.4) |
+| **The 50 cap** | How many rows, and so how many controllers at most, one reply can reach. It also turns a pathological number (a switchboard, a test fixture) into a bounded write | Which 50 are chosen: there is no `orderBy`. When rows beyond 50 are dropped, nothing reports it. **Finding, owner `backend-engineer`**: write one bounded, value-free signal when the cap is reached, such as a count and no number. A live help request truncated at row 50 is the error the ruling exists to prevent, and today nobody would know it happened |
+| **The 48-hour eligibility window** | The time a recycled number is dangerous for: two days after each dispatch, not the life of the roster | Nothing within those two days. During an incident that is exactly the window that matters |
+| **No cross-tenant decisions** | Each row is written under its own organisation's tenant context, from that row plus the sender's message. No organisation's state is decided from another's data, and nothing belonging to A is written into B | The **matching read** does span every tenant's contact numbers. That is unavoidable before a tenant is known, and the "no cross-tenant reads" claim is true only in that narrower sense. The platform operator, as each bank's processor, makes that read. **Whether each bank's §29 agreement covers inbound routing by number across the processor's estate has not been checked [verify]** |
+| **Audit rows hold no text** | The verbatim reply is not copied into append-only `bcms_audit_logs`, which §10's purge cannot reach. Only the name snapshot and the status land there | The name snapshot is Y's name, so a misattribution leaves "Y: needs_help, via sms" in B's permanent trail. That is the cost of the trail being readable, the same trade as §7.5.1's `subject_name` |
+| **Export gate on `bcms.contact.export`** (12.6) | Who can take `response_text` **out** of the product | Who can read it **on screen**: the roll-call board's `help_needed` list shows `response_text` and the contact's mobile to `bcms.alert.view` holders. This is correct during an incident. It is recorded so that nobody reads the export gate as the only access control |
+
+**No rectification path for a misattributed reply. Finding, owner
+`backend-engineer`, with the architect.** Once B's operator finds that a help
+flag came from a stranger, they can clear the status through the in-app respond
+route (`operator: true`). They **cannot remove the stranger's words**:
+`record()` keeps `response_text` when the operator supplies no text, and it can
+only overwrite the text, never null it. The NDPA gives X a right to erasure and
+gives B a duty of accuracy (s.24(1)(e)). Without a path to strike a
+misattributed reply, with an audit row recording that it was struck, B can meet
+neither. This is not a blocker for certification, because the flag can be
+cleared and the evidence trail survives. It should be closed before the first
+inbound gateway goes live.
+
+### 12.6 Related Phase 7 changes registered with this entry
+
+| Change | Where | Register effect |
+|---|---|---|
+| **Status callbacks store a closed failure category, not gateway prose** | `InboundResponseHandler::handleStatusReceipt()` → `failureReason()` → `HttpChannel::classifyProviderError()` | A failed delivery receipt now writes `"Gateway reported the message failed ({category})."` into `bcms_notification_deliveries.failed_reason`. The category is one of `invalid_recipient`, `dnd_blocked`, `recipient_blocked`, `insufficient_balance`, `sender_id_rejected`, `credential_rejected`, `rate_limited`, or "reason not classified". **The gateway's own text, which often echoes the destination MSISDN ("Invalid recipient 2348…"), is never stored.** This closes the inbound counterpart of the §6 `failed_reason` finding that §7.8 recorded as closed for the outbound `reasonFrom()` path. Also, an **unsigned** status callback can no longer move a delivery to `failed` at all |
+| **Evidence export split** | `AlertController::evidence()`, `EvidenceExport::RESTRICTED_COLUMNS` | `Address` and `Response text` require `bcms.contact.export` in addition to `bcms.report.export`. Without it, the pack omits both columns and says so in its preamble. Closes the permission half of §6.2 |
+| **Evidence export audited** | `AlertController::evidence()` | Each export writes `alert.evidence_exported` to the alert's trail with `include_contact_data`, `rows` and `exported_by`. It records **the fact and the size, never the data**, which is §11.3's content-free rule. That answers "who took this alert's addresses and replies out, and when". It is not listed in the evidence-pack export log (§11.6) |
+
+### 12.7 Retention
+
+`response_text` keeps §6.1's clock: **7 years** for an incident-linked alert,
+**12 months** for exercise and reminder traffic. A misattributed reply held by
+organisation B is on **B's** clock for **B's** alert, so the same message can be
+erased from A after 12 months and kept by B for 7 years, or the other way
+round. The audit rows follow `bcms_audit_logs`, which is append-only and outside
+§10's purge by design. They hold no text.
+
+**Not enforced.** §10's purge command still does not exist, so factual retention
+is **indefinite**, as for everything else in this register. The fan-out
+multiplies a short-retention problem across controllers. It does not create a
+new one.
+
+### 12.8 Residency and processors
+
+There is no new transfer. The reply arrives through the inbound leg of the
+SMS, WhatsApp or USSD processor already listed in §5.2. That processor sees the
+text before this product does, which is why §5.2.7 asks for the §29 agreement to
+cover the **inbound** direction. The stored copies stay in the application
+database under §1's af-south-1-or-on-prem commitment. **Clause codes:**
+`ndpa.lawful_basis`, `ndpa.retention`, `ndpa.residency`, all already published.
+No new code.
+
+### 12.9 Owner and review triggers
+
+| | |
+|---|---|
+| **Owner of the ruling** | The product owner (ruling of 2026-10-16) |
+| **Owner of this entry** | compliance-analyst |
+| **Owner of the s.30 condition and the privacy-notice wording** | The client's DPO (open questions 6 and 17) |
+| **Engineering findings** | `backend-engineer`: the silent truncation at 50 (12.5) and the missing strike path for a misattributed reply (12.5) |
+| **Review this entry when** | (1) the cap, the 48-hour window, the nine-digit suffix or the help vocabulary changes; (2) fan-out is extended to any status other than `needs_help`; (3) the first inbound gateway (SMS, WhatsApp or USSD) is configured in any environment, which turns this from a design into live processing; (4) a data subject or a tenant complains that a stranger's reply landed in its records; (5) §10's purge command ships; (6) the DPO answers open question 17 |
+
+### 12.10 Sufficiency: could an examiner be shown this in one click?
+
+**Ask: "show me who told you they needed help during this incident, and what
+they said."** **Yes.** The roll-call board's `help_needed` list shows it on
+screen, and for a holder of `bcms.contact.export` the alert evidence CSV exports
+it with no assembly, while the `alert.evidence_exported` row records that it was
+taken out.
+
+**Ask: "show me every place one help message was stored."** **No, by design.**
+Each controller can show its own copies only. The platform operator could find
+the rest by searching on the text, but no screen does that and none should. This
+is the cost of 12.4, stated rather than solved.
 
 ---
 
@@ -1344,6 +1525,20 @@ not an agent's to answer.
     evidential grounds. Does the DPO accept it, and does the staff privacy notice
     say it?
 
+### Added at Phase 7 certification, 2026-10-16
+
+17. **Which NDPA s.30(1) condition covers storing a help reply's health content?**
+    (§12.3). s.25(1)(b)(iii) vital interests is a sound basis for the ordinary
+    personal data. For the health content, s.30(1)(c) requires that the data
+    subject be "physically or legally incapable of giving consent", and a person
+    able to type a reply arguably is not. s.30(1)(b) depends on an
+    employment-law duty that has not been checked. Neither condition covers a
+    stranger on a recycled number, whose reply may now be stored by several
+    controllers (§12.4). The DPO either names the condition relied on, with
+    reasons, or tells us the ruling needs narrowing. The privacy notice should
+    say that a help reply sent from a number on more than one organisation's
+    roster may reach each of them.
+
 ## HANDOFF — Phase 0 (historical)
 
 **Phase:** P0 — Foundations & schema freeze
@@ -1406,3 +1601,16 @@ not an agent's to answer.
 **Known gaps:** no purge command (§10, unchanged). 11.1 case-mismatch vendor id 0. 11.2 no audit row, no upload size limit, temp file left behind on a writer failure. 11.3 finding descriptions printed verbatim into board packs. 11.6 export log capped at 50 rows, with other export doors not checked
 **Next agent:** `backend-engineer` (11.1, 11.2, and 11.4's scoping fix to all five rules), then `qa-engineer` and `code-reviewer`
 **Verification run:** code read 2026-09-23 on `integration/bcms-remaining`, as listed in 11.1–11.4. No suite run, no database touched. Examiner walkthrough "who took personal data out in a report this year": partly one click (11.6)
+
+## HANDOFF — Phase 7 certification (bare-number HELP fan-out)
+
+**Phase:** P7 — EMNS, certification. This is the register entry that code review requires for the owner ruling of 2026-10-16
+**Agent:** compliance-analyst
+**Status:** complete
+**Delivered:** this file. New **§12** (12.1 to 12.10): the fan-out of a token-less help reply across up to 50 open recipients in every tenant; data categories, including health status as s.65 sensitive data; lawful basis s.25(1)(b)(iii); the s.30(1) condition left open for the DPO; the recycled and shared number risk; mitigations, with what each one does not bound; the related Phase 7 changes (closed-category `failed_reason` on status callbacks, the `bcms.contact.export` column split, the `alert.evidence_exported` audit); retention; residency; owner and review triggers; sufficiency. Correction notes added to §6 (the "exactly one" statement), §6.2 (closed in the tree) and §11.6 (alert CSV now audited). New open question 17
+**Clause refs published:** none. The entry maps to `ndpa.lawful_basis`, `ndpa.retention` and `ndpa.residency`
+**Contracts touched:** none. Documentation only
+**Assumptions made:** that "response window" in the ruling means the code's fixed 48 hours after `dispatched_at` (`openRecipients()`), which is what is built; the entry describes that, and not a per-alert window
+**Known gaps:** **[verify]** which s.30(1) condition applies (open question 17); **[verify]** whether any Nigerian employment law supports s.30(1)(b); **[verify]** whether each bank's §29 agreement covers cross-estate inbound matching by number; **[verify with DPO]** the basis for a help reply to an exercise alert. Two engineering findings for `backend-engineer`: the cap of 50 has no `orderBy` and drops rows beyond 50 without any signal; there is no way to strike a misattributed `response_text`. The purge command (§10) still does not exist
+**Next agent:** `code-reviewer`, to resume the Phase 7 certification gate
+**Verification run:** read on `claude/bcms-phase-7-certification-8f875a`, 2026-10-16: `InboundResponseHandler` (whole file), `RollCallService` (whole file), `AlertWebhookController::reply()` and its class docblock, `AlertController::evidence()` and the roll-call route's gate, `EvidenceExport` (docblock, `RESTRICTED_COLUMNS`), `HttpChannel::classifyProviderError()`, `AlertRecipient` (no `BcmsAuditable`), `BcmsAuditable::recordAudit()`, `EvidencePackService::log()` (filters `pack.exported`, so it excludes the alert export), and the `RiskPermissionCatalog` grants of `bcms.contact.export` to the chief-risk-officer and not to compliance-officer. NDPA 2023 enacted text read for s.25(1) (limbs (a) and (b)(i) to (v)), s.30(1)(a) to (i) and s.65's "sensitive personal data" definition, including (d) health status ([DataGuidance copy of the Act](https://www.dataguidance.com/sites/default/files/data_protection_act_2023.pdf)). The brief's "s.25(1)(d)" does not exist and was corrected to s.25(1)(b)(iii). No suite run, no database touched. Examiner walkthrough: "who asked for help and what did they say": yes, one click. "Every place one help message was stored": no, by design (§12.10)

@@ -5,6 +5,8 @@ namespace App\Services\Bcms\Emns;
 use App\Enums\Bcms\DeliveryStatus;
 use App\Models\Bcms\AlertRecipient;
 use App\Models\Bcms\NotificationDelivery;
+use App\Services\Bcms\Notification\Channels\HttpChannel;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use ThirdLine\Platform\Tenancy\TenantContext;
 
@@ -112,17 +114,46 @@ class InboundResponseHandler
 
     /**
      * A person replied. Returns the recipient row, or null if nothing matched.
+     *
+     * BARE-NUMBER HELP MARKS EVERY MATCH (owner ruling 2026-10-16). A reply
+     * with no token is matched on the sender's number. For a status of safe or
+     * not-on-site, more than one candidate is still "unmatched, not guessed":
+     * settling the wrong alert would tell a crisis manager somebody is out of
+     * a building they are still in. For NEEDS HELP the asymmetry reverses -
+     * a help request dropped because the number fits two live alerts is a
+     * person nobody looks for, whereas a help flag on a second alert costs a
+     * walk. So HELP is applied to EVERY open recipient the number fits, each
+     * under the RollCallService rules and row lock, each with its own audit.
+     *
+     * TENANCY: the number is not a tenant key, and candidates may belong to
+     * several organisations. Each candidate row is written in its OWN
+     * organisation's context, using only that row and the sender's own
+     * message; no organisation's state is decided from another's data. Each
+     * tenant's contact record owning that number is exactly the claim being
+     * acted on, and over-flagging a recycled number is the cheaper error.
+     * (Tokenised replies are unaffected: one row, by key.)
      */
     public function handleReply(string $body, ?string $from = null, ?string $via = null): ?AlertRecipient
     {
+        $value = $this->interpret($body);
         $token = $this->extractToken($body);
         $recipient = $token === null ? null : $this->recipientForToken($token);
 
-        // Falling back to the sender's number, because plenty of people reply
-        // "safe" without the code. It is only safe to do this when exactly one
-        // live alert is waiting on that number — otherwise the answer could
-        // settle the wrong alert.
         if ($recipient === null && $from !== null) {
+            if ($value === RollCallService::NEEDS_HELP) {
+                $first = null;
+
+                foreach ($this->recipientsForNumberHelp($from) as $candidate) {
+                    TenantContext::set((int) $candidate->organization_id);
+                    $done = $this->rollCall->record($candidate, $value, trim($body), $via);
+                    $first ??= $done;
+                }
+
+                return $first;
+            }
+
+            // Plenty of people reply "safe" without the code. Only safe to do
+            // when exactly one live alert is waiting on that number.
             $recipient = $this->recipientForNumber($from);
         }
 
@@ -132,12 +163,30 @@ class InboundResponseHandler
 
         TenantContext::set((int) $recipient->organization_id);
 
-        return $this->rollCall->record(
-            $recipient,
-            $this->interpret($body),
-            trim($body),
-            $via,
-        );
+        return $this->rollCall->record($recipient, $value, trim($body), $via);
+    }
+
+    /**
+     * Every open recipient a number fits, for a HELP reply. Capped: a number
+     * on more than fifty live recipients is a data fault, not an emergency.
+     *
+     * @return Collection<int, AlertRecipient>
+     */
+    private function recipientsForNumberHelp(string $from): Collection
+    {
+        $digits = preg_replace('/\D/', '', $from) ?? $from;
+
+        if (mb_strlen($digits) < 7) {
+            return new Collection;
+        }
+
+        $tail = mb_substr($digits, -9);
+
+        return $this->openRecipients()
+            ->whereHas('contact', fn ($q) => $q->where('mobile_primary', 'like', '%'.$tail)
+                ->orWhere('mobile_secondary', 'like', '%'.$tail))
+            ->limit(50)
+            ->get();
     }
 
     /**
@@ -202,9 +251,20 @@ class InboundResponseHandler
     /**
      * A gateway reporting what happened to a message it accepted.
      *
+     * `$signed` is true only when the route verified an HMAC against a
+     * configured secret. An UNSIGNED callback (a provider with no secret) may
+     * only confirm - sent, delivered, read. It can never move a delivery to
+     * failed: with no credential, "failed" would be a free way for anybody who
+     * has guessed a provider message id to put a false non-delivery into the
+     * evidence pack. Default false, so a caller that forgets is the safe one.
+     *
+     * The gateway's failure text is never stored: it routinely echoes the
+     * recipient's number. It is mapped to the same closed category set the
+     * outbound adapters use (`HttpChannel::classifyProviderError`).
+     *
      * @param  array<string, mixed>  $payload
      */
-    public function handleStatusReceipt(string $provider, array $payload): ?NotificationDelivery
+    public function handleStatusReceipt(string $provider, array $payload, bool $signed = false): ?NotificationDelivery
     {
         $messageId = $this->firstString($payload, ['message_id', 'messageId', 'id', 'MessageSid', 'session_id']);
         $status = $this->firstString($payload, ['status', 'state', 'MessageStatus', 'event']);
@@ -253,16 +313,33 @@ class InboundResponseHandler
             return $delivery;
         }
 
+        if (! $signed && $mapped === DeliveryStatus::Failed) {
+            return $delivery;
+        }
+
         $delivery->forceFill(array_filter([
             'status' => $mapped->value,
             'delivered_at' => $mapped === DeliveryStatus::Delivered ? now() : $delivery->delivered_at,
             'read_at' => $mapped === DeliveryStatus::Read ? now() : $delivery->read_at,
             'failed_reason' => $mapped === DeliveryStatus::Failed
-                ? ($this->firstString($payload, ['reason', 'error', 'description']) ?? 'Reported failed by the gateway.')
+                ? $this->failureReason($this->firstString($payload, ['reason', 'error', 'description']))
                 : $delivery->failed_reason,
         ], fn ($v) => $v !== null))->save();
 
         return $delivery->refresh();
+    }
+
+    /**
+     * A fixed, MSISDN-free sentence built from a closed category - never the
+     * gateway's own prose.
+     */
+    private function failureReason(?string $text): string
+    {
+        $category = $text === null ? null : HttpChannel::classifyProviderError($text);
+
+        return $category !== null
+            ? 'Gateway reported the message failed ('.$category.').'
+            : 'Gateway reported the message failed (reason not classified).';
     }
 
     private function mapStatus(?string $status): ?DeliveryStatus
@@ -350,11 +427,21 @@ class InboundResponseHandler
 
         $tail = mb_substr($digits, -9);
 
-        $matches = $this->openRecipients()
+        $byNumber = fn () => $this->openRecipients()
             ->whereHas('contact', fn ($q) => $q->where('mobile_primary', 'like', '%'.$tail)
-                ->orWhere('mobile_secondary', 'like', '%'.$tail))
-            ->limit(2)
-            ->get();
+                ->orWhere('mobile_secondary', 'like', '%'.$tail));
+
+        // Recipients who have not given a status are tried first, so a person
+        // who already said "safe" on alert A does not make a bare reply to
+        // alert B ambiguous. Only if none is waiting do we look at the ones
+        // who have answered, because a bare "HELP" after an earlier "safe"
+        // must still land (help always wins) — record() makes any other
+        // late reply a no-op.
+        $matches = $byNumber()->whereNull('response_value')->limit(2)->get();
+
+        if ($matches->isEmpty()) {
+            $matches = $byNumber()->where('response_value', '!=', RollCallService::NEEDS_HELP)->limit(2)->get();
+        }
 
         // Two live alerts waiting on the same person: a bare "safe" cannot say
         // which. Recorded as unmatched rather than guessed — settling the wrong
@@ -363,11 +450,16 @@ class InboundResponseHandler
         return $matches->count() === 1 ? $matches->first() : null;
     }
 
-    /** @return \Illuminate\Database\Eloquent\Builder<AlertRecipient> */
+    /**
+     * "Open" means the alert's response window is open, NOT that the recipient
+     * has not answered: a later HELP must still land after an earlier reply
+     * (RollCallService::record decides what a later reply may change).
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<AlertRecipient>
+     */
     private function openRecipients()
     {
         return AlertRecipient::query()
-            ->whereNull('acknowledged_at')
             ->whereHas('alert', fn ($q) => $q
                 ->whereNotNull('dispatched_at')
                 ->where('dispatched_at', '>=', Carbon::now()->subDays(2)));

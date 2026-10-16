@@ -31,14 +31,50 @@ deploy needs, and nothing else.
 throughout — any failing step stops the deploy rather than leaving a
 half-migrated application serving traffic.
 
-1. `git fetch --all --prune` and `git reset --hard origin/main`
-2. `composer install --no-dev --optimize-autoloader`
-3. `npm ci && npm run build`
-4. `php artisan migrate --force`
-5. `php artisan config:cache route:cache view:cache`
-6. Re-apply runtime-writable permissions on `storage` and `bootstrap/cache` —
-   the one step that is never fatal; see below
-7. Restart `php8.4-fpm` and `risk-queue`
+1. `git fetch --all --prune` (a network failure here costs no downtime)
+2. `php artisan down --retry=60`, on the previous release's code. From here to
+   step 13 the site serves 503. An `ERR` trap prints that the deploy failed in
+   maintenance mode.
+3. Restart `risk-queue`: the drain. The job in flight finishes and the
+   replacement worker boots on the previous release and parks, because a worker
+   does not run jobs while the application is down.
+4. `git reset --hard origin/main`
+5. `composer install --no-dev --optimize-autoloader`
+6. `npm ci && npm run build`
+7. Wait (at most 5 minutes, two consecutive quiet polls) for any `schedule:run`
+   that started before `down`; on timeout the deploy fails with the site down
+8. `php artisan migrate --force`
+9. `php artisan db:seed --class=RolesAndPermissionsSeeder --force`
+10. `php artisan config:cache route:cache view:cache`
+11. Re-apply runtime-writable permissions on `storage` and `bootstrap/cache` —
+    the one step that is never fatal; see below
+12. `php artisan app:preflight`. A failure leaves the site **in maintenance
+    mode** and the worker parked.
+13. Restart `php8.4-fpm` and `risk-queue`, then `php artisan up`
+
+**Why the window opens before `git reset` and not before `migrate`.**
+`composer install` runs Laravel's post-autoload-dump hook, which deletes
+`bootstrap/cache/config.php`. From that moment every new process reads `config/`
+from disk instead of the previous release's cache. A release that changes how
+the database session behaves (ADR 0029's UTC pin is the case that needs this)
+is therefore live before `migrate`, so the build minutes are downtime and that
+cost is accepted. The same window keeps new code off the old schema on every
+deploy. The workflow's `command_timeout` is 40m so the drain, build, wait and
+migration fit.
+
+**If a deploy fails, the site stays in maintenance mode.** That is deliberate:
+"do not serve traffic" means what it says. Fix what was reported and re-run the
+deploy. Never run `php artisan up` by hand without first running
+`sudo systemctl restart risk-queue`: the parked worker is on the previous
+release's code and configuration and must not resume against the new one
+(under ADR 0029's UTC pin it would also write in the old time zone). The
+`risk-queue` unit must not pass `--force`, or maintenance mode will not park it.
+`deploy` must be able to see other users' processes (no `hidepid` on `/proc`)
+for the `schedule:run` wait to work.
+
+The deploy that first ships this window is run by the *previous* `deploy.sh`,
+because the script's own `git reset` replaces it partway through. The window
+protects the deploys after that one.
 
 ### Why the cache step matters more than it looks
 
@@ -156,8 +192,9 @@ only its own. Symlinks are excluded throughout.
 
 **`scripts/deploy.sh` runs this automatically**, after migrations and the
 config/route/view caches and *before* restarting php-fpm and the queue worker.
-A non-zero exit aborts the deploy with the services left on the previous
-release. Until 2026-09-10 this section asked a human to remember; every control
+A non-zero exit aborts the deploy: the services are not restarted, and
+php-fpm serves 503 because the site is still in maintenance mode. Until
+2026-09-10 this section asked a human to remember; every control
 below was therefore worth exactly what remembering was worth.
 
 To run it by hand — on a host you are investigating, or before a manual

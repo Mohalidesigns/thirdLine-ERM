@@ -43,7 +43,7 @@ export default function Index({ batches }) {
                         <input ref={fileInput} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={upload} />
                         <button type="button" disabled={processing} onClick={() => fileInput.current?.click()}
                             className="btn-primary text-sm inline-flex items-center gap-2">
-                            <Icon name="upload_file" className="w-4 h-4 shrink-0" />
+                            <Icon name="upload_file" className="w-4 h-4 shrink-0" strokeWidth={2} />
                             Upload a file
                         </button>
                     </>

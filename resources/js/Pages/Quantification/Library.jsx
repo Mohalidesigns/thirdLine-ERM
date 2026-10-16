@@ -40,7 +40,7 @@ export default function Library({ libraryScenarios, canImport }) {
                 actions={
                     scenariosUrl && (
                         <Link href={scenariosUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                            <Icon name="category" className="w-4 h-4 shrink-0" /> Scenario register
+                            <Icon name="category" className="w-4 h-4 shrink-0" strokeWidth={2} /> Scenario register
                         </Link>
                     )
                 }

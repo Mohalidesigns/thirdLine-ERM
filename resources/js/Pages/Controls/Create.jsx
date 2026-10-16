@@ -50,7 +50,7 @@ export default function Create({ businessUnits = [], users = [], risks = [], opt
                 <div className="flex items-center justify-between">
                     <Link href={route('risk.controls.index')} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <Icon name="save" className="w-4 h-4 shrink-0" /> Create Control
+                        <Icon name="save" className="w-4 h-4 shrink-0" strokeWidth={2} /> Create Control
                     </button>
                 </div>
             </form>

@@ -20,7 +20,7 @@ export default function Index({ total, grid }) {
                 actions={
                     permissions.includes('loss_event.create') && createUrl && (
                         <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <Icon name="add" className="w-4 h-4 shrink-0" /> Log New Event
+                            <Icon name="add" className="w-4 h-4 shrink-0" strokeWidth={2} /> Log New Event
                         </a>
                     )
                 }

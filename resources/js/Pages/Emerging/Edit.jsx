@@ -56,7 +56,7 @@ export default function Edit({ entry, schema = null, canDelete = false }) {
                 actions={
                     <>
                         <button type="button" onClick={markReviewed} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                            <Icon name="event_available" className="w-4 h-4 shrink-0" />
+                            <Icon name="event_available" className="w-4 h-4 shrink-0" strokeWidth={2} />
                             Mark reviewed today
                         </button>
                         {canDelete && (
@@ -90,7 +90,7 @@ export default function Edit({ entry, schema = null, canDelete = false }) {
                 <div className="flex items-center justify-between">
                     <Link href={route('risk.emerging.index')} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <Icon name="save" className="w-4 h-4 shrink-0" /> Save changes
+                        <Icon name="save" className="w-4 h-4 shrink-0" strokeWidth={2} /> Save changes
                     </button>
                 </div>
             </form>

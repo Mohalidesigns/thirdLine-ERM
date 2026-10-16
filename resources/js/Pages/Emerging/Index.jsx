@@ -26,12 +26,12 @@ export default function Index({ grid }) {
                     <>
                         {radarUrl && (
                             <a href={radarUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <Icon name="radar" className="w-4 h-4 shrink-0" /> View radar
+                                <Icon name="radar" className="w-4 h-4 shrink-0" strokeWidth={2} /> View radar
                             </a>
                         )}
                         {permissions.includes('risk.create') && createUrl && (
                             <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                                <Icon name="add" className="w-4 h-4 shrink-0" /> Add entry
+                                <Icon name="add" className="w-4 h-4 shrink-0" strokeWidth={2} /> Add entry
                             </a>
                         )}
                     </>

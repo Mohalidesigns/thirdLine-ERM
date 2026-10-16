@@ -22,7 +22,7 @@ export default function Rulesets({ rulesets = [], current }) {
                     <button type="button"
                         onClick={() => router.post(tryRoute('tprm.rulesets.draft'))}
                         className="btn-primary text-sm inline-flex items-center gap-2">
-                        <Icon name="add" className="w-4 h-4 shrink-0" /> New draft
+                        <Icon name="add" className="w-4 h-4 shrink-0" strokeWidth={2} /> New draft
                     </button>
                 }
             />

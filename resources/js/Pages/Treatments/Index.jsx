@@ -38,7 +38,7 @@ export default function Index({ total, lastUpdated, grid }) {
                 actions={
                     permissions.includes('treatment.create') && createUrl && (
                         <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <Icon name="add_circle" className="w-4 h-4 shrink-0" /> New Plan
+                            <Icon name="add_circle" className="w-4 h-4 shrink-0" strokeWidth={2} /> New Plan
                         </a>
                     )
                 }

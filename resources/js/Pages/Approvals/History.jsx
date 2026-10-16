@@ -20,7 +20,7 @@ export default function History({ grid }) {
                 actions={
                     permissions.includes('approval.view') && dashboardUrl && (
                         <a href={dashboardUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                            <Icon name="arrow_back" className="w-4 h-4 shrink-0" /> Back to Dashboard
+                            <Icon name="arrow_back" className="w-4 h-4 shrink-0" strokeWidth={2} /> Back to Dashboard
                         </a>
                     )
                 }

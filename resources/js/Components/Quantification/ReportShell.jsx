@@ -38,7 +38,7 @@ export default function ReportShell({ title, subtitle, asOf = null, notice = nul
                         onClick={() => window.print()}
                         className="px-4 py-2 bg-[#1A365D] text-white rounded-lg text-sm font-medium hover:bg-[#2D4A7A] flex items-center gap-2"
                     >
-                        <Icon name="print" className="w-4 h-4 shrink-0" /> Print
+                        <Icon name="print" className="w-4 h-4 shrink-0" strokeWidth={2} /> Print
                     </button>
                     {libraryUrl && (
                         <Link

@@ -39,12 +39,12 @@ export default function Index({ entityTypes, totalCount, grid }) {
                         {permissions.includes('entity.create') && createUrl && (
                             // Inertia links since Phase 3.1 ported the create and dashboard pages.
                             <Link href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                                <Icon name="add_circle" className="w-4 h-4 shrink-0" /> New Entity
+                                <Icon name="add_circle" className="w-4 h-4 shrink-0" strokeWidth={2} /> New Entity
                             </Link>
                         )}
                         {dashboardUrl && (
                             <Link href={dashboardUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <Icon name="dashboard" className="w-4 h-4 shrink-0" /> Dashboard
+                                <Icon name="dashboard" className="w-4 h-4 shrink-0" strokeWidth={2} /> Dashboard
                             </Link>
                         )}
                     </>

@@ -44,11 +44,11 @@ export default function Dashboard({ kpis, tree = [], heatmap = [], typeDistribut
                 actions={
                     <>
                         <Link href={route('risk.scoping.index')} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                            <Icon name="list" className="w-4 h-4 shrink-0" /> Entity Register
+                            <Icon name="list" className="w-4 h-4 shrink-0" strokeWidth={2} /> Entity Register
                         </Link>
                         {canCreate && (
                             <Link href={route('risk.scoping.create')} className="btn-primary inline-flex items-center gap-2 text-sm">
-                                <Icon name="add_circle" className="w-4 h-4 shrink-0" /> New Entity
+                                <Icon name="add_circle" className="w-4 h-4 shrink-0" strokeWidth={2} /> New Entity
                             </Link>
                         )}
                     </>

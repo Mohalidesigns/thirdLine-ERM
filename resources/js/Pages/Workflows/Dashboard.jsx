@@ -14,9 +14,9 @@ export default function Dashboard({ stats, recentInstances, workload, urls }) {
                 title="Workflow dashboard"
                 actions={
                     <>
-                        <Link href={urls.myTasks} className="btn-secondary text-sm inline-flex items-center gap-2"><Icon name="task_alt" className="w-4 h-4 shrink-0" /> My tasks</Link>
+                        <Link href={urls.myTasks} className="btn-secondary text-sm inline-flex items-center gap-2"><Icon name="task_alt" className="w-4 h-4 shrink-0" strokeWidth={2} /> My tasks</Link>
                         {/* The designer is a Blade/Livewire screen until Phase 6. */}
-                        <a href={urls.newDefinition} className="btn-primary text-sm inline-flex items-center gap-2"><Icon name="add_circle" className="w-4 h-4 shrink-0" /> New workflow</a>
+                        <a href={urls.newDefinition} className="btn-primary text-sm inline-flex items-center gap-2"><Icon name="add_circle" className="w-4 h-4 shrink-0" strokeWidth={2} /> New workflow</a>
                     </>
                 }
             />

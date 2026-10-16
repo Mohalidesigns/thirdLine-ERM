@@ -81,7 +81,7 @@ export default function Dashboard({
                 breadcrumbs={[{ label: 'RCSA' }, { label: 'Dashboard' }]}
                 actions={
                     <Link href={route('risk.rcsa.worksheet')} className="btn-primary inline-flex items-center gap-2 text-sm">
-                        <Icon name="add" className="w-4 h-4 shrink-0" /> New Assessment
+                        <Icon name="add" className="w-4 h-4 shrink-0" strokeWidth={2} /> New Assessment
                     </Link>
                 }
             />

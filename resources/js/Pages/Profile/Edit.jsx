@@ -67,7 +67,7 @@ export default function Edit({ profile, mfaAvailable }) {
                                         : 'Add a second factor: a six-digit code from an authenticator app, required at every sign-in.'}
                                 </p>
                                 <Link href={mfaSetupUrl} className="btn-secondary mt-4 inline-flex items-center gap-2 text-sm">
-                                    <Icon name="verified_user" className="w-4.5 h-4.5 shrink-0" />
+                                    <Icon name="verified_user" className="w-4 h-4 shrink-0" strokeWidth={2} />
                                     {profile.mfa_enabled ? 'Re-enrol authenticator' : 'Set up two-factor authentication'}
                                 </Link>
                                 <p className="mt-3 text-xs text-gray-400">Lost your authenticator? Your administrator can reset it from User Management.</p>

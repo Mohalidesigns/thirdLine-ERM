@@ -46,7 +46,7 @@ export default function Index({ term, results }) {
                                 <li key={result.id}>
                                     {/* Plain anchor: most destinations are Blade pages until their module is ported. */}
                                     <a href={result.url} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50">
-                                        <Icon name={result.icon || 'topic'} className="w-5 h-5 shrink-0 rounded-lg bg-gray-100 p-2 text-gray-500" />
+                                        <span className="shrink-0 rounded-lg bg-gray-100 p-2 text-gray-500"><Icon name={result.icon || 'topic'} className="w-5 h-5 block" /></span>
                                         <span className="min-w-0 flex-1">
                                             <span className="block truncate text-sm font-medium text-gray-800">{result.name}</span>
                                             <span className="block truncate text-xs text-gray-400">

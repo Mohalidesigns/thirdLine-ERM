@@ -67,7 +67,7 @@ function ReviewPanel({ plan }) {
                     </div>
                     <div className="flex gap-2">
                         <button type="submit" disabled={rejection.processing} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 flex items-center gap-1 disabled:opacity-50">
-                            <Icon name="close" className="w-3.5 h-3.5 shrink-0" /> Confirm Rejection
+                            <Icon name="close" className="w-4 h-4 shrink-0" strokeWidth={2} /> Confirm Rejection
                         </button>
                         <button type="button" onClick={() => setRejecting(false)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
                             Cancel
@@ -88,10 +88,10 @@ function ReviewPanel({ plan }) {
                     </div>
                     <div className="flex gap-2">
                         <button type="submit" disabled={approval.processing} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-1 disabled:opacity-50">
-                            <Icon name="check" className="w-3.5 h-3.5 shrink-0" /> Approve
+                            <Icon name="check" className="w-4 h-4 shrink-0" strokeWidth={2} /> Approve
                         </button>
                         <button type="button" onClick={() => setRejecting(true)} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 flex items-center gap-1">
-                            <Icon name="close" className="w-3.5 h-3.5 shrink-0" /> Reject
+                            <Icon name="close" className="w-4 h-4 shrink-0" strokeWidth={2} /> Reject
                         </button>
                     </div>
                 </form>
@@ -135,11 +135,11 @@ export default function Show({ plan, can = {} }) {
                     <>
                         {can.update && (
                             <Link href={route('risk.treatments.edit', plan.id)} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" strokeWidth={2} /> Edit
                             </Link>
                         )}
                         <Link href={route('risk.treatments.index')} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                            <Icon name="arrow_back" className="w-4 h-4 shrink-0" /> Back
+                            <Icon name="arrow_back" className="w-4 h-4 shrink-0" strokeWidth={2} /> Back
                         </Link>
                     </>
                 }

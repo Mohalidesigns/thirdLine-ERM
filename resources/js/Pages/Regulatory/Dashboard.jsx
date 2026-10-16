@@ -51,12 +51,12 @@ export default function Dashboard({
                     <>
                         {calendarUrl && (
                             <Link href={calendarUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <Icon name="calendar_month" className="w-4 h-4 shrink-0" /> Calendar
+                                <Icon name="calendar_month" className="w-4 h-4 shrink-0" strokeWidth={2} /> Calendar
                             </Link>
                         )}
                         {circularsUrl && (
                             <Link href={circularsUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <Icon name="description" className="w-4 h-4 shrink-0" /> Circulars
+                                <Icon name="description" className="w-4 h-4 shrink-0" strokeWidth={2} /> Circulars
                             </Link>
                         )}
                     </>

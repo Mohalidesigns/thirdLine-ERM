@@ -33,7 +33,7 @@ function DecisionModal({ approval, mode, onClose }) {
             <form onSubmit={submit}>
                 <div className="px-5 py-4 border-b flex items-center justify-between">
                     <h5 className="text-base font-semibold text-[var(--color-primary)]">{reject ? 'Reject request' : 'Approve request'}</h5>
-                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><Icon name="close" className="w-5 h-5 shrink-0" /></button>
+                    <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600"><Icon name="close" className="w-5 h-5 shrink-0" /></button>
                 </div>
                 <div className="px-5 py-4">
                     {reject ? (
@@ -74,7 +74,7 @@ export default function Dashboard({ stats, groups, canAct, historyUrl }) {
             <PageHeader
                 title="Approval dashboard"
                 subtitle="Review and manage pending approvals across the platform."
-                actions={<Link href={historyUrl} className="btn-secondary text-sm inline-flex items-center gap-2"><Icon name="history" className="w-4 h-4 shrink-0" /> View history</Link>}
+                actions={<Link href={historyUrl} className="btn-secondary text-sm inline-flex items-center gap-2"><Icon name="history" className="w-4 h-4 shrink-0" strokeWidth={2} /> View history</Link>}
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -113,8 +113,8 @@ export default function Dashboard({ stats, groups, canAct, historyUrl }) {
                                         <td className="px-5 py-3 text-right">
                                             {canAct && (
                                                 <div className="inline-flex gap-2">
-                                                    <button type="button" onClick={() => setDecision({ approval: a, mode: 'approve' })} className="px-3 py-1 text-xs rounded-md border border-green-600 text-green-700 hover:bg-green-600 hover:text-white inline-flex items-center gap-1"><Icon name="check" className="w-3.5 h-3.5 shrink-0" /> Approve</button>
-                                                    <button type="button" onClick={() => setDecision({ approval: a, mode: 'reject' })} className="px-3 py-1 text-xs rounded-md border border-red-600 text-red-700 hover:bg-red-600 hover:text-white inline-flex items-center gap-1"><Icon name="close" className="w-3.5 h-3.5 shrink-0" /> Reject</button>
+                                                    <button type="button" onClick={() => setDecision({ approval: a, mode: 'approve' })} className="px-3 py-1 text-xs rounded-md border border-green-600 text-green-700 hover:bg-green-600 hover:text-white inline-flex items-center gap-1"><Icon name="check" className="w-4 h-4 shrink-0" /> Approve</button>
+                                                    <button type="button" onClick={() => setDecision({ approval: a, mode: 'reject' })} className="px-3 py-1 text-xs rounded-md border border-red-600 text-red-700 hover:bg-red-600 hover:text-white inline-flex items-center gap-1"><Icon name="close" className="w-4 h-4 shrink-0" /> Reject</button>
                                                 </div>
                                             )}
                                         </td>

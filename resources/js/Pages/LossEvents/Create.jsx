@@ -77,7 +77,7 @@ export default function Create({ risks = [], businessUnits = [], users = [], opt
                         <button type="button" onClick={() => setStep(step + 1)} className="btn-primary text-sm">Continue</button>
                     ) : (
                         <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                            <Icon name="save" className="w-4 h-4 shrink-0" /> Report Event
+                            <Icon name="save" className="w-4 h-4 shrink-0" strokeWidth={2} /> Report Event
                         </button>
                     )}
                 </div>

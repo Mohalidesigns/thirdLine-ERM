@@ -58,7 +58,7 @@ export default function Index({ deadlines, filters, regulators, statuses, canFil
                 actions={
                     createUrl && (
                         <Link href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <Icon name="add" className="w-4 h-4 shrink-0" /> New deadline
+                            <Icon name="add" className="w-4 h-4 shrink-0" strokeWidth={2} /> New deadline
                         </Link>
                     )
                 }

@@ -37,7 +37,7 @@ export default function Reports({ totalEvents = 0, exports: regulatoryExports = 
                         {/* Plain anchors: these are file responses, not Inertia
                             visits. */}
                         <a href={entry.url} className="btn-secondary inline-flex items-center gap-2 text-xs mt-4 self-start">
-                            <Icon name="download" className="w-4 h-4 shrink-0" /> Download CSV
+                            <Icon name="download" className="w-4 h-4 shrink-0" strokeWidth={2} /> Download CSV
                         </a>
                     </div>
                 ))}

@@ -40,7 +40,7 @@ export default function Dashboard({ stats = {}, ageing = [], overdueIssues = [],
                 actions={
                     canCreate && (
                         <Link href={route('risk.issues.create')} className="btn-primary inline-flex items-center gap-2 text-sm">
-                            <Icon name="add" className="w-4 h-4 shrink-0" /> Raise Issue
+                            <Icon name="add" className="w-4 h-4 shrink-0" strokeWidth={2} /> Raise Issue
                         </Link>
                     )
                 }

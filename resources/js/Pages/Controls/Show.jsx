@@ -79,12 +79,12 @@ export default function Show({
                     <>
                         {can.update && (
                             <Link href={route('risk.controls.edit', control.id)} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" strokeWidth={2} /> Edit
                             </Link>
                         )}
                         {can.delete && (
                             <button type="button" onClick={destroy} className="btn-secondary text-sm inline-flex items-center gap-2 text-red-600">
-                                <Icon name="delete" className="w-4 h-4 shrink-0" /> Delete
+                                <Icon name="delete" className="w-4 h-4 shrink-0" strokeWidth={2} /> Delete
                             </button>
                         )}
                         <Link href={route('risk.controls.index')} className="btn-secondary text-sm">Back</Link>
@@ -166,7 +166,7 @@ export default function Show({
                 actions={
                     can.linkRisk && (
                         <button type="button" onClick={() => setLinking(!linking)} className="btn-secondary text-xs inline-flex items-center gap-1">
-                            <Icon name="link" className="w-3.5 h-3.5 shrink-0" />
+                            <Icon name="link" className="w-4 h-4 shrink-0" strokeWidth={2} />
                             {linking ? 'Cancel' : 'Link a risk'}
                         </button>
                     )
@@ -229,7 +229,7 @@ export default function Show({
                         </label>
                         <div className="flex justify-end">
                             <button type="submit" disabled={linkForm.processing} className="btn-primary text-xs inline-flex items-center gap-1 disabled:opacity-50">
-                                <Icon name="link" className="w-3.5 h-3.5 shrink-0" /> Link
+                                <Icon name="link" className="w-4 h-4 shrink-0" strokeWidth={2} /> Link
                             </button>
                         </div>
                     </form>
@@ -293,7 +293,7 @@ export default function Show({
                 actions={
                     can.createTest && newTest && (
                         <a href={newTest} className="btn-primary text-xs inline-flex items-center gap-1">
-                            <Icon name="add" className="w-3.5 h-3.5 shrink-0" /> Schedule a test
+                            <Icon name="add" className="w-4 h-4 shrink-0" strokeWidth={2} /> Schedule a test
                         </a>
                     )
                 }

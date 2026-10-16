@@ -181,7 +181,7 @@ export default function Show({ issue, can = {}, options = {}, users = [] }) {
                 actions={
                     can.update && (
                         <Link href={route('risk.issues.edit', issue.id)} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                            <Icon name="edit" className="w-4 h-4 shrink-0" /> Amend
+                            <Icon name="edit" className="w-4 h-4 shrink-0" strokeWidth={2} /> Amend
                         </Link>
                     )
                 }

@@ -396,7 +396,8 @@ const SIZED = /(^|\s)(w|h|size)-/;
 const TEXT_PX = /(^|\s)text-\[(\d+(?:\.\d+)?)px\]/;
 const W_TO_PX = { 'w-3': 12, 'w-3.5': 14, 'w-4': 16, 'w-5': 20, 'w-6': 24, 'w-8': 32, 'w-10': 40, 'w-12': 48 };
 
-export default function Icon({ name, className = 'w-5 h-5', strokeWidth = 1.5, label, style, ...rest }) {
+export default function Icon({ name, className: cls, strokeWidth = 1.5, label, style, ...rest }) {
+    const className = cls ?? 'w-5 h-5';
     const Cmp = MAP[name];
     const a11y = label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': 'true', focusable: 'false' };
 

@@ -37,7 +37,7 @@ export default function Dashboard({
                 actions={
                     canCreate && (
                         <Link href={route('risk.loss-events.create')} className="btn-primary inline-flex items-center gap-2 text-sm">
-                            <Icon name="add" className="w-4 h-4 shrink-0" /> Report Loss Event
+                            <Icon name="add" className="w-4 h-4 shrink-0" strokeWidth={2} /> Report Loss Event
                         </Link>
                     )
                 }

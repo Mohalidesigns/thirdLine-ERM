@@ -22,12 +22,12 @@ export default function Index({ total, activeBreachCount, grid }) {
                     <>
                         {permissions.includes('kri.create') && createUrl && (
                             <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                                <Icon name="add_circle" className="w-4 h-4 shrink-0" /> New KRI
+                                <Icon name="add_circle" className="w-4 h-4 shrink-0" strokeWidth={2} /> New KRI
                             </a>
                         )}
                         {thresholdsUrl && (
                             <a href={thresholdsUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <Icon name="tune" className="w-4 h-4 shrink-0" /> Manage Thresholds
+                                <Icon name="tune" className="w-4 h-4 shrink-0" strokeWidth={2} /> Manage Thresholds
                             </a>
                         )}
                     </>

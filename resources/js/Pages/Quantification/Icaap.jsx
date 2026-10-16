@@ -83,7 +83,7 @@ export default function Icaap({
                         onClick={() => window.print()}
                         className="btn-secondary text-sm inline-flex items-center gap-2 print:hidden"
                     >
-                        <Icon name="print" className="w-4 h-4 shrink-0" /> Print
+                        <Icon name="print" className="w-4 h-4 shrink-0" strokeWidth={2} /> Print
                     </button>
                 }
             />

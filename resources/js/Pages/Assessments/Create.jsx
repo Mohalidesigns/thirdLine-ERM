@@ -353,7 +353,7 @@ export default function Create({
                             </div>
 
                             <button type="button" onClick={addCause} className="btn-secondary text-sm mt-4 inline-flex items-center gap-1">
-                                <Icon name="add" className="w-3.5 h-3.5 shrink-0" /> Add cause
+                                <Icon name="add" className="w-4 h-4 shrink-0" strokeWidth={2} /> Add cause
                             </button>
                         </Card>
                     </div>
@@ -701,7 +701,7 @@ export default function Create({
                             </div>
 
                             <button type="button" onClick={addAction} className="btn-secondary text-sm mt-4 inline-flex items-center gap-1">
-                                <Icon name="add" className="w-3.5 h-3.5 shrink-0" /> Add action
+                                <Icon name="add" className="w-4 h-4 shrink-0" strokeWidth={2} /> Add action
                             </button>
                         </Card>
 
@@ -791,7 +791,7 @@ export default function Create({
                             disabled={processing}
                             className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-50"
                         >
-                            <Icon name="send" className="w-4 h-4 shrink-0" /> Submit for review
+                            <Icon name="send" className="w-4 h-4 shrink-0" strokeWidth={2} /> Submit for review
                         </button>
                     </div>
                 </div>

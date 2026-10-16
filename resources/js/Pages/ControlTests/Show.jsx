@@ -87,7 +87,7 @@ export default function Show({ test, control, linkedRisks = [], evidence = [], c
                     <>
                         {can.update && (
                             <Link href={route('risk.control-tests.edit', test.id)} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" strokeWidth={2} /> Edit
                             </Link>
                         )}
                         <Link href={route('risk.control-tests.index')} className="btn-secondary text-sm">Back</Link>
@@ -108,7 +108,7 @@ export default function Show({ test, control, linkedRisks = [], evidence = [], c
                         disabled={startForm.processing}
                         className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-50"
                     >
-                        <Icon name="play_arrow" className="w-4 h-4 shrink-0" /> Start test
+                        <Icon name="play_arrow" className="w-4 h-4 shrink-0" strokeWidth={2} /> Start test
                     </button>
                 </div>
             )}
@@ -171,7 +171,7 @@ export default function Show({ test, control, linkedRisks = [], evidence = [], c
                                     : 'No reviewer is assigned, so this test completes on submission.'}
                             </p>
                             <button type="submit" disabled={completeForm.processing} className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-50">
-                                <Icon name="send" className="w-4 h-4 shrink-0" /> Submit result
+                                <Icon name="send" className="w-4 h-4 shrink-0" strokeWidth={2} /> Submit result
                             </button>
                         </div>
                     </form>
@@ -380,7 +380,7 @@ export default function Show({ test, control, linkedRisks = [], evidence = [], c
                                 disabled={evidenceForm.processing || !evidenceForm.data.file}
                                 className="btn-primary text-xs inline-flex items-center gap-1 disabled:opacity-50"
                             >
-                                <Icon name="upload" className="w-3.5 h-3.5 shrink-0" /> Upload
+                                <Icon name="upload" className="w-4 h-4 shrink-0" strokeWidth={2} /> Upload
                             </button>
                         </div>
                     </form>

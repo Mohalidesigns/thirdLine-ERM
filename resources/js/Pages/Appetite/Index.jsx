@@ -93,7 +93,7 @@ function StatementForm({ mode, initial, categories, levels, onClose, updateUrl }
             <div className="flex justify-end gap-2 mt-5">
                 <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
                 <PrimaryButton disabled={form.processing}>
-                    <Icon name="save" className="w-4 h-4 shrink-0 mr-1" />
+                    <Icon name="save" className="w-4 h-4 shrink-0 mr-1" strokeWidth={2} />
                     {mode === 'create' ? 'Save appetite statement' : 'Update'}
                 </PrimaryButton>
             </div>
@@ -123,13 +123,13 @@ export default function Index({ metrics, summary, chart, categoriesWithoutStatem
                 subtitle="Board-approved appetite statements, tolerance bands, and current position monitoring"
                 actions={
                     <>
-                        <a href={exportUrl} className="btn-secondary text-sm inline-flex items-center gap-2"><Icon name="download" className="w-4 h-4 shrink-0" /> Export</a>
-                        <button type="button" onClick={() => setHistory((h) => !h)} className="btn-secondary text-sm inline-flex items-center gap-2"><Icon name="history" className="w-4 h-4 shrink-0" /> Version history</button>
+                        <a href={exportUrl} className="btn-secondary text-sm inline-flex items-center gap-2"><Icon name="download" className="w-4 h-4 shrink-0" strokeWidth={2} /> Export</a>
+                        <button type="button" onClick={() => setHistory((h) => !h)} className="btn-secondary text-sm inline-flex items-center gap-2"><Icon name="history" className="w-4 h-4 shrink-0" strokeWidth={2} /> Version history</button>
                         {canManage && (
                             <button type="button" onClick={() => setAdding(true)} disabled={categoriesWithoutStatement.length === 0}
                                 title={categoriesWithoutStatement.length === 0 ? 'Every category already has a statement' : undefined}
                                 className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-50">
-                                <Icon name="add_circle" className="w-4 h-4 shrink-0" /> Add appetite statement
+                                <Icon name="add_circle" className="w-4 h-4 shrink-0" strokeWidth={2} /> Add appetite statement
                             </button>
                         )}
                     </>
@@ -146,7 +146,7 @@ export default function Index({ metrics, summary, chart, categoriesWithoutStatem
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
                     <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-[var(--color-primary)] flex items-center gap-2"><Icon name="history" className="w-4 h-4 shrink-0" /> Version history</h3>
-                        <button type="button" onClick={() => setHistory(false)} className="text-gray-400 hover:text-gray-600"><Icon name="close" className="w-4 h-4 shrink-0" /></button>
+                        <button type="button" onClick={() => setHistory(false)} aria-label="Close version history" className="text-gray-400 hover:text-gray-600"><Icon name="close" className="w-4 h-4 shrink-0" /></button>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="data-table">

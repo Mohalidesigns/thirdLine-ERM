@@ -110,7 +110,7 @@ export default function Radar({
                 </div>
                 {registerUrl && (
                     <Link href={registerUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                        <Icon name="list" className="w-4 h-4 shrink-0" /> Manage register
+                        <Icon name="list" className="w-4 h-4 shrink-0" strokeWidth={2} /> Manage register
                     </Link>
                 )}
             </div>

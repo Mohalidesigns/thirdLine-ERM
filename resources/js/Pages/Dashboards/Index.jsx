@@ -9,7 +9,7 @@ function Row({ row }) {
     return (
         <li>
             <Link href={row.editUrl} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50">
-                <Icon name="dashboard" className="w-5 h-5 shrink-0 rounded-lg bg-gray-100 p-2 text-gray-500" />
+                <span className="shrink-0 rounded-lg bg-gray-100 p-2 text-gray-500"><Icon name="dashboard" className="w-5 h-5 block" /></span>
 
                 <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-gray-800">{row.name}</span>
@@ -42,7 +42,7 @@ function Row({ row }) {
                     )}
                 </span>
 
-                <Icon name="chevron_right" className="w-4.5 h-4.5 shrink-0 pt-1 text-gray-300" />
+                <Icon name="chevron_right" className="w-4.5 h-4.5 shrink-0 mt-1 text-gray-300" />
             </Link>
         </li>
     );

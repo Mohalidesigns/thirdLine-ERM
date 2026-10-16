@@ -46,12 +46,12 @@ export default function Show({ scenario, values, simulations, distributionVisual
                     <>
                         {editUrl && (
                             <Link href={editUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" strokeWidth={2} /> Edit
                             </Link>
                         )}
                         {simulateUrl && (
                             <Link href={simulateUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                                <Icon name="play_arrow" className="w-4 h-4 shrink-0" /> Run simulation
+                                <Icon name="play_arrow" className="w-4 h-4 shrink-0" strokeWidth={2} /> Run simulation
                             </Link>
                         )}
                         {scenariosUrl && (

@@ -40,7 +40,7 @@ export default function Index({ totalUsers, activeUsers, inactiveUsers, mfaEnabl
                 actions={
                     permissions.includes('admin.users') && createUrl && (
                         <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <Icon name="person_add" className="w-4 h-4 shrink-0" /> Create User
+                            <Icon name="person_add" className="w-4 h-4 shrink-0" strokeWidth={2} /> Create User
                         </a>
                     )
                 }

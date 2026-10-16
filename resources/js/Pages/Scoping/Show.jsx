@@ -97,15 +97,15 @@ export default function Show({ entity, riskStats, risks = [], issues = [], kris 
                     <>
                         {can.update && (
                             <Link href={route('risk.scoping.edit', entity.id)} className="btn-primary inline-flex items-center gap-2 text-sm">
-                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" strokeWidth={2} /> Edit
                             </Link>
                         )}
                         <Link href={route('risk.scoping.dashboard')} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                            <Icon name="account_tree" className="w-4 h-4 shrink-0" /> Hierarchy
+                            <Icon name="account_tree" className="w-4 h-4 shrink-0" strokeWidth={2} /> Hierarchy
                         </Link>
                         {can.delete && (
                             <button type="button" onClick={destroy} className="btn-danger inline-flex items-center gap-2 text-sm">
-                                <Icon name="delete" className="w-4 h-4 shrink-0" /> Delete
+                                <Icon name="delete" className="w-4 h-4 shrink-0" strokeWidth={2} /> Delete
                             </button>
                         )}
                     </>
@@ -280,7 +280,7 @@ export default function Show({ entity, riskStats, risks = [], issues = [], kris 
                     title="Sub-Entities"
                     actions={can.create && (
                         <Link href={route('risk.scoping.create')} className="btn-secondary inline-flex items-center gap-1 text-xs">
-                            <Icon name="add" className="w-4 h-4 shrink-0" /> New Entity
+                            <Icon name="add" className="w-4 h-4 shrink-0" strokeWidth={2} /> New Entity
                         </Link>
                     )}
                 >

@@ -31,7 +31,7 @@ export default function Index({ total, ratingCounts, grid }) {
                 actions={
                     permissions.includes('risk.create') && createUrl && (
                         <Link href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <Icon name="add_circle" className="w-4 h-4 shrink-0" /> New Risk
+                            <Icon name="add_circle" className="w-4 h-4 shrink-0" strokeWidth={2} /> New Risk
                         </Link>
                     )
                 }

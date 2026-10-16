@@ -36,7 +36,7 @@ export default function Index({ results, filters }) {
                 actions={
                     simulateUrl && (
                         <Link href={simulateUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <Icon name="play_arrow" className="w-4 h-4 shrink-0" /> New simulation
+                            <Icon name="play_arrow" className="w-4 h-4 shrink-0" strokeWidth={2} /> New simulation
                         </Link>
                     )
                 }

@@ -195,7 +195,7 @@ export default function Simulate({ scenarios, defaults, iterationChoices, horizo
                         <SecondaryButton type="button">Cancel</SecondaryButton>
                     </Link>
                     <PrimaryButton disabled={processing || scenarios.length === 0}>
-                        <Icon name="play_arrow" className="w-4 h-4 shrink-0 mr-2" /> Run simulation
+                        <Icon name="play_arrow" className="w-4 h-4 shrink-0 mr-2" strokeWidth={2} /> Run simulation
                     </PrimaryButton>
                 </div>
             </form>

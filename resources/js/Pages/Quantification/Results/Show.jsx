@@ -60,7 +60,7 @@ export default function Show({ result, percentiles, expectedShortfall, maxLoss, 
                     <>
                         {isRunning && (
                             <button type="button" onClick={cancel} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <Icon name="stop_circle" className="w-4 h-4 shrink-0" /> Request cancellation
+                                <Icon name="stop_circle" className="w-4 h-4 shrink-0" strokeWidth={2} /> Request cancellation
                             </button>
                         )}
                         <button
@@ -68,7 +68,7 @@ export default function Show({ result, percentiles, expectedShortfall, maxLoss, 
                             onClick={() => window.print()}
                             className="btn-secondary text-sm inline-flex items-center gap-2 print:hidden"
                         >
-                            <Icon name="print" className="w-4 h-4 shrink-0" /> Print
+                            <Icon name="print" className="w-4 h-4 shrink-0" strokeWidth={2} /> Print
                         </button>
                         {resultsUrl && (
                             <Link href={resultsUrl} className="btn-secondary text-sm">

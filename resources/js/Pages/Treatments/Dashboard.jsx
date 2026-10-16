@@ -122,7 +122,7 @@ export default function Dashboard({
                 ]}
                 actions={
                     <Link href={route('risk.treatments.create')} className="btn-primary inline-flex items-center gap-2 text-sm">
-                        <Icon name="add" className="w-4 h-4 shrink-0" /> New Plan
+                        <Icon name="add" className="w-4 h-4 shrink-0" strokeWidth={2} /> New Plan
                     </Link>
                 }
             />

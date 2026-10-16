@@ -213,7 +213,7 @@ export default function Worksheet({
                                 Save Draft
                             </button>
                             <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                                <Icon name="send" className="w-4 h-4 shrink-0" /> Submit Assessment
+                                <Icon name="send" className="w-4 h-4 shrink-0" strokeWidth={2} /> Submit Assessment
                             </button>
                         </div>
                     )}

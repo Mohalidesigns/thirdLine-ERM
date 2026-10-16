@@ -201,7 +201,7 @@ export default function Respond({
                     <div className="flex items-center justify-end gap-3">
                         <Link href={campaign.url} className="btn-secondary text-sm">Cancel</Link>
                         <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                            <Icon name="send" className="w-4 h-4 shrink-0" /> Submit Assessment
+                            <Icon name="send" className="w-4 h-4 shrink-0" strokeWidth={2} /> Submit Assessment
                         </button>
                     </div>
                 </form>

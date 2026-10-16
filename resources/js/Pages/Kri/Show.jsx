@@ -118,12 +118,12 @@ export default function Show({ kri, history = {}, readings = {}, breaches = [], 
                     <>
                         {can.recordMeasurement && !recording && (
                             <button type="button" onClick={() => setRecording(true)} className="btn-primary inline-flex items-center gap-2 text-sm">
-                                <Icon name="add_chart" className="w-4 h-4 shrink-0" /> Record Measurement
+                                <Icon name="add_chart" className="w-4 h-4 shrink-0" strokeWidth={2} /> Record Measurement
                             </button>
                         )}
                         {can.update && (
                             <Link href={route('risk.kri.edit', kri.id)} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" strokeWidth={2} /> Edit
                             </Link>
                         )}
                     </>

@@ -84,7 +84,7 @@ export default function Dashboard({
                             All tests
                         </Link>
                         <Link href={route('risk.control-tests.create')} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <Icon name="add_circle" className="w-4 h-4 shrink-0" /> Schedule a test
+                            <Icon name="add_circle" className="w-4 h-4 shrink-0" strokeWidth={2} /> Schedule a test
                         </Link>
                     </>
                 }

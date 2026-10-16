@@ -91,8 +91,16 @@ Heroicons v2 **outline**, 24-grid, `stroke-width 1.5`, `stroke=currentColor`; 20
 in the sidebar and stat tiles, 16px (`w-4 h-4`) in buttons and row actions (row actions use
 stroke 1.5, buttons stroke 2). No icon font is loaded.
 
-riskerm uses Material Symbols Outlined (self-hosted font) — 39 distinct names from
-`NavPresenter`, ~330 uses across ~140 page files.
+riskerm used Material Symbols Outlined (self-hosted font) — 39 distinct names from
+`NavPresenter`, ~330 uses across ~140 page files. The icon-sweep follow-up moved every page
+to `<Icon>`: button icons are `w-4 h-4` with `strokeWidth={2}`, row actions and inline icons
+stay at stroke 1.5 and keep their original size where it was smaller than 16px (`w-3`/`w-3.5`
+trend arrows, chips), tiles and headings `w-5 h-5`, empty states `w-8`–`w-9 block mx-auto`.
+An icon on a padded tile puts the padding on a wrapping `<span>`: preflight's
+`box-sizing: border-box` applies to `<svg>`, so padding on the Icon itself eats the glyph.
+The Material font still loads, only for names `Icon` does not map. Heroicons has no
+"off"/"problem" variants, so `money_off`, `credit_card_off`, `sync_problem` and the like map
+to the base glyph.
 
 ### 1.6 Charts
 
@@ -378,7 +386,7 @@ Reproduce `IA/Layout:643–716`. Replace `L:297–391`.
 | `visibility` | `EyeIcon` | `print` | `PrinterIcon` |
 | `chevron_right` | `ChevronRightIcon` | | |
 
-**Additional names the shell/G6–G8 need (add to the map)**: `chevron_left`→`ChevronLeftIcon`, `keyboard_double_arrow_right`→`ChevronDoubleRightIcon`, `cancel`→`XCircleIcon`, `done_all`→`CheckCircleIcon`, `notifications_off`→`BellSlashIcon`, `refresh`→`ArrowPathIcon`, `error_outline`→`ExclamationCircleIcon`, `zoom_in`→`MagnifyingGlassPlusIcon`, `topic`→`FolderIcon`, `expand_less`→`ChevronUpIcon`, `progress_activity`→(unmapped on purpose: Widget keeps its spinner glyph). Anything not in the three tables stays Material.
+**Additional names the shell/G6–G8 need (add to the map)**: `chevron_left`→`ChevronLeftIcon`, `keyboard_double_arrow_right`→`ChevronDoubleRightIcon`, `cancel`→`XCircleIcon`, `done_all`→`CheckCircleIcon`, `notifications_off`→`BellSlashIcon`, `refresh`→`ArrowPathIcon`, `error_outline`→`ExclamationCircleIcon`, `zoom_in`→`MagnifyingGlassPlusIcon`, `topic`→`FolderIcon`, `expand_less`→`ChevronUpIcon`, `progress_activity`→`ArrowPathIcon` (spinning; mapped in the icon-sweep follow-up). Anything not in the three tables stays Material.
 
 **States / a11y**: decorative by default; `label` for the rare icon-only graphic with no wrapping control (prefer naming the control). Forced-colors: icons use `currentColor`, so they follow `CanvasText`. RTL: no mirroring needed (no directional icon is used for meaning besides chevrons, which the shell does not flip).
 
@@ -449,7 +457,7 @@ Tile text/icon contrast: `-600` on `-50` ≥ 4.5:1 for all rows except yellow (`
 | Title | `h3 truncate text-sm font-semibold text-gray-800` (already) |
 | Meta | `text-xs text-gray-500` (was `text-gray-400`, fails AA); "as at" chip stays `bg-amber-50 text-amber-700`, text raised to `text-xs` |
 | Body | `p-4` → `px-6 py-4` (= `.card-body`) for text/table renderers; chart renderers keep `p-3` internal canvas padding to avoid clipping — decide per renderer, default `px-6 py-4` |
-| Menu button | `p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus-visible:…`, `aria-label="Widget menu: {title}"`, `aria-haspopup="menu"`, `<Icon name="more_vert" class="w-5 h-5"/>`; loading → keep the Material `progress_activity` spinner with `motion-reduce:animate-none` and `aria-busy` on the panel |
+| Menu button | `p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus-visible:…`, `aria-label="Widget menu: {title}"`, `aria-haspopup="menu"`, `<Icon name="more_vert" class="w-5 h-5"/>`; loading → `<Icon name="progress_activity">` (a spinning `ArrowPathIcon`) with `motion-reduce:animate-none` and `aria-busy` on the panel |
 | States | `forbidden`: `LockClosedIcon` w-8 h-8 + "You do not have permission to view this data." in `text-sm text-gray-500`; `error`/missing renderer: `ExclamationCircleIcon` + "This widget could not be rendered." + a **Retry** text button (`load()`), never a blank panel; empty data is the renderer's job and must say what is absent ("No loss events in this period"), never a bare `0` |
 | Chart.js defaults (§1.6) | In `widgets/theme.js`: `font.family` per G1, tick colour `#6B7280` 12px, grid `#F3F4F6`, legend `usePointStyle:true, pointStyle:'circle', boxWidth:12`, doughnut `cutout:'62%'`, rating series `#DC2626 #EA580C #D97706 #16A34A`; set `Chart.defaults.animation = false` when `matchMedia('(prefers-reduced-motion: reduce)').matches`. Every chart keeps (or gets) a `aria-label` summary on its `<canvas role="img">` and a data table alternative where one exists. |
 

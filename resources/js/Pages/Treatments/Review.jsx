@@ -80,14 +80,14 @@ function PlanCard({ plan }) {
                                 onClick={() => setPanel(panel === 'approve' ? null : 'approve')}
                                 className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2 transition-colors"
                             >
-                                <Icon name="check_circle" className="w-4 h-4 shrink-0" /> Approve
+                                <Icon name="check_circle" className="w-4 h-4 shrink-0" strokeWidth={2} /> Approve
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setPanel(panel === 'reject' ? null : 'reject')}
                                 className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 flex items-center gap-2 transition-colors"
                             >
-                                <Icon name="cancel" className="w-4 h-4 shrink-0" /> Reject
+                                <Icon name="cancel" className="w-4 h-4 shrink-0" strokeWidth={2} /> Reject
                             </button>
                         </>
                     )}

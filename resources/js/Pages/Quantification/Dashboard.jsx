@@ -72,10 +72,10 @@ export default function Dashboard({
                 actions={
                     <>
                         <Link href={route('risk.quantification.simulate')} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <Icon name="play_arrow" className="w-4 h-4 shrink-0" /> New simulation
+                            <Icon name="play_arrow" className="w-4 h-4 shrink-0" strokeWidth={2} /> New simulation
                         </Link>
                         <Link href={route('risk.quantification.scenarios')} className="btn-secondary text-sm inline-flex items-center gap-2">
-                            <Icon name="category" className="w-4 h-4 shrink-0" /> Scenarios
+                            <Icon name="category" className="w-4 h-4 shrink-0" strokeWidth={2} /> Scenarios
                         </Link>
                     </>
                 }

@@ -40,12 +40,12 @@ export default function Index({ scenarios, categories, filters }) {
                     <>
                         {createUrl && (
                             <Link href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                                <Icon name="add_circle" className="w-4 h-4 shrink-0" /> New Scenario
+                                <Icon name="add_circle" className="w-4 h-4 shrink-0" strokeWidth={2} /> New Scenario
                             </Link>
                         )}
                         {libraryUrl && (
                             <Link href={libraryUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <Icon name="library_books" className="w-4 h-4 shrink-0" /> Scenario Library
+                                <Icon name="library_books" className="w-4 h-4 shrink-0" strokeWidth={2} /> Scenario Library
                             </Link>
                         )}
                     </>

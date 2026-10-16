@@ -21,7 +21,7 @@ export default function Index({ total, grid }) {
                     permissions.includes('control.create') && createUrl && (
                         // Plain anchor: the create form is Blade until Phase 3.
                         <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <Icon name="add_circle" className="w-4 h-4 shrink-0" /> New Control
+                            <Icon name="add_circle" className="w-4 h-4 shrink-0" strokeWidth={2} /> New Control
                         </a>
                     )
                 }

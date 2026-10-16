@@ -62,7 +62,7 @@ export default function Matrix({ legacyNotice = null, risks = [], controls = [],
                             ))}
                         </select>
                         <a href={exportUrl} className="btn-secondary inline-flex items-center gap-2 text-sm">
-                            <Icon name="download" className="w-4 h-4 shrink-0" /> Export
+                            <Icon name="download" className="w-4 h-4 shrink-0" strokeWidth={2} /> Export
                         </a>
                     </>
                 }

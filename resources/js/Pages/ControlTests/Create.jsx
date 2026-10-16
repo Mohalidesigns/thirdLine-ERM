@@ -40,7 +40,7 @@ export default function Create({ controls = [], users = [], options = {}, contro
                 <div className="flex items-center justify-between">
                     <Link href={route('risk.control-tests.index')} className="btn-secondary text-sm">Cancel</Link>
                     <button type="submit" disabled={processing} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                        <Icon name="event_available" className="w-4 h-4 shrink-0" /> Schedule Test
+                        <Icon name="event_available" className="w-4 h-4 shrink-0" strokeWidth={2} /> Schedule Test
                     </button>
                 </div>
             </form>

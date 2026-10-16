@@ -85,7 +85,7 @@ export default function Show({
                     <>
                         {can.update && (
                             <Link href={route('risk.assessments.edit', assessment.id)} className="btn-secondary text-sm inline-flex items-center gap-1">
-                                <Icon name="edit" className="w-4 h-4 shrink-0" /> Edit
+                                <Icon name="edit" className="w-4 h-4 shrink-0" strokeWidth={2} /> Edit
                             </Link>
                         )}
                         <Link href={route('risk.assessments.index')} className="btn-secondary text-sm">Back</Link>
@@ -105,7 +105,7 @@ export default function Show({
                         disabled={submitForm.processing}
                         className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-50"
                     >
-                        <Icon name="send" className="w-4 h-4 shrink-0" /> Submit for review
+                        <Icon name="send" className="w-4 h-4 shrink-0" strokeWidth={2} /> Submit for review
                     </button>
                 </div>
             )}

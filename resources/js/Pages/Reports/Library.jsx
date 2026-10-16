@@ -31,7 +31,7 @@ export default function Library({ types, today, grid }) {
                 actions={
                     permissions.includes('report.view') && sectionsUrl && (
                         <a href={sectionsUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                            <Icon name="tune" className="w-4 h-4 shrink-0" /> Board pack sections
+                            <Icon name="tune" className="w-4 h-4 shrink-0" strokeWidth={2} /> Board pack sections
                         </a>
                     )
                 }

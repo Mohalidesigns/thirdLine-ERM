@@ -20,7 +20,7 @@ export default function Index({ total, grid }) {
                 actions={
                     permissions.includes('control_test.create') && createUrl && (
                         <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                            <Icon name="add_circle" className="w-4 h-4 shrink-0" /> Schedule Test
+                            <Icon name="add_circle" className="w-4 h-4 shrink-0" strokeWidth={2} /> Schedule Test
                         </a>
                     )
                 }

@@ -36,12 +36,12 @@ export default function Index({ summary = {}, grid, can = {} }) {
                     <div className="flex items-center gap-2">
                         {can.create && createUrl && (
                             <a href={createUrl} className="btn-secondary text-sm inline-flex items-center gap-2">
-                                <Icon name="add" className="w-4 h-4 shrink-0" /> Register a third party
+                                <Icon name="add" className="w-4 h-4 shrink-0" strokeWidth={2} /> Register a third party
                             </a>
                         )}
                         {can.create && intakeUrl && (
                             <a href={intakeUrl} className="btn-primary text-sm inline-flex items-center gap-2">
-                                <Icon name="assignment_add" className="w-4 h-4 shrink-0" /> Raise an intake
+                                <Icon name="assignment_add" className="w-4 h-4 shrink-0" strokeWidth={2} /> Raise an intake
                             </a>
                         )}
                     </div>

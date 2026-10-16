@@ -98,7 +98,7 @@ export default function Index({ queue }) {
                                 {items.map((item, idx) => (
                                     <li key={`${item.type}-${item.id ?? idx}`}>
                                         <a href={item.url} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50">
-                                            <Icon name={TYPE_ICONS[item.type] ?? 'assignment'} className="w-4.5 h-4.5 shrink-0 rounded-md bg-gray-100 p-1.5 text-gray-500" />
+                                            <span className="shrink-0 rounded-md bg-gray-100 p-1.5 text-gray-500"><Icon name={TYPE_ICONS[item.type] ?? 'assignment'} className="w-4.5 h-4.5 block" /></span>
                                             <span className="min-w-0 flex-1">
                                                 <span className="block truncate text-sm font-medium text-gray-800">{item.title}</span>
                                                 {item.subtitle && (

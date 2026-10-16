@@ -63,7 +63,7 @@ export default function Thresholds({ kris = {}, canManage = false }) {
                     actions={
                         canManage && (
                             <button type="submit" form="kri-thresholds-form" disabled={processing || !dirty} className="btn-primary inline-flex items-center gap-2 text-sm disabled:opacity-50">
-                                <Icon name="save" className="w-4 h-4 shrink-0" />
+                                <Icon name="save" className="w-4 h-4 shrink-0" strokeWidth={2} />
                                 {dirty ? 'Save Changes' : 'No Changes'}
                             </button>
                         )

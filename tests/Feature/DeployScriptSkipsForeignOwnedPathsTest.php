@@ -38,7 +38,7 @@ class DeployScriptSkipsForeignOwnedPathsTest extends TestCase
             $this->assertMatchesRegularExpression(
                 '/!\s+-user\s+"\$DEPLOY_USER"\s+-prune\s+-o\b/',
                 $line,
-                "This chmod does not skip paths owned by another user, so a www-data-owned directory under storage ".
+                'This chmod does not skip paths owned by another user, so a www-data-owned directory under storage '.
                 "aborts the deploy before preflight and the restart:\n    ".trim($line)
             );
         }

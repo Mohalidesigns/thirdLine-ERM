@@ -14,11 +14,13 @@
  * screens carry hundreds of pre-adoption findings. CI runs it over the RCSA,
  * TPRM and BCMS directories and the whole of packages/ui/src (the list is in
  * .github/workflows/ci.yml); locally, pass those or the files of a diff.
+ * `--only=pageheader-submit` reports just that rule; CI runs it over everything.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
-const roots = process.argv.slice(2).flatMap((a) => a.split(/\s+/)).filter(Boolean);
+const only = (process.argv.slice(2).find((a) => a.startsWith('--only=')) || '').slice(7);
+const roots = process.argv.slice(2).filter((a) => !a.startsWith('--only=')).flatMap((a) => a.split(/\s+/)).filter(Boolean);
 if (roots.length === 0) { console.error('usage: node tools/ui-audit.mjs <dir|file>...'); process.exit(2); }
 const files = [];
 const walk = (p) => { const st = fs.statSync(p); if (st.isDirectory()) fs.readdirSync(p).forEach((c) => walk(path.join(p, c))); else if (/\.jsx?$/.test(p)) files.push(p); };
@@ -153,8 +155,35 @@ for (const f of files) {
             findings.push(`${at}  <label> styles itself: "${cm[1]}"`);
         }
     }
+    // PageHeader portals into the layout's band, which sits OUTSIDE any <form> on the
+    // page. A button in its `actions` is therefore moved out of the form that was meant
+    // to receive it and silently submits nothing, unless it names its form with
+    // form="<id>". Inside an open <form> every button element counts (<button>, and
+    // <PrimaryButton>, <DangerButton>... - an untyped one defaults to submit) except an
+    // explicit type="button". Outside a form only a type="submit" is wrong. A button
+    // inside a <form> of its own within `actions` is fine.
+    for (const ph of src.matchAll(/<PageHeader\b/g)) {
+        const e = tagEnd(src, ph.index);
+        if (e < 0) break;
+        const tagText = src.slice(ph.index, e + 1);
+        const before = src.slice(0, ph.index);
+        const inForm = before.lastIndexOf('<form') > before.lastIndexOf('</form>');
+        for (const b of tagText.matchAll(/<(button|[A-Z]\w*Button)\b/g)) {
+            const be = tagEnd(tagText, b.index);
+            const open = tagText.slice(b.index, (be < 0 ? tagText.length - 1 : be) + 1);
+            const own = tagText.slice(0, b.index);
+            if (own.lastIndexOf('<form') > own.lastIndexOf('</form>')) continue;
+            if (/\bform=/.test(open)) continue;
+            const type = (open.match(/\btype="([^"]*)"/) || [])[1];
+            if (type === 'button' || (!inForm && type !== 'submit')) continue;
+            const hit = `${f}:${lineOf(src, ph.index)}  <PageHeader> actions hold ${type === 'submit' ? 'a type="submit"' : 'a'} <${b[1]}> with no form="<id>"${inForm ? ' (inside an open <form>)' : ''} - the portal moves it out of the form, so it submits nothing [pageheader-submit]`;
+            findings.push(hit);
+            break;
+        }
+    }
 }
-findings.forEach((l) => console.log(l));
-if (notes.length) console.log('\nexempt tables (reported, not findings):\n' + notes.join('\n'));
-console.log(`\n${findings.length} finding(s) across ${files.length} file(s)`);
-process.exit(findings.length ? 1 : 0);
+const shown = only ? findings.filter((l) => l.includes(`[${only}]`)) : findings;
+shown.forEach((l) => console.log(l));
+if (!only && notes.length) console.log('\nexempt tables (reported, not findings):\n' + notes.join('\n'));
+console.log(`\n${shown.length} finding(s) across ${files.length} file(s)`);
+process.exit(shown.length ? 1 : 0);

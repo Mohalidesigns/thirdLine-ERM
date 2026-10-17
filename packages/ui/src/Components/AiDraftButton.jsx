@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useState } from 'react';
+import Icon from './Icon';
 
 /**
  * The AI builder card the Blade create forms carried as an Alpine component
@@ -61,7 +62,7 @@ export default function AiDraftButton({
         <div className="mb-6 bg-gradient-to-br from-[#1A365D] to-[#2c4a7a] rounded-xl p-5 text-white shadow-lg">
             <div className="flex items-start gap-3 mb-3">
                 <div className="w-9 h-9 rounded-lg bg-[#D4AF37]/20 border border-[#D4AF37]/40 flex items-center justify-center flex-shrink-0">
-                    <span className="material-symbols-outlined text-[#D4AF37]" style={{ fontSize: 20 }}>auto_awesome</span>
+                    <Icon name="auto_awesome" className="text-[#D4AF37] w-[20px] h-[20px]" />
                 </div>
                 <div className="flex-1">
                     <div className="flex items-center gap-2">

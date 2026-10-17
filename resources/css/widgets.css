@@ -13,8 +13,8 @@
     --viz-surface: #ffffff;
     --viz-ink: #1a202c;
     --viz-ink-secondary: #4a5568;
-    --viz-muted: #718096;
-    --viz-grid: #e8eaf0;
+    --viz-muted: #6b7280;
+    --viz-grid: #f3f4f6;
     --viz-axis: #cbd5e0;
     --viz-tooltip-bg: #1a202c;
     --viz-tooltip-ink: #f7fafc;
@@ -154,5 +154,5 @@
 
 .widget-network-label {
     font-size: 10px;
-    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-sans);
 }

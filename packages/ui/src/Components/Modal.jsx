@@ -1,4 +1,5 @@
 import { Dialog, DialogPanel } from '@headlessui/react';
+import { PageHeaderSlotBoundary } from '../Layouts/PageHeaderSlot';
 
 /**
  * ThirdLine's Modal, minus the Headless UI <Transition>: on this build
@@ -53,7 +54,7 @@ export default function Modal({
             <DialogPanel
                 className={`relative my-auto max-h-[calc(100vh-3rem)] w-full overflow-y-auto overscroll-contain rounded-lg bg-white shadow-xl sm:mx-auto ${maxWidthClass}`}
             >
-                {children}
+                <PageHeaderSlotBoundary>{children}</PageHeaderSlotBoundary>
             </DialogPanel>
         </Dialog>
     );

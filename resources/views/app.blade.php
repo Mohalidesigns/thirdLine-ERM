@@ -8,10 +8,13 @@
     <title inertia>{{ config('app.name', 'Atheris ERM') }}</title>
 
     {{-- The Inertia root view, and since migration Phase 6.8 the only page view
-         in the application. No font or script is fetched from a CDN: Inter and
+         in the application. No font or script is fetched from a CDN: Figtree and
          Material Symbols are self-hosted through resources/css/fonts.css, which
          app.css imports — a deployment inside a bank must not tell a third
          party who is using it and when. --}}
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/figtree-latin-400-normal.woff2" crossorigin>
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/figtree-latin-500-normal.woff2" crossorigin>
+
     {{-- Tenant branding overrides (--color-primary / --color-accent). The
          allowlist that makes interpolating a tenant value into a <style> block
          safe lives in the class, where it is testable. --}}

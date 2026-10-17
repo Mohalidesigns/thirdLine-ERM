@@ -32,6 +32,8 @@ export default function useChart(build, data, envelope, onEmpty) {
         const render = async () => {
             if (!chartModule) {
                 chartModule = (await import('chart.js/auto')).default;
+                // Reduced motion: draw the end state, no entrance animation.
+                if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) chartModule.defaults.animation = false;
             }
             if (cancelled || !canvasRef.current) return;
 

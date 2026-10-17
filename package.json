@@ -19,6 +19,7 @@
         "@editorjs/table": "^2.4.6",
         "@editorjs/underline": "^1.2.1",
         "@headlessui/react": "^2.2.10",
+        "@heroicons/react": "^2.2.0",
         "@inertiajs/react": "^2.3.27",
         "@tailwindcss/forms": "^0.5.11",
         "@tailwindcss/vite": "^4.0.0",
@@ -32,10 +33,10 @@
         "vite": "^7.0.7"
     },
     "dependencies": {
+        "@thirdline/ui": "*",
         "chart.js": "^4.5.1",
         "gridstack": "^13.2.0",
-        "qrcode": "^1.5.4",
-        "@thirdline/ui": "*"
+        "qrcode": "^1.5.4"
     },
     "name": "thirdline-erm",
     "workspaces": [

@@ -55,7 +55,7 @@
 | --color-accent #d4af37) carry the same value in both, so nothing moved.
 */
 @theme {
-    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    --font-sans: 'Figtree', 'Figtree Fallback', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
     --font-mono: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -83,7 +83,7 @@
     }
 
     body {
-        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-family: var(--font-sans);
         color: var(--color-text-primary);
         background-color: var(--color-bg);
     }
@@ -853,13 +853,18 @@ textarea):focus {
     color: #718096;
 }
 
-/* KPI card (Blade). The React equivalent is .stat-card above. */
+/* KPI card (Blade). Same box as .stat-card (the ThirdLine reference): 12px
+   radius, 1px gray-100 border, shadow-sm, 20px padding, shadow-md on hover. */
 .kpi-card {
     background: white;
     border-radius: 12px;
-    padding: 1.25rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    border: 1px solid #e2e8f0;
+    padding: 20px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    border: 1px solid #f3f4f6;
+    transition: box-shadow 0.2s;
+}
+.kpi-card:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
 }
 
 /* Tabs */
@@ -893,6 +898,17 @@ textarea):focus {
 .animate-bell-ring {
     animation: bell-ring 1s ease-in-out;
     transform-origin: top center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .animate-bell-ring {
+        animation: none;
+    }
+    .sidebar-nav-item,
+    .stat-card,
+    .kpi-card {
+        transition: none;
+    }
 }
 
 @keyframes slide-in {

@@ -1,6 +1,7 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import InputError from '@thirdline/ui/Components/InputError';
+import PageHeader from '@thirdline/ui/Components/PageHeader';
 import QrCode from '@thirdline/ui/Components/QrCode';
 import { CsrfField } from '@thirdline/ui/lib/nativeForm';
 
@@ -20,6 +21,7 @@ export default function MfaSetup({ secret, otpauthUri, issuer, account, alreadyE
     return (
         <AuthenticatedLayout title="Two-Factor Authentication">
             <Head title="Two-Factor Authentication Setup" />
+            <PageHeader title="Two-Factor Authentication" subtitle="Protect this account with a code from an authenticator app" />
 
             <div className="max-w-3xl mx-auto">
                 {flash?.warning && (
@@ -90,7 +92,7 @@ export default function MfaSetup({ secret, otpauthUri, issuer, account, alreadyE
                                             autoComplete="one-time-code"
                                             placeholder="000000"
                                             required
-                                            className="w-full text-center text-2xl font-mono tracking-[0.5em] border-2 border-gray-300 rounded-lg py-3 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 transition"
+                                            className="form-input w-full text-center text-2xl font-mono tracking-[0.5em] py-3"
                                         />
                                         <InputError message={errors?.code} className="mt-2" />
                                         <p className="text-xs text-gray-500 mt-2">Get this from your authenticator app</p>

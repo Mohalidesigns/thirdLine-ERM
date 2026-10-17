@@ -35,7 +35,8 @@ half-migrated application serving traffic.
 3. `npm ci && npm run build`
 4. `php artisan migrate --force`
 5. `php artisan config:cache route:cache view:cache`
-6. Re-apply runtime-writable permissions on `storage` and `bootstrap/cache`
+6. Re-apply runtime-writable permissions on `storage` and `bootstrap/cache`,
+   skipping (and listing) anything the deploy user does not own
 7. Restart `php8.4-fpm` and `risk-queue`
 
 ### Why the cache step matters more than it looks

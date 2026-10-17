@@ -23,8 +23,13 @@ APP_DIR=/var/www/thirdLine-ERM
 #     tests/Feature/DeployScriptRuntimePermissionsTest exercises on a developer
 #     Mac is the same one that runs on the Ubuntu host, and it also catches a
 #     directory that is readable but not searchable, which -readable does not;
-#   - only entries this user owns are chmod'ed. Anything php-fpm or the queue
-#     worker created belongs to www-data, and chmod on it would fail anyway;
+#   - anything this user does not own is pruned, subtree and all, and listed
+#     as skipped (not as a warning). php-fpm and the queue worker run as
+#     www-data and create directories of their own under storage; only a
+#     file's owner may chmod it, and a www-data path is already writable by
+#     www-data, so skipping it loses nothing. The 2026-10-16 deploy of 6ae4611
+#     stopped on www-data-owned storage/app/private/rcsa (PR #20). Ownership
+#     drift is worth seeing in the deploy log, so each skipped path is named;
 #   - storage/app/private — the `local` disk root, holding loss-event, issue,
 #     control-test, TPRM and BCMS evidence and the RCSA import/export
 #     workbooks — is 2770/0660, never world-readable. Everything else keeps
@@ -36,24 +41,35 @@ APP_DIR=/var/www/thirdLine-ERM
 # Returns 0 always. What it could not reach is printed for an operator to fix
 # as root — see docs/DEPLOYMENT.md, "When the permissions step warns".
 ensure_runtime_permissions() {
-    local me errlog unreachable status=0
-    me="$(id -un)"
+    local DEPLOY_USER errlog listed status=0
+    DEPLOY_USER="$(id -un)"
     errlog="$(mktemp 2>/dev/null)" || errlog=/dev/null
 
-    unreachable="$(
+    # One walk. Not-mine is pruned first, so nothing below it is visited; then a
+    # directory this user owns but cannot list or enter; then the private disk;
+    # then everything else. The two printf tags are split apart below. A path
+    # with a newline in it would split its tagged line and print wrongly; that
+    # touches only the listing, never which paths are chmod'ed, and nothing
+    # under storage/ is named that way.
+    listed="$(
         find storage bootstrap/cache \
-            -type d \( ! -exec test -r {} \; -o ! -exec test -x {} \; \) -prune -print \
-            -o -user "$me" \( -path storage/app/private -o -path 'storage/app/private/*' \) \
+            ! -user "$DEPLOY_USER" -prune -exec printf 'notmine\t%s\n' {} \; \
+            -o -type d \( ! -exec test -r {} \; -o ! -exec test -x {} \; \) -prune -exec printf 'unreachable\t%s\n' {} \; \
+            -o \( -path storage/app/private -o -path 'storage/app/private/*' \) \
                 \( -type d -exec chmod 2770 {} + -o -type f -exec chmod 0660 {} + \) \
-            -o -user "$me" -type d -exec chmod 2775 {} + \
-            -o -user "$me" -type f -exec chmod 0664 {} + \
+            -o -type d -exec chmod 2775 {} + \
+            -o -type f -exec chmod 0664 {} + \
             2>"$errlog"
     )" || status=$?
 
-    if [[ -n "$unreachable" ]]; then
-        echo "!!  WARNING: '$me' cannot list or enter these directories under storage/ or"
+    if grep -q '^notmine' <<<"$listed"; then
+        grep '^notmine' <<<"$listed" | cut -f2- | sed 's/^/    skipped, not owned by '"$DEPLOY_USER"': /'
+    fi
+
+    if grep -q '^unreachable' <<<"$listed"; then
+        echo "!!  WARNING: '$DEPLOY_USER' cannot list or enter these directories under storage/ or"
         echo "!!  bootstrap/cache; they and everything below them were skipped:"
-        printf '%s\n' "$unreachable" | sed 's/^/!!    /'
+        grep '^unreachable' <<<"$listed" | cut -f2- | sed 's/^/!!    /'
         echo "!!  The app will keep working, but fix them as root before they hide more:"
         echo "!!  see docs/DEPLOYMENT.md, 'When the permissions step warns'."
     fi

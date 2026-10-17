@@ -99,6 +99,12 @@ jobs:
           npm run ui:audit:test
           npm run ui:audit -- resources/js/Pages/Rcsa* resources/js/Pages/Tprm resources/js/Pages/TprmPortal resources/js/Components/Tprm resources/js/Pages/Bcms resources/js/Components/Bcms packages/ui/src
 
+      # One rule, everywhere: a <PageHeader> action button is portalled out of
+      # the <form> around it. The ERM pages are out of the full audit's scope,
+      # but this rule has 0 findings on them today and must stay there.
+      - name: Guard - PageHeader submit buttons (all pages)
+        run: npm run ui:audit -- --only=pageheader-submit resources/js packages/ui/src
+
       - name: Guard — migration parity
         run: php scripts/parity-check.php
 

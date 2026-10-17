@@ -33,6 +33,7 @@ export { default as FormField } from './Components/FormField.jsx';
 export { default as FormSection } from './Components/FormSection.jsx';
 export { default as GroupedBarChart } from './Components/GroupedBarChart.jsx';
 export { default as HBarChart } from './Components/HBarChart.jsx';
+export { default as Icon } from './Components/Icon.jsx';
 export { default as InputError } from './Components/InputError.jsx';
 export { default as InputLabel } from './Components/InputLabel.jsx';
 export { default as KpiCard } from './Components/KpiCard.jsx';

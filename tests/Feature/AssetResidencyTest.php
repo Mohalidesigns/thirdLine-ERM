@@ -130,7 +130,23 @@ class AssetResidencyTest extends TestCase
     #[Test]
     public function the_self_hosted_fonts_are_present(): void
     {
-        $this->assertTrue(File::exists(public_path('fonts/Inter-1.woff2')), 'Inter is not self-hosted');
+        // Every font the stylesheet declares and every one the root view preloads
+        // must exist under public/. The list is read from the two files rather
+        // than named here, so swapping a typeface cannot leave this test
+        // asserting on the one that was removed (Inter was, and it failed CI).
+        $css = File::get(resource_path('css/fonts.css'));
+        $blade = File::get(resource_path('views/app.blade.php'));
+
+        preg_match_all('~url\(\s*[\'"]?(/fonts/[^\'")\s]+)~', $css, $declared);
+        preg_match_all('~href="(/fonts/[^"]+)"~', $blade, $preloaded);
+
+        $this->assertNotEmpty($declared[1], 'fonts.css declares no self-hosted font');
+        $this->assertNotEmpty($preloaded[1], 'app.blade.php preloads no self-hosted font');
+
+        foreach (array_unique(array_merge($declared[1], $preloaded[1])) as $path) {
+            $this->assertTrue(File::exists(public_path(ltrim($path, '/'))), "{$path} is referenced but not self-hosted");
+        }
+
         $this->assertTrue(
             File::exists(public_path('fonts/MaterialSymbolsOutlined-1.woff2')),
             'Material Symbols is not self-hosted'

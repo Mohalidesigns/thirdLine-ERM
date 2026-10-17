@@ -1,25 +1,30 @@
 import { Link, usePage, router } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Dropdown from '../Components/Dropdown';
 import FlashNotification from '../Components/FlashNotification';
+import Icon from '../Components/Icon';
+import tryRoute from '../lib/tryRoute';
+import { PageHeaderSlotContext } from './PageHeaderSlot';
 
 /**
- * The authenticated shell: sidebar, top bar, page header slot.
+ * The authenticated shell: sidebar, top bar, page-header band.
  *
- * ThirdLine's layout, with one structural change — the sidebar is not a
- * constant in this file. It arrives as the `navigation` shared prop from
- * App\Presenters\NavPresenter, already filtered to what the signed-in user
- * may open, so there is exactly one definition of the menu and one gate
- * (the route's own `permission:` middleware) that it mirrors.
+ * ThirdLine Internal Audit's layout (64px bars, 260px/72px sidebar, Heroicons),
+ * with one structural change - the sidebar is not a constant in this file. It
+ * arrives as the `navigation` shared prop from App\Presenters\NavPresenter,
+ * already filtered to what the signed-in user may open, so there is exactly
+ * one definition of the menu and one gate (the route's own `permission:`
+ * middleware) that it mirrors.
  *
- * Icons are Material Symbols, self-hosted (resources/css/fonts.css), because
- * that is what the product's Blade screens already use and it lets the
- * presenter name an icon as a string.
+ * Icons go through <Icon>: Heroicons for the names it maps, the self-hosted
+ * Material Symbols glyph for the rest (see Components/Icon.jsx).
+ *
+ * Focus rings here are `focus-visible` only and never remove the outline
+ * without a replacement (a booked finding against .btn-*).
  */
 
-function Icon({ name, className = 'text-[18px]' }) {
-    return <span className={`material-symbols-outlined leading-none ${className}`}>{name}</span>;
-}
+const RING_DARK = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white';
+const RING_LIGHT = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2';
 
 function pathOf(url) {
     try {
@@ -39,12 +44,17 @@ function isUnder(current, prefix) {
     return path === p || path.startsWith(p + '/');
 }
 
-function tryRoute(name, params) {
-    try {
-        return route(name, params);
-    } catch {
-        return null;
-    }
+function useMediaQuery(query) {
+    const get = () => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(query).matches : true);
+    const [matches, setMatches] = useState(get);
+    useEffect(() => {
+        const mq = window.matchMedia(query);
+        const on = () => setMatches(mq.matches);
+        on();
+        mq.addEventListener('change', on);
+        return () => mq.removeEventListener('change', on);
+    }, [query]);
+    return matches;
 }
 
 /**
@@ -53,17 +63,17 @@ function tryRoute(name, params) {
  * error modal, so entries the NavPresenter did not mark `inertia` are plain
  * anchors (a full-page navigation).
  */
-function NavAnchor({ item, className, title, children }) {
+function NavAnchor({ item, children, ...props }) {
     if (item.inertia) {
         return (
-            <Link href={item.url} className={className} title={title}>
+            <Link href={item.url} {...props}>
                 {children}
             </Link>
         );
     }
 
     return (
-        <a href={item.url} className={className} title={title}>
+        <a href={item.url} {...props}>
             {children}
         </a>
     );
@@ -75,26 +85,25 @@ function PrimaryLink({ item, current, collapsed }) {
         <NavAnchor
             item={item}
             title={collapsed ? item.label : undefined}
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-[13px] ${
-                active ? 'text-white bg-white/12' : 'text-white/70 hover:text-white hover:bg-white/8'
-            }`}
+            aria-label={collapsed ? item.label : undefined}
+            aria-current={active ? 'page' : undefined}
+            className={`sidebar-nav-item ${active ? 'active' : ''} ${RING_DARK}`}
         >
-            <Icon name={item.icon} />
-            {!collapsed && <span className="truncate">{item.label}</span>}
+            <Icon name={item.icon} className="w-5 h-5 flex-shrink-0" />
+            <span className={collapsed ? 'sr-only' : 'truncate'}>{item.label}</span>
         </NavAnchor>
     );
 }
 
-function SectionItem({ item, current }) {
+function ChildLink({ item, current }) {
     const active = isExact(current, item.url);
     return (
         <NavAnchor
             item={item}
-            className={`block px-3 py-1.5 rounded-md text-[12px] transition-all ${
-                active ? 'font-semibold bg-[var(--color-accent)] text-[var(--color-primary)]' : 'text-white/50 hover:text-white hover:bg-white/6'
-            }`}
+            aria-current={active ? 'page' : undefined}
+            className={`sidebar-nav-item ${active ? 'active' : ''} py-1.5 px-2.5 text-[12.5px] ${RING_DARK}`}
         >
-            {item.label}
+            <span className="truncate">{item.label}</span>
         </NavAnchor>
     );
 }
@@ -109,35 +118,40 @@ function Section({ section, current, collapsed, children }) {
 
     if (collapsed) {
         const first = section.items?.[0] ?? section.groups?.[0]?.items?.[0];
+        if (!first) return null;
         return (
             <NavAnchor
-                item={first ?? { url: '#', inertia: false }}
+                item={first}
                 title={section.label}
-                className={`flex items-center justify-center px-3 py-2 rounded-lg ${sectionActive ? 'bg-white/12 text-white' : 'text-white/60 hover:bg-white/6 hover:text-white/80'}`}
+                aria-label={section.label}
+                className={`sidebar-nav-item ${sectionActive ? 'active' : ''} ${RING_DARK}`}
             >
-                <Icon name={section.icon} className={`text-[18px] ${sectionActive ? 'text-[var(--color-accent)]' : ''}`} />
+                <Icon name={section.icon} className="w-5 h-5 flex-shrink-0" />
+                <span className="sr-only">{section.label}</span>
             </NavAnchor>
         );
     }
 
+    const panelId = `nav-sec-${section.key}`;
     return (
-        <div className="nav-group">
+        <div>
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium transition-all group ${
-                    sectionActive ? 'bg-white/12 text-white' : 'text-white/60 hover:bg-white/6 hover:text-white/80'
-                }`}
+                className={`sidebar-nav-item w-full ${sectionActive ? 'active' : ''} ${RING_DARK}`}
                 aria-expanded={open}
+                aria-controls={panelId}
             >
-                <span className="flex items-center gap-2.5">
-                    <Icon name={section.icon} className={`text-[18px] ${sectionActive ? 'text-[var(--color-accent)]' : 'text-white/40 group-hover:text-white/60'}`} />
-                    <span>{section.label}</span>
-                </span>
-                <Icon name="expand_more" className={`text-[16px] text-white/40 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+                <Icon name={section.icon} className="w-5 h-5 flex-shrink-0" />
+                <span className="truncate flex-1 text-left">{section.label}</span>
+                <Icon
+                    name="chevron_right"
+                    strokeWidth={2}
+                    className={`w-4 h-4 flex-shrink-0 transition-transform motion-reduce:transition-none ${open ? 'rotate-90' : ''}`}
+                />
             </button>
             {open && (
-                <div className="mt-0.5 ml-[30px] border-l border-white/10 pl-2 space-y-0.5">
+                <div id={panelId} className="ml-4 pl-3 border-l border-white/10 space-y-0.5 mt-0.5 mb-1">
                     {children}
                 </div>
             )}
@@ -150,38 +164,57 @@ function Section({ section, current, collapsed, children }) {
  *
  * `search` and `periodSelector` are SLOTS rather than imports. Both were
  * components this layout reached for directly, and both hardcode one product's
- * route names — `search.suggest`, `risk.periods.select` — which a shared shell
+ * route names - `search.suggest`, `risk.periods.select` - which a shared shell
  * cannot name: the route does not exist in the other product and Ziggy throws
  * on a name it has never heard of.
  *
  * The layout keeps the decision that matters (WHERE they sit in the topbar, and
  * that search appears only with `search.view`, and the period chip only when a
  * period is resolved). The application supplies what goes in them.
+ *
+ * `title` is still accepted (pages pass it) but no longer rendered: the page's
+ * own title lives in the band below the bar.
  */
-export default function AuthenticatedLayout({ header, title, children, search = null, periodSelector = null }) {
+export default function AuthenticatedLayout({ header, children, search = null, periodSelector = null }) {
     const page = usePage();
     const { auth, navigation, tenant, period, unreadNotifications, features } = page.props;
     const permissions = auth?.permissions ?? [];
     const current = page.url;
     const user = auth?.user ?? {};
 
+    const isDesktop = useMediaQuery('(min-width: 1024px)');
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [liveUnread, setLiveUnread] = useState(unreadNotifications || 0);
     const [bellRing, setBellRing] = useState(false);
+    const [announce, setAnnounce] = useState('');
+    const liveUnreadRef = useRef(liveUnread);
+    const navRef = useRef(null);
+    const hamburgerRef = useRef(null);
+    const asideRef = useRef(null);
+    const wasOpen = useRef(false);
+
+    // The collapsed rail is a desktop state; the mobile drawer is always full.
+    const collapsed = sidebarCollapsed && isDesktop;
 
     useEffect(() => {
         setLiveUnread(unreadNotifications || 0);
     }, [unreadNotifications]);
 
-    // Poll the bell every 30 s once the JSON count route exists (Phase 1 adds
-    // notifications.unread-count). Until then the count is what the server
-    // shared with the page.
+    useEffect(() => {
+        liveUnreadRef.current = liveUnread;
+    }, [liveUnread]);
+
+    // Poll the bell every 30 s once the JSON count route exists. Until then the
+    // count is what the server shared with the page. Skipped while the tab is
+    // hidden so a degraded link is not spent on a background tab.
     useEffect(() => {
         const url = tryRoute('notifications.unread-count');
         if (!url) return undefined;
 
+        let ringTimer;
         const poll = setInterval(async () => {
+            if (document.hidden) return;
             try {
                 const res = await fetch(url, {
                     headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -189,9 +222,11 @@ export default function AuthenticatedLayout({ header, title, children, search = 
                 if (!res.ok) return;
                 const data = await res.json();
                 const next = data.unread_count || 0;
-                if (next > liveUnread) {
+                if (next > liveUnreadRef.current) {
                     setBellRing(true);
-                    setTimeout(() => setBellRing(false), 2000);
+                    clearTimeout(ringTimer);
+                    ringTimer = setTimeout(() => setBellRing(false), 2000);
+                    setAnnounce(`You have ${next} unread notification${next === 1 ? '' : 's'}`);
                 }
                 setLiveUnread(next);
             } catch {
@@ -199,183 +234,288 @@ export default function AuthenticatedLayout({ header, title, children, search = 
             }
         }, 30000);
 
-        return () => clearInterval(poll);
-    }, [liveUnread]);
+        return () => {
+            clearInterval(poll);
+            clearTimeout(ringTimer);
+        };
+    }, []);
+
+    // Drawer: close on navigation and on Escape; move focus in and back out.
+    useEffect(() => router.on('navigate', () => setMobileMenuOpen(false)), []);
+
+    useEffect(() => {
+        if (!mobileMenuOpen) return undefined;
+        const onKey = (e) => e.key === 'Escape' && setMobileMenuOpen(false);
+        document.addEventListener('keydown', onKey);
+        // The drawer is still inert until the effect below runs; lift it so focus can land.
+        asideRef.current?.removeAttribute('inert');
+        navRef.current?.querySelector('a,button')?.focus();
+        return () => document.removeEventListener('keydown', onKey);
+    }, [mobileMenuOpen]);
+
+    useEffect(() => {
+        if (wasOpen.current && !mobileMenuOpen) hamburgerRef.current?.focus();
+        wasOpen.current = mobileMenuOpen;
+    }, [mobileMenuOpen]);
+
+    // Off-canvas drawer links must not be tabbable.
+    const drawerHidden = !isDesktop && !mobileMenuOpen;
+    useEffect(() => {
+        const el = asideRef.current;
+        if (!el) return;
+        if (drawerHidden) el.setAttribute('inert', '');
+        else el.removeAttribute('inert');
+    }, [drawerHidden]);
+
+    useEffect(() => {
+        navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' });
+    }, []);
+
+    // Page-header band: PageHeader portals here. `header` wins and takes the band itself.
+    const [bandTarget, setBandTarget] = useState(null);
+    const [claimedTitle, setClaimedTitle] = useState(null);
+    const [slotVersion, setSlotVersion] = useState(0);
+    const claimedRef = useRef(null);
+    const claim = useCallback((id, titleId) => {
+        if (claimedRef.current && claimedRef.current !== id) return false;
+        claimedRef.current = id;
+        setClaimedTitle(titleId ?? true);
+        return true;
+    }, []);
+    const release = useCallback((id) => {
+        if (claimedRef.current !== id) return;
+        claimedRef.current = null;
+        setClaimedTitle(null);
+        setSlotVersion((v) => v + 1);
+    }, []);
+    const slotValue = useMemo(() => (header ? null : { target: bandTarget, claim, release, version: slotVersion }), [header, bandTarget, claim, release, slotVersion]);
 
     const nav = navigation || { primary: [], sections: [], admin: null };
+    const primary = (nav.primary || []).filter((i) => i.url);
+    const sections = (nav.sections || [])
+        .map((s) => ({ ...s, items: (s.items || []).filter((i) => i.url) }))
+        .filter((s) => s.items.length > 0);
+    const admin = nav.admin
+        ? { ...nav.admin, groups: (nav.admin.groups || []).map((g) => ({ ...g, items: (g.items || []).filter((i) => i.url) })).filter((g) => g.items.length > 0) }
+        : null;
+    const adminShown = admin && admin.groups.length > 0;
+
     const notificationsUrl = tryRoute('notifications.index');
+    const searchUrl = tryRoute('search.index');
     const myUrl = tryRoute('my.index');
     const profileUrl = tryRoute('profile.edit');
     const mfaSetupUrl = features?.mfa_totp ? tryRoute('mfa.setup') : null;
     const logoutUrl = tryRoute('logout');
+    const showSearch = Boolean(search) && permissions.includes('search.view');
+    const bellLabel = liveUnread > 0 ? `Notifications (${liveUnread} unread)` : 'Notifications';
+    const closeNav = () => setMobileMenuOpen(false);
 
     return (
         <div className="min-h-screen bg-[var(--color-bg)]">
+            <a
+                href="#main-content"
+                className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--color-primary)] focus:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+            >
+                Skip to content
+            </a>
             <FlashNotification />
 
             {mobileMenuOpen && (
-                <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
+                <button
+                    type="button"
+                    aria-label="Close navigation"
+                    className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+                    onClick={closeNav}
+                />
             )}
 
             {/* Sidebar */}
             <aside
+                ref={asideRef}
+                id="app-sidebar"
                 data-sidebar
-                className={`fixed top-0 left-0 z-50 h-full bg-[var(--color-primary)] text-white transition-all duration-300 flex flex-col ${
-                    sidebarCollapsed ? 'w-[var(--sidebar-collapsed-width)]' : 'w-[var(--sidebar-width)]'
+                aria-label="Primary"
+                className={`fixed top-0 left-0 z-50 h-full bg-[var(--color-primary)] text-white flex flex-col transition-all duration-300 motion-reduce:transition-none w-[var(--sidebar-width)] ${
+                    sidebarCollapsed ? 'lg:w-[var(--sidebar-collapsed-width)]' : ''
                 } ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
             >
-                {/* Brand */}
-                <div className="px-5 pt-5 pb-3 border-b border-white/10 flex-shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-white/15 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <Icon name="shield" className="text-[var(--color-accent)] text-xl" />
-                        </div>
-                        {!sidebarCollapsed && (
-                            <div>
-                                <div className="text-[13px] font-bold text-white leading-tight">Atheris ERM</div>
-                                <div className="text-[10px] text-white/50 font-medium">GRC Suite</div>
-                            </div>
-                        )}
-                    </div>
+                {/* Logo bar */}
+                <div className="flex items-center px-4 h-16 border-b border-white/10 flex-shrink-0">
+                    <span className="h-9 w-9 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
+                        <Icon name="shield" className="w-5 h-5 text-[var(--color-accent)]" />
+                    </span>
+                    {!collapsed && (
+                        <span className="ml-3 min-w-0 flex-1">
+                            <span className="block text-sm font-bold leading-tight truncate">Atheris ERM</span>
+                            <span className="block text-[11px] text-white/60 leading-tight">GRC Suite</span>
+                        </span>
+                    )}
+                    <button
+                        type="button"
+                        onClick={closeNav}
+                        aria-label="Close navigation"
+                        className={`lg:hidden ml-auto p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 ${RING_DARK}`}
+                    >
+                        <Icon name="close" className="w-5 h-5" />
+                    </button>
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 overflow-y-auto sidebar-scroll px-3 py-3 space-y-0.5" data-testid="sidebar-nav">
-                    {nav.primary.map((item) => (
-                        <PrimaryLink key={item.key} item={item} current={current} collapsed={sidebarCollapsed} />
+                <nav ref={navRef} aria-label="Main" className="flex-1 overflow-y-auto sidebar-scroll py-4 px-3 space-y-1" data-testid="sidebar-nav">
+                    {primary.map((item) => (
+                        <PrimaryLink key={item.key} item={item} current={current} collapsed={collapsed} />
                     ))}
 
-                    {nav.primary.length > 0 && <div className="h-px bg-white/10 mx-1 my-2" />}
+                    {primary.length > 0 && (sections.length > 0 || adminShown) && <div role="separator" className="h-px bg-white/10 mx-1 my-2" />}
 
-                    {nav.sections.map((section) => (
-                        <Section key={section.key} section={section} current={current} collapsed={sidebarCollapsed}>
+                    {sections.map((section) => (
+                        <Section key={section.key} section={section} current={current} collapsed={collapsed}>
                             {section.items.map((item) => (
-                                <SectionItem key={item.key} item={item} current={current} />
+                                <ChildLink key={item.key} item={item} current={current} />
                             ))}
                         </Section>
                     ))}
 
-                    {nav.admin && (
+                    {adminShown && (
                         <>
-                            <div className="h-px bg-white/10 mx-1 my-3" />
-                            <Section section={nav.admin} current={current} collapsed={sidebarCollapsed}>
-                                {nav.admin.groups.map((group) => (
-                                    <div key={group.label}>
-                                        <div className="px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/30">{group.label}</div>
-                                        {group.items.map((item) => (
-                                            <SectionItem key={item.key} item={item} current={current} />
-                                        ))}
-                                    </div>
-                                ))}
+                            <div role="separator" className="h-px bg-white/10 mx-1 my-3" />
+                            <Section section={admin} current={current} collapsed={collapsed}>
+                                {admin.groups.map((group, gi) => {
+                                    const labelId = `nav-grp-${gi}`;
+                                    return (
+                                        <div key={group.label} role="group" aria-labelledby={labelId} className={gi > 0 ? 'mt-1 border-t border-white/10' : ''}>
+                                            <div id={labelId} className="px-2.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/60">
+                                                {group.label}
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                {group.items.map((item) => (
+                                                    <ChildLink key={item.key} item={item} current={current} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </Section>
                         </>
                     )}
                 </nav>
 
                 {/* Footer */}
-                <div className="border-t border-white/10 px-3 py-3 flex-shrink-0 space-y-1">
-                    {!sidebarCollapsed && (
-                        <div className="flex items-center gap-2 px-1 text-[10px] text-white/30">
-                            <Icon name="architecture" className="text-[14px]" />
+                <div className="border-t border-white/10 py-4 px-3 space-y-1 flex-shrink-0">
+                    {!collapsed && (
+                        <div className="px-3 pb-1 text-[11px] text-white/60 flex items-center gap-2">
+                            <Icon name="info" className="w-4 h-4 flex-shrink-0" />
                             <span>Designed for CBN ORMS reporting</span>
                         </div>
                     )}
                     <button
                         type="button"
                         onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                        className="sidebar-nav-item w-full text-white/50 hover:text-white hidden lg:flex"
+                        className={`sidebar-nav-item w-full text-white/70 hover:text-white hidden lg:flex ${RING_DARK}`}
+                        aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                        aria-pressed={sidebarCollapsed}
+                        title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                     >
-                        <Icon name={sidebarCollapsed ? 'keyboard_double_arrow_right' : 'keyboard_double_arrow_left'} className="text-[18px]" />
+                        <Icon
+                            name="keyboard_double_arrow_left"
+                            className={`w-5 h-5 flex-shrink-0 transition-transform motion-reduce:transition-none ${sidebarCollapsed ? 'rotate-180' : ''}`}
+                        />
                         {!sidebarCollapsed && <span>Collapse</span>}
                     </button>
                 </div>
             </aside>
 
             {/* Main content area */}
-            <div className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-[var(--sidebar-collapsed-width)]' : 'lg:ml-[var(--sidebar-width)]'}`}>
+            <div className={`transition-all duration-300 motion-reduce:transition-none ${sidebarCollapsed ? 'lg:ml-[var(--sidebar-collapsed-width)]' : 'lg:ml-[var(--sidebar-width)]'}`}>
                 {/* Top bar */}
-                <header className="sticky top-0 z-30 bg-white border-b border-gray-200 h-14">
-                    <div className="flex items-center justify-between h-full px-4 sm:px-6">
-                        <div className="flex items-center gap-3 min-w-0">
+                <header className="sticky top-0 z-30 bg-white border-b border-gray-200 h-16">
+                    <div className="flex items-center justify-between h-full px-4 sm:px-6 gap-3">
+                        <div className="flex items-center gap-4 min-w-0">
                             <button
+                                ref={hamburgerRef}
                                 type="button"
                                 onClick={() => setMobileMenuOpen(true)}
-                                className="lg:hidden p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                                className={`lg:hidden p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 ${RING_LIGHT}`}
                                 aria-label="Open navigation"
+                                aria-expanded={mobileMenuOpen}
+                                aria-controls="app-sidebar"
                             >
-                                <Icon name="menu" className="text-[22px]" />
+                                <Icon name="menu" className="w-6 h-6" />
                             </button>
 
-                            {/* Breadcrumb path, as the Blade topbar renders it */}
-                            <div className="flex items-center gap-2 text-xs min-w-0">
-                                <span className="text-gray-400">Risk Management</span>
-                                {title && (
-                                    <>
-                                        <span className="text-gray-300">/</span>
-                                        <span className="text-[var(--color-primary)] font-semibold truncate">{title}</span>
-                                    </>
-                                )}
-                            </div>
+                            {/* Global search - type-ahead over the object graph, permission-filtered server-side. */}
+                            {showSearch && <div className="hidden sm:block">{search}</div>}
+                            {showSearch && searchUrl && (
+                                <Link
+                                    href={searchUrl}
+                                    aria-label="Search"
+                                    className={`sm:hidden p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 ${RING_LIGHT}`}
+                                >
+                                    <Icon name="search" className="w-5 h-5" />
+                                </Link>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-3">
-                            {/* Global search — type-ahead over the object graph, permission-filtered server-side. */}
-                            {search && permissions.includes('search.view') && (
-                                <div className="hidden md:block">
-                                    {search}
-                                </div>
-                            )}
-
                             {/* Tenant chip */}
                             {tenant && (
                                 <span
-                                    className="hidden md:inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700"
+                                    className="hidden xl:inline-flex items-center gap-1.5 h-9 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-medium text-gray-700"
                                     title={tenant.name}
                                     data-testid="tenant-chip"
                                 >
-                                    <Icon name="corporate_fare" className="text-[16px] text-gray-400" />
+                                    <Icon name="corporate_fare" className="w-4 h-4 text-gray-400" />
                                     <span className="truncate max-w-[180px]">{tenant.code || tenant.name}</span>
                                 </span>
                             )}
 
                             {/* Reporting period: everything on the page is "as at" this. */}
-                            {period && (
-                                <div className="hidden sm:block">
-                                    {periodSelector}
-                                </div>
-                            )}
+                            {period && <div className="hidden sm:block">{periodSelector}</div>}
 
                             {/* Notifications */}
                             {notificationsUrl && (
                                 <Link
                                     href={notificationsUrl}
-                                    className="relative p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                                    aria-label="Notifications"
+                                    className={`relative p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors motion-reduce:transition-none ${RING_LIGHT}`}
+                                    aria-label={bellLabel}
                                 >
-                                    <Icon name="notifications" className={`text-[22px] ${bellRing ? 'animate-bell-ring' : ''}`} />
+                                    <Icon name="notifications" className={`w-5 h-5 ${bellRing ? 'animate-bell-ring motion-reduce:animate-none' : ''}`} />
                                     {liveUnread > 0 && (
-                                        <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                                        <span
+                                            aria-hidden="true"
+                                            className={`absolute -top-0.5 -right-0.5 w-5 h-5 bg-[var(--color-error)] text-white text-[10px] font-bold rounded-full flex items-center justify-center ${
+                                                bellRing ? 'animate-pulse motion-reduce:animate-none' : ''
+                                            }`}
+                                        >
                                             {liveUnread > 9 ? '9+' : liveUnread}
                                         </span>
                                     )}
                                 </Link>
                             )}
+                            <span className="sr-only" role="status" aria-live="polite">
+                                {announce}
+                            </span>
 
                             {/* User dropdown */}
                             <Dropdown>
                                 <Dropdown.Trigger>
-                                    <button type="button" className="flex items-center gap-2 p-1 rounded-lg hover:bg-gray-100 transition-colors">
-                                        <div className="w-8 h-8 bg-[var(--color-primary)] rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                                    <button
+                                        type="button"
+                                        aria-label={`Account menu for ${user.name ?? 'user'}`}
+                                        className={`flex items-center gap-3 p-1.5 rounded-lg hover:bg-gray-100 transition-colors motion-reduce:transition-none ${RING_LIGHT}`}
+                                    >
+                                        <span aria-hidden="true" className="w-8 h-8 bg-[var(--color-primary)] rounded-full flex items-center justify-center text-white text-sm font-semibold">
                                             {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
-                                        </div>
-                                        <div className="hidden sm:block text-left">
-                                            <div className="text-sm font-medium text-gray-700 leading-tight">{user.name}</div>
-                                            <div className="text-[11px] text-gray-500">{user.email}</div>
-                                        </div>
-                                        <Icon name="expand_more" className="text-[18px] text-gray-400 hidden sm:block" />
+                                        </span>
+                                        <span className="hidden lg:block text-left">
+                                            <span className="block text-sm font-medium text-gray-700">{user.name}</span>
+                                            <span className="block text-xs text-gray-500 truncate max-w-[180px]">{user.email}</span>
+                                        </span>
+                                        <Icon name="expand_more" className="w-4 h-4 text-gray-400 hidden lg:block" />
                                     </button>
                                 </Dropdown.Trigger>
                                 <Dropdown.Content>
+                                    {tenant && <div className="xl:hidden px-4 py-2 text-xs text-gray-500 border-b border-gray-100">Signed in to {tenant.name}</div>}
                                     {profileUrl && <Dropdown.Link href={profileUrl}>Profile</Dropdown.Link>}
                                     {mfaSetupUrl && <Dropdown.Link href={mfaSetupUrl}>2FA Setup</Dropdown.Link>}
                                     {myUrl && <Dropdown.Link href={myUrl}>My Responsibilities</Dropdown.Link>}
@@ -390,13 +530,21 @@ export default function AuthenticatedLayout({ header, title, children, search = 
                     </div>
                 </header>
 
-                {header && (
-                    <div className="bg-white border-b border-gray-100">
-                        <div className="px-4 sm:px-6 py-4">{header}</div>
+                {/* Page-header band */}
+                <div className={`bg-white border-b border-gray-100 ${header || claimedTitle ? '' : 'hidden'}`} data-testid="page-header-band">
+                    <div className="px-4 sm:px-6 py-4" ref={setBandTarget}>
+                        {header}
                     </div>
-                )}
+                </div>
 
-                <main className="p-4 sm:p-6">{children}</main>
+                <main
+                    id="main-content"
+                    tabIndex={-1}
+                    aria-labelledby={typeof claimedTitle === 'string' ? claimedTitle : undefined}
+                    className="p-4 sm:p-6 focus:outline-none"
+                >
+                    <PageHeaderSlotContext.Provider value={slotValue}>{children}</PageHeaderSlotContext.Provider>
+                </main>
             </div>
         </div>
     );

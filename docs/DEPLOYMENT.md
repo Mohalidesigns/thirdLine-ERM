@@ -37,7 +37,8 @@ half-migrated application serving traffic.
 4. `php artisan migrate --force`
 5. `php artisan config:cache route:cache view:cache`
 6. Re-apply runtime-writable permissions on `storage` and `bootstrap/cache` —
-   the one step that is never fatal; see below
+   the one step that is never fatal; anything the deploy user does not own is
+   skipped and listed. See below
 7. Restart `php8.4-fpm` and `risk-queue`
 
 ### Why the cache step matters more than it looks
@@ -64,19 +65,32 @@ which is the only reason it cannot ship silently.
 The step re-applies `2775`/`0664` under `storage/` and `bootstrap/cache`, and
 `2770`/`0660` under `storage/app/private` — the `local` disk root, which holds
 every module's evidence and the RCSA/TPRM import workbooks and must never be
-world-readable. It chmods only what `deploy` owns, skips any directory `deploy`
-cannot list and enter, and never fails the deploy. What it skipped is printed:
+world-readable. It never fails the deploy, and it skips two kinds of path,
+printed differently because they mean different things:
 
 ```
+    skipped, not owned by deploy: storage/app/private/rcsa
 !!  WARNING: 'deploy' cannot list or enter these directories under storage/ or
 !!  bootstrap/cache; they and everything below them were skipped:
-!!    storage/app/private/rcsa
+!!    storage/framework/cache/data
 ```
+
+- **`skipped, not owned by deploy:`** is information, not a fault. php-fpm and
+  the queue worker run as `www-data` and create directories of their own; only
+  a file's owner may chmod it, and a `www-data` path is already writable by
+  `www-data`, so the step leaves the path and everything below it alone. A long
+  or growing list means ownership has drifted from `deploy`; run steps 0–4 of
+  the root runbook below when convenient.
+- **The WARNING** is a directory `deploy` **owns** but cannot list or enter: its
+  own modes are broken, nothing below it is being maintained, and it needs the
+  root fix below.
 
 It was fatal until 2026-10-05. The day after RCSA v2 was enabled php-fpm, as
 `www-data`, created `storage/app/private/rcsa` at Flysystem's private default of
 `0700`; `find` could not list it and the deploy of PR #12 aborted before
-preflight and the restart. `config/filesystems.php` now gives the `local` and
+preflight and the restart. On 2026-10-16 the same directory stopped the deploy
+of `6ae4611` the same way; PR #20 made the step skip what `deploy` does not
+own, and this step keeps that. `config/filesystems.php` now gives the `local` and
 `public` disks an explicit `permissions` map (private `0770`/`0660`, public
 `0775`/`0664`), so a directory the app creates is owner+group and nothing for
 anyone else — `0750` under systemd's default `UMask=0022`, which `deploy` can
@@ -86,24 +100,27 @@ list through the `www-data` group.
 
 The deploy that **ships** this fix does not run it. `git reset --hard` writes a
 new `scripts/deploy.sh`, but bash keeps reading the copy it already opened, so
-that one deploy runs the old, fatal step. Until the fix is live the app also
-keeps creating owner-only (`0700`) directories, so any `www-data`-owned `0700`
-directory created under `storage/` since the last root fix will abort it at
-"Ensure runtime-writable permissions".
+that one deploy runs the step already on `main`: PR #20's three inline `find`
+lines. Those skip anything `deploy` does not own, so a `www-data`-owned `0700`
+directory such as `storage/app/private/rcsa` no longer aborts it. They still run
+under `set -e`, so a directory `deploy` **owns** but cannot list or enter, or
+any other `find`/`chmod` error (a cache file php-fpm deletes mid-walk, say), will
+still abort it at "Ensure runtime-writable permissions".
 
-- **(a) Before the merge deploys,** run steps 0–4 of the root runbook below.
-- **(b) If you do not,** expect that deploy to fail at the permissions step —
-  migrations and the config/route/view caches done, preflight not run, services
-  not restarted. Recover by re-running the deploy: re-run the failed workflow
-  run, or start one with `workflow_dispatch`. The second run executes the new
-  script, and every step before the permissions step is safe to repeat.
+- **(a) Before the merge deploys,** run step 1 of the root runbook below. If
+  the first command prints nothing that `deploy` owns, the old step will pass.
+- **(b) If it fails anyway** — migrations and the config/route/view caches
+  done, preflight not run, services not restarted — recover by re-running the
+  deploy: re-run the failed workflow run, or start one with `workflow_dispatch`.
+  The second run executes the new script, and every step before the
+  permissions step is safe to repeat.
 - **(c) Either way,** the old step runs one last time and reopens the
   `deploy`-owned files under `storage/app/private` to `2775`/`0664`. The next
   deploy closes them again; to close them at once, re-run step 3 of the
   runbook after that deploy.
 
-The warning means a directory predates that config or was created some other
-way. Fix it as root — group to `www-data`, group `rwX`, setgid on directories,
+The WARNING means a `deploy`-owned directory has lost its own access: it
+predates that config, or something chmod'ed it by hand. Fix it as root — group to `www-data`, group `rwX`, setgid on directories,
 **nothing made world-readable**, and "other" removed under the private root:
 
 ```bash
@@ -113,7 +130,7 @@ cd /    # so `sudo -u deploy find` never starts in a directory deploy cannot ent
 # 0. Preconditions. deploy must be in the runtime group, and php-fpm's pool,
 #    the queue worker and the scheduler must run as www-data. If any is false,
 #    stop and fix that first.
-id -nG deploy | tr ' ' '\n' | grep -qx www-data && echo "deploy is in www-data" || echo "!! deploy is NOT in www-data"
+id -nG deploy | tr ' ' '\n' | grep -qx www-data && echo "deploy is in www-data" || echo "WARNING: deploy is NOT in www-data"
 #    Expect one `root root` line here — the php-fpm master process — and the
 #    pool workers as www-data.
 ps -o user=,group= -C php-fpm8.4 | sort | uniq -c
@@ -124,7 +141,9 @@ systemctl show -p User -p Group risk-queue
 #    fails without it, and the old check hid that failure behind 2>/dev/null
 #    and printed nothing.
 sudo crontab -u www-data -l | grep -F 'schedule:run' || echo "(none in www-data's crontab; it must then be a www-data line in /etc/crontab or /etc/cron.d below)"
-for u in root deploy; do sudo crontab -u "$u" -l 2>/dev/null | grep -F 'schedule:run' && echo "!! the line above is in $u's crontab"; done
+#    (No `!!` in the message: pasted into an interactive shell, bash expands it
+#    to the previous command.)
+for u in root deploy; do sudo crontab -u "$u" -l 2>/dev/null | grep -F 'schedule:run' && echo "WARNING: the line above is in $u's crontab"; done
 #    System crontabs name the user in the sixth field; it must be www-data.
 sudo grep -H -F 'schedule:run' /etc/crontab /etc/cron.d/* 2>/dev/null || echo "(none in /etc/crontab or /etc/cron.d)"
 systemctl list-timers --all | grep -i -E 'schedule|laravel' || true

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { useEffect, useRef, useState } from 'react';
 import Menu from './Menu';
+import Icon from '../Icon';
 
 function Cell({ column, cell }) {
     const text = cell.text ?? '—';
@@ -75,7 +76,7 @@ function EditableCell({ grid, column, row, onSaved }) {
             <span className="inline-flex items-center gap-1">
                 <Cell column={column} cell={cell} />
                 <button type="button" onClick={() => setEditing(true)} className="p-0.5 rounded hover:bg-gray-100 align-middle" aria-label={`Edit ${column.label}`}>
-                    <span className="material-symbols-outlined text-gray-300 text-sm hover:text-gray-500" aria-hidden="true">edit</span>
+                    <Icon name="edit" className="text-gray-300 w-3.5 h-3.5 hover:text-gray-500" />
                 </button>
                 {error && <span className="text-[10px] text-red-600">{error}</span>}
             </span>
@@ -130,7 +131,7 @@ export default function GridTable({ grid, state, selected, selectingAll, onToggl
         return (
             <div className="relative bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="text-center py-14 px-6">
-                    <span className="material-symbols-outlined text-4xl text-gray-300 mb-2 block" aria-hidden="true">{grid.emptyIcon}</span>
+                    <Icon name={grid.emptyIcon} className="w-10 h-10 text-gray-300 mb-2 block" />
                     <p className="text-sm text-gray-500">{grid.emptyMessage}</p>
                     {dirty && (
                         <button type="button" onClick={state.clear} className="mt-3 text-xs text-[var(--color-primary)] font-medium hover:underline">
@@ -169,9 +170,7 @@ export default function GridTable({ grid, state, selected, selectingAll, onToggl
                                             className="flex items-center gap-1 hover:text-[var(--color-primary)]"
                                         >
                                             {column.label}
-                                            <span className={`material-symbols-outlined text-sm ${grid.state.sort === column.key ? 'text-[var(--color-primary)]' : 'text-gray-300'}`} aria-hidden="true">
-                                                {sortIcon(column)}
-                                            </span>
+                                            <Icon name={sortIcon(column)} className={`w-3.5 h-3.5 ${grid.state.sort === column.key ? 'text-[var(--color-primary)]' : 'text-gray-300'}`} />
                                         </button>
                                     ) : (
                                         column.label
@@ -217,13 +216,13 @@ export default function GridTable({ grid, state, selected, selectingAll, onToggl
                                                     className="inline-block"
                                                     button={({ toggle, open }) => (
                                                         <button type="button" onClick={toggle} aria-expanded={open} aria-label="Row actions" className="p-1 rounded hover:bg-gray-100">
-                                                            <span className="material-symbols-outlined text-gray-400 text-lg" aria-hidden="true">more_vert</span>
+                                                            <Icon name="more_vert" className="text-gray-400 w-[18px] h-[18px]" />
                                                         </button>
                                                     )}
                                                 >
                                                     {row.actions.map((action) => (
                                                         <a key={action.label} href={action.url} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-50">
-                                                            <span className="material-symbols-outlined text-base text-gray-400" aria-hidden="true">{action.icon}</span>
+                                                            <Icon name={action.icon} className="w-4 h-4 text-gray-400" />
                                                             {action.label}
                                                         </a>
                                                     ))}

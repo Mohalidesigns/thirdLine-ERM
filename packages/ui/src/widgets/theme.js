@@ -19,8 +19,8 @@ const FALLBACK = {
     '--viz-surface': '#ffffff',
     '--viz-ink': '#1a202c',
     '--viz-ink-secondary': '#4a5568',
-    '--viz-muted': '#718096',
-    '--viz-grid': '#e8eaf0',
+    '--viz-muted': '#6b7280',
+    '--viz-grid': '#f3f4f6',
     '--viz-axis': '#cbd5e0',
     '--viz-tooltip-bg': '#1a202c',
     '--viz-tooltip-ink': '#f7fafc',
@@ -66,7 +66,7 @@ export function readTokens() {
         accent: v('--color-accent'),
         series: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => v(`--viz-series-${i}`)),
         sequential: [1, 2, 3, 4, 5, 6].map((i) => v(`--viz-seq-${i}`)),
-        fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",
+        fontFamily: "'Figtree', 'Figtree Fallback', ui-sans-serif, system-ui, sans-serif",
     };
 }
 

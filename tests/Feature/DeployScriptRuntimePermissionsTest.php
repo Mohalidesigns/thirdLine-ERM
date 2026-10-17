@@ -296,6 +296,11 @@ class DeployScriptRuntimePermissionsTest extends TestCase
         // user name, say) would also chmod nothing, and must not pass this
         // test for the wrong reason.
         $this->assertStringNotContainsString('WARNING', $output);
+
+        // Skipped is not silent: each path someone else owns is named in the
+        // deploy log, so ownership drift shows up where an operator looks.
+        $this->assertStringContainsString('skipped, not owned by nobody: storage', $output);
+        $this->assertStringContainsString('skipped, not owned by nobody: bootstrap/cache', $output);
     }
 
     #[Test]

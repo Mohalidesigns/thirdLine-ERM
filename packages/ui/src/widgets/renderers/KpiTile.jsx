@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { sparklineConfig } from '../chartConfigs';
 import useChart from './useChart';
+import Icon from '../../Components/Icon';
 
 function Sparkline({ points }) {
     const build = useCallback((d, env, t) => sparklineConfig(d.points, t), []);
@@ -39,9 +40,7 @@ export default function KpiTile({ data }) {
                             delta.improving ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
                         }`}
                     >
-                        <span className="material-symbols-outlined text-[14px] leading-none">
-                            {(delta.absolute ?? 0) >= 0 ? 'arrow_upward' : 'arrow_downward'}
-                        </span>
+                        <Icon name={(delta.absolute ?? 0) >= 0 ? 'arrow_upward' : 'arrow_downward'} className="w-[14px] h-[14px]" />
                         {delta.pct !== null && delta.pct !== undefined
                             ? `${Math.abs(delta.pct).toFixed(1)}%`
                             : Math.abs(delta.absolute ?? 0).toFixed(1)}{' '}

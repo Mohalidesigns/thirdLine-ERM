@@ -150,13 +150,74 @@ class TprmServiceProvider extends ServiceProvider
                 ? $client->getKey()
                 : ($client ?? $request->session()->get('tprm_portal_pending_organization') ?? 'none');
 
+            /*
+             * The account half of the key. Which request field may name the
+             * account depends on the route, and the kinds carry distinct
+             * prefixes so one can never collide with another:
+             *
+             *  - mfa.*  : the half-authenticated user parked in the session.
+             *             The request's `email` is IGNORED here. These routes
+             *             carry none, and honouring one would let a vendor of
+             *             the same client post `email=pending:42` to fill
+             *             victim 42's bucket, or add a random email to every
+             *             request to escape their own.
+             *  - invitation.accept : the route token (raw, as above), so two
+             *             invitations do not share one bucket across tenants.
+             *  - anything else (login.attempt): the form's email. A stale
+             *             pending session left by an abandoned attempt must
+             *             not turn a login for another address into someone
+             *             else's bucket.
+             */
+            $routeName = (string) $request->route()?->getName();
+            $pending = $request->hasSession()
+                ? $request->session()->get(\App\Http\Middleware\Tprm\EnsurePendingPortalUser::SESSION_KEY)
+                : null;
+
+            if (str_starts_with($routeName, 'tprm-portal.mfa.') && $pending !== null) {
+                $account = 'pending:'.$pending;
+            } elseif ($routeName === 'tprm-portal.invitation.accept') {
+                $account = 'invite:'.hash('sha256', (string) $request->route('token'));
+            } else {
+                $account = 'email:'.mb_strtolower((string) $request->input('email'));
+            }
+
+            $throttled = fn (\Illuminate\Http\Request $request, array $headers) => $this->portalThrottledResponse($request, $headers);
+
             return [
                 \Illuminate\Cache\RateLimiting\Limit::perMinute(10)
-                    ->by('tprm-portal:'.$tenantKey.':'.$request->ip()),
+                    ->by('tprm-portal:'.$tenantKey.':'.$request->ip())
+                    ->response($throttled),
 
                 \Illuminate\Cache\RateLimiting\Limit::perMinute(5)
-                    ->by('tprm-portal-account:'.$tenantKey.':'.mb_strtolower((string) $request->input('email'))),
+                    ->by('tprm-portal-account:'.$tenantKey.':'.$account)
+                    ->response($throttled),
             ];
         });
+    }
+
+    /**
+     * What a tripped portal limit answers.
+     *
+     * Laravel's default is a bare 429 page, which Inertia shows as a modal
+     * over the sign-in form. A redirect back carrying the error under the key
+     * the screen already renders puts the message where the vendor is
+     * looking: `code` on the MFA screens, `email` on the login and
+     * invitation forms. A client that asked for JSON keeps the real 429.
+     */
+    private function portalThrottledResponse(\Illuminate\Http\Request $request, array $headers): \Symfony\Component\HttpFoundation\Response
+    {
+        $seconds = (int) ($headers['Retry-After'] ?? 60);
+        $wait = $seconds > 60
+            ? 'about '.(int) ceil($seconds / 60).' minutes'
+            : max(1, $seconds).' seconds';
+        $message = "Too many attempts. Please wait {$wait} and try again.";
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $message], 429, $headers);
+        }
+
+        $key = str_starts_with((string) $request->route()?->getName(), 'tprm-portal.mfa.') ? 'code' : 'email';
+
+        return back()->withErrors([$key => $message]);
     }
 }

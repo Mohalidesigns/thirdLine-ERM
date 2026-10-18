@@ -190,7 +190,11 @@ class ControlService
                     'created_by' => $userId,
                 ]);
 
-                $this->register->auditControlMapping($risk, $control, $mapping, 'control_mapped', $userId);
+                $this->register->auditControlMapping($risk, $control, $mapping, true, $userId);
+
+                // As link-risk does: the new control counts towards the
+                // risk's effectiveness from the moment it is mapped.
+                $this->effectiveness->recalculateForRisk($risk);
             }
 
             AuditTrailService::record($control, 'create');
@@ -279,10 +283,12 @@ class ControlService
                 'created_by' => $userId,
             ], fn ($value) => $value !== null));
 
-            $this->register->auditControlMapping($risk, $control, $mapping, 'control_mapped', $userId);
-        });
+            $this->register->auditControlMapping($risk, $control, $mapping, true, $userId);
 
-        $this->effectiveness->recalculateForRisk($risk);
+            // Inside the transaction, so the mapping, its entry and the
+            // residual score it moves commit together or not at all.
+            $this->effectiveness->recalculateForRisk($risk);
+        });
 
         return ['risk' => $risk, 'linked' => true];
     }
@@ -296,12 +302,12 @@ class ControlService
 
             // Recorded before the delete, while the row still holds the
             // weight and key flag the entry's old value reports.
-            $this->register->auditControlMapping($risk, $control, $mapping, 'control_unmapped', $userId);
+            $this->register->auditControlMapping($risk, $control, $mapping, false, $userId);
 
             $mapping->delete();
-        });
 
-        $this->effectiveness->recalculateForRisk($risk);
+            $this->effectiveness->recalculateForRisk($risk);
+        });
     }
 
     /**

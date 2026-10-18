@@ -13,6 +13,7 @@ use App\Models\RiskCategory;
 use App\Models\RiskControlMapping;
 use App\Models\TreatmentPlan;
 use App\Models\User;
+use App\Services\ControlEffectivenessService;
 use App\Services\ReferenceCodeService;
 use App\Services\RiskScoringService;
 use Illuminate\Support\Facades\DB;
@@ -44,7 +45,10 @@ class RiskRegisterService
         'impact_regulatory' => ['label' => 'Regulatory Impact', 'hint' => 'CBN penalties & sanctions'],
     ];
 
-    public function __construct(private RiskScoringService $scoring) {}
+    public function __construct(
+        private RiskScoringService $scoring,
+        private ControlEffectivenessService $effectiveness,
+    ) {}
 
     /* ------------------------------------------------------------------ */
     /*  Read side */
@@ -487,7 +491,13 @@ class RiskRegisterService
                 'created_by' => $userId,
             ], fn ($value) => $value !== null));
 
-            $this->auditControlMapping($risk, $control, $mapping, 'control_mapped', $userId);
+            $this->auditControlMapping($risk, $control, $mapping, true, $userId);
+
+            // The control now counts towards the risk's effectiveness. The
+            // control page's link-risk always recalculated here; this path did
+            // not, so the same mapping moved the residual score from one screen
+            // and left it stale from the other.
+            $this->effectiveness->recalculateForRisk($risk);
         });
 
         return ['control' => $control, 'mapped' => true];
@@ -501,9 +511,10 @@ class RiskRegisterService
      * risk_control_mapping row calls this: here, and ControlService's create,
      * linkRisk and unlinkRisk.
      *
-     * @param  string  $action  'control_mapped' | 'control_unmapped'
+     * @param  bool  $mapped  true for a control mapped on (`control_mapped`),
+     *                        false for one taken off (`control_unmapped`)
      */
-    public function auditControlMapping(Risk $risk, Control $control, RiskControlMapping $mapping, string $action, ?int $userId): void
+    public function auditControlMapping(Risk $risk, Control $control, RiskControlMapping $mapping, bool $mapped, ?int $userId): void
     {
         // A weight left out of the insert takes the column default, which the
         // freshly created model does not carry; read it back rather than
@@ -519,9 +530,14 @@ class RiskRegisterService
             'is_key_control' => (bool) $mapping->is_key_control,
         ];
 
-        $mapped = $action === 'control_mapped';
-
-        $this->audit($risk, $action, 'controls', $mapped ? null : $payload, $mapped ? $payload : null, $userId);
+        $this->audit(
+            $risk,
+            $mapped ? 'control_mapped' : 'control_unmapped',
+            'controls',
+            $mapped ? null : $payload,
+            $mapped ? $payload : null,
+            $userId,
+        );
     }
 
     /**

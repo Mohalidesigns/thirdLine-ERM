@@ -7,6 +7,9 @@ use App\Support\RiskCalculationSettings;
 
 class ControlEffectivenessService
 {
+    /** The risk columns recalculateForRisk() writes, and its audit entry reports. */
+    private const AUDITED = ['control_effectiveness_pct', 'residual_score', 'residual_rating'];
+
     /**
      * Calculate aggregate control effectiveness for a risk
      * Uses weighted average: SUM(weight * effectiveness) / SUM(weight)
@@ -75,11 +78,27 @@ class ControlEffectivenessService
             $residualRating = $scoringService->calculateRating($residualScore);
         }
 
+        $before = $risk->only(self::AUDITED);
+
         $risk->update([
             'control_effectiveness_pct' => $effectiveness,
             'residual_score' => $residualScore,
             'residual_rating' => $residualRating,
         ]);
+
+        // A residual score that moves is a change to the risk, and it was the
+        // one change to a risk that left no trace on its trail. Recorded only
+        // when a value actually moved: ControlService::update() recalculates
+        // and then fires ControlUpdated, whose listener recalculates again,
+        // and the second pass must not write a duplicate. Compared on the cast
+        // values rather than wasChanged(): the decimal column reports 0 → 0.0
+        // as a change. The actor is the authenticated user, or NULL for a
+        // system caller (AuditTrailService never falls back to a stand-in).
+        $after = $risk->only(self::AUDITED);
+
+        if ($after !== $before) {
+            AuditTrailService::record($risk, 'residual_recalculated', 'residual', $before, $after);
+        }
 
         return $risk->fresh();
     }

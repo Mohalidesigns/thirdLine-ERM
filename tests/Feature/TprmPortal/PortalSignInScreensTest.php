@@ -256,6 +256,15 @@ class PortalSignInScreensTest extends TestCase
     }
 
     #[Test]
+    public function portal_page_titles_do_not_carry_the_platform_name(): void
+    {
+        $source = $this->code((string) file_get_contents(resource_path('js/app.jsx')));
+
+        $this->assertStringContainsString("startsWith('TprmPortal/')", $source, 'app.jsx no longer detects portal pages by component name.');
+        $this->assertMatchesRegularExpression('/inPortal\s*\?\s*\(title/', $source, 'The title template must drop the platform suffix for portal pages.');
+    }
+
+    #[Test]
     public function each_sign_in_form_posts_to_the_route_that_handles_it(): void
     {
         $expected = [

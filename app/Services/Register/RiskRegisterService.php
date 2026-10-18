@@ -477,16 +477,51 @@ class RiskRegisterService
         // rationale was a constraint violation. An absent weight is left to
         // the column default rather than overwritten with null; an absent
         // rationale is stored as the empty string the column can hold.
-        RiskControlMapping::create(array_filter([
-            'risk_id' => $risk->id,
-            'control_id' => $control->id,
-            'is_key_control' => (bool) ($validated['is_key_control'] ?? false),
-            'control_weight' => $validated['control_weight'] ?? null,
-            'mapping_rationale' => $validated['mapping_rationale'] ?? '',
-            'created_by' => $userId,
-        ], fn ($value) => $value !== null));
+        DB::transaction(function () use ($risk, $control, $validated, $userId) {
+            $mapping = RiskControlMapping::create(array_filter([
+                'risk_id' => $risk->id,
+                'control_id' => $control->id,
+                'is_key_control' => (bool) ($validated['is_key_control'] ?? false),
+                'control_weight' => $validated['control_weight'] ?? null,
+                'mapping_rationale' => $validated['mapping_rationale'] ?? '',
+                'created_by' => $userId,
+            ], fn ($value) => $value !== null));
+
+            $this->auditControlMapping($risk, $control, $mapping, 'control_mapped', $userId);
+        });
 
         return ['control' => $control, 'mapped' => true];
+    }
+
+    /**
+     * The risk's audit-trail entry for a control mapped onto it or taken off
+     * it. Mapping a control changes the risk's control picture — and, through
+     * effectiveness, its residual score — so it belongs on the risk's trail
+     * like any other change to the risk. Every path that writes or deletes a
+     * risk_control_mapping row calls this: here, and ControlService's create,
+     * linkRisk and unlinkRisk.
+     *
+     * @param  string  $action  'control_mapped' | 'control_unmapped'
+     */
+    public function auditControlMapping(Risk $risk, Control $control, RiskControlMapping $mapping, string $action, ?int $userId): void
+    {
+        // A weight left out of the insert takes the column default, which the
+        // freshly created model does not carry; read it back rather than
+        // record a null the row does not hold.
+        $weight = $mapping->exists && $mapping->control_weight === null
+            ? $mapping->fresh()?->control_weight
+            : $mapping->control_weight;
+
+        $payload = [
+            'control_id' => $control->id,
+            'control_code' => $control->control_code,
+            'control_weight' => $weight === null ? null : (string) $weight,
+            'is_key_control' => (bool) $mapping->is_key_control,
+        ];
+
+        $mapped = $action === 'control_mapped';
+
+        $this->audit($risk, $action, 'controls', $mapped ? null : $payload, $mapped ? $payload : null, $userId);
     }
 
     /**

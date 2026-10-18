@@ -358,7 +358,11 @@ class RiskRegisterController extends Controller
      */
     public function mapControl(MapControlRequest $request, Risk $register)
     {
-        ['control' => $control, 'mapped' => $mapped] = $this->risks->mapControl($register, $request->validated(), $request->user()?->id);
+        ['control' => $control, 'mapped' => $mapped] = $this->risks->mapControl(
+            $register,
+            $request->validated(),
+            $request->user()?->id,
+        );
 
         return redirect()
             ->route('risk.register.show', $register)

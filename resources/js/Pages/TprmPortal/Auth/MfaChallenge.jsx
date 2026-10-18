@@ -82,7 +82,7 @@ export default function MfaChallenge({ method, sent_to: sentTo, resend_in: resen
                 <label className="flex items-center gap-2 text-sm text-gray-700">
                     <input
                         type="checkbox"
-                        className="rounded border-gray-300"
+                        className="form-checkbox"
                         checked={form.data.remember}
                         onChange={(event) => form.setData('remember', event.target.checked)}
                     />

@@ -62,7 +62,7 @@ class PortalSignInScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The walks                                                          */
+    /*  The walks */
     /* ------------------------------------------------------------------ */
 
     #[Test]
@@ -214,7 +214,7 @@ class PortalSignInScreensTest extends TestCase
     }
 
     /* ------------------------------------------------------------------ */
-    /*  The pages themselves                                               */
+    /*  The pages themselves */
     /* ------------------------------------------------------------------ */
 
     #[Test]

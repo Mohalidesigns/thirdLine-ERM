@@ -497,7 +497,7 @@ class RiskRegisterService
             // control page's link-risk always recalculated here; this path did
             // not, so the same mapping moved the residual score from one screen
             // and left it stale from the other.
-            $this->effectiveness->recalculateForRisk($risk);
+            $this->effectiveness->recalculateForRisk($risk, $userId);
         });
 
         return ['control' => $control, 'mapped' => true];

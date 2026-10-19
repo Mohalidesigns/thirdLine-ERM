@@ -13,31 +13,39 @@ use Spatie\Permission\Models\Permission;
 
 /**
  * ControlEffectivenessService::recalculateForRisk() rewrites a risk's
- * control_effectiveness_pct, residual_score and residual_rating. It was the
- * one change to a risk that left nothing on the risk's audit trail. It now
- * writes a `residual_recalculated` entry whenever one of the three moves, and
- * nothing when none does.
+ * control_effectiveness_pct and its residual likelihood, impact, score and
+ * rating. It was the one change to a risk that left nothing on the risk's
+ * audit trail. It now writes a `residual_recalculated` entry whenever one of
+ * them moves, and nothing when none does, naming the actor its caller passes.
  *
  * Also pinned here: every path that maps or unmaps a control now
  * recalculates. Only link-risk and unlink-risk used to; map-control and the
  * control form's risk_ids left the residual score stale.
  *
- * The fixture: inherent 20 (Critical) with no controls, so the residual is 20.
- * The one control is `effective` (95%), so mapping it gives
- * 20 × (1 − 0.95) = 1, rated Low. (`effective` because the library form
- * offers only Control::EFFECTIVENESS_RATINGS.)
+ * The fixture: inherent 4 × 5 = 20 (Critical) with no controls, so the residual
+ * is the same cell. The one control is preventive and `effective` (95%), so
+ * mapping it asks for 20 × (1 − 0.95) = 1. Preventive assurance goes to the
+ * likelihood axis (split 0.85), so the residual lands on likelihood
+ * round(4 × 0.05^0.85) = 1 and impact round(5 × 0.05^0.15) = 3, giving the cell
+ * 1 × 3 = 3, rated Low. That is AssessmentChainService::deriveResidual(), the
+ * approval path's arithmetic. (`effective` because the library form offers
+ * only Control::EFFECTIVENESS_RATINGS.)
  */
 class ResidualRecalculationAuditTrailTest extends ControlsTestCase
 {
     private const UNCONTROLLED = [
         'control_effectiveness_pct' => '0.00',
+        'residual_likelihood' => 4,
+        'residual_impact' => 5,
         'residual_score' => 20,
         'residual_rating' => 'Critical',
     ];
 
     private const CONTROLLED = [
         'control_effectiveness_pct' => '95.00',
-        'residual_score' => 1,
+        'residual_likelihood' => 1,
+        'residual_impact' => 3,
+        'residual_score' => 3,
         'residual_rating' => 'Low',
     ];
 
@@ -54,11 +62,17 @@ class ResidualRecalculationAuditTrailTest extends ControlsTestCase
             'inherent_score' => 20,
             'inherent_rating' => 'Critical',
             'control_effectiveness_pct' => 0,
+            'residual_likelihood' => 4,
+            'residual_impact' => 5,
             'residual_score' => 20,
             'residual_rating' => 'Critical',
         ]);
 
-        $this->control->update(['effectiveness_rating' => 'effective', 'effectiveness_pct' => null]);
+        $this->control->update([
+            'control_type' => 'preventive',
+            'effectiveness_rating' => 'effective',
+            'effectiveness_pct' => null,
+        ]);
     }
 
     #[Test]
@@ -91,6 +105,8 @@ class ResidualRecalculationAuditTrailTest extends ControlsTestCase
             'inherent_likelihood' => 4,
             'inherent_impact' => 4,
             'inherent_score' => 16,
+            'residual_likelihood' => 4,
+            'residual_impact' => 4,
             'residual_score' => 16,
             'residual_rating' => 'High',
             'control_effectiveness_pct' => 0,
@@ -99,6 +115,7 @@ class ResidualRecalculationAuditTrailTest extends ControlsTestCase
         $this->actingAs($this->actor)
             ->post(route('risk.controls.store'), $this->validControl([
                 'risk_ids' => [$this->risk->id, $second->id],
+                'control_type' => 'preventive',
                 'effectiveness_rating' => 'effective',
             ]))
             ->assertSessionHasNoErrors()
@@ -107,8 +124,12 @@ class ResidualRecalculationAuditTrailTest extends ControlsTestCase
         $this->assertResidual(self::CONTROLLED, $this->risk);
         $this->assertSame(self::CONTROLLED, json_decode($this->onlyEntry($this->risk)->new_value, true));
 
-        // 16 × (1 − 0.95) = 0.8 → the score the service derives, whatever its rounding.
-        $this->assertNotSame(16, $second->fresh()->residual_score);
+        // 4 × 4 with a preventive 95%: likelihood clamps to 1, impact
+        // round(4 × 0.05^0.15) = 3, so the cell 1 × 3 = 3.
+        $this->assertSame(
+            ['residual_likelihood' => 1, 'residual_impact' => 3, 'residual_score' => 3],
+            $second->fresh()->only(['residual_likelihood', 'residual_impact', 'residual_score']),
+        );
         $this->assertSame(16, json_decode($this->onlyEntry($second)->old_value, true)['residual_score']);
     }
 
@@ -291,6 +312,116 @@ class ResidualRecalculationAuditTrailTest extends ControlsTestCase
         foreach ($rows as $row) {
             $this->assertSame($row->expectedHash(), $row->hash, "row {$row->id} does not verify");
         }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Axis-aware: the pair and the score move together */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function a_detective_control_reduces_impact_rather_than_likelihood(): void
+    {
+        $this->control->update(['control_type' => 'detective']);
+        $this->attachControl($this->risk, $this->control);
+
+        $updated = app(ControlEffectivenessService::class)->recalculateForRisk($this->risk);
+
+        // The mirror of the preventive fixture: split 0.15, so likelihood
+        // round(4 × 0.05^0.15) = 3 and impact round(5 × 0.05^0.85) = 0 → 1.
+        $this->assertSame(3, $updated->residual_likelihood);
+        $this->assertSame(1, $updated->residual_impact);
+        $this->assertSame(3, $updated->residual_score);
+    }
+
+    #[Test]
+    public function the_residual_score_is_always_the_product_of_the_pair_beside_it(): void
+    {
+        // The defect this closes: the control path wrote residual_score on its
+        // own and left the pair an approved assessment had set.
+        $this->risk->update(['residual_likelihood' => 2, 'residual_impact' => 2, 'residual_score' => 4]);
+
+        foreach (['preventive', 'detective', 'corrective', 'directive', null] as $type) {
+            RiskControlMapping::where('risk_id', $this->risk->id)->delete();
+            $this->control->update(['control_type' => $type]);
+            $this->attachControl($this->risk, $this->control);
+
+            $updated = app(ControlEffectivenessService::class)->recalculateForRisk($this->risk->fresh());
+
+            $this->assertSame(
+                $updated->residual_likelihood * $updated->residual_impact,
+                $updated->residual_score,
+                'control_type '.var_export($type, true).' left the score off its own cell',
+            );
+        }
+    }
+
+    #[Test]
+    public function a_risk_with_no_inherent_axes_falls_back_to_the_scalar_score_and_clears_its_pair(): void
+    {
+        $risk = $this->makeRisk([
+            'inherent_score' => 20,
+            'inherent_likelihood' => null,
+            'inherent_impact' => null,
+            'residual_likelihood' => 3,
+            'residual_impact' => 3,
+            'residual_score' => 9,
+        ]);
+        $this->attachControl($risk, $this->control);
+
+        $updated = app(ControlEffectivenessService::class)->recalculateForRisk($risk);
+
+        // No axes to split: 20 × (1 − 0.95) = 1, and no pair to stand beside it.
+        $this->assertSame(1, $updated->residual_score);
+        $this->assertNull($updated->residual_likelihood);
+        $this->assertNull($updated->residual_impact);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  The actor is the caller's, never the session's */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function rating_a_control_names_the_user_who_rated_it(): void
+    {
+        // The recalculation that moves the residual runs inside
+        // ControlService::update() and again in RecalculateResidualRisk from
+        // ControlUpdated; the event carries the user, so whichever pass
+        // writes, it names them.
+        $this->attachControl($this->risk, $this->control);
+        app(ControlEffectivenessService::class)->recalculateForRisk($this->risk);
+
+        $this->actingAs($this->actor)
+            ->put(route('risk.controls.update', $this->control), $this->validControl([
+                'name' => $this->control->name,
+                'control_type' => 'preventive',
+                'effectiveness_rating' => 'partially_effective',
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame($this->actor->id, (int) $this->entries($this->risk)->last()->changed_by);
+    }
+
+    #[Test]
+    public function the_listener_names_the_user_the_event_carries(): void
+    {
+        $this->attachControl($this->risk, $this->control);
+
+        \App\Events\ControlUpdated::dispatch($this->control->fresh(), ['effectiveness_rating'], $this->actor->id);
+
+        $this->assertSame($this->actor->id, (int) $this->onlyEntry($this->risk)->changed_by);
+    }
+
+    #[Test]
+    public function a_logged_in_session_is_not_taken_for_the_actor(): void
+    {
+        // A system recalculation that happens to run inside a request is still
+        // a system recalculation: the actor is what the caller passes.
+        $this->actingAs($this->actor);
+        $this->attachControl($this->risk, $this->control);
+
+        app(ControlEffectivenessService::class)->recalculateForRisk($this->risk);
+
+        $this->assertNull($this->onlyEntry($this->risk)->changed_by);
     }
 
     /* ------------------------------------------------------------------ */

@@ -194,7 +194,7 @@ class ControlService
 
                 // As link-risk does: the new control counts towards the
                 // risk's effectiveness from the moment it is mapped.
-                $this->effectiveness->recalculateForRisk($risk);
+                $this->effectiveness->recalculateForRisk($risk, $userId);
             }
 
             AuditTrailService::record($control, 'create');
@@ -215,13 +215,13 @@ class ControlService
         // A rating change moves the residual score of every risk this control
         // is mapped to, which is the point of rating it.
         foreach ($control->risks as $risk) {
-            $this->effectiveness->recalculateForRisk($risk);
+            $this->effectiveness->recalculateForRisk($risk, $userId);
         }
 
         AuditTrailService::recordChanges($control, $original);
 
         $changedFields = array_keys(array_diff_assoc($control->getAttributes(), $original));
-        ControlUpdated::dispatch($control, $changedFields);
+        ControlUpdated::dispatch($control, $changedFields, $userId);
 
         return $control;
     }
@@ -287,7 +287,7 @@ class ControlService
 
             // Inside the transaction, so the mapping, its entry and the
             // residual score it moves commit together or not at all.
-            $this->effectiveness->recalculateForRisk($risk);
+            $this->effectiveness->recalculateForRisk($risk, $userId);
         });
 
         return ['risk' => $risk, 'linked' => true];
@@ -306,7 +306,7 @@ class ControlService
 
             $mapping->delete();
 
-            $this->effectiveness->recalculateForRisk($risk);
+            $this->effectiveness->recalculateForRisk($risk, $userId);
         });
     }
 

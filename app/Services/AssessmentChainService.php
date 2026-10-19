@@ -589,7 +589,12 @@ class AssessmentChainService
         return min(0.85, max(0.15, $likelihood / $total));
     }
 
-    private function axisFor(?string $controlType): string
+    /**
+     * The axis a control of this type reduces. Public because the library's
+     * own recalculation (ControlEffectivenessService) splits on it too, so a
+     * control moves a risk's residual the same way from either path.
+     */
+    public function axisFor(?string $controlType): string
     {
         return self::AXIS_BY_CONTROL_TYPE[strtolower((string) $controlType)] ?? 'likelihood';
     }

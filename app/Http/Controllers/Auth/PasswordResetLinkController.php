@@ -56,7 +56,17 @@ class PasswordResetLinkController extends Controller
                 fn ($message) => $message->to($user->email)->subject('Atheris ERM — Password Reset')
             );
         } catch (\Throwable $e) {
-            Log::warning('Password reset mail failed: '.$e->getMessage(), ['email' => $user->email]);
+            // NDPA: identify the account by id, never by address, and never log the
+            // exception MESSAGE — mail transports build it from the recipient
+            // ("... <jane@bank.example> mailbox unavailable"). The class and the
+            // numeric code (the SMTP reply code, where the transport sets one)
+            // are enough to tell "no transport configured" from "rejected".
+            Log::warning('Password reset mail failed', [
+                'user_id' => $user->id,
+                'organization_id' => $user->organization_id,
+                'exception' => $e::class,
+                'code' => $e->getCode() ?: null,
+            ]);
         }
 
         return back()->with('status', $status);

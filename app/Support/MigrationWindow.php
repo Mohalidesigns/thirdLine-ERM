@@ -34,12 +34,36 @@ namespace App\Support;
  * table, and a gap in the trail is worse than an entry attributed to the
  * system.
  *
- * A failed migration never fires `MigrationsEnded`, so the window stays open
- * for the rest of that process. Every caller of the migrator in this product
- * (`migrate`, `migrate:fresh` under `RefreshDatabase`) is a process that then
- * exits or fails the suite, so nothing runs afterwards with webhooks wrongly
- * suppressed — but `close()` is public for anything that ever needs to recover
- * in-process.
+ * THE RULE FOR THE NEXT ONE (DEVELOPMENT_STANDARD §16): any observer that turns
+ * a save into an outward event returns early here as its first statement.
+ * `OutwardObserversHonourMigrationWindowTest` fails the build when one does not.
+ *
+ * A COUNTER, NOT A FLAG. The migrator can run inside the migrator: a
+ * migration may call `Artisan::call('migrate', ['--path' => ...])`, and a
+ * package or a test can do the same from inside an outer run. Each inner run
+ * fires its own `MigrationsStarted` / `MigrationsEnded` pair. With a boolean
+ * the inner `MigrationsEnded` closed the window while the OUTER run was still
+ * applying migrations, so every data migration after the nested call fired
+ * observers again — the exact failure this class exists to prevent, one level
+ * down. So `open()` increments, `close()` decrements, and the window is open
+ * while the depth is above zero. `close()` never goes below zero: an unpaired
+ * `MigrationsEnded` (a listener added mid-run, a test firing the event by
+ * hand) must not leave the counter at -1, where the next real `open()` would
+ * bring it to 0 and leave a genuine migrate run unguarded.
+ *
+ * A FAILED RUN LEAVES THE WINDOW OPEN. `Migrator::runPending()` fires
+ * `MigrationsEnded` only after its last migration succeeds, so a migration
+ * that throws leaves its level open for the rest of this application
+ * instance. A later migrate run in the same instance does NOT close it: it
+ * opens one level and closes only that one, and the depth comes back to where
+ * the failed run left it, still open. `php artisan migrate` exits on the
+ * failure, php-fpm and the queue worker are other processes with their own
+ * window, and every test boots its own application, so none of those inherits
+ * it. Anything that retries in-process does: a tinker session, a command or
+ * test that catches the failure and migrates again, or an outer run that
+ * catches an inner one. Every observer guarded here then stays silent for
+ * every save that follows. `reset()` is the recovery: it closes every level at
+ * once. Nothing in app/ calls it today.
  *
  * Bound as a SINGLETON on purpose: the state is a fact about the process (is
  * the migrator running in it?), not about a tenant or a request, so there is no
@@ -47,20 +71,33 @@ namespace App\Support;
  */
 final class MigrationWindow
 {
-    private bool $open = false;
+    /** How many migrate runs are in progress in this process, nested or not. */
+    private int $depth = 0;
 
     public function open(): void
     {
-        $this->open = true;
+        $this->depth++;
     }
 
+    /** Close one level. An unpaired close is a no-op, never a negative depth. */
     public function close(): void
     {
-        $this->open = false;
+        $this->depth = max(0, $this->depth - 1);
+    }
+
+    /** Close every level — recovery after a migrate run that threw. */
+    public function reset(): void
+    {
+        $this->depth = 0;
     }
 
     public function isOpen(): bool
     {
-        return $this->open;
+        return $this->depth > 0;
+    }
+
+    public function depth(): int
+    {
+        return $this->depth;
     }
 }

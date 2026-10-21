@@ -29,10 +29,12 @@ use App\Services\Tprm\Extraction\LlmClient;
 use Database\Seeders\Tprm\TprmQuestionnairePackSeeder;
 use Database\Seeders\Tprm\TprmReferenceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 use ThirdLine\Platform\Tenancy\TenantContext;
@@ -361,6 +363,44 @@ class EvidencePipelineTest extends TestCase
             ->where('auditable_type', Document::class)
             ->whereIn('event', ['created', 'updated'])
             ->count());
+    }
+
+    /** @return array<string, array{string}> */
+    public static function hostileUserAgents(): array
+    {
+        return [
+            'odd-offset two-byte characters' => ['a'.str_repeat('é', 400)],
+            'emoji straddling the byte limit' => [str_repeat('a', 499).str_repeat('😀', 50)],
+            'invalid bytes' => ["Mozilla \xC3\x28"],
+        ];
+    }
+
+    /**
+     * The old `substr($ua, 0, 500)` cut a multi-byte character in half, the
+     * strict-mode insert refused it, and a read of a vendor's report left no
+     * row. Asserted on the stored, hash-verified row.
+     */
+    #[Test]
+    #[DataProvider('hostileUserAgents')]
+    public function a_hostile_user_agent_does_not_lose_the_access_log_row(string $userAgent): void
+    {
+        $document = $this->uploadSoc2();
+
+        $this->app->instance('request', Request::create('/', 'GET', [], [], [], ['HTTP_USER_AGENT' => $userAgent]));
+
+        app(EvidenceService::class)->logAccess($document, $this->user->id);
+
+        $entry = AuditLog::query()
+            ->where('auditable_type', Document::class)
+            ->where('event', 'document_downloaded')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($entry, 'the access log row must be written, not silently lost');
+        $this->assertNotNull($entry->user_agent);
+        $this->assertTrue(mb_check_encoding($entry->user_agent, 'UTF-8'));
+        $this->assertLessThanOrEqual(500, mb_strlen($entry->user_agent, 'UTF-8'));
+        $this->assertTrue($entry->isIntact());
     }
 
     #[Test]

@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\Bcms\Incidents\NotificationService;
 use App\Services\Bcms\ResilienceKriPublisher;
 use App\Services\Bcms\Strategy\GapAnalysisService;
+use App\Support\Audit\AuditText;
 use ThirdLine\Platform\Tenancy\TenantContext;
 use ThirdLine\Reporting\DocumentRenderer;
 
@@ -433,7 +434,7 @@ class BoardPackService
                     ],
                 ],
                 'actor_id' => $actor->getKey(),
-                'actor_label' => $actor->name,
+                'actor_label' => AuditText::clip($actor->name, 150),
                 'created_at' => now(),
             ]);
         } catch (\Throwable $e) {

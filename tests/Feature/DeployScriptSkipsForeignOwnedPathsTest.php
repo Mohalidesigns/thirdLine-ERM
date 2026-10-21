@@ -15,9 +15,10 @@ use Tests\TestCase;
  * before preflight and the service restart, leaving the queue worker on the
  * previous release.
  *
- * A shell script has no other test, so a tidy-up back to a bare
- * `find storage ... -exec chmod` would pass the whole suite and fail the next
- * deploy on the server.
+ * DeployScriptRuntimePermissionsTest runs the real step, but a test cannot
+ * create a path another user owns without root, so this static check is what
+ * stops a tidy-up back to a bare `find storage ... -exec chmod`, which would
+ * pass the whole suite and fail the next deploy on the server.
  */
 class DeployScriptSkipsForeignOwnedPathsTest extends TestCase
 {
@@ -27,19 +28,24 @@ class DeployScriptSkipsForeignOwnedPathsTest extends TestCase
         $path = base_path('scripts/deploy.sh');
         $this->assertFileExists($path);
 
+        // One entry per shell command: a `\` at the end of a line continues it,
+        // so a multi-line find is judged whole, not line by line.
+        $script = preg_replace('/\\\\\n\s*/', ' ', (string) file_get_contents($path));
         $chmods = array_filter(
-            explode("\n", file_get_contents($path)),
-            fn (string $line) => str_contains($line, 'chmod') && ! str_starts_with(ltrim($line), '#'),
+            explode("\n", $script),
+            // Commands that run chmod, not a message that mentions it.
+            fn (string $c) => ! str_starts_with(ltrim($c), '#')
+                && preg_match('/-exec\s+chmod\b|^\s*(sudo\s+)?chmod\b/', $c) === 1,
         );
 
         $this->assertNotEmpty($chmods, 'scripts/deploy.sh no longer re-applies runtime-writable permissions.');
 
-        foreach ($chmods as $line) {
-            $this->assertMatchesRegularExpression(
-                '/!\s+-user\s+"\$DEPLOY_USER"\s+-prune\s+-o\b/',
-                $line,
-                'This chmod does not skip paths owned by another user, so a www-data-owned directory under storage '.
-                "aborts the deploy before preflight and the restart:\n    ".trim($line)
+        foreach ($chmods as $command) {
+            $guard = strpos($command, '! -user "$DEPLOY_USER" -prune');
+            $this->assertTrue(
+                $guard !== false && $guard < strpos($command, 'chmod'),
+                'This chmod does not first prune paths owned by another user, so a www-data-owned directory under '.
+                "storage aborts the deploy before preflight and the restart:\n    ".trim($command)
             );
         }
     }

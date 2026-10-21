@@ -80,20 +80,6 @@ class Dashboard extends Model
         return $query->where('is_published', true);
     }
 
-    /** Dashboards composed for one of the user's roles, or for every role. */
-    public function scopeForUser(Builder $query, User $user): Builder
-    {
-        $roleIds = $user->roles->pluck('id')->map(fn ($id) => (int) $id)->all();
-
-        return $query->where(function (Builder $q) use ($roleIds) {
-            $q->whereNull('role_ids');
-
-            foreach ($roleIds as $roleId) {
-                $q->orWhereJsonContains('role_ids', $roleId);
-            }
-        });
-    }
-
     /**
      * The DRAFT layout — what the builder is working on. Business HQ must not
      * render this; see publishedTabList().

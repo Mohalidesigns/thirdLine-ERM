@@ -6,13 +6,13 @@
         <div style="background:#1a365d; color:#ffffff; padding:16px 20px;">
             <p style="margin:0; font-size:15px; font-weight:700;">My Responsibilities</p>
             <p style="margin:2px 0 0; font-size:12px; opacity:.8;">
-                {{ $queue['total_items'] }} {{ Str::plural('item', $queue['total_items']) }} ·
-                estimated ~{{ $queue['total_minutes'] }} min
+                {{ $digest['total_items'] }} {{ Str::plural('item', $digest['total_items']) }} ·
+                estimated ~{{ $digest['total_minutes'] }} min
             </p>
         </div>
 
         @foreach(['overdue' => 'Overdue', 'today' => 'Due today', 'this_week' => 'This week'] as $bucket => $label)
-            @php $items = $queue['buckets'][$bucket] ?? []; @endphp
+            @php $items = $digest['buckets'][$bucket] ?? []; @endphp
             @if($items !== [])
                 <div style="padding:14px 20px 4px;">
                     <p style="margin:0 0 6px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:{{ $bucket === 'overdue' ? '#c53030' : '#4a5568' }};">

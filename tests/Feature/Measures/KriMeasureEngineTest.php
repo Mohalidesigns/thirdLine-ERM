@@ -323,6 +323,53 @@ class KriMeasureEngineTest extends TestCase
         $breach = MeasureBreach::firstOrFail();
         $this->assertSame('red', $breach->band_to);
         $this->assertStringContainsString('Reconstructed from the notification log', $breach->note);
+        $this->assertSame(KriMeasureMigrator::RECONSTRUCTED_NOTE, $breach->note);
+
+        // ADR 0027: a notification on a month's LAST day must not resolve before
+        // it began. The end of that day, not its start: 17 hours, not -7.
+        $this->assertSame('2026-03-31 07:00:00', $breach->breached_at->toDateTimeString());
+        $this->assertSame('2026-03-31 23:59:59', $breach->resolved_at->toDateTimeString());
+        $this->assertSame(17.0, $breach->hoursToResolve());
+    }
+
+    #[Test]
+    public function a_mid_month_reconstructed_breach_resolves_at_the_end_of_its_period(): void
+    {
+        $kri = KeyRiskIndicator::create([
+            'organization_id' => $this->organization->id,
+            'kri_code' => 'KRI-LEGACY-2',
+            'name' => 'Mid-month indicator',
+            'measurement_frequency' => 'monthly',
+            'unit_of_measure' => '%',
+            'threshold_direction' => 'higher_worse',
+            'green_threshold_max' => 3,
+            'amber_threshold_min' => 3,
+            'amber_threshold_max' => 6,
+            'red_threshold_min' => 6,
+            'is_active' => true,
+            'owner_id' => $this->actor->id,
+            'created_by' => $this->actor->id,
+        ]);
+
+        DB::table('notifications_log')->insert([
+            'organization_id' => $this->organization->id,
+            'user_id' => $this->actor->id,
+            'channel' => 'database',
+            'type' => 'kri_breach',
+            'subject' => 'KRI Breach Alert: KRI-LEGACY-2',
+            'body' => "KRI 'Mid-month indicator' has breached amber threshold.",
+            'status' => 'sent',
+            'action_url' => "/risk/kri/{$kri->id}",
+            'created_at' => '2026-02-10 10:00:00',
+            'updated_at' => '2026-02-10 10:00:00',
+        ]);
+
+        app(KriMeasureMigrator::class)->migrateOrganization($this->organization->id);
+
+        $breach = MeasureBreach::firstOrFail();
+
+        $this->assertSame('amber', $breach->band_to);
+        $this->assertSame('2026-02-28 23:59:59', $breach->resolved_at->toDateTimeString());
     }
 
     #[Test]

@@ -39,7 +39,9 @@ trait AssertsCanonicalJson
         $value = array_map([self::class, 'canonicaliseJson'], $value);
 
         if (! array_is_list($value)) {
-            ksort($value);
+            // SORT_STRING: keys "10" and "9" arrive as ints and "a" as a string;
+            // the default flag compares mixed int/string keys differently by PHP version.
+            ksort($value, SORT_STRING);
         }
 
         return $value;

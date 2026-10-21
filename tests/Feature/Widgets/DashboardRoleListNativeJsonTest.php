@@ -174,15 +174,14 @@ class DashboardRoleListNativeJsonTest extends TestCase
     }
 
     #[Test]
-    public function business_hq_renders_an_empty_role_list_dashboard_and_reports_nothing_role_blocked(): void
+    public function business_hq_renders_a_dashboard_whose_role_list_is_empty(): void
     {
         $this->dashboard('Reachable Anyway', []);
 
         $this->actingAs($this->actor)->get('/hq/'.$this->retail->graphObject()->id)
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->where('dashboard.name', 'Reachable Anyway')
-                ->where('roleBlocked', []));
+                ->where('dashboard.name', 'Reachable Anyway'));
     }
 
     #[Test]

@@ -135,6 +135,8 @@ class ConfigBundleTest extends TestCase
 
         $this->assertSame(1, $bundle->version);
         $this->assertTrue($bundle->isIntact());
+        $this->assertTrue($bundle->fresh()->isIntact(), 'the stored row must verify, not only the in-memory model');
+        $this->assertSame(2, $bundle->fresh()->payload['format_version']);
         $this->assertSame($bundle->checksum, ConfigurationExporter::checksum($bundle->payload));
 
         $sections = $bundle->payload['sections'];
@@ -199,6 +201,50 @@ class ConfigBundleTest extends TestCase
             ConfigurationExporter::checksum($shuffled),
             'a re-serialised payload must not read as a modified one'
         );
+    }
+
+    #[Test]
+    public function the_format_2_checksum_is_stable_across_key_order(): void
+    {
+        $payload = ['sections' => ['a' => [['x' => 1.5, 'y' => 2]]], 'format_version' => 2];
+        $shuffled = ['format_version' => 2, 'sections' => ['a' => [['y' => 2, 'x' => 1.5]]]];
+
+        $this->assertSame(
+            ConfigurationExporter::checksum($payload),
+            ConfigurationExporter::checksum($shuffled),
+            'a re-serialised payload must not read as a modified one'
+        );
+    }
+
+    #[Test]
+    public function a_bundle_from_a_newer_release_is_refused_with_a_message_that_says_so(): void
+    {
+        $this->buildSourceConfiguration();
+
+        $payload = app(ConfigurationExporter::class)->payload($this->organization->id);
+        $payload['format_version'] = 3;
+
+        $bundle = ConfigBundle::create([
+            'organization_id' => $this->organization->id,
+            'code' => 'future',
+            'name' => 'Future',
+            'version' => 1,
+            'payload' => $payload,
+            'checksum' => str_repeat('0', 64),
+            'exported_at' => now(),
+        ]);
+
+        $this->assertFalse($bundle->fresh()->isIntact());
+
+        try {
+            app(ConfigurationImporter::class)->apply($bundle->fresh(), $this->target->id);
+            $this->fail('a format this release does not read must be refused');
+        } catch (\Illuminate\Validation\ValidationException $error) {
+            $message = implode(' ', $error->errors()['bundle']);
+
+            $this->assertStringContainsString('newer release (format 3)', $message);
+            $this->assertStringNotContainsString('modified since', $message, 'a newer format is not an edited bundle');
+        }
     }
 
     /* ------------------------------------------------------------------ */
@@ -515,6 +561,21 @@ class ConfigBundleTest extends TestCase
 
         $this->assertSame(1, ObjectType::withoutGlobalScopes()
             ->where('organization_id', $this->target->id)->count());
+
+        unlink($path);
+    }
+
+    #[Test]
+    public function config_import_refuses_a_file_whose_payload_is_not_an_object(): void
+    {
+        $path = storage_path('app/test-bundle-'.uniqid().'.json');
+        file_put_contents($path, json_encode(['code' => 'x', 'checksum' => 'y', 'payload' => 'not an object']));
+
+        $this->artisan('config:import', [
+            'source' => $path,
+            '--organization' => $this->target->id,
+            '--apply' => true,
+        ])->expectsOutputToContain('not a bundle')->assertFailed();
 
         unlink($path);
     }

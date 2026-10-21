@@ -71,7 +71,8 @@ class LlmGateway
                 'organization_id' => $call->organizationId,
                 'module' => $call->module,
                 'service' => $call->service,
-                'message' => $e->getMessage(),
+                'exception' => $e::class,
+                'code' => $e->getCode(),
             ]);
 
             // Same resolution order as the happy path below: the tenant's

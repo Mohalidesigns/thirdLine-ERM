@@ -20,11 +20,21 @@ single fact changes three things you might otherwise expect:
 
 ## Before the day
 
+**Run `rcsa:migrate-legacy` as `www-data`** (`sudo -u www-data php artisan rcsa:migrate-legacy …`),
+here and on the day. It writes its reports to the `local` disk
+(`storage/app/private`, `Storage::disk('local')->put()`), and that disk is
+configured with `'throw' => false`: when the running user cannot write there,
+`put()` returns `false` and the command still prints "Written to
+storage/app/private/…". Run as `deploy` or root it can therefore lose the
+report without an error, or leave files owned by that user that php-fpm
+(`www-data`) cannot read. `rcsa:parallel-run` writes to the same disk and has
+the same rule. `rcsa:cutover` writes no file and needs no special user.
+
 | # | Step | Command | Done when |
 |---|---|---|---|
-| 1 | Take the inventory | `php artisan rcsa:migrate-legacy --organization=N --step=inventory` | You have read the readiness counts and know how many risks have no business unit |
+| 1 | Take the inventory | `sudo -u www-data php artisan rcsa:migrate-legacy --organization=N --step=inventory` | You have read the readiness counts and know how many risks have no business unit |
 | 2 | Fix what the readiness counts flagged | (data work in the app) | `risks_without_business_unit` and `risks_without_title` are zero, or you have decided each is genuinely unmigratable |
-| 3 | Dry-run the migration | `php artisan rcsa:migrate-legacy --organization=N --step=migrate` | The counts look right and you have read the exceptions |
+| 3 | Dry-run the migration | `sudo -u www-data php artisan rcsa:migrate-legacy --organization=N --step=migrate` | The counts look right and you have read the exceptions |
 | 4 | Agree the exceptions | (a person) | Somebody has signed that each exception is genuinely unmappable rather than a bug |
 | 5 | Run the parallel cycle | (in the app) | One full RCSA cycle has run in both modules for a pilot unit, compared line by line — §13 step 5 |
 
@@ -38,7 +48,7 @@ you, and it is the one that finds a scoring disagreement before a regulator does
 ### 1. Migrate
 
 ```bash
-php artisan rcsa:migrate-legacy --organization=N --step=migrate --commit
+sudo -u www-data php artisan rcsa:migrate-legacy --organization=N --step=migrate --commit
 ```
 
 Writes `storage/app/private/rcsa/migration/N/` — the migration report and, if
@@ -51,7 +61,7 @@ what a first left and changes nothing else.
 ### 2. Reconcile
 
 ```bash
-php artisan rcsa:migrate-legacy --organization=N --step=reconcile
+sudo -u www-data php artisan rcsa:migrate-legacy --organization=N --step=reconcile
 ```
 
 Read the verdict:

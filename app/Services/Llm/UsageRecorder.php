@@ -89,7 +89,8 @@ class UsageRecorder
                 'module' => $call->module,
                 'service' => $call->service,
                 'outcome' => $outcome->value,
-                'message' => $exception->getMessage(),
+                'exception' => $exception::class,
+                'code' => $exception->getCode(),
             ]);
 
             return null;

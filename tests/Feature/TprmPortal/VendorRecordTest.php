@@ -349,7 +349,8 @@ class VendorRecordTest extends TestCase
             ->firstOrFail();
 
         // The row is editable by our own staff; the hash-chained log is not.
-        $this->assertSame($this->vendor->email, $entry->after['reported_by_email']);
+        $this->assertSame($this->vendor->id, $entry->after['reported_by_portal_user_id']);
+        $this->assertArrayNotHasKey('reported_by_email', $entry->after);
         $this->assertNotNull($entry->after['reported_to_us_at']);
     }
 

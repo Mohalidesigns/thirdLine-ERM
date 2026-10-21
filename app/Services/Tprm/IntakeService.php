@@ -149,7 +149,7 @@ class IntakeService
             'auditable_type' => Engagement::class,
             'auditable_id' => 0,
             'event' => 'prohibited_outsourcing_attempted',
-            'actor_type' => $userId !== null ? 'user' : 'system',
+            'actor_type' => $userId !== null ? AuditLog::ACTOR_USER : AuditLog::ACTOR_SYSTEM,
             'actor_id' => $userId,
             'before' => null,
             'after' => [

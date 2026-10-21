@@ -11,6 +11,7 @@ use App\Models\Bcms\DrSystem;
 use App\Models\Bcms\DrTest;
 use App\Models\Bcms\Process;
 use App\Models\User;
+use App\Support\Audit\AuditText;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -730,7 +731,7 @@ class DrService
             'before' => $before,
             'after' => $after,
             'actor_id' => null,
-            'actor_label' => $actorLabel,
+            'actor_label' => AuditText::clip($actorLabel, 150),
             'ip_address' => null,
             'created_at' => now(),
         ]);

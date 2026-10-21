@@ -7,6 +7,7 @@ use OneLogin\Saml2\Auth as SamlAuth;
 use OneLogin\Saml2\Error as SamlError;
 use OneLogin\Saml2\Settings as SamlSettings;
 use OneLogin\Saml2\Utils as SamlUtils;
+use OneLogin\Saml2\ValidationError as SamlValidationError;
 
 /**
  * SAML 2.0 service provider, built per organization from its settings row.
@@ -57,13 +58,26 @@ class SamlDriver
         $errors = $auth->getErrors();
 
         if ($errors !== []) {
-            // getLastErrorReason() carries the detail; it goes to the log, not
-            // to the browser, because it describes our validation internals.
+            // NDPA: only the toolkit's error CODES are logged. The free-text
+            // getLastErrorReason() quotes the assertion (NameID, issuer,
+            // audience) and so is never logged; a code that is not a short
+            // machine token is dropped for the same reason.
+            //
+            // getErrors() alone is only ever 'invalid_response' or
+            // 'invalid_binding', which cannot tell a wrong audience from an
+            // expired assertion or a bad signature. The cause is the
+            // exception's class and its numeric OneLogin\Saml2\ValidationError
+            // constant, neither of which carries any of the assertion's content.
+            $exception = $auth->getLastErrorException();
             logger()->warning('SAML assertion rejected', [
                 'organization_id' => $this->setting->organization_id,
                 'slug' => $this->setting->slug,
-                'errors' => $errors,
-                'reason' => $auth->getLastErrorReason(),
+                'errors' => array_values(array_filter(
+                    array_map('strval', $errors),
+                    fn (string $code): bool => preg_match('/^[A-Za-z0-9_.:\-]{1,64}$/', $code) === 1,
+                )),
+                'validation_code' => $exception instanceof SamlValidationError ? $exception->getCode() : null,
+                'validation_exception' => $exception === null ? null : $exception::class,
             ]);
 
             throw new SsoAuthenticationException('The SAML response failed validation.');

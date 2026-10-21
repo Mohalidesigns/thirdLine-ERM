@@ -144,7 +144,7 @@ class AccessService
                 'auditable_type' => Connection::class,
                 'auditable_id' => $connection->getKey(),
                 'event' => 'connection_closed_without_evidence',
-                'actor_type' => $userId !== null ? 'user' : 'system',
+                'actor_type' => $userId !== null ? AuditLog::ACTOR_USER : AuditLog::ACTOR_SYSTEM,
                 'actor_id' => $userId,
                 'before' => null,
                 'after' => ['reason' => $reason, 'name' => $connection->name],

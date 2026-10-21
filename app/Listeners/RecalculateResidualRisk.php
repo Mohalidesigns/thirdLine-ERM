@@ -14,7 +14,7 @@ class RecalculateResidualRisk
     public function handle(ControlUpdated $event): void
     {
         foreach ($event->control->risks as $risk) {
-            $this->effectivenessService->recalculateForRisk($risk);
+            $this->effectivenessService->recalculateForRisk($risk, $event->userId);
         }
     }
 }

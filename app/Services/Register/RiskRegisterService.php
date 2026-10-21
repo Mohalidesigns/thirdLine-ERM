@@ -13,6 +13,7 @@ use App\Models\RiskCategory;
 use App\Models\RiskControlMapping;
 use App\Models\TreatmentPlan;
 use App\Models\User;
+use App\Services\ControlEffectivenessService;
 use App\Services\ReferenceCodeService;
 use App\Services\RiskScoringService;
 use Illuminate\Support\Facades\DB;
@@ -44,7 +45,10 @@ class RiskRegisterService
         'impact_regulatory' => ['label' => 'Regulatory Impact', 'hint' => 'CBN penalties & sanctions'],
     ];
 
-    public function __construct(private RiskScoringService $scoring) {}
+    public function __construct(
+        private RiskScoringService $scoring,
+        private ControlEffectivenessService $effectiveness,
+    ) {}
 
     /* ------------------------------------------------------------------ */
     /*  Read side */
@@ -477,16 +481,63 @@ class RiskRegisterService
         // rationale was a constraint violation. An absent weight is left to
         // the column default rather than overwritten with null; an absent
         // rationale is stored as the empty string the column can hold.
-        RiskControlMapping::create(array_filter([
-            'risk_id' => $risk->id,
-            'control_id' => $control->id,
-            'is_key_control' => (bool) ($validated['is_key_control'] ?? false),
-            'control_weight' => $validated['control_weight'] ?? null,
-            'mapping_rationale' => $validated['mapping_rationale'] ?? '',
-            'created_by' => $userId,
-        ], fn ($value) => $value !== null));
+        DB::transaction(function () use ($risk, $control, $validated, $userId) {
+            $mapping = RiskControlMapping::create(array_filter([
+                'risk_id' => $risk->id,
+                'control_id' => $control->id,
+                'is_key_control' => (bool) ($validated['is_key_control'] ?? false),
+                'control_weight' => $validated['control_weight'] ?? null,
+                'mapping_rationale' => $validated['mapping_rationale'] ?? '',
+                'created_by' => $userId,
+            ], fn ($value) => $value !== null));
+
+            $this->auditControlMapping($risk, $control, $mapping, true, $userId);
+
+            // The control now counts towards the risk's effectiveness. The
+            // control page's link-risk always recalculated here; this path did
+            // not, so the same mapping moved the residual score from one screen
+            // and left it stale from the other.
+            $this->effectiveness->recalculateForRisk($risk, $userId);
+        });
 
         return ['control' => $control, 'mapped' => true];
+    }
+
+    /**
+     * The risk's audit-trail entry for a control mapped onto it or taken off
+     * it. Mapping a control changes the risk's control picture — and, through
+     * effectiveness, its residual score — so it belongs on the risk's trail
+     * like any other change to the risk. Every path that writes or deletes a
+     * risk_control_mapping row calls this: here, and ControlService's create,
+     * linkRisk and unlinkRisk.
+     *
+     * @param  bool  $mapped  true for a control mapped on (`control_mapped`),
+     *                        false for one taken off (`control_unmapped`)
+     */
+    public function auditControlMapping(Risk $risk, Control $control, RiskControlMapping $mapping, bool $mapped, ?int $userId): void
+    {
+        // A weight left out of the insert takes the column default, which the
+        // freshly created model does not carry; read it back rather than
+        // record a null the row does not hold.
+        $weight = $mapping->exists && $mapping->control_weight === null
+            ? $mapping->fresh()?->control_weight
+            : $mapping->control_weight;
+
+        $payload = [
+            'control_id' => $control->id,
+            'control_code' => $control->control_code,
+            'control_weight' => $weight === null ? null : (string) $weight,
+            'is_key_control' => (bool) $mapping->is_key_control,
+        ];
+
+        $this->audit(
+            $risk,
+            $mapped ? 'control_mapped' : 'control_unmapped',
+            'controls',
+            $mapped ? null : $payload,
+            $mapped ? $payload : null,
+            $userId,
+        );
     }
 
     /**

@@ -211,12 +211,12 @@ class ControlController extends Controller
         );
     }
 
-    public function unlinkFromRisk(Control $control, Risk $risk)
+    public function unlinkFromRisk(Request $request, Control $control, Risk $risk)
     {
         $this->abortUnlessNodeVisible($control);
         Gate::authorize('linkRisk', $control);
 
-        $this->controls->unlinkRisk($control, $risk);
+        $this->controls->unlinkRisk($control, $risk, $request->user()?->id);
 
         return back()->with('success', "Control {$control->control_code} unlinked from risk {$risk->risk_code}.");
     }

@@ -377,24 +377,19 @@ class AssessmentApprovalIntegrityTest extends TestCase
     }
 
     #[Test]
-    public function the_control_update_path_still_moves_residual_score_without_the_pair(): void
+    public function the_control_update_path_moves_the_residual_pair_with_the_score(): void
     {
-        // THE THIRD WRITER, pinned as it stands rather than described.
+        // THE THIRD WRITER. ControlEffectivenessService::recalculateForRisk()
+        // runs when the risk's control picture changes (a control mapped,
+        // unmapped or re-rated). It used to write residual_score and
+        // residual_rating on their own, so on a risk whose residual came from
+        // an approved assessment it left a residual_score that was no longer
+        // residual_likelihood × residual_impact. This test pinned that gap and
+        // was written to fail when it closed.
         //
-        // ControlEffectivenessService::recalculateForRisk() runs from
-        // RecalculateResidualRisk on ControlUpdated — a different trigger from
-        // approval — and writes residual_score and residual_rating on their
-        // own. On a risk whose residual came from an approved assessment, that
-        // leaves the row internally inconsistent: a residual_score that is no
-        // longer residual_likelihood × residual_impact.
-        //
-        // Not fixed here. Making this path axis-aware means giving it the
-        // preventive/detective split AssessmentChainService derives from
-        // control_type, which is a larger change than the approval-path repair
-        // this test file exists for, and it would move the numbers pinned by
-        // tests/Feature/Characterisation/ControlEffectivenessServiceTest.php.
-        // This assertion is the follow-up's starting point: when that work
-        // lands, this test should be the one that fails.
+        // It now derives the residual through
+        // AssessmentChainService::deriveResidual(), the approval path's own
+        // arithmetic, and writes the pair and the score together.
         $risk = $this->makeRisk([
             'inherent_likelihood' => 4,
             'inherent_impact' => 5,
@@ -413,16 +408,15 @@ class AssessmentApprovalIntegrityTest extends TestCase
 
         $updated = app(ControlEffectivenessService::class)->recalculateForRisk($risk);
 
-        // 20 × (1 − 0.80) = 4.
+        // Target 20 × (1 − 0.80) = 4. Preventive assurance goes to likelihood
+        // (split 0.85): round(4 × 0.2^0.85) = 1 and round(5 × 0.2^0.15) = 4, so
+        // the cell 1 × 4 = 4 — the same cell an approval would land on.
+        $this->assertSame(1, $updated->residual_likelihood);
+        $this->assertSame(4, $updated->residual_impact);
         $this->assertSame(4, $updated->residual_score);
-
-        // …while the pair it is supposed to be the product of stands still.
-        $this->assertSame(4, $updated->residual_likelihood);
-        $this->assertSame(3, $updated->residual_impact);
-        $this->assertNotSame(
+        $this->assertSame(
             $updated->residual_likelihood * $updated->residual_impact,
             $updated->residual_score,
-            'Documented gap: the control path writes a residual score that contradicts the residual pair.',
         );
     }
 

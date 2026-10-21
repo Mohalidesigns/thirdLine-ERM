@@ -270,9 +270,11 @@ class RiskScoringService
      *
      * A THIRD writer of residual_* exists on a different trigger:
      * ControlEffectivenessService::recalculateForRisk(), from
-     * App\Listeners\RecalculateResidualRisk on ControlUpdated. It is scalar
-     * only — it moves residual_score without touching the residual likelihood
-     * and impact pair. See the note there; it is not this method's pair.
+     * App\Listeners\RecalculateResidualRisk on ControlUpdated, and from every
+     * path that maps or unmaps a control. It derives the residual pair and
+     * score through AssessmentChainService::deriveResidual(), the same
+     * arithmetic as the approval path, so the two never leave a score off its
+     * own cell. See the note there.
      *
      * NOTHING HERE IS INVENTED. An assessment that states no impact — no
      * scored dimension and no scalar impact_score — has not stated an impact,

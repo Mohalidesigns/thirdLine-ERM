@@ -10,6 +10,8 @@ use App\Models\RiskControlMapping;
 use App\Models\User;
 use App\Services\AuditTrailService;
 use App\Services\ControlEffectivenessService;
+use App\Services\Register\RiskRegisterService;
+use Illuminate\Support\Facades\DB;
 use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
@@ -23,7 +25,10 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  */
 class ControlService
 {
-    public function __construct(private ControlEffectivenessService $effectiveness) {}
+    public function __construct(
+        private ControlEffectivenessService $effectiveness,
+        private RiskRegisterService $register,
+    ) {}
 
     /* ------------------------------------------------------------------ */
     /*  Read side */
@@ -162,26 +167,40 @@ class ControlService
         $riskIds = $validated['risk_ids'] ?? [];
         unset($validated['risk_ids']);
 
-        $control = Control::create(array_merge($validated, [
-            'organization_id' => $organizationId,
-            'control_code' => $this->nextControlCode($organizationId),
-            'status' => $validated['status'] ?? 'active',
-            'created_by' => $userId,
-        ]));
-
-        foreach ($riskIds as $riskId) {
-            RiskControlMapping::create([
-                'risk_id' => $riskId,
-                'control_id' => $control->id,
+        return DB::transaction(function () use ($validated, $riskIds, $organizationId, $userId) {
+            $control = Control::create(array_merge($validated, [
                 'organization_id' => $organizationId,
-                'mapping_rationale' => 'Linked during control creation',
+                'control_code' => $this->nextControlCode($organizationId),
+                'status' => $validated['status'] ?? 'active',
                 'created_by' => $userId,
-            ]);
-        }
+            ]));
 
-        AuditTrailService::record($control, 'create');
+            // StoreControlRequest already holds each id to this tenant; the
+            // models are loaded for the audit entry each risk gets.
+            $risks = $riskIds === []
+                ? collect()
+                : Risk::where('organization_id', $organizationId)->whereIn('id', $riskIds)->get();
 
-        return $control;
+            foreach ($risks as $risk) {
+                $mapping = RiskControlMapping::create([
+                    'risk_id' => $risk->id,
+                    'control_id' => $control->id,
+                    'organization_id' => $organizationId,
+                    'mapping_rationale' => 'Linked during control creation',
+                    'created_by' => $userId,
+                ]);
+
+                $this->register->auditControlMapping($risk, $control, $mapping, true, $userId);
+
+                // As link-risk does: the new control counts towards the
+                // risk's effectiveness from the moment it is mapped.
+                $this->effectiveness->recalculateForRisk($risk, $userId);
+            }
+
+            AuditTrailService::record($control, 'create');
+
+            return $control;
+        });
     }
 
     /**
@@ -196,13 +215,13 @@ class ControlService
         // A rating change moves the residual score of every risk this control
         // is mapped to, which is the point of rating it.
         foreach ($control->risks as $risk) {
-            $this->effectiveness->recalculateForRisk($risk);
+            $this->effectiveness->recalculateForRisk($risk, $userId);
         }
 
         AuditTrailService::recordChanges($control, $original);
 
         $changedFields = array_keys(array_diff_assoc($control->getAttributes(), $original));
-        ControlUpdated::dispatch($control, $changedFields);
+        ControlUpdated::dispatch($control, $changedFields, $userId);
 
         return $control;
     }
@@ -253,29 +272,42 @@ class ControlService
         // NOT NULL, so linking a control to a risk from this screen was a
         // constraint violation every time. The real column names, with the
         // weight left to its 1.00 default when none is given.
-        RiskControlMapping::create(array_filter([
-            'risk_id' => $risk->id,
-            'control_id' => $control->id,
-            'organization_id' => $control->organization_id,
-            'control_weight' => $validated['weight'] ?? null,
-            'is_key_control' => (bool) ($validated['is_key_control'] ?? false),
-            'mapping_rationale' => $validated['rationale'] ?? '',
-            'created_by' => $userId,
-        ], fn ($value) => $value !== null));
+        DB::transaction(function () use ($control, $risk, $validated, $userId) {
+            $mapping = RiskControlMapping::create(array_filter([
+                'risk_id' => $risk->id,
+                'control_id' => $control->id,
+                'organization_id' => $control->organization_id,
+                'control_weight' => $validated['weight'] ?? null,
+                'is_key_control' => (bool) ($validated['is_key_control'] ?? false),
+                'mapping_rationale' => $validated['rationale'] ?? '',
+                'created_by' => $userId,
+            ], fn ($value) => $value !== null));
 
-        $this->effectiveness->recalculateForRisk($risk);
+            $this->register->auditControlMapping($risk, $control, $mapping, true, $userId);
+
+            // Inside the transaction, so the mapping, its entry and the
+            // residual score it moves commit together or not at all.
+            $this->effectiveness->recalculateForRisk($risk, $userId);
+        });
 
         return ['risk' => $risk, 'linked' => true];
     }
 
-    public function unlinkRisk(Control $control, Risk $risk): void
+    public function unlinkRisk(Control $control, Risk $risk, ?int $userId = null): void
     {
-        RiskControlMapping::where('risk_id', $risk->id)
-            ->where('control_id', $control->id)
-            ->firstOrFail()
-            ->delete();
+        DB::transaction(function () use ($control, $risk, $userId) {
+            $mapping = RiskControlMapping::where('risk_id', $risk->id)
+                ->where('control_id', $control->id)
+                ->firstOrFail();
 
-        $this->effectiveness->recalculateForRisk($risk);
+            // Recorded before the delete, while the row still holds the
+            // weight and key flag the entry's old value reports.
+            $this->register->auditControlMapping($risk, $control, $mapping, false, $userId);
+
+            $mapping->delete();
+
+            $this->effectiveness->recalculateForRisk($risk, $userId);
+        });
     }
 
     /**

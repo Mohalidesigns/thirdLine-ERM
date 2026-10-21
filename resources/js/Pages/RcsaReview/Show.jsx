@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Head, router, useForm, usePage } from "@inertiajs/react";
 import AppLayout from "@/Layouts/AppLayout";
 import PageHeader from "@thirdline/ui/Components/PageHeader";
 import StatusBadge from "@thirdline/ui/Components/StatusBadge";
 import { assessmentStatusLabel } from "@/lib/labels";
 import FormField from "@thirdline/ui/Components/FormField";
+import { formatScore, pluralise } from "@/lib/rcsa-format";
+import useElementWidth from "@/lib/useElementWidth";
 
 /**
  * The band colours the workspace uses, so a reviewer reading a residual sees
@@ -34,6 +36,20 @@ function levelLabel(level) {
     return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/**
+ * "Returning reopens 1 risk; the other 4 stay locked." Both halves agree with
+ * their own count, and a return that flags every risk says so instead of
+ * promising that "the other 0 stay locked".
+ */
+export function returnHint(flaggedCount, total) {
+    const rest = Math.max(total - flaggedCount, 0);
+    const reopens = `Returning reopens ${pluralise(flaggedCount, "risk")}`;
+
+    if (rest === 0) return `${reopens}; none stay locked.`;
+
+    return `${reopens}; the other ${rest} ${rest === 1 ? "stays" : "stay"} locked.`;
+}
+
 function ScoreBadge({ score, level }) {
     if (score === null || score === undefined) {
         return <span className="text-xs text-gray-400">—</span>;
@@ -43,7 +59,7 @@ function ScoreBadge({ score, level }) {
         <span
             className={`badge ${LEVEL_TONE[level] ?? "bg-gray-100 text-gray-700"}`}
         >
-            {Number(score).toFixed(Number.isInteger(Number(score)) ? 0 : 1)} ·{" "}
+            {formatScore(score)} ·{" "}
             {levelLabel(level)}
         </span>
     );
@@ -71,6 +87,8 @@ export default function Show({
 }) {
     const { flash } = usePage().props;
     const [openLine, setOpenLine] = useState(null);
+    const scrollerRef = useRef(null);
+    const scrollerWidth = useElementWidth(scrollerRef);
     const [decision, setDecision] = useState(null);
 
     const flagged = useMemo(
@@ -214,7 +232,7 @@ export default function Show({
                     <span className="ml-auto text-xs text-gray-500">
                         {flagged.length === 0
                             ? "Flag or challenge a risk before returning — a return with nothing flagged reopens nothing."
-                            : `Returning reopens ${flagged.length} risk${flagged.length === 1 ? "" : "s"}; the other ${(summary.total ?? 0) - flagged.length} stay locked.`}
+                            : returnHint(flagged.length, summary.total ?? 0)}
                     </span>
                 </div>
 
@@ -230,7 +248,7 @@ export default function Show({
 
             {/* --- The read-only grid ------------------------------------- */}
             <div className="card">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto" ref={scrollerRef}>
                     <table className="data-table">
                         <thead>
                             <tr>
@@ -244,7 +262,10 @@ export default function Show({
                                 <th>Appetite</th>
                                 <th>Plans</th>
                                 <th>ORM</th>
-                                <th />
+                                {/* Pinned: at 1024px the table scrolls, and the
+                                    reviewer's buttons were the part scrolled
+                                    out of sight (2026-10-21 E2E). */}
+                                <th className="sticky right-0" />
                             </tr>
                         </thead>
                         <tbody>
@@ -263,6 +284,7 @@ export default function Show({
                                     }
                                     onMark={mark}
                                     canReview={can.claim}
+                                    panelWidth={scrollerWidth}
                                 />
                             ))}
                         </tbody>
@@ -302,7 +324,19 @@ export default function Show({
     );
 }
 
-function RowGroup({ line, assessment, open, onToggle, onMark, canReview }) {
+/** The actions column, held at the right edge of the scrolling table. */
+const STICKY_ACTIONS =
+    "sticky right-0 bg-white shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.12)]";
+
+function RowGroup({
+    line,
+    assessment,
+    open,
+    onToggle,
+    onMark,
+    canReview,
+    panelWidth,
+}) {
     return (
         <>
             <tr className={line.above_appetite ? "bg-red-50/40" : undefined}>
@@ -345,7 +379,9 @@ function RowGroup({ line, assessment, open, onToggle, onMark, canReview }) {
                 <td>
                     <StatusBadge status={line.orm_status} />
                 </td>
-                <td className="whitespace-nowrap text-right">
+                <td
+                    className={`whitespace-nowrap text-right ${STICKY_ACTIONS} ${line.above_appetite ? "!bg-red-50" : ""}`}
+                >
                     {canReview && (
                         <>
                             <button
@@ -370,7 +406,22 @@ function RowGroup({ line, assessment, open, onToggle, onMark, canReview }) {
             {open && (
                 <tr>
                     <td colSpan={11} className="bg-gray-50">
-                        <ChallengePanel line={line} assessment={assessment} />
+                        {/* Held to the scroller's visible width, so the
+                            form's buttons are never off the edge of a
+                            scrolled table. */}
+                        <div
+                            className="sticky left-0"
+                            style={
+                                panelWidth
+                                    ? { width: panelWidth - 32 }
+                                    : undefined
+                            }
+                        >
+                            <ChallengePanel
+                                line={line}
+                                assessment={assessment}
+                            />
+                        </div>
                     </td>
                 </tr>
             )}
@@ -591,7 +642,9 @@ function DecisionForm({ kind, assessment, flaggedCount, onCancel }) {
                 placeholder={
                     kind === "validate"
                         ? "Optional note"
-                        : "Say why — the assessor reads this"
+                        : kind === "escalate"
+                          ? "Say why — the Head of ORM reads this"
+                          : "Say why — the assessor reads this"
                 }
             />
             {form.errors.reason && (

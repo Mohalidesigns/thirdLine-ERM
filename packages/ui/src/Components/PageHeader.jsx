@@ -7,7 +7,9 @@ import Icon from './Icon';
 function Inner({ titleId, title, subtitle, actions, breadcrumbs }) {
     return (
         <div className="page-header">
-            <div>
+            {/* A 16rem basis, not the subtitle's one-line width, decides whether
+                the actions fit beside the title (see .page-header). */}
+            <div className="min-w-0 sm:flex-1 sm:basis-64">
                 {breadcrumbs && breadcrumbs.length > 0 && (
                     <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm text-gray-500 mb-1">
                         {breadcrumbs.map((crumb, idx) => (
@@ -27,7 +29,7 @@ function Inner({ titleId, title, subtitle, actions, breadcrumbs }) {
                 <h2 id={titleId} className="page-title">{title}</h2>
                 {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
             </div>
-            {actions && <div className="flex gap-2 flex-shrink-0">{actions}</div>}
+            {actions && <div className="flex flex-wrap min-w-0 max-w-full gap-2 sm:ml-auto">{actions}</div>}
         </div>
     );
 }

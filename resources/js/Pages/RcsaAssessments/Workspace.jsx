@@ -14,6 +14,8 @@ import StatusBadge from "@thirdline/ui/Components/StatusBadge";
 import { assessmentStatusLabel } from "@/lib/labels";
 import { calculate } from "@/lib/rcsa-calc";
 import { formatScore, pluralise } from "@/lib/rcsa-format";
+import useConfirm from "@/lib/useConfirm";
+import useElementWidth from "@/lib/useElementWidth";
 import ActionPlans from "./ActionPlans";
 import GuidedStep from "./GuidedStep";
 import HeatPosition from "./HeatPosition";
@@ -613,6 +615,7 @@ export default function Workspace({
     /* ------------------------------------------------------------------ */
 
     const gridRef = useRef(null);
+    const gridWidth = useElementWidth(gridRef, mode);
 
     useEffect(() => {
         const onKey = (e) => {
@@ -658,32 +661,32 @@ export default function Workspace({
     /* ------------------------------------------------------------------ */
 
     const [bulkValue, setBulkValue] = useState("");
+    const [confirm, confirmDialog] = useConfirm();
 
     const applyBulk = () => {
         if (!bulkValue || selected.length === 0) return;
 
-        if (
-            !window.confirm(
-                `Set control effectiveness to "${bulkValue}" on ${pluralise(selected.length, "risk")}? This is a material change and is recorded against each one.`,
-            )
-        ) {
-            return;
-        }
-
-        router.post(
-            route("rcsa.assessments.bulk-apply", assessment.id),
-            { line_ids: selected, control_effectiveness: bulkValue },
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    setSelected([]);
-                    setBulkValue("");
-                    router.reload({
-                        only: ["lines", "outstanding", "assessment"],
-                    });
-                },
-            },
-        );
+        confirm({
+            title: `Set control effectiveness on ${pluralise(selected.length, "risk")}?`,
+            message: `Every selected risk is set to "${bulkValue}". This is a material change and is recorded against each one.`,
+            confirmLabel: "Apply",
+            variant: "warning",
+            onConfirm: () =>
+                router.post(
+                    route("rcsa.assessments.bulk-apply", assessment.id),
+                    { line_ids: selected, control_effectiveness: bulkValue },
+                    {
+                        preserveScroll: true,
+                        onSuccess: () => {
+                            setSelected([]);
+                            setBulkValue("");
+                            router.reload({
+                                only: ["lines", "outstanding", "assessment"],
+                            });
+                        },
+                    },
+                ),
+        });
     };
 
     /**
@@ -753,13 +756,30 @@ export default function Workspace({
                   : `${pluralise(reviewerCount, "reviewer")} will be notified`
           }. A PDF record of what you filed is kept.`;
 
-    const jumpTo = (lineId) => {
+    /**
+     * `type` is the outstanding issue's type, when the jump came from one.
+     *
+     * A "movement" issue is answered by the rationale, and the rationale field
+     * lives only on the Guided step — the grid has no column for free text. In
+     * Grid mode the blocker used to scroll to a row that offered no way to
+     * clear it, so the submit stayed blocked with nothing to click. It now
+     * switches to that risk in Guided mode and puts the cursor in the field.
+     */
+    const jumpTo = (lineId, type = null) => {
         const index = visible.findIndex((line) => line.id === lineId);
 
         if (index === -1) return;
 
-        if (mode === "guided") {
+        if (mode === "guided" || type === "movement") {
+            if (mode !== "guided") setMode("guided");
             setCursor(index);
+
+            if (type === "movement") {
+                // After the step has rendered for this line.
+                window.setTimeout(() => {
+                    document.getElementById(`rationale-${lineId}`)?.focus();
+                }, 0);
+            }
 
             return;
         }
@@ -1436,22 +1456,33 @@ export default function Workspace({
                                                     </td>
 
                                                     <td>
-                                                        {line.prior ? (
-                                                            <span
-                                                                className={`text-xs ${line.moved_materially ? "font-medium text-amber-700" : "text-gray-500"}`}
-                                                                title={
-                                                                    line.moved_materially
-                                                                        ? "Moved materially since the last cycle — say why in the rationale."
-                                                                        : undefined
+                                                        {line.prior &&
+                                                        line.moved_materially ? (
+                                                            // The rationale is a Guided-step field; the
+                                                            // marker is the way there from the grid.
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    jumpTo(
+                                                                        line.id,
+                                                                        "movement",
+                                                                    )
                                                                 }
+                                                                className="text-xs font-medium text-amber-700 underline decoration-dotted hover:text-amber-900"
+                                                                title="Moved materially since the last cycle — click to give the rationale."
                                                             >
                                                                 {formatScore(
                                                                     line.prior
                                                                         .inherent_score,
+                                                                )}{" "}
+                                                                ⚠
+                                                            </button>
+                                                        ) : line.prior ? (
+                                                            <span className="text-xs text-gray-500">
+                                                                {formatScore(
+                                                                    line.prior
+                                                                        .inherent_score,
                                                                 )}
-                                                                {line.moved_materially
-                                                                    ? " ⚠"
-                                                                    : ""}
                                                             </span>
                                                         ) : (
                                                             <span className="text-xs text-gray-400">
@@ -1466,6 +1497,21 @@ export default function Workspace({
                                                         <td
                                                             colSpan={9}
                                                         >
+                                                            {/* Held to the grid's visible width, so
+                                                                "Add plan" is never off the edge of a
+                                                                scrolled grid (2026-10-21 E2E). */}
+                                                            <div
+                                                                className="sticky left-0"
+                                                                style={
+                                                                    gridWidth
+                                                                        ? {
+                                                                              width:
+                                                                                  gridWidth -
+                                                                                  32,
+                                                                          }
+                                                                        : undefined
+                                                                }
+                                                            >
                                                             <ActionPlans
                                                                 assessmentId={
                                                                     assessment.id
@@ -1479,6 +1525,7 @@ export default function Workspace({
                                                                     afterPlanChange
                                                                 }
                                                             />
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 )}
@@ -1606,7 +1653,10 @@ export default function Workspace({
                                             <button
                                                 type="button"
                                                 onClick={() =>
-                                                    jumpTo(issue.line_id)
+                                                    jumpTo(
+                                                        issue.line_id,
+                                                        issue.type,
+                                                    )
                                                 }
                                                 className="text-left text-gray-700 hover:text-[var(--color-primary)]"
                                             >
@@ -1648,6 +1698,7 @@ export default function Workspace({
                 onConfirm={confirmSubmit}
                 onCancel={() => !submitting && setConfirmingSubmit(false)}
             />
+            {confirmDialog}
         </AppLayout>
     );
 }

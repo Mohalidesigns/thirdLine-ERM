@@ -312,8 +312,12 @@ class RcsaDashboardService
                 'lines_count' => $assessment->lines_count,
                 'assignee' => $assessment->getRelationValue('assignee')?->name,
                 // Negative once the due date has passed — the sign is the
-                // whole message, and the screen colours on it.
+                // whole message, and the screen colours on it. NULL once the
+                // unit or its cycle is closed: a closed unit is not "due in
+                // 40d", and a countdown beside it reads as work still owed.
                 'days_to_due' => $cycle?->due_date === null
+                    || $assessment->status === RcsaAssessment::CLOSED
+                    || $cycle->status === RcsaCycle::CLOSED
                     ? null
                     : (int) round(now()->startOfDay()->diffInDays($cycle->due_date->startOfDay(), false)),
             ])

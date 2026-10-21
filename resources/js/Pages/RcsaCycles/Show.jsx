@@ -7,6 +7,7 @@ import Modal from '@thirdline/ui/Components/Modal';
 import FormField from '@thirdline/ui/Components/FormField';
 import { assessmentStatusLabel } from '@/lib/labels';
 import { pluralise } from '@/lib/rcsa-format';
+import useConfirm from '@/lib/useConfirm';
 
 /**
  * An assessment counts as SUBMITTED once the business unit has handed it on:
@@ -120,29 +121,25 @@ export default function Show({ cycle, assessments = [], assignees = [], can = {}
         );
     };
 
-    const open = () => {
-        if (
-            !window.confirm(
-                `Open ${cycle.name}?\n\nThis copies every published risk in the RCSA Universe into an assessment for each business unit. It cannot be undone — risks added to the universe afterwards belong to the next cycle.`,
-            )
-        ) {
-            return;
-        }
+    const [confirm, confirmDialog] = useConfirm();
 
-        router.post(route('rcsa.cycles.open', cycle.id), {}, { preserveScroll: true });
-    };
+    const open = () =>
+        confirm({
+            title: `Open ${cycle.name}?`,
+            message:
+                'This copies every published risk in the RCSA Universe into an assessment for each business unit. It cannot be undone — risks added to the universe afterwards belong to the next cycle.',
+            confirmLabel: 'Open cycle',
+            onConfirm: () => router.post(route('rcsa.cycles.open', cycle.id), {}, { preserveScroll: true }),
+        });
 
-    const close = () => {
-        if (
-            !window.confirm(
-                `Close ${cycle.name}?\n\nEvery assessment under it becomes read-only, including any a unit has not finished.`,
-            )
-        ) {
-            return;
-        }
-
-        router.post(route('rcsa.cycles.close', cycle.id), {}, { preserveScroll: true });
-    };
+    const close = () =>
+        confirm({
+            title: `Close ${cycle.name}?`,
+            message: 'Every assessment under it becomes read-only, including any a unit has not finished.',
+            confirmLabel: 'Close cycle',
+            variant: 'warning',
+            onConfirm: () => router.post(route('rcsa.cycles.close', cycle.id), {}, { preserveScroll: true }),
+        });
 
     const submitted = assessments.filter((a) => SUBMITTED.includes(a.status)).length;
     const notStarted = assessments.filter((a) => a.status === 'draft').length;
@@ -412,6 +409,7 @@ export default function Show({ cycle, assessments = [], assignees = [], can = {}
                     </form>
                 )}
             </Modal>
+            {confirmDialog}
         </AppLayout>
     );
 }

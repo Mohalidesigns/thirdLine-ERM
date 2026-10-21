@@ -162,7 +162,11 @@ class RoundTripController extends Controller
                 $result['applied'],
                 $result['applied'] === 1 ? '' : 's',
                 $result['refused'] > 0
-                    ? sprintf('. %d could not be changed because the ORM did not reopen them', $result['refused'])
+                    ? sprintf(
+                        '. %d could not be changed because the ORM did not reopen %s',
+                        $result['refused'],
+                        $result['refused'] === 1 ? 'it' : 'them',
+                    )
                     : '',
             ));
     }

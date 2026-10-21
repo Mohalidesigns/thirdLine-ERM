@@ -209,6 +209,7 @@ export default function GuidedStep({
                     <div className="mt-3">
                         <Field label="This moved materially since the last cycle — why?">
                             <textarea
+                                id={`rationale-${line.id}`}
                                 rows={2}
                                 className="form-textarea"
                                 disabled={!editable}

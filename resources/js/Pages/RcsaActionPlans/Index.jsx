@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Head, Link, router, useForm, usePage } from "@inertiajs/react";
 import AppLayout from "@/Layouts/AppLayout";
 import PageHeader from "@thirdline/ui/Components/PageHeader";
 import StatusBadge from "@thirdline/ui/Components/StatusBadge";
 import Pagination from "@thirdline/ui/Components/Pagination";
 import { humanise } from "@/lib/labels";
+import useConfirm from "@/lib/useConfirm";
+import useElementWidth from "@/lib/useElementWidth";
+
+/** The open/close column, held at the right edge of the scrolling table. */
+const STICKY_ACTIONS =
+    "sticky right-0 bg-white shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.12)]";
 
 /**
  * The action-plan tracking register (§9.3), and the owner dashboard inside it.
@@ -28,6 +34,8 @@ export default function Index({
 }) {
     const { flash } = usePage().props;
     const [expanded, setExpanded] = useState(null);
+    const scrollerRef = useRef(null);
+    const scrollerWidth = useElementWidth(scrollerRef);
 
     const filter = (patch) =>
         router.get(
@@ -191,7 +199,7 @@ export default function Index({
             </div>
 
             <div className="card">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto" ref={scrollerRef}>
                     <table className="data-table">
                         <thead>
                             <tr>
@@ -201,7 +209,7 @@ export default function Index({
                                 <th>Due</th>
                                 <th className="w-40">Progress</th>
                                 <th>Status</th>
-                                <th />
+                                <th className="sticky right-0" />
                             </tr>
                         </thead>
                         <tbody>
@@ -222,6 +230,7 @@ export default function Index({
                                 <PlanRow
                                     key={plan.id}
                                     plan={plan}
+                                    panelWidth={scrollerWidth}
                                     open={expanded === plan.id}
                                     onToggle={() =>
                                         setExpanded(
@@ -241,7 +250,7 @@ export default function Index({
     );
 }
 
-function PlanRow({ plan, open, onToggle }) {
+function PlanRow({ plan, panelWidth, open, onToggle }) {
     const overdue = plan.is_overdue;
 
     return (
@@ -315,7 +324,9 @@ function PlanRow({ plan, open, onToggle }) {
                         </span>
                     )}
                 </td>
-                <td className="text-right">
+                <td
+                    className={`text-right ${STICKY_ACTIONS} ${overdue ? "!bg-red-50" : ""}`}
+                >
                     <button
                         type="button"
                         className="text-xs text-[var(--color-primary)] hover:underline"
@@ -329,7 +340,19 @@ function PlanRow({ plan, open, onToggle }) {
             {open && (
                 <tr>
                     <td colSpan={7} className="bg-gray-50">
-                        <PlanPanel plan={plan} />
+                        {/* Held to the scroller's visible width, so the
+                            panel's third column — Verify, Approve — is never
+                            off the edge of a scrolled table. */}
+                        <div
+                            className="sticky left-0"
+                            style={
+                                panelWidth
+                                    ? { width: panelWidth - 32 }
+                                    : undefined
+                            }
+                        >
+                            <PlanPanel plan={plan} />
+                        </div>
                     </td>
                 </tr>
             )}
@@ -345,6 +368,7 @@ function PlanPanel({ plan }) {
         extension_reason: "",
     });
     const verdict = useForm({ accept: true, reason: "" });
+    const [confirm, confirmDialog] = useConfirm();
 
     const settled = plan.status === "completed" || plan.status === "closed";
 
@@ -552,14 +576,20 @@ function PlanPanel({ plan }) {
                                 type="button"
                                 className="btn-primary text-xs"
                                 onClick={() =>
-                                    router.post(
-                                        route(
-                                            "rcsa.action-plans.extension.decide",
-                                            plan.id,
-                                        ),
-                                        { approve: true },
-                                        { preserveScroll: true },
-                                    )
+                                    confirm({
+                                        title: "Approve the extension?",
+                                        message: `The plan's target date moves to ${plan.proposed_target_date}.`,
+                                        confirmLabel: "Approve",
+                                        onConfirm: () =>
+                                            router.post(
+                                                route(
+                                                    "rcsa.action-plans.extension.decide",
+                                                    plan.id,
+                                                ),
+                                                { approve: true },
+                                                { preserveScroll: true },
+                                            ),
+                                    })
                                 }
                             >
                                 Approve
@@ -595,14 +625,22 @@ function PlanPanel({ plan }) {
                                 type="button"
                                 className="btn-primary text-xs"
                                 onClick={() =>
-                                    router.post(
-                                        route(
-                                            "rcsa.action-plans.verify",
-                                            plan.id,
-                                        ),
-                                        { accept: true },
-                                        { preserveScroll: true },
-                                    )
+                                    confirm({
+                                        title: "Verify and close this plan?",
+                                        message:
+                                            "The second line accepts the owner's evidence and the plan closes.",
+                                        confirmLabel: "Verify and close",
+                                        variant: "success",
+                                        onConfirm: () =>
+                                            router.post(
+                                                route(
+                                                    "rcsa.action-plans.verify",
+                                                    plan.id,
+                                                ),
+                                                { accept: true },
+                                                { preserveScroll: true },
+                                            ),
+                                    })
                                 }
                             >
                                 Verify and close
@@ -652,6 +690,8 @@ function PlanPanel({ plan }) {
                     </div>
                 )}
             </div>
+
+            {confirmDialog}
         </div>
     );
 }

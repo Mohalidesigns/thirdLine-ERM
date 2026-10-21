@@ -598,7 +598,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                                 <input
                                     type="text"
                                     className="form-input"
-                                    placeholder="Generated on save — e.g. RETAIL-R7"
+                                    placeholder={`Generated on save — e.g. ${riskNoExample(options.businessUnits, form.data.business_unit_id)}`}
                                     value={form.data.risk_no}
                                     onChange={(e) => form.setData('risk_no', e.target.value)}
                                 />
@@ -867,4 +867,16 @@ function TagInput({ values, onChange }) {
             />
         </div>
     );
+}
+
+/**
+ * An example Risk No. in the generated shape — `{BU code}-R{n}`, as
+ * RcsaUniverseService::nextRiskNo() writes it — for the unit chosen on the
+ * placement step, so the placeholder shows the number this unit will get.
+ */
+function riskNoExample(units, unitId) {
+    const unit = (units ?? []).find((u) => String(u.id) === String(unitId));
+    const code = (unit?.code ?? '').trim().toUpperCase();
+
+    return `${code || 'BU-RT'}-R1`;
 }

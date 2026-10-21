@@ -528,6 +528,33 @@ class RoundTripTest extends CycleTestCase
         $this->assertSame(2, (int) $lines->get(1)->inherent_likelihood);
     }
 
+    /**
+     * A line locked AFTER the upload was checked is refused at apply, and the
+     * message agrees with its own count (2026-10-21 E2E: "1 could not be
+     * changed because the ORM did not reopen them").
+     */
+    #[Test]
+    public function the_refusal_message_agrees_with_its_count(): void
+    {
+        $edited = $this->edit($this->downloadWorkingCopy(), [
+            1 => ['Likelihood (without control)' => 5],
+            2 => ['Likelihood (without control)' => 5],
+        ]);
+
+        $batch = $this->upload($edited);
+
+        $this->assessment->lines()->get()->get(1)->forceFill(['locked_at' => now()])->save();
+
+        $this->actingAs($this->actor)
+            ->post(route('rcsa.round-trip.apply', [$this->assessment, $batch]))
+            ->assertRedirect();
+
+        $this->assertSame(
+            '1 risk updated from your working copy. 1 could not be changed because the ORM did not reopen it.',
+            session('success'),
+        );
+    }
+
     private function reviewerUser(): \App\Models\User
     {
         return $this->userWith(['rcsa_assessment.view', 'rcsa_assessment.complete']);

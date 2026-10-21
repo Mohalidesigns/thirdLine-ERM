@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import FormField from '@thirdline/ui/Components/FormField';
+import useConfirm from '@/lib/useConfirm';
 
 /**
  * The workbook's columns U, V and W — what will be done about a risk above
@@ -18,6 +19,7 @@ import FormField from '@thirdline/ui/Components/FormField';
 export default function ActionPlans({ assessmentId, line, owners = [], editable, onChanged }) {
     const [adding, setAdding] = useState(false);
     const [editingId, setEditingId] = useState(null);
+    const [confirm, confirmDialog] = useConfirm();
 
     const plans = line.action_plans ?? [];
     const required = (line.appetite_status ?? '').startsWith('Above risk appetite');
@@ -106,18 +108,23 @@ export default function ActionPlans({ assessmentId, line, owners = [], editable,
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => {
-                                                if (!window.confirm('Remove this action plan?')) return;
-
-                                                router.delete(
-                                                    route('rcsa.assessments.plans.destroy', [
-                                                        assessmentId,
-                                                        line.id,
-                                                        plan.id,
-                                                    ]),
-                                                    { preserveScroll: true, onSuccess: () => onChanged?.() },
-                                                );
-                                            }}
+                                            onClick={() =>
+                                                confirm({
+                                                    title: 'Remove this action plan?',
+                                                    message: plan.control_to_implement ?? '',
+                                                    confirmLabel: 'Remove',
+                                                    variant: 'danger',
+                                                    onConfirm: () =>
+                                                        router.delete(
+                                                            route('rcsa.assessments.plans.destroy', [
+                                                                assessmentId,
+                                                                line.id,
+                                                                plan.id,
+                                                            ]),
+                                                            { preserveScroll: true, onSuccess: () => onChanged?.() },
+                                                        ),
+                                                })
+                                            }
                                             className="text-xs text-red-600 hover:underline"
                                         >
                                             Remove
@@ -144,6 +151,8 @@ export default function ActionPlans({ assessmentId, line, owners = [], editable,
                     />
                 </div>
             )}
+
+            {confirmDialog}
         </div>
     );
 }

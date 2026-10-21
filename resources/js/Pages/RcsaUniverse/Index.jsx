@@ -7,6 +7,8 @@ import Pagination from '@thirdline/ui/Components/Pagination';
 import StatusBadge from '@thirdline/ui/Components/StatusBadge';
 import AddRiskPanel from './AddRiskPanel';
 import { humanise } from '@/lib/labels';
+import { pluralise } from '@/lib/rcsa-format';
+import useConfirm from '@/lib/useConfirm';
 
 /**
  * The RCSA Universe (plan §6) — the governed inventory a cycle is populated
@@ -38,6 +40,7 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
     const [duplicating, setDuplicating] = useState(null);
     const [duplicateUnit, setDuplicateUnit] = useState('');
     const [uploadOpen, setUploadOpen] = useState(false);
+    const [confirm, confirmDialog] = useConfirm();
 
     const rows = risks?.data ?? [];
 
@@ -85,36 +88,37 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
     /*  Row and bulk actions                                               */
     /* ------------------------------------------------------------------ */
 
-    const post = (routeName, data, confirmText) => {
-        if (confirmText && !window.confirm(confirmText)) return;
-
+    const post = (routeName, data) =>
         router.post(route(routeName), data, {
             preserveScroll: true,
             onSuccess: () => setSelected([]),
         });
-    };
 
     const publish = (ids) =>
-        post(
-            'rcsa.universe.publish',
-            { ids },
-            ids.length === 1
-                ? 'Publish this risk? Published rows are pulled into every future assessment.'
-                : `Publish ${ids.length} risks? Published rows are pulled into every future assessment.`,
-        );
+        confirm({
+            title: ids.length === 1 ? 'Publish this risk?' : `Publish ${pluralise(ids.length, 'risk')}?`,
+            message: 'Published rows are pulled into every future assessment.',
+            confirmLabel: 'Publish',
+            onConfirm: () => post('rcsa.universe.publish', { ids }),
+        });
 
     const retire = (ids) =>
-        post(
-            'rcsa.universe.retire',
-            { ids },
-            'Retire? The rows stay in past assessments but are not carried into new ones.',
-        );
+        confirm({
+            title: ids.length === 1 ? 'Retire this risk?' : `Retire ${pluralise(ids.length, 'risk')}?`,
+            message: 'Retired rows stay in past assessments but are not carried into new ones.',
+            confirmLabel: 'Retire',
+            variant: 'warning',
+            onConfirm: () => post('rcsa.universe.retire', { ids }),
+        });
 
-    const destroy = (risk) => {
-        if (!window.confirm(`Delete ${risk.risk_no}? This cannot be undone.`)) return;
-
-        router.delete(route('rcsa.universe.destroy', risk.id), { preserveScroll: true });
-    };
+    const destroy = (risk) =>
+        confirm({
+            title: `Delete ${risk.risk_no}?`,
+            message: 'This cannot be undone.',
+            confirmLabel: 'Delete',
+            variant: 'danger',
+            onConfirm: () => router.delete(route('rcsa.universe.destroy', risk.id), { preserveScroll: true }),
+        });
 
     // Duplicating asks for a destination, and it asks in the page rather than
     // through window.prompt: a prompt cannot show the unit NAMES (it would be
@@ -385,7 +389,7 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                                     <td colSpan={11} className="py-12 text-center text-gray-400">
                                         <p className="text-sm font-medium">No risks in the universe yet</p>
                                         <p className="mt-1 text-xs">
-                                            Add them one at a time, or upload the template once bulk upload ships.
+                                            Add them one at a time, or use Bulk Upload to import the template.
                                         </p>
                                     </td>
                                 </tr>
@@ -604,6 +608,7 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                 options={options}
                 editing={editing}
             />
+            {confirmDialog}
         </AppLayout>
     );
 }

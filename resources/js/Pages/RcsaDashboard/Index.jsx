@@ -77,17 +77,20 @@ export default function Index({
                     breadcrumbs={[{ label: "RCSA" }, { label: "Dashboard" }]}
                     actions={
                         <div className="flex items-center gap-2">
-                            <select aria-label="Cycle"
-                                className="filter-select"
-                                value={cycle?.id ?? ""}
-                                onChange={(e) => go({ cycle: e.target.value })}
-                            >
-                                {cycles.map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                        {c.name}
-                                    </option>
-                                ))}
-                            </select>
+                            {/* No cycle, no picker: an empty dropdown offers a choice that does not exist. */}
+                            {cycles.length > 0 && (
+                                <select aria-label="Cycle"
+                                    className="filter-select"
+                                    value={cycle?.id ?? ""}
+                                    onChange={(e) => go({ cycle: e.target.value })}
+                                >
+                                    {cycles.map((c) => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
                             {can.export && (
                                 <Link
                                     href={route("rcsa.exports.index")}

@@ -1,4 +1,5 @@
 import { Head, router, usePage } from "@inertiajs/react";
+import { pluralise } from "@/lib/rcsa-format";
 import AppLayout from "@/Layouts/AppLayout";
 import PageHeader from "@thirdline/ui/Components/PageHeader";
 
@@ -128,12 +129,12 @@ export default function Show({ assessment, batch, rows = [], summary = {} }) {
             {summary.locked > 0 && (
                 <div className="mb-4 rounded-lg border border-gray-300 bg-gray-50 p-4 text-sm text-gray-700">
                     <strong>
-                        {summary.locked} risk
-                        {summary.locked === 1 ? " is" : "s are"} locked as
-                        filed.
+                        {pluralise(summary.locked, "risk")}{" "}
+                        {summary.locked === 1 ? "is" : "are"} locked as filed.
                     </strong>{" "}
-                    The ORM did not reopen them, so nothing in your file can
-                    change them — whatever the file says about them is ignored.
+                    {summary.locked === 1
+                        ? "The ORM did not reopen it, so nothing in your file can change it — whatever the file says about it is ignored."
+                        : "The ORM did not reopen them, so nothing in your file can change them — whatever the file says about them is ignored."}
                 </div>
             )}
 

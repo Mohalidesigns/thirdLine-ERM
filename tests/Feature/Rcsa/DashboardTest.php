@@ -4,6 +4,7 @@ namespace Tests\Feature\Rcsa;
 
 use App\Models\Rcsa\RcsaActionPlan;
 use App\Models\Rcsa\RcsaAssessment;
+use App\Models\Rcsa\RcsaCycle;
 use App\Services\Rcsa\RcsaAssessmentService;
 use App\Services\Rcsa\RcsaCycleService;
 use App\Services\Rcsa\RcsaDashboardService;
@@ -163,6 +164,24 @@ class DashboardTest extends CycleTestCase
         $this->assertSame(100, $rows[0]['completion_pct']);
         $this->assertSame(4, $rows[0]['lines_count']);
         $this->assertIsInt($rows[0]['days_to_due']);
+    }
+
+    /**
+     * 2026-10-21 E2E: a closed unit read "Due in 40d" — a countdown beside
+     * work that is finished. Closing the unit, or the whole cycle, ends it.
+     */
+    #[Test]
+    public function a_closed_unit_or_cycle_has_no_days_to_due(): void
+    {
+        $service = app(RcsaDashboardService::class);
+
+        $this->assessment->forceFill(['status' => RcsaAssessment::CLOSED])->save();
+        $this->assertNull($service->completionTracker($this->cycleId())[0]['days_to_due']);
+
+        // The unit back open, the cycle closed: still no countdown.
+        $this->assessment->forceFill(['status' => RcsaAssessment::VALIDATED])->save();
+        $this->assessment->cycle->forceFill(['status' => RcsaCycle::CLOSED])->save();
+        $this->assertNull($service->completionTracker($this->cycleId())[0]['days_to_due']);
     }
 
     /**

@@ -4,6 +4,8 @@ import AppLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
 import FormField from '@thirdline/ui/Components/FormField';
+import { pluralise } from '@/lib/rcsa-format';
+import useConfirm from '@/lib/useConfirm';
 
 /**
  * The import preview (plan §7.2) — the screen that makes bulk upload
@@ -40,6 +42,7 @@ export default function ImportPreview({ batch, rows, filters = {}, columns = [] 
     const [editing, setEditing] = useState(null);
     const [mode, setMode] = useState('create');
     const [validOnly, setValidOnly] = useState(false);
+    const [confirm, confirmDialog] = useConfirm();
 
     const inFlight = batch.status === 'queued' || batch.status === 'parsing';
 
@@ -53,26 +56,33 @@ export default function ImportPreview({ batch, rows, filters = {}, columns = [] 
         return () => window.clearInterval(timer);
     }, [inFlight]);
 
-    const publish = () => {
-        const warning =
-            batch.error_rows > 0 && validOnly
-                ? `Publish the ${batch.total_rows - batch.error_rows} rows that passed and leave the ${batch.error_rows} with errors behind?`
-                : `Publish ${batch.total_rows} rows into the RCSA Universe?`;
+    const publish = () =>
+        confirm({
+            title:
+                batch.error_rows > 0 && validOnly
+                    ? `Publish the ${pluralise(batch.total_rows - batch.error_rows, 'row')} that passed?`
+                    : `Publish ${pluralise(batch.total_rows, 'row')} into the RCSA Universe?`,
+            message:
+                batch.error_rows > 0 && validOnly
+                    ? `The ${pluralise(batch.error_rows, 'row')} with errors ${batch.error_rows === 1 ? 'is' : 'are'} left behind.`
+                    : 'Imported risks arrive as drafts.',
+            confirmLabel: 'Publish',
+            onConfirm: () =>
+                router.post(
+                    route('rcsa.imports.publish', batch.id),
+                    { mode, valid_only: validOnly },
+                    { preserveScroll: true },
+                ),
+        });
 
-        if (!window.confirm(warning)) return;
-
-        router.post(
-            route('rcsa.imports.publish', batch.id),
-            { mode, valid_only: validOnly },
-            { preserveScroll: true },
-        );
-    };
-
-    const discard = () => {
-        if (!window.confirm('Discard this upload? Nothing has been added to the universe, so nothing is lost.')) return;
-
-        router.delete(route('rcsa.imports.destroy', batch.id));
-    };
+    const discard = () =>
+        confirm({
+            title: 'Discard this upload?',
+            message: 'Nothing has been added to the universe, so nothing is lost.',
+            confirmLabel: 'Discard',
+            variant: 'danger',
+            onConfirm: () => router.delete(route('rcsa.imports.destroy', batch.id)),
+        });
 
     const tab = (key) =>
         router.get(
@@ -311,7 +321,7 @@ export default function ImportPreview({ batch, rows, filters = {}, columns = [] 
 
                     {batch.error_rows > 0 && !validOnly && (
                         <p className="mt-3 text-sm text-amber-700">
-                            {batch.error_rows} rows have errors, so publishing is blocked. Fix them here, download the
+                            {pluralise(batch.error_rows, "row")} {batch.error_rows === 1 ? "has" : "have"} errors, so publishing is blocked. Fix them here, download the
                             annotated workbook and re-upload, or tick the box above to publish the rest.
                         </p>
                     )}
@@ -342,6 +352,7 @@ export default function ImportPreview({ batch, rows, filters = {}, columns = [] 
                     onClose={() => setEditing(null)}
                 />
             )}
+            {confirmDialog}
         </AppLayout>
     );
 }

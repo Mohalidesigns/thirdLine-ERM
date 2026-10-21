@@ -280,8 +280,14 @@
         @apply text-gray-400 hover:text-amber-600 transition-colors;
     }
 
+    /*
+     * `sm:flex-wrap` and the actions block's `min-w-0` (PageHeader.jsx): a long
+     * set of actions moves onto its own line and wraps there, rather than
+     * squeezing the breadcrumb onto four lines and pushing the page sideways
+     * under the sidebar (RCSA workspace at 1024px, 2026-10-21 E2E).
+     */
     .page-header {
-        @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6;
+        @apply flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-4 mb-6;
     }
 
     .page-title {

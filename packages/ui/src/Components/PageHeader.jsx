@@ -27,7 +27,7 @@ function Inner({ titleId, title, subtitle, actions, breadcrumbs }) {
                 <h2 id={titleId} className="page-title">{title}</h2>
                 {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
             </div>
-            {actions && <div className="flex gap-2 flex-shrink-0">{actions}</div>}
+            {actions && <div className="flex flex-wrap min-w-0 max-w-full gap-2 sm:ml-auto">{actions}</div>}
         </div>
     );
 }

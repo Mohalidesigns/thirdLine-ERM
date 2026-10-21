@@ -876,7 +876,11 @@ function TagInput({ values, onChange }) {
  */
 function riskNoExample(units, unitId) {
     const unit = (units ?? []).find((u) => String(u.id) === String(unitId));
-    const code = (unit?.code ?? '').trim().toUpperCase();
 
-    return `${code || 'BU-RT'}-R1`;
+    if (!unit) return 'BU-RT-R1';
+
+    // nextRiskNo() falls back to "BU{id}" for a unit with no code.
+    const code = (unit.code ?? '').trim().toUpperCase() || `BU${unit.id}`;
+
+    return `${code}-R1`;
 }

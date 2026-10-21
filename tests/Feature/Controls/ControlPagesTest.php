@@ -24,6 +24,22 @@ class ControlPagesTest extends ControlsTestCase
     }
 
     #[Test]
+    public function the_create_page_passes_on_the_risk_it_was_opened_from(): void
+    {
+        // REGRESSION (E2E run 2026-10-18): "Create New" on a risk's Controls
+        // tab links here with ?risk_id, which was ignored, so the new control
+        // was saved linked to nothing unless the user found the risk again.
+        $this->actingAs($this->actor)
+            ->get(route('risk.controls.create', ['risk_id' => $this->risk->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('riskId', $this->risk->id));
+
+        $this->actingAs($this->actor)
+            ->get(route('risk.controls.create'))
+            ->assertInertia(fn (Assert $page) => $page->where('riskId', null));
+    }
+
+    #[Test]
     public function the_create_page_offers_the_vocabularies_the_validator_accepts(): void
     {
         // The selects are fed from the model constants the Form Requests

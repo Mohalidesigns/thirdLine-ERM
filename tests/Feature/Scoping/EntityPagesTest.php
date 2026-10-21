@@ -105,6 +105,29 @@ class EntityPagesTest extends ScopingTestCase
     }
 
     #[Test]
+    public function the_schemas_carry_only_tenant_configured_fields(): void
+    {
+        // The configuredOnly() helper moved to FormSchemaPresenter: the screen
+        // must still drop column-backed fields and keep configured ones.
+        $code = \App\Http\Requests\Scoping\StoreEntityRequest::objectTypeCodeFor($this->branchType);
+        $type = \App\Models\ObjectType::resolve($code);
+        foreach ([['qa_mapped', 'name'], ['qa_configured', null]] as [$attr, $column]) {
+            \App\Models\ObjectAttribute::create([
+                'object_type_id' => $type->id, 'code' => $attr, 'label' => $attr, 'data_type' => 'string',
+                'section' => 'Details', 'sort_order' => 900, 'is_system' => false, 'maps_to_column' => $column,
+            ]);
+        }
+
+        $schema = $this->get(route('risk.scoping.create'))->assertOk()
+            ->viewData('page')['props']['schemas'][$this->branchType->id];
+
+        $fields = collect($schema['sections'])->flatMap(fn ($s) => $s['fields']);
+        $this->assertContains('qa_configured', $fields->pluck('code')->all());
+        $this->assertNotContains('qa_mapped', $fields->pluck('code')->all());
+        $this->assertSame([], $fields->where('mapped', true)->all());
+    }
+
+    #[Test]
     public function storing_creates_the_entity_with_a_generated_code_and_the_types_level(): void
     {
         $response = $this->post(route('risk.scoping.store'), $this->validPayload());

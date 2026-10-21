@@ -198,30 +198,11 @@ class ScopingController extends Controller
         foreach (EntityType::query()->where('is_active', true)->get() as $type) {
             $code = StoreEntityRequest::objectTypeCodeFor($type);
 
-            $byCode[$code] ??= $this->configuredOnly($this->schemas->form($code, $record));
+            $byCode[$code] ??= $this->schemas->configuredOnly($this->schemas->form($code, $record));
 
             $out[$type->id] = $byCode[$code];
         }
 
         return $out;
-    }
-
-    /**
-     * @param  array{objectType: mixed, sections: list<array{code:string,label:string,fields:list<array<string,mixed>>}>}  $schema
-     * @return array{objectType: mixed, sections: list<array{code:string,label:string,fields:list<array<string,mixed>>}>}
-     */
-    private function configuredOnly(array $schema): array
-    {
-        $sections = [];
-
-        foreach ($schema['sections'] as $section) {
-            $fields = array_values(array_filter($section['fields'], fn (array $field) => ! $field['mapped']));
-
-            if ($fields !== []) {
-                $sections[] = array_merge($section, ['fields' => $fields]);
-            }
-        }
-
-        return ['objectType' => $schema['objectType'], 'sections' => $sections];
     }
 }

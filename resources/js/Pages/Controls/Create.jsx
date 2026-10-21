@@ -5,7 +5,7 @@ import { formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm
 import ControlForm from './ControlForm';
 
 /** Migration Phase 3.4: risk/controls/create.blade.php. */
-export default function Create({ businessUnits = [], users = [], risks = [], options = {}, schema = null }) {
+export default function Create({ businessUnits = [], users = [], risks = [], options = {}, schema = null, riskId = null }) {
     const { data, setData, post, processing, errors, transform } = useForm({
         name: '',
         description: '',
@@ -16,7 +16,7 @@ export default function Create({ businessUnits = [], users = [], risks = [], opt
         business_unit_id: '',
         effectiveness_rating: '',
         status: 'active',
-        risk_ids: [],
+        risk_ids: risks.some((risk) => risk.id === riskId) ? [riskId] : [],
         configured_attributes: initialValues(schema ?? { sections: [] }),
     });
 

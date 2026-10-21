@@ -5,10 +5,10 @@ import { formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm
 import KriForm from './KriForm';
 
 /** Migration Phase 4.1: risk/kri/create.blade.php. */
-export default function Create({ risks = [], users = [], frequencies = [], directions = [], schema = null }) {
+export default function Create({ risks = [], users = [], frequencies = [], directions = [], schema = null, riskId = null }) {
     const { data, setData, post, processing, errors, transform } = useForm({
         ...initialValues(schema),
-        risk_id: '',
+        risk_id: risks.some((risk) => risk.id === riskId) ? String(riskId) : '',
         kri_name: '',
         description: '',
         measurement_unit: '',

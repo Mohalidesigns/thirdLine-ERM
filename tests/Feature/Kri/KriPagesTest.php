@@ -60,6 +60,40 @@ class KriPagesTest extends KriTestCase
     /*  Create and edit */
     /* ------------------------------------------------------------------ */
 
+    #[Test]
+    public function the_create_page_passes_on_the_risk_it_was_opened_from(): void
+    {
+        // REGRESSION (E2E run 2026-10-18): "New KRI" on a risk's KRIs tab
+        // links here with ?risk_id, which was ignored.
+        $this->actingAs($this->actor)
+            ->get(route('risk.kri.create', ['risk_id' => $this->risk->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('riskId', $this->risk->id));
+    }
+
+    /**
+     * REGRESSION (E2E run 2026-10-18): the KRI form already has an input for
+     * every column, but the schema it was handed still carried the mapped
+     * copies, so "Additional Fields" repeated the whole form — and on submit
+     * the copy's untouched owner was written over the one the user chose.
+     */
+    #[Test]
+    public function the_create_and_edit_forms_carry_only_tenant_configured_fields(): void
+    {
+        foreach ([['risk.kri.create', []], ['risk.kri.edit', [$this->kri]]] as [$name, $params]) {
+            $schema = $this->actingAs($this->actor)
+                ->get(route($name, $params))
+                ->assertOk()
+                ->viewData('page')['props']['schema'];
+
+            foreach ($schema['sections'] as $section) {
+                foreach ($section['fields'] as $field) {
+                    $this->assertFalse($field['mapped'], "{$name}: {$field['code']} is a column the bespoke form already renders");
+                }
+            }
+        }
+    }
+
     /**
      * The two boundaries are fanned out across the six band columns according
      * to the indicator's direction.

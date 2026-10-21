@@ -1,5 +1,6 @@
 import DynamicForm from '@thirdline/ui/Components/DynamicForm';
 import InputError from '@thirdline/ui/Components/InputError';
+import { withUnit } from '@/lib/units';
 
 /**
  * The create and edit form for a KRI (migration Phase 4.1).
@@ -59,18 +60,18 @@ function BandPreview({ direction, green, red, unit }) {
 
     const g = Number(green);
     const r = Number(red);
-    const u = unit || '';
+    const v = (n) => withUnit(n, unit);
 
     const bands = direction === 'higher_is_worse'
         ? [
-            { label: 'Green', tone: 'bg-green-100 text-green-800', text: `up to ${g}${u}` },
-            { label: 'Amber', tone: 'bg-yellow-100 text-yellow-800', text: `over ${g}${u} and under ${r}${u}` },
-            { label: 'Red', tone: 'bg-red-100 text-red-800', text: `${r}${u} and above` },
+            { label: 'Green', tone: 'bg-green-100 text-green-800', text: `up to ${v(g)}` },
+            { label: 'Amber', tone: 'bg-yellow-100 text-yellow-800', text: `over ${v(g)} and under ${v(r)}` },
+            { label: 'Red', tone: 'bg-red-100 text-red-800', text: `${v(r)} and above` },
         ]
         : [
-            { label: 'Green', tone: 'bg-green-100 text-green-800', text: `${g}${u} and above` },
-            { label: 'Amber', tone: 'bg-yellow-100 text-yellow-800', text: `under ${g}${u} and over ${r}${u}` },
-            { label: 'Red', tone: 'bg-red-100 text-red-800', text: `${r}${u} and below` },
+            { label: 'Green', tone: 'bg-green-100 text-green-800', text: `${v(g)} and above` },
+            { label: 'Amber', tone: 'bg-yellow-100 text-yellow-800', text: `under ${v(g)} and over ${v(r)}` },
+            { label: 'Red', tone: 'bg-red-100 text-red-800', text: `${v(r)} and below` },
         ];
 
     const inverted = direction === 'higher_is_worse' ? g > r : g < r;

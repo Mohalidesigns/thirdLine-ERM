@@ -133,12 +133,15 @@ class KriController extends Controller
     /*  Create / store */
     /* ------------------------------------------------------------------ */
 
-    public function create()
+    public function create(Request $request)
     {
         Gate::authorize('create', KeyRiskIndicator::class);
 
         return Inertia::render('Kri/Create', array_merge($this->formOptions(), [
-            'schema' => $this->schemas->form(self::OBJECT_TYPE),
+            'schema' => $this->schemas->configuredOnly($this->schemas->form(self::OBJECT_TYPE)),
+            // "New KRI" on a risk's KRIs tab links here with ?risk_id; the
+            // form selects it only if it is one of the risks it offers.
+            'riskId' => $request->integer('risk_id') ?: null,
         ]));
     }
 
@@ -221,7 +224,7 @@ class KriController extends Controller
                 'green_threshold' => $kri->green_threshold,
                 'red_threshold' => $kri->red_threshold,
             ],
-            'schema' => $this->schemas->form(self::OBJECT_TYPE, $kri, omit: ['risk_id']),
+            'schema' => $this->schemas->configuredOnly($this->schemas->form(self::OBJECT_TYPE, $kri, omit: ['risk_id'])),
         ]));
     }
 

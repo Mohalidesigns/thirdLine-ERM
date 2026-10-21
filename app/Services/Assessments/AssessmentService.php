@@ -139,8 +139,12 @@ class AssessmentService
                     'source' => $cause->source,
                     'is_primary' => (bool) $cause->is_primary,
                 ])->values()->all(),
+            // options() returns the category rows, not a pluck: mapping it as
+            // ($label, $id) handed React a whole model as the option text
+            // (a blank page on "Add cause") and the list index as its id.
             'causeCategories' => RiskCauseCategory::options()
-                ->map(fn ($label, $id) => ['id' => $id, 'name' => $label])->values()->all(),
+                ->map(fn (RiskCauseCategory $category) => ['id' => $category->id, 'name' => $category->name])
+                ->values()->all(),
             'causeSources' => collect(RiskCause::SOURCES)
                 ->map(fn ($label, $value) => ['value' => $value, 'label' => $label])->values()->all(),
 

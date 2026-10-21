@@ -3,10 +3,12 @@
 namespace Tests\Feature\Assessments;
 
 use App\Models\RiskAssessment;
+use App\Models\RiskCauseCategory;
 use App\Models\TreatmentPlan;
 use App\Support\Migration\Ported;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /** Phase 3.3: the assessment pages, and the chain they write. */
 class AssessmentPagesTest extends AssessmentsTestCase
@@ -52,6 +54,33 @@ class AssessmentPagesTest extends AssessmentsTestCase
                 ->has('users')
                 ->where('assessment', null)
             );
+    }
+
+    #[Test]
+    public function cause_categories_reach_the_form_as_real_ids_and_plain_names(): void
+    {
+        // REGRESSION (E2E run 2026-10-18): options() returns the rows, but the
+        // service mapped it as a ($label, $id) pluck — so each option's name
+        // was a whole model, which React cannot render ("Add cause" blanked
+        // the page), and its id was the list position, not the category's.
+        $category = TenantContext::bypass(fn () => RiskCauseCategory::create([
+            'organization_id' => null,
+            'code' => 'E2E-PROCESS',
+            'name' => 'Process failure',
+            'sort_order' => 1,
+        ]), 'test fixture');
+
+        $categories = $this->actingAs($this->actor)
+            ->get(route('risk.assessments.create', ['risk_id' => $this->risk->id]))
+            ->assertOk()
+            ->viewData('page')['props']['causeCategories'];
+
+        $this->assertNotEmpty($categories);
+        foreach ($categories as $option) {
+            $this->assertIsInt($option['id']);
+            $this->assertIsString($option['name']);
+        }
+        $this->assertContains(['id' => $category->id, 'name' => 'Process failure'], $categories);
     }
 
     #[Test]

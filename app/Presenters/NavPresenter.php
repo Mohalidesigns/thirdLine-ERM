@@ -103,12 +103,19 @@ class NavPresenter
                     // RCSA v2. Sits beside the module it will replace for the
                     // duration of the parallel run; the flag is what keeps it
                     // out of every install that has not opted in.
+                    //
+                    // In the order the work happens: the overview, the inventory a
+                    // cycle is built from, the cycle, the assessments filed in it,
+                    // their review, the actions that come out of it, the export.
+                    // "Dashboard" alone is safe here: while the legacy entries are
+                    // still in the menu they carry `legacy_label`, so this is the
+                    // only RCSA entry by that name (RCSA-02).
+                    ['label' => 'Dashboard', 'route' => 'rcsa.dashboard.index', 'permission' => 'rcsa_assessment.view', 'feature' => 'rcsa_v2'],
                     ['label' => 'Universe', 'route' => 'rcsa.universe.index', 'permission' => 'rcsa_universe.view', 'feature' => 'rcsa_v2'],
                     ['label' => 'Cycles', 'route' => 'rcsa.cycles.index', 'permission' => 'rcsa_cycle.view', 'feature' => 'rcsa_v2'],
                     ['label' => 'My Assessments', 'route' => 'rcsa.assessments.index', 'permission' => 'rcsa_assessment.view', 'feature' => 'rcsa_v2'],
                     ['label' => 'ORM Review', 'route' => 'rcsa.review.index', 'permission' => 'rcsa_assessment.review', 'feature' => 'rcsa_v2'],
                     ['label' => 'Action Plans', 'route' => 'rcsa.action-plans.index', 'permission' => 'rcsa_actionplan.view', 'feature' => 'rcsa_v2'],
-                    ['label' => 'RCSA Dashboard', 'route' => 'rcsa.dashboard.index', 'permission' => 'rcsa_assessment.view', 'feature' => 'rcsa_v2'],
                     ['label' => 'Export', 'route' => 'rcsa.exports.index', 'permission' => 'rcsa_export.bulk', 'feature' => 'rcsa_v2'],
                 ],
             ],

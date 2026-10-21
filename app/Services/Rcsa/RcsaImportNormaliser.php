@@ -119,6 +119,35 @@ class RcsaImportNormaliser
         $controlType = $this->canonical($text($raw['control_type'] ?? null), RcsaRegisterControl::TYPES);
         $frequency = $this->canonical($text($raw['control_frequency'] ?? null), RcsaRegisterControl::FREQUENCIES);
 
+        // An unrecognised type or frequency resolves to null, and a null is
+        // what the control is published with. Said aloud, as a warning, when
+        // there IS a control to carry it: "fortnightly" beside a real control
+        // used to vanish without a word (2026-10-21 E2E). On a row with no
+        // control the value has nothing to attach to — the publisher drops it
+        // and the validator already warns that there is no control — so a
+        // second note there would only describe a value that is discarded
+        // either way.
+        if ($text($raw['existing_control'] ?? null) !== null) {
+            foreach ([
+                'control_type' => [$controlType, 'control type', RcsaRegisterControl::TYPES],
+                'control_frequency' => [$frequency, 'control frequency', RcsaRegisterControl::FREQUENCIES],
+            ] as $field => [$resolved, $label, $vocabulary]) {
+                $typed = $text($raw[$field] ?? null);
+
+                if ($typed !== null && $resolved === null) {
+                    $notes[] = [
+                        'field' => $field,
+                        'message' => sprintf(
+                            '"%s" is not a recognised %s (%s), so the control will have none.',
+                            $typed,
+                            $label,
+                            implode(', ', $vocabulary),
+                        ),
+                    ];
+                }
+            }
+        }
+
         /* --- Control owner --------------------------------------------- */
 
         $ownerLabel = $text($raw['control_owner'] ?? null);

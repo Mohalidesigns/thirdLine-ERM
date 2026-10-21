@@ -175,6 +175,81 @@ class ImportValidationTest extends ImportTestCase
         $this->assertSame('detective', $row->normalised['control_type']);
     }
 
+    /**
+     * 2026-10-21 E2E: "fortnightly" beside a real control published as a
+     * control with no frequency, and the preview said nothing.
+     */
+    #[Test]
+    public function an_unrecognised_control_frequency_or_type_is_a_warning_when_there_is_a_control(): void
+    {
+        $batch = $this->stage([
+            $this->row(['control_frequency' => 'fortnightly']),
+            $this->row([
+                'potential_risk' => 'Cash in transit is moved without a second custodian present.',
+                'control_type' => 'compensating',
+            ]),
+        ]);
+
+        $rows = $batch->rows()->orderBy('row_number')->get();
+
+        foreach ([[$rows[0], 'control_frequency', 'fortnightly'], [$rows[1], 'control_type', 'compensating']] as [$row, $field, $typed]) {
+            $this->assertSame(RcsaImportRow::WARNING, $row->status, json_encode($row->errors));
+            $this->assertNull($row->normalised[$field]);
+
+            $note = collect($row->errors)->firstWhere('field', $field);
+
+            $this->assertNotNull($note, json_encode($row->errors));
+            $this->assertSame('normalisation', $note['rule']);
+            $this->assertSame(RcsaImportRow::WARNING, $note['severity']);
+            $this->assertStringContainsString("\"{$typed}\" is not a recognised", $note['message']);
+            // A warning row still writes: the risk and its control are kept,
+            // only the unreadable value is dropped.
+            $this->assertTrue($row->willWrite());
+        }
+    }
+
+    /**
+     * With no control, the frequency has nothing to attach to: the publisher
+     * drops it and the row already warns that there is no control. A second
+     * note would describe a value that is discarded either way.
+     */
+    #[Test]
+    public function an_unrecognised_control_frequency_without_a_control_raises_no_frequency_note(): void
+    {
+        $batch = $this->stage([
+            $this->row(['existing_control' => '', 'control_frequency' => 'fortnightly', 'control_type' => 'compensating']),
+        ]);
+
+        $row = $batch->rows()->sole();
+        $fields = collect($row->errors)->pluck('field');
+
+        $this->assertTrue($fields->contains('existing_control'), json_encode($row->errors));
+        $this->assertFalse($fields->contains('control_frequency'), json_encode($row->errors));
+        $this->assertFalse($fields->contains('control_type'), json_encode($row->errors));
+    }
+
+    #[Test]
+    public function a_recognised_frequency_and_type_resolve_silently_whatever_the_casing(): void
+    {
+        $batch = $this->stage([
+            $this->row(['control_frequency' => 'DAILY', 'control_type' => 'Detective']),
+            $this->row([
+                'potential_risk' => 'Cash in transit is moved without a second custodian present.',
+                'control_frequency' => '',
+                'control_type' => '',
+            ]),
+        ]);
+
+        foreach ($batch->rows()->orderBy('row_number')->get() as $row) {
+            $this->assertSame(RcsaImportRow::VALID, $row->status, json_encode($row->errors));
+        }
+
+        $first = $batch->rows()->orderBy('row_number')->first();
+
+        $this->assertSame('daily', $first->normalised['control_frequency']);
+        $this->assertSame('detective', $first->normalised['control_type']);
+    }
+
     #[Test]
     public function the_alias_map_accepts_the_spellings_the_workbook_itself_teaches(): void
     {

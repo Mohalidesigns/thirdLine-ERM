@@ -1,6 +1,8 @@
+import { Children, cloneElement, isValidElement, useId } from 'react';
 import DynamicForm from '@thirdline/ui/Components/DynamicForm';
 import InputError from '@thirdline/ui/Components/InputError';
-import { withUnit } from '@/lib/units';
+import KriBandLegend from '@/Components/Kri/KriBandLegend';
+import RedBandSection from '@/Components/Kri/RedBandSection';
 
 /**
  * The create and edit form for a KRI (migration Phase 4.1).
@@ -39,61 +41,66 @@ function Section({ index, title, children }) {
     );
 }
 
+/**
+ * A labelled field. The label is bound to the control, a required field says so
+ * to a screen reader as well as with the star, and an error or help line is
+ * referenced from the control (aria-describedby) so it is read with it.
+ * (The previous version bound nothing; 00-common section 5 requires it of every
+ * form this work touches.)
+ */
 function Field({ label, required = false, error, help, children, className = '' }) {
+    const uid = useId();
+    const controlId = `${uid}-control`;
+    const helpId = help ? `${uid}-help` : null;
+    const errorId = error ? `${uid}-error` : null;
+    const describedBy = [helpId, errorId].filter(Boolean).join(' ') || undefined;
+
+    const control = Children.map(children, (child) => (
+        isValidElement(child)
+            ? cloneElement(child, {
+                id: child.props.id ?? controlId,
+                'aria-invalid': error ? 'true' : undefined,
+                'aria-describedby': describedBy,
+                ...(required ? { required: true, 'aria-required': true } : {}),
+            })
+            : child
+    ));
+    const forId = Children.toArray(children).find(isValidElement)?.props.id ?? controlId;
+
     return (
         <div className={className}>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-                {label} {required && <span className="text-red-500">*</span>}
+            <label htmlFor={forId} className="block text-xs font-medium text-gray-600 mb-1">
+                {label}
+                {required && (
+                    <>
+                        {' '}
+                        <span aria-hidden="true" className="text-red-500">*</span>
+                        <span className="sr-only"> (required)</span>
+                    </>
+                )}
             </label>
-            {children}
-            {help && <p className="text-xs text-gray-500 mt-1">{help}</p>}
-            <InputError message={error} className="mt-1" />
+            {control}
+            {help && <p id={helpId} className="text-xs text-gray-600 mt-1">{help}</p>}
+            <InputError message={error} id={errorId} className="mt-1" />
         </div>
     );
 }
 
-/** Plain English for the bands the two numbers describe. */
-function BandPreview({ direction, green, red, unit }) {
-    if (green === '' || green === null || red === '' || red === null) {
-        return <p className="text-xs text-gray-400">Enter both boundaries to see the bands.</p>;
-    }
-
-    const g = Number(green);
-    const r = Number(red);
-    const v = (n) => withUnit(n, unit);
-
-    const bands = direction === 'higher_is_worse'
-        ? [
-            { label: 'Green', tone: 'bg-green-100 text-green-800', text: `up to ${v(g)}` },
-            { label: 'Amber', tone: 'bg-yellow-100 text-yellow-800', text: `over ${v(g)} and under ${v(r)}` },
-            { label: 'Red', tone: 'bg-red-100 text-red-800', text: `${v(r)} and above` },
-        ]
-        : [
-            { label: 'Green', tone: 'bg-green-100 text-green-800', text: `${v(g)} and above` },
-            { label: 'Amber', tone: 'bg-yellow-100 text-yellow-800', text: `under ${v(g)} and over ${v(r)}` },
-            { label: 'Red', tone: 'bg-red-100 text-red-800', text: `${v(r)} and below` },
-        ];
-
-    const inverted = direction === 'higher_is_worse' ? g > r : g < r;
-
-    return (
-        <div className="space-y-2">
-            {bands.map((band) => (
-                <div key={band.label} className="flex items-center gap-2 text-xs">
-                    <span className={`badge ${band.tone} w-16 justify-center`}>{band.label}</span>
-                    <span className="text-gray-600">{band.text}</span>
-                </div>
-            ))}
-            {inverted && (
-                <p className="text-xs text-amber-600">
-                    The green and red boundaries look the wrong way round for this direction — amber would be empty.
-                </p>
-            )}
-        </div>
-    );
-}
-
-export default function KriForm({ data, setData, errors = {}, schema, risks = [], users = [], frequencies = [], directions = [], showRisk = false, showActive = false }) {
+export default function KriForm({
+    data,
+    setData,
+    errors = {},
+    schema,
+    risks = [],
+    users = [],
+    departments = [],
+    frequencies = [],
+    directions = [],
+    showRisk = false,
+    showActive = false,
+    isEdit = false,
+    redBand = null,
+}) {
     return (
         <>
             <Section index={1} title="Indicator">
@@ -139,6 +146,25 @@ export default function KriForm({ data, setData, errors = {}, schema, risks = []
                         </select>
                     </Field>
 
+                    <Field
+                        label="Department"
+                        error={errors.business_unit_id}
+                        help={
+                            <>
+                                A KRI with a department is included in that department&apos;s monthly return. KRIs with no department aren&apos;t included and don&apos;t count on the submission dashboard.
+                                {isEdit && ' Moving a KRI to another department takes it out of the old department\u2019s return the next time that return is saved or submitted. A draft value for it is discarded and recorded in the audit trail.'}
+                            </>
+                        }
+                        className="lg:col-span-2"
+                    >
+                        <select value={data.business_unit_id ?? ''} onChange={(e) => setData('business_unit_id', e.target.value)} className={INPUT}>
+                            <option value="">No department (Unassigned)</option>
+                            {departments.map((department) => (
+                                <option key={department.id} value={department.id}>{department.name}</option>
+                            ))}
+                        </select>
+                    </Field>
+
                     <Field label="Data Source" error={errors.data_source}>
                         <input type="text" value={data.data_source ?? ''} onChange={(e) => setData('data_source', e.target.value)} className={INPUT} />
                     </Field>
@@ -171,7 +197,15 @@ export default function KriForm({ data, setData, errors = {}, schema, risks = []
                         </div>
 
                         <Field label="Target Value" error={errors.target_value}>
-                            <input type="number" step="0.01" value={data.target_value ?? ''} onChange={(e) => setData('target_value', e.target.value)} className={INPUT} />
+                            <input
+                                type="number"
+                                step="0.01"
+                                value={data.target_value ?? ''}
+                                onChange={(e) => setData('target_value', e.target.value)}
+                                onKeyDown={redBand ? (e) => redBand.onValueKeyDown(e, redBand.incomplete) : undefined}
+                                onBlur={redBand ? redBand.flush : undefined}
+                                className={INPUT}
+                            />
                         </Field>
 
                         {showActive && (
@@ -184,9 +218,30 @@ export default function KriForm({ data, setData, errors = {}, schema, risks = []
 
                     <div className="rounded-lg bg-gray-50 p-4">
                         <p className="text-xs font-semibold text-gray-700 mb-3">Resulting bands</p>
-                        <BandPreview direction={data.direction} green={data.green_threshold} red={data.red_threshold} unit={data.measurement_unit} />
+                        <KriBandLegend direction={data.direction} green={data.green_threshold} red={data.red_threshold} unit={data.measurement_unit} />
                     </div>
                 </div>
+
+                {redBand && redBand.liveRegion}
+                {redBand?.show && (
+                    <RedBandSection
+                        idPrefix="kri-target-redband"
+                        title="The target value is in the red band: explain it"
+                        context="target"
+                        values={redBand.values}
+                        onChange={redBand.onChange}
+                        errors={redBand.errors}
+                        openIssue={redBand.openIssue}
+                        openBreach={redBand.openBreach}
+                        ownerOptions={redBand.ownerOptions}
+                        lagosToday={redBand.lagosToday}
+                        required={redBand.required}
+                        sectionRef={redBand.sectionRef}
+                        intro={redBand.required
+                            ? 'Root cause, action point and a timeline are needed before this can be saved.'
+                            : 'Not required for this save: the target did not move and the open Issue already explains it. Fill this in only to update the Issue; leave it empty to keep the Issue as it is.'}
+                    />
+                )}
             </Section>
 
             {(schema?.sections ?? []).length > 0 && (

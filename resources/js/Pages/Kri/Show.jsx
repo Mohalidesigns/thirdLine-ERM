@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import InputError from '@thirdline/ui/Components/InputError';
@@ -7,6 +7,10 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
 import TrendChart from '@thirdline/ui/Components/TrendChart';
 import { withUnit } from '@/lib/units';
+import { BandBadge } from '@/Components/Kri/Badges';
+import RedBandSection, { emptyRedBand, redBandPayload, useRedBandHost, validateRedBand } from '@/Components/Kri/RedBandSection';
+import { bandFor, legendRows } from '@/lib/kri-band';
+import { formatDay, lagosToday } from '@/lib/kri-format';
 
 const BAND = {
     red: 'bg-red-100 text-red-700',
@@ -47,16 +51,80 @@ function Row({ label, children }) {
     );
 }
 
-/** Enter a reading. A panel rather than a page — it is three fields. */
-function RecordMeasurement({ kri, onClose }) {
-    const { data, setData, post, processing, errors } = useForm({
-        measurement_date: new Date().toISOString().slice(0, 10),
+/** Enter a reading. A panel rather than a page - three fields, and the red-band explanation when the value is red. */
+function RecordMeasurement({ kri, bandRule, openKriIssue, ownerOptions, redBandDefaults, onClose }) {
+    const today = lagosToday();
+    const formRef = useRef(null);
+    const { data, setData, post, processing, errors, transform } = useForm({
+        measurement_date: today,
         value: '',
         notes: '',
     });
+    const [redValues, setRedValues] = useState(() => emptyRedBand({ owner_id: openKriIssue ? '' : (redBandDefaults?.owner_id ?? '') }));
+    const [clientErrors, setClientErrors] = useState({});
+
+    // The rule was built for ONE period (A1.2). A live band is honest only while the
+    // date lies inside it; for any other date the server's 422 is the authority.
+    const period = bandRule?.period ?? null;
+    const inPeriod = Boolean(period && data.measurement_date >= period.start_date && data.measurement_date <= period.end_date);
+    const hasValue = data.value !== '' && Number.isFinite(Number(data.value));
+    const band = inPeriod && hasValue ? bandFor(bandRule, data.value) : null;
+    const isRed = band === 'red';
+
+    const serverErrors = {
+        root_cause: errors['red_band.root_cause'],
+        action_point: errors['red_band.action_point'],
+        timeline: errors['red_band.timeline'],
+        owner_id: errors['red_band.owner_id'],
+        timeline_change_reason: errors['red_band.timeline_change_reason'],
+    };
+    const serverForced = !isRed && Object.values(serverErrors).some(Boolean);
+    const redErrors = { ...clientErrors, ...Object.fromEntries(Object.entries(serverErrors).filter(([, v]) => v)) };
+
+    const host = useRedBandHost({
+        isRed,
+        serverForced,
+        messages: {
+            enter: `${kri.code} is in the red band. Root cause, action point and timeline are now required.`,
+            leave: `${kri.code} is no longer in the red band. The explanation fields are hidden. What you typed is kept.`,
+            forced: 'The server reads this value as red. Explanation required.',
+        },
+    });
+    const showSection = isRed || serverForced;
+
+    transform((form) => ({ ...form, ...(showSection ? { red_band: redBandPayload(redValues, openKriIssue) } : {}) }));
+
+    useEffect(() => {
+        if (Object.keys(errors).length > 0) {
+            requestAnimationFrame(() => formRef.current?.querySelector('[aria-invalid="true"]')?.focus());
+        }
+    }, [errors]);
+
+    const onRedChange = (field, value) => {
+        setRedValues((v) => ({ ...v, [field]: value }));
+        setClientErrors((e) => {
+            if (!e[field]) return e;
+            const { [field]: _gone, ...rest } = e;
+
+            return rest;
+        });
+    };
 
     const submit = (e) => {
         e.preventDefault();
+
+        if (showSection) {
+            const problems = validateRedBand(redValues, { openIssue: openKriIssue, today });
+
+            if (Object.keys(problems).length > 0) {
+                setClientErrors(problems);
+                requestAnimationFrame(() => formRef.current?.querySelector('[aria-invalid="true"]')?.focus());
+
+                return;
+            }
+        }
+
+        setClientErrors({});
         post(route('risk.kri.record-measurement', kri.id), {
             preserveScroll: true,
             onSuccess: onClose,
@@ -64,43 +132,110 @@ function RecordMeasurement({ kri, onClose }) {
     };
 
     const input = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]';
+    const incomplete = showSection && Object.keys(validateRedBand(redValues, { openIssue: openKriIssue, today })).length > 0;
+    const star = <><span aria-hidden="true" className="text-red-500">*</span><span className="sr-only"> (required)</span></>;
+
+    let badge;
+
+    if (!hasValue) badge = <span className="text-xs text-gray-600">Enter a value to see the band</span>;
+    else if (!inPeriod) badge = <span className="text-xs text-gray-600">Band will be checked when you record this date</span>;
+    else badge = <BandBadge band={band} />;
 
     return (
-        <form onSubmit={submit} className="mb-6 bg-white rounded-xl border border-blue-200 p-5">
+        <form ref={formRef} onSubmit={submit} noValidate className="mb-6 bg-white rounded-xl border border-blue-200 p-5">
             <h3 className="text-sm font-semibold text-[#1A365D] mb-4">Record a Measurement</h3>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Measurement Date <span className="text-red-500">*</span></label>
-                    <input type="date" value={data.measurement_date} onChange={(e) => setData('measurement_date', e.target.value)} className={input} />
-                    <InputError message={errors.measurement_date} className="mt-1" />
+                    <label htmlFor="rm-date" className="block text-xs font-medium text-gray-600 mb-1">Measurement Date {star}</label>
+                    <input id="rm-date" type="date" required aria-required="true" value={data.measurement_date} onChange={(e) => setData('measurement_date', e.target.value)}
+                        aria-invalid={errors.measurement_date ? 'true' : undefined} aria-describedby={errors.measurement_date ? 'rm-date-error' : undefined} className={input} />
+                    <InputError message={errors.measurement_date} id="rm-date-error" className="mt-1" />
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Value <span className="text-red-500">*</span>{kri.unit ? ` (${kri.unit})` : ''}
+                    <label htmlFor="rm-value" className="block text-xs font-medium text-gray-600 mb-1">
+                        Value {star}{kri.unit ? ` (${kri.unit})` : ''}
                     </label>
-                    <input type="number" step="0.0001" value={data.value} onChange={(e) => setData('value', e.target.value)} className={input} />
-                    <InputError message={errors.value} className="mt-1" />
+                    <input id="rm-value" type="number" step="0.0001" required aria-required="true" value={data.value}
+                        onChange={(e) => setData('value', e.target.value)}
+                        onKeyDown={(e) => host.onValueKeyDown(e, incomplete)}
+                        onBlur={host.flush}
+                        aria-invalid={errors.value ? 'true' : undefined} aria-describedby={['rm-band', errors.value ? 'rm-value-error' : null].filter(Boolean).join(' ')} className={input} />
+                    <div id="rm-band" className="mt-1">{badge}</div>
+                    <InputError message={errors.value} id="rm-value-error" className="mt-1" />
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-                    <input type="text" value={data.notes} onChange={(e) => setData('notes', e.target.value)} className={input} />
-                    <InputError message={errors.notes} className="mt-1" />
+                    <label htmlFor="rm-notes" className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                    <input id="rm-notes" type="text" value={data.notes} onChange={(e) => setData('notes', e.target.value)}
+                        aria-invalid={errors.notes ? 'true' : undefined} aria-describedby={errors.notes ? 'rm-notes-error' : undefined} className={input} />
+                    <InputError message={errors.notes} id="rm-notes-error" className="mt-1" />
                 </div>
             </div>
-            <p className="text-xs text-gray-500 mt-3">
+
+            {host.liveRegion}
+            {showSection && (
+                <RedBandSection
+                    idPrefix="rm-redband"
+                    title="This reading is in the red band: explain it"
+                    context="reading"
+                    values={redValues}
+                    onChange={onRedChange}
+                    errors={redErrors}
+                    openIssue={openKriIssue}
+                    ownerOptions={ownerOptions}
+                    lagosToday={today}
+                    sectionRef={host.sectionRef}
+                />
+            )}
+
+            <p className="text-xs text-gray-600 mt-3">
                 The reading is filed against the period its date falls in, and read against the limits that were in force
-                then — so a correction to an old month is judged by that month's thresholds, not today's.
+                then - so a correction to an old month is judged by that month&apos;s thresholds, not today&apos;s.
+                {period && !inPeriod && ` The band shown applies to ${period.label} only.`}
             </p>
             <div className="flex justify-end gap-2 mt-4">
                 <button type="button" onClick={onClose} className="btn-secondary text-sm">Cancel</button>
-                <button type="submit" disabled={processing} className="btn-primary text-sm disabled:opacity-50">Record</button>
+                <button type="submit" disabled={processing} aria-busy={processing} className="btn-primary text-sm disabled:opacity-50">{processing ? 'Recording\u2026' : 'Record'}</button>
             </div>
         </form>
     );
 }
 
+/** The explanation beneath a red reading: root cause (three lines, then Show more) and the Issue it raised. */
+function Explanation({ reading }) {
+    const [open, setOpen] = useState(false);
+    const text = reading.root_cause ?? '';
+    const long = text.length > 220 || text.split('\n').length > 3;
+
+    if (!text && !reading.issue) return <p><span className="font-medium">Explanation:</span> No explanation recorded.</p>;
+
+    return (
+        <div className="space-y-1">
+            {text && (
+                <p className={open ? 'whitespace-pre-line' : 'line-clamp-3 whitespace-pre-line'}>
+                    <span className="font-medium">Explanation: </span>{text}
+                </p>
+            )}
+            {text && long && (
+                <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="text-[#1A365D] underline">
+                    {open ? 'Show less' : 'Show more'}
+                </button>
+            )}
+            {reading.issue && (
+                <p>
+                    <span className="font-medium">Issue </span>
+                    {reading.issue.url
+                        ? <Link href={reading.issue.url} className="font-mono text-[#1A365D] underline">{reading.issue.reference}</Link>
+                        : <span className="font-mono">{reading.issue.reference}</span>}
+                    {` (${String(reading.issue.status ?? '').replace(/_/g, ' ').toLowerCase()})`}
+                    {reading.issue.due_date && ` due ${formatDay(reading.issue.due_date)}`}
+                </p>
+            )}
+        </div>
+    );
+}
+
 /** Migration Phase 4.1: risk/kri/show.blade.php. */
-export default function Show({ kri, history = {}, readings = {}, breaches = [], can = {} }) {
+export default function Show({ kri, history = {}, readings = {}, breaches = [], can = {}, bandRule = null, openKriIssue = null, ownerOptions = [], redBandDefaults = {} }) {
     const [recording, setRecording] = useState(false);
 
     const points = (history.points ?? []).map((point) => ({ month: point.period, value: point.value ?? 0 }));
@@ -130,7 +265,7 @@ export default function Show({ kri, history = {}, readings = {}, breaches = [], 
                 }
             />
 
-            {recording && <RecordMeasurement kri={kri} onClose={() => setRecording(false)} />}
+            {recording && <RecordMeasurement kri={kri} bandRule={bandRule} openKriIssue={openKriIssue} ownerOptions={ownerOptions} redBandDefaults={redBandDefaults} onClose={() => setRecording(false)} />}
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <KpiCard
@@ -171,13 +306,11 @@ export default function Show({ kri, history = {}, readings = {}, breaches = [], 
                             <p className="text-sm text-gray-400 py-8 text-center">No readings in the last twelve periods.</p>
                         )}
                         {(history.bands ?? []).length > 0 && (
-                            <div className="flex flex-wrap items-center gap-3 mt-4 text-xs text-gray-600">
+                            <div className="flex flex-wrap items-center gap-3 mt-4 text-xs text-gray-700">
                                 <span className="font-semibold">Bands in force:</span>
-                                {history.bands.map((band) => (
-                                    <span key={band.code} className={`badge ${BAND[band.code] ?? 'bg-gray-100 text-gray-600'}`}>
-                                        {titleCase(band.code)}
-                                        {band.min !== null && band.min !== undefined ? ` ≥ ${band.min}` : ''}
-                                        {band.max !== null && band.max !== undefined ? ` ≤ ${band.max}` : ''}
+                                {legendRows({ direction: bandRule?.direction ?? kri.direction, bands: history.bands }, (n) => withUnit(n, kri.unit)).map((row) => (
+                                    <span key={row.code} className={`badge ${BAND[row.code] ?? 'bg-gray-100 text-gray-600'}`}>
+                                        {row.name}: {row.text}
                                     </span>
                                 ))}
                             </div>
@@ -198,7 +331,8 @@ export default function Show({ kri, history = {}, readings = {}, breaches = [], 
                                         <tr><td colSpan={5} className="text-center py-8 text-gray-400">No readings recorded yet.</td></tr>
                                     )}
                                     {(readings.data ?? []).map((reading) => (
-                                        <tr key={reading.id}>
+                                        <Fragment key={reading.id}>
+                                        <tr>
                                             <td className="text-xs font-medium">{reading.period ?? '—'}</td>
                                             <td className="text-sm">{withUnit(reading.value, kri.unit)}</td>
                                             <td>
@@ -209,6 +343,14 @@ export default function Show({ kri, history = {}, readings = {}, breaches = [], 
                                             <td className="text-xs">{reading.enteredBy ?? '—'}</td>
                                             <td className="text-xs text-gray-500">{reading.recordedAt ?? '—'}</td>
                                         </tr>
+                                        {reading.band === 'red' && (
+                                            <tr>
+                                                <td colSpan={5} className="bg-red-50 text-xs text-gray-800">
+                                                    <Explanation reading={reading} />
+                                                </td>
+                                            </tr>
+                                        )}
+                                        </Fragment>
                                     ))}
                                 </tbody>
                             </table>

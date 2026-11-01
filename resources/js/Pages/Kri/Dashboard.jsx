@@ -5,6 +5,7 @@ import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import TrendChart from '@thirdline/ui/Components/TrendChart';
 import { withUnit } from '@/lib/units';
+import ReturnsCard from '@/Components/Kri/ReturnsCard';
 
 const STATUS = {
     red: { dot: 'bg-red-500', tile: 'border-red-300 bg-red-50', text: 'text-red-700' },
@@ -41,6 +42,7 @@ export default function Dashboard({
     breaching = [],
     trafficLights = [],
     canCreate = false,
+    returnsCard,
 }) {
     const slices = statusDistribution.map((slice) => ({
         name: slice.label,
@@ -73,6 +75,8 @@ export default function Dashboard({
                 <KpiCard title="Active Breaches" value={kpis.activeBreaches ?? 0} icon="notifications_active" color="danger" subtitle="Requires action" />
                 <KpiCard title="Avg. Health Score" value={`${kpis.avgHealthScore ?? 0}%`} icon="monitor_heart" color="info" />
             </div>
+
+            <ReturnsCard returnsCard={returnsCard} />
 
             <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">

@@ -5,7 +5,7 @@ import { formDataFor, initialValues } from '@thirdline/ui/Components/DynamicForm
 import KriForm from './KriForm';
 
 /** Migration Phase 4.1: risk/kri/create.blade.php. */
-export default function Create({ risks = [], users = [], frequencies = [], directions = [], schema = null, riskId = null }) {
+export default function Create({ risks = [], users = [], departments = [], frequencies = [], directions = [], schema = null, riskId = null }) {
     const { data, setData, post, processing, errors, transform } = useForm({
         ...initialValues(schema),
         risk_id: risks.some((risk) => risk.id === riskId) ? String(riskId) : '',
@@ -15,6 +15,7 @@ export default function Create({ risks = [], users = [], frequencies = [], direc
         measurement_frequency: 'monthly',
         data_source: '',
         kri_owner_id: '',
+        business_unit_id: '',
         formula: '',
         direction: 'higher_is_worse',
         green_threshold: '',
@@ -22,7 +23,11 @@ export default function Create({ risks = [], users = [], frequencies = [], direc
         target_value: '',
     });
 
-    transform((form) => ({ ...form, ...formDataFor(schema, form) }));
+    transform((form) => ({
+        ...form,
+        ...formDataFor(schema, form),
+        business_unit_id: form.business_unit_id === '' ? null : form.business_unit_id,
+    }));
 
     const submit = (e) => {
         e.preventDefault();
@@ -41,7 +46,7 @@ export default function Create({ risks = [], users = [], frequencies = [], direc
 
             <form onSubmit={submit} className="max-w-5xl">
                 <KriForm
-                    {...{ data, setData, errors, schema, risks, users, frequencies, directions }}
+                    {...{ data, setData, errors, schema, risks, users, departments, frequencies, directions }}
                     showRisk
                 />
 

@@ -34,12 +34,36 @@ class KriWorkingCalendar
         return CarbonImmutable::now(self::TIMEZONE)->startOfDay();
     }
 
-    /** A Y-m-d string or any date as a Lagos calendar day. */
+    /**
+     * A Y-m-d string or any date as a Lagos calendar day.
+     *
+     * STRICT, because `kri:open-cycle --date=` is how an operator replays a
+     * missed first working day. createFromFormat() silently OVERFLOWS an
+     * impossible date (2026-02-30 becomes 2026-03-02) and the old substr()
+     * accepted trailing junk, so a typo opened the cycle for a day nobody typed.
+     * The text must be exactly Y-m-d and must round-trip.
+     *
+     * @throws \InvalidArgumentException
+     */
     public static function day(string|\DateTimeInterface $value): CarbonImmutable
     {
-        $text = $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : substr($value, 0, 10);
+        if ($value instanceof \DateTimeInterface) {
+            return CarbonImmutable::createFromFormat('!Y-m-d', $value->format('Y-m-d'), self::TIMEZONE);
+        }
 
-        return CarbonImmutable::createFromFormat('Y-m-d', $text, self::TIMEZONE)->startOfDay();
+        $text = trim($value);
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $text) !== 1) {
+            throw new \InvalidArgumentException("Not a Y-m-d date: {$value}");
+        }
+
+        $day = CarbonImmutable::createFromFormat('!Y-m-d', $text, self::TIMEZONE);
+
+        if ($day === false || $day === null || $day->format('Y-m-d') !== $text) {
+            throw new \InvalidArgumentException("Not a real calendar date: {$value}");
+        }
+
+        return $day;
     }
 
     public function isWorkingDay(CarbonImmutable $day, ?int $organizationId = null): bool

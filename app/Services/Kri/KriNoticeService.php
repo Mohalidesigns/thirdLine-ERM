@@ -13,8 +13,10 @@ use App\Support\Kri\KriContactLadder;
 use App\Support\Kri\KriDepartmentScope;
 use App\Support\Kri\KriWorkingCalendar;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * The monthly request and the manual reminders, as rows (ADR 0026 section 5).
@@ -30,6 +32,15 @@ use Illuminate\Support\Facades\DB;
  *   reminder:bu{unit}:{Y-m-d Lagos}         one manual reminder per department per day.
  * A duplicate insert is a unique-key violation, reported as
  * `already_reminded_today` for that department and never a 500 for the batch.
+ * ONLY a unique-key violation (UniqueConstraintViolationException, MySQL and
+ * MariaDB error 1062) means "somebody else won". A lost connection, a deadlock
+ * or a lock-wait timeout is a real failure and is not reported as a duplicate.
+ *
+ * A DISPATCH THAT FAILS IS NOT A LOST NOTICE. The row is already committed as
+ * `queued`; a dead Redis at the moment of dispatch leaves it there, logged, for
+ * kri:cycle-watchdog to report and `kri:cycle-watchdog --redispatch` (or a
+ * forced re-run of kri:open-cycle, for a request) to hand back to the queue.
+ * Re-dispatching is safe because both jobs are idempotent on row state.
  */
 class KriNoticeService
 {
@@ -68,12 +79,33 @@ class KriNoticeService
                 'requested_by' => null,
                 'queued_at' => now(),
             ]);
-        } catch (QueryException) {
+        } catch (UniqueConstraintViolationException) {
             // Another server queued it between the check and the insert.
             return null;
         }
 
         return (int) $notice->id;
+    }
+
+    /**
+     * Hand a persisted notice to the queue. Never throws: the row is the
+     * record, and a notice that could not be queued stays `queued` where the
+     * watchdog finds it.
+     */
+    public function dispatchNotice(int $noticeId): bool
+    {
+        try {
+            DispatchKriReturnNotice::dispatch($noticeId)->afterCommit();
+
+            return true;
+        } catch (Throwable $e) {
+            Log::error('KRI notice persisted but could not be queued; kri:cycle-watchdog will report it', [
+                'kri_return_notice_id' => $noticeId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     /**
@@ -151,14 +183,19 @@ class KriNoticeService
 
                     $noticeId = (int) $notice->id;
                 });
-            } catch (QueryException) {
+            } catch (UniqueConstraintViolationException) {
                 // Lost a race on either unique key: another reminder won today.
+                // Two clicks on the same return are serialised by the row lock
+                // above and never get here; two returns of one department
+                // (different periods) on one day race only on the day key.
                 $outcome = 'already_reminded_today';
                 $noticeId = null;
             }
 
             if ($noticeId !== null) {
-                DispatchKriReturnNotice::dispatch($noticeId)->afterCommit();
+                // Persisted and committed: from here a queue failure is the
+                // watchdog's to report, not this click's to 500 on.
+                $this->dispatchNotice($noticeId);
             }
 
             $results[] = [
@@ -191,7 +228,7 @@ class KriNoticeService
 
             // Re-check at send time (A1.13): a return submitted while the notice
             // waited in the queue needs no chasing.
-            if (KriReturn::query()->whereKey($notice->kri_return_id)->value('status') === KriReturnStatus::Submitted->value) {
+            if ($this->returnIsSubmitted((int) $notice->kri_return_id)) {
                 $notice->status = KriReturnNotice::STATUS_CANCELLED;
                 $notice->recipients_resolved_at = now();
                 $notice->completed_at = now();
@@ -244,12 +281,80 @@ class KriNoticeService
         return $pending;
     }
 
-    /** Hand each pending recipient to its own send job (the job is the retry unit). */
+    /**
+     * Hand each pending recipient to its own send job (the job is the retry
+     * unit). A duplicate send job is harmless: SendKriReturnNoticeMail claims
+     * its row under a lock and does nothing unless it is still `pending`.
+     *
+     * @param  list<int>  $recipientIds
+     */
     public function dispatchSends(array $recipientIds): void
     {
         foreach ($recipientIds as $id) {
             SendKriReturnNoticeMail::dispatch((int) $id);
         }
+    }
+
+    /**
+     * Every recipient of a `dispatching` notice still waiting to be sent.
+     *
+     * This, not the return value of resolveRecipients(), is what the dispatch
+     * job hands to the queue. resolveRecipients() returns ids only on the run
+     * that resolved them, so a dispatch job that resolved, committed and then
+     * died (or met a dead Redis) before queueing the sends would, on retry,
+     * find the notice no longer `queued` and queue nothing: every recipient
+     * stranded on `pending` for ever, with the notice stuck on `dispatching`.
+     *
+     * @return list<int>
+     */
+    public function pendingRecipientIds(int $noticeId): array
+    {
+        $status = KriReturnNotice::query()->whereKey($noticeId)->value('status');
+
+        if ($status !== KriReturnNotice::STATUS_DISPATCHING) {
+            return [];
+        }
+
+        return KriReturnNoticeRecipient::query()
+            ->where('kri_return_notice_id', $noticeId)
+            ->where('status', KriReturnNoticeRecipient::STATUS_PENDING)
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * A1.13 at send time: the return was submitted, so nobody still pending on
+     * this notice is chased. One UPDATE on the recipients table (no subquery on
+     * itself, so no error 1093); a row another worker is mid-send on is waited
+     * for by InnoDB and, once it commits `sent`, no longer matches. Then the
+     * notice is rolled up, which yields `cancelled` when nothing went out.
+     */
+    public function cancelPendingForSubmission(int $noticeId): void
+    {
+        KriReturnNoticeRecipient::query()
+            ->where('kri_return_notice_id', $noticeId)
+            ->where('status', KriReturnNoticeRecipient::STATUS_PENDING)
+            ->update([
+                'status' => KriReturnNoticeRecipient::STATUS_SKIPPED,
+                'skip_reason' => KriReturnNoticeRecipient::SKIP_RETURN_SUBMITTED,
+                'updated_at' => now(),
+            ]);
+
+        $this->rollUp($noticeId);
+    }
+
+    /**
+     * The A1.13 re-check. Through the model, not `->value('status')` compared
+     * with a string: Eloquent's value() applies the `status` cast and returns a
+     * KriReturnStatus, so `value('status') === 'submitted'` was ALWAYS false and
+     * the re-check could never fire - a return submitted at 09:00 was still
+     * chased by the reminder queued at 08:59.
+     */
+    public function returnIsSubmitted(int $returnId): bool
+    {
+        return KriReturn::query()->whereKey($returnId)->first(['id', 'status'])?->isSubmitted() === true;
     }
 
     private function skippedForSubmission(int $noticeId): bool

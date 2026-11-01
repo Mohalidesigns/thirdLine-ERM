@@ -33,36 +33,65 @@ class OpenKriCycle extends Command
         $date = $this->option('date');
 
         try {
-            $day = $date ? KriWorkingCalendar::day((string) $date) : KriWorkingCalendar::today();
+            $day = ($date !== null && $date !== '') ? KriWorkingCalendar::day((string) $date) : KriWorkingCalendar::today();
         } catch (\Throwable) {
-            $this->error('--date must be a valid Y-m-d.');
+            $this->error('--date must be a real calendar date written Y-m-d (for example 2026-11-02).');
 
             return self::INVALID;
         }
 
         $only = $this->option('organization');
 
+        if ($only !== null && preg_match('/^[1-9]\d*$/', (string) $only) !== 1) {
+            $this->error('--organization must be an organization id.');
+
+            return self::INVALID;
+        }
+
         $organizationIds = TenantContext::bypass(
             fn () => Organization::query()
                 ->where('is_active', true)
-                ->when($only !== null, fn ($q) => $q->whereKey($only))
+                ->when($only !== null, fn ($q) => $q->whereKey((int) $only))
                 ->orderBy('id')
                 ->pluck('id')
                 ->all(),
             'kri:open-cycle organization sweep'
         );
 
+        // An operator replaying a missed cycle for one tenant must not be told
+        // "success" because the id was wrong or the tenant is inactive.
+        if ($only !== null && $organizationIds === []) {
+            $this->error("Organization {$only} does not exist or is not active.");
+
+            return self::FAILURE;
+        }
+
         $failed = false;
         $dryRun = (bool) $this->option('dry-run');
+        $force = (bool) $this->option('force');
+        $trigger = ($force || ($date !== null && $date !== '')) ? 'manual' : 'schedule';
 
         foreach ($organizationIds as $organizationId) {
-            $report = TenantContext::actingAs((int) $organizationId, fn () => $cycle->open(
-                (int) $organizationId,
-                $day,
-                (bool) $this->option('force'),
-                $dryRun,
-                $this->option('force') || $date ? 'manual' : 'schedule',
-            ));
+            // ONE TENANT'S FAILURE IS NOT EVERY TENANT'S. Before this, a throw
+            // before the run row existed (a period that would not resolve, a
+            // dropped connection) escaped the loop and every organisation after
+            // it was silently never opened that month. The failing tenant has no
+            // `completed` run, so kri:cycle-watchdog reports it at 10:00.
+            try {
+                $report = TenantContext::actingAs((int) $organizationId, fn () => $cycle->open(
+                    (int) $organizationId,
+                    $day,
+                    $force,
+                    $dryRun,
+                    $trigger,
+                ));
+            } catch (\Throwable $e) {
+                report($e);
+                $this->error("Organization {$organizationId} ({$day->toDateString()}): failed - {$e->getMessage()}");
+                $failed = true;
+
+                continue;
+            }
 
             $this->line("Organization {$organizationId} ({$day->toDateString()}): {$report['status']}".($report['reason'] ? " - {$report['reason']}" : ''));
 
@@ -76,7 +105,14 @@ class OpenKriCycle extends Command
                     $this->line("  - {$department['name']}: {$department['kris_due']} KRIs due; champions: {$champions}");
                 }
             } elseif ($report['status'] !== 'skipped') {
-                $this->line("  {$report['departments_due']} departments due, {$report['returns_opened']} returns opened, {$report['requests_queued']} requests queued, {$report['departments_without_champion']} without a champion.");
+                $this->line("  {$report['departments_due']} departments due, {$report['returns_opened']} returns opened, {$report['requests_queued']} requests queued, {$report['requests_redispatched']} stuck requests re-queued, {$report['departments_without_champion']} without a champion.");
+            }
+
+            if (($report['requests_not_queued'] ?? 0) > 0) {
+                // Persisted, not lost: the rows are `queued` and the watchdog
+                // reports them. Exit non-zero so the scheduler log shows it.
+                $this->error("  {$report['requests_not_queued']} request(s) are saved but could not be handed to the queue. Run `kri:cycle-watchdog --organization={$organizationId} --redispatch` once the queue is back.");
+                $failed = true;
             }
 
             foreach ($report['errors'] as $error) {

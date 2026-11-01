@@ -25,17 +25,22 @@ class KriReturnRequested extends Mailable
         $view = $this->view();
 
         return new Envelope(
-            subject: "KRI return for {$view['period']}: {$view['department']} - due {$view['due_on']}",
+            // Spec 09 section 3: the department first, because it is what the reader filters on.
+            subject: "{$view['department']}: KRI readings for {$view['period']} due {$view['due_short']}",
         );
     }
 
     public function content(): Content
     {
-        return new Content(view: 'emails.kri-return-requested', with: $this->view());
+        return new Content(
+            view: 'emails.kri-return-requested',
+            text: 'emails.kri-return-requested-text',
+            with: $this->view(),
+        );
     }
 
     /**
-     * @return array{department: string, period: string, due_on: string, days_overdue: int|null, kris: list<array{code: string, name: string}>, url: string, is_champion: bool, recipient_name: string, tier: int}
+     * @return array<string, mixed>
      */
     protected function view(): array
     {

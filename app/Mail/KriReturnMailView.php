@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Enums\KriContactRole;
 use App\Models\KriReturn;
 use App\Models\KriReturnLine;
 use App\Models\KriReturnNoticeRecipient;
@@ -14,7 +15,7 @@ use App\Support\Kri\KriWorkingCalendar;
 final class KriReturnMailView
 {
     /**
-     * @return array{department: string, period: string, due_on: string, days_overdue: int|null, kris: list<array{code: string, name: string}>, url: string, is_champion: bool, recipient_name: string, tier: int}
+     * @return array<string, mixed>
      */
     public static function for(KriReturnNoticeRecipient $recipient): array
     {
@@ -46,6 +47,39 @@ final class KriReturnMailView
             'is_champion' => $recipient->contact_role === 'risk_champion',
             'recipient_name' => $recipient->name,
             'tier' => (int) $notice->tier,
+            // The reminder number (0 for the monthly request) and the recipient's
+            // lowest-tier role in this department, per recipient (specs 09 and 10).
+            'sequence' => (int) $notice->sequence,
+            'contact_role' => (string) $recipient->contact_role,
+            'role_label' => KriContactRole::tryFrom((string) $recipient->contact_role)?->label() ?? '',
+            'reached' => self::reached((int) $notice->tier),
+            'earlier' => self::earlier((int) $notice->tier, (int) $notice->sequence),
+            'kris_shown' => array_slice($kris, 0, 25),
+            'kris_more' => max(0, count($kris) - 25),
+            'due_long' => $return->due_on->format('l j F Y'),
+            'due_short' => $return->due_on->format('D j M'),
+            'app_name' => (string) config('app.name'),
         ];
+    }
+
+    /**
+     * Roles reached up to a tier, in words ("risk champions and team leads").
+     */
+    public static function reached(int $tier): string
+    {
+        $words = ['risk champions', 'team leads', 'unit heads', 'group heads'];
+        $words = array_slice($words, 0, max(1, min($tier, 4)));
+
+        return count($words) === 1 ? $words[0] : implode(', ', array_slice($words, 0, -1)).' and '.end($words);
+    }
+
+    /** Roles reached BEFORE this tier (for "Earlier reminders went to ..."), or null at tier 1. */
+    public static function earlier(int $tier, int $sequence): ?string
+    {
+        if ($sequence < 2) {
+            return null;
+        }
+
+        return $sequence >= 5 ? 'all four levels' : self::reached(max(1, $tier - 1));
     }
 }

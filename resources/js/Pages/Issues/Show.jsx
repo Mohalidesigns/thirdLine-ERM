@@ -281,10 +281,33 @@ export default function Show({ issue, can = {}, options = {}, users = [] }) {
                     </div>
 
                     <div>
+                        {issue.kriOrigin && (
+                            <Card title="Raised from KRI breach">
+                                <dl>
+                                    <Row label="KRI">
+                                        <Link href={issue.kriOrigin.kri.url} className="text-[#1A365D] underline">
+                                            <span className="font-mono">{issue.kriOrigin.kri.code}</span> {issue.kriOrigin.kri.name}
+                                        </Link>
+                                    </Row>
+                                    <Row label="Breach">
+                                        {issue.kriOrigin.breach
+                                            ? <Link href={issue.kriOrigin.breach.url} className="text-[#1A365D] underline">Red breach{issue.kriOrigin.breach.period ? `, ${issue.kriOrigin.breach.period}` : ''}</Link>
+                                            : 'No breach is linked'}
+                                    </Row>
+                                    <Row label="Return">
+                                        {issue.kriOrigin.return
+                                            ? <Link href={issue.kriOrigin.return.url} className="text-[#1A365D] underline">{[issue.kriOrigin.return.department, issue.kriOrigin.return.period].filter(Boolean).join(', ')}</Link>
+                                            : 'Not raised from a monthly return'}
+                                    </Row>
+                                    <Row label="Timeline">{issue.dueDate ?? '\u2014'}</Row>
+                                </dl>
+                            </Card>
+                        )}
+
                         <Card title="Issue">
                             <dl>
                                 <Row label="Reference">{issue.reference}</Row>
-                                <Row label="Source">{titleCase(issue.source)}</Row>
+                                <Row label="Source">{issue.sourceLabel ?? titleCase(issue.source)}</Row>
                                 <Row label="Category">{issue.category ?? '—'}</Row>
                                 <Row label="Owner">{issue.owner ?? '—'}</Row>
                                 <Row label="Business unit">{issue.businessUnit ?? '—'}</Row>

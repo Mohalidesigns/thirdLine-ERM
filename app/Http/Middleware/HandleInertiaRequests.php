@@ -57,6 +57,18 @@ class HandleInertiaRequests extends PlatformMiddleware
 
             'navigation' => fn () => app(NavPresenter::class)->for($user),
 
+            // The platform shares flash.{success,error,warning,info}; this product
+            // adds `reminderResults` (ADR 0026 section 16), a list of
+            // {return_id, department, outcome, tier|null}. applicationProps is
+            // spread last, so the whole bag is restated here rather than merged.
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
+                'warning' => fn () => $request->session()->get('warning'),
+                'info' => fn () => $request->session()->get('info'),
+                'reminderResults' => fn () => $request->session()->get('reminderResults'),
+            ],
+
             'unreadNotifications' => fn () => $user
                 ? DB::table('notifications_log')->where('user_id', $user->id)->whereNull('read_at')->count()
                 : 0,

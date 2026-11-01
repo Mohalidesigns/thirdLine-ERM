@@ -140,17 +140,20 @@ class MonteCarloServiceTest extends TestCase
         $aggregate = $this->simulate(self::SEED)->firstWhere('result_type', 'aggregate');
         $curve = $aggregate->percentile_distribution;
 
-        $this->assertSame(
-            ['p5', 'p10', 'p25', 'p50', 'p75', 'p90', 'p95', 'p99', 'p99.5', 'p99.9', 'max'],
-            array_keys($curve)
-        );
+        $levels = ['p5', 'p10', 'p25', 'p50', 'p75', 'p90', 'p95', 'p99', 'p99.5', 'p99.9', 'max'];
+
+        // Compared as a set, and walked in $levels order rather than the
+        // array's own: MySQL 8 hands json back with its keys re-ordered by
+        // length, which puts `max` ahead of `p10`.
+        $this->assertEqualsCanonicalizing($levels, array_keys($curve));
 
         // The worst year is the top of the curve, so the walk below also proves
         // it is never under p99.9 — the figure the results page used to show
         // as "Max Simulated Loss".
 
         $previous = null;
-        foreach ($curve as $label => $value) {
+        foreach ($levels as $label) {
+            $value = $curve[$label];
             if ($previous !== null) {
                 $this->assertGreaterThanOrEqual($previous, $value, "percentile {$label} went backwards");
             }

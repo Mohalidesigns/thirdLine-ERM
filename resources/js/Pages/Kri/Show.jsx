@@ -6,6 +6,7 @@ import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
 import TrendChart from '@thirdline/ui/Components/TrendChart';
+import { withUnit } from '@/lib/units';
 
 const BAND = {
     red: 'bg-red-100 text-red-700',
@@ -134,16 +135,25 @@ export default function Show({ kri, history = {}, readings = {}, breaches = [], 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <KpiCard
                     title="Current Value"
-                    value={kri.currentValue === null ? '—' : `${kri.currentValue}${kri.unit ?? ''}`}
+                    value={kri.currentValue === null ? '—' : withUnit(kri.currentValue, kri.unit)}
                     icon="speed"
                     color={kri.status === 'red' ? 'danger' : kri.status === 'amber' ? 'warning' : 'success'}
                     unavailable={kri.currentValue === null}
                     unavailableLabel="No reading yet"
                 />
-                <KpiCard title="Status" value={titleCase(kri.status)} icon="monitor_heart" color={kri.status === 'red' ? 'danger' : kri.status === 'amber' ? 'warning' : 'success'} />
+                {/* current_status defaults to green on create, so with no
+                    reading it would claim a healthy indicator nobody has read. */}
+                <KpiCard
+                    title="Status"
+                    value={titleCase(kri.status)}
+                    icon="monitor_heart"
+                    color={kri.status === 'red' ? 'danger' : kri.status === 'amber' ? 'warning' : 'success'}
+                    unavailable={kri.currentValue === null}
+                    unavailableLabel="Not yet read"
+                />
                 <KpiCard
                     title="Target"
-                    value={kri.targetValue === null ? '—' : `${kri.targetValue}${kri.unit ?? ''}`}
+                    value={kri.targetValue === null ? '—' : withUnit(kri.targetValue, kri.unit)}
                     icon="flag"
                     color="primary"
                     unavailable={kri.targetValue === null}
@@ -190,7 +200,7 @@ export default function Show({ kri, history = {}, readings = {}, breaches = [], 
                                     {(readings.data ?? []).map((reading) => (
                                         <tr key={reading.id}>
                                             <td className="text-xs font-medium">{reading.period ?? '—'}</td>
-                                            <td className="text-sm">{reading.value ?? '—'}{kri.unit ?? ''}</td>
+                                            <td className="text-sm">{withUnit(reading.value, kri.unit)}</td>
                                             <td>
                                                 {reading.band
                                                     ? <span className={`badge ${BAND[reading.band] ?? 'bg-gray-100 text-gray-600'}`}>{titleCase(reading.band)}</span>

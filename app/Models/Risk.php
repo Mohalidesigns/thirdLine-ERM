@@ -24,6 +24,13 @@ class Risk extends Model
 {
     use BelongsToOrganization, HasFactory, HasObjectIdentity, ScopedToGraph, SoftDeletes;
 
+    /**
+     * The review cycles the register form offers, and the only values the
+     * requests accept: `review_frequency` is varchar(20), so free text longer
+     * than that would pass a loose rule and fail on insert.
+     */
+    public const REVIEW_FREQUENCIES = ['monthly', 'quarterly', 'semi-annual', 'annual'];
+
     protected $fillable = [
         'organization_id',
         'entity_id',
@@ -41,8 +48,13 @@ class Risk extends Model
         'risk_owner_id',
         'risk_steward_id',
         'risk_source',
+        'risk_type',
         'inherent_likelihood',
         'inherent_impact',
+        'inherent_impact_financial',
+        'inherent_impact_operational',
+        'inherent_impact_reputational',
+        'inherent_impact_regulatory',
         'inherent_score',
         'inherent_rating',
         'residual_likelihood',
@@ -54,7 +66,9 @@ class Risk extends Model
         'control_effectiveness_pct',
         'financial_exposure_ngn',
         'treatment_strategy',
+        'review_frequency',
         'appetite_aligned',
+        'appetite_notes',
         'regulatory_mapping',
         'date_identified',
         'identified_by',

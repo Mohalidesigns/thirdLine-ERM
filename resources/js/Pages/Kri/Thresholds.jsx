@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import InputError from '@thirdline/ui/Components/InputError';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import Pagination from '@thirdline/ui/Components/Pagination';
+import { withUnit } from '@/lib/units';
 
 const STATUS_DOT = {
     red: 'bg-red-500',
@@ -120,7 +121,7 @@ export default function Thresholds({ kris = {}, canManage = false }) {
                                             {kri.direction === 'lower_is_worse' ? 'Lower is worse' : 'Higher is worse'}
                                         </td>
                                         <td className="text-sm font-semibold">
-                                            {kri.currentValue === null ? '—' : `${kri.currentValue}${kri.unit ?? ''}`}
+                                            {kri.currentValue === null ? '—' : withUnit(kri.currentValue, kri.unit)}
                                         </td>
                                         <td className="bg-green-50/50">
                                             <input

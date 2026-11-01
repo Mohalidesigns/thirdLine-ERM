@@ -214,7 +214,7 @@ class RiskRegisterController extends Controller
         return Inertia::render('Register/Create', array_merge(
             $this->risks->formOptions(),
             [
-                'schema' => $this->configuredOnly($this->schemas->form('Risk')),
+                'schema' => $this->schemas->configuredOnly($this->schemas->form('Risk')),
                 // The AI Risk Statement Builder posts to a route behind
                 // `feature:ai_intelligence` + `permission:ai.view`. The Blade
                 // page drew the card unconditionally, so a tenant without the
@@ -253,7 +253,7 @@ class RiskRegisterController extends Controller
         return Inertia::render('Register/Show', array_merge(
             $this->risks->detail($register),
             [
-                'configured' => $this->configuredOnly($this->schemas->form('Risk', $register)),
+                'configured' => $this->schemas->configuredOnly($this->schemas->form('Risk', $register)),
                 'configuredDetail' => $this->schemas->detail($register, 'Risk', omit: self::DETAIL_OMIT, hideEmpty: true),
                 'can' => [
                     'update' => $user->can('update', $register),
@@ -299,7 +299,7 @@ class RiskRegisterController extends Controller
             $this->risks->formOptions(),
             [
                 'risk' => $this->risks->present($register->load(['category', 'businessUnit', 'riskOwner'])),
-                'schema' => $this->configuredOnly($this->schemas->form('Risk', $register)),
+                'schema' => $this->schemas->configuredOnly($this->schemas->form('Risk', $register)),
             ],
         ));
     }
@@ -345,30 +345,6 @@ class RiskRegisterController extends Controller
             ->with('success', "Attributes for {$register->risk_code} have been saved.");
     }
 
-    /**
-     * The tenant-configured fields only. A column-backed attribute is already
-     * an input on the bespoke form above; rendering the schema's copy as well
-     * would put two controls on one column — the "attribute appears twice"
-     * complaint from Wave 2.
-     *
-     * @param  array{objectType: mixed, sections: list<array{code:string,label:string,fields:list<array<string,mixed>>}>}  $schema
-     * @return array{objectType: mixed, sections: list<array{code:string,label:string,fields:list<array<string,mixed>>}>}
-     */
-    private function configuredOnly(array $schema): array
-    {
-        $sections = [];
-
-        foreach ($schema['sections'] as $section) {
-            $fields = array_values(array_filter($section['fields'], fn (array $field) => ! $field['mapped']));
-
-            if ($fields !== []) {
-                $sections[] = array_merge($section, ['fields' => $fields]);
-            }
-        }
-
-        return ['objectType' => $schema['objectType'], 'sections' => $sections];
-    }
-
     /* ------------------------------------------------------------------ */
     /*  Map an existing control (inline form on the Controls tab) */
     /* ------------------------------------------------------------------ */
@@ -382,7 +358,7 @@ class RiskRegisterController extends Controller
      */
     public function mapControl(MapControlRequest $request, Risk $register)
     {
-        ['control' => $control, 'mapped' => $mapped] = $this->risks->mapControl($register, $request->validated());
+        ['control' => $control, 'mapped' => $mapped] = $this->risks->mapControl($register, $request->validated(), $request->user()?->id);
 
         return redirect()
             ->route('risk.register.show', $register)

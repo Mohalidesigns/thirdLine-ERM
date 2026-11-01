@@ -103,10 +103,13 @@ class RiskRegisterService
             ])->values()->all(),
             'treatmentPlans' => $risk->treatmentPlans->map(fn (TreatmentPlan $plan) => [
                 'id' => $plan->getKey(),
-                'plan_code' => data_get($plan, 'plan_code'),
+                // treatment_plans has no plan_code or description column: the
+                // tab fell back to "Treatment Plan" for every plan.
+                'plan_code' => $plan->treatment_code,
+                'title' => $plan->action_title,
                 'strategy' => data_get($plan, 'strategy') ?? $risk->treatment_strategy,
                 'status' => data_get($plan, 'status') ?? 'active',
-                'description' => data_get($plan, 'description'),
+                'description' => $plan->action_description,
             ])->values()->all(),
             'kris' => $risk->keyRiskIndicators->map(fn (KeyRiskIndicator $kri) => [
                 'id' => $kri->getKey(),
@@ -313,7 +316,7 @@ class RiskRegisterService
                 'riskTypes' => ['strategic', 'operational', 'financial', 'compliance', 'technology', 'reputational'],
                 'treatmentStrategies' => ['mitigate', 'accept', 'transfer', 'avoid'],
                 'velocities' => ['slow', 'medium', 'fast'],
-                'reviewFrequencies' => ['monthly', 'quarterly', 'semi-annual', 'annual'],
+                'reviewFrequencies' => Risk::REVIEW_FREQUENCIES,
                 'statuses' => ['active', 'dormant', 'closed', 'retired'],
                 'frameworks' => ['CBN ORMS', 'Basel III', 'NDPA', 'NFIU', 'BOFIA', 'SEC Rules'],
             ],
@@ -453,7 +456,7 @@ class RiskRegisterService
      * @param  array<string, mixed>  $validated  MapControlRequest::validated()
      * @return array{control: Control, mapped: bool}
      */
-    public function mapControl(Risk $risk, array $validated): array
+    public function mapControl(Risk $risk, array $validated, ?int $userId = null): array
     {
         $control = Control::query()
             ->where('organization_id', $risk->organization_id)
@@ -480,6 +483,7 @@ class RiskRegisterService
             'is_key_control' => (bool) ($validated['is_key_control'] ?? false),
             'control_weight' => $validated['control_weight'] ?? null,
             'mapping_rationale' => $validated['mapping_rationale'] ?? '',
+            'created_by' => $userId,
         ], fn ($value) => $value !== null));
 
         return ['control' => $control, 'mapped' => true];

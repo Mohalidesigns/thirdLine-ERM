@@ -72,13 +72,18 @@ class ControlController extends Controller
     /*  Create / Store */
     /* ------------------------------------------------------------------ */
 
-    public function create()
+    public function create(Request $request)
     {
         Gate::authorize('create', Control::class);
 
         return Inertia::render('Controls/Create', array_merge(
             $this->controls->formOptions(),
-            ['schema' => $this->configuredOnly($this->schemas->form('Control'))],
+            [
+                'schema' => $this->schemas->configuredOnly($this->schemas->form('Control')),
+                // "Create New" on a risk's Controls tab links here with ?risk_id;
+                // the form ticks it only if it is one of the risks it offers.
+                'riskId' => $request->integer('risk_id') ?: null,
+            ],
         ));
     }
 
@@ -148,7 +153,7 @@ class ControlController extends Controller
             $this->controls->formOptions(),
             [
                 'control' => $this->controls->present($control->load(['controlOwner', 'businessUnit'])),
-                'schema' => $this->configuredOnly($this->schemas->form('Control', $control)),
+                'schema' => $this->schemas->configuredOnly($this->schemas->form('Control', $control)),
             ],
         ));
     }
@@ -214,30 +219,5 @@ class ControlController extends Controller
         $this->controls->unlinkRisk($control, $risk);
 
         return back()->with('success', "Control {$control->control_code} unlinked from risk {$risk->risk_code}.");
-    }
-
-    /* ------------------------------------------------------------------ */
-
-    /**
-     * The tenant-configured fields only. A column-backed attribute is already
-     * an input on the bespoke form; rendering the schema's copy as well would
-     * put two controls on one column.
-     *
-     * @param  array{objectType: mixed, sections: list<array{code:string,label:string,fields:list<array<string,mixed>>}>}  $schema
-     * @return array{objectType: mixed, sections: list<array{code:string,label:string,fields:list<array<string,mixed>>}>}
-     */
-    private function configuredOnly(array $schema): array
-    {
-        $sections = [];
-
-        foreach ($schema['sections'] as $section) {
-            $fields = array_values(array_filter($section['fields'], fn (array $field) => ! $field['mapped']));
-
-            if ($fields !== []) {
-                $sections[] = array_merge($section, ['fields' => $fields]);
-            }
-        }
-
-        return ['objectType' => $schema['objectType'], 'sections' => $sections];
     }
 }

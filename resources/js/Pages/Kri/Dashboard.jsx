@@ -4,6 +4,7 @@ import DonutChart from '@thirdline/ui/Components/DonutChart';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
 import TrendChart from '@thirdline/ui/Components/TrendChart';
+import { withUnit } from '@/lib/units';
 
 const STATUS = {
     red: { dot: 'bg-red-500', tile: 'border-red-300 bg-red-50', text: 'text-red-700' },
@@ -101,7 +102,7 @@ export default function Dashboard({
                                 </div>
                                 <p className="text-xs font-semibold text-gray-800 truncate" title={kri.name}>{kri.name}</p>
                                 <p className={`text-lg font-bold mt-1 ${tone(kri.status).text}`}>
-                                    {kri.value ?? '—'}{kri.unit ?? ''}
+                                    {withUnit(kri.value, kri.unit)}
                                 </p>
                                 <p className="text-[10px] text-gray-500 mt-1">{kri.code}</p>
                             </Link>

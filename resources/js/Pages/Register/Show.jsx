@@ -520,7 +520,8 @@ export default function Show({
                                 <div key={plan.id} className="bg-gray-50 rounded-xl p-4 mb-4">
                                     <div className="flex items-center justify-between mb-3">
                                         <div>
-                                            <p className="text-sm font-semibold text-[#1A365D]">{plan.plan_code ?? 'Treatment Plan'}</p>
+                                            <p className="text-sm font-semibold text-[#1A365D]">{plan.title ?? 'Treatment Plan'}</p>
+                                            {plan.plan_code && <p className="text-xs text-gray-500">{plan.plan_code}</p>}
                                             <p className="text-xs text-gray-500">Strategy: {ucfirst(plan.strategy) || '-'}</p>
                                         </div>
                                         <StatusBadge status={plan.status} />

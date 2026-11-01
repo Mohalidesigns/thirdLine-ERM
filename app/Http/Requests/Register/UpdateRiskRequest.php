@@ -51,7 +51,7 @@ class UpdateRiskRequest extends FormRequest
             'impact_regulatory' => ['required', 'integer', 'min:1', 'max:5'],
             'treatment_strategy' => ['nullable', Rule::in(['mitigate', 'accept', 'transfer', 'avoid'])],
             'risk_velocity' => ['nullable', 'string', 'max:50'],
-            'review_frequency' => ['nullable', 'string', 'max:50'],
+            'review_frequency' => ['nullable', Rule::in(Risk::REVIEW_FREQUENCIES)],
             'financial_exposure' => ['nullable', 'numeric', 'min:0'],
             'regulatory_tags' => ['nullable', 'array'],
             'regulatory_tags.*' => ['string', 'max:100'],

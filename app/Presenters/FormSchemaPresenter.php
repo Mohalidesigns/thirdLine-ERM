@@ -117,6 +117,31 @@ class FormSchemaPresenter
     }
 
     /**
+     * The tenant-configured fields only, for a screen whose bespoke form
+     * already has an input for every column-backed attribute. Rendering the
+     * schema's copy as well puts two controls on one column — and on submit
+     * formDataFor() writes the copy's value over the bespoke one, so whichever
+     * the user left alone wins (the KRI owner, E2E run 2026-10-18).
+     *
+     * @param  array{objectType: mixed, sections: list<array{code:string,label:string,fields:list<array<string,mixed>>}>}  $schema
+     * @return array{objectType: mixed, sections: list<array{code:string,label:string,fields:list<array<string,mixed>>}>}
+     */
+    public function configuredOnly(array $schema): array
+    {
+        $sections = [];
+
+        foreach ($schema['sections'] as $section) {
+            $fields = array_values(array_filter($section['fields'], fn (array $field) => ! $field['mapped']));
+
+            if ($fields !== []) {
+                $sections[] = array_merge($section, ['fields' => $fields]);
+            }
+        }
+
+        return ['objectType' => $schema['objectType'], 'sections' => $sections];
+    }
+
+    /**
      * The read view of one record, values already formatted for a human.
      *
      * @param  list<string>  $omit

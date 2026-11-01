@@ -5,6 +5,7 @@ namespace Tests\Feature\Register;
 use App\Models\Risk;
 use App\Models\RiskAuditTrail;
 use App\Models\RiskControlMapping;
+use App\Models\TreatmentPlan;
 use App\Support\Migration\Ported;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
@@ -75,6 +76,31 @@ class RiskPagesTest extends RegisterTestCase
                 ->where('can.delete', true)
                 ->where('can.mapControl', true)
             );
+    }
+
+    #[Test]
+    public function the_treatment_tab_names_each_plan(): void
+    {
+        // REGRESSION (E2E run 2026-10-18): the presenter read `plan_code` and
+        // `description`, neither of which treatment_plans has, so every plan
+        // on the tab was headed "Treatment Plan" with no text under it.
+        $plan = TreatmentPlan::create([
+            'organization_id' => $this->risk->organization_id,
+            'risk_id' => $this->risk->id,
+            'action_title' => 'Contract a staging soak for vendor patches',
+            'action_description' => 'Seventy-two hours in staging before production.',
+            'owner_id' => $this->actor->id,
+            'target_date' => now()->addMonth()->toDateString(),
+            'status' => 'not_started',
+            'created_by' => $this->actor->id,
+        ]);
+
+        $this->actingAs($this->actor)
+            ->get(route('risk.register.show', $this->risk))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('treatmentPlans.0.title', 'Contract a staging soak for vendor patches')
+                ->where('treatmentPlans.0.plan_code', $plan->fresh()->treatment_code)
+                ->where('treatmentPlans.0.description', 'Seventy-two hours in staging before production.'));
     }
 
     #[Test]
@@ -227,6 +253,9 @@ class RiskPagesTest extends RegisterTestCase
             'risk_id' => $this->risk->id,
             'control_id' => $this->control->id,
             'is_key_control' => true,
+            // REGRESSION (E2E run 2026-10-18): the mapping was saved with no
+            // author, while the same link made from the control form had one.
+            'created_by' => $this->actor->id,
         ]);
     }
 

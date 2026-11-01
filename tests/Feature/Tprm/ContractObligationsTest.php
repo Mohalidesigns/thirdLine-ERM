@@ -153,7 +153,9 @@ class ContractObligationsTest extends TestCase
         $annual = Obligation::query()->where('frequency', 'annual')->firstOrFail();
 
         $this->assertNotNull($annual->next_due_date);
-        $this->assertTrue($annual->next_due_date->isFuture());
+        // Today counts: on the anniversary itself the duty falls due today,
+        // which is not in the past. isFuture() failed every run on that day.
+        $this->assertTrue($annual->next_due_date->greaterThanOrEqualTo(today()));
         // The anniversary of the agreement, not an arbitrary date.
         $this->assertSame(
             $contract->effective_date->format('m-d'),

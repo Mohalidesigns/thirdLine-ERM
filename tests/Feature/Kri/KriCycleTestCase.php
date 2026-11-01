@@ -137,7 +137,10 @@ abstract class KriCycleTestCase extends KriTestCase
     /** The October 2026 reporting month (the month just ended on the frozen clock). */
     protected function reportingMonth(?int $organizationId = null): Period
     {
-        return app(PeriodService::class)->resolve('2026-10-31', 'month', $organizationId ?? $this->organization->id);
+        $organizationId ??= $this->organization->id;
+        app(PeriodService::class)->ensureCalendar($organizationId);
+
+        return app(PeriodService::class)->resolve('2026-10-31', 'month', $organizationId);
     }
 
     /** Open the cycle through the real command at the frozen first working day. */
@@ -172,10 +175,10 @@ abstract class KriCycleTestCase extends KriTestCase
         ], $attributes)), 'test fixture');
 
         if ($syncLines) {
-            TenantContext::actingAs($unit->organization_id, fn () => app(\App\Services\Kri\KriCycleService::class)->syncLines($return->fresh()));
+            TenantContext::actingAs($unit->organization_id, fn () => app(\App\Services\Kri\KriCycleService::class)->syncLines(KriReturn::query()->findOrFail($return->id)));
         }
 
-        return $return->fresh();
+        return TenantContext::actingAs($unit->organization_id, fn () => KriReturn::query()->findOrFail($return->id));
     }
 
     protected function lineFor(KriReturn $return, KeyRiskIndicator $kri): KriReturnLine

@@ -210,8 +210,21 @@ class KriNoticeMailTest extends KriCycleTestCase
         $pending = $this->notices()->resolveRecipients($id);
         $recipientId = $pending[0];
 
-        Mail::shouldReceive('to')->andReturnSelf();
-        Mail::shouldReceive('send')->andThrow(new \RuntimeException('451 4.7.1 greylisted'));
+        // A REAL transport that refuses the message, so the mailable is rendered and the
+        // failure comes from where production's would: the transport.
+        Mail::extend('refusing-test', fn () => new class extends \Symfony\Component\Mailer\Transport\AbstractTransport
+        {
+            protected function doSend(\Symfony\Component\Mailer\SentMessage $message): void
+            {
+                throw new \RuntimeException('451 4.7.1 greylisted');
+            }
+
+            public function __toString(): string
+            {
+                return 'refusing-test';
+            }
+        });
+        config(['mail.mailers.refusing-test' => ['transport' => 'refusing-test'], 'mail.default' => 'refusing-test']);
 
         $job = new SendKriReturnNoticeMail($recipientId);
         $this->assertSame(3, $job->tries);

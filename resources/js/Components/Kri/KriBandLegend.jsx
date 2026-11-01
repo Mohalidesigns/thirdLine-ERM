@@ -16,15 +16,16 @@ const TONES = {
  *
  * Accepts either direction spelling.
  */
-export default function KriBandLegend({ direction, green, red, unit, variant = 'stacked', emptyText = 'Enter both boundaries to see the bands.' }) {
+export default function KriBandLegend({ direction, green, red, unit, rule = null, variant = 'stacked', emptyText = 'Enter both boundaries to see the bands.' }) {
     const set = (v) => v !== '' && v !== null && v !== undefined && Number.isFinite(Number(v));
 
-    if (!set(green) || !set(red)) {
+    // A server rule (bandRule) is the engine's own; boundaries are what a form is typing.
+    if (!rule && (!set(green) || !set(red))) {
         return <p className="text-xs text-gray-600">{emptyText}</p>;
     }
 
-    const rows = legendRows(ruleFromBoundaries(direction, green, red), (n) => withUnit(n, unit));
-    const inverted = boundariesInverted(direction, green, red);
+    const rows = legendRows(rule ?? ruleFromBoundaries(direction, green, red), (n) => withUnit(n, unit));
+    const inverted = !rule && boundariesInverted(direction, green, red);
     const layout = variant === 'inline' ? 'flex flex-wrap gap-x-5 gap-y-2' : 'space-y-2';
 
     return (

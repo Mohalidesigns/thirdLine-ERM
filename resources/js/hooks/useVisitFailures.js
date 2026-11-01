@@ -23,6 +23,9 @@ export default function useVisitFailures() {
             if (status === 419 || status === 401) {
                 event.preventDefault();
                 setFailure({ kind: 'session', message: 'Your session has expired. Sign in again in a new tab, then come back and press Retry. Your entries are kept.' });
+            } else if (status === 403) {
+                event.preventDefault();
+                setFailure({ kind: 'forbidden', message: "You don't have permission to do that any more. Nothing was changed." });
             } else if (status === 429) {
                 event.preventDefault();
                 setFailure({ kind: 'throttle', message: 'Too many requests. Wait a minute, then try again.' });

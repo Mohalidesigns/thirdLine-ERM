@@ -451,7 +451,20 @@ class MeasureService
                 return;
             }
 
-            \App\Events\KriBreachDetected::dispatch($kri, $measurement, $band);
+            // After commit when inside a transaction (a rolled-back submit announces
+            // nothing), immediately otherwise. Each event is isolated: a failing
+            // listener is logged and cannot fail the measurement or its siblings.
+            \Illuminate\Support\Facades\DB::afterCommit(function () use ($kri, $measurement, $band) {
+                try {
+                    \App\Events\KriBreachDetected::dispatch($kri, $measurement, $band);
+                } catch (\Throwable $e) {
+                    logger()->warning('Could not announce a KRI breach', [
+                        'kri_id' => $kri->id,
+                        'band' => $band,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            });
         } catch (\Throwable $e) {
             logger()->warning('Could not announce a KRI breach', [
                 'object_id' => $objectId,

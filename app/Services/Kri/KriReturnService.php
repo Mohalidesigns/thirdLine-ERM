@@ -29,7 +29,7 @@ use RuntimeException;
  * SUBMIT IS ONE TRANSACTION: every reading through
  * KriMeasureBridge::recordMeasurement(), every breach root cause, every Issue
  * and graph edge, every line pointer and the return's status. If one KRI fails,
- * nothing is written. KriBreachDetected is ShouldDispatchAfterCommit, so a
+ * nothing is written. MeasureService::announceBreach() defers KriBreachDetected to DB::afterCommit, so a
  * rolled-back submit announces nothing.
  *
  * LOCK ORDER (one, so there is no deadlock cycle): the kri_returns row, then

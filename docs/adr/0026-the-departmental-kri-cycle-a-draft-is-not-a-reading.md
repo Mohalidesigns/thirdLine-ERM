@@ -1,6 +1,7 @@
 # ADR 0026 — The departmental KRI cycle: a KRI belongs to a business unit, a draft is not a reading, and a reminder is a row
 
 **Status:** Accepted · **Date:** 2026-11-01 · **Phase:** ERM/Risk — departmental monthly KRI cycle (`plans/kri/KRI-DEPARTMENTAL-CYCLE-PROMPT.md`) · **Author:** architect
+**Amended:** 2026-11-01, Amendment 1 (end of file), which closes the gaps ui-designer found in `docs/ui/kri-cycle/` 00–10. Where an amendment item and the body disagree, the amendment wins.
 **Requested by:** the user, through the coordinator. Decisions 0.1–0.9 were settled by the user on 2026-11-01 and are recorded here, not reopened.
 **Consumers:** backend-engineer **(lead: 7 migrations, 7 models, services, policies, requests, controllers, presenters, 2 mailables, 2 jobs, 2 commands)** · ui-designer · frontend-engineer · integrations-engineer (directory hint reader, §9) · reliability-engineer (scheduler, queue, retry, watchdog, §12) · qa-engineer · code-reviewer · Issues module (`IssueEscalationService`, `Issue::SOURCES`, §8) · measure engine (`KriBreachDetected` dispatch timing, §6.4) · BCMS track (read-only consumer of its directory data, no BCMS change, §9)
 
@@ -1012,3 +1013,188 @@ These sort after `2026_10_03_100001`.
   work, and one test file's bare assertions move to `?layout=flat`.
 - A department's history (contacts, returns, reminders, deliveries, Issues) can be
   answered from rows. None of it comes from logs.
+
+## Amendment 1 (2026-11-01)
+
+**Why.** ui-designer specified the screens against this ADR (`docs/ui/kri-cycle/00`–`10`)
+and logged the places where the contract cannot carry them. backend-engineer was
+already building, so every item below is **additive** unless it says
+**CHANGES**. Each item names the section it amends. There is one schema change
+(A1.8, a column in a migration that has not been merged). There is one route
+middleware change (A1.1).
+
+**A1.1 — BLOCKER: non-champion reminder recipients got a 403. CHANGES §10, §15, §17.**
+`risk.kri.returns.show` is already one of the nineteen routes (GET
+`kri/returns/{return}` → `Kri/MyReturn` with `readOnly: true`). It was gated
+`permission:kri.view`, which team leads, unit heads and group heads usually do not
+hold.
+- **Route middleware changes** from `permission:kri.view` to **`can:view,return`**.
+  `RouteAuthorizationTest` accepts `can:`. No nav entry points at this route, so
+  `NavigationPermissionGateTest` is unaffected.
+- **`KriReturnPolicy::view(User, KriReturn)`** is true when any of these holds:
+  - the user holds `kri.all_departments`;
+  - the user holds `kri.view` and the return's unit is in `KriDepartmentScope::unitIdsFor()`;
+  - the user is a `kri_department_contacts` row of **any role** for the return's
+    `business_unit_id`. The match is exact, with no descendants.
+
+  Permission, then tenancy, then the domain rule (standard §3). Out of tenant is
+  still 404.
+- **Read-only props for a viewer without `kri.view`:** `Line.kri.url` is null, the
+  `openKriIssues[].url` / `open_issue.url` values are null unless
+  `can('view', $issue)`, `departments` is `[]` and `urls` are null.
+- **Email link (§17), per recipient:** a recipient whose `contact_role` is
+  `risk_champion` gets **Complete my KRIs** → `risk.kri.my-return/{department}/{period}`.
+  Every other role gets **View the return** → `risk.kri.returns.show/{return}`.
+  Both links are always valid for that recipient, because the policy admits every
+  contact. The mailable receives the return id through notice → return.
+
+**A1.2 — `Kri/Show` red-band props. Amends §6.2, §16.** `Kri/Show` gains:
+- `openKriIssue`, the same shape as `Kri/Edit`'s;
+- `ownerOptions: [{id, name}]`, the same source as the KRI form's `users`
+  (active users in the tenant);
+- `redBandDefaults: {owner_id}`.
+
+The **default owner on both Risk Officer paths, Edit and Record, is
+`kri_owner_id ?? owner_id`**. On the champion path it is the champion.
+`bandRule` gains an optional **`period: {id, label, start_date, end_date}`** on
+`Kri/Show` and on every `Line.bandRule`. The client may show a live band only
+while the entered date lies within `period`. For any other date the badge reads
+"checked when you save", and **the server's 422 is the authority and the
+fallback**. **Yes: the "Bands in force" chips are corrected** to the same wording
+as the corrected legend (§6.1), generated from the same helper, so the page has
+one wording.
+
+**A1.3 — `Kri/Create` gains `departments: [{id, name}]`. Amends §1, §16.** Its
+source and the select are the same as Edit's. `StoreKriRequest` already accepts
+`business_unit_id` (§1).
+
+**A1.4 — Never-read KRIs are not green. Amends §16 (`Kri/Index` departments and
+unassigned, `Kri/Department.summary`).** A KRI **has a reading** when
+`last_measurement_at IS NOT NULL OR last_measurement_date IS NOT NULL OR` it
+appears in `LEFT JOIN (SELECT DISTINCT kri_id FROM kri_measurements) km`. That is
+a derived table, valid on both engines, with no correlated subquery inside an
+aggregate.
+- `red`, `amber` and `green` count only KRIs that have a reading, by `current_status`.
+- `unbanded` counts KRIs that have a reading and whose `current_status` is not
+  one of the three.
+- A **new key, `not_read`,** counts KRIs with no reading.
+- `kri_count` = red + amber + green + unbanded + not_read.
+
+**A1.5 — Drill-down payload is capped. Amends §16 (`Kri/Returns/Index`), adds a route.**
+- `rows[].notices` carries **at most the latest 3 notices**, newest first. Rows
+  gain `notices_total`.
+- The full history is loaded on expand from **GET `kri/returns/{return}/notices`**,
+  named **`risk.kri.returns.notices`**, with middleware `can:view,return`. It
+  returns JSON `{notices: Notice[]}` with every notice, newest first, each with its
+  `recipients`.
+- Server shape: one query for the page's notices, sliced in PHP, then one query for
+  the recipients of the kept notice ids. No window function.
+
+**A1.6 — Drill-down rows. Amends §16.**
+- Rows gain **`contact_counts: {risk_champion, team_lead, unit_head, group_head}`**.
+  Each count is of contacts who **could actually receive** a reminder: the user is
+  active and has an email. It comes from one grouped query on
+  `(business_unit_id, role)`.
+- **Server row order:** `display_status` rank first (`overdue`, `reopened`,
+  `in_progress`, `not_started`, `submitted`), then `days_overdue` descending, then
+  department name ascending.
+
+**A1.7 — Direction spelling. Amends §6.1, §16.** **Every read prop uses the
+engine's spelling, `higher_worse` / `lower_worse`**. That covers `bandRule.direction`,
+`Line.kri.direction` and `Kri/Show`. The form field `direction` on Create and Edit
+keeps the form spelling, `higher_is_worse` / `lower_is_worse`, because that is
+what `StoreKriRequest` and `UpdateKriRequest` validate. `kri-band.js`'s
+`ruleFromBoundaries()` takes the form spelling and returns a rule in the engine
+spelling, as `KriBandRule::forBoundaries()` does.
+
+**A1.8 — Optimistic locking on returns. SCHEMA, amends §4, §16.**
+- `kri_returns` gains **`lock_version` `unsignedInteger`, NOT NULL, default 0**. It
+  goes into `2026_11_01_100004_create_kri_cycle_tables.php`, which is unmerged and
+  has never been deployed, so editing it does not breach "no edit after merge". If
+  100004 has already run on a shared database, it goes into a new
+  `2026_11_01_100008_add_lock_version_to_kri_returns.php` instead.
+- `return.lock_version` is in the `Kri/MyReturn` props. The draft, submit and
+  reopen bodies carry `lock_version`.
+- The service compares the posted value with the row it holds under `lockForUpdate`.
+  On a mismatch it answers **422 on key `lock_version`** ("Someone else saved
+  this return since you opened it. Reload to see their changes; your entries are
+  kept on this page."). It is **not a 409**, because Inertia treats a 409 as an
+  asset-version reload.
+- Each successful draft save, submit and reopen, and each line sync that changes
+  lines, increments it. Last-write-wins is rejected.
+
+**A1.9 — Risk Officers and contacts see draft values in the read-only view. Amends §16.**
+Yes. Values, comments and the draft red-band text are shown, each marked **Draft
+— not submitted**. A draft is still not a reading: nothing counts it (§4).
+
+**A1.10 — Smaller contract items. Amends §10, §13, §15, §16.**
+- **Reopen reason.** `ReopenKriReturnRequest` body: `{lock_version, reason}`.
+  `reason` is required, a string of 10 to 500 characters. It is stored as
+  `change_reason` on the `return_reopened` audit row. There is no new column.
+- **`not_open`.** `Kri/MyReturn` gains the top-level `opensOn: 'Y-m-d'|null`. This
+  is `firstWorkingDayOf` the month after the requested period, using today's
+  holiday list. It is labelled as the expected date.
+- **Holidays.** `firstWorkingDays[]` gains `moved_by_holiday: bool`, which is true
+  when a holiday moved the first working day off the month's first Mon–Fri.
+- **`returnsCard`** gains `scopeNote: string|null`, worded as on the drill-down.
+- **POST bodies, confirmed:**
+  - contacts: `{business_unit_id, user_id, role}`;
+  - holidays: `{holiday_date (Y-m-d), name (max 150)}`.
+
+  Errors come back under those keys.
+- **Drill-down query keys, confirmed:** `?period={id}&filter=not_submitted|submitted|all`.
+- **Spec assumptions confirmed without change:**
+  - `reminderResults` is a flash value, read from `usePage().props.flash.reminderResults`.
+  - A reminder to a department with no champion still uses up its daily slot and
+    its sequence number. The notice row is written before recipients are resolved
+    (§5).
+  - For Unassigned, `Kri/Department.contacts` is `null`.
+  - A weekend holiday is accepted, and the screen warns.
+  - An inactive user may be added as a contact, flagged, and is skipped at send.
+
+**A1.11 — The Edit KRI form does not re-ask on every save. CHANGES §6.3, §6.4
+(`UpdateKriRequest` row).** With `newBand = bandOf(forBoundaries(posted), posted target)`
+and `oldBand = bandOf(forBoundaries(stored), stored target)`, the explanation is
+**required** only when `newBand = red` **and** one of these holds:
+- (a) `oldBand ≠ red`, meaning the target moved into red, whether by a new target
+  or by new boundaries or direction;
+- (b) the target value changed while red, compared as decimals at the column's
+  precision;
+- (c) the KRI has no open KRI Issue (`openIssueFor()` is null).
+
+Otherwise `red_band` is optional. If it is posted with any non-empty field, all
+three required fields are validated, and `applyToTarget()` updates the reused
+Issue. If it is absent, no Issue or breach is touched. The client mirrors this rule
+from `Kri/Edit`'s initial `target_value`, `bandRule` and `openKriIssue`. The server
+is the authority. The champion and record paths are unchanged: every new reading
+in red needs the explanation, prefilled from the open Issue.
+
+**A1.12 — Nav prefix. Amends §15.** The "KRI Monitoring" group's `prefixes`
+becomes `['/risk/kri', '/risk/settings/holidays']`.
+
+**A1.13 — Reminder send-time rules. Amends §5, §17.**
+- **Re-check at send time.** `DispatchKriReturnNotice`, before it resolves
+  recipients, and `SendKriReturnNoticeMail`, before each send, reload the return.
+  If it is `submitted`:
+  - every pending recipient becomes `skipped` with `skip_reason = 'return_submitted'`;
+  - the notice becomes **`cancelled`**, a new value of the `status` string column,
+    so no schema change.
+
+  The drill-down shows "Not sent: the return was submitted first".
+- **Sender identity.** The From address and name are the application's configured
+  `mail.from`. There is no per-module From and no Reply-To header.
+- **No reply handling.** Replies are not processed. Templates may say "Replies to
+  this email are not read." and must give no instruction to reply.
+
+**Already settled, no change:** focus moves to the red-band section on Tab or Enter,
+not mid-keystroke. The aria-live announcement fires after 700 ms idle or on blur,
+as specs 07 and 08 say.
+
+**Not changed by this amendment:** the remaining ui-designer gaps are copy or
+optional, and nobody asked for them here:
+- `activeBreachCount` and `parent_name` on the Library (01);
+- directory data on `Kri/Department` contacts (02);
+- a mismatch verdict in contact-search results (05);
+- a sender name and a completed-count line in emails (09, 10).
+
+Raise them as a separate request if wanted.

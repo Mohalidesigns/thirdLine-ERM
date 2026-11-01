@@ -48,6 +48,11 @@ class AuditActionTypeWidthTest extends TestCase
         'threshold_rebaselined',
         'breach_acknowledged', 'breach_closed',
         'fx_rate_recorded', 'fx_rate_amended',
+        // ADR 0026 section 13, the departmental KRI cycle.
+        'kri_contact_added', 'kri_contact_removed',
+        'holiday_added', 'holiday_removed',
+        'return_opened', 'return_submitted', 'return_reopened',
+        'value_changed', 'line_discarded',
     ];
 
     #[Test]

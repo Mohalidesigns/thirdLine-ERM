@@ -188,7 +188,7 @@ class KriRedBandService
      * the graph edge, measure_breaches.linked_issue_id and
      * kri_return_lines.issue_id. Null when the Issue has no edge to a KRI.
      *
-     * @return array{kri: array<string, mixed>, breach: array<string, mixed>|null, return: array<string, mixed>|null}|null
+     * @return array<string, mixed>|null
      */
     public function originFor(Issue $issue): ?array
     {
@@ -221,12 +221,26 @@ class KriRedBandService
         $line = \App\Models\KriReturnLine::query()->where('issue_id', $issue->id)->with('kriReturn.businessUnit', 'kriReturn.period')->orderByDesc('id')->first();
 
         return [
-            'kri' => ['id' => (int) $kri->id, 'code' => $kri->kri_code, 'name' => $kri->name, 'url' => route('risk.kri.show', $kri)],
+            'kri' => [
+                'id' => (int) $kri->id,
+                'code' => $kri->kri_code,
+                'name' => $kri->name,
+                'unit' => $kri->unit_of_measure,
+                // The read spelling (A1.7): higher_worse / lower_worse.
+                'direction' => $kri->threshold_direction === 'lower_worse' ? 'lower_worse' : 'higher_worse',
+                'url' => route('risk.kri.show', $kri),
+            ],
             'breach' => $breach === null ? null : [
                 'id' => (int) $breach->id,
                 'period' => $breach->period?->name,
+                'value' => $breach->value === null ? null : (float) $breach->value,
+                // The threshold in force when it breached; the KRI's red boundary if none was recorded.
+                'red_threshold' => $breach->threshold_value !== null ? (float) $breach->threshold_value : $kri->red_threshold,
+                'root_cause' => $breach->root_cause,
                 'url' => route('risk.kri.breaches'),
             ],
+            // With no breach (the Edit-form case) the root cause lives only in the Issue's observation.
+            'root_cause' => $breach?->root_cause ?? $issue->observation,
             'return' => $line?->kriReturn === null ? null : [
                 'id' => (int) $line->kriReturn->id,
                 'department' => $line->kriReturn->businessUnit?->name,

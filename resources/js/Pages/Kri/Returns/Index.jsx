@@ -11,7 +11,7 @@ import NoticeHistory from '@/Components/Kri/NoticeHistory';
 import { ReturnStatusBadge } from '@/Components/Kri/Badges';
 import useMediaQuery from '@/hooks/useMediaQuery';
 import useVisitFailures from '@/hooks/useVisitFailures';
-import { NOTICE_STATUS, ROLE_LABELS, formatDay, formatDayShort, formatLagosClock, plural, tierWords } from '@/lib/kri-format';
+import { NOTICE_STATUS, formatDayShort, formatLagosClock, plural, tierWords } from '@/lib/kri-format';
 
 const CAP = 50;
 const ROLE_ORDER = ['risk_champion', 'team_lead', 'unit_head', 'group_head'];

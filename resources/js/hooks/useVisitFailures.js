@@ -26,6 +26,9 @@ export default function useVisitFailures() {
             } else if (status === 403) {
                 event.preventDefault();
                 setFailure({ kind: 'forbidden', message: "You don't have permission to do that any more. Nothing was changed." });
+            } else if (status === 404) {
+                event.preventDefault();
+                setFailure({ kind: 'notfound', message: 'That item was already removed or no longer exists. The list has been refreshed.' });
             } else if (status === 429) {
                 event.preventDefault();
                 setFailure({ kind: 'throttle', message: 'Too many requests. Wait a minute, then try again.' });

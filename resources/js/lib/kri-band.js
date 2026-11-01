@@ -122,7 +122,7 @@ export function hasBands(rule) {
 export const BAND_NAMES = { green: 'Green', amber: 'Amber', red: 'Red' };
 
 /** The order a person reads bands in, whatever order the engine walks them. */
-const DISPLAY_ORDER = { green: 0, yellow: 1, amber: 1, red: 2 };
+const DISPLAY_ORDER = ['green', 'yellow', 'amber', 'red'];
 
 /**
  * What a band admits, in words, matching the edges above.
@@ -158,7 +158,7 @@ export function legendRows(rule, fmt) {
     if (!hasBands(rule)) return [];
 
     return [...rule.bands]
-        .sort((a, b) => (DISPLAY_ORDER[a.code] ?? 9) - (DISPLAY_ORDER[b.code] ?? 9))
+        .sort((a, b) => DISPLAY_ORDER.indexOf(a.code) - DISPLAY_ORDER.indexOf(b.code))
         .map((band) => ({
             code: band.code === 'yellow' ? 'amber' : band.code,
             name: BAND_NAMES[band.code === 'yellow' ? 'amber' : band.code] ?? band.code,

@@ -10,6 +10,7 @@ use App\Models\BusinessUnit;
 use App\Models\KriDepartmentContact;
 use App\Models\User;
 use App\Services\AuditTrailService;
+use App\Services\Kri\DepartmentMismatchRule;
 use App\Support\DirectoryProfile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,7 +46,7 @@ class KriDepartmentContactController extends Controller
                     }
 
                     $permitted[$contact->user_id] ??= $contact->user->can('kri.submit_return');
-                    $byRole[$contact->role->value][] = $this->contactRow($contact, $permitted[$contact->user_id], $profiles[$contact->user_id] ?? null);
+                    $byRole[$contact->role->value][] = $this->contactRow($contact, $permitted[$contact->user_id], $profiles[$contact->user_id] ?? null, $unit);
                 }
 
                 return [
@@ -142,7 +143,7 @@ class KriDepartmentContactController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function contactRow(KriDepartmentContact $contact, bool $canSubmit, ?DirectoryProfile $profile): array
+    private function contactRow(KriDepartmentContact $contact, bool $canSubmit, ?DirectoryProfile $profile, BusinessUnit $unit): array
     {
         return [
             'contact_id' => (int) $contact->id,
@@ -152,9 +153,8 @@ class KriDepartmentContactController extends Controller
             'is_active' => (bool) $contact->user->is_active,
             'has_submit_permission' => $canSubmit,
             'directory' => $this->directoryRow($profile),
-            // The mismatch rule (directory department text against the unit's
-            // name and code) belongs to integrations-engineer (ADR 0026 section 9).
-            'department_mismatch' => false,
+            // A flag, never applied: business units are authoritative (ADR 0026 section 9).
+            'department_mismatch' => DepartmentMismatchRule::mismatches($profile, $unit),
         ];
     }
 

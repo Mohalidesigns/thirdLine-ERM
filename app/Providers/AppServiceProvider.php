@@ -98,12 +98,13 @@ class AppServiceProvider extends ServiceProvider
             \App\Services\Bcms\Identity\EntraGraphClient::class,
         );
 
-        // ADR 0026 section 9. Placeholder until integrations-engineer binds the
-        // real, read-only reader of BCMS's directory-sourced contacts. It knows
-        // no one, so no directory hint or mismatch flag is shown meanwhile.
+        // ADR 0026 section 9. A read-only reader of what BCMS identity sync has
+        // already written; it returns [] itself when BCMS is off or the tenant
+        // has no active connector. NullDirectoryProfiles stays available as the
+        // explicit "no directory" binding (tests, or a deployment without BCMS).
         $this->app->bind(
             \App\Contracts\DirectoryProfiles::class,
-            \App\Services\Kri\NullDirectoryProfiles::class,
+            \App\Services\Kri\BcmsDirectoryProfiles::class,
         );
 
         // How this product names the owner of a rendered document. The

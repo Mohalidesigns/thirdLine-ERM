@@ -6,12 +6,16 @@ use App\Models\Issue;
 use App\Models\IssueEscalationLog;
 use App\Models\IssueEscalationRule;
 use App\Models\User;
+use App\Support\Kri\KriContactLadder;
 use Spatie\Permission\Models\Role;
 
 class IssueEscalationService
 {
     /** The ladder stops here however many rungs a tenant configures. */
     private const MAX_LEVEL = 5;
+
+    /** The escalation_path value of an Issue raised from a KRI breach. */
+    public const KRI_PATH = 'kri_department_contacts';
 
     /**
      * Check all open issues and escalate overdue ones
@@ -80,14 +84,30 @@ class IssueEscalationService
                 ->orderByDesc('escalation_level')
                 ->first();
 
-            if (! $rule) {
+            // ADR 0026 section 8.2: an Issue raised from a KRI breach escalates
+            // through its department's KRI contacts. Production tenants have no
+            // issue_escalation_rules, so the path carries a built-in floor
+            // ladder; a tenant's rules can only make it faster, never stop it.
+            $kriPath = $issue->escalation_path === self::KRI_PATH && $issue->business_unit_id !== null;
+
+            if (! $rule && ! $kriPath) {
                 continue;
             }
 
             // Apply CBN examination accelerated escalation
-            $effectiveLevel = $issue->cbn_examination_finding
-                ? min($rule->escalation_level + 1, self::MAX_LEVEL)
-                : (int) $rule->escalation_level;
+            $ruleLevel = $rule === null
+                ? 0
+                : ($issue->cbn_examination_finding
+                    ? min($rule->escalation_level + 1, self::MAX_LEVEL)
+                    : (int) $rule->escalation_level);
+
+            $effectiveLevel = $kriPath
+                ? max($ruleLevel, KriContactLadder::issueLevelForDaysOverdue($daysOverdue))
+                : $ruleLevel;
+
+            if ($effectiveLevel < 1) {
+                continue;
+            }
 
             $currentLevel = (int) ($issue->current_escalation_level ?? 0);
 
@@ -103,9 +123,12 @@ class IssueEscalationService
             IssueEscalationLog::create([
                 'issue_id' => $issue->id,
                 'escalation_level' => $effectiveLevel,
-                'escalated_to_role' => $rule->escalation_to_role,
+                'escalated_to_role' => $kriPath ? self::KRI_PATH : $rule->escalation_to_role,
                 'is_auto' => true,
-                'reason' => "Auto-escalated: {$daysOverdue} days overdue (threshold: {$rule->days_overdue_trigger} days)",
+                'reason' => $kriPath
+                    ? 'Auto-escalated to KRI contacts up to tier '.min($effectiveLevel, KriContactLadder::MAX_LEVEL)
+                        ." ({$daysOverdue} days overdue)"
+                    : "Auto-escalated: {$daysOverdue} days overdue (threshold: {$rule->days_overdue_trigger} days)",
                 'escalated_at' => now(),
             ]);
 
@@ -113,12 +136,68 @@ class IssueEscalationService
                 'current_escalation_level' => $effectiveLevel,
             ]);
 
-            $this->announce($issue, $rule->escalation_to_role, $effectiveLevel, $daysOverdue);
+            if ($kriPath) {
+                $this->announceToDepartment($issue, $rule?->escalation_to_role, $effectiveLevel, $daysOverdue);
+            } else {
+                $this->announce($issue, $rule->escalation_to_role, $effectiveLevel, $daysOverdue);
+            }
 
             $escalatedCount++;
         }
 
         return $escalatedCount;
+    }
+
+    /**
+     * Tell the department's KRI contacts, up to the tier reached. Inactive users
+     * are not notified. With nobody to tell, fall back to the matched rule's role
+     * (today's behaviour) when there was one; otherwise log.
+     */
+    private function announceToDepartment(Issue $issue, ?string $fallbackRole, int $level, int $daysOverdue): void
+    {
+        try {
+            $recipients = KriContactLadder::recipientsFor((int) $issue->business_unit_id, $level)
+                ->filter(fn (array $row) => $row['user']->is_active)
+                ->map(fn (array $row) => (int) $row['user']->id)
+                ->unique()
+                ->values()
+                ->all();
+
+            if ($recipients === []) {
+                if ($fallbackRole !== null) {
+                    $this->announce($issue, $fallbackRole, $level, $daysOverdue);
+
+                    return;
+                }
+
+                logger()->info('KRI issue escalation has no active department contacts', [
+                    'issue_id' => $issue->id,
+                    'business_unit_id' => $issue->business_unit_id,
+                    'level' => $level,
+                ]);
+
+                return;
+            }
+
+            NotificationService::sendMany(
+                organizationId: (int) $issue->organization_id,
+                userIds: $recipients,
+                type: 'issue_escalated',
+                subject: "Issue Escalated to Level {$level}: {$issue->issue_reference}",
+                body: "Issue '{$issue->title}' is {$daysOverdue} days overdue and has been escalated to your department's KRI contacts (level {$level}).",
+                metadata: [
+                    'entity_type' => 'issue',
+                    'entity_id' => $issue->id,
+                    'escalation_level' => $level,
+                    'escalated_to_role' => self::KRI_PATH,
+                ],
+                actionUrl: "/risk/issues/{$issue->id}",
+                priority: $level >= 2 ? 'critical' : 'high',
+                category: 'issue',
+            );
+        } catch (\Throwable $e) {
+            logger()->warning('Could not notify KRI department contacts', ['issue_id' => $issue->id, 'error' => $e->getMessage()]);
+        }
     }
 
     /**

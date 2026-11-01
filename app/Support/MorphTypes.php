@@ -27,7 +27,12 @@ use App\Models\Issue;
 use App\Models\IssueRemediationAction;
 use App\Models\JobRun;
 use App\Models\KeyRiskIndicator;
+use App\Models\KriCycleRun;
+use App\Models\KriDepartmentContact;
 use App\Models\KriMeasurement;
+use App\Models\KriReturn;
+use App\Models\KriReturnLine;
+use App\Models\KriReturnNotice;
 use App\Models\LossEvent;
 use App\Models\LossEventRca;
 use App\Models\Measure;
@@ -37,6 +42,7 @@ use App\Models\MeasureValue;
 use App\Models\NearMiss;
 use App\Models\ObjectType;
 use App\Models\Organization;
+use App\Models\OrganizationHoliday;
 use App\Models\Period;
 use App\Models\QuantificationScenario;
 use App\Models\Questionnaire;
@@ -169,6 +175,15 @@ class MorphTypes
             'issue_remediation_action' => IssueRemediationAction::class,
             'key_risk_indicator' => KeyRiskIndicator::class,
             'kri_measurement' => KriMeasurement::class,
+            // ADR 0026 section 13: the departmental KRI cycle is audited
+            // through risk_audit_trail, whose entity_type is 50 characters.
+            // None of these is a graph object.
+            'kri_department_contact' => KriDepartmentContact::class,
+            'organization_holiday' => OrganizationHoliday::class,
+            'kri_cycle_run' => KriCycleRun::class,
+            'kri_return' => KriReturn::class,
+            'kri_return_line' => KriReturnLine::class,
+            'kri_return_notice' => KriReturnNotice::class,
             // Migration Phase 0: the licensing client's two tables. Neither is
             // audited today, but enforceMorphMap makes any unmapped model fatal
             // the moment something asks for its morph class.

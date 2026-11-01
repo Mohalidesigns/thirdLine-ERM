@@ -46,6 +46,8 @@ class StoreKriRequest extends FormRequest
             'measurement_frequency' => ['required', Rule::in(KeyRiskIndicator::FREQUENCIES)],
             'data_source' => ['nullable', 'string', 'max:255'],
             'kri_owner_id' => ['required', Rule::exists('users', 'id')->where('organization_id', $orgId)],
+            // ADR 0026 section 1: the department. Nullable - null is "Unassigned".
+            'business_unit_id' => ['nullable', 'integer', Rule::exists('business_units', 'id')->where('organization_id', $orgId)->whereNull('deleted_at')],
             'green_threshold' => ['nullable', 'numeric'],
             'red_threshold' => ['nullable', 'numeric'],
             'direction' => ['required', Rule::in(KeyRiskIndicator::DIRECTIONS)],

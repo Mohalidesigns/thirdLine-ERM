@@ -24,6 +24,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property int|null $risk_id
  * @property bool $is_active
  * @property \Illuminate\Support\Carbon|null $last_measurement_date
+ * @property int|null $business_unit_id
  */
 class KeyRiskIndicator extends Model
 {
@@ -82,6 +83,8 @@ class KeyRiskIndicator extends Model
         'target_value',
         'kri_owner_id',
         'last_measurement_date',
+        // ADR 0026 section 1: the department the KRI is reported by.
+        'business_unit_id',
     ];
 
     protected $casts = [
@@ -115,6 +118,12 @@ class KeyRiskIndicator extends Model
     public function entity()
     {
         return $this->belongsTo(Entity::class);
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<BusinessUnit, $this> */
+    public function businessUnit(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(BusinessUnit::class);
     }
 
     /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */

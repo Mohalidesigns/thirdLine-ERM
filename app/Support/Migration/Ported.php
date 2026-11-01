@@ -157,6 +157,10 @@ final class Ported
         'risk.kri.show',
         'risk.kri.edit',
         'risk.kri.thresholds',
+        // ADR 0026 section 15: the departmental KRI cycle's navigable screens.
+        'risk.kri.my-return',
+        'risk.kri.contacts.index',
+        'risk.holidays.index',
         // Phase 4 — issues ('risk.issues.index' is above, from Phase 2's
         // grid work)
         'risk.issues.dashboard',

@@ -3,6 +3,7 @@
 namespace App\Support\Metadata;
 
 use App\Models\EmergingRisk;
+use App\Models\Issue;
 
 /**
  * WP-05 TASK 2 — the column-backed field definitions for the five object types
@@ -272,15 +273,10 @@ class FormFieldRegistry
                 'is_required' => true, 'width' => 'full',
                 'validation' => ['rules' => ['max:5000']],
             ]),
-            self::enum('issue_source', 'Source', [
-                'audit' => 'Audit',
-                'risk_assessment' => 'Risk assessment',
-                'incident' => 'Incident',
-                'regulatory' => 'Regulatory examination',
-                'self_identified' => 'Self-identified',
-                'customer_complaint' => 'Customer complaint',
-                'other' => 'Other',
-            ], ['is_required' => true, 'section' => 'Classification']),
+            // Derived from Issue::SOURCE_LABELS so the list cannot drift (ADR 0026
+            // section 8.3). A deployed form's options are data: migration
+            // 2026_11_01_100007 replays this one attribute.
+            self::enum('issue_source', 'Source', Issue::SOURCE_LABELS, ['is_required' => true, 'section' => 'Classification']),
             self::enum('priority', 'Priority', [
                 'critical' => 'Critical',
                 'high' => 'High',

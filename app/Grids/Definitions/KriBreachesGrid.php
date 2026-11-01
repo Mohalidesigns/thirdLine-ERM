@@ -53,7 +53,7 @@ class KriBreachesGrid extends GridDefinition
             )
             ->where('measure_breaches.organization_id', TenantContext::organizationId())
             ->select('measure_breaches.*')
-            ->with(['measure.unit', 'measure.keyRiskIndicator.risk.category', 'measure.owner', 'period', 'acknowledgedBy']);
+            ->with(['measure.unit', 'measure.keyRiskIndicator.risk.category', 'measure.owner', 'period', 'acknowledgedBy', 'linkedIssue']);
 
         // WP-00 node scoping, two relations deep. A breach hangs off a measure,
         // and a measure is the KRI's twin — KriMeasureMigrator writes
@@ -120,6 +120,13 @@ class KriBreachesGrid extends GridDefinition
                 'resolved' => 'bg-green-100 text-green-700',
                 'false_positive' => 'bg-gray-100 text-gray-600',
             ]),
+
+            Column::make('root_cause', 'Root cause')
+                ->using(fn (MeasureBreach $b) => $b->root_cause === null ? '—' : (string) str($b->root_cause)->limit(60)),
+
+            Column::make('issue', 'Issue')
+                ->using(fn (MeasureBreach $b) => $b->linkedIssue?->issue_reference ?? '—')
+                ->linkTo(fn (MeasureBreach $b) => $b->linkedIssue ? route('risk.issues.show', $b->linkedIssue) : '#'),
 
             Column::make('kri_code', 'Code')
                 ->hiddenByDefault()->searchable('measure_code')

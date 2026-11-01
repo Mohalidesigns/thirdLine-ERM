@@ -86,7 +86,12 @@ use App\Http\Controllers\Risk\GridController;
 use App\Http\Controllers\Risk\HqController;
 use App\Http\Controllers\Risk\IssueController;
 use App\Http\Controllers\Risk\JobProgressController;
+use App\Http\Controllers\Risk\HolidayController;
 use App\Http\Controllers\Risk\KriController;
+use App\Http\Controllers\Risk\KriDepartmentContactController;
+use App\Http\Controllers\Risk\KriDepartmentController;
+use App\Http\Controllers\Risk\KriMyReturnController;
+use App\Http\Controllers\Risk\KriReturnController;
 use App\Http\Controllers\Risk\LossEventController;
 use App\Http\Controllers\Risk\MyResponsibilitiesController;
 use App\Http\Controllers\Risk\MyTaskController;
@@ -652,6 +657,45 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         ->middleware('permission:kri.acknowledge_breach')->name('risk.kri.breaches.acknowledge');
     Route::post('kri/breaches/{breach}/resolve', [KriController::class, 'resolveBreach'])
         ->middleware('permission:kri.acknowledge_breach')->name('risk.kri.breaches.resolve');
+    // ADR 0026 section 15 - the departmental KRI cycle. EVERY literal `kri/...`
+    // route sits before `kri/{kri}`, as dashboard, thresholds and breaches do:
+    // `my-return` would otherwise bind as a KRI id.
+    Route::get('kri/departments/unassigned', [KriDepartmentController::class, 'unassigned'])
+        ->middleware('permission:kri.view')->name('risk.kri.departments.unassigned');
+    Route::get('kri/departments/{department}', [KriDepartmentController::class, 'show'])
+        ->middleware('permission:kri.view')->whereNumber('department')->name('risk.kri.departments.show');
+    Route::get('kri/returns', [KriReturnController::class, 'index'])
+        ->middleware('permission:kri.view')->name('risk.kri.returns.index');
+    Route::post('kri/returns/remind', [KriReturnController::class, 'remind'])
+        ->middleware(['permission:kri.send_reminder', 'throttle:kri-reminders'])->name('risk.kri.returns.remind');
+    // Amendment 1, A1.1: `can:view,return`, not kri.view - every contact of the
+    // department receives a link here and team leads and heads rarely hold kri.view.
+    Route::get('kri/returns/{return}', [KriReturnController::class, 'show'])
+        ->middleware('can:view,return')->whereNumber('return')->name('risk.kri.returns.show');
+    Route::get('kri/returns/{return}/notices', [KriReturnController::class, 'notices'])
+        ->middleware('can:view,return')->whereNumber('return')->name('risk.kri.returns.notices');
+    Route::get('kri/my-return/{department?}/{period?}', [KriMyReturnController::class, 'show'])
+        ->middleware('permission:kri.submit_return')->whereNumber('department')->whereNumber('period')->name('risk.kri.my-return');
+    Route::put('kri/my-return/{return}/draft', [KriMyReturnController::class, 'saveDraft'])
+        ->middleware('permission:kri.submit_return')->whereNumber('return')->name('risk.kri.my-return.draft');
+    Route::post('kri/my-return/{return}/submit', [KriMyReturnController::class, 'submit'])
+        ->middleware('permission:kri.submit_return')->whereNumber('return')->name('risk.kri.my-return.submit');
+    Route::post('kri/my-return/{return}/reopen', [KriMyReturnController::class, 'reopen'])
+        ->middleware('permission:kri.submit_return')->whereNumber('return')->name('risk.kri.my-return.reopen');
+    Route::get('kri/settings/contacts', [KriDepartmentContactController::class, 'index'])
+        ->middleware('permission:kri.manage_department_contacts')->name('risk.kri.contacts.index');
+    Route::get('kri/settings/contacts/users', [KriDepartmentContactController::class, 'users'])
+        ->middleware('permission:kri.manage_department_contacts')->name('risk.kri.contacts.users');
+    Route::post('kri/settings/contacts', [KriDepartmentContactController::class, 'store'])
+        ->middleware('permission:kri.manage_department_contacts')->name('risk.kri.contacts.store');
+    Route::delete('kri/settings/contacts/{contact}', [KriDepartmentContactController::class, 'destroy'])
+        ->middleware('permission:kri.manage_department_contacts')->whereNumber('contact')->name('risk.kri.contacts.destroy');
+    Route::get('settings/holidays', [HolidayController::class, 'index'])
+        ->middleware('permission:holiday.manage')->name('risk.holidays.index');
+    Route::post('settings/holidays', [HolidayController::class, 'store'])
+        ->middleware('permission:holiday.manage')->name('risk.holidays.store');
+    Route::delete('settings/holidays/{holiday}', [HolidayController::class, 'destroy'])
+        ->middleware('permission:holiday.manage')->whereNumber('holiday')->name('risk.holidays.destroy');
     Route::post('kri/{kri}/measurement', [KriController::class, 'recordMeasurement'])
         ->middleware('permission:kri.record_measurement')->name('risk.kri.record-measurement');
     Route::get('kri', [KriController::class, 'index'])

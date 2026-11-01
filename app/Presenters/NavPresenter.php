@@ -3,6 +3,7 @@
 namespace App\Presenters;
 
 use App\Models\User;
+use App\Support\Kri\KriDepartmentScope;
 use App\Support\Migration\Ported;
 use App\Support\Rcsa\RcsaCutover;
 use Illuminate\Support\Facades\Route;
@@ -40,6 +41,13 @@ class NavPresenter
      * @var array{v2: bool, cutOver: bool, cutOverAt: string|null}
      */
     private array $legacyRcsa = ['v2' => false, 'cutOver' => false, 'cutOverAt' => null];
+
+    /**
+     * Whether the user `for()` is resolving is a configured KRI risk champion of
+     * at least one department. Resolved once per call, lazily, so a request that
+     * never reaches the champion entry costs no query.
+     */
+    private ?bool $kriChampion = null;
 
     /**
      * Entries that sit above the sections: the four navigation surfaces.
@@ -233,12 +241,20 @@ class NavPresenter
 
             // ── Phase 4: Monitoring & Events ───────────────────────────
             [
-                'key' => 'kri_monitoring', 'label' => 'KRI Monitoring', 'icon' => 'speed', 'prefixes' => ['/risk/kri'],
+                'key' => 'kri_monitoring', 'label' => 'KRI Monitoring', 'icon' => 'speed', 'prefixes' => ['/risk/kri', '/risk/settings/holidays'],
                 'items' => [
                     ['label' => 'Dashboard', 'route' => 'risk.kri.dashboard', 'permission' => 'kri.view'],
                     ['label' => 'KRI Library', 'route' => 'risk.kri.index', 'permission' => 'kri.view'],
                     ['label' => 'Thresholds', 'route' => 'risk.kri.thresholds', 'permission' => 'kri.view'],
                     ['label' => 'Breach Register', 'route' => 'risk.kri.breaches', 'permission' => 'kri.view'],
+                    // ADR 0026 section 15. Each permission equals its route's
+                    // middleware (NavigationPermissionGateTest). The champion
+                    // entry is also hidden from anyone who is not a configured
+                    // risk champion of a department, so a role that holds the
+                    // permission but no department is not shown a dead end.
+                    ['label' => 'Complete my KRIs', 'route' => 'risk.kri.my-return', 'permission' => 'kri.submit_return', 'requires' => 'kri_champion'],
+                    ['label' => 'Department Contacts', 'route' => 'risk.kri.contacts.index', 'permission' => 'kri.manage_department_contacts'],
+                    ['label' => 'Holidays', 'route' => 'risk.holidays.index', 'permission' => 'holiday.manage'],
                 ],
             ],
             [
@@ -462,6 +478,7 @@ class NavPresenter
         }
 
         $this->legacyRcsa = app(RcsaCutover::class)->legacyState($user->organization_id);
+        $this->kriChampion = null;
 
         $primary = array_values(array_filter(
             array_map(fn (array $item) => $this->resolve($item, $user), self::primary())
@@ -534,6 +551,14 @@ class NavPresenter
 
         if (! $user->can($item['permission'])) {
             return null;
+        }
+
+        if (($item['requires'] ?? null) === 'kri_champion') {
+            $this->kriChampion ??= app(KriDepartmentScope::class)->championUnitIdsFor($user) !== [];
+
+            if (! $this->kriChampion) {
+                return null;
+            }
         }
 
         $label = $item['label'];

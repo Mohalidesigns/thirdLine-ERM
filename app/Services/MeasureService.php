@@ -413,6 +413,51 @@ class MeasureService
      * recorded, and losing the reading because a listener threw would be a far
      * worse outcome than a missed alert.
      */
+    /**
+     * Breach announcements held back by deferringAnnouncements(), or null when
+     * no deferral scope is open. Static so every resolved instance of this
+     * service shares the one scope a request is running inside.
+     *
+     * @var list<\Closure(): void>|null
+     */
+    private static ?array $deferredAnnouncements = null;
+
+    /**
+     * Run $work and announce the breaches it raises only once it has returned.
+     * If it throws, they are discarded: a rolled-back submit announces nothing
+     * (ADR 0026). Callers wrap their DB::transaction() in this.
+     *
+     * Deliberately not DB::afterCommit(): that defers to whatever transaction
+     * manager is installed, and under the test suite's wrapping transaction it
+     * never fires at all, which silenced every breach notification.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $work
+     * @return T
+     */
+    public static function deferringAnnouncements(callable $work): mixed
+    {
+        if (self::$deferredAnnouncements !== null) {
+            return $work();   // nested: the outermost scope flushes
+        }
+
+        self::$deferredAnnouncements = [];
+
+        try {
+            $result = $work();
+            $pending = self::$deferredAnnouncements;
+        } finally {
+            self::$deferredAnnouncements = null;
+        }
+
+        foreach ($pending as $announce) {
+            $announce();
+        }
+
+        return $result;
+    }
+
     private function announceBreach(int $objectId, string $band): void
     {
         try {
@@ -451,10 +496,11 @@ class MeasureService
                 return;
             }
 
-            // After commit when inside a transaction (a rolled-back submit announces
-            // nothing), immediately otherwise. Each event is isolated: a failing
-            // listener is logged and cannot fail the measurement or its siblings.
-            \Illuminate\Support\Facades\DB::afterCommit(function () use ($kri, $measurement, $band) {
+            // Held back inside deferringAnnouncements() (a rolled-back submit
+            // announces nothing), immediately otherwise. Each event is isolated:
+            // a failing listener is logged and cannot fail the measurement or
+            // its siblings.
+            $announce = function () use ($kri, $measurement, $band): void {
                 try {
                     \App\Events\KriBreachDetected::dispatch($kri, $measurement, $band);
                 } catch (\Throwable $e) {
@@ -464,7 +510,13 @@ class MeasureService
                         'error' => $e->getMessage(),
                     ]);
                 }
-            });
+            };
+
+            if (self::$deferredAnnouncements !== null) {
+                self::$deferredAnnouncements[] = $announce;
+            } else {
+                $announce();
+            }
         } catch (\Throwable $e) {
             logger()->warning('Could not announce a KRI breach', [
                 'object_id' => $objectId,

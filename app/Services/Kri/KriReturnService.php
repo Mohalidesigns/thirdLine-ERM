@@ -12,6 +12,7 @@ use App\Models\Period;
 use App\Models\User;
 use App\Services\AuditTrailService;
 use App\Services\KriMeasureBridge;
+use App\Services\MeasureService;
 use App\Support\Kri\KriBandRule;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -79,7 +80,7 @@ class KriReturnService
      */
     public function submit(KriReturn $return, array $posted, User $actor, int $lockVersion): KriReturn
     {
-        return DB::transaction(function () use ($return, $posted, $actor, $lockVersion) {
+        return MeasureService::deferringAnnouncements(fn () => DB::transaction(function () use ($return, $posted, $actor, $lockVersion) {
             $return = $this->lockReturn($return);
             $this->assertEditable($return);
             $this->assertVersion($return, $lockVersion);
@@ -119,7 +120,7 @@ class KriReturnService
             AuditTrailService::record($return, 'return_submitted', 'status', $before, KriReturnStatus::Submitted->value);
 
             return $return;
-        });
+        }));
     }
 
     /* ------------------------------------------------------------------ */

@@ -26,6 +26,7 @@ use App\Services\Kri\KriRedBandService;
 use App\Services\Kri\KriService;
 use App\Services\Kri\RedBandExplanation;
 use App\Services\KriMeasureBridge;
+use App\Services\MeasureService;
 use App\Services\PeriodService;
 use App\Support\Kri\KriBandRule;
 use App\Support\Kri\KriWorkingCalendar;
@@ -278,7 +279,7 @@ class KriController extends Controller
         $validated = $request->validated();
 
         // The KRI update and the explanation share ONE transaction (ADR 0026 6.3).
-        DB::transaction(function () use ($kri, $validated, $request, $bands, $redBand) {
+        MeasureService::deferringAnnouncements(fn () => DB::transaction(function () use ($kri, $validated, $request, $bands, $redBand) {
             $this->kris->update($kri, $validated, $request->user()?->id);
 
             $target = $validated['target_value'] ?? null;
@@ -290,7 +291,7 @@ class KriController extends Controller
             )) {
                 $redBand->applyToTarget($kri, $explanation, $request->user());
             }
-        });
+        }));
 
         $this->saveConfiguredAttributes($request, $kri);
 
@@ -316,7 +317,7 @@ class KriController extends Controller
     {
         $validated = $request->validated();
 
-        $result = DB::transaction(function () use ($kri, $validated, $request) {
+        $result = MeasureService::deferringAnnouncements(fn () => DB::transaction(function () use ($kri, $validated, $request) {
             $result = $this->kris->recordMeasurement($kri, $validated, $request->user()?->id);
 
             $explanation = RedBandExplanation::fromPayload($validated['red_band'] ?? null);
@@ -326,7 +327,7 @@ class KriController extends Controller
             }
 
             return $result;
-        });
+        }));
 
         $band = $result['band'];
         $message = "Measurement recorded for {$result['period']->name}.";

@@ -68,9 +68,10 @@ class KriCycleWatchdogTest extends KriCycleTestCase
         Log::spy();
         $holder = $this->holder();
 
+        // One expectation: Laravel consumes an output line per match, and the failure
+        // and its remedy are one line. Exit code 1 and the alert row prove the failure.
         $this->artisan('kri:cycle-watchdog')
-            ->expectsOutputToContain('has not completed')
-            ->expectsOutputToContain('kri:open-cycle')
+            ->expectsOutputToContain('has not completed (first working day was 2026-11-02). Open it with `php artisan kri:open-cycle')
             ->assertExitCode(1);
 
         // The in-app alert reaches the holders of kri.send_reminder, one row each, not through the queue.

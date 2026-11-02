@@ -8,7 +8,7 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Dispatched by MeasureService::announceBreach() through DB::afterCommit(), with
+ * Dispatched by MeasureService::announceBreach(), deferred by deferringAnnouncements(), with
  * a try/catch per event (ADR 0026 section 6.4, as amended): outside a transaction
  * it runs at once; inside one - the champion's atomic submit - it waits for the
  * commit and is dropped on rollback. It deliberately does NOT implement

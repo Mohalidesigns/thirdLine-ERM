@@ -176,6 +176,10 @@ abstract class KriCycleTestCase extends KriTestCase
 
         if ($syncLines) {
             TenantContext::actingAs($unit->organization_id, fn () => app(\App\Services\Kri\KriCycleService::class)->syncLines(KriReturn::query()->findOrFail($return->id)));
+
+            // The cycle syncs while the return is freshly created, which is not a
+            // bump (A1.8). This fixture re-reads first, so restore the opening version.
+            KriReturn::withoutGlobalScopes()->whereKey($return->id)->update(['lock_version' => (int) ($attributes['lock_version'] ?? 0)]);
         }
 
         return TenantContext::actingAs($unit->organization_id, fn () => KriReturn::query()->findOrFail($return->id));

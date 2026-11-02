@@ -161,7 +161,7 @@ class KriAuthorizationScopeTest extends KriCycleTestCase
                 ->component('Kri/MyReturn')
                 ->where('readOnly', false)
                 ->where('departments', fn ($d) => collect($d)->pluck('name')->sort()->values()->all() === ['Operations', 'Treasury'])
-                ->where('department.name', 'Operations', 'the default is the first department by name'));
+                ->where('department.name', 'Treasury', 'the default is the first department with a return still waiting, not merely the first by name'));
 
         $this->actingAs($champion)->get(route('risk.kri.my-return', ['department' => $risk->id]))->assertForbidden();
         $this->actingAs($champion)->get(route('risk.kri.my-return', ['department' => $this->unit->id]))->assertOk()

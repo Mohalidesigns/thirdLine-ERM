@@ -97,12 +97,12 @@ class KriModuleGuardsTest extends KriCycleTestCase
     /* ------------------------------------------------------------------ */
 
     #[Test]
-    public function the_breach_event_is_dispatched_by_after_commit_inside_the_service_not_by_the_event_class(): void
+    public function the_breach_event_is_deferred_by_the_service_not_by_the_event_class(): void
     {
         // The deviation from the ADR text (recorded on the event): ShouldDispatchAfterCommit would
         // move the listeners outside announceBreach()'s try/catch.
         $this->assertNotContains(ShouldDispatchAfterCommit::class, class_implements(KriBreachDetected::class));
-        $this->assertStringContainsString('DB::afterCommit', (string) file_get_contents(app_path('Services/MeasureService.php')));
+        $this->assertStringContainsString('deferringAnnouncements', (string) file_get_contents(app_path('Services/MeasureService.php')));
     }
 
     #[Test]
@@ -117,23 +117,23 @@ class KriModuleGuardsTest extends KriCycleTestCase
     }
 
     #[Test]
-    public function inside_a_transaction_the_announcement_waits_for_the_commit_and_is_dropped_on_rollback(): void
+    public function inside_a_deferral_scope_the_announcement_waits_for_the_commit_and_is_dropped_on_rollback(): void
     {
         Event::fake([KriBreachDetected::class]);
         $kri = $this->deptKri();
 
-        DB::transaction(function () use ($kri) {
+        \App\Services\MeasureService::deferringAnnouncements(fn () => DB::transaction(function () use ($kri) {
             app(KriMeasureBridge::class)->recordMeasurement($kri, '2026-10-15', 75.0);
             Event::assertNotDispatched(KriBreachDetected::class);
-        });
+        }));
         Event::assertDispatchedTimes(KriBreachDetected::class, 1);
 
         $second = $this->deptKri(null, ['name' => 'Rolled back']);
         try {
-            DB::transaction(function () use ($second) {
+            \App\Services\MeasureService::deferringAnnouncements(fn () => DB::transaction(function () use ($second) {
                 app(KriMeasureBridge::class)->recordMeasurement($second, '2026-10-15', 75.0);
                 throw new \RuntimeException('roll back');
-            });
+            }));
         } catch (\RuntimeException) {
         }
 

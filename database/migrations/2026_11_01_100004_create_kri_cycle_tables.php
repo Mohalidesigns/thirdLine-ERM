@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
  * overnight and open a breach from a number nobody submitted.
  *
  * Every *_at the application writes is dateTime() (ADR 0022). No json, no ENUM,
- * no useCurrentOnUpdate.
+ * no ON UPDATE CURRENT_TIMESTAMP default.
  */
 return new class extends Migration
 {

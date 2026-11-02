@@ -60,7 +60,7 @@ class KriLibraryDashboardTest extends KriCycleTestCase
         $this->kriWith($this->unit, 'amber', true);
         $this->kriWith($this->unit, 'green', true);
         $this->kriWith($this->unit, 'yellow', true);                 // folds into green
-        $this->kriWith($this->unit, 'unknown-state', true);          // a reading, but no recognised band
+        $this->kriWith($this->unit, 'unknown', true);                // a reading, but no recognised band
         $this->kriWith($this->unit, 'green', false);                 // NEVER READ: current_status says green, it is not
         $this->kriWith($this->unit, 'red', true, ['is_active' => false]);   // inactive: not counted
         $this->kriWith(null, 'green', true);

@@ -222,9 +222,12 @@ class BcmsDirectoryProfilesTest extends KriCycleTestCase
     /*  The mismatch flag on the contacts screen */
     /* ------------------------------------------------------------------ */
 
+    private ?\App\Models\User $contactsManager = null;
+
     private function contactsPage(): array
     {
-        $manager = $this->makeStaff('Contacts Manager', ['kri.manage_department_contacts']);
+        // Created once per test: some tests read the page twice.
+        $manager = $this->contactsManager ??= $this->makeStaff('Contacts Manager', ['kri.manage_department_contacts']);
 
         return $this->actingAs($manager)->get(route('risk.kri.contacts.index'))->assertOk()->viewData('page')['props'];
     }

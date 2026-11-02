@@ -38,8 +38,6 @@ class KriReturnLifecycleTest extends KriCycleTestCase
 
     public static int $inserts = 0;
 
-    private static bool $hooked = false;
-
     private KeyRiskIndicator $a;
 
     private KeyRiskIndicator $b;
@@ -58,14 +56,13 @@ class KriReturnLifecycleTest extends KriCycleTestCase
         $this->champion = $this->makeStaff('Chidi Champion', ['kri.submit_return']);
         $this->makeContact($this->unit, $this->champion);
 
-        if (! self::$hooked) {
-            self::$hooked = true;
-            MeasureValue::creating(function () {
-                if (self::$explodeOnNth !== null && ++self::$inserts === self::$explodeOnNth) {
-                    throw new \RuntimeException('simulated failure on the second reading');
-                }
-            });
-        }
+        // Every test: the application, and with it the model event dispatcher, is
+        // rebuilt per test, so a hook registered once would be gone after the first.
+        MeasureValue::creating(function () {
+            if (self::$explodeOnNth !== null && ++self::$inserts === self::$explodeOnNth) {
+                throw new \RuntimeException('simulated failure on the second reading');
+            }
+        });
 
         self::$explodeOnNth = null;
         self::$inserts = 0;
@@ -279,7 +276,7 @@ class KriReturnLifecycleTest extends KriCycleTestCase
 
         $this->submit($this->lines(75, 5, ['red_band' => $this->explanation()]))->assertRedirect()->assertSessionHasNoErrors();
 
-        // Proves DB::afterCommit still delivers under RefreshDatabase.
+        // Proves the deferred announcement is delivered once the submit returns.
         Event::assertDispatchedTimes(KriBreachDetected::class, 1);
         $this->assertSame(1, MeasureBreach::query()->where('band_to', 'red')->count());
     }

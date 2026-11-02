@@ -137,9 +137,9 @@ class KriDepartmentContactController extends Controller
 
     private function describe(KriDepartmentContact $contact): string
     {
-        $user = User::query()->withTrashed()->find($contact->user_id);
-
-        return "user:{$contact->user_id} {$user?->name} <{$user?->email}>";
+        // The audit trail is append-only and cannot be erased, so it records the
+        // user id only - no name or email (NDPA register, ADR 0026 section).
+        return "user:{$contact->user_id}";
     }
 
     /** @return array<string, mixed> */

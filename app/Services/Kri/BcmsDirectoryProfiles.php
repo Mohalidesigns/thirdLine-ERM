@@ -57,7 +57,8 @@ class BcmsDirectoryProfiles implements DirectoryProfiles
                 ->whereIn('user_id', $chunk)
                 ->whereNotNull('ad_object_guid')
                 ->whereNull('deleted_at')
-                ->get(['user_id', 'business_unit_id', 'title', 'is_active', 'ad_synced_at']);
+                // No title: no screen uses it, and NDPA data minimisation (register, ADR 0026).
+                ->get(['user_id', 'business_unit_id', 'is_active', 'ad_synced_at']);
 
             foreach ($found as $row) {
                 $current = $rows[$row->user_id] ?? null;
@@ -87,7 +88,7 @@ class BcmsDirectoryProfiles implements DirectoryProfiles
             $profiles[(int) $userId] = new DirectoryProfile(
                 synced: true,
                 department: $row->business_unit_id === null ? null : ($unitNames[$row->business_unit_id] ?? null),
-                jobTitle: $row->title,
+                jobTitle: null,
                 accountEnabled: (bool) $row->is_active,
                 lastSyncedAt: $row->ad_synced_at === null ? null : CarbonImmutable::parse($row->ad_synced_at),
             );

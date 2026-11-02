@@ -282,6 +282,27 @@ class KriReturnLifecycleTest extends KriCycleTestCase
     }
 
     #[Test]
+    public function a_stored_red_line_left_out_of_the_submit_body_is_still_checked(): void
+    {
+        // Gate 2 finding 3: the request validates only the lines it is sent, so a
+        // red line saved as a draft and omitted from the submit body must be held
+        // to the same rules when submit reads it back.
+        $outsider = $this->makeStaff('Outside Owner');
+
+        $this->draft($this->lines(75, 5, ['red_band' => $this->explanation() + ['owner_id' => $outsider->id]]))
+            ->assertRedirect();
+        $this->assertSame($outsider->id, (int) $this->lineFor($this->return, $this->a)->action_owner_id);
+
+        $body = $this->lines(75, 5);
+        $body['lines'] = [$body['lines'][1]];   // only the green line
+
+        $this->submit($body)->assertRedirect()->assertSessionHas('error');
+
+        $this->assertSame(0, MeasureValue::query()->count(), 'nothing is recorded');
+        $this->assertSame('draft', $this->return->fresh()->status->value);
+    }
+
+    #[Test]
     public function submit_is_atomic_when_one_kri_fails_nothing_is_written(): void
     {
         Event::fake([KriBreachDetected::class]);

@@ -3,10 +3,8 @@
 namespace App\Http\Requests\Concerns;
 
 use App\Models\KeyRiskIndicator;
-use App\Models\KriDepartmentContact;
 use App\Services\Kri\KriRedBandService;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 use ThirdLine\Platform\Tenancy\TenantContext;
@@ -109,19 +107,6 @@ trait ValidatesRedBand
     /** The department's KRI contacts and its business_unit_user members. */
     protected function ownerBelongsToDepartment(int $userId, int $unitId): bool
     {
-        $isContact = KriDepartmentContact::query()
-            ->where('business_unit_id', $unitId)
-            ->where('user_id', $userId)
-            ->exists();
-
-        if ($isContact) {
-            return true;
-        }
-
-        return DB::table('business_unit_user')
-            ->where('organization_id', TenantContext::organizationId())
-            ->where('business_unit_id', $unitId)
-            ->where('user_id', $userId)
-            ->exists();
+        return app(KriRedBandService::class)->ownerBelongsToDepartment($userId, $unitId);
     }
 }

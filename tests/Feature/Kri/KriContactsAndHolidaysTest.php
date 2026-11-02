@@ -57,7 +57,7 @@ class KriContactsAndHolidaysTest extends KriCycleTestCase
         $this->assertSame('business_unit', $audit->entity_type, 'audited on the department so its history is one query');
         $this->assertSame($this->unit->id, (int) $audit->entity_id);
         $this->assertSame('risk_champion', $audit->field_changed);
-        $this->assertSame("user:{$person->id} Chidi Champion <{$person->email}>", $audit->new_value);
+        $this->assertSame("user:{$person->id}", $audit->new_value, 'the append-only trail holds the id only (NDPA register section 12)');
         $this->assertSame($this->manager->id, (int) $audit->changed_by);
     }
 
@@ -115,7 +115,7 @@ class KriContactsAndHolidaysTest extends KriCycleTestCase
         $audit = RiskAuditTrail::query()->where('action_type', 'kri_contact_removed')->firstOrFail();
         $this->assertSame('business_unit', $audit->entity_type);
         $this->assertSame('team_lead', $audit->field_changed);
-        $this->assertSame("user:{$person->id} Chidi Champion <{$person->email}>", $audit->old_value);
+        $this->assertSame("user:{$person->id}", $audit->old_value);
     }
 
     #[Test]

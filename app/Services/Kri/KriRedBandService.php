@@ -294,6 +294,29 @@ class KriRedBandService
         return 'The timeline cannot be in the past.';
     }
 
+    /**
+     * Whether $userId may own a department's red-band action: one of its KRI
+     * contacts, or a business_unit_user member of it. The request and the
+     * submit path both ask this one question.
+     */
+    public function ownerBelongsToDepartment(int $userId, int $unitId): bool
+    {
+        $isContact = \App\Models\KriDepartmentContact::query()
+            ->where('business_unit_id', $unitId)
+            ->where('user_id', $userId)
+            ->exists();
+
+        if ($isContact) {
+            return true;
+        }
+
+        return DB::table('business_unit_user')
+            ->where('organization_id', \ThirdLine\Platform\Tenancy\TenantContext::organizationId())
+            ->where('business_unit_id', $unitId)
+            ->where('user_id', $userId)
+            ->exists();
+    }
+
     /** Whether moving the reused Issue's due date to $timeline needs a stated reason. */
     public function changeReasonRequired(KeyRiskIndicator $kri, CarbonImmutable $timeline): bool
     {

@@ -55,9 +55,18 @@ class KriMyReturnController extends Controller
 
         $query = KriReturn::query()->where('business_unit_id', $unit->id)->with('period');
 
-        $return = $period !== null
-            ? $query->where('period_id', $period)->first()
-            : $query->get()->sortByDesc(fn (KriReturn $r) => $r->period?->end_date?->toDateString())->first();
+        if ($period !== null) {
+            $return = $query->where('period_id', $period)->first();
+        } else {
+            // The return still waiting on the champion (the oldest open one, so an
+            // overdue month is not hidden behind a newer one); failing that, the latest.
+            $returns = $query->get();
+            $return = $returns
+                ->filter(fn (KriReturn $r) => ! $r->isSubmitted())
+                ->sortBy(fn (KriReturn $r) => $r->period?->end_date?->toDateString())
+                ->first()
+                ?? $returns->sortByDesc(fn (KriReturn $r) => $r->period?->end_date?->toDateString())->first();
+        }
 
         if ($return === null) {
             $requested = $period !== null ? Period::query()->find($period) : null;

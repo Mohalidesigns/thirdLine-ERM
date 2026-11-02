@@ -30,7 +30,7 @@ use RuntimeException;
  * SUBMIT IS ONE TRANSACTION: every reading through
  * KriMeasureBridge::recordMeasurement(), every breach root cause, every Issue
  * and graph edge, every line pointer and the return's status. If one KRI fails,
- * nothing is written. MeasureService::announceBreach() defers KriBreachDetected to DB::afterCommit, so a
+ * nothing is written. MeasureService::deferringAnnouncements() holds KriBreachDetected until the submit returns, so a
  * rolled-back submit announces nothing.
  *
  * LOCK ORDER (one, so there is no deadlock cycle): the kri_returns row, then
@@ -268,6 +268,29 @@ class KriReturnService
      * One line at submit: the reading through the engine, then the explanation
      * if the ENGINE says red.
      */
+    /** The request's red-band rules, applied to an explanation read back from the draft. */
+    private function assertStoredExplanationValid(KriReturn $return, KriReturnLine $line, KeyRiskIndicator $kri): void
+    {
+        $timeline = CarbonImmutable::createFromFormat('!Y-m-d', (string) $line->timeline?->toDateString());
+
+        if (! $timeline instanceof CarbonImmutable) {
+            throw new KriCycleException("KRI {$kri->kri_code}: the timeline is not a date.");
+        }
+
+        if (($problem = $this->redBand->timelineProblem($kri, $timeline)) !== null) {
+            throw new KriCycleException("KRI {$kri->kri_code}: {$problem}");
+        }
+
+        if ($this->redBand->changeReasonRequired($kri, $timeline) && trim((string) $line->timeline_change_reason) === '') {
+            throw new KriCycleException("KRI {$kri->kri_code}: moving the action's timeline needs a reason.");
+        }
+
+        if ($line->action_owner_id !== null
+            && ! $this->redBand->ownerBelongsToDepartment((int) $line->action_owner_id, (int) $return->business_unit_id)) {
+            throw new KriCycleException("KRI {$kri->kri_code}: the action owner must be a member or contact of this department.");
+        }
+    }
+
     private function recordLine(KriReturn $return, KriReturnLine $line, KeyRiskIndicator $kri, User $actor): void
     {
         if ($line->value === null) {
@@ -325,6 +348,11 @@ class KriReturnService
             if ($explanation === null) {
                 throw new KriCycleException("KRI {$kri->kri_code} is in the red band and needs a root cause, an action point and a timeline.");
             }
+
+            // The request validates only the lines it was sent. A red line saved
+            // as a draft and left out of the submit body reaches here unchecked,
+            // so the stored explanation gets the same rules the request applies.
+            $this->assertStoredExplanationValid($return, $line, $kri);
 
             $issue = $this->redBand->applyToReading($kri, $period, $measureValue, $explanation, $actor, $return);
             $breach = $this->redBand->redBreachForReading($kri, $period, (int) $measureValue->object_id);

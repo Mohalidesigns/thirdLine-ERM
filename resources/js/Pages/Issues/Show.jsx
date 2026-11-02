@@ -4,6 +4,8 @@ import AuthenticatedLayout from '@/Layouts/AppLayout';
 import InputError from '@thirdline/ui/Components/InputError';
 import KpiCard from '@thirdline/ui/Components/KpiCard';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import { describeBand, normaliseDirection, HIGHER } from '@/lib/kri-band';
+import { withUnit } from '@/lib/units';
 import { priorityTone, statusTone, titleCase } from './format';
 
 const TABS = [
@@ -14,6 +16,23 @@ const TABS = [
 ];
 
 const INPUT = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1A365D]/20 focus:border-[#1A365D]';
+
+/** "12% against a red boundary of 10% (red is 10% and above)" - wording from lib/kri-band.js. */
+function redBoundaryLine(origin) {
+    const b = origin.breach;
+    const red = b?.red_threshold;
+
+    if (!b || b.value === null || b.value === undefined) return null;
+
+    const unit = origin.kri.unit;
+    const v = withUnit(b.value, unit);
+
+    if (red === null || red === undefined || red === '' || !Number.isFinite(Number(red))) return `${v} (no red boundary recorded)`;
+
+    const band = normaliseDirection(origin.kri.direction) === HIGHER ? { min: Number(red), max: null } : { min: null, max: Number(red) };
+
+    return `${v} against a red boundary of ${withUnit(Number(red), unit)} (red is ${describeBand(origin.kri.direction, band, (n) => withUnit(n, unit))})`;
+}
 
 function Card({ title, actions, children }) {
     return (
@@ -294,6 +313,8 @@ export default function Show({ issue, can = {}, options = {}, users = [] }) {
                                             ? <Link href={issue.kriOrigin.breach.url} className="text-[#1A365D] underline">Red breach{issue.kriOrigin.breach.period ? `, ${issue.kriOrigin.breach.period}` : ''}</Link>
                                             : 'No breach is linked'}
                                     </Row>
+                                    {redBoundaryLine(issue.kriOrigin) && <Row label="Value">{redBoundaryLine(issue.kriOrigin)}</Row>}
+                                    {issue.kriOrigin.root_cause && <Row label="Root cause"><span className="whitespace-pre-line text-left">{issue.kriOrigin.root_cause}</span></Row>}
                                     <Row label="Return">
                                         {issue.kriOrigin.return
                                             ? <Link href={issue.kriOrigin.return.url} className="text-[#1A365D] underline">{[issue.kriOrigin.return.department, issue.kriOrigin.return.period].filter(Boolean).join(', ')}</Link>

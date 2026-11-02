@@ -110,6 +110,8 @@ class KriModuleGuardsTest extends KriCycleTestCase
     {
         Event::fake([KriBreachDetected::class]);
         $kri = $this->deptKri();
+        // A reading with no user writes no legacy row, and the event needs one.
+        $this->actingAs($this->makeStaff('Bridge Reader'));
 
         app(KriMeasureBridge::class)->recordMeasurement($kri, '2026-10-15', 75.0);
 
@@ -121,6 +123,7 @@ class KriModuleGuardsTest extends KriCycleTestCase
     {
         Event::fake([KriBreachDetected::class]);
         $kri = $this->deptKri();
+        $this->actingAs($this->makeStaff('Bridge Reader'));
 
         \App\Services\MeasureService::deferringAnnouncements(fn () => DB::transaction(function () use ($kri) {
             app(KriMeasureBridge::class)->recordMeasurement($kri, '2026-10-15', 75.0);

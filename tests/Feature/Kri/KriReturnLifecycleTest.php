@@ -303,6 +303,25 @@ class KriReturnLifecycleTest extends KriCycleTestCase
     }
 
     #[Test]
+    public function a_stored_red_line_with_a_past_timeline_is_refused_at_submit(): void
+    {
+        // Gate 2 re-review: the timeline rule, applied to the stored line, not the body.
+        $this->draft($this->lines(75, 5, ['red_band' => $this->explanation()]))->assertRedirect();
+
+        \App\Models\KriReturnLine::query()
+            ->whereKey($this->lineFor($this->return, $this->a)->id)
+            ->update(['timeline' => '2026-10-01']);   // before the frozen Lagos today
+
+        $body = $this->lines(75, 5);
+        $body['lines'] = [$body['lines'][1]];
+
+        $this->submit($body)->assertRedirect()->assertSessionHas('error');
+
+        $this->assertSame(0, MeasureValue::query()->count());
+        $this->assertSame('draft', $this->return->fresh()->status->value);
+    }
+
+    #[Test]
     public function submit_is_atomic_when_one_kri_fails_nothing_is_written(): void
     {
         Event::fake([KriBreachDetected::class]);

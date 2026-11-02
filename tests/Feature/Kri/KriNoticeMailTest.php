@@ -803,6 +803,114 @@ class KriNoticeMailTest extends KriCycleTestCase
         $this->assertSame(3, KriReturnMailView::for($recipient)['days_overdue']);
         $this->assertStringContainsString('Replies to this email are not read', $html);
         $this->assertStringNotContainsString('reply to this', strtolower($html), 'templates must give no instruction to reply (A1.13)');
-        $this->assertStringContainsString('3 days overdue', (string) $mailable->envelope()->subject);
+        $subject = (string) $mailable->envelope()->subject;
+        $this->assertStringStartsWith('Overdue: Treasury KRI return for ', $subject);
+        $this->assertStringEndsWith('(3 days)', $subject);
+    }
+
+    #[Test]
+    public function the_reminder_subject_is_reminder_until_the_return_is_past_due(): void
+    {
+        $recipient = $this->recipientFor('lead', 'reminder');
+
+        $this->freezeAt('2026-11-09 06:00:00'); // due day itself: not overdue
+        $subject = (string) (new KriReturnReminder($recipient))->envelope()->subject;
+        $this->assertStringStartsWith('Reminder: Treasury KRI return for ', $subject);
+        $this->assertStringContainsString(' is due ', $subject);
+
+        $this->freezeAt('2026-11-10 06:00:00'); // one day late
+        $subject = (string) (new KriReturnReminder($recipient))->envelope()->subject;
+        $this->assertStringStartsWith('Overdue: ', $subject);
+        $this->assertStringEndsWith('(1 day)', $subject, 'singular day; also catches an off-by-one in KriReturn::daysOverdue');
+    }
+
+    #[Test]
+    public function the_request_subject_leads_with_the_department(): void
+    {
+        $subject = (string) (new KriReturnRequested($this->recipientFor('champion')))->envelope()->subject;
+
+        $this->assertStringStartsWith('Treasury: KRI readings for ', $subject);
+        $this->assertStringContainsString(' due ', $subject);
+    }
+
+    #[Test]
+    public function both_mails_render_html_and_text_for_every_voice_without_throwing(): void
+    {
+        $notice = KriReturnNotice::query()->findOrFail($this->queueRequest());
+
+        foreach (['champion' => 'risk_champion', 'lead' => 'team_lead', 'head' => 'unit_head', 'group' => 'group_head'] as $key => $role) {
+            $recipient = KriReturnNoticeRecipient::query()->create([
+                'organization_id' => $this->organization->id,
+                'kri_return_notice_id' => $notice->id,
+                'user_id' => $this->people[$key]->id, 'email' => $this->people[$key]->email,
+                'name' => $this->people[$key]->name, 'contact_role' => $role, 'status' => 'pending',
+            ]);
+
+            $view = KriReturnMailView::for($recipient);
+            $this->assertSame($role, $view['contact_role']);
+            $this->assertNotSame('', $view['role_label']);
+            $this->assertSame($key === 'champion', $view['is_champion']);
+            $this->assertLessThanOrEqual(25, count($view['kris_shown']));
+            $this->assertSame(0, $view['kris_more']);
+
+            foreach ([new KriReturnRequested($recipient), new KriReturnReminder($recipient)] as $mailable) {
+                $html = $mailable->render();
+                $this->assertStringContainsString('Treasury', $html, "{$role}: ".$mailable::class);
+                $this->assertNotEmpty($mailable->content()->text, 'both mails carry a plain-text part');
+                $this->assertNotSame('', trim(view($mailable->content()->text, $view)->render()), "{$role}: text part renders");
+            }
+        }
+    }
+
+    #[Test]
+    public function the_mail_view_caps_the_kri_list_at_twenty_five(): void
+    {
+        for ($i = 0; $i < 27; $i++) {
+            $this->deptKri(null, ['name' => "Extra {$i}"]);
+        }
+        \App\Models\KriReturn::query()->whereKey($this->return->id)->first();
+        app(\App\Services\Kri\KriCycleService::class)->syncLines(KriReturn::query()->findOrFail($this->return->id));
+
+        $view = KriReturnMailView::for($this->recipientFor('champion'));
+
+        $this->assertCount(25, $view['kris_shown']);
+        $this->assertSame(4, $view['kris_more'], '2 + 27 KRIs, 25 shown');
+    }
+
+    #[Test]
+    public function the_view_names_who_was_reached_and_who_earlier_reminders_reached(): void
+    {
+        $this->assertSame('risk champions', KriReturnMailView::reached(1));
+        $this->assertSame('risk champions and team leads', KriReturnMailView::reached(2));
+        $this->assertSame('risk champions, team leads, unit heads and group heads', KriReturnMailView::reached(4));
+        $this->assertNull(KriReturnMailView::earlier(1, 0));
+        $this->assertNull(KriReturnMailView::earlier(1, 1));
+        $this->assertSame('risk champions', KriReturnMailView::earlier(2, 2));
+        $this->assertSame('all four levels', KriReturnMailView::earlier(4, 5));
+    }
+
+    #[Test]
+    public function the_mailables_do_not_shadow_the_framework_view_method(): void
+    {
+        // Mailable::view($view, array $data = []) is public. A subclass that declares
+        // `protected function view(): array` is a fatal compile error on load, so this
+        // scans the source rather than loading the class.
+        foreach (['KriReturnRequested', 'KriReturnReminder'] as $class) {
+            $source = (string) file_get_contents(app_path("Mail/{$class}.php"));
+            $this->assertDoesNotMatchRegularExpression('/function\s+view\s*\(/', $source, "{$class} must not redeclare Mailable::view()");
+        }
+    }
+
+    #[Test]
+    public function no_notification_address_is_hard_coded_anywhere_in_shipped_code(): void
+    {
+        foreach (['app', 'database', 'config', 'routes', 'resources/views'] as $dir) {
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(base_path($dir), \RecursiveDirectoryIterator::SKIP_DOTS));
+            foreach ($iterator as $file) {
+                if ($file->isFile() && in_array($file->getExtension(), ['php'], true)) {
+                    $this->assertStringNotContainsString('mohalidesigns', (string) file_get_contents($file->getPathname()), $file->getPathname());
+                }
+            }
+        }
     }
 }

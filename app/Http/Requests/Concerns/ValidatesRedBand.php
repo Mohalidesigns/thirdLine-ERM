@@ -84,7 +84,7 @@ trait ValidatesRedBand
         if (is_string($timeline) && $timeline !== '' && ! $errors->has("{$prefix}.timeline")) {
             $date = CarbonImmutable::createFromFormat('Y-m-d', $timeline);
 
-            if ($date !== false) {
+            if ($date instanceof CarbonImmutable) {
                 $date = $date->startOfDay();
                 $service = app(KriRedBandService::class);
 

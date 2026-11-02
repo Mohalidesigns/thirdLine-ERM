@@ -97,7 +97,12 @@ class KriDepartmentScope
         return in_array($unitId, $this->championUnitIdsFor($user), true);
     }
 
-    /** @param Builder<\Illuminate\Database\Eloquent\Model> $query */
+    /**
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  Builder<TModel>  $query
+     * @return Builder<TModel>
+     */
     public function apply(Builder $query, ?User $user, string $column = 'business_unit_id'): Builder
     {
         $units = $this->unitIdsFor($user);

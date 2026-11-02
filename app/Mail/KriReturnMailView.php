@@ -34,8 +34,8 @@ final class KriReturnMailView
             ->all();
 
         return [
-            'department' => (string) ($return->businessUnit?->name ?? ''),
-            'period' => (string) ($return->period?->name ?? ''),
+            'department' => (string) ($return->businessUnit->name ?? ''),
+            'period' => (string) ($return->period->name ?? ''),
             'due_on' => $return->due_on->format('D j M Y'),
             'days_overdue' => $return->daysOverdue(KriWorkingCalendar::today()),
             'kris' => $kris,

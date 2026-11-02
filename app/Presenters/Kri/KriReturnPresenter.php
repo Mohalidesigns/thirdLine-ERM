@@ -172,7 +172,7 @@ class KriReturnPresenter
         $out = [];
 
         foreach ($rows as $row) {
-            $out[(int) $row->business_unit_id] = ['open' => (int) $row->open_issues, 'overdue' => (int) $row->overdue_issues];
+            $out[(int) $row->business_unit_id] = ['open' => (int) $row->getAttribute('open_issues'), 'overdue' => (int) $row->getAttribute('overdue_issues')];
         }
 
         return $out;
@@ -484,7 +484,7 @@ class KriReturnPresenter
             ->groupBy('kri_department_contacts.business_unit_id', 'kri_department_contacts.role')
             ->get()
             ->each(function ($row) use (&$out) {
-                $out[(int) $row->unit_id][$row->contact_role] = (int) $row->total;
+                $out[(int) $row->getAttribute('unit_id')][(string) $row->getAttribute('contact_role')] = (int) $row->getAttribute('total');
             });
 
         return $out;

@@ -25,7 +25,7 @@ class KriWorkingCalendar
 
     public const DUE_WORKING_DAYS = 5;
 
-    /** @var array<string, array<string, true>> "org:year" => [Y-m-d => true] */
+    /** @var array<string, array<string, bool>> "org:year" => [Y-m-d => true] */
     private array $holidays = [];
 
     /** Today in Africa/Lagos, as a date (start of day), never a UTC instant. */
@@ -59,7 +59,7 @@ class KriWorkingCalendar
 
         $day = CarbonImmutable::createFromFormat('!Y-m-d', $text, self::TIMEZONE);
 
-        if ($day === false || $day === null || $day->format('Y-m-d') !== $text) {
+        if (! $day instanceof CarbonImmutable || $day->format('Y-m-d') !== $text) {
             throw new \InvalidArgumentException("Not a real calendar date: {$value}");
         }
 
@@ -125,7 +125,7 @@ class KriWorkingCalendar
         $this->holidays = [];
     }
 
-    /** @return array<string, true> */
+    /** @return array<string, bool> */
     private function holidaysFor(int $organizationId, int $year): array
     {
         $key = $organizationId.':'.$year;

@@ -57,7 +57,7 @@ class KrisGrid extends GridDefinition
 
             // ADR 0026: the department the KRI is reported by.
             Column::make('department', 'Department')
-                ->using(fn (KeyRiskIndicator $k) => $k->businessUnit?->name ?? 'Unassigned'),
+                ->using(fn (KeyRiskIndicator $k) => $k->businessUnit->name ?? 'Unassigned'),
 
             Column::make('category', 'Category')
                 ->using(fn (KeyRiskIndicator $k) => $k->risk?->category?->name ?? '—'),
@@ -126,9 +126,13 @@ class KrisGrid extends GridDefinition
                     ->orderBy('name')
                     ->pluck('name', 'id')
                     ->all())
-                ->apply(fn (Builder $query, string $value) => $value === 'unassigned'
-                    ? $query->whereNull('business_unit_id')
-                    : $query->where('business_unit_id', (int) $value)),
+                ->apply(function (Builder $query, string $value): void {
+                    if ($value === 'unassigned') {
+                        $query->whereNull('business_unit_id');
+                    } else {
+                        $query->where('business_unit_id', (int) $value);
+                    }
+                }),
 
             Filter::make('risk_id', 'All Risks')
                 ->options(fn () => Risk::query()

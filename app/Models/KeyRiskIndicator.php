@@ -22,6 +22,7 @@ use ThirdLine\Platform\Tenancy\BelongsToOrganization;
  * @property float|null $target_value
  * @property int|null $kri_owner_id
  * @property int|null $risk_id
+ * @property int|null $entity_id
  * @property bool $is_active
  * @property \Illuminate\Support\Carbon|null $last_measurement_date
  * @property int|null $business_unit_id

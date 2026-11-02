@@ -150,11 +150,11 @@ class KriLibraryPresenter
         $out = [];
 
         foreach ($rows as $row) {
-            $total = (int) $row->kri_count;
-            $read = (int) $row->read_count;
-            $red = (int) $row->red_count;
-            $amber = (int) $row->amber_count;
-            $green = (int) $row->green_count;
+            $total = (int) $row->getAttribute('kri_count');
+            $read = (int) $row->getAttribute('read_count');
+            $red = (int) $row->getAttribute('red_count');
+            $amber = (int) $row->getAttribute('amber_count');
+            $green = (int) $row->getAttribute('green_count');
 
             $out[(int) ($row->unit_id ?? 0)] = [
                 'kri_count' => $total,

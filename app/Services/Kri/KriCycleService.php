@@ -90,7 +90,7 @@ class KriCycleService
      * The same rule for many units in one KRI query.
      *
      * @param  list<int>|null  $unitIds  null = every unit that has a KRI
-     * @return Collection<int, Collection<int, array{kri: KeyRiskIndicator, period: Period}>> keyed by unit id
+     * @return Collection<int|string, Collection<int, array{kri: KeyRiskIndicator, period: mixed}>> keyed by unit id
      */
     public function dueKrisByUnit(Period $reportingMonth, ?array $unitIds = null): Collection
     {
@@ -301,7 +301,7 @@ class KriCycleService
      * calendar generation.
      *
      * @param  array<string, mixed>  $report
-     * @return array{0: Collection<int, BusinessUnit>, 1: Collection<int, Collection<int, array{kri: KeyRiskIndicator, period: Period}>>}
+     * @return array{0: Collection<int, BusinessUnit>, 1: Collection<int|string, Collection<int, array{kri: KeyRiskIndicator, period: mixed}>>}
      */
     private function planDepartments(Period $period, array &$report): array
     {

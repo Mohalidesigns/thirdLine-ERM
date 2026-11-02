@@ -240,7 +240,7 @@ class KriRedBandService
                 'url' => route('risk.kri.breaches'),
             ],
             // With no breach (the Edit-form case) the root cause lives only in the Issue's observation.
-            'root_cause' => $breach?->root_cause ?? $issue->observation,
+            'root_cause' => $breach->root_cause ?? $issue->observation,
             'return' => $line?->kriReturn === null ? null : [
                 'id' => (int) $line->kriReturn->id,
                 'department' => $line->kriReturn->businessUnit?->name,

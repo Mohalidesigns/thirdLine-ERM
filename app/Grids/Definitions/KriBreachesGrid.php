@@ -125,7 +125,7 @@ class KriBreachesGrid extends GridDefinition
                 ->using(fn (MeasureBreach $b) => $b->root_cause === null ? '—' : (string) str($b->root_cause)->limit(60)),
 
             Column::make('issue', 'Issue')
-                ->using(fn (MeasureBreach $b) => $b->linkedIssue?->issue_reference ?? '—')
+                ->using(fn (MeasureBreach $b) => $b->linkedIssue->issue_reference ?? '—')
                 ->linkTo(fn (MeasureBreach $b) => $b->linkedIssue ? route('risk.issues.show', $b->linkedIssue) : '#'),
 
             Column::make('kri_code', 'Code')

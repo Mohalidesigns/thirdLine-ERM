@@ -49,7 +49,9 @@ class KriMyReturnController extends Controller
                 ?? BusinessUnit::query()->whereIn('id', $championUnits)->orderBy('name')->first());
 
         abort_if($unit === null, 404);
-        abort_unless(in_array((int) $unit->id, $championUnits, true), 403);
+        if (! in_array((int) $unit->id, $championUnits, true)) {
+            abort(403);
+        }
 
         $query = KriReturn::query()->where('business_unit_id', $unit->id)->with('period');
 

@@ -250,7 +250,7 @@ class MyResponsibilitiesService
             ->map(fn (KriReturn $return) => $this->item(
                 type: 'kri_return',
                 key: 'kri-return-'.$return->id,
-                title: 'KRI return: '.($return->businessUnit?->name ?? 'department'),
+                title: 'KRI return: '.($return->businessUnit->name ?? 'department'),
                 subtitle: $return->period?->name,
                 dueAt: CarbonImmutable::parse($return->due_on->toDateString())->toIso8601String(),
                 url: route('risk.kri.my-return', ['department' => $return->business_unit_id, 'period' => $return->period_id]),

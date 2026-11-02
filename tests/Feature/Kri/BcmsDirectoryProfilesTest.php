@@ -106,7 +106,7 @@ class BcmsDirectoryProfilesTest extends KriCycleTestCase
         $this->assertInstanceOf(DirectoryProfile::class, $profile);
         $this->assertTrue($profile->synced);
         $this->assertSame('Treasury', $profile->department, 'the NAME of the business unit the sync resolved the person to');
-        $this->assertSame('Treasury Analyst', $profile->jobTitle);
+        $this->assertNull($profile->jobTitle, 'the job title is never read (NDPA register section 13.2)');
         $this->assertTrue($profile->accountEnabled);
         $this->assertSame('2026-11-01 02:30:00', $profile->lastSyncedAt->format('Y-m-d H:i:s'));
     }
@@ -172,7 +172,7 @@ class BcmsDirectoryProfilesTest extends KriCycleTestCase
 
         $forMe = $this->reader()->forUsers($this->organization->id, [$mine->id, $theirs->id]);
         $this->assertSame([$mine->id], array_keys($forMe), "another tenant's user is not visible");
-        $this->assertSame('Treasury Analyst', $forMe[$mine->id]->jobTitle);
+        $this->assertNull($forMe[$mine->id]->jobTitle);
 
         // And a tenant with no connector of its own gets nothing, whatever another has.
         $this->assertSame([], $this->reader()->forUsers($this->makeOrgWithoutConnector(), [$mine->id]));

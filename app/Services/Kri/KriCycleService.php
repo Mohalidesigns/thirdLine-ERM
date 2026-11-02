@@ -90,7 +90,7 @@ class KriCycleService
      * The same rule for many units in one KRI query.
      *
      * @param  list<int>|null  $unitIds  null = every unit that has a KRI
-     * @return Collection<int|string, Collection<int, array{kri: KeyRiskIndicator, period: mixed}>> keyed by unit id
+     * @return Collection<int, Collection<int, array{kri: KeyRiskIndicator, period: Period}>> keyed by unit id
      */
     public function dueKrisByUnit(Period $reportingMonth, ?array $unitIds = null): Collection
     {
@@ -103,15 +103,32 @@ class KriCycleService
             ->get();
 
         $end = $reportingMonth->end_date->toDateString();
+
+        /** @var array<string, Period> $byType */
         $byType = [];
 
-        return $kris->map(function (KeyRiskIndicator $kri) use ($reportingMonth, $end, &$byType) {
+        /** @var Collection<int, Collection<int, array{kri: KeyRiskIndicator, period: Period}>> $byUnit */
+        $byUnit = collect();
+
+        foreach ($kris as $kri) {
             $type = $this->bridge->periodTypeFor($kri);
             $byType[$type] ??= $this->periods->resolve($end, $type, (int) $reportingMonth->organization_id);
             $period = $byType[$type];
 
-            return $period->end_date->toDateString() === $end ? ['kri' => $kri, 'period' => $period] : null;
-        })->filter()->groupBy(fn (array $row) => (int) $row['kri']->business_unit_id);
+            if ($period->end_date->toDateString() !== $end) {
+                continue;
+            }
+
+            $unitId = (int) $kri->business_unit_id;
+
+            if (! $byUnit->has($unitId)) {
+                $byUnit->put($unitId, collect());
+            }
+
+            $byUnit->get($unitId)->push(['kri' => $kri, 'period' => $period]);
+        }
+
+        return $byUnit;
     }
 
     /* ------------------------------------------------------------------ */
@@ -301,7 +318,7 @@ class KriCycleService
      * calendar generation.
      *
      * @param  array<string, mixed>  $report
-     * @return array{0: Collection<int, BusinessUnit>, 1: Collection<int|string, Collection<int, array{kri: KeyRiskIndicator, period: mixed}>>}
+     * @return array{0: Collection<int, BusinessUnit>, 1: Collection<int, Collection<int, array{kri: KeyRiskIndicator, period: Period}>>}
      */
     private function planDepartments(Period $period, array &$report): array
     {

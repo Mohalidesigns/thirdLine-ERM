@@ -123,7 +123,7 @@ class KriReturnPresenter
 
         $row = $base()
             ->selectRaw(
-                "COUNT(*) as total_returns, "
+                'COUNT(*) as total_returns, '
                 ."SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) as submitted_returns, "
                 ."SUM(CASE WHEN status <> 'submitted' AND due_on < ? THEN 1 ELSE 0 END) as overdue_returns",
                 [KriWorkingCalendar::today()->toDateString()],

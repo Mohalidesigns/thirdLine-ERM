@@ -99,8 +99,8 @@ class DatabaseSeeder extends Seeder
         $this->call(WidgetDashboardSeeder::class);
 
         /* ------------------------------------------------------------------ */
-        /*  12. ADR 0026: departmental KRI cycle demo contacts and holidays    */
-        /*      (idempotent). After every seeder that creates KRIs.           */
+        /*  12. ADR 0026: departmental KRI cycle demo contacts and holidays */
+        /*      (idempotent). After every seeder that creates KRIs. */
         /* ------------------------------------------------------------------ */
 
         $this->call(KriCycleDemoSeeder::class);

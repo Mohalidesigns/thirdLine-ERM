@@ -15,7 +15,6 @@ use App\Support\Kri\KriWorkingCalendar;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
-use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * ADR 0026 sections 4 and 6.4, A1.8, A1.10: what a champion does to a return.

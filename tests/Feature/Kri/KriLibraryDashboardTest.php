@@ -2,12 +2,10 @@
 
 namespace Tests\Feature\Kri;
 
-use App\Enums\KriContactRole;
 use App\Models\BusinessUnit;
 use App\Models\Issue;
 use App\Models\KeyRiskIndicator;
 use App\Models\KriCycleRun;
-use App\Models\KriReturn;
 use App\Models\KriReturnNotice;
 use App\Models\KriReturnNoticeRecipient;
 use App\Models\User;

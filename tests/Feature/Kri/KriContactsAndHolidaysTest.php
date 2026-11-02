@@ -54,7 +54,7 @@ class KriContactsAndHolidaysTest extends KriCycleTestCase
         $this->assertSame($this->organization->id, (int) $contact->organization_id);
 
         $audit = RiskAuditTrail::query()->where('action_type', 'kri_contact_added')->firstOrFail();
-        $this->assertSame('business_unit', $audit->entity_type, "audited on the department so its history is one query");
+        $this->assertSame('business_unit', $audit->entity_type, 'audited on the department so its history is one query');
         $this->assertSame($this->unit->id, (int) $audit->entity_id);
         $this->assertSame('risk_champion', $audit->field_changed);
         $this->assertSame("user:{$person->id} Chidi Champion <{$person->email}>", $audit->new_value);

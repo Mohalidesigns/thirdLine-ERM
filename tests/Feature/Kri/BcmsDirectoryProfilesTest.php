@@ -7,7 +7,6 @@ use App\Enums\KriContactRole;
 use App\Services\Kri\BcmsDirectoryProfiles;
 use App\Support\DirectoryProfile;
 use Illuminate\Support\Facades\DB;
-use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\TenantFixture;
 

@@ -121,7 +121,10 @@ class KriReturn extends Model
             return null;
         }
 
-        return (int) $this->due_on->copy()->startOfDay()->diffInDays($lagosToday->copy()->startOfDay(), true);
+        // Whole calendar days between two DATE strings, both read as UTC
+        // midnight, so the Lagos-vs-UTC hour offset can never truncate a day.
+        return (int) \Carbon\CarbonImmutable::createFromFormat('!Y-m-d', $due, 'UTC')
+            ->diffInDays(\Carbon\CarbonImmutable::createFromFormat('!Y-m-d', $today, 'UTC'), true);
     }
 
     /**

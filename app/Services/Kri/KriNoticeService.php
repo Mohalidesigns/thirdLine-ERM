@@ -120,8 +120,13 @@ class KriNoticeService
         $results = [];
         $today = KriWorkingCalendar::today()->toDateString();
 
-        foreach (array_values(array_unique(array_map('intval', $returnIds))) as $returnId) {
-            $return = KriReturn::query()->with('businessUnit')->find($returnId);
+        $ids = array_values(array_unique(array_map('intval', $returnIds)));
+        // One query for the batch (up to 50 ids), not one per id. The locked
+        // re-read further down is still per return, by design.
+        $loaded = KriReturn::query()->with('businessUnit')->whereIn('id', $ids)->get()->keyBy('id');
+
+        foreach ($ids as $returnId) {
+            $return = $loaded->get($returnId);
 
             if ($return === null || ! $this->scope->reaches($actor, (int) $return->business_unit_id)) {
                 $results[] = ['return_id' => $returnId, 'department' => $return?->businessUnit?->name, 'outcome' => 'out_of_scope', 'tier' => null];

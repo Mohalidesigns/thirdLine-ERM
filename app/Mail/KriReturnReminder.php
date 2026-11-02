@@ -17,7 +17,7 @@ class KriReturnReminder extends Mailable
 
     public function envelope(): Envelope
     {
-        $view = $this->view();
+        $view = $this->kriMailData();
         $days = $view['days_overdue'];
 
         // Spec 10 section 3: the first matching state. "Overdue" is the only strong word.
@@ -33,14 +33,14 @@ class KriReturnReminder extends Mailable
         return new Content(
             view: 'emails.kri-return-reminder',
             text: 'emails.kri-return-reminder-text',
-            with: $this->view(),
+            with: $this->kriMailData(),
         );
     }
 
     /**
      * @return array<string, mixed>
      */
-    protected function view(): array
+    protected function kriMailData(): array
     {
         return KriReturnMailView::for($this->recipient);
     }

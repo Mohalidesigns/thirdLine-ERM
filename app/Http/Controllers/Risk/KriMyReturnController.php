@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Risk;
 
+use App\Enums\KriReturnStatus;
 use App\Exceptions\KriCycleException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Kri\ReopenKriReturnRequest;
@@ -33,10 +34,19 @@ class KriMyReturnController extends Controller
             return Inertia::render('Kri/MyReturn', $presenter->myReturnShell('not_configured', []));
         }
 
-        // The default is the champion's first department by name.
+        // The default is the champion's first department, by name, that has a
+        // return still waiting on them; failing that, the first by name.
         $unit = $department !== null
             ? BusinessUnit::query()->find($department)
-            : BusinessUnit::query()->whereIn('id', $championUnits)->orderBy('name')->first();
+            : (BusinessUnit::query()
+                ->whereIn('id', $championUnits)
+                ->whereIn('id', KriReturn::query()
+                    ->whereIn('business_unit_id', $championUnits)
+                    ->whereIn('status', [KriReturnStatus::Draft->value, KriReturnStatus::Reopened->value])
+                    ->select('business_unit_id'))
+                ->orderBy('name')
+                ->first()
+                ?? BusinessUnit::query()->whereIn('id', $championUnits)->orderBy('name')->first());
 
         abort_if($unit === null, 404);
         abort_unless(in_array((int) $unit->id, $championUnits, true), 403);

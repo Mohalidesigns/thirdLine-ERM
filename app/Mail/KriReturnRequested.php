@@ -22,7 +22,7 @@ class KriReturnRequested extends Mailable
 
     public function envelope(): Envelope
     {
-        $view = $this->view();
+        $view = $this->kriMailData();
 
         return new Envelope(
             // Spec 09 section 3: the department first, because it is what the reader filters on.
@@ -35,14 +35,14 @@ class KriReturnRequested extends Mailable
         return new Content(
             view: 'emails.kri-return-requested',
             text: 'emails.kri-return-requested-text',
-            with: $this->view(),
+            with: $this->kriMailData(),
         );
     }
 
     /**
      * @return array<string, mixed>
      */
-    protected function view(): array
+    protected function kriMailData(): array
     {
         return KriReturnMailView::for($this->recipient);
     }

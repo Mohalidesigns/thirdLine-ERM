@@ -446,7 +446,11 @@ class MeasureService
 
         try {
             $result = $work();
-            $pending = self::$deferredAnnouncements;
+
+            // $work() appended to the buffer through announceBreach(); the
+            // analyser cannot see that and narrows the static to [] here.
+            /** @var list<\Closure(): void> $pending */
+            $pending = self::$deferredAnnouncements ?? [];
         } finally {
             self::$deferredAnnouncements = null;
         }

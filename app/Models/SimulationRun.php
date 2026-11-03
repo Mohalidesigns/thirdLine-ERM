@@ -171,7 +171,9 @@ class SimulationRun extends Model
         $agg = $this->aggregate_result;
         $dist = $agg->percentile_distribution ?? [];
 
-        return isset($dist['p99.9']) ? round($dist['p99.9'] / 100, 2) : $this->var_995;
+        // Null, not p99.9, for a run stored before the engine recorded its
+        // maximum: p99.9 is the VaR (99.9%) figure, not the largest loss.
+        return isset($dist['max']) ? round($dist['max'] / 100, 2) : null;
     }
 
     public function getPercentilesAttribute()

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
@@ -34,9 +35,18 @@ const RUNNING = ['queued', 'running'];
  */
 export default function Show({ result, percentiles, expectedShortfall, maxLoss, contributions, histogramData, contribChartData, cdfData }) {
     const isRunning = RUNNING.includes(result.status);
-    const { progress } = useJobProgress(result.job_run_id, { enabled: isRunning });
+    const { progress, finished } = useJobProgress(result.job_run_id, { enabled: isRunning });
 
-    const pct = progress?.percent ?? result.progress ?? 0;
+    // The endpoint's field is `progress`; this read `percent`, which it never
+    // sends, so the bar sat at the run's initial 0% for the whole run.
+    const pct = progress?.progress ?? result.progress ?? 0;
+
+    // Polling ends when the JobRun finishes, but every figure below is a page
+    // prop. Without a reload the page stayed on "Queued 0%" over a run that had
+    // already completed.
+    useEffect(() => {
+        if (isRunning && finished) router.reload();
+    }, [isRunning, finished]);
 
     const cancel = () => {
         if (!window.confirm('Ask this simulation to stop? A cancelled run keeps no results — a partial loss distribution is not a smaller answer.')) {
@@ -109,7 +119,11 @@ export default function Show({ result, percentiles, expectedShortfall, maxLoss, 
                 </div>
             )}
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+            {/*
+                Six across only on a 2xl screen: at lg, beside the sidebar, each tile
+                was ~120px, which truncated every label and broke "₦921.54M" mid-number.
+            */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3 mb-6">
                 <KpiCard
                     title="Expected Loss"
                     value={compactNaira(result.expected_loss)}

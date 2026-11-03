@@ -281,6 +281,24 @@ class OpenKriCycleCommandTest extends KriCycleTestCase
     }
 
     #[Test]
+    public function a_semi_annual_kri_is_due_only_when_its_half_year_ends_in_the_reporting_month(): void
+    {
+        $semi = $this->deptKri(null, ['measurement_frequency' => 'semi_annually']);
+        $service = app(KriCycleService::class);
+        $periods = app(PeriodService::class);
+
+        $june = $periods->resolve('2026-06-30', 'month', $this->organization->id);
+        $september = $periods->resolve('2026-09-30', 'month', $this->organization->id);
+
+        $inJune = $service->dueKrisFor($this->unit, $june);
+        $this->assertSame([$semi->id], $inJune->pluck('kri.id')->all(), 'H1 ends 30 June');
+        $this->assertSame('half', $inJune->first()['period']->type, 'its line carries the HALF-YEAR, not the month');
+        $this->assertSame('2026-06-30', $inJune->first()['period']->end_date->toDateString());
+
+        $this->assertSame([], $service->dueKrisFor($this->unit, $september)->pluck('kri.id')->all());
+    }
+
+    #[Test]
     public function the_cycle_on_the_first_working_day_of_october_collects_september_with_the_quarterly_kri(): void
     {
         Mail::fake();

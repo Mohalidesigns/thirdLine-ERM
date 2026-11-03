@@ -1343,7 +1343,7 @@ class ClauseComplianceMatrixService
             'biweekly', 'fortnightly' => 14,
             'monthly' => 30,
             'quarterly' => 91,
-            'semi_annual', 'semiannual' => 182,
+            'semi_annual', 'semiannual', 'semi_annually' => 182,
             'annual', 'annually', 'yearly' => 365,
             default => 30,
         };

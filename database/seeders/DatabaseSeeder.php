@@ -99,6 +99,13 @@ class DatabaseSeeder extends Seeder
         $this->call(WidgetDashboardSeeder::class);
 
         /* ------------------------------------------------------------------ */
+        /*  12. ADR 0026: departmental KRI cycle demo contacts and holidays */
+        /*      (idempotent). After every seeder that creates KRIs. */
+        /* ------------------------------------------------------------------ */
+
+        $this->call(KriCycleDemoSeeder::class);
+
+        /* ------------------------------------------------------------------ */
         /*  12. TPRM reference libraries (idempotent). */
         /* */
         /*      After RiskCategorySeeder, and the dependency is real rather */

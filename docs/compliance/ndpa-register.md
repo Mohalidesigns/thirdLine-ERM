@@ -1539,6 +1539,68 @@ not an agent's to answer.
     say that a help reply sent from a number on more than one organisation's
     roster may reach each of them.
 
+## 13. ERM departmental KRI cycle (ADR 0026, PR #30)
+
+This entry was opened at gate 2 (code-reviewer finding 1, 2026-11-02). The KRI cycle is ERM, not
+BCMS, but it reads one BCMS table and adds personal data of its own. Both belong here, so an
+examiner finds them in one place.
+
+### 13.1 What is processed
+
+| Data | Where | Why it is held |
+|---|---|---|
+| Department KRI contacts: user id, department, role (risk champion, team lead, unit head, group head) | `kri_department_contacts` | Who is asked for a department's monthly KRI return, and who an escalation reaches. Names and emails are **not** copied; they are read from `users` when used. |
+| Recipient snapshot per notice: user id, role, name, email, delivery outcome, transport error | `kri_return_notice_recipients` | Evidence of who was asked or reminded, and whether the mail server accepted it. The name and email are snapshotted so the record stays true if the user changes later. |
+| Red-band explanation: root cause, action point, timeline, named action owner | `kri_return_lines`, `measure_breaches.root_cause`, the `kri_breach` Issue | The control record for an indicator in breach. The free text is written by staff about a process, but it **can name people**. The "describe roles, not people" rule from §9.1 applies. As there, it is taught, not enforced. |
+| Directory hints (synced or not, account enabled, AD-resolved department) | Read at render time from `bcms_contacts`. **Never persisted** by the KRI cycle. | Flags a contact whose directory record disagrees with the department they were picked for. |
+| Audit of contact changes | `risk_audit_trail`: **`user:{id}` only** | Who was added or removed, and by whom. Name and email were taken out at gate 2, because this trail is append-only and could not honour an erasure. |
+
+### 13.2 Purpose limitation: the read of `bcms_contacts`
+
+§1 limits the emergency roster to reaching a named person during an emergency or an exercise, or
+checking that they can still be reached, and "nothing else". The KRI cycle's read is held to be
+**compatible** on these conditions. If any of them stops holding, this entry must be reopened.
+
+1. **It is read-only, at render time.** `App\Services\Kri\BcmsDirectoryProfiles` selects
+   `user_id`, `business_unit_id`, `is_active` and `ad_synced_at`. Nothing it reads is written to any
+   KRI table, log or email.
+2. **The columns are minimised.** It reads no phone number, personal contact detail, next of kin,
+   location or job title. `title` was removed from the select at gate 2 because no screen used it.
+3. **The purpose matches.** The read answers "is this person still reachable at this department".
+   That is the roster's own reachability check, applied to a routine risk process, not a new
+   profiling use.
+4. **It degrades to nothing.** With BCMS off, or no active identity connector, it returns no data.
+
+**[verify with DPO]** that this compatibility position stands under each tenant's §29 agreement.
+
+### 13.3 Lawful basis, retention, residency
+
+- **Lawful basis:** the same as the platform's other staff processing for the risk-management
+  framework: legitimate interest, with CBN's risk-management expectations as its content.
+  **[verify with DPO]** the exact NDPA 2023 limb, and record it alongside §7.3's.
+- **Retention:** proposed, not enforced. This is the same position as §6.1 and §10.
+  - Notice recipient rows: **24 months** from send. After that the name and email are nulled, and
+    the user id and outcome are kept. Twenty-four months covers two annual examination cycles of
+    "were departments chased".
+  - Transport `error` text: **90 days**, then nulled, for the reason §6.1 gives for `raw_response`.
+  - Red-band explanations and their Issues follow the Issues module's retention.
+  - Contacts are live configuration and are deleted when removed. The audit row (id only) remains.
+- **Residency:** the KRI cycle adds no processor. Mail goes through the tenant's configured transport
+  from `mail.from`, so the tenant's existing mail position applies. Nothing leaves the application
+  database except the two emails. They name the department, the period and the recipient's own
+  role.
+
+### 13.4 Known gaps
+
+- `kri_return_notice_recipients.error` keeps the transport's message verbatim, and a mail server's
+  rejection can echo the address. This is the same defect shape as §6's `reasonFrom()` finding.
+  Owner: `backend-engineer`, to store a closed category instead.
+- No purge command exists (§10), so every figure in 13.3 is indefinite in practice.
+- `risk.kri.returns.notices` shows a department's contacts the names and emails of the others
+  reminded about that department's return. This is held to be proportionate, because they are
+  colleagues on the same escalation ladder. **[verify with DPO]**.
+
+
 ## HANDOFF — Phase 0 (historical)
 
 **Phase:** P0 — Foundations & schema freeze

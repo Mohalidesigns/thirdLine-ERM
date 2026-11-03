@@ -62,7 +62,7 @@ class KrisGridTest extends TestCase
     {
         $this->makeIndicator(['name' => 'System downtime hours']);
 
-        $this->get(route('risk.kri.index'))
+        $this->get(route('risk.kri.index', ['layout' => 'flat']))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Kri/Index')
@@ -79,7 +79,7 @@ class KrisGridTest extends TestCase
         $this->makeIndicator(['name' => 'Failed transaction rate']);
         $this->makeIndicator(['name' => 'Staff attrition ratio']);
 
-        $this->get(route('risk.kri.index'))
+        $this->get(route('risk.kri.index', ['layout' => 'flat']))
             ->assertInertia(fn (Assert $page) => $page->has('grid.rows.data', 2));
 
         $this->get(route('risk.kri.index', ['search' => 'attrition']))
@@ -107,7 +107,7 @@ class KrisGridTest extends TestCase
             'created_by' => $this->actor->id,
         ]);
 
-        $this->get(route('risk.kri.index'))
+        $this->get(route('risk.kri.index', ['layout' => 'flat']))
             ->assertInertia(fn (Assert $page) => $page
                 ->has('grid.rows.data', 1)
                 ->where('grid.rows.data.0.cells.name.text', 'Our indicator'));

@@ -83,7 +83,8 @@ class MeasureBreach extends Model
         return $this->belongsTo(Risk::class, 'linked_risk_id');
     }
 
-    public function linkedIssue()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Issue, $this> */
+    public function linkedIssue(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Issue::class, 'linked_issue_id');
     }

@@ -148,6 +148,11 @@ abstract class KriTestCase extends TestCase
         }
 
         $user->syncRoles($roles);
+
+        foreach ($permissions as $permission) {
+            Permission::findOrCreate($permission);
+        }
+
         $user->givePermissionTo($permissions);
 
         return $user->fresh();

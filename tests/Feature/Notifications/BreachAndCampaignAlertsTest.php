@@ -42,6 +42,13 @@ class BreachAndCampaignAlertsTest extends TestCase
 {
     use CreatesDomainFixtures, CreatesMeasureFixtures, RefreshDatabase;
 
+    /** A red reading entered by hand must say why and what will be done (ADR 0026). */
+    private const RED_BAND = [
+        'root_cause' => 'Volumes spiked after the system change.',
+        'action_point' => 'Revert the change and reconcile the backlog.',
+        'timeline' => '2026-02-15',
+    ];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -163,6 +170,8 @@ class BreachAndCampaignAlertsTest extends TestCase
             ->post(route('risk.kri.record-measurement', $kri), [
                 'measurement_date' => '2026-01-05',
                 'value' => 12,
+                // ADR 0026: a red reading carries its explanation.
+                'red_band' => self::RED_BAND,
             ])
             ->assertRedirect();
 
@@ -200,12 +209,16 @@ class BreachAndCampaignAlertsTest extends TestCase
         $this->post(route('risk.kri.record-measurement', $kri), [
             'measurement_date' => '2026-01-05',
             'value' => 12,
+            // ADR 0026: a red reading carries its explanation.
+            'red_band' => self::RED_BAND,
         ]);
 
         // Still over the limit, same period, worse number.
         $this->post(route('risk.kri.record-measurement', $kri), [
             'measurement_date' => '2026-01-20',
             'value' => 14,
+            // ADR 0026: a red reading carries its explanation.
+            'red_band' => self::RED_BAND,
         ]);
 
         $this->assertCount(1, $this->logged('kri_breach', $owner->id));
@@ -228,6 +241,8 @@ class BreachAndCampaignAlertsTest extends TestCase
         $this->post(route('risk.kri.record-measurement', $kri), [
             'measurement_date' => '2026-01-05',
             'value' => 12,
+            // ADR 0026: a red reading carries its explanation.
+            'red_band' => self::RED_BAND,
         ]);
 
         // Back inside appetite: the open breach is resolved.
@@ -243,6 +258,8 @@ class BreachAndCampaignAlertsTest extends TestCase
         $this->post(route('risk.kri.record-measurement', $kri), [
             'measurement_date' => '2026-01-19',
             'value' => 11,
+            // ADR 0026: a red reading carries its explanation.
+            'red_band' => self::RED_BAND,
         ]);
 
         $this->assertSame('open', MeasureBreach::firstOrFail()->status);

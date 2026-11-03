@@ -10,6 +10,7 @@ use App\Services\KriMeasureBridge;
 use App\Services\MeasureService;
 use App\Services\PeriodService;
 use App\Services\ReferenceCodeService;
+use App\Support\Kri\KriBandRule;
 use App\Support\Periods\PeriodContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -452,6 +453,13 @@ class KriService
             'threshold_direction' => $validated['direction'] === 'higher_is_worse' ? 'higher_worse' : 'lower_worse',
         ];
 
+        // ADR 0026 section 1: the department. Written only when the request
+        // carried the key, so an API/legacy caller that omits it does not null
+        // an assignment; the form always posts it (null = Unassigned).
+        if (array_key_exists('business_unit_id', $validated)) {
+            $columns['business_unit_id'] = $validated['business_unit_id'] ?: null;
+        }
+
         return array_merge($columns, $this->bandColumns(
             $validated['direction'],
             $validated['green_threshold'] ?? null,
@@ -460,39 +468,14 @@ class KriService
     }
 
     /**
-     * The two boundaries fanned out across the six band columns.
-     *
-     * A band set needs TWO numbers. On a higher-is-worse indicator green runs
-     * up to the green boundary, red starts at the red boundary, and amber is
-     * everything between — it has no boundary of its own. The old form asked
-     * for three and the third was read into a variable and never used.
+     * The two boundaries fanned out across the six band columns - delegated to
+     * KriBandRule, the single server fan-out (ADR 0026 section 6.1).
      *
      * @return array<string, float|null>
      */
     private function bandColumns(string $direction, float|int|string|null $green, float|int|string|null $red): array
     {
-        $green = $green === null || $green === '' ? null : (float) $green;
-        $red = $red === null || $red === '' ? null : (float) $red;
-
-        if ($direction === 'higher_is_worse') {
-            return [
-                'green_threshold_min' => null,
-                'green_threshold_max' => $green,
-                'amber_threshold_min' => $green,
-                'amber_threshold_max' => $red,
-                'red_threshold_min' => $red,
-                'red_threshold_max' => null,
-            ];
-        }
-
-        return [
-            'green_threshold_min' => $green,
-            'green_threshold_max' => null,
-            'amber_threshold_min' => $red,
-            'amber_threshold_max' => $green,
-            'red_threshold_min' => null,
-            'red_threshold_max' => $red,
-        ];
+        return KriBandRule::bandColumns($direction, $green, $red);
     }
 
     /** A value with the indicator's unit appended, or null when there is none. */

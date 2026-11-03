@@ -4,12 +4,15 @@ namespace App\Services;
 
 use App\Models\Control;
 use App\Models\KeyRiskIndicator;
+use App\Models\KriReturn;
 use App\Models\MeasureBreach;
 use App\Models\Risk;
 use App\Models\TreatmentPlan;
 use App\Models\User;
 use App\Models\WorkflowTask;
 use App\Services\Workflow\TaskQueryService;
+use App\Support\Kri\KriDepartmentScope;
+use App\Support\Kri\KriWorkingCalendar;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -45,6 +48,8 @@ class MyResponsibilitiesService
         'risk_review_due' => 5,
         'control_test_due' => 5,
         'kri_reading_due' => 2,
+        // A department's monthly return: a product estimate like the rest.
+        'kri_return' => 10,
         'breach' => 3,
         'delegation_in' => 3,
         'delegation_out' => 1,
@@ -69,6 +74,8 @@ class MyResponsibilitiesService
             'owned' => $this->ownedObjectsNeedingAction($user, $today),
             'breaches' => $this->breachesOnOwnedMeasures($user),
             'delegations' => $this->delegations($user),
+            // ADR 0026 section 17: returns where this user is the champion.
+            'kri_returns' => $this->kriReturns($user),
         ];
 
         $all = collect($sections)->flatMap(fn (Collection $items) => $items);
@@ -219,6 +226,35 @@ class MyResponsibilitiesService
                 dueAt: $breach->breached_at?->toIso8601String(),
                 url: route('risk.kri.breaches'),
                 badge: strtoupper((string) $breach->severity),
+            ));
+    }
+
+    /** Open (draft or reopened) KRI returns of the departments I am risk champion of. */
+    private function kriReturns(User $user): Collection
+    {
+        $units = app(KriDepartmentScope::class)->championUnitIdsFor($user);
+
+        if ($units === []) {
+            return collect();
+        }
+
+        $today = KriWorkingCalendar::today()->toDateString();
+
+        return KriReturn::query()
+            ->whereIn('business_unit_id', $units)
+            ->whereIn('status', ['draft', 'reopened'])
+            ->with(['businessUnit:id,name', 'period:id,name'])
+            ->orderBy('due_on')
+            ->limit(25)
+            ->get()
+            ->map(fn (KriReturn $return) => $this->item(
+                type: 'kri_return',
+                key: 'kri-return-'.$return->id,
+                title: 'KRI return: '.($return->businessUnit->name ?? 'department'),
+                subtitle: $return->period?->name,
+                dueAt: CarbonImmutable::parse($return->due_on->toDateString())->toIso8601String(),
+                url: route('risk.kri.my-return', ['department' => $return->business_unit_id, 'period' => $return->period_id]),
+                badge: $return->due_on->toDateString() < $today ? 'Overdue' : null,
             ));
     }
 

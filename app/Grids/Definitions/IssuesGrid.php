@@ -56,9 +56,11 @@ class IssuesGrid extends GridDefinition
                 ->using(fn (Issue $i) => str($i->title)->limit(50)
                     .($i->cbn_examination_finding ? ' · CBN' : '')),
 
-            Column::make('issue_source', 'Source')->badge([
-                '*' => 'bg-gray-100 text-gray-700',
-            ]),
+            Column::make('issue_source', 'Source')
+                ->using(fn (Issue $i) => Issue::sourceLabel($i->issue_source) ?? '—')
+                ->badge([
+                    '*' => 'bg-gray-100 text-gray-700',
+                ]),
 
             Column::make('priority', 'Priority')
                 ->sortable()
@@ -142,7 +144,7 @@ class IssuesGrid extends GridDefinition
                     ->distinct()
                     ->orderBy('issue_source')
                     ->pluck('issue_source', 'issue_source')
-                    ->map(fn ($v) => (string) str($v)->lower()->replace('_', ' ')->title())
+                    ->map(fn ($v) => Issue::sourceLabel($v))
                     ->all()),
 
             Filter::make('overdue', 'Overdue?')->options([

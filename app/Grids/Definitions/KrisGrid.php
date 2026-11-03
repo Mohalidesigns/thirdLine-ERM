@@ -6,6 +6,7 @@ use App\Grids\Column;
 use App\Grids\Filter;
 use App\Grids\GridDefinition;
 use App\Grids\RowAction;
+use App\Models\BusinessUnit;
 use App\Models\KeyRiskIndicator;
 use App\Models\Risk;
 use Illuminate\Database\Eloquent\Builder;
@@ -42,7 +43,7 @@ class KrisGrid extends GridDefinition
         // that reports the reading, which is not always the unit that owns the
         // risk it indicates.
         return KeyRiskIndicator::query()
-            ->with(['risk.category', 'owner'])
+            ->with(['risk.category', 'owner', 'businessUnit'])
             ->where('organization_id', TenantContext::organizationId())
             ->visibleTo();
     }
@@ -53,6 +54,10 @@ class KrisGrid extends GridDefinition
             Column::make('name', 'KRI Name')
                 ->sortable()->searchable()
                 ->linkTo(fn (KeyRiskIndicator $k) => route('risk.kri.show', $k)),
+
+            // ADR 0026: the department the KRI is reported by.
+            Column::make('department', 'Department')
+                ->using(fn (KeyRiskIndicator $k) => $k->businessUnit->name ?? 'Unassigned'),
 
             Column::make('category', 'Category')
                 ->using(fn (KeyRiskIndicator $k) => $k->risk?->category?->name ?? '—'),
@@ -113,6 +118,21 @@ class KrisGrid extends GridDefinition
                     'amber' => 'Amber (Warning)',
                     'red' => 'Red (Breach)',
                 ]),
+
+            Filter::make('department', 'All Departments')
+                ->options(fn () => ['unassigned' => 'Unassigned'] + BusinessUnit::query()
+                    ->where('organization_id', $orgId)
+                    ->where('is_active', true)
+                    ->orderBy('name')
+                    ->pluck('name', 'id')
+                    ->all())
+                ->apply(function (Builder $query, string $value): void {
+                    if ($value === 'unassigned') {
+                        $query->whereNull('business_unit_id');
+                    } else {
+                        $query->where('business_unit_id', (int) $value);
+                    }
+                }),
 
             Filter::make('risk_id', 'All Risks')
                 ->options(fn () => Risk::query()

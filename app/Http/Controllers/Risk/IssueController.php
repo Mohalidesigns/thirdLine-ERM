@@ -676,6 +676,9 @@ class IssueController extends Controller
             'status' => $issue->issue_status,
             'priority' => $issue->priority,
             'source' => $issue->issue_source,
+            // ADR 0026 section 8.3 rows 8: the page renders this, not titleCase(source).
+            'sourceLabel' => Issue::sourceLabel($issue->issue_source),
+            'kriOrigin' => app(\App\Services\Kri\KriRedBandService::class)->originFor($issue),
             'category' => $issue->issue_category,
             'owner' => $issue->issueOwner?->name,
             'businessUnit' => $issue->businessUnit?->name,

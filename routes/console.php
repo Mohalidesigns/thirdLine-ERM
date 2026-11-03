@@ -14,6 +14,24 @@ Schedule::command('kri:check-breaches')->dailyAt('07:00');
 Schedule::command('treatments:check-overdue')->dailyAt('08:30');
 Schedule::command('regulatory:check-deadlines')->twiceDaily(8, 16);
 
+// ADR 0026 section 12. DAILY, never monthlyOn(1): the 1st is often not a working
+// day (2026-11-01 is a Sunday), and the command itself acts only on the first
+// working day. 07:00 Lagos is 06:00 UTC, before my:digest (07:30 UTC), so the
+// digest carries the new return. The watchdog runs three hours later.
+//
+// `withoutOverlapping(60)`, NOT THE DEFAULT. The default mutex lives 1440
+// minutes, which on a ONCE-A-DAY command is a trap: a run killed outright
+// (OOM, deploy) keeps its mutex until the same minute tomorrow, and tomorrow's
+// tick at that minute can find it still held and skip without a word. For the
+// watchdog that is the watchdog going quiet. Sixty minutes is the watchdog's
+// own "stuck" threshold: a run older than that is stuck by definition, so the
+// mutex has nothing left to protect. `onOneServer()` as the BCMS daily jobs
+// use it: `withoutOverlapping()` is per server, and two app servers would
+// otherwise both run the cycle (harmless, the rows are the idempotency) and
+// both raise the watchdog's alert (not harmless: every holder told twice).
+Schedule::command('kri:open-cycle')->dailyAt('07:00')->timezone('Africa/Lagos')->withoutOverlapping(60)->onOneServer();
+Schedule::command('kri:cycle-watchdog')->dailyAt('10:00')->timezone('Africa/Lagos')->withoutOverlapping(60)->onOneServer();
+
 // RCSA v2 P5 (§9.3). After the other overdue sweeps, so a morning's digest
 // reports one consistent picture. Reminders fire at exactly T-14, T-7 and T-0,
 // which is what makes a second run in one day a duplicate rather than a wrong

@@ -82,6 +82,20 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'kri.record_measurement' => 'Record a measurement against a KRI.',
                 'kri.acknowledge_breach' => 'Acknowledge a threshold breach, recording who accepted it.',
                 'kri.delete' => 'Remove a KRI.',
+                // ADR 0026 section 14. Each description is an authority: the
+                // submit permission reaches only departments where the holder
+                // is configured as risk champion; configuring a contact grants
+                // nothing by itself.
+                'kri.submit_return' => 'Complete and submit your department\'s monthly KRI return. It reaches only departments where you are configured as risk champion.',
+                'kri.send_reminder' => 'Email a department\'s KRI contacts about an unsubmitted return. Each reminder reaches one tier further up the department.',
+                'kri.manage_department_contacts' => 'Choose who is each department\'s risk champion, team lead, unit head and group head for KRI returns and escalations.',
+                'kri.all_departments' => 'See every department\'s KRIs, returns and reminders, not only the business units you are assigned to.',
+            ],
+
+            // Resource-named, not kri.*: the list belongs to the organisation,
+            // and a second module that reads it already has the right name.
+            'Organisation calendar' => [
+                'holiday.manage' => 'Maintain the organisation\'s holiday list. It moves the first working day of every month and every KRI return\'s due date.',
             ],
 
             'Reporting periods' => [
@@ -592,6 +606,8 @@ class RiskPermissionCatalog extends PermissionCatalog
             'control.view', 'control.create', 'control.edit', 'control.delete',
             'treatment.view', 'treatment.create', 'treatment.edit', 'treatment.approve', 'treatment.delete',
             'kri.view', 'kri.create', 'kri.edit', 'kri.record_measurement', 'kri.delete',
+            'kri.submit_return', 'kri.send_reminder', 'kri.manage_department_contacts', 'kri.all_departments',
+            'holiday.manage',
             'appetite.view', 'appetite.manage', 'appetite.approve',
             'report.view', 'report.generate', 'report.export',
             'entity.view', 'entity.create', 'entity.edit', 'entity.delete',
@@ -678,6 +694,9 @@ class RiskPermissionCatalog extends PermissionCatalog
 
             'risk-owner' => [
                 'risk.view', 'risk.edit',
+                // ADR 0026: the first-line champion completes the return. Not
+                // kri.view / kri.edit: a champion does not edit definitions.
+                'kri.submit_return',
                 'assessment.create',
                 'treatment.view', 'treatment.create',
                 'rcsa.view', 'rcsa.submit',
@@ -718,7 +737,7 @@ class RiskPermissionCatalog extends PermissionCatalog
             'risk-analyst' => [
                 'risk.view',
                 'assessment.view', 'assessment.create',
-                'kri.view', 'kri.record_measurement',
+                'kri.view', 'kri.record_measurement', 'kri.all_departments',
                 'report.view', 'report.generate',
                 'rcsa.view',
                 'rcsa_universe.view',

@@ -98,6 +98,15 @@ class AppServiceProvider extends ServiceProvider
             \App\Services\Bcms\Identity\EntraGraphClient::class,
         );
 
+        // ADR 0026 section 9. A read-only reader of what BCMS identity sync has
+        // already written; it returns [] itself when BCMS is off or the tenant
+        // has no active connector. NullDirectoryProfiles stays available as the
+        // explicit "no directory" binding (tests, or a deployment without BCMS).
+        $this->app->bind(
+            \App\Contracts\DirectoryProfiles::class,
+            \App\Services\Kri\BcmsDirectoryProfiles::class,
+        );
+
         // How this product names the owner of a rendered document. The
         // renderer lives in thirdline/reporting and deliberately does not know
         // what an organisation is — see OrganizationBranding for why a Central
@@ -148,6 +157,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registerBcmsCheckInRateLimiters();
         $this->registerAuthRateLimiters();
         $this->registerApiRateLimiters();
+        $this->registerKriReminderRateLimiter();
 
         // Migration Phase 3.8. The only policy registered by hand: RCSA has no
         // model for Laravel to discover one from — it is four screens over
@@ -320,6 +330,20 @@ class AppServiceProvider extends ServiceProvider
                 \Illuminate\Cache\RateLimiting\Limit::perMinute($tokenPerMinute)->by('bcms-check-in-token:'.$token),
                 \Illuminate\Cache\RateLimiting\Limit::perMinute($ipPerMinute)->by('bcms-check-in-token-ip:'.$request->ip()),
             ];
+        });
+    }
+
+    /**
+     * ADR 0026 section 12: `kri-reminders`, 20 reminder POSTs per minute per
+     * user. The once-a-day rule is a database key; this only guards the endpoint
+     * against abuse. Registered at boot for the same route:cache reason as the
+     * limiters around it.
+     */
+    private function registerKriReminderRateLimiter(): void
+    {
+        \Illuminate\Support\Facades\RateLimiter::for('kri-reminders', function (\Illuminate\Http\Request $request) {
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute(20)
+                ->by('kri-reminders:'.($request->user()?->getAuthIdentifier() ?? $request->ip()));
         });
     }
 

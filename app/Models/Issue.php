@@ -46,8 +46,36 @@ class Issue extends Model
      */
     public const SOURCES = [
         'audit', 'risk_assessment', 'incident', 'regulatory',
-        'self_identified', 'customer_complaint', 'other',
+        'self_identified', 'customer_complaint', 'kri_breach', 'other',
     ];
+
+    /**
+     * Source value => the label a person reads (ADR 0026 section 8.3). The
+     * single enumeration the form registry, the grid filter and badge, and the
+     * Issue page derive from, so the list cannot drift between them again.
+     *
+     * @var array<string, string>
+     */
+    public const SOURCE_LABELS = [
+        'audit' => 'Audit',
+        'risk_assessment' => 'Risk assessment',
+        'incident' => 'Incident',
+        'regulatory' => 'Regulatory examination',
+        'self_identified' => 'Self-identified',
+        'customer_complaint' => 'Customer complaint',
+        'kri_breach' => 'KRI breach',
+        'other' => 'Other',
+    ];
+
+    /** The label for a stored source value; an unknown value reads as itself, title-cased. */
+    public static function sourceLabel(?string $source): ?string
+    {
+        if ($source === null || $source === '') {
+            return null;
+        }
+
+        return self::SOURCE_LABELS[$source] ?? (string) str($source)->replace('_', ' ')->lower()->title();
+    }
 
     /** @var list<string> */
     public const PRIORITIES = ['critical', 'high', 'medium', 'low'];

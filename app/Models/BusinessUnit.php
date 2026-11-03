@@ -48,7 +48,8 @@ class BusinessUnit extends Model
         return $this->belongsTo(Organization::class);
     }
 
-    public function parent()
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<self, $this> */
+    public function parent(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_id');
     }

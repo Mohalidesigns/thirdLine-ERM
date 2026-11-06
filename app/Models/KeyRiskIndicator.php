@@ -36,10 +36,12 @@ class KeyRiskIndicator extends Model
     /**
      * How often a reading is expected, from KriController's inline
      * `in:daily,weekly,monthly,quarterly` rule (migration Phase 4.1).
+     * `semi_annually` is the bank KRI library's "Bi-annual", spelt the way
+     * KriMeasureBridge::periodTypeFor() already maps it onto a half-year period.
      *
      * @var list<string>
      */
-    public const FREQUENCIES = ['daily', 'weekly', 'monthly', 'quarterly'];
+    public const FREQUENCIES = ['daily', 'weekly', 'monthly', 'quarterly', 'semi_annually'];
 
     /**
      * Which way is bad. The FORM's spelling, which the service maps onto the

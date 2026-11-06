@@ -137,6 +137,7 @@ class FormFieldRegistry
                 'weekly' => 'Weekly',
                 'monthly' => 'Monthly',
                 'quarterly' => 'Quarterly',
+                'semi_annually' => 'Semi-annually',
             ], ['is_required' => true, 'section' => 'Measurement']),
             self::field('data_source', 'Data Source', 'string', ['section' => 'Measurement']),
             self::lookup('kri_owner_id', 'Indicator Owner', 'users', [

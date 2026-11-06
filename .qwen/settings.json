@@ -1,0 +1,29 @@
+{
+  "security": {
+    "auth": {
+      "selectedType": "qwen-subscription"
+    }
+  },
+  "model": {
+    "name": "qwen3.8-max",
+    "baseUrl": "https://api.qwen.ai/compatible-mode/v1"
+  },
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@0.0.84"]
+    }
+  },
+  "permissions": {
+    "allow": [
+      "Bash(composer require *)",
+      "Bash(php *)",
+      "Bash(ls *)",
+      "Bash(grep *)",
+      "Bash(curl *)",
+      "Bash(pkill *)",
+      "Bash(gh pr *)"
+    ]
+  },
+  "$version": 4
+}

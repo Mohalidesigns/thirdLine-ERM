@@ -73,3 +73,11 @@ the per-phase sequence and the standing rules from the orchestration document. (
 
 Agent definitions load at **session start**. Adding or editing one requires a new session before
 it can be used.
+
+**The roster is mirrored for Qwen Code.** `QWEN.md` imports this file, and `.qwen/agents/` holds the
+same nine definitions wearing Qwen's frontmatter: canonical tool names (`read_file`,
+`run_shell_command`, `grep_search`, …) instead of `Read`, `Bash`, `Grep`, and `model: inherit` /
+`fast` instead of `opus` / `sonnet`. The bodies are identical except where one named a Claude-only
+capability — `code-reviewer`'s read-only paragraph and `frontend-engineer`'s browser section.
+**Edit both copies.** Permission auto-approvals live in `.claude/settings.local.json` and
+`.qwen/settings.json`, which share one rule syntax.

@@ -22,6 +22,7 @@ const FREQUENCY_LABELS = {
     weekly: 'Weekly',
     monthly: 'Monthly',
     quarterly: 'Quarterly',
+    semi_annually: 'Semi-annually',
 };
 
 const DIRECTION_LABELS = {

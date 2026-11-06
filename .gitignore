@@ -58,3 +58,10 @@ Thumbs.db
 /Atheris_ERM_Demo_Guide_IT_Risk.docx
 /Competitive_Analysis_Risk_ERM.xlsx.py
 .~lock.*#
+
+# Qwen Code local state. The two tracked parts are re-included below; everything
+# else the CLI writes here (worktrees, tmp, pr-drafts, QWEN.local.md, session
+# markers) stays out of the repository.
+/.qwen/*
+!/.qwen/agents/
+!/.qwen/settings.json

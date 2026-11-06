@@ -40,13 +40,15 @@ defect fix the cycle restarts at `qa-engineer`.
 `code-reviewer` is given no `edit` or `write_file` tool, so its read-only veto is enforced by its
 tool list and not only by its instructions.
 
-## Three capabilities this project does not have under Qwen Code
+## Three ways this differs from Claude Code
 
-- **No browser.** Qwen Code has no browser pane, and no MCP server is configured here
-  (`.qwen/settings.json` has no `mcpServers`, and there is no `.mcp.json`). Front-end work therefore
-  cannot be verified in a browser until one is added —
-  `qwen mcp add --scope project playwright npx -y @playwright/mcp@latest`, then a restart. Say so in
-  the handoff instead of claiming a screen was verified.
+- **The browser has to be approved on each machine.** Qwen Code has no browser pane; front-end
+  verification runs through the Playwright MCP server declared in `.qwen/settings.json`, pinned to
+  `@playwright/mcp@0.0.84`. It is project-scoped, so a fresh clone must run
+  `qwen mcp approve playwright` and then start a new session before any of its tools exist.
+  `frontend-engineer` names the 24 tools it may call — `browser_run_code_unsafe` is deliberately not
+  one of them. Until the server reports Connected, say so in the handoff rather than claiming a
+  screen was verified.
 - **Web search is not guaranteed.** `web_search` is a built-in tool but it sits behind the
   `webSearch` settings group and is billed separately by DashScope. Check `/tools` before an agent
   relies on it; `web_fetch` on a known URL always works.

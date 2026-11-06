@@ -9,6 +9,30 @@ tools:
   - glob
   - grep_search
   - run_shell_command
+  - mcp__playwright__browser_navigate
+  - mcp__playwright__browser_navigate_back
+  - mcp__playwright__browser_snapshot
+  - mcp__playwright__browser_take_screenshot
+  - mcp__playwright__browser_evaluate
+  - mcp__playwright__browser_find
+  - mcp__playwright__browser_console_messages
+  - mcp__playwright__browser_network_requests
+  - mcp__playwright__browser_network_request
+  - mcp__playwright__browser_click
+  - mcp__playwright__browser_type
+  - mcp__playwright__browser_fill_form
+  - mcp__playwright__browser_press_key
+  - mcp__playwright__browser_hover
+  - mcp__playwright__browser_select_option
+  - mcp__playwright__browser_drag
+  - mcp__playwright__browser_drop
+  - mcp__playwright__browser_file_upload
+  - mcp__playwright__browser_handle_dialog
+  - mcp__playwright__browser_emulate_media
+  - mcp__playwright__browser_resize
+  - mcp__playwright__browser_tabs
+  - mcp__playwright__browser_wait_for
+  - mcp__playwright__browser_close
 ---
 
 You are the frontend engineer for the Atheris ERM product. You build screens against real endpoints, and you verify them in a browser, because nothing in the test suite will do it for you.
@@ -89,20 +113,24 @@ Be explicit about this rather than trusting a green run:
 ## How to actually open the browser
 
 A build that compiles proves nothing about a screen, so the browser pass is not optional. Qwen Code
-has no built-in browser pane — it needs an MCP browser server, and **this project has none
-configured** (`.qwen/settings.json` carries no `mcpServers`, and there is no `.mcp.json`). Until one
-is added you cannot verify a screen; say that plainly in your handoff rather than writing
-"verified in a browser".
+has no browser pane of its own; this project drives one through the **Playwright MCP server**
+declared in `.qwen/settings.json`, pinned to `@playwright/mcp@0.0.84`. Its tools are named
+individually in this file's `tools:` list, because an explicit allowlist does not pick up an MCP
+tool it does not name — a tool the server offers but the list omits simply is not there.
 
-To add one, from the repository root:
+The server is project-scoped, so **a fresh clone will not run it until it is approved**:
 
 ```
-qwen mcp add --scope project playwright npx -y @playwright/mcp@latest
+qwen mcp approve playwright
 ```
 
-Restart Qwen Code, confirm it with `/mcp`, then name the tools you need in this file's `tools:`
-list — they arrive as `mcp__playwright__*`, and an explicit allowlist does not pick up an MCP tool
-it does not name.
+then start a new session and confirm with `/mcp` that it reports Connected. If it does not, say
+that plainly in your handoff rather than writing "verified in a browser".
+
+`browser_snapshot` is the accessibility tree and `browser_evaluate` is DOM inspection — the two the
+accessibility pass below runs on. `browser_run_code_unsafe` is deliberately absent from the list:
+it executes arbitrary Playwright code in the driver process, and `browser_evaluate` already runs
+the assertions you need, inside the page.
 
 You start the dev server yourself with `run_shell_command`. The tested recipes are in
 `.claude/launch.json` — Qwen does not read that file, but the commands in it are the ones that

@@ -49,7 +49,6 @@ class QuantificationSeeder extends Seeder
                 'frequency_lambda' => 3.5,
                 'expected_annual_frequency' => 3.5,
                 'severity_distribution' => 'lognormal',
-                'severity_mu' => 23.025851,  // ln(10B kobo)
                 'severity_sigma' => 1.2,
                 'severity_min_kobo' => 50000000,
                 'severity_max_kobo' => 50000000000,
@@ -66,7 +65,6 @@ class QuantificationSeeder extends Seeder
                 'frequency_lambda' => 5.0,
                 'expected_annual_frequency' => 5.0,
                 'severity_distribution' => 'lognormal',
-                'severity_mu' => 21.416413,  // ln(2B kobo)
                 'severity_sigma' => 1.8,
                 'severity_min_kobo' => 10000000,
                 'severity_max_kobo' => 20000000000,
@@ -83,7 +81,6 @@ class QuantificationSeeder extends Seeder
                 'frequency_lambda' => 1.2,
                 'expected_annual_frequency' => 1.2,
                 'severity_distribution' => 'lognormal',
-                'severity_mu' => 22.332583,  // ln(5B kobo)
                 'severity_sigma' => 1.5,
                 'severity_min_kobo' => 100000000,
                 'severity_max_kobo' => 30000000000,
@@ -100,7 +97,6 @@ class QuantificationSeeder extends Seeder
                 'frequency_lambda' => 2.0,
                 'expected_annual_frequency' => 2.0,
                 'severity_distribution' => 'lognormal',
-                'severity_mu' => 22.517248,  // ~6B kobo
                 'severity_sigma' => 1.3,
                 'severity_min_kobo' => 200000000,
                 'severity_max_kobo' => 40000000000,
@@ -117,7 +113,6 @@ class QuantificationSeeder extends Seeder
                 'frequency_lambda' => 3.0,
                 'expected_annual_frequency' => 3.0,
                 'severity_distribution' => 'lognormal',
-                'severity_mu' => 20.723266,  // ~1B kobo
                 'severity_sigma' => 1.0,
                 'severity_min_kobo' => 5000000,
                 'severity_max_kobo' => 10000000000,
@@ -134,7 +129,6 @@ class QuantificationSeeder extends Seeder
                 'frequency_lambda' => 1.5,
                 'expected_annual_frequency' => 1.5,
                 'severity_distribution' => 'lognormal',
-                'severity_mu' => 21.416413,
                 'severity_sigma' => 2.0,
                 'severity_min_kobo' => 20000000,
                 'severity_max_kobo' => 25000000000,
@@ -151,7 +145,6 @@ class QuantificationSeeder extends Seeder
                 'frequency_lambda' => 4.0,
                 'expected_annual_frequency' => 4.0,
                 'severity_distribution' => 'lognormal',
-                'severity_mu' => 21.640418,
                 'severity_sigma' => 1.1,
                 'severity_min_kobo' => 100000000,
                 'severity_max_kobo' => 15000000000,
@@ -168,7 +161,6 @@ class QuantificationSeeder extends Seeder
                 'frequency_lambda' => 0.3,
                 'expected_annual_frequency' => 0.3,
                 'severity_distribution' => 'lognormal',
-                'severity_mu' => 24.635247,
                 'severity_sigma' => 1.5,
                 'severity_min_kobo' => 1000000000,
                 'severity_max_kobo' => 100000000000,
@@ -180,9 +172,16 @@ class QuantificationSeeder extends Seeder
 
         $scenarioIds = [];
         foreach ($scenariosData as $data) {
+            // mu from the stated mean, as Distributions::lognormalFromMoments()
+            // does for the scenario form: mean = exp(mu + sigma^2 / 2). The
+            // hand-typed mu values this replaced put each MEDIAN at up to twice
+            // the stated mean, so a run drew losses 3-5x what the picker showed.
+            $mu = log($data['expected_loss_per_event_kobo']) - ($data['severity_sigma'] ** 2) / 2;
+
             $scenario = QuantificationScenario::updateOrCreate(
                 ['organization_id' => $orgId, 'scenario_reference' => $data['scenario_reference']],
                 array_merge($data, [
+                    'severity_mu' => round($mu, 6),
                     'organization_id' => $orgId,
                     'scenario_type' => 'single_event',
                     'created_by' => $userId,

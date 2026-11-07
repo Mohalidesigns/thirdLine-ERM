@@ -122,18 +122,38 @@ class MonteCarloServiceTest extends TestCase
     }
 
     #[Test]
+    public function the_stored_max_is_the_worst_simulated_year_above_every_percentile(): void
+    {
+        $aggregate = $this->simulate(self::SEED)->firstWhere('result_type', 'aggregate');
+        $curve = $aggregate->percentile_distribution;
+
+        // A heavy-tailed compound loss over thousands of years: the worst year
+        // is strictly worse than the 99.9th percentile, so the tile that shows
+        // it can no longer equal the VaR (99.9%) tile.
+        $this->assertGreaterThan($curve['p99.9'], $curve['max']);
+        $this->assertGreaterThanOrEqual($aggregate->var_99_9_kobo, $curve['max']);
+    }
+
+    #[Test]
     public function the_percentile_curve_covers_every_published_level_and_never_decreases(): void
     {
         $aggregate = $this->simulate(self::SEED)->firstWhere('result_type', 'aggregate');
         $curve = $aggregate->percentile_distribution;
 
-        $this->assertSame(
-            ['p5', 'p10', 'p25', 'p50', 'p75', 'p90', 'p95', 'p99', 'p99.5', 'p99.9'],
-            array_keys($curve)
-        );
+        $levels = ['p5', 'p10', 'p25', 'p50', 'p75', 'p90', 'p95', 'p99', 'p99.5', 'p99.9', 'max'];
+
+        // Compared as a set, and walked in $levels order rather than the
+        // array's own: MySQL 8 hands json back with its keys re-ordered by
+        // length, which puts `max` ahead of `p10`.
+        $this->assertEqualsCanonicalizing($levels, array_keys($curve));
+
+        // The worst year is the top of the curve, so the walk below also proves
+        // it is never under p99.9 — the figure the results page used to show
+        // as "Max Simulated Loss".
 
         $previous = null;
-        foreach ($curve as $label => $value) {
+        foreach ($levels as $label) {
+            $value = $curve[$label];
             if ($previous !== null) {
                 $this->assertGreaterThanOrEqual($previous, $value, "percentile {$label} went backwards");
             }

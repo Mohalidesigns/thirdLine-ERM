@@ -11,6 +11,28 @@
             ],
             "port": 8123,
             "autoPort": true
+        },
+        {
+            "name": "riskerm-e2e-mysql8",
+            "//": "Serves against the Docker MySQL 8 container riskerm-mysql8 (127.0.0.1:3307, root/root), database risk_e2e_erm, for when XAMPP MariaDB is down. php -S rather than artisan serve because artisan serve passes only an allowlist of env vars to its child, so DB_* overrides would be dropped and .env's 3306 used.",
+            "runtimeExecutable": "sh",
+            "runtimeArgs": [
+                "-c",
+                "export PATH=\"/Users/mac/Library/Application Support/Herd/bin:$PATH\" DB_PORT=3307 DB_PASSWORD=root DB_DATABASE=risk_e2e_erm QUEUE_CONNECTION=sync APP_URL=http://127.0.0.1:${PORT:-8124} && cd public && php -S 127.0.0.1:${PORT:-8124} ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php"
+            ],
+            "port": 8124,
+            "autoPort": true
+        },
+        {
+            "name": "riskerm-e2e-mysql8-stack",
+            "//": "Same as riskerm-e2e-mysql8, but serves the fix/residual-axis-aware-recalc worktree (PR #25).",
+            "runtimeExecutable": "sh",
+            "runtimeArgs": [
+                "-c",
+                "export PATH=\"/Users/mac/Library/Application Support/Herd/bin:$PATH\" DB_PORT=3307 DB_PASSWORD=root DB_DATABASE=risk_e2e_erm QUEUE_CONNECTION=sync APP_URL=http://127.0.0.1:${PORT:-8125} && cd .claude/worktrees/recursing-heisenberg-7dcb56/public && php -S 127.0.0.1:${PORT:-8125} ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php"
+            ],
+            "port": 8125,
+            "autoPort": true
         }
     ]
 }

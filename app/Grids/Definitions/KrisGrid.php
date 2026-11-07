@@ -97,7 +97,7 @@ class KrisGrid extends GridDefinition
                 }),
 
             Column::make('measurement_frequency', 'Frequency')
-                ->using(fn (KeyRiskIndicator $k) => ucfirst($k->measurement_frequency ?? '—')),
+                ->using(fn (KeyRiskIndicator $k) => ucfirst(str_replace('_', '-', $k->measurement_frequency ?? '—'))),
 
             Column::make('owner.name', 'Owner'),
 
@@ -161,6 +161,7 @@ class KrisGrid extends GridDefinition
                     'weekly' => 'Weekly',
                     'monthly' => 'Monthly',
                     'quarterly' => 'Quarterly',
+                    'semi_annually' => 'Semi-annually',
                 ]),
         ];
     }

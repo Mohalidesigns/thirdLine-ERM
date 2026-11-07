@@ -3,18 +3,35 @@
 namespace Database\Seeders;
 
 use App\Models\IcaapAssessment;
+use App\Models\Organization;
 use App\Models\QuantificationScenario;
 use App\Models\QuantificationSetting;
 use App\Models\SimulationResult;
 use App\Models\SimulationRun;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 
 class QuantificationSeeder extends Seeder
 {
     public function run(): void
     {
-        $orgId = 1;
-        $userId = 1;
+        // Resolved, not assumed to be id 1. The ids used to be literals, which
+        // only holds on a database whose AUTO_INCREMENT counters start at 1 —
+        // deleting the demo rows does not reset them, so a `db:seed` onto an
+        // already-migrated database put the tenant at some other id and every
+        // insert below failed its foreign key. created_by and initiated_by are
+        // NOT NULL, so there is no null to fall back to: skip instead.
+        $organization = Organization::query()->where('cbn_institution_code', 'NGN/COM/0001')->first();
+        $user = User::query()->where('email', 'admin@risk.test')->first();
+
+        if ($organization === null || $user === null) {
+            $this->command?->warn('Quantification seeder: no demo organisation or admin user found; skipping.');
+
+            return;
+        }
+
+        $orgId = $organization->id;
+        $userId = $user->id;
 
         $this->command->info('Seeding quantification data...');
 

@@ -2,10 +2,13 @@
 
 namespace Database\Seeders;
 
+use App\Models\BusinessUnit;
 use App\Models\KeyRiskIndicator;
 use App\Models\LossEvent;
+use App\Models\Organization;
 use App\Models\Risk;
 use App\Models\RiskAssessment;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -16,8 +19,20 @@ class RiskAnalysisSeeder extends Seeder
      */
     public function run(): void
     {
-        $orgId = 1;
-        $userId = 1;
+        // Resolved, not assumed to be id 1 — see the same note in
+        // QuantificationSeeder. The demo tenant's id is whatever the counter
+        // offered when RiskCategorySeeder created it.
+        $organization = Organization::query()->where('cbn_institution_code', 'NGN/COM/0001')->first();
+        $user = User::query()->where('email', 'admin@risk.test')->first();
+
+        if ($organization === null || $user === null) {
+            $this->command?->warn('Risk analysis seeder: no demo organisation or admin user found; skipping.');
+
+            return;
+        }
+
+        $orgId = $organization->id;
+        $userId = $user->id;
 
         $this->command->info('Seeding risk analysis data...');
 
@@ -139,6 +154,11 @@ class RiskAnalysisSeeder extends Seeder
 
         $count = 0;
         $riskIds = $risks->pluck('id')->toArray();
+        // Nullable, so a tenant with no units yet still seeds. The literal 1
+        // was an assumption about the order DemoDataSeeder happened to insert
+        // its units in, and pointed at another tenant's unit whenever it did not
+        // hold.
+        $businessUnitId = BusinessUnit::query()->where('organization_id', $orgId)->orderBy('id')->value('id');
 
         foreach ($lossEventsData as $idx => $le) {
             $monthsAgo = rand(0, 11);
@@ -160,7 +180,7 @@ class RiskAnalysisSeeder extends Seeder
                         'date_of_loss' => $dateOfLoss,
                         'date_discovered' => $dateOfLoss->copy()->addDays(rand(0, 3)),
                         'date_reported' => $dateOfLoss->copy()->addDays(rand(1, 5)),
-                        'business_unit_id' => 1,
+                        'business_unit_id' => $businessUnitId,
                         'department' => 'Operations',
                         'responsible_officer_id' => $userId,
                         'basel_l1_category' => $le[6],

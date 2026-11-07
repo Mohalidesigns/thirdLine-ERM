@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Organization;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -34,6 +35,53 @@ class EnterpriseGapSeeder extends Seeder
         $this->seedNearMisses($now);
     }
 
+    /**
+     * The demo tenant. Sections 5 and 7 used to write a literal
+     * `organization_id => 1` and to read business units off organization 1,
+     * which is only true on a database whose AUTO_INCREMENT counter still
+     * starts there; see the note in QuantificationSeeder.
+     */
+    private function organizationId(): ?int
+    {
+        return Organization::query()->where('cbn_institution_code', 'NGN/COM/0001')->value('id');
+    }
+
+    /**
+     * The demo roster's ids, oldest first.
+     *
+     * The attachment and near-miss rows below name their actor by POSITION in
+     * this list: 1 is the administrator DatabaseSeeder creates, 2–6 the five
+     * DemoDataSeeder adds. They used to carry literal user ids, which only equal
+     * those positions while `users` still counts from 1.
+     *
+     * @return array<int, int>
+     */
+    private function rosterIds(): array
+    {
+        $orgId = $this->organizationId();
+
+        return $orgId === null
+            ? []
+            : DB::table('users')->where('organization_id', $orgId)->orderBy('id')->pluck('id')->all();
+    }
+
+    /**
+     * The id at a 1-based roster position. Falls back to the first member
+     * rather than null when the roster is shorter than the row expects, because
+     * two of the columns this feeds (issue_attachments.uploaded_by,
+     * near_misses.reported_by) are NOT NULL.
+     *
+     * @param  array<int, int>  $rosterIds
+     */
+    private function actorAt(array $rosterIds, ?int $position): ?int
+    {
+        if ($position === null) {
+            return null;
+        }
+
+        return $rosterIds[$position - 1] ?? ($rosterIds[0] ?? null);
+    }
+
     /* ------------------------------------------------------------------ */
     /*  1. Issue attachments */
     /* ------------------------------------------------------------------ */
@@ -51,7 +99,16 @@ class EnterpriseGapSeeder extends Seeder
             return;
         }
 
-        // [issue index (into $issueIds), file_name, size, type, document_type, is_regulatory, uploaded_by]
+        $roster = $this->rosterIds();
+
+        // uploaded_by is NOT NULL, so there is no null to fall back to.
+        if ($roster === []) {
+            $this->command?->warn('issue_attachments: no users in the demo organisation — skipping.');
+
+            return;
+        }
+
+        // [issue index (into $issueIds), file_name, size, type, document_type, is_regulatory, uploaded_by (roster position)]
         $rows = [
             [0, 'remediation_plan_ATM_reconciliation.xlsx', 148_212, 'xlsx', 'remediation_plan', false, 2],
             [0, 'closure_evidence_Q2.pdf', 812_455, 'pdf', 'evidence', false, 4],
@@ -76,7 +133,7 @@ class EnterpriseGapSeeder extends Seeder
                 'storage_path' => "issue-attachments/{$issueId}/{$name}",
                 'document_type' => $docType,
                 'is_regulatory' => $regulatory,
-                'uploaded_by' => $uploadedBy,
+                'uploaded_by' => $this->actorAt($roster, $uploadedBy),
                 'created_at' => $now->copy()->subDays(rand(5, 60)),
                 'updated_at' => $now,
             ];
@@ -103,6 +160,11 @@ class EnterpriseGapSeeder extends Seeder
             return;
         }
 
+        // uploaded_by is nullable here, so an absent roster degrades to null
+        // rather than skipping the section.
+        $roster = $this->rosterIds();
+
+        // [file_name, type, size, description, uploaded_by (roster position)]
         $rows = [
             ['sample_selection_worksheet.xlsx', 'xlsx', 84_223, 'Sample of 25 transactions selected for re-performance testing.', 4],
             ['test_execution_screenshots.pdf', 'pdf', 1_534_002, 'Screenshots evidencing maker-checker enforcement in core banking.', 4],
@@ -124,7 +186,7 @@ class EnterpriseGapSeeder extends Seeder
                 'file_type' => $type,
                 'file_size' => $size,
                 'description' => $desc,
-                'uploaded_by' => $uploadedBy,
+                'uploaded_by' => $this->actorAt($roster, $uploadedBy),
                 'created_at' => $now->copy()->subDays(rand(10, 90)),
                 'updated_at' => $now,
             ];
@@ -246,7 +308,16 @@ class EnterpriseGapSeeder extends Seeder
             return;
         }
 
-        // [deadline index, days ago, filed_by, status, document_ref, notes]
+        $roster = $this->rosterIds();
+
+        // filed_by is NOT NULL, so there is no null to fall back to.
+        if ($roster === []) {
+            $this->command?->warn('regulatory_filings: no users in the demo organisation — skipping.');
+
+            return;
+        }
+
+        // [deadline index, days ago, filed_by (roster position), status, document_ref, notes]
         $rows = [
             [0, 34, 6, 'accepted', 'CBN/RET/2026/0142', 'June ORMS return submitted via FinA portal and acknowledged by CBN.'],
             [0, 4, 6, 'submitted', 'CBN/RET/2026/0198', 'July ORMS return submitted; acknowledgement pending.'],
@@ -263,7 +334,7 @@ class EnterpriseGapSeeder extends Seeder
             $insert[] = [
                 'deadline_id' => $deadlineIds[$idx % count($deadlineIds)],
                 'filing_date' => $now->copy()->subDays($daysAgo)->toDateString(),
-                'filed_by' => $filedBy,
+                'filed_by' => $this->actorAt($roster, $filedBy),
                 'status' => $status,
                 'document_ref' => $ref,
                 'notes' => $notes,
@@ -288,6 +359,15 @@ class EnterpriseGapSeeder extends Seeder
             return;
         }
 
+        $orgId = $this->organizationId();
+
+        // NOT NULL, and the ladder is meaningless without a tenant to own it.
+        if ($orgId === null) {
+            $this->command?->warn('issue_escalation_rules: no demo organisation found — skipping.');
+
+            return;
+        }
+
         // [priority, issue_source, level, role, days_overdue]
         $rules = [
             ['CRITICAL', null, 1, 'risk-manager', 7],
@@ -303,7 +383,7 @@ class EnterpriseGapSeeder extends Seeder
         $insert = [];
         foreach ($rules as [$priority, $source, $level, $role, $days]) {
             $insert[] = [
-                'organization_id' => 1,
+                'organization_id' => $orgId,
                 'priority' => $priority,
                 'issue_source' => $source,
                 'escalation_level' => $level,
@@ -336,7 +416,11 @@ class EnterpriseGapSeeder extends Seeder
             return;
         }
 
-        // [issue index, level, role, to_user, is_auto, reason, escalated_by, days ago, acknowledged]
+        // Both actor columns are nullable, and the auto-escalated rows mean it:
+        // actorAt() passes a null position straight through.
+        $roster = $this->rosterIds();
+
+        // [issue index, level, role, to_user (roster position), is_auto, reason, escalated_by (roster position), days ago, acknowledged]
         $rows = [
             [1, 1, 'risk-manager', 2, true, 'Auto-escalated: issue exceeded 7 days past target closure date (CRITICAL priority rule).', null, 9, true],
             [2, 1, 'issue-manager', 4, true, 'Auto-escalated: remediation overdue by 14 days with no status update recorded.', null, 6, false],
@@ -351,12 +435,12 @@ class EnterpriseGapSeeder extends Seeder
                 'issue_id' => $issueIds[$idx % count($issueIds)],
                 'escalation_level' => $level,
                 'escalated_to_role' => $role,
-                'escalated_to_user_id' => $toUser,
+                'escalated_to_user_id' => $this->actorAt($roster, $toUser),
                 'is_auto' => $auto,
                 'reason' => $reason,
                 'acknowledged' => $ack,
                 'acknowledged_at' => $ack ? $now->copy()->subDays(max($daysAgo - 2, 0)) : null,
-                'escalated_by' => $by,
+                'escalated_by' => $this->actorAt($roster, $by),
                 'escalated_at' => $now->copy()->subDays($daysAgo),
             ];
         }
@@ -384,11 +468,30 @@ class EnterpriseGapSeeder extends Seeder
             return;
         }
 
-        $buIds = DB::table('business_units')->where('organization_id', 1)->orderBy('id')->pluck('id')->all();
+        $orgId = $this->organizationId();
+
+        // NOT NULL on near_misses, and the units below have to be this tenant's.
+        if ($orgId === null) {
+            $this->command?->warn('near_misses: no demo organisation found — skipping.');
+
+            return;
+        }
+
+        $buIds = DB::table('business_units')->where('organization_id', $orgId)->orderBy('id')->pluck('id')->all();
         $controlIds = DB::table('controls')->orderBy('id')->pluck('id')->all();
         $riskIds = DB::table('risks')->orderBy('id')->pluck('id')->all();
 
-        // [title, description, days occurred ago, potential loss kobo, severity, gap?, gap desc, status, investigator, deadline days ahead, reported_by]
+        $roster = $this->rosterIds();
+
+        // reported_by is NOT NULL; investigator_id is nullable and two rows
+        // deliberately leave it unset.
+        if ($roster === []) {
+            $this->command?->warn('near_misses: no users in the demo organisation — skipping.');
+
+            return;
+        }
+
+        // [title, description, days occurred ago, potential loss kobo, severity, gap?, gap desc, status, investigator (roster position), deadline days ahead, reported_by (roster position)]
         $rows = [
             [
                 'Attempted USSD SIM-Swap Fraud Blocked at Authentication',
@@ -425,7 +528,7 @@ class EnterpriseGapSeeder extends Seeder
             $ref = sprintf('NM-2026-%03d', $next + $i);
             $insert[] = [
                 'uuid' => (string) Str::uuid(),
-                'organization_id' => 1,
+                'organization_id' => $orgId,
                 'reference' => $ref,
                 'event_reference' => $ref,
                 'title' => $title,
@@ -439,12 +542,12 @@ class EnterpriseGapSeeder extends Seeder
                 'control_gap_description' => $gapDesc,
                 'linked_control_id' => $gap ? ($controlIds[$i % max(count($controlIds), 1)] ?? null) : null,
                 'status' => $status,
-                'investigator_id' => $investigator,
+                'investigator_id' => $this->actorAt($roster, $investigator),
                 'investigation_deadline' => $status === 'investigating' || $status === 'open'
                     ? $now->copy()->addDays($deadlineAhead)->toDateString()
                     : null,
                 'risk_register_id' => $riskIds[($i * 3) % max(count($riskIds), 1)] ?? null,
-                'reported_by' => $reportedBy,
+                'reported_by' => $this->actorAt($roster, $reportedBy),
                 'created_at' => $now->copy()->subDays($occurredAgo),
                 'updated_at' => $now,
             ];

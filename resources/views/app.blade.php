@@ -7,6 +7,13 @@
 
     <title inertia>{{ config('app.name', 'Atheris ERM') }}</title>
 
+    {{-- The product's own tab icons, from config/branding.php. The allowlist
+         that keeps a configured value from reaching a href lives in the class,
+         where it is testable — same rule as the tenant palette below. The
+         vendor portal root view deliberately omits these: a tab icon naming
+         the platform would tell every vendor which platform its client runs. --}}
+    {!! \App\Support\ProductBranding::iconTags() !!}
+
     {{-- The Inertia root view, and since migration Phase 6.8 the only page view
          in the application. No font or script is fetched from a CDN: Figtree and
          Material Symbols are self-hosted through resources/css/fonts.css, which

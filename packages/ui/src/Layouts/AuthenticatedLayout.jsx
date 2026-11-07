@@ -177,7 +177,7 @@ function Section({ section, current, collapsed, children }) {
  */
 export default function AuthenticatedLayout({ header, children, search = null, periodSelector = null }) {
     const page = usePage();
-    const { auth, navigation, tenant, period, unreadNotifications, features } = page.props;
+    const { auth, navigation, tenant, period, unreadNotifications, features, branding } = page.props;
     const permissions = auth?.permissions ?? [];
     const current = page.url;
     const user = auth?.user ?? {};
@@ -196,6 +196,14 @@ export default function AuthenticatedLayout({ header, children, search = null, p
 
     // The collapsed rail is a desktop state; the mobile drawer is always full.
     const collapsed = sidebarCollapsed && isDesktop;
+
+    // The hosting product's mark and name, shared by its Inertia middleware. The
+    // sidebar is dark, so it wants the inverted mark. With no branding shared
+    // this falls back to the generic shield and no wordmark, which is what keeps
+    // the shared shell from naming a product it does not belong to.
+    const brandLogo = branding?.logo_inverted || branding?.logo || null;
+    const brandName = branding?.product_name || null;
+    const brandTagline = branding?.tagline || null;
 
     useEffect(() => {
         setLiveUnread(unreadNotifications || 0);
@@ -341,13 +349,30 @@ export default function AuthenticatedLayout({ header, children, search = null, p
             >
                 {/* Logo bar */}
                 <div className="flex items-center px-4 h-16 border-b border-white/10 flex-shrink-0">
-                    <span className="h-9 w-9 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
-                        <Icon name="shield" className="w-5 h-5 text-[var(--color-accent)]" />
-                    </span>
-                    {!collapsed && (
+                    {brandLogo && !collapsed ? (
+                        // The wordmark replaces the icon AND the text rather than
+                        // sitting beside it: a 3:1 mark next to its own product
+                        // name says the name twice inside a 64px bar. Collapsed,
+                        // the rail is too narrow for a wordmark, so the mark
+                        // gives way to the shield again.
+                        <img
+                            src={brandLogo}
+                            alt={brandName || 'Logo'}
+                            className="h-8 w-auto max-w-[168px] object-contain flex-shrink-0"
+                        />
+                    ) : (
+                        <span className="h-9 w-9 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
+                            <Icon name="shield" className="w-5 h-5 text-[var(--color-accent)]" />
+                        </span>
+                    )}
+                    {!collapsed && !brandLogo && (
                         <span className="ml-3 min-w-0 flex-1">
-                            <span className="block text-sm font-bold leading-tight truncate">Atheris ERM</span>
-                            <span className="block text-[11px] text-white/60 leading-tight">GRC Suite</span>
+                            {brandName && (
+                                <span className="block text-sm font-bold leading-tight truncate">{brandName}</span>
+                            )}
+                            {brandTagline && (
+                                <span className="block text-[11px] text-white/60 leading-tight">{brandTagline}</span>
+                            )}
                         </span>
                     )}
                     <button

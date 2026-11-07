@@ -15,9 +15,9 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  *
  * The shared half — `auth`, `old`, `flash`, `license` — is the package's, and
  * `auth.user` being id/name/email rather than the model is enforced there
- * rather than remembered here (migration Phase 7.1b). The four props below are
- * this product's own: a tenant, a reporting period, its feature flags and its
- * navigation.
+ * rather than remembered here (migration Phase 7.1b). The five props below are
+ * this product's own: a tenant, a reporting period, its feature flags, its
+ * branding and its navigation.
  *
  * Registered in the web group AFTER ResolveTenant and ResolvePeriod, because
  * `tenant` and `period` read what those bind.
@@ -54,6 +54,20 @@ class HandleInertiaRequests extends PlatformMiddleware
                 fn ($value) => filter_var($value, FILTER_VALIDATE_BOOLEAN),
                 (array) config('features', []) + ['sso' => config('sso.enabled', false)]
             ),
+
+            // The product's own name and mark, shared with every page including
+            // the unauthenticated ones so the sign-in shell can carry them too.
+            // Deployment configuration, not tenant data: the per-tenant palette
+            // is App\Support\Branding's, and that renders into the root view
+            // because it is CSS rather than a prop. The shared shell in
+            // packages/ui reads this instead of hardcoding a product name, which
+            // is what lets one shell serve more than one product.
+            'branding' => fn () => [
+                'product_name' => (string) config('app.name', ''),
+                'tagline' => (string) config('branding.tagline', ''),
+                'logo' => config('branding.logo'),
+                'logo_inverted' => config('branding.logo_inverted'),
+            ],
 
             'navigation' => fn () => app(NavPresenter::class)->for($user),
 

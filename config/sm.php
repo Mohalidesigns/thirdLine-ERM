@@ -334,10 +334,22 @@ return [
     |
     | Spec 00 §3.3 and spec 01 §2: "the words come from `status_label`, which the
     | server humanises so a tenant can rename a stage without a front-end release".
-    | This map is the rename point; a status absent from it is humanised from its
-    | value, so a Phase 2 stage never renders as a bare snake_case string.
+    | This map is the rename point for the WORKSPACE payload; a status absent from it
+    | is humanised from its value, so a Phase 2 stage never renders as a bare
+    | snake_case string.
     |
-    | The VALUES are `Scenario::STATUSES` and are frozen.
+    | THE INDEX GRID HUMANISES INSTEAD, and the two agree by construction: every value
+    | below is exactly what `GridPresenter::humanise()` produces from the status
+    | (`ucfirst(str_replace('_', ' ', …))` → "In design", "Signed off", "Returned for
+    | rework"), which is spec 01 §2's canonical chip wording. `Column::badge()` looks the
+    | class up on the RAW value and humanises it for the text, so one closure cannot feed
+    | it a config label without also moving the badge map's keys. Renaming a stage here
+    | therefore changes the workspace and NOT the grid cell — recorded rather than left
+    | to be discovered, because a rename that half-applies is worse than one that is
+    | impossible.
+    |
+    | The VALUES are `Scenario::STATUSES` and are frozen;
+    | ConfigMatchesFrozenVocabularyTest asserts the key set matches.
     |
     */
 
@@ -349,6 +361,26 @@ return [
         'validated' => 'Validated',
         'signed_off' => 'Signed off',
         'archived' => 'Archived',
+        'returned_for_rework' => 'Returned for rework',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | The sign-off decisions' words
+    |--------------------------------------------------------------------------
+    |
+    | TWO values only (§A1.6, upheld by the coordinator's Phase 1 ruling).
+    | `approved_with_conditions` was refused — no transition branches on it, and a
+    | condition is a notes row of kind `assumption` — because "a third value nothing
+    | reads is how a workflow acquires a state nobody can leave". A signer who declines
+    | without returning the scenario records a DISSENT NOTE instead.
+    |
+    | The VALUES are `Scenario::DECISIONS` and are frozen.
+    |
+    */
+
+    'decision_labels' => [
+        'approved' => 'Approved',
         'returned_for_rework' => 'Returned for rework',
     ],
 

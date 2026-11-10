@@ -2,6 +2,7 @@
 
 namespace App\Services\Sm;
 
+use App\Models\FxRate;
 use App\Models\Sm\Scenario;
 use App\Models\User;
 use App\Services\AuditTrailService;
@@ -109,6 +110,11 @@ class ScenarioService
     /**
      * Write only the keys present, and refuse a read-only scenario.
      *
+     * PARTIAL BY CONSTRUCTION (spec 01 §6.1): both tabs post to `PUT {scenario}` and
+     * neither loads the other's fields, so writing anything not in `$attributes` would
+     * null the other tab's columns with a 200 response. `UpdateScenarioRequest` only
+     * validates keys that were actually posted, and this method writes exactly that array.
+     *
      * @param  array<string, mixed>  $attributes
      *
      * @throws ScenarioRefused
@@ -126,6 +132,11 @@ class ScenarioService
         // can type a date nobody validated anything on.
         unset($attributes['validated_on']);
 
+        // `fx_rate` and `fx_rate_date` are a SERVER-WRITTEN SNAPSHOT, never posted.
+        if (array_key_exists('fx_rate_id', $attributes)) {
+            $attributes = $this->withFxSnapshot($scenario, $attributes);
+        }
+
         if ($attributes === []) {
             return $scenario;
         }
@@ -142,23 +153,53 @@ class ScenarioService
     }
 
     /**
-     * Soft-delete through the policy's `delete` ability, which §A1.10 puts under
-     * `scenario.update` — `scenario.delete` was REFUSED outright, because
-     * `loss_event.delete` exists only where a record is regulatory and has its own
-     * destruction rules.
+     * Copy the chosen `fx_rates` row's rate and date onto the scenario.
      *
-     * @throws ScenarioRefused
+     * §A1.2 stores THREE FX columns, not one: `fx_rate_id` is PROVENANCE (which row was
+     * chosen) and `fx_rate` + `fx_rate_date` are the SNAPSHOT that D1/§4.3 require,
+     * because `fx_rates` rows are per-tenant and a platform rate can be superseded — a
+     * signed-off figure must not move when the rate table does. Spec 02 §5.6 states the
+     * user-facing half: "Picking a rate on this screen writes all three."
+     *
+     * Taking the values from the ROW rather than from the request is also what stops a
+     * client inventing a rate: there is no `fx_rate` rule in `UpdateScenarioRequest`, so
+     * a posted one could not reach `validated()` even if the field existed.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
      */
-    public function archive(Scenario $scenario, User $actor): Scenario
+    private function withFxSnapshot(Scenario $scenario, array $attributes): array
     {
-        $this->refuseIfReadOnly($scenario);
+        $rateId = $attributes['fx_rate_id'];
 
-        $scenario->updated_by = $actor->id;
-        $scenario->delete();
+        if ($rateId === null || $rateId === '') {
+            // Clearing the provenance must clear the snapshot too, or the scenario is left
+            // asserting a rate nothing points at — the drift §A1.2's three columns exist
+            // to prevent, in the opposite direction.
+            $attributes['fx_rate'] = null;
+            $attributes['fx_rate_date'] = null;
 
-        AuditTrailService::record($scenario, 'delete', 'deleted_at', null, (string) $scenario->deleted_at);
+            return $attributes;
+        }
 
-        return $scenario;
+        // Tenant-bound read: `FxRate` carries BelongsToOrganization, so a rate belonging
+        // to another tenant resolves to null here exactly as the Form Request's
+        // tenant-bound Rule::exists refused it moments earlier. Two checks, one rule.
+        $rate = FxRate::query()
+            ->where('organization_id', $scenario->organization_id)
+            ->find((int) $rateId);
+
+        if ($rate === null) {
+            $attributes['fx_rate'] = null;
+            $attributes['fx_rate_date'] = null;
+
+            return $attributes;
+        }
+
+        $attributes['fx_rate'] = (string) $rate->rate;
+        $attributes['fx_rate_date'] = $rate->rate_date?->toDateString();
+
+        return $attributes;
     }
 
     /**
@@ -166,6 +207,13 @@ class ScenarioService
      * read-only to everyone except through a lifecycle transition, because "a
      * validator reading a record the designer can still change is validating
      * nothing". A flash, not a 403 — the user is allowed to try.
+     *
+     * NOTE THERE IS NO SOFT-DELETE SERVICE METHOD IN PHASE 1. §A1.11's frozen route
+     * table registers no DELETE route, and the workspace's "Archive" button is the
+     * `archived` STATUS transition, not a deletion. `ScenarioPolicy::delete()` exists
+     * because §A1.10 named it as the home soft delete would use under
+     * `scenario.update` — but nothing calls it yet, and inventing a route the freeze
+     * does not list is exactly the scope breach §A1.13 warns about.
      *
      * @throws ScenarioRefused
      */

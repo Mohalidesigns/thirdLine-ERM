@@ -384,11 +384,10 @@ class ScenarioLifecycle
         }
 
         // C1.2. Read the day column as a day: `review_due_on` is cast `date`, so
-        // this is a null check and never `->isPast()` (standard §14).
+        // this is a null check and never `->isPast()` (standard §14). The wording is
+        // spec 02 §5.9's verbatim: "Set the next review date before signing off."
         if ($scenario->review_due_on === null) {
-            throw new ScenarioRefused(
-                'Set the next review date before signing off. A signed-off scenario with no review date never comes back for its annual refresh.'
-            );
+            throw new ScenarioRefused('Set the next review date before signing off.');
         }
     }
 
@@ -397,31 +396,64 @@ class ScenarioLifecycle
     /* ------------------------------------------------------------------ */
 
     /**
-     * Record the sign-off rows a modal posted, in the order posted.
+     * Record the sign-off rows a modal posted, in the order posted, and stamp the next
+     * review date the modal collected.
      *
-     * Spec 01 §5.6.7–§5.6.9: recording sign-offs and moving the status are TWO
-     * WRITES and "genuinely separate acts" — a signer who is not the person that
-     * moves the status is a normal case, not an error. So this only appends rows;
-     * `transition()` is a separate call the modal makes afterwards.
+     * Spec 01 §5.6.7–§5.6.9: recording sign-offs and moving the status are TWO WRITES and
+     * "genuinely separate acts" — a signer who is not the person that moves the status is a
+     * normal case, not an error. So this only appends rows and stamps the date;
+     * `transition()` is a separate call the modal makes afterwards, which is also what makes
+     * C1.2's `review_due_on` guard satisfiable in one flow.
+     *
+     * ONE TRANSACTION, for the reason C1.3 gives about the reason-note: a sign-off set that
+     * lands without its review date is a signed-off scenario that never comes back for its
+     * annual refresh, and a partial write here would be indistinguishable from a full one.
+     *
+     * `review_due_on` is written HERE rather than through `ScenarioService::update()`
+     * because the scenario is `validated` at this point and therefore read-only to content
+     * edits (spec 01 §5.5). Setting the next review date is part of SIGNING, not part of
+     * editing the record — the read-only rule exists to stop a designer changing what a
+     * validator is reading, and this is the validator's own last act before the freeze.
      *
      * @param  array<int, array<string, mixed>>  $rows
      * @return array{signoffs: list<Signoff>, flashes: list<string>}
      */
-    public function recordSignoffs(Scenario $scenario, array $rows, User $actor): array
+    public function recordSignoffs(Scenario $scenario, array $rows, User $actor, ?string $reviewDueOn = null): array
     {
-        $signoffs = [];
-        $flashes = [];
+        return DB::transaction(function () use ($scenario, $rows, $actor, $reviewDueOn) {
+            $flashes = [];
 
-        foreach ($rows as $row) {
-            $result = $this->recordSignoff($scenario, $row, $actor);
-            $signoffs[] = $result['signoff'];
+            if ($reviewDueOn !== null && $reviewDueOn !== '') {
+                $previous = $scenario->review_due_on?->toDateString();
 
-            if ($result['flash'] !== null) {
-                $flashes[] = $result['flash'];
+                if ($previous !== $reviewDueOn) {
+                    $scenario->review_due_on = $reviewDueOn;
+                    $scenario->updated_by = $actor->id;
+                    $scenario->save();
+
+                    AuditTrailService::record(
+                        $scenario,
+                        'update',
+                        'review_due_on',
+                        $previous,
+                        $reviewDueOn
+                    );
+                }
             }
-        }
 
-        return ['signoffs' => $signoffs, 'flashes' => $flashes];
+            $signoffs = [];
+
+            foreach ($rows as $row) {
+                $result = $this->recordSignoff($scenario, $row, $actor);
+                $signoffs[] = $result['signoff'];
+
+                if ($result['flash'] !== null) {
+                    $flashes[] = $result['flash'];
+                }
+            }
+
+            return ['signoffs' => $signoffs, 'flashes' => $flashes];
+        });
     }
 
     /**
@@ -663,5 +695,33 @@ class ScenarioLifecycle
         $labels = (array) config('sm.status_labels', []);
 
         return $labels[$status] ?? (string) Str::of($status)->replace('_', ' ')->ucfirst();
+    }
+
+    /**
+     * The success flash for a completed transition, keyed by EDGE.
+     *
+     * The server's strings, not the client's (spec 04 §6.1 makes the same point about the
+     * "created" flash): a message the JSX composes is a message a non-JS response, a stale
+     * tab and an API caller never see, and two copies of one sentence drift.
+     *
+     * The two ways out of `signed_off` get DIFFERENT sentences on purpose — spec 01 §5.5:
+     * "The two confirmations name each other, because picking the wrong one is otherwise
+     * only discovered after the click." The success message is where the user learns which
+     * one they got, so it states the consequence rather than just the status.
+     */
+    public function successMessage(Scenario $scenario, string $from, string $to): string
+    {
+        return match ($from.'>'.$to) {
+            'draft>in_design' => 'Design started. It can be edited now.',
+            'in_design>designed' => 'Marked as designed. Submit it for validation when you are ready.',
+            'designed>in_validation' => "Submitted for validation. You can't change it until it is validated or returned.",
+            'designed>in_design' => 'Design reopened. It can be edited again.',
+            'in_validation>validated' => sprintf('Validated on %s. It is now waiting on sign-off.', $scenario->validated_on?->toDateString() ?? ''),
+            'validated>signed_off' => 'Signed off. This scenario is now frozen.',
+            'signed_off>returned_for_rework' => 'Reopened for revalidation. You can edit this scenario again.',
+            'signed_off>in_validation' => 'Sent back into validation. It stays read-only until a validator returns it or validates it.',
+            'returned_for_rework>in_design' => 'Design resumed. It can be edited now.',
+            default => sprintf('Moved to %s.', Str::lower($this->humanise($to))),
+        };
     }
 }

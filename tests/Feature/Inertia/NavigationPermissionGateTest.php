@@ -25,15 +25,21 @@ class NavigationPermissionGateTest extends TestCase
 {
     use CreatesDomainFixtures, RefreshDatabase;
 
-    /** The 24 module sections transcribed from the Blade sidebar. */
+    /**
+     * The 25 module sections transcribed from the Blade sidebar, plus Scenario Modelling.
+     *
+     * ORDER-SENSITIVE, which is the point: `scenario_modelling` sits between `analysis` and
+     * `quantification` because Sm is upstream of Quantification (ADR 0027 §A1.11, spec 05 §1).
+     */
     private const SECTIONS = [
         'scoping', 'risk_register', 'rcsa', 'tprm', 'bcms', 'assessments', 'controls', 'treatment_plans', 'risk_appetite',
         'approvals', 'kri_monitoring', 'reporting_periods', 'loss_events', 'issues', 'campaigns', 'workflows',
-        'analysis', 'quantification', 'regulatory', 'imports', 'documents', 'reports', 'emerging', 'ai_intelligence',
+        'analysis', 'scenario_modelling', 'quantification', 'regulatory', 'imports', 'documents', 'reports', 'emerging',
+        'ai_intelligence',
     ];
 
     #[Test]
-    public function the_presenter_declares_exactly_the_24_sections(): void
+    public function the_presenter_declares_exactly_the_25_sections(): void
     {
         $this->assertSame(self::SECTIONS, array_column(NavPresenter::sections(), 'key'));
     }
@@ -98,8 +104,10 @@ class NavigationPermissionGateTest extends TestCase
         $duplicates = array_filter($counts, fn (int $n) => $n > 1);
 
         $this->assertSame([], $duplicates, 'Routes linked from more than one section: '.json_encode($duplicates));
-        // 133 + the three ADR 0026 KRI-cycle entries (Complete my KRIs, Department Contacts, Holidays).
-        $this->assertCount(136, $counts, 'The 24 sections link 136 distinct routes; the count moved, so a section changed shape.');
+        // 133 + the three ADR 0026 KRI-cycle entries (Complete my KRIs, Department
+        // Contacts, Holidays) + the two ADR 0027 Scenario Modelling entries (Scenarios,
+        // New Scenario). Neither new route may appear in any other section.
+        $this->assertCount(138, $counts, 'The 25 sections link 138 distinct routes; the count moved, so a section changed shape.');
     }
 
     #[Test]

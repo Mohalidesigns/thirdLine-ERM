@@ -109,6 +109,8 @@ use App\Http\Controllers\Risk\ThresholdController;
 use App\Http\Controllers\Risk\TreatmentPlanController;
 use App\Http\Controllers\Risk\WidgetController;
 use App\Http\Controllers\Risk\WorkflowController;
+use App\Http\Controllers\Sm\ScenarioController as SmScenarioController;
+use App\Http\Controllers\Sm\ScenarioGovernanceController as SmScenarioGovernanceController;
 use App\Http\Controllers\Tprm\AccessController as TprmAccessController;
 use App\Http\Controllers\Tprm\AiSettingsController as TprmAiSettingsController;
 use App\Http\Controllers\Tprm\AiUsageController as TprmAiUsageController;
@@ -2927,6 +2929,96 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
                 ->middleware('permission:'.$bcmsSection['permission'])
                 ->name($bcmsSection['key'].'.index');
         }
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  Scenario Modelling & Analysis (ADR 0027 §A1.11) */
+    /* ------------------------------------------------------------------ */
+    /*
+     * URLs are `/risk/scenarios/...`. The enclosing group supplies `auth`; the `web`
+     * group supplies `ResolveTenant` BEFORE `SubstituteBindings`
+     * (bootstrap/app.php:82-97), so a `{scenario}` binding cannot resolve another
+     * tenant's row — tenancy needs nothing added here, and a cross-tenant id 404s
+     * rather than answering a question the caller is not entitled to ask.
+     *
+     * NAME PREFIX `scenario.` (SINGULAR), URL PREFIX `scenarios` (PLURAL) —
+     * DELIBERATELY DIFFERENT, and recorded so nobody "fixes" the mismatch. BCMS's
+     * `bcms.` matches both because its permission namespace is also `bcms.*`; here the
+     * namespace is `scenario.*` (plan §6.1), and aligning route NAMES with it makes
+     * `permission:scenario.view` on `scenario.index` read as one vocabulary.
+     *
+     * LITERAL ROUTES BEFORE `{scenario}`, or `create` and `risk-search` bind as a
+     * scenario — the trap the BCMS block above documents for `settings`.
+     *
+     * `{scenario}` binds `App\Models\Sm\Scenario` BY ID, which is the key the routes
+     * declare and the key the policies check; the uuid is for the Phase 4 graph mirror
+     * (§A1.11), not for binding. Binding a child on a different key than the one declared
+     * is a recurring defect family here (backend rule 6).
+     */
+    Route::middleware('feature:scenario_modelling')->prefix('scenarios')->name('scenario.')->group(function () {
+        Route::get('/', [SmScenarioController::class, 'index'])
+            ->middleware('permission:scenario.view')->name('index');
+
+        Route::get('create', [SmScenarioController::class, 'create'])
+            ->middleware('permission:scenario.create')->name('create');
+
+        Route::post('/', [SmScenarioController::class, 'store'])
+            ->middleware('permission:scenario.create')->name('store');
+
+        // The linked-risk type-ahead (spec 02 §5.7). An ON-DEMAND endpoint rather than a
+        // shipped list: a register is thousands of rows and shipping it would cost 60 KB+,
+        // five seconds at 100 kbps for a list most users never open. Gated by
+        // `scenario.view` — it is part of the workspace — while the RESULTS are narrowed
+        // per row by `Risk::visibleTo()`, and `url` is null for a caller without
+        // `risk.view` so the combobox renders plain text instead of a link that 403s.
+        Route::get('risk-search', [SmScenarioController::class, 'riskSearch'])
+            ->middleware('permission:scenario.view')->name('risk-search');
+
+        Route::get('{scenario}', [SmScenarioController::class, 'show'])
+            ->middleware('permission:scenario.view')->name('show');
+
+        // Correction 1 §C1.4: a REDIRECT to `scenario.show`, with no screen behind it.
+        // The workspace is tabbed and already carries `?tab=`, so a separate edit page
+        // would be a second rendering of one form with its own validation path — the
+        // divergence risk standard §10 warns about, since no test here executes
+        // JavaScript. The route STAYS REGISTERED rather than being dropped, so both route
+        // guards keep seeing it, `permission:scenario.update` stays declared against a real
+        // route, and a bookmark or an emailed `/edit` link resolves instead of 404ing.
+        Route::get('{scenario}/edit', [SmScenarioController::class, 'edit'])
+            ->middleware('permission:scenario.update')->name('edit');
+
+        // A PARTIAL update, and BOTH TABS POST TO IT (spec 01 §6.1). Neither tab loads the
+        // other's fields, so a whole-object write from Qualitative would null
+        // `background`, `rationale` and every governance field — silently, with a 200.
+        Route::put('{scenario}', [SmScenarioController::class, 'update'])
+            ->middleware('permission:scenario.update')->name('update');
+
+        Route::put('{scenario}/causes', [SmScenarioController::class, 'updateCauses'])
+            ->middleware('permission:scenario.update')->name('causes.update');
+
+        // The sum-to-100 invariant is NOT enforced here. §A1.5 puts it at the
+        // `in_design → designed` TRANSITION "and not on every draft save — a draft
+        // legitimately sums to 60% mid-entry", and patched spec 03 §5.2 is explicit that
+        // saving 60% must SUCCEED.
+        Route::put('{scenario}/allocations', [SmScenarioController::class, 'updateAllocations'])
+            ->middleware('permission:scenario.update')->name('allocations.update');
+
+        // EVERY lifecycle transition rides this one route, including `draft → in_design`
+        // (spec 01 §3). `scenario.design` does not exist in Phase 1 — §A1.10 defers it to
+        // Phase 2, because nothing here is quantitative and `scenario.update` covers the
+        // qualitative tabs.
+        Route::post('{scenario}/status', [SmScenarioGovernanceController::class, 'status'])
+            ->middleware('permission:scenario.validate')->name('status');
+
+        Route::post('{scenario}/signoffs', [SmScenarioGovernanceController::class, 'storeSignoffs'])
+            ->middleware('permission:scenario.sign_off')->name('signoffs.store');
+
+        // STORE ONLY. §A1.7: "Append-only: Phase 1 registers no update and no destroy
+        // route. A corrected note is a new note." The absence of routes here and of the
+        // abilities in NotePolicy are the enforcement — not a DB trigger, which the
+        // product has none of.
+        Route::post('{scenario}/notes', [SmScenarioGovernanceController::class, 'storeNotes'])
+            ->middleware('permission:scenario.note')->name('notes.store');
     });
 });
 

@@ -4,6 +4,7 @@ namespace App\Services\Sm;
 
 use App\Models\Organization;
 use App\Models\RiskTaxonomy;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * The OP1–OP17 Basel operational-risk event types, as a PER-TENANT `RiskTaxonomy`
@@ -91,9 +92,25 @@ class OpEventTypeCatalogue
      * Ensure one organisation has the OP tree. Idempotent, and safe to re-run after
      * a tenant has edited its own nodes.
      *
+     * RUNS AS THE TARGET TENANT via `TenantContext::actingAs()`, and that is not ceremony.
+     * `RiskTaxonomy` carries `BelongsToOrganization`, whose global scope filters every read
+     * to the AMBIENT tenant — so calling `ensureFor($orgB)` while the context holds org A
+     * would find none of org B's existing nodes and create a duplicate set on every run.
+     * Idempotency here depends on the scope agreeing with the organisation being seeded.
+     * `actingAs` restores the previous tenant afterwards, so a caller inside a request is
+     * unaffected.
+     *
      * @return array{created: int, repaired: int, total: int}
      */
     public function ensureFor(Organization $organization): array
+    {
+        return TenantContext::actingAs((int) $organization->id, fn () => $this->ensure($organization));
+    }
+
+    /**
+     * @return array{created: int, repaired: int, total: int}
+     */
+    private function ensure(Organization $organization): array
     {
         $parent = $this->ensureParent($organization);
 
@@ -143,19 +160,25 @@ class OpEventTypeCatalogue
      * taxonomy, never a constant, or an extension would be invisible." A tenant's
      * CBN ORMS sub-types therefore appear without a code change.
      *
+     * Runs as the tenant for the same reason `ensureFor()` does: an ambient context
+     * holding a different organisation would make the global scope return nothing, and an
+     * empty picker is a go-live gap that reads as "this tenant has no OP types" rather than
+     * as a bug.
+     *
      * @return \Illuminate\Support\Collection<int, RiskTaxonomy>
      */
     public function nodesFor(int $organizationId): \Illuminate\Support\Collection
     {
-        return RiskTaxonomy::query()
+        return TenantContext::actingAs($organizationId, fn () => RiskTaxonomy::query()
             ->where('organization_id', $organizationId)
             ->where('framework', self::FRAMEWORK)
             ->where('name', 'like', 'OP%')
             ->whereNotNull('parent_id')
             ->where('is_active', true)
+            ->with('parent')
             ->orderBy('sort_order')
             ->orderBy('id')
-            ->get();
+            ->get());
     }
 
     /**

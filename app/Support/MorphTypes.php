@@ -59,6 +59,7 @@ use App\Models\RiskAppetite;
 use App\Models\RiskAssessment;
 use App\Models\RiskCategory;
 use App\Models\SimulationRun;
+use App\Models\Sm\Scenario as SmScenario;
 use App\Models\Tprm\Document;
 use App\Models\Tprm\ThirdParty;
 use App\Models\TreatmentPlan;
@@ -228,6 +229,23 @@ class MorphTypes
             'risk_assessment' => RiskAssessment::class,
             'risk_category' => RiskCategory::class,
             'simulation_run' => SimulationRun::class,
+            /*
+             * Scenario Modelling & Analysis (ADR 0027 §A1.11). `enforceMorphMap()`
+             * THROWS on an unaliased model, and `AuditTrailService::record()` asks
+             * for the morph class on every write — so Sm's audit trail could not
+             * work without this line.
+             *
+             * Prefixed `sm_` because a bare `scenario` would compete with
+             * `Bcms\Scenario` and `QuantificationScenario`, and
+             * `getMorphClass()` returns the FIRST match — "a coin toss written
+             * into customer data", as this map's own comment puts it.
+             * `quantification_scenario` is already taken, so the prefix is the
+             * only unambiguous option, and `bcms_process` set the precedent.
+             *
+             * 11 characters, inside `RiskAuditTrail::ENTITY_TYPE_MAX` (50) —
+             * ADR 0014 is why that was checked rather than assumed.
+             */
+            'sm_scenario' => SmScenario::class,
             'treatment_plan' => TreatmentPlan::class,
             'user' => User::class,
             'webhook_delivery' => WebhookDelivery::class,

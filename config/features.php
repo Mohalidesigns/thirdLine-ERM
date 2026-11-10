@@ -112,4 +112,28 @@ return [
      */
     'bcms' => env('FEATURE_BCMS', false),
 
+    /*
+     * Scenario Modelling & Analysis (ADR 0027).
+     *
+     * The sixth module, on its own `sm_*` tables beside the register rather than
+     * inside it — the rule RCSA v2, TPRM and BCMS all follow: build alongside,
+     * not on top. Nothing in the existing risk register, quantification library
+     * or loss-event record changes shape for it; Sm reaches Quantification
+     * through the one-way bridge D5 describes, and Quantification learns nothing
+     * about `Sm`.
+     *
+     * OFF BY DEFAULT UNTIL THE MODULE IS COMPLETE. Phase 1 lands the schema, the
+     * lifecycle, the qualitative report and the governance trail; the
+     * quantitative half (frequency, impact, insurance, scorecard) is Phase 2 and
+     * the deck half (variants, actions) is Phase 3. Turning the flag on before a
+     * phase ships exposes navigation to a workspace with sections it cannot
+     * render — which is what spec 01 §5.1's deferred-tabs decision exists to
+     * avoid.
+     *
+     * A disabled surface 404s rather than 403s (EnsureFeatureEnabled), so an
+     * installation that never sets this looks like one where the module does not
+     * exist, and nothing invites a support ticket asking for the permission.
+     */
+    'scenario_modelling' => env('FEATURE_SCENARIO_MODELLING', false),
+
 ];

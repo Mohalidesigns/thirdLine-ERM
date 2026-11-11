@@ -79,7 +79,12 @@ export default function Create({ businessUnits, opEventTypes, natures, values, u
 
     useEffect(() => {
         const cancel = router.on('before', (event) => {
-            if (allowLeave.current || !guarded || processing) {
+            // Only NAVIGATIONS are guarded. `router.on('before')` also fires for
+            // this form's own `POST`, and intercepting that would answer a user
+            // who pressed "Create scenario" with "Leave without saving?".
+            const method = String(event.detail?.visit?.method || 'get').toLowerCase();
+
+            if (method !== 'get' || allowLeave.current || !guarded || processing) {
                 return;
             }
 

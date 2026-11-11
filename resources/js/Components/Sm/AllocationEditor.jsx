@@ -235,13 +235,26 @@ function AllocationRow({ line, index, options, errors, onChange, onRemove }) {
                     Business line {index + 1}
                 </label>
                 <Combobox
-                    value={selected}
-                    onChange={(option) => option && onChange(line.key, 'business_unit_id', option.id, option.name)}
+                    // Uncontrolled `value` with `displayValue` over local state —
+                    // the pattern `Kri/Settings/Contacts.jsx` proves works. A
+                    // `displayValue` derived from the selected object is
+                    // re-applied on every render and wipes the query as it is
+                    // typed, which silently breaks the picker's filter.
+                    value={null}
+                    onChange={(option) => {
+                        if (!option) {
+                            return;
+                        }
+
+                        onChange(line.key, 'business_unit_id', option.id, option.name);
+                        setQuery('');
+                    }}
+                    immediate
                 >
                     <ComboboxInput
                         id={pickerId}
                         className="form-input text-sm"
-                        displayValue={(option) => option?.name ?? ''}
+                        displayValue={() => (query === '' ? (selected?.name ?? '') : query)}
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder="Search business lines…"
                         aria-invalid={unitError ? 'true' : undefined}

@@ -99,9 +99,18 @@ export default function Workspace(props) {
     // A tab switch is a navigation, so the same guard covers the tab strip, the
     // breadcrumbs, the nav, Back and refresh. The only navigation that bypasses it
     // is the post-save redirect, which sets `allowLeave` first.
+    //
+    // ONLY `get` VISITS ARE GUARDED. `router.on('before')` fires for every visit
+    // including the workspace's own `PUT`/`POST` writes, so guarding those would
+    // intercept a Save with the "Leave without saving?" dialog — the save would
+    // never reach the server and the user would be asked whether they meant to
+    // abandon the very work they just asked to keep. Spec 01 §6.3 scopes the
+    // guard to navigation: switching tabs, navigating away, Back, refresh, close.
     useEffect(() => {
         const cancel = router.on('before', (event) => {
-            if (allowLeave.current || !dirtyRef.current || posting) {
+            const method = String(event.detail?.visit?.method || 'get').toLowerCase();
+
+            if (method !== 'get' || allowLeave.current || !dirtyRef.current || posting) {
                 return;
             }
 
@@ -425,7 +434,11 @@ export default function Workspace(props) {
                     </ul>
                 </nav>
 
-                <main id="scenario-panel" className="scroll-mt-24">
+                {/* A `div`, NOT a second `<main>`: `AuthenticatedLayout` already
+                    renders the page's one `main` landmark, and two of them leave a
+                    screen-reader user with two "main content" entries to choose
+                    between (spec 01 §7: "`<main>` from the layout"). */}
+                <div id="scenario-panel" className="scroll-mt-24">
                     {tab === 'qualitative' ? (
                         <QualitativeTab
                             scenario={scenario}
@@ -502,7 +515,7 @@ export default function Workspace(props) {
                             }}
                         />
                     )}
-                </main>
+                </div>
             </div>
 
             {/* ── The reason modal (spec 01 §5.3) ───────────────────────────── */}
@@ -704,6 +717,18 @@ function FrozenBanner({ scenario, signoffs, onTransition, transitionList }) {
         )
         .join(', ');
 
+    // The sign-off date comes from the CURRENT rows' own `signed_at` snapshots,
+    // never from `validated_on`: validation and sign-off are different acts by
+    // different people, and dating one from the other would state a fact the
+    // record does not carry (standard §5). The instant is rendered in Lagos and
+    // its date part taken, so no client-side timezone shift can move the day.
+    const signedAt = current
+        .map((row) => row.signed_at)
+        .filter(Boolean)
+        .sort()
+        .pop();
+    const signedDay = signedAt ? formatLagosInstant(signedAt)?.split(',')[0] : null;
+
     return (
         <div role="note" className="rounded-lg border border-[#1A365D]/20 bg-[#1A365D]/5 px-4 py-3">
             <h2 className="flex items-center gap-1.5 text-sm font-semibold text-[#1A365D]">
@@ -712,7 +737,7 @@ function FrozenBanner({ scenario, signoffs, onTransition, transitionList }) {
             </h2>
             {names && (
                 <p className="mt-1 text-sm text-gray-700">
-                    {scenario.validated_on ? `Signed off on ${formatDay(scenario.validated_on)} by ` : 'Signed off by '}
+                    {signedDay ? `Signed off on ${signedDay} by ` : 'Signed off by '}
                     {names}.
                 </p>
             )}

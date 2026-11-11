@@ -91,6 +91,9 @@ export default function OverviewTab({
     saveRef,
 }) {
     const editable = Boolean(can?.update);
+    // Computed before the form region so the re-seed guard can see it: a 422 from
+    // THIS region must not overwrite what the user typed (spec 01 §6.2).
+    const hasRegionErrors = OVERVIEW_ERROR_KEYS.some((key) => Boolean(errors[key]));
     const missing = (gate?.missing || []).filter((item) => item.tab === 'overview').map((item) => item.field);
     // A field is marked required only where spec 02 §4's table says so FOR THE
     // CURRENT STATUS. The gate fields carry no red `*` while the scenario is
@@ -106,7 +109,7 @@ export default function OverviewTab({
     const singleUnit = units.length === 1 ? units[0] : null;
     const foreignCurrency = values?.currency && baseCurrency && values.currency !== baseCurrency;
 
-    const { data, setData, put, processing, reset, isDirty } = useFormRegion(values, editable);
+    const { data, setData, put, processing, reset, isDirty } = useFormRegion(values, editable, hasRegionErrors);
     const backup = useRegionBackup(scenario.id, 'overview', data, editable);
     const [savedAt, setSavedAt] = useState(null);
     const errorKeys = Object.keys(errors);
@@ -625,7 +628,7 @@ export default function OverviewTab({
  * focus to stay on Save — so the re-seed is an effect keyed on the identity of
  * the server's `values` object, which the presenter rebuilds on every response.
  */
-function useFormRegion(values, editable) {
+function useFormRegion(values, editable, hasRegionErrors) {
     const initial = {
         name: values?.name ?? '',
         business_unit_id: values?.business_unit_id ?? null,
@@ -645,7 +648,12 @@ function useFormRegion(values, editable) {
     const seededFrom = useRef(values);
 
     useEffect(() => {
-        if (!editable || seededFrom.current === values) {
+        // DO NOT RE-SEED AFTER A 422. A failed save returns a fresh `values`
+        // object, and copying it over the form would throw away exactly what the
+        // user typed — spec 01 §6.2 promises "Nothing was saved. Your entries are
+        // still on this page", and spec 01 §6.4 keeps them on a network failure
+        // too. Only a clean response may overwrite the region's state.
+        if (!editable || seededFrom.current === values || hasRegionErrors) {
             return;
         }
 
@@ -668,7 +676,7 @@ function useFormRegion(values, editable) {
         // Re-seed only when the server's payload identity changes; `form` is
         // stable enough for this purpose and depending on it would loop.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [values, editable]);
+    }, [values, editable, hasRegionErrors]);
 
     return form;
 }
@@ -946,7 +954,11 @@ function RiskPicker({ risk, value, searchUrl, error, onChange }) {
                         id="risk_id"
                         name="risk_id"
                         className="form-input text-sm"
-                        value={query}
+                        // `displayValue` over local state, not a controlled
+                        // `value`: the same Headless UI trap the OP picker hit,
+                        // where a controlled value fights the internal query and
+                        // the typed term never reaches the filter.
+                        displayValue={() => query}
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder="Type to search the register…"
                         aria-busy={searching || undefined}

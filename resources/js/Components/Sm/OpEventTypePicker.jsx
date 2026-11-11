@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Combobox, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/react';
 import Icon from '@thirdline/ui/Components/Icon';
 
@@ -31,6 +31,20 @@ export default function OpEventTypePicker({
     describedBy,
 }) {
     const [query, setQuery] = useState('');
+    const selected = options && options.length > 0 ? options.find((option) => option.id === value) || null : null;
+
+    // The closed field shows the selected node's full `name`. Seeding from the
+    // prop rather than from Headless UI's own value is what lets `value={null}`
+    // below work: the precedent this follows (`Kri/Settings/Contacts.jsx`) keeps
+    // the Combobox uncontrolled and drives the visible text from local state,
+    // because a `displayValue` derived from a selected OBJECT is re-applied on
+    // every render and wipes what the user is typing.
+    const [display, setDisplay] = useState(selected?.name ?? '');
+
+    useEffect(() => {
+        setDisplay(selected?.name ?? '');
+        setQuery('');
+    }, [value]);
 
     if (!options || options.length === 0) {
         // Spec 02 §5.4: a LIVE go-live gap, not a hypothetical one. §A1.9 records
@@ -53,7 +67,6 @@ export default function OpEventTypePicker({
         );
     }
 
-    const selected = options.find((option) => option.id === value) || null;
     const term = query.trim().toLowerCase();
     const filtered = term === '' ? options : options.filter((option) => option.name.toLowerCase().includes(term));
     const groups = groupOptions(filtered);
@@ -65,18 +78,32 @@ export default function OpEventTypePicker({
     return (
         <div>
             <Combobox
-                value={selected}
-                onChange={(option) => onChange(option ? option.id : null)}
+                // `value={null}` and a `displayValue` over LOCAL STATE, following
+                // the working precedent in `Kri/Settings/Contacts.jsx`. Deriving
+                // `displayValue` from the selected object instead makes Headless
+                // UI re-apply it on every render and wipe the query as it is
+                // typed — which is why filtering produced no options at all.
+                value={null}
+                onChange={(option) => {
+                    if (!option) {
+                        return;
+                    }
+
+                    onChange(option.id);
+                    setDisplay(option.name);
+                    setQuery('');
+                }}
                 immediate
             >
                 <div className="relative">
                     <ComboboxInput
                         id={id}
                         className="form-input pr-9 text-sm"
-                        displayValue={(option) => option?.name ?? ''}
+                        displayValue={() => (query === '' ? display : query)}
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder="Search the Basel OP event types"
                         autoComplete="off"
+                        title={selected ? selected.name : undefined}
                         aria-required={required || undefined}
                         aria-invalid={error ? 'true' : undefined}
                         aria-describedby={[describedBy, selected ? fullId : null, error ? `${id}-error` : null]

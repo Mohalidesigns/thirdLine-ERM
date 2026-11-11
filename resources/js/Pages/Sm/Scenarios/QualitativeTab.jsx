@@ -133,7 +133,12 @@ function CausesCard({ scenario, checklist, selected, editable, errors, url, onDi
     const seeded = useRef(checklist);
 
     useEffect(() => {
-        if (seeded.current === checklist) {
+        // DO NOT RE-SEED AFTER A 422 (spec 01 §6.2: "Nothing was saved. Your
+        // entries are still on this page"). A failed save returns a fresh
+        // `checklist` array, and re-seeding from it would untick the boxes the
+        // user just ticked and throw away the note the server asked for — the one
+        // thing they must not lose while fixing the error.
+        if (seeded.current === checklist || Object.keys(errors).length > 0) {
             return;
         }
 
@@ -142,7 +147,7 @@ function CausesCard({ scenario, checklist, selected, editable, errors, url, onDi
         // `selected` is re-read from the same payload as `checklist`, so keying on
         // the checklist's identity is what re-seeds after a save.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [checklist, selected]);
+    }, [checklist, selected, errors]);
 
     const posted = useMemo(() => postBody(entries), [entries]);
     const dirty = useMemo(() => JSON.stringify(posted) !== JSON.stringify(seedBody(selected)), [posted, selected]);
@@ -271,14 +276,17 @@ function AllocationCard({ scenario, allocation, editable, errors, url, onDirty }
     const seeded = useRef(allocation.lines);
 
     useEffect(() => {
-        if (seeded.current === allocation.lines) {
+        // Not after a 422: `allocations.{i}` errors index the POSTED array, so the
+        // rows must stay exactly as the user left them for the messages to land on
+        // the right rows (spec 03 §2).
+        if (seeded.current === allocation.lines || Object.keys(errors).length > 0) {
             return;
         }
 
         seeded.current = allocation.lines;
         setLines((allocation.lines || []).map((line) => ({ ...line })));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [allocation.lines]);
+    }, [allocation.lines, errors]);
 
     const backup = useRegionBackup(scenario.id, 'allocations', lines, editable);
 
@@ -395,15 +403,41 @@ function AllocationCard({ scenario, allocation, editable, errors, url, onDirty }
  * The posted array — and its ORDER is the order the `allocations.{i}` error keys
  * index, which is why the list is not re-sortable in Phase 1 (spec 03 §2).
  *
- * Percents go as decimal STRINGS: a float that has been through `json_encode` can
- * arrive as `100` instead of `100.00`, and §A1.5 requires the comparison to be
- * made at the column's precision (spec 01 §4.5).
+ * Percents go as decimal STRINGS at the column's precision: a float that has been
+ * through `json_encode` can arrive as `100` instead of `100.00`, and §A1.5
+ * requires the comparison to be made as a decimal at `decimal(5,2)` (spec 01
+ * §4.5). `UpdateScenarioAllocationsRequest` validates `percent` with `decimal:2`,
+ * which is EXACTLY two places and not "at most two" — so `"60"` is padded to
+ * `"60.00"` here, and a value with more than two places is passed through
+ * untouched so the server's own message answers it rather than a client-side
+ * paraphrase or a silent truncation of what the user typed.
  */
 function postedLines(lines) {
     return lines.map((line) => ({
         business_unit_id: line.business_unit_id === '' ? null : line.business_unit_id,
-        percent: line.percent === null || line.percent === undefined ? '' : String(line.percent),
+        percent: toTwoDecimalPlaces(line.percent),
     }));
+}
+
+/** `60` → `60.00`, `33.3` → `33.30`, `33.335` → unchanged, `''` → `''`. */
+function toTwoDecimalPlaces(value) {
+    if (value === null || value === undefined) {
+        return '';
+    }
+
+    const text = String(value).trim();
+
+    if (text === '') {
+        return '';
+    }
+
+    if (!text.includes('.')) {
+        return `${text}.00`;
+    }
+
+    const fraction = text.split('.')[1] ?? '';
+
+    return fraction.length === 1 ? `${text}0` : text;
 }
 
 /* ------------------------------------------------------------------ */
@@ -422,14 +456,15 @@ function ExposureCards({ scenario, exposures, yesNo, summary, editable, errors, 
     const seeded = useRef(exposures);
 
     useEffect(() => {
-        if (seeded.current === exposures) {
+        // Not after a 422 — the answers stay on screen (spec 01 §6.2).
+        if (seeded.current === exposures || Object.keys(errors).length > 0) {
             return;
         }
 
         seeded.current = exposures;
         setState(seedExposures(exposures));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [exposures]);
+    }, [exposures, errors]);
 
     const backup = useRegionBackup(scenario.id, 'exposures', state, editable);
     const dirty = useMemo(

@@ -281,18 +281,28 @@ class ScenarioPayloadTest extends SmTestCase
         // link is broken.
         $scenario = $this->makeScenario();
 
+        // The sentence ships as `flash.info` on THIS response and is gone afterwards: the
+        // controller uses `session()->now()`, which the platform's shared `flash` prop reads
+        // at render time but `save()` ages out before the next request — so it is asserted on
+        // the Inertia payload (the channel the user actually sees), never with
+        // `assertSessionHas()`, which reads the post-request session and would always miss it.
         $this->actingAs($this->actor)
             ->get(route('scenario.show', ['scenario' => $scenario, 'tab' => 'frequency']))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->where('tab', 'overview')->has('values'))
-            ->assertSessionHas('info', "That section isn't part of this release yet. Showing Overview & Governance.");
+            ->assertInertia(fn ($page) => $page
+                ->where('tab', 'overview')
+                ->has('values')
+                ->where('flash.info', "That section isn't part of this release yet. Showing Overview & Governance."));
 
-        // Asking for a tab that IS live says nothing.
+        // Asking for a tab that IS live says nothing — and the previous sentence does not
+        // linger: `now()` guarantees it was a one-response message, which is the whole reason
+        // the controller chose it over `flash()`.
         $this->actingAs($this->actor)
             ->get(route('scenario.show', ['scenario' => $scenario, 'tab' => 'qualitative']))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->where('tab', 'qualitative'))
-            ->assertSessionMissing('info');
+            ->assertInertia(fn ($page) => $page
+                ->where('tab', 'qualitative')
+                ->where('flash.info', null));
     }
 
     #[Test]

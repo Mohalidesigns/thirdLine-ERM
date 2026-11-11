@@ -1,26 +1,29 @@
 /**
- * The sign-off source vocabulary, and a stopgap.
+ * The sign-off source and decision vocabulary, and the fallback behind it.
  *
- * [backend defect] `ScenarioWorkspacePresenter::present()`
- * (app/Presenters/Sm/ScenarioWorkspacePresenter.php:78-131) sends `signoffs` rows
- * but NOT the source vocabulary behind them. Spec 01 §5.6.2 requires the sign-off
- * modal to render "up to three rows, Source 1 / Source 2 / Source 3
- * (`Signoff::SOURCES`)", and spec 02 §6 requires the panel to render one group
- * per source in `SOURCES` order — including "Source 3 — no sign-off recorded —"
- * for a source that has never signed. Neither is derivable from `signoffs`, which
- * is EMPTY for the normal pre-sign-off case the modal exists for.
+ * THE PROPS NOW EXIST. `ScenarioWorkspacePresenter::present()` sends both
+ * `'signoffSources' => $this->options((array) config('sm.sources', Signoff::SOURCES))`
+ * and `'signoffDecisions' => $this->options((array) config('sm.decision_labels',
+ * Scenario::DECISION_LABELS))`, so on a normal workspace render the server's
+ * vocabulary is what reaches the screen and the mirrors below are never read.
+ * An earlier revision of this docblock recorded their absence as a backend
+ * defect; that was true when it was written and is stale now.
  *
- * `config('sm.sources')` already holds the vocabulary (config/sm.php:314) and
- * `StoreScenarioSignoffsRequest` validates against `array_keys(Signoff::SOURCES)`,
- * so the fix is one presenter line — `'signoffSources' => config('sm.sources')` —
- * and the same argument applies to the two decision labels, which spec 01 §5.6.2
- * also names as data.
+ * THE FALLBACK STAYS, deliberately. Spec 01 §5.6.2 requires the sign-off modal to
+ * render "up to three rows, Source 1 / Source 2 / Source 3 (`Signoff::SOURCES`)",
+ * and spec 02 §6 requires the panel to render one group per source in `SOURCES`
+ * order — including "Source 3 — no sign-off recorded —" for a source that has
+ * never signed. Neither is derivable from `signoffs`, which is EMPTY for the
+ * normal pre-sign-off case the modal exists for. So a payload that arrives
+ * without the vocabulary — a partial `only: [...]` reload that did not ask for it,
+ * a cached page, a prop renamed in a future presenter — must still render three
+ * rows rather than an empty modal that looks like a working one.
  *
- * Until that prop exists, this module is the ONE place the vocabulary is written
- * down on the client. It mirrors `App\Models\Sm\Signoff::SOURCES` exactly
- * (app/Models/Sm/Signoff.php:60-64), and `resolveSources()` prefers the server's
- * labels wherever a row carries one, so the day the prop lands this file becomes
- * dead code rather than a second authority.
+ * It mirrors `App\Models\Sm\Signoff::SOURCES` exactly and
+ * `App\Models\Sm\Scenario::DECISION_LABELS`, and both resolvers PREFER the
+ * server's labels wherever they are present, so this file is a floor and never a
+ * second authority: a tenant that renames "Source 1" in `config/sm.php` sees its
+ * own wording.
  */
 
 const FALLBACK_SOURCES = [

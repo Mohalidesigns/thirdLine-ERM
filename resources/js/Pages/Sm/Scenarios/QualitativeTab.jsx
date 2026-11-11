@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import AllocationEditor from '@/Components/Sm/AllocationEditor';
 import CauseChecklist from '@/Components/Sm/CauseChecklist';
+import { RegionSaveFailure } from '@/Components/Sm/FailureBanner';
 import useRegionBackup, { backupTime } from '@/Components/Sm/useRegionBackup';
+import useSaveFailure from '@/Components/Sm/useSaveFailure';
 import { isExactly100, sumPercents } from '@/Components/Sm/format';
 
 /**
@@ -166,8 +168,20 @@ function CausesCard({ scenario, checklist, selected, editable, errors, url, onDi
         }));
     };
 
+    // Spec 01 §0.2/§6.3/§6.4 for THIS region. Three saves on one tab means three
+    // of these, and §6.2 makes each banner name its own region — a single banner
+    // at the top of the page would not tell a user which of the three failed.
+    const saveFailure = useSaveFailure({
+        copySummary: () =>
+            Object.entries(entries)
+                .filter(([, entry]) => entry.on)
+                .map(([code, entry]) => `${code}${entry.note?.trim() ? ` — ${entry.note.trim()}` : ''}`)
+                .join('\n'),
+    });
+
     const save = () => {
         setSaving(true);
+        saveFailure.begin();
 
         router.put(
             url,
@@ -177,9 +191,13 @@ function CausesCard({ scenario, checklist, selected, editable, errors, url, onDi
                 preserveState: true,
                 onFinish: () => setSaving(false),
                 onSuccess: () => {
+                    saveFailure.succeeded();
                     backup.clear();
                     setSavedAt(new Date().toISOString());
                 },
+                // A 422 keeps the ticks and their notes exactly as the user left
+                // them (spec 01 §6.2); the Card's error summary owns the message.
+                onError: () => saveFailure.succeeded(),
             },
         );
     };
@@ -204,6 +222,8 @@ function CausesCard({ scenario, checklist, selected, editable, errors, url, onDi
             errors={errors}
             region="The causes weren't saved. Your allocation and exposure answers are unaffected."
         >
+            <RegionFailure saveFailure={saveFailure} onResend={save} />
+
             {backup.offer && <BackupStrip backup={backup} onRestore={(data) => setEntries(data)} />}
 
             <CauseChecklist
@@ -338,8 +358,17 @@ function AllocationCard({ scenario, allocation, editable, errors, url, onDirty }
 
     const remove = (key) => setLines((prev) => prev.filter((line) => line.key !== key));
 
+    const saveFailure = useSaveFailure({
+        copySummary: () =>
+            lines
+                .filter((line) => line.business_unit_id || line.percent !== '')
+                .map((line) => `${line.label || line.business_unit_id || 'unassigned'}: ${line.percent || 'no percentage'}%`)
+                .join('\n'),
+    });
+
     const save = () => {
         setSaving(true);
+        saveFailure.begin();
 
         router.put(
             url,
@@ -349,9 +378,14 @@ function AllocationCard({ scenario, allocation, editable, errors, url, onDirty }
                 preserveState: true,
                 onFinish: () => setSaving(false),
                 onSuccess: () => {
+                    saveFailure.succeeded();
                     backup.clear();
                     setSavedAt(new Date().toISOString());
                 },
+                // `allocations.{i}` errors index the POSTED array, so the rows
+                // must survive a 422 untouched for the messages to land on the
+                // right ones (spec 01 §6.2, spec 03 §2).
+                onError: () => saveFailure.succeeded(),
             },
         );
     };
@@ -363,6 +397,8 @@ function AllocationCard({ scenario, allocation, editable, errors, url, onDirty }
             errors={errors}
             region="The allocation wasn't saved. Your causes and exposure answers are unaffected."
         >
+            <RegionFailure saveFailure={saveFailure} onResend={save} />
+
             {backup.offer && <BackupStrip backup={backup} onRestore={(data) => setLines(data)} />}
 
             <AllocationEditor
@@ -479,8 +515,18 @@ function ExposureCards({ scenario, exposures, yesNo, summary, editable, errors, 
 
     const set = (key, value) => setState((prev) => ({ ...prev, [key]: value }));
 
+    const saveFailure = useSaveFailure({
+        // The raw values, not their labels: the labels are the server's and the
+        // clipboard copy is a last resort for pasting back into this same form.
+        copySummary: () =>
+            Object.entries(state)
+                .map(([key, value]) => `${key}: ${value === null || value === undefined ? 'not assessed' : value}`)
+                .join('\n'),
+    });
+
     const save = () => {
         setSaving(true);
+        saveFailure.begin();
 
         // FIVE KEYS AND NOTHING ELSE — see the file docblock on partial updates.
         router.put(
@@ -497,9 +543,11 @@ function ExposureCards({ scenario, exposures, yesNo, summary, editable, errors, 
                 preserveState: true,
                 onFinish: () => setSaving(false),
                 onSuccess: () => {
+                    saveFailure.succeeded();
                     backup.clear();
                     setSavedAt(new Date().toISOString());
                 },
+                onError: () => saveFailure.succeeded(),
             },
         );
     };
@@ -515,6 +563,8 @@ function ExposureCards({ scenario, exposures, yesNo, summary, editable, errors, 
                 errors={errors}
                 region="The exposure answers weren't saved. Your causes and allocation are unaffected."
             >
+                <RegionFailure saveFailure={saveFailure} onResend={save} />
+
                 {backup.offer && <BackupStrip backup={backup} onRestore={(data) => setState(data)} />}
 
                 {editable ? (
@@ -591,8 +641,20 @@ function ExposureCards({ scenario, exposures, yesNo, summary, editable, errors, 
                     </>
                 ) : (
                     <>
-                        <ReadFlag label="Insurance risk" value={flagWords(exposures.insurance_risk, yesNo)} />
-                        <ReadFlag label="Financial / market risk" value={flagWords(exposures.financial_risk, yesNo)} />
+                        {/* `unset` comes from the RAW NULL, not from the rendered
+                            words — see ReadFlag. `eligible_to_transfer` gets no
+                            `unset`: §A1.2 froze it NOT NULL default false, so it
+                            has no unanswered state to show (spec 03 §6.4). */}
+                        <ReadFlag
+                            label="Insurance risk"
+                            value={flagWords(exposures.insurance_risk, yesNo)}
+                            unset={exposures.insurance_risk === null || exposures.insurance_risk === undefined}
+                        />
+                        <ReadFlag
+                            label="Financial / market risk"
+                            value={flagWords(exposures.financial_risk, yesNo)}
+                            unset={exposures.financial_risk === null || exposures.financial_risk === undefined}
+                        />
                         <ReadFlag
                             label="Eligible to transfer"
                             value={exposures.eligible_to_transfer ? (yesNo.yes || 'Yes') : (yesNo.no || 'No')}
@@ -608,7 +670,15 @@ function ExposureCards({ scenario, exposures, yesNo, summary, editable, errors, 
                         savedAt={savedAt}
                         dirty={dirty}
                         onSave={save}
-                        id="field-reputational_exposure"
+                        // NOT `field-reputational_exposure`. That id belongs to the
+                        // ScaleFieldset below, and two elements sharing it made
+                        // `document.getElementById` — which the 422 summary's
+                        // anchor and the shell's `goToField` both use — resolve to
+                        // whichever came FIRST in the DOM: the Save button. So a
+                        // `reputational_exposure` validation error scrolled to and
+                        // focused a button instead of the radio group that caused
+                        // it (spec 01 §0.3, §6.2).
+                        id="save-exposures"
                         saveRef={saveRef}
                     />
                 )}
@@ -815,15 +885,37 @@ function ReadScale({ label, scale, value }) {
     );
 }
 
-function ReadFlag({ label, value, qualifier }) {
-    const unset = value === 'Not assessed';
-
+/**
+ * A read-only yes/no/not-answered row.
+ *
+ * `unset` is passed IN, decided from the raw column one scope away, and never
+ * inferred here by comparing the rendered words against `'Not assessed'`. That
+ * comparison made the styling depend on a translation: `yesNo.unset` is the
+ * server's wording (`flagWords` falls back to 'Not assessed' only when the prop is
+ * absent), so a tenant that renamed the label would silently render an
+ * unanswered governance field as though it were an affirmative one — standard §5's
+ * "a figure on a screen is computed or it is absent", applied to a state rather
+ * than a number.
+ */
+function ReadFlag({ label, value, unset = false, qualifier }) {
     return (
         <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</dt>
             <dd className={`mt-0.5 text-sm ${unset ? 'text-gray-600' : 'text-gray-900'}`}>
                 {value}
-                {qualifier && <span className="ml-1 text-xs text-gray-600">{qualifier}</span>}
+                {qualifier && (
+                    <>
+                        {/* A REAL text node between the two phrases. `ml-1` is a
+                            visual margin and puts no character in the DOM, so
+                            `innerText` — and therefore a screen reader — ran the
+                            two together as one word:
+                            "No(no note records how this was determined)". The
+                            space is the separator; the margin stays for the
+                            visual gap. */}
+                        {' '}
+                        <span className="ml-1 text-xs text-gray-600">{qualifier}</span>
+                    </>
+                )}
             </dd>
         </div>
     );
@@ -923,6 +1015,29 @@ function SaveRow({ label, saving, savedAt, dirty, onSave, id, describedBy, saveR
             )}
             {dirty && <span className="text-xs text-gray-600">Unsaved changes</span>}
         </div>
+    );
+}
+
+/**
+ * One save region's failure banner, plus the `role="status"` region its "Copy my
+ * entries" outcome is announced in.
+ *
+ * Repeated per region rather than once for the tab because §6.2 makes the banner
+ * name the region that failed, and this tab has three regions with three routes.
+ * The live region is PERMANENT and only its text changes: a `role="status"` node
+ * inserted together with its own sentence is announced unreliably, since the
+ * region has to exist before the mutation it reports.
+ */
+function RegionFailure({ saveFailure, onResend }) {
+    const [note, setNote] = useState(null);
+
+    return (
+        <>
+            <p role="status" className="sr-only">
+                {note}
+            </p>
+            <RegionSaveFailure saveFailure={saveFailure} onResend={onResend} onAnnounce={setNote} />
+        </>
     );
 }
 

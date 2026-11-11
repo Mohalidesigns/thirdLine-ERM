@@ -5,8 +5,10 @@ import ConfirmDialog from '@thirdline/ui/Components/ConfirmDialog';
 import FormField from '@thirdline/ui/Components/FormField';
 import Icon from '@thirdline/ui/Components/Icon';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FailureBanner from '@/Components/Sm/FailureBanner';
 import OpEventTypePicker from '@/Components/Sm/OpEventTypePicker';
 import { groupDigits } from '@/Components/Sm/format';
+import useVisitFailures from '@/hooks/useVisitFailures';
 
 /**
  * New scenario (spec 04) — a minimal form, deliberately.
@@ -55,6 +57,61 @@ export default function Create({ businessUnits, opEventTypes, natures, values, u
     // scenario, so the page stops offering "Try again" and offers "Check whether
     // it was created" instead.
     const [lostResponse, setLostResponse] = useState(false);
+
+    /**
+     * Spec 01 §0.2's five shared failure rows, on this page too and through the
+     * repo's sanctioned hook. Without it a 419, a 403, a 429 or a 5xx from
+     * `POST store` rendered Inertia's raw-response debug modal over a
+     * half-filled create form — the modal §0.2 says must never render, on the
+     * one screen where losing the entries costs the most.
+     */
+    const { failure, clear: clearFailure } = useVisitFailures();
+    const [lastAction, setLastAction] = useState(null);
+    const [copied, setCopied] = useState(null);
+
+    /** Spec 01 §6.3's last resort, inside the session-expired and 403 states. */
+    const copyEntries = async () => {
+        const text = Object.entries(data)
+            .filter(([, value]) => value !== null && value !== undefined && value !== '')
+            .map(([key, value]) => `${key}: ${value}`)
+            .join('\n');
+
+        if (text === '') {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied('Your entries were copied.');
+        } catch {
+            setCopied('Could not copy automatically. Select the values on the page and copy them.');
+        }
+    };
+
+    /**
+     * Spec 04 §6.3 — and the reason this page has a `lostResponse` state at all.
+     *
+     * `onException` IS NOT A VISIT CALLBACK in @inertiajs 2.3.27: `VisitCallbacks`
+     * (node_modules/@inertiajs/core/types/types.d.ts:283-296) lists onBefore,
+     * onStart, onProgress, onFinish, onCancel, onSuccess, onError, onFlash and the
+     * two prefetch hooks, and nothing in either package reads an `onException`
+     * key. The handler that used to sit in the `post()` options below was therefore
+     * dead, and the "Check whether it was created" banner was unreachable — on a
+     * link bad enough to lose the response, the page just sat there with a
+     * re-armed Create button and no warning that a second click could create the
+     * scenario twice.
+     *
+     * The global `exception` event, which `useVisitFailures` normalises to
+     * `kind === 'network'`, is the only observation point.
+     */
+    useEffect(() => {
+        if (failure?.kind === 'network' && lastAction === 'create' && !lostResponse) {
+            allowLeave.current = false;
+            setLostResponse(true);
+        }
+        // Single-shot on the `lostResponse` guard; `failure`'s identity fires it.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [failure]);
 
     // The guard fires ONLY when `name` is non-empty. Leaving a pristine create
     // form is not a loss and must not produce a dialog — a confirmation on an
@@ -110,17 +167,21 @@ export default function Create({ businessUnits, opEventTypes, natures, values, u
     const submit = (event) => {
         event.preventDefault();
         setLostResponse(false);
+        clearFailure();
+        setLastAction('create');
         allowLeave.current = true;
 
         post(urls.store, {
             preserveScroll: true,
+            onSuccess: () => setLastAction(null),
             onError: () => {
+                // A 422 is an ordinary Inertia response: the summary and the
+                // per-field errors own it, and the entries stay put (spec 04 §6.1).
+                setLastAction(null);
                 allowLeave.current = false;
             },
-            onException: () => {
-                allowLeave.current = false;
-                setLostResponse(true);
-            },
+            // No `onException`: this Inertia version has no such callback. The
+            // effect above owns the lost-response case.
         });
     };
 
@@ -161,6 +222,51 @@ export default function Create({ businessUnits, opEventTypes, natures, values, u
                             Check whether it was created
                         </Link>
                     </div>
+                )}
+
+                {/* PERMANENT live region whose text changes; a `role="status"`
+                    node inserted with its own sentence is announced unreliably. */}
+                <p role="status" className="sr-only">
+                    {copied}
+                </p>
+
+                {/* Spec 01 §0.2, gated on a write THIS page issued. A 419 gets a
+                    Retry that re-sends — safe, because the auth middleware
+                    rejects before the write path (§6.4) — and "Copy my entries"
+                    beside it. A 403 gets the clipboard alone: there is no
+                    permission to re-send into. */}
+                {/* Suppressed while `lostResponse` is set: that banner above is
+                    the more specific and more actionable of the two. */}
+                {failure && lastAction === 'create' && !lostResponse && (
+                    <FailureBanner
+                        failure={
+                            failure.kind === 'forbidden'
+                                ? {
+                                      ...failure,
+                                      message:
+                                          "You no longer have permission to create a scenario. Your entries are still on this page.",
+                                  }
+                                : failure
+                        }
+                        onRetry={
+                            failure.kind === 'session' ? submit : failure.kind === 'forbidden' ? copyEntries : undefined
+                        }
+                        retryLabel={failure.kind === 'forbidden' ? 'Copy my entries' : undefined}
+                        onDismiss={() => {
+                            clearFailure();
+                            setLastAction(null);
+                        }}
+                    >
+                        {failure.kind === 'session' && (
+                            <button
+                                type="button"
+                                onClick={copyEntries}
+                                className="text-sm font-medium text-[#1A365D] underline"
+                            >
+                                Copy my entries
+                            </button>
+                        )}
+                    </FailureBanner>
                 )}
 
                 <div className="card p-5">
@@ -318,8 +424,14 @@ export default function Create({ businessUnits, opEventTypes, natures, values, u
                             <button
                                 type="submit"
                                 className="btn-primary text-sm"
-                                disabled={processing}
+                                // Held down after a LOST RESPONSE (spec 04 §6.3):
+                                // the first `POST store` may have committed, and
+                                // the reference sequence is `max + 1` at write
+                                // time, so a second click is a second scenario.
+                                // "Check whether it was created" is the way out.
+                                disabled={processing || lostResponse}
                                 aria-busy={processing || undefined}
+                                aria-disabled={lostResponse || undefined}
                             >
                                 {processing ? 'Creating…' : 'Create scenario'}
                             </button>

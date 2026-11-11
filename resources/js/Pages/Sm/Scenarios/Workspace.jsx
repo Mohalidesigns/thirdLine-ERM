@@ -6,9 +6,11 @@ import ConfirmDialog from '@thirdline/ui/Components/ConfirmDialog';
 import Icon from '@thirdline/ui/Components/Icon';
 import Modal from '@thirdline/ui/Components/Modal';
 import PageHeader from '@thirdline/ui/Components/PageHeader';
+import FailureBanner from '@/Components/Sm/FailureBanner';
 import ScenarioStatusChip from '@/Components/Sm/ScenarioStatusChip';
 import SignoffModal from '@/Components/Sm/SignoffModal';
-import { formatDay, formatLagosClock, formatLagosInstant } from '@/Components/Sm/format';
+import { formatDay, formatLagosClock, lagosDay } from '@/Components/Sm/format';
+import useVisitFailures from '@/hooks/useVisitFailures';
 import OverviewTab from './OverviewTab';
 import QualitativeTab from './QualitativeTab';
 
@@ -85,14 +87,57 @@ export default function Workspace(props) {
     const [leaveOpen, setLeaveOpen] = useState(false);
     const [reason, setReason] = useState('');
     const [posting, setPosting] = useState(false);
+    /**
+     * `{tone, text}` where tone is `success` (the move happened) or `refusal`
+     * (it did not). BOTH RENDER IN THE SAME `role="status"` REGION.
+     *
+     * A lifecycle refusal is a 302 with a flash error, which Inertia reports
+     * through `onSuccess` exactly like a committed transition — so the tone
+     * cannot come from which callback fired. It comes from the truth in the
+     * RELOADED props (§6.4) and from the server's own sentence, never from a
+     * client-side humanising of `to`.
+     */
     const [announcement, setAnnouncement] = useState(null);
+
+    /**
+     * Spec 01 §0.2 and §6.4. One listener, owned by the shell: the two tabs are
+     * children of this page and their own saves are `PUT`s they announce
+     * themselves, so the shell renders its banner only for a write IT issued
+     * (`lastWrite`) — the `failure && lastAction` pairing `Kri/MyReturn.jsx`
+     * established. Inertia's raw debug modal never renders on this screen.
+     */
+    const { failure, clear: clearFailure } = useVisitFailures();
+    const [lastWrite, setLastWrite] = useState(null);
+    /**
+     * A LOST RESPONSE on an append-only `POST` (spec 01 §6.4): the request may
+     * have committed, so the shell stops offering a retry and offers "Check what
+     * happened" — a reload of the affected props — instead. `POST status` re-fires
+     * a transition the map may now refuse; `POST signoffs` appends a SECOND set of
+     * rows because §A1.6 has no unique key on (scenario, source).
+     */
+    const [lostResponse, setLostResponse] = useState(null);
 
     const pendingVisit = useRef(null);
     const allowLeave = useRef(false);
     const statusHeading = useRef(null);
     const saveRef = useRef(null);
-    const dirtyRef = useRef(false);
     const reasonInputRef = useRef(null);
+
+    /**
+     * Dirty is held TWICE, on purpose. The ref is what `router.on('before')`
+     * reads synchronously — that listener is registered once per `posting`, so a
+     * state value captured in its closure would be stale. The state mirror exists
+     * so the `beforeunload` effect below has something to depend on: an effect
+     * with no dependency array tears down and re-registers its listener after
+     * every render, which is what this component used to do.
+     */
+    const dirtyRef = useRef(false);
+    const [dirty, setDirty] = useState(false);
+
+    const markDirty = (value) => {
+        dirtyRef.current = value;
+        setDirty(value);
+    };
 
     const transitionList = transitions || [];
     const editable = Boolean(can?.update);
@@ -125,7 +170,7 @@ export default function Workspace(props) {
     }, [posting]);
 
     useEffect(() => {
-        if (!dirtyRef.current) {
+        if (!dirty) {
             return undefined;
         }
 
@@ -137,15 +182,58 @@ export default function Workspace(props) {
         window.addEventListener('beforeunload', handler);
 
         return () => window.removeEventListener('beforeunload', handler);
-    });
+    }, [dirty]);
 
-    // After any transition, focus moves to the status banner heading, never to
-    // `body` (spec 01 §7).
+    // After any TRANSITION, focus moves to the status banner heading, never to
+    // `body` (spec 01 §7) — on a success AND on a refusal, because a refusal is
+    // the answer to the button the user just pressed and it must not be missed.
+    // Only a transition moves focus: §6.1 keeps it on Save after a save, and
+    // §7.1 returns it to the note textarea, so those announcements set no
+    // `focus` and rely on the region's `role="status"` to be heard.
     useEffect(() => {
-        if (announcement) {
+        if (announcement?.focus) {
             statusHeading.current?.focus();
         }
     }, [announcement]);
+
+    /**
+     * A LOST RESPONSE, learned from the global `exception` event that
+     * `useVisitFailures` listens to.
+     *
+     * THERE IS NO `onException` VISIT CALLBACK IN @inertiajs 2.3.27. `VisitCallbacks`
+     * (node_modules/@inertiajs/core/types/types.d.ts:283-296) lists onBefore,
+     * onStart, onProgress, onFinish, onCancel, onSuccess, onError, onFlash and the
+     * two prefetch hooks — and nothing in either package ever reads an
+     * `onException` key, so passing one is silently discarded. The only
+     * observation point for "the request never completed" is the global event,
+     * which the hook normalises to `failure.kind === 'network'`. (An earlier
+     * revision of this screen relied on `onException` and therefore never ran its
+     * reload at all.)
+     *
+     * Spec 01 §6.4: reload the truth BEFORE offering anything, because both of
+     * this shell's writes are append-only — `POST status` re-fires a transition
+     * the map may now refuse, and `POST notes` has no unique key to stop a
+     * duplicate.
+     */
+    useEffect(() => {
+        if (failure?.kind !== 'network' || !lastWrite || lostResponse) {
+            return;
+        }
+
+        setLostResponse({ kind: lastWrite.kind });
+
+        router.reload({
+            only:
+                lastWrite.kind === 'notes'
+                    ? ['notes', 'notesMeta', 'signoffWarnings', 'scenario']
+                    : ['scenario', 'transitions', 'gate', 'signoffs'],
+            preserveScroll: true,
+            preserveState: true,
+        });
+        // Single-shot on the `lostResponse` guard above; `failure`'s identity is
+        // what fires this, and the reload's own failure must not loop.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [failure]);
 
     const leaveAnyway = () => {
         setLeaveOpen(false);
@@ -169,6 +257,16 @@ export default function Workspace(props) {
      */
     const postStatus = (to, withReason) => {
         setPosting(true);
+        clearFailure();
+        setLostResponse(null);
+        setLastWrite({
+            kind: 'status',
+            copy: withReason && reason.trim() !== '' ? `Reason: ${reason.trim()}` : null,
+            // A 419 is the ONE failure §6.4 lets re-send, because the auth
+            // middleware rejects before the write path — so nothing committed
+            // and the same call is safe to repeat verbatim.
+            resend: () => postStatus(to, withReason),
+        });
 
         router.post(
             urls.status,
@@ -182,16 +280,175 @@ export default function Workspace(props) {
                     setConfirmFor(null);
                     setGateOpen(false);
                 },
-                onSuccess: () => {
+                onSuccess: (page) => {
                     allowLeave.current = true;
-                    setAnnouncement(`Status updated. ${scenario.reference} is now ${to.replace(/_/g, ' ')}.`);
+
+                    const next = page.props;
+
+                    // A REFUSED TRANSITION ANSWERS WITH A 302 AND A FLASH ERROR
+                    // (`ScenarioGovernanceController` does `back()->with('error',
+                    // $e->flash())`), which Inertia reports through `onSuccess`
+                    // exactly like a committed move. So the tone is read from the
+                    // TRUTH IN THE RELOADED PROPS and the sentence from the
+                    // server's own flash — never from which callback fired, and
+                    // never by humanising `to` on the client (spec 01 §0.2
+                    // "Lifecycle refusal", §6.4).
+                    const refusal = next.flash?.error || null;
+                    const moved = next.scenario?.status === to;
+
+                    if (moved && !refusal) {
+                        // `ScenarioLifecycle::successMessage()` is the ONE place
+                        // this edge's wording lives. The client composes no
+                        // sentence of its own, so a non-JS response and this one
+                        // cannot disagree about what just happened.
+                        setAnnouncement({
+                            tone: 'success',
+                            text: next.flash?.success || 'Status updated.',
+                            focus: true,
+                        });
+                        setLastWrite(null);
+
+                        return;
+                    }
+
+                    setLastWrite(null);
+                    setAnnouncement({
+                        tone: 'refusal',
+                        text:
+                            refusal ||
+                            `${scenario.reference} is still ${next.scenario?.status_label}. The status did not change.`,
+                        focus: true,
+                    });
                 },
-                onException: () => {
-                    // Learn the truth before offering a retry.
-                    router.reload({ only: ['scenario', 'transitions', 'gate', 'signoffs'] });
-                },
+                // A 422 is an ordinary Inertia response and never reaches
+                // `useVisitFailures`; the field errors render where they belong.
+                // A LOST RESPONSE is handled by the `failure` effect below —
+                // there is no `onException` visit callback in this Inertia
+                // version, so nothing here can see one.
+                onError: () => setLastWrite(null),
             },
         );
+    };
+
+    /**
+     * Spec 01 §6.4's "Check what happened": reload the truth, never re-post.
+     * Only the props the lost write could have moved are asked for (§0.4 — a
+     * screen on 100 kbps does not re-download the workspace to answer one
+     * question).
+     */
+    const checkWhatHappened = (kind = lostResponse?.kind || lastWrite?.kind) => {
+        router.reload({
+            only:
+                kind === 'notes'
+                    ? ['notes', 'notesMeta', 'signoffWarnings', 'scenario']
+                    : ['scenario', 'transitions', 'gate', 'signoffs'],
+        });
+    };
+
+    /**
+     * Spec 01 §6.3's last resort, inside the session-expired and 403 states:
+     * copy what this screen was about to write, because it cannot be saved.
+     */
+    const copyEntries = async () => {
+        const text = lastWrite?.copy;
+
+        if (!text) {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(text);
+            setAnnouncement({ tone: 'success', text: 'Your entries were copied.' });
+        } catch {
+            setAnnouncement({
+                tone: 'refusal',
+                text: 'Could not copy automatically. Select the text on the page and copy it.',
+            });
+        }
+    };
+
+    /** Re-send the write a 419 interrupted — the only retry §6.4 permits. */
+    const resendLastWrite = () => {
+        clearFailure();
+        lastWrite?.resend?.();
+    };
+
+    /**
+     * The notes log's own write path (`POST urls.notes`, spec 02 §7.1). Hoisted
+     * out of the JSX so a 419 can re-send the identical request.
+     *
+     * `after` resolves the NotesLog draft EXACTLY ONCE and carries the outcome:
+     * the paths disagree about what happened, so the first one to know wins. The
+     * draft clears on GENUINE SUCCESS ONLY — `onFinish` is not a success signal,
+     * it fires on a 422, a 403 and an exception too, and clearing there destroyed
+     * a failed dissent (spec 01 §6.2: "Your entries are still on this page").
+     */
+    const postNote = (payload, after) => {
+        allowLeave.current = true;
+        clearFailure();
+        setLostResponse(null);
+        setLastWrite({
+            kind: 'notes',
+            copy: `Kind: ${payload?.kind}\n\n${payload?.body}`,
+            resend: () => postNote(payload, after),
+        });
+
+        const before = (notes || []).length;
+        let settled = false;
+
+        const settle = (result) => {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            after?.(result);
+        };
+
+        router.post(urls.notes, payload, {
+            // Only the log reloads: the rest of the workspace is untouched by a
+            // note (spec 02 §7.1).
+            preserveScroll: true,
+            preserveState: true,
+            only: ['notes', 'notesMeta', 'signoffWarnings'],
+            onSuccess: (page) => {
+                const next = page.props;
+                const refusal = next.flash?.error || null;
+
+                setLastWrite(null);
+
+                // An archived scenario answers `POST notes` with a 302 and a
+                // flash error, which Inertia reports right here in `onSuccess` —
+                // so "the log grew" is part of the test, not a nicety.
+                if (!refusal && (next.notes || []).length > before) {
+                    settle({ ok: true });
+                    setAnnouncement({ tone: 'success', text: next.flash?.success || 'Note added.' });
+
+                    return;
+                }
+
+                settle({ ok: false });
+                setAnnouncement({ tone: 'refusal', text: refusal || 'The note was not added.' });
+            },
+            onError: () => {
+                // A 422: the field errors render in the panel and the typed
+                // note stays exactly where the user left it.
+                setLastWrite(null);
+                settle({ ok: false });
+            },
+            // No `onException` — this Inertia version has no such callback, so a
+            // lost response reaches the `failure` effect above, which sets
+            // `lostResponse` and reloads the log. `onFinish` still resolves the
+            // draft, and §6.4 keeps it: append-only with no unique key means a
+            // blind re-post is a duplicate note.
+            onFinish: () => {
+                // The safety net: whatever happened, the form stops showing
+                // "Adding…". A path that already resolved is not overridden, so
+                // a success never has its draft put back.
+                settle({ ok: false });
+                allowLeave.current = false;
+            },
+        });
     };
 
     const onTransition = (transition) => {
@@ -237,6 +494,7 @@ export default function Workspace(props) {
 
     const gateMissing = gate?.missing || [];
     const lastChanged = formatLagosClock(scenario.updated_at);
+    const previousSignoffDay = lagosDay(scenario.previous_signoff?.signed_at);
 
     return (
         <AppLayout title={scenario.name}>
@@ -287,9 +545,11 @@ export default function Workspace(props) {
                         {scenario.previous_signoff && (
                             <p className="mt-1 text-xs text-gray-600">
                                 Signed off
-                                {scenario.previous_signoff.signed_at
-                                    ? ` ${formatDay(String(scenario.previous_signoff.signed_at).slice(0, 10))}`
-                                    : ''}{' '}
+                                {/* `signed_at` is an instant, so its LAGOS day is
+                                    resolved before `formatDay`: slicing the ISO
+                                    string takes the UTC day, which is a day
+                                    early for a sign-off after 23:00 Lagos. */}
+                                {previousSignoffDay ? ` ${formatDay(previousSignoffDay)}` : ''}{' '}
                                 by {scenario.previous_signoff.sources.join(', ')}; reopened for revalidation.
                             </p>
                         )}
@@ -333,20 +593,120 @@ export default function Workspace(props) {
                 )}
 
                 {/* A live region for transition results, and the heading focus
-                    lands on after any status change (spec 01 §7). */}
-                <div
-                    ref={statusHeading}
-                    tabIndex={-1}
-                    role="status"
-                    className="focus:outline-none"
-                    aria-live={announcement ? 'polite' : 'off'}
-                >
+                    lands on after any status change (spec 01 §7).
+
+                    `role="status"` ALREADY IMPLIES `aria-live="polite"`, and the
+                    old `aria-live={announcement ? 'polite' : 'off'}` toggle was
+                    worse than redundant: flipping `off → polite` in the same
+                    commit that inserts the text is exactly the mutation a live
+                    region has to have happened BEFORE, so some screen readers
+                    never announced the sentence at all. The region is permanent
+                    and its content is what changes.
+
+                    A REFUSED TRANSITION RENDER HERE TOO, in amber rather than
+                    green. It is the answer to the button the user just pressed,
+                    it is not transient, and §0.2 puts a lifecycle refusal in a
+                    `role="status"` banner — a refusal that only ever reached a
+                    five-second toast left the persistent region asserting the
+                    opposite of the truth. */}
+                <div ref={statusHeading} tabIndex={-1} role="status" className="focus:outline-none">
                     {announcement && (
-                        <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-                            {announcement}
+                        <p
+                            className={`rounded-lg border px-4 py-3 text-sm ${
+                                announcement.tone === 'success'
+                                    ? 'border-green-200 bg-green-50 text-green-900'
+                                    : 'border-amber-200 bg-amber-50 text-amber-900'
+                            }`}
+                        >
+                            {announcement.text}
                         </p>
                     )}
                 </div>
+
+                {/* Spec 01 §6.4: a lost response on `POST status` gets "Check
+                    what happened", never a blind retry. The reload has already
+                    run, so the status chip and the header buttons above ARE the
+                    answer — this banner says to read them rather than offering
+                    to fire the same transition again. */}
+                {lostResponse && (
+                    <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                        <p>
+                            {lostResponse.kind === 'notes'
+                                ? "We lost the server's response, so we don't know whether the note was added. The log has been refreshed — check it before adding the note again."
+                                : "We lost the server's response, so we don't know whether the status moved. The current status above has been refreshed — check it before doing anything else."}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                            <button type="button" onClick={() => checkWhatHappened()} className="btn-secondary text-sm">
+                                Check what happened
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setLostResponse(null);
+                                    setLastWrite(null);
+                                }}
+                                className="text-sm font-medium text-red-800 underline"
+                            >
+                                Dismiss
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Spec 01 §0.2's five shared failure rows, through the repo's
+                    sanctioned hook. Rendered only for a write THIS shell issued,
+                    so a tab's own save failure is announced by the tab and never
+                    twice. The control named is the control rendered. */}
+                {/* Suppressed while `lostResponse` is set: a lost response has its
+                    own banner above with the §6.4 reload-first control, and two
+                    red banners for one failure would say two different things. */}
+                {failure && lastWrite && !lostResponse && (
+                    <FailureBanner
+                        failure={
+                            lastWrite.kind === 'notes' && failure.kind === 'forbidden'
+                                ? {
+                                      ...failure,
+                                      message:
+                                          'You no longer have permission to add notes to this scenario. Your note is still on this page.',
+                                  }
+                                : failure.kind === 'forbidden'
+                                  ? {
+                                        ...failure,
+                                        message:
+                                            'You no longer have permission to change this scenario. Your entries are still on this page.',
+                                    }
+                                  : failure
+                        }
+                        // A `POST` is append-only here, so the affordance is
+                        // reload-first rather than "Try again" (§6.4). A 419 is
+                        // the one exception §6.4 allows to re-send: the auth
+                        // middleware rejects before the write path.
+                        onRetry={
+                            failure.kind === 'session'
+                                ? () => resendLastWrite()
+                                : failure.kind === 'network' || failure.kind === 'server'
+                                  ? () => checkWhatHappened()
+                                  : undefined
+                        }
+                        // `undefined` leaves the banner's own label, "Retry" —
+                        // the only case where re-sending is the truth.
+                        retryLabel={failure.kind === 'session' ? undefined : 'Check what happened'}
+                        onDismiss={() => {
+                            clearFailure();
+                            setLastWrite(null);
+                        }}
+                    >
+                        {(failure.kind === 'session' || failure.kind === 'forbidden') && lastWrite.copy && (
+                            <button
+                                type="button"
+                                onClick={copyEntries}
+                                className="text-sm font-medium text-[#1A365D] underline"
+                            >
+                                Copy my entries
+                            </button>
+                        )}
+                    </FailureBanner>
+                )}
 
                 {scenario.frozen && <FrozenBanner scenario={scenario} signoffs={signoffs} onTransition={onTransition} transitionList={transitionList} />}
 
@@ -367,10 +727,15 @@ export default function Workspace(props) {
                     (spec 01 §5.4). */}
                 {gate && !gate.ready && (
                     <div role="note" className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-gray-700">
+                        {/* ONE SENTENCE, the strip's own. "Ready to submit — ask
+                            a risk manager to move it forward" belonged to the
+                            READY-but-no-permission case below and contradicted
+                            this one in the same `<p>`: a designer three fields
+                            short was told the scenario was both not ready and
+                            ready to submit (spec 01 §5.4, §3). */}
                         <p>
                             Not ready to mark designed — {gateMissing.length} required{' '}
                             {gateMissing.length === 1 ? 'field' : 'fields'} still missing.
-                            {!can?.validate && ' Ready to submit — ask a risk manager to move it forward.'}
                         </p>
                         <details className="mt-1">
                             <summary className="cursor-pointer font-semibold text-[var(--color-primary)]">
@@ -382,7 +747,7 @@ export default function Workspace(props) {
                                         <a
                                             href={tabUrl(tabs, item.tab, `field-${item.field}`)}
                                             className="underline"
-                                            onClick={(event) => navigateToField(event, tabs, item.tab, item.field)}
+                                            onClick={(event) => navigateToField(event, tabs, item.tab, item.field, tab)}
                                         >
                                             {item.label} ({tabLabel(tabs, item.tab)})
                                         </a>
@@ -452,9 +817,7 @@ export default function Workspace(props) {
                             notes={notes}
                             notesMeta={notesMeta}
                             saveRef={saveRef}
-                            onDirtyChange={(dirty) => {
-                                dirtyRef.current = dirty;
-                            }}
+                            onDirtyChange={markDirty}
                         />
                     ) : (
                         <OverviewTab
@@ -478,32 +841,18 @@ export default function Workspace(props) {
                             notesMeta={notesMeta}
                             noteKinds={noteKinds}
                             saveRef={saveRef}
-                            onDirtyChange={(dirty) => {
-                                dirtyRef.current = dirty;
-                            }}
+                            onDirtyChange={markDirty}
                             onSaved={() => {
-                                dirtyRef.current = false;
+                                markDirty(false);
                                 allowLeave.current = true;
-                                setAnnouncement('Saved.');
+                                // `focus: false` — spec 01 §6.1 keeps focus on
+                                // Save after a successful save.
+                                setAnnouncement({ tone: 'success', text: 'Saved.' });
                                 window.setTimeout(() => {
                                     allowLeave.current = false;
                                 }, 0);
                             }}
-                            onNotesPosted={(payload, after) => {
-                                allowLeave.current = true;
-
-                                router.post(urls.notes, payload, {
-                                    // Only the log reloads: the rest of the
-                                    // workspace is untouched by a note (spec 02 §7.1).
-                                    preserveScroll: true,
-                                    preserveState: true,
-                                    only: ['notes', 'notesMeta', 'signoffWarnings'],
-                                    onFinish: () => {
-                                        after?.();
-                                        allowLeave.current = false;
-                                    },
-                                });
-                            }}
+                            onNotesPosted={postNote}
                             onLoadEarlierNotes={(earlier) => {
                                 allowLeave.current = true;
 
@@ -598,7 +947,7 @@ export default function Workspace(props) {
                                             className="underline"
                                             onClick={(event) => {
                                                 setGateOpen(false);
-                                                navigateToField(event, tabs, item.tab, item.field);
+                                                navigateToField(event, tabs, item.tab, item.field, tab);
                                             }}
                                         >
                                             {item.label} ({tabLabel(tabs, item.tab)})
@@ -629,8 +978,22 @@ export default function Workspace(props) {
                                     setGateOpen(false);
 
                                     if (first) {
-                                        setAnnouncement(`${first.label} is required before this scenario can be marked designed.`);
-                                        goToField(tabs, first.tab, first.field);
+                                        // `refusal`, not `success`: nothing moved,
+                                        // and green would say otherwise (spec 01
+                                        // §5.4's `Kri/MyReturn` submit rule).
+                                        setAnnouncement({
+                                            tone: 'refusal',
+                                            text: `${first.label} is required before this scenario can be marked designed.`,
+                                        });
+                                        // `focusField` (inside) keeps re-asserting
+                                        // focus until it HOLDS with no dialog in
+                                        // the DOM, because closing this Modal
+                                        // unmounts Headless UI's `Dialog`, which
+                                        // restores focus to this very button
+                                        // during React's commit — after the
+                                        // synchronous `.focus()` the old code
+                                        // relied on.
+                                        goToField(tabs, first.tab, first.field, tab);
                                     }
 
                                     return;
@@ -669,16 +1032,24 @@ export default function Workspace(props) {
                 signoffDecisions={signoffDecisions}
                 suggestedReviewDueOn={suggestedReviewDueOn}
                 urls={urls}
-                onClose={(moved) => {
+                onClose={(moved, message) => {
                     setSignoffOpen(false);
 
                     if (moved) {
                         allowLeave.current = true;
-                        setAnnouncement(
-                            scenario.status === 'signed_off'
-                                ? 'Signed off. This scenario is now frozen.'
-                                : 'Status updated.',
-                        );
+                        // The modal hands back the SERVER'S sentence, read from
+                        // the reloaded props. Deriving it here from
+                        // `scenario.status` instead read the shell's PRE-MOVE
+                        // prop — this closure is created before the status write
+                        // resolves — so it always fell through to the generic
+                        // branch and announced "Status updated." for a sign-off
+                        // that had just frozen the scenario (spec 01 §5.6,
+                        // `ScenarioLifecycle::successMessage()`).
+                        setAnnouncement({
+                            tone: 'success',
+                            text: message || 'Status updated.',
+                            focus: true,
+                        });
                     }
                 }}
             />
@@ -732,7 +1103,13 @@ function FrozenBanner({ scenario, signoffs, onTransition, transitionList }) {
         .filter(Boolean)
         .sort()
         .pop();
-    const signedDay = signedAt ? formatLagosInstant(signedAt)?.split(',')[0] : null;
+    // Spec 01 §5.5's sentence reads "Signed off on Mon 9 Nov 2026" — `formatDay`'s
+    // shape, not `formatLagosInstant`'s "09 Nov 2026". `signed_at` is an INSTANT,
+    // so its Lagos calendar day is resolved first: `formatDay` refuses anything
+    // that is not `Y-m-d`, and slicing the ISO string would take the UTC day,
+    // which is the previous day for a sign-off after 23:00 Lagos.
+    const signedDayValue = lagosDay(signedAt);
+    const signedDay = signedDayValue ? formatDay(signedDayValue) : null;
 
     return (
         <div role="note" className="rounded-lg border border-[#1A365D]/20 bg-[#1A365D]/5 px-4 py-3">
@@ -790,12 +1167,16 @@ function tabLabel(tabs, key) {
 }
 
 /** Intercept a gate link so the focus move happens after the tab has rendered. */
-function navigateToField(event, tabs, tabKey, field) {
-    if (tabUrl(tabs, tabKey, `field-${field}`).startsWith('#')) {
-        // Already on this tab: let the browser handle the anchor, then focus.
-        event.preventDefault();
-        goToField(tabs, tabKey, field);
-    }
+function navigateToField(event, tabs, tabKey, field, currentTab) {
+    // ALWAYS an in-page move. `tabUrl` deliberately returns an absolute
+    // `?tab=…#field-…` URL so the href is real for a middle-click, "open in new
+    // tab" and a no-JS browser — which means the old `startsWith('#')` test NEVER
+    // matched, so a link to a field on the tab the user was already on fell
+    // through to a full page navigation: the browser scrolled to the anchor,
+    // `goToField` never ran, and focus landed on `<body>` (spec 01 §5.4 requires
+    // the link to "move focus to the field", §7 that focus never falls to body).
+    event.preventDefault();
+    goToField(tabs, tabKey, field, currentTab);
 }
 
 /**
@@ -803,25 +1184,86 @@ function navigateToField(event, tabs, tabKey, field) {
  * other one. The `gate.missing[].field` values are the frozen column names and
  * panel anchors, so the shell builds `#field-{field}` from them and cannot resolve
  * anything else (spec 01 §5.4).
+ *
+ * `currentTab` is the shell's own `tab` PROP. The previous version inferred
+ * "am I already on that tab?" from `window.location.search`, which is a guess
+ * about the presenter's URL shape; the prop is the fact.
  */
-function goToField(tabs, tabKey, field) {
-    const focus = () => {
-        const element = document.getElementById(`field-${field}`);
-
-        if (element) {
-            element.scrollIntoView({ block: 'center' });
-            const control = element.querySelector('input, select, textarea, [tabindex]') || element;
-            control.focus({ preventScroll: true });
-        }
-    };
-
+function goToField(tabs, tabKey, field, currentTab) {
     const entry = (tabs || []).find((candidate) => candidate.key === tabKey);
-    const onTab = window.location.search.includes(`tab=${tabKey}`) || (tabKey === 'overview' && !window.location.search.includes('tab='));
 
-    if (onTab || !entry) {
-        focus();
+    if (entry && currentTab && tabKey !== currentTab) {
+        // Cross-tab ONLY is a real visit. Focus is driven from `onFinish`, and
+        // `focusField` then waits for the new tab's DOM instead of trusting a
+        // `setTimeout(…, 0)` to land after React has committed it.
+        router.get(entry.url, {}, { preserveScroll: true, onFinish: () => focusField(field) });
+
         return;
     }
 
-    router.get(entry.url, {}, { preserveScroll: true, onFinish: () => window.setTimeout(focus, 0) });
+    focusField(field);
+}
+
+/**
+ * Focus `#field-{code}` AND KEEP FOCUS THERE.
+ *
+ * A single synchronous `.focus()` loses on this screen, for two separate reasons:
+ *
+ * 1. Headless UI's `Dialog` restores focus to its trigger when it UNMOUNTS. The
+ *    repo's `Modal` (`packages/ui/src/Components/Modal.jsx`) returns `null` once
+ *    `show` is false and wraps no `<Transition>` — deliberately, its docblock
+ *    records that the transition never reaches its end state on Headless UI 2.2 +
+ *    Tailwind 4 — so there is no `afterLeave` hook to wait for, and the Modal is
+ *    shared and outside this module, so it is not ours to change. The restore
+ *    happens during React's commit for the `setGateOpen(false)` render, i.e.
+ *    AFTER the click handler that already called `.focus()`.
+ * 2. On a cross-tab visit the target element does not exist yet when `onFinish`
+ *    fires.
+ *
+ * So this re-asserts focus across animation frames and stops only once the field
+ * has HELD focus for a frame with no dialog left in the DOM (`Modal` renders
+ * `id="modal"`). That is a convergence check reading `document.activeElement`,
+ * not a guessed delay, and it is hard-capped so a field code the server invents
+ * cannot loop.
+ */
+function focusField(field, maxFrames = 24) {
+    let scrolled = false;
+    let held = 0;
+    let frames = 0;
+
+    const step = () => {
+        frames += 1;
+
+        const element = document.getElementById(`field-${field}`);
+
+        if (element) {
+            if (!scrolled) {
+                element.scrollIntoView({ block: 'center' });
+                scrolled = true;
+            }
+
+            if (!element.contains(document.activeElement)) {
+                const control = element.querySelector('input, select, textarea, [tabindex]') || element;
+                control.focus({ preventScroll: true });
+            }
+
+            // "We focused it once" is not enough — the Dialog's restore fires
+            // after us. Wait until it has held, with no dialog still mounted.
+            if (element.contains(document.activeElement) && !document.getElementById('modal')) {
+                held += 1;
+
+                if (held >= 2) {
+                    return;
+                }
+            } else {
+                held = 0;
+            }
+        }
+
+        if (frames < maxFrames) {
+            window.requestAnimationFrame(step);
+        }
+    };
+
+    step();
 }

@@ -60,14 +60,31 @@ export default function NotesLog({
         event.preventDefault();
         setSaving(true);
 
-        // Inertia's own form post. `PUT`/`POST` here is safe to re-send, and the
-        // list reloads through `only: ['notes','notesMeta']` on success (spec 02
-        // §7.1) — the rest of the payload is untouched, so a note added during a
-        // workshop does not cost a full workspace round trip.
-        onReload({ kind, body }, () => {
+        // Inertia's own form post. The list reloads through
+        // `only: ['notes','notesMeta']` on success (spec 02 §7.1) — the rest of
+        // the payload is untouched, so a note added during a workshop does not
+        // cost a full workspace round trip.
+        //
+        // `after` is resolved by the shell EXACTLY ONCE with the outcome. It used
+        // to be wired to `onFinish`, which fires on a 422, a 403 and an exception
+        // too — so a rejected dissent was wiped from the textarea before its
+        // author could read why. The log is append-only with no edit route, so
+        // that text was simply GONE (spec 01 §6.2: "Nothing was saved. Your
+        // entries are still on this page").
+        onReload({ kind, body }, (result) => {
             setSaving(false);
+
+            if (!result?.ok) {
+                // Keep the draft and the kind. Focus is NOT taken here: on a 422
+                // the error summary heading claims it (§6.2), via the effect
+                // above, and on a lost response the shell's banner does.
+                return;
+            }
+
             setBody('');
             setKind(defaultKind);
+            // A genuine success returns focus to the textarea for the next note
+            // (spec 02 §7.1).
             bodyRef.current?.focus();
         });
     };

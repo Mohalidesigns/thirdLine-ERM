@@ -3,10 +3,12 @@ import { useForm } from '@inertiajs/react';
 import { Combobox, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/react';
 import FormField from '@thirdline/ui/Components/FormField';
 import Icon from '@thirdline/ui/Components/Icon';
+import { RegionSaveFailure } from '@/Components/Sm/FailureBanner';
 import NotesLog, { NotesCount } from '@/Components/Sm/NotesLog';
 import OpEventTypePicker from '@/Components/Sm/OpEventTypePicker';
 import SignoffPanel from '@/Components/Sm/SignoffPanel';
 import useRegionBackup, { backupTime } from '@/Components/Sm/useRegionBackup';
+import useSaveFailure from '@/Components/Sm/useSaveFailure';
 import { formatDay, groupDigits, trimDecimal } from '@/Components/Sm/format';
 
 /**
@@ -108,11 +110,24 @@ export default function OverviewTab({
 
     const units = businessUnits || [];
     const singleUnit = units.length === 1 ? units[0] : null;
-    const foreignCurrency = values?.currency && baseCurrency && values.currency !== baseCurrency;
 
     const { data, setData, put, processing, reset, isDirty } = useFormRegion(values, editable, hasRegionErrors);
     const backup = useRegionBackup(scenario.id, 'overview', data, editable);
     const [savedAt, setSavedAt] = useState(null);
+    /**
+     * Spec 02 §10: the currency change that reveals or hides the FX field is one
+     * of exactly four things this tab announces. Set from the select's `onChange`
+     * only — announcing on mount or after a server re-seed would narrate the
+     * payload at a screen-reader user on every page load. The same region carries
+     * the "Copy my entries" outcome, which has nowhere else to be said.
+     */
+    const [announced, setAnnounced] = useState(null);
+
+    // `visibleWhen` IS EVALUATED IN THE BROWSER (spec 02 §5.6), so it keys off the
+     // LIVE form value, not the `values` prop. Keying off the prop meant NGN → GBP
+     // showed no rate picker until a save round-tripped and the server sent the
+     // new currency back — the field appeared one request late, every time.
+    const foreignCurrency = Boolean(data.currency) && baseCurrency && data.currency !== baseCurrency;
     const errorKeys = Object.keys(errors);
     const summaryRef = useRef(null);
 
@@ -131,22 +146,61 @@ export default function OverviewTab({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isDirty, editable]);
 
-    const submit = (event) => {
-        event.preventDefault();
+    /**
+     * Spec 01 §0.2, §6.3 and §6.4 for THIS region's `PUT`. The shell mounts the
+     * same underlying hook for its own `POST`s and gates its banner on a write it
+     * issued, so one failure renders one banner — never two.
+     */
+    const saveFailure = useSaveFailure({
+        // §6.3's plain-text summary of the region's entries, for when they cannot
+        // be saved at all.
+        copySummary: () =>
+            Object.entries(data)
+                .filter(([, value]) => value !== null && value !== undefined && value !== '')
+                .map(([key, value]) => `${key}: ${value}`)
+                .join('\n'),
+    });
+
+    const saveRegion = () => {
+        saveFailure.begin();
 
         put(urls.scenario, {
             preserveScroll: true,
             preserveState: true,
             onSuccess: () => {
+                saveFailure.succeeded();
                 backup.clear();
                 setSavedAt(new Date().toISOString());
                 onSaved?.();
             },
+            // A 422 is an ordinary Inertia response: the error summary and the
+            // per-field errors own it, and §6.2 keeps the entries on the page.
+            onError: () => saveFailure.succeeded(),
         });
+    };
+
+    const submit = (event) => {
+        event.preventDefault();
+        saveRegion();
     };
 
     return (
         <div className="mx-auto max-w-4xl space-y-4">
+            {/* PERMANENT live region whose TEXT changes — spec 02 §10's currency
+                announcement and the "Copy my entries" outcome. A `role="status"`
+                node inserted together with its own sentence is announced
+                unreliably: the region has to exist before the mutation it
+                reports. */}
+            <p role="status" className="sr-only">
+                {announced}
+            </p>
+
+            {/* Spec 01 §6.4, this region's own save. The control named is the
+                control rendered: a `PUT` is safe to re-send, so a network
+                failure gets a bare **Try again** here — the append-only `POST`s
+                live in the shell and get "Check what happened" instead. */}
+            <RegionSaveFailure saveFailure={saveFailure} onResend={saveRegion} onAnnounce={setAnnounced} />
+
             {backup.offer && (
                 <div role="status" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-gray-800">
                     We kept entries you hadn't saved{backupTime(backup.offer.savedAt) ? ` from ${backupTime(backup.offer.savedAt)}` : ''}.{' '}
@@ -356,7 +410,19 @@ export default function OverviewTab({
                                     name="currency"
                                     className="form-input sm:max-w-xs"
                                     value={data.currency ?? ''}
-                                    onChange={(event) => setData('currency', event.target.value)}
+                                    onChange={(event) => {
+                                        const code = event.target.value;
+
+                                        setData('currency', code);
+
+                                        if (code && baseCurrency) {
+                                            setAnnounced(
+                                                code === baseCurrency
+                                                    ? `Exchange rate is not required for ${code}.`
+                                                    : `Exchange rate is required for ${code}.`,
+                                            );
+                                        }
+                                    }}
                                     aria-invalid={errors.currency ? 'true' : undefined}
                                 >
                                     {(currencies || []).map((option) => (
@@ -587,8 +653,8 @@ export default function OverviewTab({
                 <div className="flex flex-wrap items-center gap-3 pb-2">
                     <button
                         ref={saveRef}
-                        type="submit"
-                        form="overview-form"
+                        type="button"
+                        onClick={submit}
                         className="btn-primary text-sm"
                         disabled={processing}
                         aria-busy={processing || undefined}
@@ -605,10 +671,17 @@ export default function OverviewTab({
                 </div>
             )}
 
-            {/* The form element wraps nothing visually — the Save above submits it
-                by id, so the button can sit outside every card and still be this
-                tab's only submit (spec 02 §3, spec 01 §6.1). */}
-            {editable && <form id="overview-form" onSubmit={submit} noValidate className="sr-only" aria-hidden="true" />}
+            {/* NO `<form>` ELEMENT, and deliberately so. There used to be an
+                empty `sr-only` `aria-hidden` one down here purely so the Save
+                button could reach it with `form="overview-form"`. It wrapped no
+                inputs — every field on this tab lives in a card of its own — so
+                it was a form in the DOM and in the accessibility tree that had
+                nothing to submit, and `aria-hidden` on a node another element
+                points at is its own trap. The Save above is a plain button that
+                calls `submit`, which is what it always effectively did, and this
+                tab still has exactly ONE save control (spec 02 §3, spec 01 §6.1).
+                The write is a `PUT` issued by `useForm`, so nothing depended on
+                native form submission. */}
         </div>
     );
 }
@@ -630,22 +703,7 @@ export default function OverviewTab({
  * the server's `values` object, which the presenter rebuilds on every response.
  */
 function useFormRegion(values, editable, hasRegionErrors) {
-    const initial = {
-        name: values?.name ?? '',
-        business_unit_id: values?.business_unit_id ?? null,
-        risk_taxonomy_node_id: values?.risk_taxonomy_node_id ?? null,
-        nature: values?.nature ?? '',
-        weighting: values?.weighting ?? '',
-        currency: values?.currency ?? '',
-        fx_rate_id: values?.fx_rate_id ?? null,
-        risk_id: values?.risk_id ?? null,
-        background: values?.background ?? '',
-        rationale: values?.rationale ?? '',
-        designed_on: values?.designed_on ?? '',
-        review_due_on: values?.review_due_on ?? '',
-    };
-
-    const form = useForm(initial);
+    const form = useForm(seedOverview(values));
     const seededFrom = useRef(values);
 
     useEffect(() => {
@@ -659,20 +717,19 @@ function useFormRegion(values, editable, hasRegionErrors) {
         }
 
         seededFrom.current = values;
-        form.setData({
-            name: values?.name ?? '',
-            business_unit_id: values?.business_unit_id ?? null,
-            risk_taxonomy_node_id: values?.risk_taxonomy_node_id ?? null,
-            nature: values?.nature ?? '',
-            weighting: values?.weighting ?? '',
-            currency: values?.currency ?? '',
-            fx_rate_id: values?.fx_rate_id ?? null,
-            risk_id: values?.risk_id ?? null,
-            background: values?.background ?? '',
-            rationale: values?.rationale ?? '',
-            designed_on: values?.designed_on ?? '',
-            review_due_on: values?.review_due_on ?? '',
-        });
+
+        const next = seedOverview(values);
+
+        form.setData(next);
+        // `setDefaults` IS NOT OPTIONAL BESIDE `setData`. @inertiajs/react 2.3.27
+        // captures the defaults ONCE, at mount (`useForm(initial)`), and `isDirty`
+        // is a comparison against THOSE — so re-seeding data alone left the region
+        // permanently dirty after its first successful save: an "Unsaved changes"
+        // label that never cleared, and the shell's leave-guard (spec 01 §6.3)
+        // firing on every navigation away from work that was already on the
+        // server. Moving the defaults with the data is what makes "dirty" mean
+        // "differs from what the server holds".
+        form.setDefaults(next);
         form.clearErrors();
         // Re-seed only when the server's payload identity changes; `form` is
         // stable enough for this purpose and depending on it would loop.
@@ -680,6 +737,28 @@ function useFormRegion(values, editable, hasRegionErrors) {
     }, [values, editable, hasRegionErrors]);
 
     return form;
+}
+
+/**
+ * The Overview region's keys, seeded from the server's `values`. One function so
+ * the mount seed and the post-save re-seed can never drift apart — a key missing
+ * from either would silently drop a field from the partial `PUT` (spec 01 §6.1).
+ */
+function seedOverview(values) {
+    return {
+        name: values?.name ?? '',
+        business_unit_id: values?.business_unit_id ?? null,
+        risk_taxonomy_node_id: values?.risk_taxonomy_node_id ?? null,
+        nature: values?.nature ?? '',
+        weighting: values?.weighting ?? '',
+        currency: values?.currency ?? '',
+        fx_rate_id: values?.fx_rate_id ?? null,
+        risk_id: values?.risk_id ?? null,
+        background: values?.background ?? '',
+        rationale: values?.rationale ?? '',
+        designed_on: values?.designed_on ?? '',
+        review_due_on: values?.review_due_on ?? '',
+    };
 }
 
 /* ------------------------------------------------------------------ */
@@ -950,7 +1029,14 @@ function RiskPicker({ risk, value, searchUrl, error, onChange }) {
                     }}
                     immediate
                 >
-                    <span className="form-label">Risk register entry</span>
+                    {/* A real `<label for>`, not a `<span>` styled like one: the
+                        combobox input's only accessible name was its placeholder
+                        ("Type to search the register…"), which is an instruction,
+                        not a name, and placeholder text is never the label
+                        (spec 01 §0.3). */}
+                    <label htmlFor="risk_id" className="form-label">
+                        Risk register entry
+                    </label>
                     <ComboboxInput
                         id="risk_id"
                         name="risk_id"
@@ -984,7 +1070,13 @@ function RiskPicker({ risk, value, searchUrl, error, onChange }) {
                             : searched && results.length === 0 && query.trim().length >= 2
                                 ? <>No risk matches '{query.trim()}'. You can save the scenario without a link and add one later.</>
                                 : 'Optional. Type at least two characters to search the risk register.'}
-                        {capped && results.length > 0 && ' Showing the first 20 matches.'}
+                        {/* The endpoint's `capped` flag, and NO NUMBER beside it.
+                            "the first 20 matches" restated
+                            `SearchRisksRequest::RESULT_CAP` as a literal, so the
+                            day the cap moved the screen would confidently state a
+                            figure the server did not send — standard §5's defect
+                            class in a sentence rather than a computation. */}
+                        {capped && results.length > 0 && ' Only the first matches are shown — narrow your search.'}
                     </p>
                     {/* A live count, debounced with the search rather than per
                         keystroke (spec 02 §10). */}

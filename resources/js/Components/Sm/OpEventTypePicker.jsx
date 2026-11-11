@@ -25,7 +25,22 @@ export default function OpEventTypePicker({
     options,
     value,
     onChange,
-    id = 'field-risk_taxonomy_node_id',
+    // The INPUT's id — the field code, like every other control on the tab
+    // (`#name`, `#currency`, `#fx_rate_id`, `#risk_id`). It must NOT be
+    // `field-risk_taxonomy_node_id`: that id belongs to the WRAPPER the call
+    // sites render, which is the `#field-{code}` anchor the readiness strip and
+    // the 422 summary link to and `goToField` scrolls to. Two elements sharing it
+    // made `document.getElementById` resolve to the wrapper, so the `<label for>`
+    // below named a `<div>` and the combobox still had no accessible name.
+    id = 'risk_taxonomy_node_id',
+    // The accessible name of the combobox input. Both call sites render their own
+    // VISIBLE label as a `<span className="form-label">` outside this component,
+    // which is styled like a label and read like one but is not associated with
+    // anything — so the input's only name was its placeholder, "Search the Basel
+    // OP event types", which is an instruction (spec 01 §0.3: "Placeholder text is
+    // never the label"). The default matches the visible text at both call sites;
+    // pass it explicitly if that ever diverges.
+    label = 'OP event type',
     error,
     required = false,
     describedBy,
@@ -77,6 +92,13 @@ export default function OpEventTypePicker({
 
     return (
         <div>
+            {/* `sr-only` rather than a second visible label: the call site already
+                shows the words. What was missing is the ASSOCIATION, and a
+                `<label for>` supplies it — the pattern `AllocationEditor.jsx` uses
+                for its business-line combobox. */}
+            <label htmlFor={id} className="sr-only">
+                {label}
+            </label>
             <Combobox
                 // `value={null}` and a `displayValue` over LOCAL STATE, following
                 // the working precedent in `Kri/Settings/Contacts.jsx`. Deriving

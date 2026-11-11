@@ -96,6 +96,46 @@ export function formatLagosInstant(value) {
     return `${parts.day} ${parts.month} ${parts.year}, ${parts.hour}:${parts.minute} Lagos time`;
 }
 
+const lagosDayFormatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: LAGOS,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+});
+
+/**
+ * An INSTANT (`signed_at`, `updated_at`) → its `Y-m-d` calendar day **in Lagos**,
+ * ready for `formatDay`.
+ *
+ * `formatDay` deliberately takes a `Y-m-d` string and refuses anything else, and
+ * an ISO instant is not one: `formatDay(row.signed_at)` splits into more than
+ * three parts and returns `—`, which is how "Source 1 last signed on —" reached a
+ * screen. Slicing the string instead (`signed_at.slice(0, 10)`) is wrong in the
+ * other direction — `signed_at` is stored in UTC, so a sign-off at 23:30 Lagos is
+ * the *previous* UTC day and the slice would date it a day early.
+ *
+ * Returns `null` for an absent or unparseable value, so the caller renders no
+ * date rather than `formatDay`'s `—` inside a sentence that reads as a fact.
+ */
+export function lagosDay(value) {
+    if (!value) {
+        return null;
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+
+    const parts = lagosDayFormatter.formatToParts(date).reduce((acc, part) => {
+        acc[part.type] = part.value;
+        return acc;
+    }, {});
+
+    return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
 /** `2026-11-09T14:22:00+01:00` → `14:22`, for the "Last saved" line. */
 export function formatLagosClock(value) {
     if (!value) {

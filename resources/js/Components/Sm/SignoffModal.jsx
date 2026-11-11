@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import Modal from '@thirdline/ui/Components/Modal';
 import Icon from '@thirdline/ui/Components/Icon';
-import { formatDay } from './format';
+import useVisitFailures from '@/hooks/useVisitFailures';
+import { formatDay, lagosDay } from './format';
 import { resolveDecisions, resolveSources } from './signoffSources';
 
 /**
@@ -49,10 +50,48 @@ export default function SignoffModal({ show, scenario, qualitativeSummary, signo
     const [posting, setPosting] = useState(false);
     const [step2, setStep2] = useState(null);
     const [reason, setReason] = useState('');
+    /**
+     * Spec 01 §6.4: a LOST RESPONSE on one of the two append-only `POST`s.
+     * `'signoffs'` because §A1.6 puts no unique key on (scenario, source), so a
+     * blind retry appends a SECOND set of rows for the same sources; `'status'`
+     * because a blind retry re-fires a transition the map may now refuse.
+     *
+     * While it is set the write's control stays disarmed and the modal offers
+     * "Check what happened" — a reload of the truth — instead. Re-arming the
+     * button before the outcome is known is how a tenant acquires duplicate
+     * governance rows that nothing can tell apart afterwards.
+     */
+    const [lostResponse, setLostResponse] = useState(null);
+    /**
+     * The server's own refusal of `POST signoffs` — C2.2's status guard on a
+     * frozen record answers with a flash error, which Inertia reports through
+     * `onSuccess`. Kept out of `step2` because it leaves the modal on step 1: the
+     * rows were never written, so there is no "resulting position" to show.
+     */
+    const [recordRefused, setRecordRefused] = useState(null);
     const summaryRef = useRef(null);
     const cancelRef = useRef(null);
     const errors = useErrors();
     const errorKeys = Object.keys(errors);
+
+    /**
+     * The write currently in flight — and the only way this modal can learn that
+     * a response was LOST.
+     *
+     * `onException` IS NOT A VISIT CALLBACK in @inertiajs 2.3.27: `VisitCallbacks`
+     * (node_modules/@inertiajs/core/types/types.d.ts:283-296) lists onBefore,
+     * onStart, onProgress, onFinish, onCancel, onSuccess, onError, onFlash and the
+     * two prefetch hooks, and nothing in either package reads an `onException`
+     * key — passing one is silently discarded. The only observation point for
+     * "the request never completed" is the global `exception` event, which
+     * `useVisitFailures` normalises to `failure.kind === 'network'`.
+     *
+     * The shell mounts the same hook and gates its banner on a write IT issued, so
+     * a lost sign-off response is claimed here and only here.
+     */
+    const { failure } = useVisitFailures();
+    const pendingWrite = useRef(null);
+    const lostHandled = useRef(false);
 
     useEffect(() => {
         if (!show) {
@@ -61,10 +100,14 @@ export default function SignoffModal({ show, scenario, qualitativeSummary, signo
 
         setStep(1);
         setStep2(null);
+        setLostResponse(null);
+        setRecordRefused(null);
         setRows(seedRows(sources, current));
         setReviewDueOn(scenario?.review_due_on || suggestedReviewDueOn || '');
         setComment('');
         setReason('');
+        pendingWrite.current = null;
+        lostHandled.current = false;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [show]);
 
@@ -79,6 +122,77 @@ export default function SignoffModal({ show, scenario, qualitativeSummary, signo
             summaryRef.current?.focus();
         }
     }, [errorKeys.join('|')]);
+
+    /**
+     * Spec 01 §6.4, and the reason neither write here may be retried blind. Both
+     * are append-only and §A1.6 puts no unique key on (scenario, source), so a
+     * second `POST signoffs` appends a SECOND set of rows for the same sources,
+     * and a second `POST status` re-fires a transition the map may now refuse.
+     *
+     * So on a lost response: mark it, then RELOAD the truth — and if the write did
+     * in fact land, render the success state instead of a warning about a request
+     * that succeeded.
+     */
+    useEffect(() => {
+        const write = pendingWrite.current;
+
+        if (failure?.kind !== 'network' || !write || lostHandled.current) {
+            return;
+        }
+
+        lostHandled.current = true;
+        pendingWrite.current = null;
+
+        if (write.kind === 'signoffs') {
+            setLostResponse('signoffs');
+
+            router.reload({
+                only: ['scenario', 'signoffs', 'signoffWarnings', 'transitions', 'gate'],
+                preserveScroll: true,
+                preserveState: true,
+                onSuccess: (page) => {
+                    const rows = Array.isArray(page.props.signoffs) ? page.props.signoffs : [];
+
+                    // A landed write APPENDED a row this modal had not seen: the
+                    // per-source count cannot answer this, because a re-signing
+                    // round already has a current row for the same source (§4.6).
+                    const landed = write.postedSources.filter((source) =>
+                        rows.some(
+                            (row) =>
+                                row.source === source &&
+                                row.is_current &&
+                                !write.priorIds.has(row.id),
+                        ),
+                    );
+
+                    if (write.postedSources.length > 0 && landed.length === write.postedSources.length) {
+                        setLostResponse(null);
+                        buildStep2(page.props, write.postedSources);
+                    }
+                },
+            });
+
+            return;
+        }
+
+        setLostResponse('status');
+        setStep2((prev) => (prev ? { ...prev, failed: 'unknown' } : prev));
+
+        router.reload({
+            only: ['scenario', 'transitions', 'gate', 'signoffs'],
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: (page) => {
+                if (page.props.scenario?.status === write.to) {
+                    setLostResponse(null);
+                    onClose?.(true, page.props.flash?.success || 'Status updated.');
+                }
+            },
+        });
+        // Single-shot on the `lostHandled` guard; `failure`'s identity fires it
+        // and the reload's own failure must not loop.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [failure]);
 
     /** Rows the user actually filled: an entirely empty row is not posted. */
     const filled = rows.filter(
@@ -101,8 +215,81 @@ export default function SignoffModal({ show, scenario, qualitativeSummary, signo
     // before the user discovers it as a 422.
     const independenceMissing = !anyReturned && !anyIndependent;
 
+    /**
+     * Build step 2 from a props payload — the response to the write, or the
+     * reload that followed a lost one, which is why this is a function and not
+     * inline.
+     *
+     * STEP 2 READS THE SERVER'S ROWS, NOT THE CLIENT'S CHECKBOXES. Two reasons,
+     * and both are the server overruling what this component remembers:
+     *
+     * 1. C1.5 — an author signing their own scenario has `is_independent_challenge`
+     *    forced FALSE with a flash, because the sign-off is legitimate and only
+     *    the claim of independence is refused. Deriving `canSignOff` from
+     *    `anyIndependent` would then offer "Sign off" over a guard §A1.8 is about
+     *    to fail, and the signer would learn that from a 422.
+     * 2. §4.6 — `signoffs` is latest-row-per-source, so which rows are CURRENT is
+     *    the server's call. A source that signed in an earlier round and was not
+     *    re-posted still counts toward the guard, and this component cannot see
+     *    that from `filled`.
+     *
+     * The client's own answers are the FALLBACK only, for a payload that carries
+     * no `signoffs` array at all.
+     */
+    const buildStep2 = (props, postedSources) => {
+        const reloaded = Array.isArray(props?.signoffs) ? props.signoffs : null;
+        const allCurrent = reloaded ? reloaded.filter((row) => row.is_current) : null;
+
+        const returned = allCurrent
+            ? allCurrent.some((row) => row.decision === 'returned_for_rework')
+            : anyReturned;
+        const approved = allCurrent ? allCurrent.some((row) => row.decision === 'approved') : anyApproved;
+        const independent = allCurrent
+            ? allCurrent.some((row) => row.is_independent_challenge)
+            : anyIndependent;
+        const recorded = allCurrent
+            ? allCurrent.filter((row) => postedSources.includes(row.source)).length
+            : filled.length;
+
+        setStep2({
+            // The Sign off control is ABSENT, not disabled, when a source returned
+            // the scenario: §A1.8 has no `validated → signed_off` edge a returned
+            // sign-off could satisfy, and the server would refuse it anyway
+            // (spec 01 §5.6.8).
+            returned,
+            count: recorded || filled.length,
+            canSignOff: approved && independent && !returned,
+            independent,
+            // C1.5's flash, and the `warning` the controller joins from
+            // `recordSignoffs`. Surfaced because it is the server telling the
+            // signer something this form cannot know.
+            warning: props?.flash?.warning || null,
+        });
+        setStep(2);
+    };
+
     const recordSignoffs = () => {
         setPosting(true);
+        setLostResponse(null);
+        setRecordRefused(null);
+
+        const postedSources = filled.map((row) => row.source);
+
+        // Armed BEFORE the request: the `failure` effect above is what disarms
+        // this write and reloads the truth if the response never arrives.
+        //
+        // `priorIds` is what makes the reload's "did it land?" answer trustworthy.
+        // Counting current rows per source is NOT enough: a re-signing round has a
+        // current row for that source ALREADY (§4.6, and the sentence above the
+        // rows says so), so the count matches whether or not this write landed.
+        // `recordSignoffs` APPENDS, so a landed write is a row id that was not
+        // there before — and that is the only comparison that cannot lie.
+        lostHandled.current = false;
+        pendingWrite.current = {
+            kind: 'signoffs',
+            postedSources,
+            priorIds: new Set((signoffs || []).map((row) => row.id)),
+        };
 
         router.post(
             urls.signoffs,
@@ -121,26 +308,45 @@ export default function SignoffModal({ show, scenario, qualitativeSummary, signo
             {
                 preserveScroll: true,
                 onFinish: () => setPosting(false),
-                onSuccess: () => {
-                    // Step 2 is the resulting position and ONE action. The Sign off
-                    // control is ABSENT, not disabled, when a source returned the
-                    // scenario: §A1.8 has no `validated → signed_off` edge a
-                    // returned sign-off could satisfy, and the server would refuse
-                    // it anyway (spec 01 §5.6.8).
-                    setStep2({
-                        returned: anyReturned,
-                        count: filled.length,
-                        canSignOff: anyApproved && anyIndependent && !anyReturned,
-                        independent: anyIndependent,
-                    });
-                    setStep(2);
+                onSuccess: (page) => {
+                    pendingWrite.current = null;
+
+                    const refusal = page.props.flash?.error || null;
+
+                    // `storeSignoffs` refuses a frozen record with a 302 and a
+                    // flash error (C2.2's status guard), which Inertia reports
+                    // HERE, in `onSuccess`. Advancing to step 2 on that would
+                    // offer "Sign off" over a write that never landed — the same
+                    // trap as the shell's transition banner.
+                    if (refusal || !Array.isArray(page.props.signoffs)) {
+                        setRecordRefused(refusal || 'The sign-offs were not recorded.');
+
+                        return;
+                    }
+
+                    buildStep2(page.props, postedSources);
                 },
+                // A 422 keeps the modal on step 1 with the entries intact; the
+                // error summary above owns the message (spec 01 §5.6).
+                onError: () => {
+                    pendingWrite.current = null;
+                },
+                // NO `onException` HERE: this Inertia version has no such visit
+                // callback, so a lost response is invisible to this options bag.
+                // The `failure` effect above owns it — and §6.4 is why it must not
+                // simply re-arm "Record sign-offs": §A1.6 has no unique key on
+                // (scenario, source), so a second click appends a SECOND set of
+                // rows for the same sources and nothing can tell them apart.
             },
         );
     };
 
     const moveStatus = (to, withReason) => {
         setPosting(true);
+        setLostResponse(null);
+
+        lostHandled.current = false;
+        pendingWrite.current = { kind: 'status', to };
 
         router.post(
             urls.status,
@@ -148,10 +354,68 @@ export default function SignoffModal({ show, scenario, qualitativeSummary, signo
             {
                 preserveScroll: true,
                 onFinish: () => setPosting(false),
-                onSuccess: () => onClose?.(true),
-                onError: () => setStep2((prev) => (prev ? { ...prev, failed: true } : prev)),
+                onSuccess: (page) => {
+                    pendingWrite.current = null;
+
+                    const next = page.props;
+                    const refusal = next.flash?.error || null;
+                    const moved = next.scenario?.status === to;
+
+                    if (moved && !refusal) {
+                        // Hand the SERVER'S sentence back to the shell. Deriving it
+                        // there from the shell's own `scenario.status` reads the
+                        // PRE-MOVE prop and always fell through to a generic
+                        // "Status updated." (spec 01 §5.6).
+                        onClose?.(true, next.flash?.success || 'Status updated.');
+
+                        return;
+                    }
+
+                    // The server ANSWERED, so nothing landed and re-posting this
+                    // one route is safe (§5.6.9). The sentence is the server's.
+                    setStep2((prev) =>
+                        prev
+                            ? {
+                                  ...prev,
+                                  failed: 'refused',
+                                  failureText:
+                                      refusal ||
+                                      `${scenario?.reference} is still ${next.scenario?.status_label}. The status did not change.`,
+                              }
+                            : prev,
+                    );
+                },
+                // A 422 (a too-short return reason, say) or a lifecycle refusal
+                // the flash did not carry: the server ANSWERED, so nothing landed.
+                // The field error renders under the textarea.
+                onError: () => {
+                    pendingWrite.current = null;
+
+                    setStep2((prev) =>
+                        prev
+                            ? { ...prev, failed: 'refused', failureText: 'The status change was rejected. Nothing was written.' }
+                            : prev,
+                    );
+                },
+                // NO `onException` HERE: this Inertia version has no such visit
+                // callback. A LOST RESPONSE is claimed by the `failure` effect
+                // above, which marks step 2 `unknown` — never "didn't go through",
+                // because nobody knows that — and reloads the truth instead of
+                // re-firing a transition the map may now refuse (spec 01 §6.4).
             },
         );
+    };
+
+    /** Spec 01 §6.4's "Check what happened": reload the truth, never re-post. */
+    const checkWhatHappened = () => {
+        router.reload({
+            only:
+                lostResponse === 'signoffs'
+                    ? ['scenario', 'signoffs', 'signoffWarnings', 'transitions', 'gate']
+                    : ['scenario', 'transitions', 'gate', 'signoffs'],
+            preserveScroll: true,
+            preserveState: true,
+        });
     };
 
     return (
@@ -160,6 +424,39 @@ export default function SignoffModal({ show, scenario, qualitativeSummary, signo
                 <h2 className="text-lg font-semibold text-gray-900">
                     {step === 1 ? `Sign off ${scenario?.reference}` : `Sign-offs recorded for ${scenario?.reference}`}
                 </h2>
+
+                {/* The server's refusal of the sign-off write. `role="alert"`
+                    because it follows the signer's action, and NOT transient: a
+                    refusal that vanished on a timer would leave "Record sign-offs"
+                    looking like a button that does nothing. */}
+                {step === 1 && recordRefused && (
+                    <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                        {recordRefused} Nothing was recorded.
+                    </p>
+                )}
+
+                {/* Spec 01 §6.4, step 1. The control offered is "Check what
+                    happened" — a reload — and NOT a retry: §A1.6 has no unique key
+                    on (scenario, source), so re-posting appends a second set of
+                    rows for the same sources. `Record sign-offs` stays disarmed
+                    until the truth is known. */}
+                {step === 1 && lostResponse === 'signoffs' && (
+                    <div role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                        <p>
+                            We lost the server's response, so we don't know whether your sign-offs were recorded.
+                            Recording them again without checking could add a second set of rows for the same sources.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={checkWhatHappened}
+                            className="btn-secondary mt-2 text-sm"
+                            disabled={posting}
+                            aria-busy={posting || undefined}
+                        >
+                            Check what happened
+                        </button>
+                    </div>
+                )}
 
                 {errorKeys.length > 0 && (
                     <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
@@ -200,6 +497,9 @@ export default function SignoffModal({ show, scenario, qualitativeSummary, signo
                         onClose={onClose}
                         anyReturned={anyReturned}
                         independenceMissing={independenceMissing}
+                        // §6.4: never re-arm an append-only POST until the truth
+                        // is known.
+                        disarmed={lostResponse === 'signoffs'}
                     />
                 ) : (
                     <StepTwo
@@ -211,6 +511,8 @@ export default function SignoffModal({ show, scenario, qualitativeSummary, signo
                         posting={posting}
                         onMove={moveStatus}
                         onClose={onClose}
+                        lostResponse={lostResponse}
+                        onCheck={checkWhatHappened}
                     />
                 )}
             </div>
@@ -243,6 +545,7 @@ function StepOne({
     onClose,
     anyReturned,
     independenceMissing,
+    disarmed,
 }) {
     const set = (source, key, value) =>
         setRows((prev) => prev.map((row) => (row.source === source ? { ...row, [key]: value } : row)));
@@ -301,8 +604,20 @@ function StepOne({
                     // will assume they are editing history; with it the
                     // append-only model is legible from the screen.
                     <p className="text-xs text-gray-600">
+                        {/* `signed_at` is an ISO INSTANT and `formatDay` only
+                            accepts `Y-m-d`, so passing it straight in rendered
+                            "Source 1 last signed on —" for every re-signing —
+                            the one sentence §5.6 needs in order to make the
+                            append-only model legible. Its Lagos calendar day is
+                            resolved first; slicing the ISO string instead would
+                            take the UTC day, which is a day early for a sign-off
+                            after 23:00 Lagos. */}
                         {current
-                            .map((row) => `${row.source_label} last signed${row.signed_at ? ` on ${formatDay(row.signed_at)}` : ''}.`)
+                            .map((row) => {
+                                const day = lagosDay(row.signed_at);
+
+                                return `${row.source_label} last signed${day ? ` on ${formatDay(day)}` : ''}.`;
+                            })
                             .join(' ')}{' '}
                         Recording a new sign-off supersedes it; the earlier one stays on the audit trail.
                     </p>
@@ -402,7 +717,19 @@ function StepOne({
                                                     htmlFor={`decision-${source.value}-${decision.value}`}
                                                     className="text-sm text-gray-800"
                                                 >
-                                                    {decision.value === 'approved' ? 'Approve' : 'Return for rework'}
+                                                    {/* The RESOLVED LABEL, not a
+                                                        client-side ternary on the
+                                                        value. `decisions` comes
+                                                        from `signoffDecisions`
+                                                        (config `sm.decision_labels`)
+                                                        via `resolveDecisions`, so
+                                                        hard-coding two strings here
+                                                        made this modal a second
+                                                        authority on the vocabulary
+                                                        the moment a tenant renamed
+                                                        one — the exact thing the
+                                                        file docblock forbids. */}
+                                                    {decision.label}
                                                 </label>
                                             </div>
                                         ))}
@@ -533,8 +860,13 @@ function StepOne({
                     type="button"
                     onClick={onRecord}
                     className="btn-primary text-sm"
-                    disabled={posting}
+                    // `disarmed` is a LOST RESPONSE (§6.4): the first request may
+                    // have committed, and §A1.6 has no unique key to stop a second
+                    // one appending duplicate rows for the same sources. The
+                    // button stays down until "Check what happened" has answered.
+                    disabled={posting || disarmed}
                     aria-busy={posting || undefined}
+                    aria-disabled={disarmed || undefined}
                 >
                     {posting ? 'Recording…' : 'Record sign-offs'}
                 </button>
@@ -554,17 +886,66 @@ function StepOne({
 /*  Step two                                                           */
 /* ------------------------------------------------------------------ */
 
-function StepTwo({ scenario, step2, reason, setReason, reasonError, posting, onMove, onClose }) {
+function StepTwo({ scenario, step2, reason, setReason, reasonError, posting, onMove, onClose, lostResponse, onCheck }) {
+    // The edge this step is offering, used by the banner's own control so that
+    // "Retry" re-posts the SAME transition rather than a guessed one.
+    const to = step2?.returned ? 'returned_for_rework' : 'signed_off';
+    const disarmed = lostResponse === 'status';
+
     return (
         <div className="mt-4 space-y-4">
-            {step2?.failed && (
-                // Spec 01 §5.6.9: the modal does NOT roll back and does not
-                // pretend to. Retry re-posts only `urls.status` — never the
-                // append-only sign-off write that already landed.
+            {/* Spec 01 §5.6.9: the modal does NOT roll back and does not pretend
+                to. The two failure kinds are kept apart because only one of them
+                is KNOWN — asserting "the status change didn't go through" over a
+                lost response states a fact nobody has, and naming a Retry control
+                that does not render is a banner that lies twice. */}
+            {step2?.failed === 'refused' && (
                 <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-                    Your sign-offs are recorded. The status change didn't go through. Press Retry to move it, or close
-                    and do it from the header.
+                    <p>
+                        Your sign-offs are recorded. The status change didn't go through
+                        {step2.failureText ? ` — ${step2.failureText}` : ''} Press Retry to move it, or close and do it
+                        from the header.
+                    </p>
+                    {/* The control the sentence names, rendered. Re-posting only
+                        `urls.status` is safe here: the server ANSWERED, so the
+                        write demonstrably did not land — and the append-only
+                        sign-off write is never repeated. */}
+                    <button
+                        type="button"
+                        onClick={() => onMove(to, Boolean(step2?.returned))}
+                        className="btn-secondary mt-2 text-sm"
+                        disabled={posting}
+                        aria-busy={posting || undefined}
+                    >
+                        {posting ? 'Working…' : 'Retry'}
+                    </button>
                 </div>
+            )}
+
+            {step2?.failed === 'unknown' && (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                    <p>
+                        Your sign-offs are recorded. We lost the server's response, so we don't know whether the status
+                        moved — check the current status above before doing anything else.
+                    </p>
+                    {/* NOT a retry (spec 01 §6.4): a blind re-post of
+                        `POST status` re-fires a transition the map may now
+                        refuse. The reload answers the question, and if the move
+                        did land it closes this modal on the success state. */}
+                    <button type="button" onClick={onCheck} className="btn-secondary mt-2 text-sm">
+                        Check what happened
+                    </button>
+                </div>
+            )}
+
+            {/* C1.5's flash: an author signing their own scenario has
+                `is_independent_challenge` forced false, and the server says so.
+                Without this the signer sees "Sign off" simply absent and no
+                reason why. */}
+            {step2?.warning && (
+                <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    {step2.warning}
+                </p>
             )}
 
             {step2?.returned ? (
@@ -618,7 +999,8 @@ function StepTwo({ scenario, step2, reason, setReason, reasonError, posting, onM
                         type="button"
                         onClick={() => onMove('returned_for_rework', true)}
                         className="btn-warning text-sm"
-                        disabled={posting}
+                        // Held down while a lost response is unresolved (§6.4).
+                        disabled={posting || disarmed}
                         aria-busy={posting || undefined}
                     >
                         {posting ? 'Moving…' : 'Return for rework'}
@@ -629,7 +1011,7 @@ function StepTwo({ scenario, step2, reason, setReason, reasonError, posting, onM
                             type="button"
                             onClick={() => onMove('signed_off', false)}
                             className="btn-primary text-sm"
-                            disabled={posting}
+                            disabled={posting || disarmed}
                             aria-busy={posting || undefined}
                         >
                             {posting ? 'Signing off…' : 'Sign off'}

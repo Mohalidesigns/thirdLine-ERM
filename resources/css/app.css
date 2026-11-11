@@ -131,6 +131,15 @@
     .badge-status-completed { @apply bg-purple-100 text-purple-700; }
     .badge-status-overdue { @apply bg-red-100 text-red-700; }
 
+    /* Scenario Modelling's signed-off chip — spec 00 §3.3 and spec 01 §2.
+       The class lives HERE rather than as an inline
+       `bg-[var(--color-primary)] text-white` inside `ScenariosGrid::STATUS_CLASSES`
+       because the `@source` globs above scan blade, js and jsx under the project
+       root and NOT `app/`: a Tailwind class named only inside a PHP array is
+       purged silently, and standard §10 records that no test can catch it. A
+       class defined in the stylesheet cannot be purged away. */
+    .badge-status-frozen { @apply bg-[var(--color-primary)] text-white; }
+
     .btn-primary {
         @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[var(--color-primary)] rounded-lg hover:bg-[var(--color-primary-light)] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-2;
     }

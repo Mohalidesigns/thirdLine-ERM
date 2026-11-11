@@ -101,10 +101,18 @@ class ReferenceGenerator
         // reference the unique key then rejects — forever, with no path forward.
         // The sequence reads every row that holds the index, not only the visible
         // ones.
-        $references = Scenario::withTrashed()
+        //
+        // actingAs() IS ALSO LOAD-BEARING. `Scenario` carries BelongsToOrganization, whose
+        // global scope filters to the AMBIENT tenant — so reading another organisation's
+        // sequence while the context holds a different one would return no rows at all and
+        // hand back `SM-{year}-001`, which that tenant has already used. An importer or a
+        // provisioning script creating for a named tenant is exactly that case, and the
+        // failure is a collision rather than a wrong number, so it would surface as a
+        // confusing "we could not assign a reference" flash.
+        $references = TenantContext::actingAs($organizationId, fn () => Scenario::withTrashed()
             ->where('organization_id', $organizationId)
             ->where('reference', 'like', $prefix.'%')
-            ->pluck('reference');
+            ->pluck('reference'));
 
         $highest = 0;
 

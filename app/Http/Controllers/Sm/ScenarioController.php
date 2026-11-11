@@ -50,7 +50,11 @@ class ScenarioController extends Controller
     /** The two live tabs. The seven deferred ones are ABSENT from the strip (spec 01 §5.1). */
     private const TABS = ['overview', 'qualitative'];
 
-    public function __construct(private readonly ScenarioService $scenarios) {}
+    public function __construct(
+        private readonly ScenarioService $scenarios,
+        private readonly CauseService $causes,
+        private readonly AllocationService $allocations,
+    ) {}
 
     /**
      * The work queue (spec 00).
@@ -134,8 +138,12 @@ class ScenarioController extends Controller
         // so a bookmark from a later phase or a hand-typed URL lands somewhere useful rather
         // than 404ing. When what was asked for was not overview, the shell says so once —
         // silently showing a different section is how a user concludes the link is broken.
+        //
+        // `now()`, not `flash()`: this is a page render rather than a redirect, so the message
+        // belongs to THIS response only. `flash()` would carry it into the next request too and
+        // the user would read the same sentence twice.
         if ($tab !== $requested && $requested !== '' && $requested !== 'overview') {
-            session()->flash('info', "That section isn't part of this release yet. Showing Overview & Governance.");
+            session()->now('info', "That section isn't part of this release yet. Showing Overview & Governance.");
         }
 
         $notesBefore = $request->query('notes_before');
@@ -201,7 +209,7 @@ class ScenarioController extends Controller
     {
         try {
             $this->scenarios->refuseIfReadOnly($scenario);
-            app(CauseService::class)->sync($scenario, $request->causes());
+            $this->causes->sync($scenario, $request->causes());
         } catch (ScenarioRefused $e) {
             return back()->with('error', $e->flash());
         }
@@ -223,7 +231,7 @@ class ScenarioController extends Controller
     {
         try {
             $this->scenarios->refuseIfReadOnly($scenario);
-            app(AllocationService::class)->sync($scenario, $request->allocationLines(), $request->user()->id);
+            $this->allocations->sync($scenario, $request->allocationLines(), $request->user()->id);
         } catch (ScenarioRefused $e) {
             return back()->with('error', $e->flash());
         }

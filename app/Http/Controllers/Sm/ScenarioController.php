@@ -260,8 +260,14 @@ class ScenarioController extends Controller
         $risks = Risk::query()
             ->visibleTo($user)
             ->where(function ($query) use ($term) {
-                $query->where('risk_code', 'like', "%{$term}%")
-                    ->orWhere('title', 'like', "%{$term}%");
+                // Escaped, on the house pattern (`QueryShaper`: `addcslashes($operand, '%_\\')`):
+                // a term is a literal substring to match, not a pattern, so a `%` typed into a
+                // type-ahead must not turn into a table scan over every row that happens to
+                // contain anything.
+                $escaped = addcslashes($term, '%_\\');
+
+                $query->where('risk_code', 'like', "%{$escaped}%")
+                    ->orWhere('title', 'like', "%{$escaped}%");
             })
             ->orderBy('risk_code')
             ->limit(SearchRisksRequest::RESULT_CAP)

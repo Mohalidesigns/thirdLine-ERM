@@ -268,19 +268,30 @@ class SignoffRulesTest extends SmTestCase
     }
 
     #[Test]
-    public function a_sign_off_with_a_null_user_id_passes_the_author_check_by_definition_and_is_not_fixed(): void
+    public function a_null_user_id_stays_recordable_and_passes_because_the_actor_is_not_the_author(): void
     {
-        // THE EDGE THE ARCHITECT RECORDED, AND IT IS DELIBERATE. `user_id` is nullable (§A1.6)
-        // so an external committee member or a group CRO without an account can sign; a row
-        // with `user_id = NULL` cannot be compared to `created_by`, is not the author by
-        // definition, and passes — the snapshot `signatory_name` remains the evidence. Do not
-        // "fix" this by refusing null-user sign-offs: that would make an external challenge
-        // unrecordable, which is the one challenge most worth having.
+        // RE-PINNED BY C2.1, WHICH SUPERSEDES THE REASON THIS TEST USED TO GIVE. `user_id` is
+        // nullable (§A1.6) so an external committee member or a group CRO without an account
+        // can sign, and null must stay RECORDABLE: refusing these rows "would make an external
+        // challenge unrecordable, which is the one challenge most worth having". That half
+        // stands. What Correction 1 got wrong is the other half — that a null `user_id` is "not
+        // the author by definition, so it passes". C2.1 separates the two claims: null is no
+        // longer UNPOLICED, and the rule now keys on the ACTING user when the row names no
+        // signer, because `SignoffModal.jsx` posts no `user_id` at all.
+        //
+        // So this pass-through holds for one reason and one reason only: THE POSTER IS NOT THE
+        // AUTHOR. The next test is the same payload posted by the author, and it does not pass.
         $author = $this->userWith(['scenario.view'], 'author4@example.test');
         $scenario = $this->makeScenario(['status' => 'validated', 'created_by' => $author->id]);
 
-        // The ACTING user holds scenario.sign_off; the point of the test is about the SIGNER
-        // named on the row, who has no account at all.
+        // The ACTING user holds scenario.sign_off and is SCRIBING a challenge made by somebody
+        // with no account at all — the legitimate case the nullable column exists for.
+        $this->assertNotSame(
+            (int) $author->id,
+            (int) $this->actor->id,
+            'the actor is the scribe, not the author: that is what makes this row independent'
+        );
+
         $this->actingAs($this->actor)
             ->post(route('scenario.signoffs.store', $scenario), $this->signoffPayload([
                 'signoffs' => [
@@ -294,6 +305,192 @@ class SignoffRulesTest extends SmTestCase
         $this->assertNull($row->user_id);
         $this->assertTrue((bool) $row->is_independent_challenge);
         $this->assertNull(session('warning'));
+    }
+
+    #[Test]
+    public function an_author_posting_the_shape_the_ui_actually_sends_cannot_claim_independence_or_sign_off(): void
+    {
+        // C2.1 REQUIRED TEST (a), AND THE BLOCKER IT CLOSES. `SignoffModal.jsx` posts
+        // `{source, signatory_name, role, decision, is_independent_challenge}` and NO `user_id`,
+        // so Correction 1's `$signerId !== null && …` comparison made `$isAuthor` ALWAYS FALSE
+        // through the only write surface that exists: an author self-ticked independent
+        // challenge, the row stored true, and C1.2's guard was satisfied. `RiskPermissionCatalog`
+        // names C1.5 as "the only STRUCTURAL check" against one person creating, designing,
+        // validating and signing off their own scenario — so shipped, there was none.
+        $author = $this->userWith(self::ALL_PERMISSIONS, 'author5@example.test');
+        $scenario = $this->makeScenario([
+            'status' => 'validated',
+            'review_due_on' => '2027-11-10',
+            'created_by' => $author->id,
+        ]);
+
+        $payload = $this->signoffPayload([
+            'signoffs' => [
+                // THE UI'S ACTUAL SHAPE: no `user_id` key at all, not even a null one.
+                ['source' => 'source_1', 'signatory_name' => $author->name, 'role' => 'Head of Operational Risk', 'decision' => 'approved', 'is_independent_challenge' => true],
+            ],
+        ]);
+
+        $this->assertArrayNotHasKey('user_id', $payload['signoffs'][0], 'this is what the modal sends');
+
+        $this->actingAs($author)
+            ->post(route('scenario.signoffs.store', $scenario), $payload)
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('warning');
+
+        $row = $scenario->signoffs()->sole();
+
+        // The sign-off LANDED — only the independence claim was refused. A flash, not a 422.
+        $this->assertSame('approved', $row->decision);
+        $this->assertNull($row->user_id);
+        $this->assertFalse((bool) $row->is_independent_challenge, 'C1.5 keys on the ACTING user when the row names no signer');
+        $this->assertStringContainsString("isn't independent", (string) session('warning'));
+        $this->assertStringContainsString($author->name, (string) session('warning'));
+
+        // C1.2 THEN DOES ITS JOB, which is the point of both rules together: the author's
+        // self-ticked challenge no longer satisfies "at least one independent challenge", so an
+        // author cannot sign their own scenario off. FAILS CLOSED — sign-off gets harder, never
+        // falsely easier (C2.1).
+        $this->actingAs($author)
+            ->post(route('scenario.status', $scenario), ['to' => 'signed_off'])
+            ->assertSessionHas('error', 'At least one signer must be independent of the team that designed this scenario. Tick the box beside that signer.');
+
+        $this->assertSame('validated', $scenario->fresh()->status);
+    }
+
+    #[Test]
+    public function a_non_author_actor_posting_the_ui_shape_records_a_genuine_external_challenge(): void
+    {
+        // C2.1 REQUIRED TEST (b) on the UI's own payload shape: the correction polices WHO IS
+        // POSTING, not whether the signer has an account. A second-line officer scribing an
+        // external committee member's challenge stores the flag, because the scribe did not
+        // design the scenario.
+        $author = $this->userWith(['scenario.view'], 'author6@example.test');
+        $scribe = $this->userWith(self::ALL_PERMISSIONS, 'scribe@example.test');
+
+        $scenario = $this->makeScenario(['status' => 'validated', 'created_by' => $author->id]);
+
+        $payload = $this->signoffPayload([
+            'signoffs' => [
+                ['source' => 'source_1', 'signatory_name' => 'External Committee Member', 'role' => 'Group CRO', 'decision' => 'approved', 'is_independent_challenge' => true],
+            ],
+        ]);
+
+        $this->assertArrayNotHasKey('user_id', $payload['signoffs'][0]);
+
+        $this->actingAs($scribe)
+            ->post(route('scenario.signoffs.store', $scenario), $payload)
+            ->assertSessionHasNoErrors();
+
+        $row = $scenario->signoffs()->sole();
+
+        $this->assertNull($row->user_id);
+        $this->assertTrue((bool) $row->is_independent_challenge);
+        $this->assertNull(session('warning'));
+    }
+
+    #[Test]
+    public function an_author_scribing_a_named_signer_who_is_not_the_author_keeps_the_independence_flag(): void
+    {
+        // C2.1 REQUIRED TEST (c), and the half of the correction that is NOT a narrowing: when
+        // the row DOES name a signer, the comparison is against that signer exactly as
+        // Correction 1 froze it. The two checks are alternatives over a nullable field, not a
+        // replacement of one by the other — the author here is only the scribe.
+        $author = $this->userWith(self::ALL_PERMISSIONS, 'author7@example.test');
+        $challenger = $this->userWith([], 'challenger2@example.test');
+
+        $scenario = $this->makeScenario(['status' => 'validated', 'created_by' => $author->id]);
+
+        $this->actingAs($author)
+            ->post(route('scenario.signoffs.store', $scenario), $this->signoffPayload([
+                'signoffs' => [
+                    ['source' => 'source_1', 'signatory_name' => $challenger->name, 'role' => 'Second Line — Independent Challenge', 'user_id' => $challenger->id, 'decision' => 'approved', 'is_independent_challenge' => true],
+                ],
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $row = $scenario->signoffs()->sole();
+
+        $this->assertSame($challenger->id, $row->user_id);
+        $this->assertTrue((bool) $row->is_independent_challenge);
+        $this->assertNull(session('warning'));
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  C2.2 — the status guard on RECORDING sign-offs */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function a_sign_off_post_on_a_signed_off_scenario_is_refused_with_a_flash_and_writes_nothing(): void
+    {
+        // F-2/C2.2. `storeNotes` refused an archived record and `storeSignoffs` refused NOTHING,
+        // so a frozen scenario could still gain rows and a new review date — breaking spec 01
+        // §5.5's "the figures it carries are the ones recorded at sign-off" from the side nobody
+        // watches. A flash and never a 403 (standard §3): the user is allowed to try.
+        $scenario = $this->makeScenario(['status' => 'signed_off', 'review_due_on' => '2027-11-10']);
+
+        $this->actingAs($this->actor)
+            ->post(route('scenario.signoffs.store', $scenario), $this->signoffPayload(['review_due_on' => '2030-01-01']))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas(
+                'error',
+                'This scenario is signed off and frozen. Reopen it for revalidation to record a new sign-off.'
+            );
+
+        $this->assertSame(0, $scenario->signoffs()->count(), 'no row landed');
+
+        // THE DATE WRITE RIDES THE SAME REFUSAL: it is part of one act, not a second endpoint,
+        // and the posted 2030 date must not have replaced the one recorded at sign-off.
+        $this->assertSame('2027-11-10', $scenario->fresh()->review_due_on?->toDateString());
+    }
+
+    #[Test]
+    public function a_sign_off_post_on_an_archived_scenario_is_refused_with_a_flash(): void
+    {
+        // `archived` is terminal (Addendum-4) and is also the one status from which `signed_off`
+        // is unreachable, so both clauses of C2.2's guard fire on it.
+        $scenario = $this->makeScenario(['status' => 'archived']);
+
+        $this->actingAs($this->actor)
+            ->post(route('scenario.signoffs.store', $scenario), $this->signoffPayload())
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas(
+                'error',
+                'This scenario is archived. Sign-offs can no longer be recorded against it.'
+            );
+
+        $this->assertSame(0, $scenario->signoffs()->count());
+        $this->assertNull($scenario->fresh()->review_due_on, 'the review date is refused along with the rows');
+    }
+
+    #[Test]
+    public function the_legitimate_validated_to_signed_off_path_the_guard_trap_would_have_broken_still_works(): void
+    {
+        // C2.2's TRAP, PINNED AS A TEST rather than left as a comment. `validated` IS read-only
+        // to content edits, so a guard built on `ScenarioService::refuseIfReadOnly()` — or on the
+        // DIRECT edge alone — reads as "refuse it" and would break sign-off outright. Sign-off is
+        // the one write a read-only status permits, by design.
+        $author = $this->userWith(['scenario.view'], 'author8@example.test');
+        $scenario = $this->makeScenario(['status' => 'validated', 'created_by' => $author->id]);
+
+        $this->assertTrue($scenario->isReadOnly(), 'read-only to CONTENT edits');
+
+        $this->actingAs($this->actor)
+            ->post(route('scenario.signoffs.store', $scenario), $this->signoffPayload())
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success');
+
+        $this->assertNull(session('error'), 'a read-only status is not a frozen one');
+        $this->assertSame(2, $scenario->signoffs()->count());
+        $this->assertSame('2027-11-10', $scenario->fresh()->review_due_on?->toDateString());
+
+        // And the second write of the two-step flow still completes, because source 2's
+        // independence claim survived C2.1 — the actor here is the scribe, not the author.
+        $this->actingAs($this->actor)
+            ->post(route('scenario.status', $scenario), ['to' => 'signed_off'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('signed_off', $scenario->fresh()->status);
     }
 
     /* ------------------------------------------------------------------ */

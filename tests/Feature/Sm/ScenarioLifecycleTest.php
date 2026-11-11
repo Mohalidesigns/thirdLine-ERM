@@ -2,8 +2,13 @@
 
 namespace Tests\Feature\Sm;
 
+use App\Models\RiskAuditTrail;
 use App\Models\Sm\Scenario;
+use App\Models\Sm\Signoff;
 use App\Services\Sm\ScenarioLifecycle;
+use App\Services\Sm\ScenarioRefused;
+use App\Support\MorphTypes;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -580,6 +585,224 @@ class ScenarioLifecycleTest extends SmTestCase
     }
 
     /* ------------------------------------------------------------------ */
+    /*  C2.2 — the status guard on RECORDING sign-offs */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function the_service_refuses_sign_off_rows_on_a_frozen_scenario_and_writes_no_review_date(): void
+    {
+        // C2.2's BACKSTOP. The controller owns the message a signer reads; the service keeps
+        // its own copy of the check so a Phase 5 import or a direct call meets the same rule —
+        // "both, not either". The `review_due_on` write rides the same refusal, because it is
+        // part of one act and the check runs BEFORE the transaction opens: a review date
+        // landing on a frozen record breaks spec 01 §5.5's "the figures it carries are the
+        // ones recorded at sign-off" from the side nobody watches.
+        $lifecycle = app(ScenarioLifecycle::class);
+
+        foreach (['signed_off', 'archived'] as $status) {
+            $scenario = $this->makeScenario(['status' => $status]);
+
+            $this->assertTrue($scenario->isFrozen(), $status);
+
+            // WHY THE GUARD IS A DISJUNCTION. `signed_off` DOES reach `signed_off` again —
+            // reopen for revalidation, then the whole design path back — so `isFrozen()` is the
+            // clause that refuses it; `archived` is terminal (Addendum-4) and is the one status
+            // the reachability clause catches. Neither subsumes the other.
+            if ($status === 'archived') {
+                $this->assertFalse($scenario->canReach('signed_off'), 'archived is terminal');
+            } else {
+                $this->assertTrue(
+                    $scenario->canReach('signed_off'),
+                    'a signed-off scenario can be reopened and signed off again, so reachability alone cannot refuse it'
+                );
+            }
+
+            try {
+                $lifecycle->recordSignoffs($scenario, [[
+                    'source' => 'source_1',
+                    'user_id' => null,
+                    'signatory_name' => 'A. Okonkwo',
+                    'role' => 'Head of Operational Risk',
+                    'decision' => 'approved',
+                    'is_independent_challenge' => true,
+                ]], $this->actor, '2027-11-10');
+
+                $this->fail("a {$status} scenario must not accept a sign-off");
+            } catch (ScenarioRefused $e) {
+                $this->assertStringContainsString("can't be recorded", $e->flash());
+            }
+
+            $this->assertSame(0, $scenario->signoffs()->count(), $status);
+            $this->assertNull($scenario->fresh()->review_due_on, "the date write is refused too ({$status})");
+        }
+    }
+
+    #[Test]
+    #[DataProvider('statusThatCanStillReachSignedOffProvider')]
+    public function every_status_that_can_still_reach_signed_off_still_accepts_a_sign_off(string $status): void
+    {
+        // REACHABILITY IS TRANSITIVE AND COMPUTED FROM THE MAP. A `draft` reaches `signed_off`
+        // through five moves and a `returned_for_rework` through four, so all six of these
+        // statuses must keep accepting rows. Reading C2.2's guard as the DIRECT edge alone
+        // would refuse five of them and strand every signer who records a row before the
+        // scenario reaches `validated` — the "genuinely separate acts" spec 01 §5.6.8 names.
+        //
+        // It would also be `refuseIfReadOnly()` by another route, which is the trap C2.2
+        // spells out: `validated` is read-only to CONTENT edits and still must accept a
+        // sign-off, because sign-off is the one write a read-only status permits by design.
+        $scenario = $this->makeScenario(['status' => $status]);
+
+        $this->assertTrue($scenario->canReach('signed_off'), $status);
+        $this->assertFalse($scenario->isFrozen(), $status);
+
+        $this->actingAs($this->actor)
+            ->post(route('scenario.signoffs.store', $scenario), $this->signoffPayload())
+            ->assertSessionHasNoErrors();
+
+        $this->assertNull(session('error'), "no refusal flash for {$status}");
+        $this->assertSame(2, $scenario->signoffs()->count(), $status);
+        $this->assertSame('2027-11-10', $scenario->fresh()->review_due_on?->toDateString(), $status);
+    }
+
+    public static function statusThatCanStillReachSignedOffProvider(): array
+    {
+        return [
+            'draft' => ['draft'],
+            'in_design' => ['in_design'],
+            'designed' => ['designed'],
+            'in_validation' => ['in_validation'],
+            'validated' => ['validated'],
+            'returned_for_rework' => ['returned_for_rework'],
+        ];
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  C2.3 — the "previously signed off" marker is evidence-based */
+    /* ------------------------------------------------------------------ */
+
+    #[Test]
+    public function the_marker_is_null_for_a_validated_scenario_holding_approved_rows_it_never_signed_off(): void
+    {
+        // F-3/D-1. NO STATUS IS UNIQUELY POST-SIGN-OFF, so "not frozen, plus an approved row
+        // exists" rendered spec 01 §2's "Signed off … reopened for revalidation" for a scenario
+        // nobody ever signed off — a false statement about approval history on the one screen a
+        // validator re-reads. C2.3 condition 3: FAIL CLOSED. No audit row, no marker, and never
+        // a fallback to the heuristic that is the false positive being removed.
+        $lifecycle = app(ScenarioLifecycle::class);
+
+        $scenario = $this->makeScenario(['status' => 'validated', 'review_due_on' => '2027-11-10']);
+        $this->makeSignoff($scenario, ['source' => 'source_1', 'decision' => 'approved', 'is_independent_challenge' => true]);
+        $this->makeSignoff($scenario, ['source' => 'source_2', 'decision' => 'approved', 'is_independent_challenge' => true]);
+
+        $this->assertFalse($scenario->isFrozen());
+        $this->assertSame(2, $scenario->signoffs()->count(), 'the rows the old heuristic read are present');
+        $this->assertSame(
+            0,
+            $this->signedOffAuditRows($scenario)->count(),
+            'and nothing on the trail says signed_off was ever reached'
+        );
+
+        $this->assertNull($lifecycle->previousSignoff($scenario));
+    }
+
+    #[Test]
+    public function the_marker_is_null_for_a_draft_holding_rows_constructed_directly(): void
+    {
+        // The review's own repro. C2.2 refuses to RECORD sign-offs on a frozen scenario but a
+        // `draft` can still reach `signed_off`, so it still accepts rows — which is why this
+        // state is constructed through the model rather than the endpoint, and why the marker
+        // could not be fixed by the status guard alone.
+        $lifecycle = app(ScenarioLifecycle::class);
+
+        $scenario = $this->makeScenario(['status' => 'draft']);
+        $this->makeSignoff($scenario, ['source' => 'source_1', 'decision' => 'approved', 'is_independent_challenge' => true]);
+
+        $this->assertNull($lifecycle->previousSignoff($scenario));
+    }
+
+    #[Test]
+    public function the_marker_carries_its_date_and_sources_once_the_trail_proves_signed_off_was_reached(): void
+    {
+        $lifecycle = app(ScenarioLifecycle::class);
+
+        $scenario = $this->makeScenario(['status' => 'validated']);
+        $this->prepareForSignOff($scenario);
+
+        $lifecycle->transition($scenario, 'signed_off', $this->actor);
+
+        // The evidence exists from the moment the status moves, because `transition()` writes
+        // the audit row INSIDE the same transaction as the status.
+        $this->assertSame(1, $this->signedOffAuditRows($scenario)->count());
+
+        // C2.3 condition 4: spec 01 §2 scopes the marker to a scenario that LEFT `signed_off`
+        // and is now editable, so it must not render on the frozen record itself.
+        $this->assertNull($lifecycle->previousSignoff($scenario));
+
+        $lifecycle->transition($scenario->fresh(), 'returned_for_rework', $this->actor, [
+            'reason' => 'The allocation no longer matches the reorganisation.',
+        ]);
+
+        $reopened = $scenario->fresh();
+        $this->assertSame('returned_for_rework', $reopened->status);
+
+        $marker = $lifecycle->previousSignoff($reopened);
+
+        $this->assertIsArray($marker, 'reopened for revalidation, so the earlier sign-off survives on screen');
+        $this->assertNotNull($marker['signed_at']);
+
+        $labels = (array) config('sm.sources', Signoff::SOURCES);
+        $this->assertSame([(string) $labels['source_1']], $marker['sources']);
+
+        // And the same holds for the other exit, `signed_off → in_validation` (D4's
+        // post-sign-off edits require revalidation), which is also not editable-but-reopened.
+        $second = $this->makeScenario(['status' => 'validated']);
+        $this->prepareForSignOff($second);
+
+        $lifecycle->transition($second, 'signed_off', $this->actor);
+        $lifecycle->transition($second->fresh(), 'in_validation', $this->actor);
+
+        $this->assertIsArray($lifecycle->previousSignoff($second->fresh()));
+    }
+
+    #[Test]
+    public function the_marker_matches_every_historic_spelling_of_the_alias_because_it_never_uses_a_literal(): void
+    {
+        // C2.3 condition 2. `AuditTrailMorphSpellingTest` exists because historic rows were
+        // written in three spellings and the trail is append-only and hash-chained, so it
+        // cannot be normalised in place. A literal `'sm_scenario'` in the query is a marker
+        // that silently stops rendering the day an alias is corrected; `spellingsFor()` is not.
+        $lifecycle = app(ScenarioLifecycle::class);
+
+        $spellings = MorphTypes::spellingsFor('sm_scenario');
+
+        $this->assertContains('sm_scenario', $spellings);
+        $this->assertContains(class_basename(Scenario::class), $spellings, 'the pre-morph-map basename');
+        $this->assertContains(Scenario::class, $spellings, 'the FQCN WorkflowController wrote');
+
+        foreach ($spellings as $spelling) {
+            $scenario = $this->makeScenario(['status' => 'returned_for_rework']);
+            $this->makeSignoff($scenario, ['source' => 'source_1', 'decision' => 'approved']);
+
+            RiskAuditTrail::create([
+                'organization_id' => $scenario->organization_id,
+                'entity_type' => $spelling,
+                'entity_id' => $scenario->id,
+                'action_type' => 'status_changed',
+                'field_changed' => 'status',
+                'old_value' => 'signed_off',
+                'new_value' => 'signed_off',
+                'changed_by' => $this->actor->id,
+                'changed_at' => now(),
+            ]);
+
+            $this->assertIsArray(
+                $lifecycle->previousSignoff($scenario->fresh()),
+                "the marker must render for the stored spelling {$spelling}"
+            );
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
     /*  Helpers */
     /* ------------------------------------------------------------------ */
 
@@ -594,5 +817,21 @@ class ScenarioLifecycleTest extends SmTestCase
             'is_independent_challenge' => true,
             'signatory_name' => 'B. Adeyemi',
         ]);
+    }
+
+    /**
+     * The trail rows C2.3's marker reads, matched the way the service matches them.
+     *
+     * @return Collection<int, RiskAuditTrail>
+     */
+    private function signedOffAuditRows(Scenario $scenario): Collection
+    {
+        return RiskAuditTrail::query()
+            ->whereIn('entity_type', MorphTypes::spellingsFor('sm_scenario'))
+            ->where('organization_id', $scenario->organization_id)
+            ->where('entity_id', $scenario->id)
+            ->where('action_type', 'status_changed')
+            ->where('new_value', 'signed_off')
+            ->get();
     }
 }

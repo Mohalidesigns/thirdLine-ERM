@@ -76,8 +76,6 @@ class ScenarioService
         // not exist yet (addendum-2, spec 04 §4).
         unset($attributes['reference'], $attributes['organization_id']);
 
-        $lastCollision = null;
-
         for ($attempt = 1; $attempt <= self::MAX_REFERENCE_ATTEMPTS; $attempt++) {
             try {
                 return DB::transaction(function () use ($attributes, $actor, $organizationId) {
@@ -99,8 +97,9 @@ class ScenarioService
                 }
 
                 // Re-read the sequence on the next pass: the row that beat us is
-                // committed, so `nextNumber()` now sees it.
-                $lastCollision = $e;
+                // committed, so `nextNumber()` now sees it. Nothing is carried out of
+                // the catch — the message below is about the sequence, not about the
+                // exception, and an assignment nobody reads reads as if it were read.
             }
         }
 

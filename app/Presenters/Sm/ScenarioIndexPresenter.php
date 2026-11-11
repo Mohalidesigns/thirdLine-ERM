@@ -4,7 +4,6 @@ namespace App\Presenters\Sm;
 
 use App\Models\Sm\Scenario;
 use App\Models\User;
-use App\Services\Sm\ScenarioSettings;
 use App\Support\Kri\KriWorkingCalendar;
 use Illuminate\Support\Facades\Route;
 use ThirdLine\Platform\Tenancy\TenantContext;
@@ -61,10 +60,6 @@ class ScenarioIndexPresenter
             // place on the server and a user reads one consistent statement of what this
             // release does and does not do. Spec 00 §3.1 permits a shorter variant here.
             'roadmapNote' => config('sm.roadmap_note_index'),
-            // Not in spec 00 §2's prop list; sent so a tenant whose cadence is not the
-            // shipped twelve can see what the review counts were measured against.
-            // [verify at integration]
-            'reviewCadenceMonths' => ScenarioSettings::reviewCadenceMonths($organizationId),
         ];
     }
 

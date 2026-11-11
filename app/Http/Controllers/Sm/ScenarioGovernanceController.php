@@ -10,6 +10,7 @@ use App\Models\Sm\Scenario;
 use App\Services\Sm\ScenarioLifecycle;
 use App\Services\Sm\ScenarioRefused;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Str;
 
 /**
  * The three governance writes: the lifecycle, the sign-offs and the notes log
@@ -84,9 +85,25 @@ class ScenarioGovernanceController extends Controller
      * `is_independent_challenge` forced false WITH A FLASH, because the sign-off itself is
      * legitimate and only the claim of independence is refused. A 422 would throw away a real
      * approval to police a checkbox.
+     *
+     * C2.2's STATUS GUARD is checked first, so a frozen record can gain neither a row nor a
+     * review date — the date write is part of the same act, and one landing after the freeze
+     * breaks spec 01 §5.5's "the figures it carries are the ones recorded at sign-off" from
+     * the side nobody watches.
      */
     public function storeSignoffs(StoreScenarioSignoffsRequest $request, Scenario $scenario): RedirectResponse
     {
+        // A lifecycle rule, so a flash rather than a 403 (standard §3) — the same shape as
+        // storeNotes' archived refusal below. THE MESSAGE LIVES HERE AND NOT ONLY IN THE
+        // SERVICE (C2.2, "both, not either"): a `ScenarioRefused` thrown inside
+        // `recordSignoffs`' transaction rolls back correctly and then surfaces as whatever the
+        // exception handler decides, which is not a sentence a signer can act on. The service
+        // keeps its own copy of the check as the backstop a Phase 5 import or a direct call
+        // meets.
+        if (($refusal = $this->signoffStatusRefusal($scenario)) !== null) {
+            return back()->with('error', $refusal);
+        }
+
         $result = $this->lifecycle->recordSignoffs(
             $scenario,
             $request->signoffRows(),
@@ -143,6 +160,50 @@ class ScenarioGovernanceController extends Controller
         );
 
         return back()->with('success', 'Note added.');
+    }
+
+    /**
+     * C2.2's status guard on recording sign-offs: the sentence to flash, or null to proceed.
+     *
+     * TWO CONDITIONS, AND BOTH ARE NEEDED. The record is frozen (`Scenario::isFrozen()`, over
+     * `FROZEN_STATUSES = ['signed_off', 'archived']`), or `signed_off` is no longer reachable
+     * from where it stands. Reachability is COMPUTED from `Scenario::STATUS_TRANSITIONS` by
+     * `Scenario::canReach()` and never written as a status list: a hardcoded "these six can
+     * still be signed off" is a second copy of the map, and the two diverge the first time an
+     * edge changes.
+     *
+     * NEITHER CLAUSE SUBSUMES THE OTHER. `signed_off` REACHES `signed_off` — reopen for
+     * revalidation, then the whole design path back — so reachability alone would let a frozen
+     * record take a new row. And on the shipped map the reachability clause fires only for
+     * `archived` (Addendum-4: terminal in v1), which `isFrozen()` already covers, so it earns
+     * its place the day an edge is removed rather than today. `draft`, `in_design`, `designed`,
+     * `in_validation`, `validated` and `returned_for_rework` all still reach `signed_off` and
+     * all still accept sign-offs.
+     *
+     * DELIBERATELY NOT `ScenarioService::refuseIfReadOnly()`, and the distinction is the whole
+     * content of C2.2: that helper treats `validated` as read-only and answers "Return it for
+     * rework to change it", so reusing it verbatim would refuse the LEGITIMATE
+     * `validated → signed_off` path and break sign-off outright. Sign-off is the one write a
+     * read-only status permits, by design.
+     */
+    private function signoffStatusRefusal(Scenario $scenario): ?string
+    {
+        if ($scenario->status === 'archived') {
+            return 'This scenario is archived. Sign-offs can no longer be recorded against it.';
+        }
+
+        if ($scenario->isFrozen()) {
+            return 'This scenario is signed off and frozen. Reopen it for revalidation to record a new sign-off.';
+        }
+
+        if (! $scenario->canReach('signed_off')) {
+            return sprintf(
+                'Sign-offs are recorded on a scenario that can still be signed off. This one is %s.',
+                Str::lower($scenario->statusLabel())
+            );
+        }
+
+        return null;
     }
 
     /**

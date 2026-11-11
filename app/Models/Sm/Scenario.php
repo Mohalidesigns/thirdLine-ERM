@@ -390,6 +390,43 @@ class Scenario extends Model
         return self::STATUS_TRANSITIONS[$this->status] ?? [];
     }
 
+    /**
+     * Whether `$target` is reachable from this scenario's current status by ANY
+     * number of legal moves — not merely by the next one.
+     *
+     * COMPUTED FROM THE MAP, NEVER FROM A STATUS LIST. A hardcoded "these six can
+     * still be signed off" is a second copy of `STATUS_TRANSITIONS`, and the two
+     * diverge the first time an edge is added or removed — silently, because each
+     * half still passes its own tests. Breadth-first over the const, so `draft`
+     * reaches `signed_off` through five moves and `archived` reaches nothing
+     * (Addendum-4: terminal in v1).
+     *
+     * NOTE WHAT THIS DOES NOT ANSWER. `signed_off` reaches `signed_off` — through
+     * reopen-for-revalidation and the whole design path back — so reachability alone
+     * cannot tell a caller whether a write is allowed NOW. A frozen record is refused
+     * on `isFrozen()`, and every guard that uses this method needs both questions.
+     */
+    public function canReach(string $target): bool
+    {
+        $seen = [$this->status => true];
+        $queue = [$this->status];
+
+        while ($queue !== []) {
+            foreach (self::STATUS_TRANSITIONS[array_shift($queue)] ?? [] as $next) {
+                if ($next === $target) {
+                    return true;
+                }
+
+                if (! isset($seen[$next])) {
+                    $seen[$next] = true;
+                    $queue[] = $next;
+                }
+            }
+        }
+
+        return false;
+    }
+
     /** Read-only to everyone except through a lifecycle transition. */
     public function isReadOnly(): bool
     {

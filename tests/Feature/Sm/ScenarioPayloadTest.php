@@ -483,6 +483,55 @@ class ScenarioPayloadTest extends SmTestCase
     }
 
     #[Test]
+    public function the_create_payloads_op_event_types_carry_basel_level_1_exactly_as_the_workspace_does(): void
+    {
+        // F20 / spec 02 §5.4: `basel_level_1` is the GROUPING SOURCE for the OP picker, and the
+        // create form and the workspace Overview tab render the SAME control off the SAME
+        // catalogue. Two item shapes for one control is how the picker groups on one screen and
+        // silently falls back to a flat list on the other — and nothing else in the suite would
+        // catch it, because both screens pass their own assertions. This pins the parity, key
+        // order included, so the two cannot drift apart.
+        $keys = ['id', 'name', 'parent', 'basel_level_1'];
+        $op7 = $this->opNodes[6]->name;
+
+        $this->actingAs($this->actor)
+            ->get(route('scenario.create'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('opEventTypes', function ($rows) use ($keys, $op7) {
+                $this->assertNotEmpty($rows, 'the seeded OP1–OP17 tree is the list');
+
+                foreach ($rows as $row) {
+                    $this->assertSame($keys, array_keys($row));
+                }
+
+                $node = collect($rows)->firstWhere('name', $op7);
+
+                $this->assertNotNull($node, 'OP7 is in the picker');
+                $this->assertSame('Clients, products & business practices', $node['basel_level_1']);
+
+                return true;
+            }));
+
+        $scenario = $this->makeScenario();
+
+        $this->actingAs($this->actor)
+            ->get(route('scenario.show', ['scenario' => $scenario, 'tab' => 'overview']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('opEventTypes', function ($rows) use ($keys, $op7) {
+                foreach ($rows as $row) {
+                    $this->assertSame($keys, array_keys($row), 'the workspace item shape');
+                }
+
+                $node = collect($rows)->firstWhere('name', $op7);
+
+                $this->assertNotNull($node);
+                $this->assertSame('Clients, products & business practices', $node['basel_level_1']);
+
+                return true;
+            }));
+    }
+
+    #[Test]
     public function the_cause_checklist_prop_carries_the_frozen_codes_with_configs_wording(): void
     {
         $scenario = $this->makeScenario();
@@ -666,6 +715,48 @@ class ScenarioPayloadTest extends SmTestCase
             ['id', 'risk_code', 'title', 'url'],
             array_keys($response->json('data.0'))
         );
+    }
+
+    #[Test]
+    public function the_risk_search_treats_a_wildcard_in_the_term_as_a_literal_character(): void
+    {
+        // F-4, on the house pattern (`QueryShaper`: `addcslashes($operand, '%_\\')`): what the
+        // user typed is a SUBSTRING TO FIND, not a pattern to run. Unescaped, a `%` in a
+        // type-ahead matches every row in the register and a `_` matches every row with a
+        // character in it — the whole register returned as though it were a search result, and
+        // the twenty-row cap hides the difference from anybody watching the screen.
+        foreach ([
+            ['RK-SM-0001', 'Annual bonus clawback at 100%'],
+            ['RK-SM-0002', 'Talent retention failure'],
+        ] as [$code, $title]) {
+            \App\Models\Risk::create([
+                'organization_id' => $this->organization->id,
+                'risk_code' => $code,
+                'title' => $title,
+                'description' => 'Fixture.',
+                'category_id' => $this->category->id,
+                'status' => 'active',
+            ]);
+        }
+
+        // The `%` in "100%" is a character in the title, so it finds that row and only that row.
+        $response = $this->actingAs($this->actor)
+            ->getJson(route('scenario.risk-search', ['q' => '100%']))
+            ->assertOk();
+
+        $this->assertSame(['RK-SM-0001'], collect($response->json('data'))->pluck('risk_code')->all());
+
+        // A term made only of wildcards finds nothing, rather than everything.
+        foreach (['%%', '__', '%_'] as $wildcards) {
+            $this->assertSame(
+                [],
+                $this->actingAs($this->actor)
+                    ->getJson(route('scenario.risk-search', ['q' => $wildcards]))
+                    ->assertOk()
+                    ->json('data'),
+                "the term {$wildcards} is two literal characters no row contains"
+            );
+        }
     }
 
     #[Test]

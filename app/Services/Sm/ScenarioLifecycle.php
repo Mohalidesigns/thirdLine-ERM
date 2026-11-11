@@ -2,12 +2,14 @@
 
 namespace App\Services\Sm;
 
+use App\Models\RiskAuditTrail;
 use App\Models\Sm\Note;
 use App\Models\Sm\Scenario;
 use App\Models\Sm\Signoff;
 use App\Models\User;
 use App\Services\AuditTrailService;
 use App\Support\Kri\KriWorkingCalendar;
+use App\Support\MorphTypes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -391,6 +393,39 @@ class ScenarioLifecycle
         }
     }
 
+    /**
+     * C2.2's status guard on RECORDING sign-offs — as opposed to `assertSignOffAllowed()`
+     * above, which guards the `validated → signed_off` TRANSITION.
+     *
+     * A frozen scenario can still gain rows and a new review date without this: a sign-off
+     * recorded after the freeze falsifies spec 01 §5.5's "the figures it carries are the ones
+     * recorded at sign-off", from the side nobody watches. Refused when the record is frozen,
+     * or when `signed_off` is no longer reachable from where it stands — computed from
+     * `Scenario::STATUS_TRANSITIONS` by `Scenario::canReach()` rather than from a status list,
+     * so the guard follows the map when the map changes.
+     *
+     * NOT `ScenarioService::refuseIfReadOnly()`, AND THE DISTINCTION IS THE WHOLE CONTENT OF
+     * C2.2. That helper treats `validated` as read-only and answers "Return it for rework to
+     * change it"; reusing it verbatim would refuse the LEGITIMATE `validated → signed_off`
+     * path and break sign-off outright. Sign-off is the one write a read-only status permits,
+     * by design.
+     *
+     * THE MESSAGE BELONGS IN THE CONTROLLER, and this is the backstop behind it — "both, not
+     * either" (C2.2). The controller flashes a sentence a signer can act on; this copy exists
+     * so a Phase 5 import or a direct service call meets the same rule.
+     *
+     * @throws ScenarioRefused
+     */
+    public function assertSignoffsRecordable(Scenario $scenario): void
+    {
+        if ($scenario->isFrozen() || ! $scenario->canReach('signed_off')) {
+            throw new ScenarioRefused(sprintf(
+                'This scenario is %s, so a sign-off can\'t be recorded against it.',
+                Str::lower($scenario->statusLabel())
+            ));
+        }
+    }
+
     /* ------------------------------------------------------------------ */
     /*  The two append-only governance writes */
     /* ------------------------------------------------------------------ */
@@ -415,11 +450,19 @@ class ScenarioLifecycle
      * editing the record — the read-only rule exists to stop a designer changing what a
      * validator is reading, and this is the validator's own last act before the freeze.
      *
+     * C2.2'S STATUS GUARD COVERS THE DATE WRITE TOO: `assertSignoffsRecordable()` runs
+     * BEFORE the transaction opens, so a refusal writes nothing at all — neither a row nor a
+     * review date.
+     *
      * @param  array<int, array<string, mixed>>  $rows
      * @return array{signoffs: list<Signoff>, flashes: list<string>}
+     *
+     * @throws ScenarioRefused
      */
     public function recordSignoffs(Scenario $scenario, array $rows, User $actor, ?string $reviewDueOn = null): array
     {
+        $this->assertSignoffsRecordable($scenario);
+
         return DB::transaction(function () use ($scenario, $rows, $actor, $reviewDueOn) {
             $flashes = [];
 
@@ -479,7 +522,8 @@ class ScenarioLifecycle
         $claimedIndependent = (bool) ($row['is_independent_challenge'] ?? false);
 
         /*
-         * C1.5 — AN AUTHOR CANNOT BE THEIR OWN INDEPENDENT CHALLENGE.
+         * C1.5 AS CORRECTED BY C2.1 — AN AUTHOR CANNOT BE THEIR OWN INDEPENDENT
+         * CHALLENGE.
          *
          * Forced to false WITH A FLASH, not a 422: the sign-off itself is
          * legitimate and only the claim of independence is refused, so rejecting the
@@ -494,15 +538,36 @@ class ScenarioLifecycle
          * A DOMAIN RULE, not a validation rule and not a UI affordance: it is
          * enforced here so a Phase 5 import or a direct POST meets it too.
          *
-         * THE NULL EDGE IS DELIBERATE AND MUST NOT BE "FIXED". `user_id` is
-         * nullable (§A1.6) so an external committee member or a group CRO without an
-         * account can sign; a row with `user_id = NULL` cannot be compared to
-         * `created_by`, is not the author by definition, and passes — the snapshot
-         * `signatory_name` remains the evidence.
+         * TWO KEYS OVER ONE NULLABLE COLUMN, AND THEY ARE ALTERNATIVES — NOT ONE
+         * REPLACING THE OTHER (C2.1). When the row NAMES a signer, the comparison is
+         * against that signer, exactly as Correction 1 froze it. When it does not —
+         * and `SignoffModal.jsx` posts no `user_id` at all, so this is the only shape
+         * the shipped write surface sends — the comparison is against the ACTING
+         * user, who is the person making the claim. Correction 1 keyed on `user_id`
+         * alone, so through the UI `$isAuthor` was always false and the rule never
+         * fired: "a domain rule no shipped write path can reach is not a control"
+         * (C2.1, applying C1.2's own principle one level down).
+         *
+         * NULL STAYS RECORDABLE; IT STOPS BEING UNPOLICED. The shipped comment here
+         * used to declare the null edge deliberate and unfixable, and it was half
+         * right: an external committee member or a group CRO without an account can
+         * still sign, and refusing the row would make an external challenge
+         * unrecordable — "the one challenge most worth having". What Correction 1
+         * conflated, and C2.1 separates, is that recordable does not mean exempt from
+         * the rule: what is now policed is WHO IS POSTING, not whether the signer has
+         * an account. The snapshot `signatory_name` remains the evidence of who signed.
+         *
+         * FAILS CLOSED. The one false negative this creates is an author scribing a
+         * genuinely external challenge: the flag is dropped, C1.2's guard then refuses
+         * the sign-off, and sign-off gets HARDER, never falsely easier (C2.1).
          */
-        $isAuthor = $signerId !== null
-            && $scenario->created_by !== null
-            && $signerId === (int) $scenario->created_by;
+        $authorId = $scenario->created_by === null ? null : (int) $scenario->created_by;
+
+        // The named signer when the row carries one; otherwise the person posting,
+        // who is the one claiming independence.
+        $claimantId = $signerId ?? (int) $actor->id;
+
+        $isAuthor = $authorId !== null && $claimantId === $authorId;
 
         $independent = $claimedIndependent && ! $isAuthor;
 
@@ -511,7 +576,13 @@ class ScenarioLifecycle
         if ($claimedIndependent && $isAuthor) {
             $flash = sprintf(
                 '%s designed this scenario, so their challenge isn\'t independent. The sign-off was recorded without the independent-challenge flag.',
-                (string) ($row['signatory_name'] ?? $signer?->name ?? 'That signer')
+                // The snapshot names the SIGNER when the row named one. On the actor
+                // fallback the typed snapshot is somebody else's name — an external
+                // committee member's — and the person the rule is about is the poster,
+                // so naming the snapshot would blame the wrong person for the refusal.
+                $signerId !== null
+                    ? (string) ($row['signatory_name'] ?? $signer?->name ?? 'That signer')
+                    : (string) $actor->name
             );
         }
 
@@ -589,11 +660,36 @@ class ScenarioLifecycle
      * it must survive — a validator re-reading a reopened scenario needs to know it
      * was once approved."
      *
+     * EVIDENCE-BASED, NOT STATUS-BASED (C2.3). The banner this feeds says the record
+     * WAS SIGNED OFF, and no status proves that: nothing in the frozen map is uniquely
+     * post-sign-off, so deriving the marker from "not frozen, plus an approved row
+     * exists" rendered it for a `validated` scenario nobody ever signed and for a
+     * `draft` holding rows — a false statement about approval history on the one screen
+     * a validator re-reads.
+     *
+     * THE AUDIT READ IS A SANCTIONED, NARROW EXCEPTION to ADR 0026's "history can be
+     * answered from rows. None of it comes from logs", and the reason is §A1.1: the
+     * Phase 1 table set is frozen at five, so within the frozen schema NO DOMAIN ROW
+     * RECORDS "reached `signed_off`". The alternatives were a false statement on a
+     * governance screen, a sixth table, or one indexed `exists()`. Durable fix, named
+     * by C2.3: a status-history table in a later phase retires this sanction.
+     *
      * @return array{signed_at: string|null, sources: list<string>}|null
      */
     public function previousSignoff(Scenario $scenario): ?array
     {
+        // C2.3 condition 4: spec 01 §2 scopes the marker to a scenario that LEFT
+        // `signed_off` and is now editable, so it must not render on a record that is
+        // currently frozen.
         if ($scenario->isFrozen()) {
+            return null;
+        }
+
+        // C2.3 condition 3 — FAIL CLOSED. No audit row proving the status was reached,
+        // no marker, and NEVER a fallback to the sign-off-row heuristic: that heuristic
+        // is the false positive being removed. If the trail is pruned or archived the
+        // marker goes quiet, which is an omission rather than a lie.
+        if (! $this->reachedSignedOff($scenario)) {
             return null;
         }
 
@@ -616,6 +712,41 @@ class ScenarioLifecycle
                 ->values()
                 ->all(),
         ];
+    }
+
+    /**
+     * Whether the trail proves this scenario actually REACHED `signed_off` (C2.3).
+     *
+     * SOUND BECAUSE THE ROW AND THE STATUS CANNOT DISAGREE: `transition()` calls
+     * `AuditTrailService::record($scenario, 'status_changed', 'status', $from, $to)`
+     * INSIDE the same `DB::transaction` as the status write, and `AuditTrailService`
+     * holds no try/catch — so unlike BCMS's deliberately-swallowing
+     * `BcmsAuditable::writeBcmsAuditRow()`, a failed audit write here fails the
+     * transition rather than silently omitting the evidence this marker reads.
+     *
+     * ONE INDEXED `exists()`, on `risk_audit_trail`'s `index(['entity_type','entity_id'])`
+     * leading columns — not a scan, on a render path.
+     *
+     * C2.3 condition 1: it lives HERE, in the service, never inline in a presenter or in
+     * JSX (standard §1), so the rule stays reachable by a test with no HTTP.
+     *
+     * C2.3 condition 2: `entity_type` is matched through `MorphTypes::spellingsFor()`,
+     * NEVER a string literal. `AuditTrailMorphSpellingTest` exists because historic rows
+     * were written in three spellings, and a literal is a marker that silently stops
+     * rendering the day an alias is corrected.
+     */
+    private function reachedSignedOff(Scenario $scenario): bool
+    {
+        return RiskAuditTrail::query()
+            ->whereIn('entity_type', MorphTypes::spellingsFor('sm_scenario'))
+            // The scenario's own organization is authoritative, as it is in
+            // `AuditTrailService::record()`; `entity_id` alone is a bare bigint and
+            // would otherwise match a row another tenant's scenario wrote.
+            ->where('organization_id', $scenario->organization_id)
+            ->where('entity_id', $scenario->id)
+            ->where('action_type', 'status_changed')
+            ->where('new_value', 'signed_off')
+            ->exists();
     }
 
     /**

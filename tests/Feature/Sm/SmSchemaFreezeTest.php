@@ -64,8 +64,12 @@ class SmSchemaFreezeTest extends TestCase
         $actual = collect(Schema::getTables())
             ->pluck('name')
             ->filter(fn (string $table) => str_starts_with($table, 'sm_'))
-            ->values()
+            // unique(): MariaDB's information_schema can surface a table more than once through
+            // Laravel's getTables(); values() after sort() because Collection::sort() preserves
+            // keys, and assertSame on two arrays with different keys fails on the keys alone.
+            ->unique()
             ->sort()
+            ->values()
             ->all();
 
         $this->assertSame($expected, $actual);
@@ -195,13 +199,13 @@ class SmSchemaFreezeTest extends TestCase
         // (`transferable = Σ type_total × eligible_flag`) "needs a value — NULL would be a third
         // case in a two-case formula".
         $this->assertTrue($this->column('sm_scenarios', 'insurance_risk')['nullable']);
-        $this->assertNull($this->column('sm_scenarios', 'insurance_risk')['default']);
+        $this->assertNull($this->defaultOf('sm_scenarios', 'insurance_risk'));
         $this->assertTrue($this->column('sm_scenarios', 'financial_risk')['nullable']);
-        $this->assertNull($this->column('sm_scenarios', 'financial_risk')['default']);
+        $this->assertNull($this->defaultOf('sm_scenarios', 'financial_risk'));
 
         $eligible = $this->column('sm_scenarios', 'eligible_to_transfer');
         $this->assertFalse($eligible['nullable']);
-        $this->assertSame(0, (int) $eligible['default']);
+        $this->assertSame(0, (int) $this->defaultOf('sm_scenarios', 'eligible_to_transfer'));
     }
 
     #[Test]
@@ -213,19 +217,19 @@ class SmSchemaFreezeTest extends TestCase
         // narrowest claim — the shape of risks.status defaulting 'draft'".
         $weighting = $this->column('sm_scenarios', 'weighting');
         $this->assertTrue($weighting['nullable']);
-        $this->assertNull($weighting['default'], 'a default here would be a fabricated figure');
+        $this->assertNull($this->defaultOf('sm_scenarios', 'weighting'), 'a default here would be a fabricated figure');
 
         $nature = $this->column('sm_scenarios', 'nature');
         $this->assertFalse($nature['nullable']);
-        $this->assertSame('local', (string) $nature['default']);
+        $this->assertSame('local', (string) $this->defaultOf('sm_scenarios', 'nature'));
 
         $status = $this->column('sm_scenarios', 'status');
         $this->assertFalse($status['nullable']);
-        $this->assertSame('draft', (string) $status['default']);
+        $this->assertSame('draft', (string) $this->defaultOf('sm_scenarios', 'status'));
 
         $currency = $this->column('sm_scenarios', 'currency');
         $this->assertFalse($currency['nullable'], 'a currency-less scenario cannot be converted');
-        $this->assertSame('NGN', (string) $currency['default']);
+        $this->assertSame('NGN', (string) $this->defaultOf('sm_scenarios', 'currency'));
     }
 
     #[Test]
@@ -242,7 +246,7 @@ class SmSchemaFreezeTest extends TestCase
         $signedAt = $this->column('sm_scenario_signoffs', 'signed_at');
         $this->assertSame('datetime', $signedAt['type_name']);
         $this->assertTrue($signedAt['nullable'], '§A1.6 + standard §13');
-        $this->assertNull($signedAt['default']);
+        $this->assertNull($this->defaultOf('sm_scenario_signoffs', 'signed_at'));
     }
 
     #[Test]
@@ -443,11 +447,17 @@ class SmSchemaFreezeTest extends TestCase
             }
 
             // And nothing else has a foreign key: an extra one is an extra coupling the freeze did
-            // not authorise.
+            // not authorise. Compared as sorted key lists, because Schema::getForeignKeys() reads
+            // information_schema and returns them alphabetically, not in migration order.
+            $expectedColumns = array_keys($columns);
+            $actualColumns = array_keys($actual);
+            sort($expectedColumns);
+            sort($actualColumns);
+
             $this->assertSame(
-                array_keys($columns),
-                array_keys($actual),
-                "{$table} has foreign keys the freeze does not name"
+                $expectedColumns,
+                $actualColumns,
+                "{$table} has foreign keys the freeze does not name, or is missing one it does"
             );
         }
     }
@@ -610,6 +620,33 @@ class SmSchemaFreezeTest extends TestCase
         }
 
         $this->fail("{$table}.{$column} does not exist.");
+    }
+
+    /**
+     * A column's default, with the engines' two spellings normalised.
+     *
+     * BOTH ARE CROSS-ENGINE ASYMMETRIES, and this suite runs on MariaDB 10.4 and MySQL 8.0.46:
+     *
+     *   1. MariaDB reports the STRING 'NULL' for a nullable column with no default, where MySQL
+     *      reports an actual null. `Tests\Support\TenantFixture` normalises the same thing for
+     *      the same reason.
+     *   2. MariaDB returns a string default WITH its quotes — `'local'` — where MySQL returns
+     *      `local`. Without stripping them the assertion passes on one CI leg and fails on the
+     *      other, which is worse than not asserting at all: it reads as a real schema drift.
+     */
+    private function defaultOf(string $table, string $column): mixed
+    {
+        $default = $this->column($table, $column)['default'] ?? null;
+
+        if ($default === 'NULL' || $default === '') {
+            return null;
+        }
+
+        if (is_string($default) && strlen($default) >= 2 && str_starts_with($default, "'") && str_ends_with($default, "'")) {
+            return substr($default, 1, -1);
+        }
+
+        return $default;
     }
 
     /** @return array<string, mixed> */

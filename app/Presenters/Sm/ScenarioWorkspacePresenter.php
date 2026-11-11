@@ -101,6 +101,14 @@ class ScenarioWorkspacePresenter
             // tenant's setting the first time an administrator changed it.
             'suggestedReviewDueOn' => ScenarioSettings::suggestedReviewDueOn((int) $scenario->organization_id),
             'signoffs' => $this->signoffs($scenario),
+            // The vocabulary behind the rows, as data (spec 01 §5.6.2, spec 02 §6):
+            // the modal renders one row per source and the panel one bucket per
+            // source INCLUDING a source that never signed — neither is derivable
+            // from `signoffs`, which is empty in the pre-sign-off case the modal
+            // exists for. Labels come from config so a tenant renaming "Source 1"
+            // needs no release; the VALUES are the frozen consts.
+            'signoffSources' => $this->options((array) config('sm.sources', Signoff::SOURCES)),
+            'signoffDecisions' => $this->options((array) config('sm.decision_labels', Scenario::DECISION_LABELS)),
             'baseCurrency' => $this->currencies->reportingCurrency((int) $scenario->organization_id),
             'urls' => $this->urls($scenario, $tab, $notesBefore),
             // NOT in spec 01 §4's prop list, and required by §5.6.5: the modal renders

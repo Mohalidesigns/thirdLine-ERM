@@ -253,6 +253,28 @@ class ScenarioLifecycleTest extends SmTestCase
     }
 
     #[Test]
+    public function a_percent_posted_without_decimals_is_accepted_and_stored_at_the_column_precision(): void
+    {
+        // The rule's own message promises "Use at most 2 decimal places." `decimal:2`
+        // required EXACTLY two, so a stale tab or a direct PUT posting "60" was refused
+        // with wording that contradicted the refusal — the frontend handoff's
+        // [backend defect 3]. `decimal:0,2` accepts it and normalisePercent() stores the
+        // same "60.00" the padded post would.
+        $scenario = $this->makeScenario(['status' => 'in_design']);
+
+        $this->actingAs($this->actor)
+            ->put(route('scenario.allocations.update', $scenario), [
+                'allocations' => [
+                    ['business_unit_id' => $this->units[0]->id, 'percent' => '60'],
+                ],
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success');
+
+        $this->assertSame('60.00', $scenario->fresh()->allocations->first()->percent);
+    }
+
+    #[Test]
     public function the_designed_gate_refuses_a_scenario_with_no_cause_no_mapping_and_no_narrative(): void
     {
         $scenario = $this->makeScenario(['status' => 'in_design']);

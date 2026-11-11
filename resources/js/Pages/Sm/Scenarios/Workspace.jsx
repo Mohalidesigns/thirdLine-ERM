@@ -64,6 +64,8 @@ export default function Workspace(props) {
         qualitativeSummary,
         suggestedReviewDueOn,
         signoffs,
+        signoffSources,
+        signoffDecisions,
         notes,
         notesMeta,
         noteKinds,
@@ -471,6 +473,7 @@ export default function Workspace(props) {
                             currencies={props.currencies}
                             fxRates={props.fxRates}
                             signoffs={signoffs}
+                            signoffSources={signoffSources}
                             notes={notes}
                             notesMeta={notesMeta}
                             noteKinds={noteKinds}
@@ -662,6 +665,8 @@ export default function Workspace(props) {
                 qualitativeSummary={qualitativeSummary}
                 signoffWarnings={signoffWarnings}
                 signoffs={signoffs}
+                signoffSources={signoffSources}
+                signoffDecisions={signoffDecisions}
                 suggestedReviewDueOn={suggestedReviewDueOn}
                 urls={urls}
                 onClose={(moved) => {

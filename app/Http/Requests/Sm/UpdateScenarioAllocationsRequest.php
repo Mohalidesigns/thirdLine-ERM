@@ -38,7 +38,8 @@ use ThirdLine\Platform\Tenancy\TenantContext;
  *
  * ── PERCENTS ARE DECIMALS, NOT FLOATS ─────────────────────────────────────────
  *
- * `decimal(5,2)` on the column, `decimal:2` in the rules, and `AllocationService`
+ * `decimal(5,2)` on the column, `decimal:0,2` in the rules (normalised to a 2dp
+ * string on the way in), and `AllocationService`
  * compares the total in integer cents. Spec 01 §4.5: a float that has been through
  * `json_encode` can arrive as `100` instead of `100.00`, and summing those in JS
  * reintroduces exactly the artefact the server was told to avoid.
@@ -72,7 +73,13 @@ class UpdateScenarioAllocationsRequest extends FormRequest
             // label}, or remove the line.") in after() — a bare `required` message
             // cannot name the row, and a designer staring at six rows needs to know
             // which one.
-            'allocations.*.percent' => ['nullable', 'numeric', 'min:0', 'max:100', 'decimal:2'],
+            //
+            // `decimal:0,2`, NOT `decimal:2`: the message below promises "at most 2
+            // decimal places", and `decimal:2` would refuse a posted "60" — a stale
+            // tab or a direct PUT then gets a rejection that contradicts its own
+            // wording. `AllocationService::normalisePercent()` pads to the column's
+            // 2dp either way, so "60" and "60.00" store identically.
+            'allocations.*.percent' => ['nullable', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
         ];
     }
 

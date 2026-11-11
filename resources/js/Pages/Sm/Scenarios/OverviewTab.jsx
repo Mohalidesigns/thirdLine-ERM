@@ -81,6 +81,7 @@ export default function OverviewTab({
     currencies,
     fxRates,
     signoffs,
+    signoffSources,
     notes,
     notesMeta,
     noteKinds,
@@ -553,7 +554,7 @@ export default function OverviewTab({
 
             {/* ── Sign-off ─────────────────────────────────────────────── */}
             <Card title="Sign-off">
-                <SignoffPanel signoffs={signoffs} />
+                <SignoffPanel signoffs={signoffs} sources={signoffSources} />
             </Card>
 
             {/* ── Notes log ────────────────────────────────────────────── */}

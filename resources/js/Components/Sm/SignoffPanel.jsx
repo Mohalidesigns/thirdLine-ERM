@@ -24,7 +24,7 @@ import { resolveSources } from './signoffSources';
  * platform role name, because renaming one "would silently falsify every
  * historical sign-off storing it".
  */
-export default function SignoffPanel({ signoffs }) {
+export default function SignoffPanel({ signoffs, sources }) {
     const current = (signoffs || []).filter((row) => row.is_current);
 
     if (current.length === 0) {
@@ -41,7 +41,7 @@ export default function SignoffPanel({ signoffs }) {
 
     // One group per source in `Signoff::SOURCES` order. The server already sorted
     // `signoffs` by source, so this only buckets — it does not re-order.
-    const bucketed = sourceBuckets(signoffs, current);
+    const bucketed = sourceBuckets(sources, signoffs, current);
 
     return (
         <div className="space-y-4">
@@ -122,13 +122,14 @@ function SignoffRow({ row }) {
  * recorded —" rather than omitting it, so a reader can see that a source is
  * outstanding rather than that the panel ran out of rows.
  *
- * The order and the labels come from the server's rows wherever they exist; see
- * `./signoffSources` for the vocabulary prop the presenter does not send yet.
+ * The order and the labels come from the server's `signoffSources` vocabulary
+ * prop; `./signoffSources` keeps a mirror only as a fallback for a payload built
+ * before that prop existed.
  */
-function sourceBuckets(allRows, currentRows) {
+function sourceBuckets(fromServer, allRows, currentRows) {
     // `resolveSources` already prefers a `source_label` snapshot from a row over
     // the fallback wording, so the bucket label is simply what it returns.
-    return resolveSources(null, allRows || []).map((source) => ({
+    return resolveSources(fromServer ?? null, allRows || []).map((source) => ({
         source: source.value,
         label: source.label,
         rows: currentRows.filter((row) => row.source === source.value),

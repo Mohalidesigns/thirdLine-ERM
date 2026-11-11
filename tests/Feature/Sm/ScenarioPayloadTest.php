@@ -667,4 +667,38 @@ class ScenarioPayloadTest extends SmTestCase
             array_keys($response->json('data.0'))
         );
     }
+
+    #[Test]
+    public function the_signoff_vocabularies_arrive_as_data_so_the_client_hardcodes_none_of_them(): void
+    {
+        // Spec 01 §5.6.2 and spec 02 §6: the modal renders one row per SOURCE and the panel
+        // one bucket per source including a source that never signed ("Source 3 — no sign-off
+        // recorded —"). Neither is derivable from the `signoffs` rows, which are EMPTY in the
+        // pre-sign-off case the modal exists for. Spec 03 §2's principle: the front end
+        // hard-codes none of this vocabulary — labels come from config so a tenant renaming
+        // "Source 1" needs no release, values are the frozen consts.
+        $scenario = $this->makeScenario();
+
+        $expectedSources = collect((array) config('sm.sources'))
+            ->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])
+            ->values()
+            ->all();
+        $expectedDecisions = collect((array) config('sm.decision_labels', Scenario::DECISION_LABELS))
+            ->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])
+            ->values()
+            ->all();
+
+        $this->assertCount(3, $expectedSources, 'the frozen source vocabulary has exactly three entries');
+        $this->assertCount(2, $expectedDecisions, '§A1.6 refused a third decision value');
+
+        // Ships on BOTH tabs — the sign-off modal is shell-level (spec 01 §4).
+        foreach (['overview', 'qualitative'] as $tab) {
+            $this->actingAs($this->actor)
+                ->get(route('scenario.show', ['scenario' => $scenario, 'tab' => $tab]))
+                ->assertOk()
+                ->assertInertia(fn ($page) => $page
+                    ->where('signoffSources', $expectedSources)
+                    ->where('signoffDecisions', $expectedDecisions));
+        }
+    }
 }

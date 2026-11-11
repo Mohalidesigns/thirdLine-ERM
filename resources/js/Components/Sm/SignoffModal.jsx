@@ -34,9 +34,12 @@ import { resolveDecisions, resolveSources } from './signoffSources';
  * `select` of Spatie platform roles, because renaming one "would silently falsify
  * every historical sign-off storing it".
  */
-export default function SignoffModal({ show, scenario, qualitativeSummary, signoffWarnings, signoffs, suggestedReviewDueOn, urls, onClose }) {
-    const sources = useMemo(() => resolveSources(null, signoffs), [signoffs]);
-    const decisions = useMemo(() => resolveDecisions(null, signoffs), [signoffs]);
+export default function SignoffModal({ show, scenario, qualitativeSummary, signoffWarnings, signoffs, signoffSources, signoffDecisions, suggestedReviewDueOn, urls, onClose }) {
+    // The vocabulary is the server's (spec 03 §2: the front end hard-codes none of
+    // it). `resolveSources`/`resolveDecisions` fall back to their mirrors only when
+    // the props are absent — see ./signoffSources.
+    const sources = useMemo(() => resolveSources(signoffSources ?? null, signoffs), [signoffSources, signoffs]);
+    const decisions = useMemo(() => resolveDecisions(signoffDecisions ?? null, signoffs), [signoffDecisions, signoffs]);
     const current = (signoffs || []).filter((row) => row.is_current);
 
     const [step, setStep] = useState(1);

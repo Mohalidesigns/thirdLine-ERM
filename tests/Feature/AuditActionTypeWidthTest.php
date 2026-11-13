@@ -59,6 +59,7 @@ class AuditActionTypeWidthTest extends TestCase
         // already write through. `sm_scenario` is the morph alias, inside ENTITY_TYPE_MAX.
         'status_changed', 'signoff_recorded', 'note_added', 'allocation_changed',
         'scorecard_updated', 'frequency_updated', 'impact_updated', 'insurance_updated',
+        'variants_updated', 'scenario_action_created', 'scenario_action_updated', 'scenario_action_deleted', 'scenario_action_promoted',
     ];
 
     #[Test]

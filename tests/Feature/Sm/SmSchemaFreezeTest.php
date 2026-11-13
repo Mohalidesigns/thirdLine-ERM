@@ -9,7 +9,9 @@ use App\Models\Sm\ImpactType;
 use App\Models\Sm\InsuranceCoverage;
 use App\Models\Sm\Note;
 use App\Models\Sm\Scenario;
+use App\Models\Sm\ScenarioAction;
 use App\Models\Sm\ScenarioCause;
+use App\Models\Sm\ScenarioVariant;
 use App\Models\Sm\Scorecard;
 use App\Models\Sm\ScorecardComponent;
 use App\Models\Sm\Signoff;
@@ -54,19 +56,21 @@ class SmSchemaFreezeTest extends TestCase
         ImpactType::class => 'sm_impact_types',
         ImpactCriterion::class => 'sm_impact_criteria',
         InsuranceCoverage::class => 'sm_insurance_coverages',
+        ScenarioVariant::class => 'sm_scenario_variants',
+        ScenarioAction::class => 'sm_scenario_actions',
     ];
 
     /** Columns Laravel manages and that are therefore never in `$fillable`. */
     private const NON_FILLABLE = ['id', 'uuid', 'created_at', 'updated_at', 'deleted_at'];
 
     /* ------------------------------------------------------------------ */
-    /*  §A1.1 / §A2.1 — the table boundary */
+    /*  §A1.1 / §A2.1 / §A3.1 — the table boundary */
     /* ------------------------------------------------------------------ */
 
     #[Test]
-    public function exactly_the_eleven_frozen_tables_exist_and_nothing_more(): void
+    public function exactly_the_thirteen_frozen_tables_exist_and_nothing_more(): void
     {
-        // §A1.1 / §A2.1: Phase 1 & 2 freeze creates exactly the eleven tables.
+        // §A1.1 / §A2.1 / §A3.1: Phase 1, 2 & 3 freeze creates exactly the thirteen tables.
         // `sm_scenario_exposures` is REFUSED, not postponed — "a 1:1 child is a join with
         // nothing on the far side" — and Phase 3+ tables remain deferred.
         $expected = array_values(self::MODELS);
@@ -91,13 +95,13 @@ class SmSchemaFreezeTest extends TestCase
     #[Test]
     public function none_of_the_deferred_tables_or_objects_exists(): void
     {
-        // Phase 3 & 4 deferred list.
+        // Phase 4+ deferred list.
         foreach ([
-            'sm_scenario_variants', 'sm_variant_sections',
-            'sm_variant_owners', 'sm_scenario_actions', 'sm_scenario_risks', 'sm_signoff_warnings',
+            'sm_variant_sections',
+            'sm_variant_owners', 'sm_scenario_risks', 'sm_signoff_warnings',
             'sm_settings',
         ] as $table) {
-            $this->assertFalse(Schema::hasTable($table), "{$table} is not a Phase 1 or 2 table");
+            $this->assertFalse(Schema::hasTable($table), "{$table} is not an approved table");
         }
     }
 
@@ -108,7 +112,6 @@ class SmSchemaFreezeTest extends TestCase
         $deferred = [
             'sm_scenarios' => [
                 'entity_id',                    // Phase 4 (§A1.3)
-                'ai_generated',                 // Phase 3 (plan §6.5)
                 'loss_event_id', 'key_risk_indicator_id', 'emerging_risk_id', // Phase 4 (plan §4.4)
                 'quantification_scenario_id',   // Phase 4 (D5 stamps provenance the other way)
                 'lock_version', 'version', 'supersedes_id',
@@ -117,15 +120,14 @@ class SmSchemaFreezeTest extends TestCase
                 'frequency_lambda', 'gross_impact', 'net_impact', 'global_score',
             ],
             'sm_business_line_allocations' => ['business_process_id'], // Phase 4+ (§A1.5)
-            'sm_scenario_notes' => ['is_ai_generated'],                // Phase 3 (§A1.7)
-            'sm_scenario_signoffs' => ['requested_at', 'requested_by', 'is_current'], // Phase 3 (§A1.6)
+            'sm_scenario_signoffs' => ['is_current'], // Refused
         ];
 
         foreach ($deferred as $table => $columns) {
             foreach ($columns as $column) {
                 $this->assertFalse(
                     Schema::hasColumn($table, $column),
-                    "{$table}.{$column} is deferred by §A1.13 and must not exist in Phase 1"
+                    "{$table}.{$column} is deferred by §A1.13 and must not exist"
                 );
             }
         }
@@ -150,7 +152,7 @@ class SmSchemaFreezeTest extends TestCase
             'background', 'rationale',
             'reputational_exposure', 'legal_compliance_exposure',
             'insurance_risk', 'financial_risk', 'eligible_to_transfer',
-            'created_by', 'updated_by', 'created_at', 'updated_at', 'deleted_at',
+            'ai_generated', 'created_by', 'updated_by', 'created_at', 'updated_at', 'deleted_at',
         ]);
     }
 
@@ -181,7 +183,7 @@ class SmSchemaFreezeTest extends TestCase
         $this->assertColumns('sm_scenario_signoffs', [
             'id', 'organization_id', 'sm_scenario_id', 'source', 'user_id',
             'signatory_name', 'role', 'decision', 'is_independent_challenge', 'comment',
-            'warnings_acknowledged', 'signed_at', 'created_at', 'updated_at',
+            'warnings_acknowledged', 'requested_at', 'requested_by', 'signed_at', 'created_at', 'updated_at',
         ]);
     }
 
@@ -190,7 +192,28 @@ class SmSchemaFreezeTest extends TestCase
     {
         $this->assertColumns('sm_scenario_notes', [
             'id', 'organization_id', 'sm_scenario_id', 'kind', 'author_id', 'author_name',
-            'body', 'created_at', 'updated_at',
+            'body', 'is_ai_generated', 'created_at', 'updated_at',
+        ]);
+    }
+
+    #[Test]
+    public function sm_scenario_variants_has_exactly_the_frozen_columns(): void
+    {
+        $this->assertColumns('sm_scenario_variants', [
+            'id', 'organization_id', 'sm_scenario_id', 'tier', 'name', 'narrative',
+            'is_cumulative', 'triggers', 'operational_impacts', 'responses', 'response_owners',
+            'sort_order', 'created_at', 'updated_at',
+        ]);
+    }
+
+    #[Test]
+    public function sm_scenario_actions_has_exactly_the_frozen_columns(): void
+    {
+        $this->assertColumns('sm_scenario_actions', [
+            'id', 'organization_id', 'sm_scenario_id', 'kind', 'time_horizon', 'risk_area',
+            'current_position', 'identified_gap', 'action_plan', 'business_unit_id', 'department',
+            'owner_id', 'due_date', 'status', 'completed_at', 'proof_of_closure', 'issue_id',
+            'sort_order', 'created_at', 'updated_at',
         ]);
     }
 
@@ -493,6 +516,7 @@ class SmSchemaFreezeTest extends TestCase
                 'organization_id' => 'organizations',
                 'sm_scenario_id' => 'sm_scenarios',
                 'user_id' => 'users',
+                'requested_by' => 'users',
             ],
             'sm_scenario_notes' => [
                 'organization_id' => 'organizations',
@@ -525,6 +549,17 @@ class SmSchemaFreezeTest extends TestCase
             'sm_insurance_coverages' => [
                 'organization_id' => 'organizations',
                 'sm_scenario_id' => 'sm_scenarios',
+            ],
+            'sm_scenario_variants' => [
+                'organization_id' => 'organizations',
+                'sm_scenario_id' => 'sm_scenarios',
+            ],
+            'sm_scenario_actions' => [
+                'organization_id' => 'organizations',
+                'sm_scenario_id' => 'sm_scenarios',
+                'business_unit_id' => 'business_units',
+                'owner_id' => 'users',
+                'issue_id' => 'issues',
             ],
         ];
 

@@ -7,7 +7,9 @@ use App\Models\FxRate;
 use App\Models\Sm\ImpactType;
 use App\Models\Sm\Note;
 use App\Models\Sm\Scenario;
+use App\Models\Sm\ScenarioAction;
 use App\Models\Sm\ScenarioCause;
+use App\Models\Sm\ScenarioVariant;
 use App\Models\Sm\Scorecard;
 use App\Models\Sm\ScorecardComponent;
 use App\Models\Sm\Signoff;
@@ -19,9 +21,11 @@ use App\Services\Sm\OpEventTypeCatalogue;
 use App\Services\Sm\ScenarioComputationService;
 use App\Services\Sm\ScenarioLifecycle;
 use App\Services\Sm\ScenarioSettings;
+use App\Services\Sm\ScenarioVariantService;
 use App\Services\Sm\SignoffWarnings;
 use App\Support\Kri\KriWorkingCalendar;
 use App\Support\Measures\UnitRegistry;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 
@@ -135,6 +139,8 @@ class ScenarioWorkspacePresenter
         $payload['frequency'] = null;
         $payload['impact'] = null;
         $payload['insurance'] = null;
+        $payload['variants'] = null;
+        $payload['actions'] = null;
 
         // Only the active tab's payload ships (spec 01 §4).
         if ($tab === 'qualitative') {
@@ -147,6 +153,10 @@ class ScenarioWorkspacePresenter
             $payload['impact'] = $this->impact($scenario);
         } elseif ($tab === 'insurance') {
             $payload['insurance'] = $this->insurance($scenario);
+        } elseif ($tab === 'variants') {
+            $payload['variants'] = $this->variants($scenario);
+        } elseif ($tab === 'actions') {
+            $payload['actions'] = $this->actions($scenario, $user);
         } else {
             $payload['values'] = $this->values($scenario);
             $payload['businessUnits'] = $this->businessUnits((int) $scenario->organization_id);
@@ -309,7 +319,7 @@ class ScenarioWorkspacePresenter
     /* ------------------------------------------------------------------ */
 
     /**
-     * Phase 2: SIX live entries (Overview, Qualitative, Frequency, Impact, Insurance, Scorecard).
+     * Phase 3: EIGHT live entries (Overview, Qualitative, Frequency, Impact, Insurance, Scorecard, Variants, Actions).
      *
      * TABS ARE LINKS, NOT BUTTONS, so a validator can send a colleague "the qualitative
      * tab of SM-2026-014" and a tab switch is a navigation the unsaved-changes guard
@@ -356,11 +366,23 @@ class ScenarioWorkspacePresenter
                 'url' => route('scenario.show', ['scenario' => $scenario, 'tab' => 'scorecard']),
                 'live' => true,
             ],
+            [
+                'key' => 'variants',
+                'label' => 'Variants deck',
+                'url' => route('scenario.show', ['scenario' => $scenario, 'tab' => 'variants']),
+                'live' => true,
+            ],
+            [
+                'key' => 'actions',
+                'label' => 'Actions & gaps',
+                'url' => route('scenario.show', ['scenario' => $scenario, 'tab' => 'actions']),
+                'live' => true,
+            ],
         ];
     }
 
     /**
-     * Permissions for UI affordances (spec 01 §3, ADR 0027 Amendment 2 §A2.7).
+     * Permissions for UI affordances (spec 01 §3, ADR 0027 Amendment 3 §A3.5).
      *
      * `can` decides whether an EDITING AFFORDANCE renders. It never decides which
      * lifecycle buttons appear — `transitions` does, because the server has already
@@ -380,11 +402,12 @@ class ScenarioWorkspacePresenter
             // Spec 01 §5.5: notes close at `archived` ONLY — a note is commentary on a
             // frozen record, not a change to it, so `signed_off` still allows one.
             'note' => $user->can('note', $scenario) && $scenario->status !== 'archived',
+            'manage_actions' => $user->can('manageActions', $scenario) && ! $scenario->isReadOnly(),
         ];
     }
 
     /**
-     * Mirrors the route table exactly (spec 01 §4, ADR 0027 Amendment 2 §A2.7).
+     * Mirrors the route table exactly (spec 01 §4, ADR 0027 Amendment 3 §A3.5).
      *
      * @return array<string, string|null>
      */
@@ -399,6 +422,10 @@ class ScenarioWorkspacePresenter
             'frequency' => route('scenario.frequency.update', $scenario),
             'impact' => route('scenario.impact.update', $scenario),
             'insurance' => route('scenario.insurance.update', $scenario),
+            'variants' => route('scenario.variants.update', $scenario),
+            'deck' => route('scenario.deck', $scenario),
+            'actions' => route('scenario.actions.store', $scenario),
+            'actionTracker' => route('scenario.actions.index'),
             'status' => route('scenario.status', $scenario),
             'signoffs' => route('scenario.signoffs.store', $scenario),
             'notes' => route('scenario.notes.store', $scenario),
@@ -1232,6 +1259,333 @@ class ScenarioWorkspacePresenter
             'coverages' => $coverageRows,
             'is_uninsured' => $isUninsured,
             'is_read_only' => $scenario->isReadOnly(),
+        ];
+    }
+
+    /**
+     * Phase 3: Variants Deck tab payload (spec 10, ADR 0027 Amendment 3 §A3.2).
+     *
+     * @return array<string, mixed>
+     */
+    public function variants(Scenario $scenario): array
+    {
+        $variantService = app(ScenarioVariantService::class);
+        $variantModels = $variantService->ensureDefaultVariants($scenario);
+
+        $items = $variantModels->map(fn (ScenarioVariant $v) => [
+            'id' => (int) $v->id,
+            'tier' => (string) $v->tier,
+            'tier_label' => ScenarioVariant::TIER_LABELS[$v->tier] ?? ucfirst(str_replace('_', ' ', $v->tier)),
+            'name' => (string) $v->name,
+            'narrative' => $v->narrative ? (string) $v->narrative : null,
+            'is_cumulative' => (bool) $v->is_cumulative,
+            'triggers' => (array) ($v->triggers ?? []),
+            'operational_impacts' => (array) ($v->operational_impacts ?? []),
+            'responses' => (array) ($v->responses ?? []),
+            'response_owners' => (array) ($v->response_owners ?? []),
+            'sort_order' => (int) $v->sort_order,
+        ])->all();
+
+        return [
+            'items' => $items,
+            'is_read_only' => $scenario->isReadOnly(),
+        ];
+    }
+
+    /**
+     * Phase 3: Actions & Gaps tab payload (spec 11, ADR 0027 Amendment 3 §A3.3).
+     *
+     * @return array<string, mixed>
+     */
+    public function actions(Scenario $scenario, User $user): array
+    {
+        $actions = $scenario->actions()
+            ->with(['businessUnit', 'owner', 'issue'])
+            ->get();
+
+        $today = KriWorkingCalendar::today()->toDateString();
+
+        $total = $actions->count();
+        $completed = 0;
+        $inProgress = 0;
+        $notStarted = 0;
+        $overdue = 0;
+        $promoted = 0;
+
+        $items = $actions->map(function (ScenarioAction $a) use ($today, &$completed, &$inProgress, &$notStarted, &$overdue, &$promoted) {
+            $isOverdue = false;
+            if ($a->status === ScenarioAction::STATUS_COMPLETED) {
+                $completed++;
+            } else {
+                if ($a->status === ScenarioAction::STATUS_IN_PROGRESS) {
+                    $inProgress++;
+                } else {
+                    $notStarted++;
+                }
+                if ($a->due_date && $a->due_date < $today) {
+                    $overdue++;
+                    $isOverdue = true;
+                }
+            }
+
+            if ($a->issue_id !== null) {
+                $promoted++;
+            }
+
+            return [
+                'id' => (int) $a->id,
+                'kind' => (string) $a->kind,
+                'kind_label' => match ($a->kind) {
+                    ScenarioAction::KIND_GAP_REMEDIATION => 'Risk & Resolution Gap',
+                    ScenarioAction::KIND_IMMEDIATE => 'Immediate Plan',
+                    default => ucfirst(str_replace('_', ' ', $a->kind)),
+                },
+                'time_horizon' => $a->time_horizon ? (string) $a->time_horizon : null,
+                'time_horizon_label' => $a->time_horizon ? (ScenarioAction::HORIZON_LABELS[$a->time_horizon] ?? ucfirst(str_replace('_', ' ', $a->time_horizon))) : null,
+                'risk_area' => (string) $a->risk_area,
+                'current_position' => $a->current_position ? (string) $a->current_position : null,
+                'identified_gap' => $a->identified_gap ? (string) $a->identified_gap : null,
+                'action_plan' => (string) $a->action_plan,
+                'business_unit_id' => $a->business_unit_id ? (int) $a->business_unit_id : null,
+                'business_unit_name' => $a->businessUnit?->name,
+                'department' => $a->department ? (string) $a->department : null,
+                'owner_id' => $a->owner_id ? (int) $a->owner_id : null,
+                'owner_name' => $a->owner?->name,
+                'due_date' => $a->due_date ? (string) $a->due_date : null,
+                'status' => $isOverdue ? ScenarioAction::STATUS_OVERDUE : (string) $a->status,
+                'status_label' => ScenarioAction::STATUS_LABELS[$a->status] ?? ucfirst(str_replace('_', ' ', $a->status)),
+                'completed_at' => $a->completed_at ? $a->completed_at->format('Y-m-d H:i') : null,
+                'proof_of_closure' => $a->proof_of_closure ? (string) $a->proof_of_closure : null,
+                'issue_id' => $a->issue_id ? (int) $a->issue_id : null,
+                'issue_reference' => $a->issue?->issue_reference,
+                'sort_order' => (int) $a->sort_order,
+            ];
+        })->all();
+
+        return [
+            'summary' => [
+                'total' => $total,
+                'completed' => $completed,
+                'in_progress' => $inProgress,
+                'not_started' => $notStarted,
+                'overdue' => $overdue,
+                'promoted_issues' => $promoted,
+            ],
+            'items' => $items,
+            'businessUnits' => $this->businessUnits((int) $scenario->organization_id),
+            'owners' => $this->owners((int) $scenario->organization_id),
+            'kinds' => [
+                ['value' => ScenarioAction::KIND_GAP_REMEDIATION, 'label' => 'Gap Remediation (Risk & Resolution Plan)'],
+                ['value' => ScenarioAction::KIND_IMMEDIATE, 'label' => 'Immediate Plan Action'],
+            ],
+            'horizons' => [
+                ['value' => ScenarioAction::HORIZON_TODAY, 'label' => ScenarioAction::HORIZON_LABELS[ScenarioAction::HORIZON_TODAY]],
+                ['value' => ScenarioAction::HORIZON_WITHIN_7_DAYS, 'label' => ScenarioAction::HORIZON_LABELS[ScenarioAction::HORIZON_WITHIN_7_DAYS]],
+                ['value' => ScenarioAction::HORIZON_WITHIN_30_DAYS, 'label' => ScenarioAction::HORIZON_LABELS[ScenarioAction::HORIZON_WITHIN_30_DAYS]],
+                ['value' => ScenarioAction::HORIZON_CUSTOM, 'label' => ScenarioAction::HORIZON_LABELS[ScenarioAction::HORIZON_CUSTOM]],
+            ],
+            'statuses' => [
+                ['value' => ScenarioAction::STATUS_NOT_STARTED, 'label' => ScenarioAction::STATUS_LABELS[ScenarioAction::STATUS_NOT_STARTED]],
+                ['value' => ScenarioAction::STATUS_IN_PROGRESS, 'label' => ScenarioAction::STATUS_LABELS[ScenarioAction::STATUS_IN_PROGRESS]],
+                ['value' => ScenarioAction::STATUS_COMPLETED, 'label' => ScenarioAction::STATUS_LABELS[ScenarioAction::STATUS_COMPLETED]],
+            ],
+            'is_read_only' => $scenario->isReadOnly(),
+            'can_manage_actions' => $user->can('manageActions', $scenario) && ! $scenario->isReadOnly(),
+        ];
+    }
+
+    /**
+     * Users available as action owners.
+     *
+     * @return list<array{id: int, name: string}>
+     */
+    public function owners(int $organizationId): array
+    {
+        return User::where('organization_id', $organizationId)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (User $u) => ['id' => (int) $u->id, 'name' => (string) $u->name])
+            ->all();
+    }
+
+    /**
+     * Executive Presentation Deck View payload (spec 12, ADR 0027 Amendment 3 §A3.5).
+     *
+     * @return array<string, mixed>
+     */
+    public function presentDeck(Scenario $scenario, User $user): array
+    {
+        $variants = $this->variants($scenario);
+        $actions = $this->actions($scenario, $user);
+
+        // Quantitative summary
+        $coverages = $scenario->insuranceCoverages()->get()->keyBy('severity');
+        $lambda = app(ScenarioLifecycle::class)->computeLambda($scenario);
+        $interval = $lambda > 0.0 ? (1.0 / $lambda) : null;
+
+        return [
+            'scenario' => [
+                'id' => (int) $scenario->id,
+                'reference' => (string) $scenario->reference,
+                'title' => (string) $scenario->title,
+                'status' => (string) $scenario->status,
+                'status_label' => $this->statusLabel($scenario->status),
+                'nature' => (string) $scenario->nature,
+                'currency' => (string) $scenario->currency,
+                'background' => (string) $scenario->background,
+                'rationale' => (string) $scenario->rationale,
+                'designed_on' => $scenario->designed_on?->toDateString(),
+                'validated_on' => $scenario->validated_on?->toDateString(),
+                'review_due_on' => $scenario->review_due_on?->toDateString(),
+                'taxonomy_node' => $scenario->taxonomyNode?->name,
+                'business_unit' => $scenario->businessUnit?->name,
+            ],
+            'variants' => $variants['items'],
+            'gap_actions' => array_values(array_filter($actions['items'], fn ($a) => $a['kind'] === ScenarioAction::KIND_GAP_REMEDIATION)),
+            'immediate_actions' => array_values(array_filter($actions['items'], fn ($a) => $a['kind'] === ScenarioAction::KIND_IMMEDIATE)),
+            'quantitative' => [
+                'frequency_lambda' => $lambda > 0.0 ? number_format($lambda, 4) : '—',
+                'recurrence_interval_years' => $interval !== null ? number_format($interval, 4) : '—',
+                'typical_gross' => $coverages->get('typical')?->gross_impact ?? '0.00',
+                'serious_gross' => $coverages->get('serious')?->gross_impact ?? '0.00',
+                'extreme_gross' => $coverages->get('extreme')?->gross_impact ?? '0.00',
+                'typical_net' => $coverages->get('typical')?->net_impact ?? '0.00',
+                'serious_net' => $coverages->get('serious')?->net_impact ?? '0.00',
+                'extreme_net' => $coverages->get('extreme')?->net_impact ?? '0.00',
+            ],
+            'urls' => [
+                'workspace' => route('scenario.show', ['scenario' => $scenario, 'tab' => 'variants']),
+                'index' => route('scenario.index'),
+            ],
+        ];
+    }
+
+    /**
+     * Enterprise Action Tracker across all scenarios (spec 13, ADR 0027 Amendment 3 §A3.5).
+     *
+     * @return array<string, mixed>
+     */
+    public function presentActionTracker(Request $request, int $orgId): array
+    {
+        $query = ScenarioAction::where('organization_id', $orgId)
+            ->with(['scenario', 'businessUnit', 'owner', 'issue']);
+
+        if ($search = trim((string) $request->query('search'))) {
+            $escaped = addcslashes($search, '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('risk_area', 'like', "%{$escaped}%")
+                    ->orWhere('action_plan', 'like', "%{$escaped}%")
+                    ->orWhere('identified_gap', 'like', "%{$escaped}%")
+                    ->orWhereHas('scenario', fn ($sq) => $sq->where('reference', 'like', "%{$escaped}%")->orWhere('title', 'like', "%{$escaped}%"));
+            });
+        }
+
+        if ($kind = $request->query('kind')) {
+            $query->where('kind', $kind);
+        }
+
+        if ($status = $request->query('status')) {
+            $query->where('status', $status);
+        }
+
+        if ($ownerId = $request->query('owner_id')) {
+            $query->where('owner_id', $ownerId);
+        }
+
+        if ($horizon = $request->query('horizon')) {
+            $query->where('time_horizon', $horizon);
+        }
+
+        $allActions = ScenarioAction::where('organization_id', $orgId)->get();
+        $today = KriWorkingCalendar::today()->toDateString();
+
+        $stats = [
+            'total' => $allActions->count(),
+            'not_started' => $allActions->where('status', ScenarioAction::STATUS_NOT_STARTED)->count(),
+            'in_progress' => $allActions->where('status', ScenarioAction::STATUS_IN_PROGRESS)->count(),
+            'completed' => $allActions->where('status', ScenarioAction::STATUS_COMPLETED)->count(),
+            'overdue' => $allActions->filter(fn ($a) => $a->status !== ScenarioAction::STATUS_COMPLETED && $a->due_date && $a->due_date < $today)->count(),
+            'promoted_issues' => $allActions->whereNotNull('issue_id')->count(),
+        ];
+
+        $paginator = $query->orderByDesc('id')->paginate(15)->withQueryString();
+
+        $items = collect($paginator->items())->map(fn (ScenarioAction $a) => [
+            'id' => (int) $a->id,
+            'scenario_id' => (int) $a->sm_scenario_id,
+            'scenario_reference' => (string) $a->scenario?->reference,
+            'scenario_title' => (string) $a->scenario?->title,
+            'scenario_url' => $a->scenario ? route('scenario.show', ['scenario' => $a->scenario, 'tab' => 'actions']) : null,
+            'kind' => (string) $a->kind,
+            'kind_label' => match ($a->kind) {
+                ScenarioAction::KIND_GAP_REMEDIATION => 'Risk & Resolution Gap',
+                ScenarioAction::KIND_IMMEDIATE => 'Immediate Plan',
+                default => ucfirst(str_replace('_', ' ', $a->kind)),
+            },
+            'time_horizon' => $a->time_horizon ? (string) $a->time_horizon : null,
+            'time_horizon_label' => $a->time_horizon ? (ScenarioAction::HORIZON_LABELS[$a->time_horizon] ?? ucfirst(str_replace('_', ' ', $a->time_horizon))) : null,
+            'risk_area' => (string) $a->risk_area,
+            'current_position' => $a->current_position ? (string) $a->current_position : null,
+            'identified_gap' => $a->identified_gap ? (string) $a->identified_gap : null,
+            'action_plan' => (string) $a->action_plan,
+            'business_unit_id' => $a->business_unit_id ? (int) $a->business_unit_id : null,
+            'business_unit_name' => $a->businessUnit?->name,
+            'department' => $a->department ? (string) $a->department : null,
+            'owner_id' => $a->owner_id ? (int) $a->owner_id : null,
+            'owner_name' => $a->owner?->name,
+            'due_date' => $a->due_date ? (string) $a->due_date : null,
+            'status' => (string) $a->status,
+            'status_label' => ScenarioAction::STATUS_LABELS[$a->status] ?? ucfirst(str_replace('_', ' ', $a->status)),
+            'completed_at' => $a->completed_at ? $a->completed_at->format('Y-m-d H:i') : null,
+            'proof_of_closure' => $a->proof_of_closure ? (string) $a->proof_of_closure : null,
+            'issue_id' => $a->issue_id ? (int) $a->issue_id : null,
+            'issue_reference' => $a->issue?->issue_reference,
+        ])->all();
+
+        return [
+            'stats' => $stats,
+            'actions' => [
+                'data' => $items,
+                'links' => $paginator->linkCollection()->toArray(),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ],
+            ],
+            'filters' => [
+                'search' => (string) $request->query('search', ''),
+                'kind' => (string) $request->query('kind', ''),
+                'status' => (string) $request->query('status', ''),
+                'owner_id' => (string) $request->query('owner_id', ''),
+                'horizon' => (string) $request->query('horizon', ''),
+            ],
+            'businessUnits' => $this->businessUnits($orgId),
+            'owners' => $this->owners($orgId),
+            'kinds' => [
+                ['value' => '', 'label' => 'All Kinds'],
+                ['value' => ScenarioAction::KIND_GAP_REMEDIATION, 'label' => 'Risk & Resolution Gaps'],
+                ['value' => ScenarioAction::KIND_IMMEDIATE, 'label' => 'Immediate Plan Actions'],
+            ],
+            'horizons' => [
+                ['value' => '', 'label' => 'All Horizons'],
+                ['value' => ScenarioAction::HORIZON_TODAY, 'label' => ScenarioAction::HORIZON_LABELS[ScenarioAction::HORIZON_TODAY]],
+                ['value' => ScenarioAction::HORIZON_WITHIN_7_DAYS, 'label' => ScenarioAction::HORIZON_LABELS[ScenarioAction::HORIZON_WITHIN_7_DAYS]],
+                ['value' => ScenarioAction::HORIZON_WITHIN_30_DAYS, 'label' => ScenarioAction::HORIZON_LABELS[ScenarioAction::HORIZON_WITHIN_30_DAYS]],
+                ['value' => ScenarioAction::HORIZON_CUSTOM, 'label' => ScenarioAction::HORIZON_LABELS[ScenarioAction::HORIZON_CUSTOM]],
+            ],
+            'statuses' => [
+                ['value' => '', 'label' => 'All Statuses'],
+                ['value' => ScenarioAction::STATUS_NOT_STARTED, 'label' => ScenarioAction::STATUS_LABELS[ScenarioAction::STATUS_NOT_STARTED]],
+                ['value' => ScenarioAction::STATUS_IN_PROGRESS, 'label' => ScenarioAction::STATUS_LABELS[ScenarioAction::STATUS_IN_PROGRESS]],
+                ['value' => ScenarioAction::STATUS_COMPLETED, 'label' => ScenarioAction::STATUS_LABELS[ScenarioAction::STATUS_COMPLETED]],
+            ],
+            'canManageActions' => $request->user()->can('scenario.manage_actions'),
+            'urls' => [
+                'index' => route('scenario.actions.index'),
+                'scenarios' => route('scenario.index'),
+            ],
         ];
     }
 

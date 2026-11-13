@@ -109,6 +109,7 @@ use App\Http\Controllers\Risk\ThresholdController;
 use App\Http\Controllers\Risk\TreatmentPlanController;
 use App\Http\Controllers\Risk\WidgetController;
 use App\Http\Controllers\Risk\WorkflowController;
+use App\Http\Controllers\Sm\ScenarioActionController as SmScenarioActionController;
 use App\Http\Controllers\Sm\ScenarioController as SmScenarioController;
 use App\Http\Controllers\Sm\ScenarioGovernanceController as SmScenarioGovernanceController;
 use App\Http\Controllers\Tprm\AccessController as TprmAccessController;
@@ -2974,8 +2975,17 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::get('risk-search', [SmScenarioController::class, 'riskSearch'])
             ->middleware('permission:scenario.view')->name('risk-search');
 
+        // Global Action Tracker (spec 13, ADR 0027 Amendment 3 §A3.5).
+        // Declared BEFORE {scenario} so 'actions' does not bind as an ID.
+        Route::get('actions', [SmScenarioActionController::class, 'index'])
+            ->middleware('permission:scenario.view')->name('actions.index');
+
         Route::get('{scenario}', [SmScenarioController::class, 'show'])
             ->middleware('permission:scenario.view')->name('show');
+
+        // Executive Presentation Deck View (spec 12, ADR 0027 Amendment 3 §A3.5).
+        Route::get('{scenario}/deck', [SmScenarioController::class, 'deck'])
+            ->middleware('permission:scenario.view')->name('deck');
 
         // Correction 1 §C1.4: a REDIRECT to `scenario.show`, with no screen behind it.
         // The workspace is tabbed and already carries `?tab=`, so a separate edit page
@@ -3015,6 +3025,22 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
 
         Route::put('{scenario}/insurance', [SmScenarioController::class, 'updateInsurance'])
             ->middleware('permission:scenario.design')->name('insurance.update');
+
+        // Phase 3 variant decks & action routes (ADR 0027 Amendment 3 §A3.5)
+        Route::put('{scenario}/variants', [SmScenarioController::class, 'updateVariants'])
+            ->middleware('permission:scenario.update')->name('variants.update');
+
+        Route::post('{scenario}/actions', [SmScenarioActionController::class, 'store'])
+            ->middleware('permission:scenario.manage_actions')->name('actions.store');
+
+        Route::put('{scenario}/actions/{action}', [SmScenarioActionController::class, 'update'])
+            ->middleware('permission:scenario.manage_actions')->name('actions.update');
+
+        Route::delete('{scenario}/actions/{action}', [SmScenarioActionController::class, 'destroy'])
+            ->middleware('permission:scenario.manage_actions')->name('actions.destroy');
+
+        Route::post('{scenario}/actions/{action}/promote', [SmScenarioActionController::class, 'promote'])
+            ->middleware('permission:scenario.manage_actions')->name('actions.promote');
 
         // EVERY lifecycle transition rides this one route, including `draft → in_design`
         // (spec 01 §3). `scenario.design` does not exist in Phase 1 — §A1.10 defers it to

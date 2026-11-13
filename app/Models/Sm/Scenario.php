@@ -306,6 +306,7 @@ class Scenario extends Model
         'insurance_risk',
         'financial_risk',
         'eligible_to_transfer',
+        'ai_generated',
         'created_by',
         'updated_by',
     ];
@@ -348,6 +349,7 @@ class Scenario extends Model
             'insurance_risk' => 'boolean',
             'financial_risk' => 'boolean',
             'eligible_to_transfer' => 'boolean',
+            'ai_generated' => 'boolean',
             'created_by' => 'integer',
             'updated_by' => 'integer',
         ];
@@ -619,6 +621,30 @@ class Scenario extends Model
     public function insuranceCoverages(): HasMany
     {
         return $this->hasMany(InsuranceCoverage::class, 'sm_scenario_id');
+    }
+
+    /** @return HasMany<ScenarioVariant, $this> */
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ScenarioVariant::class, 'sm_scenario_id')->orderBy('sort_order');
+    }
+
+    /** @return HasMany<ScenarioAction, $this> */
+    public function actions(): HasMany
+    {
+        return $this->hasMany(ScenarioAction::class, 'sm_scenario_id')->orderBy('sort_order');
+    }
+
+    /** @return HasMany<ScenarioAction, $this> */
+    public function gapActions(): HasMany
+    {
+        return $this->actions()->where('kind', ScenarioAction::KIND_GAP_REMEDIATION);
+    }
+
+    /** @return HasMany<ScenarioAction, $this> */
+    public function immediateActions(): HasMany
+    {
+        return $this->actions()->where('kind', ScenarioAction::KIND_IMMEDIATE);
     }
 
     /**

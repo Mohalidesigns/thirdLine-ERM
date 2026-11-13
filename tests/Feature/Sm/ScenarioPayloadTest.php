@@ -306,18 +306,18 @@ class ScenarioPayloadTest extends SmTestCase
     }
 
     #[Test]
-    public function exactly_six_tabs_are_live_and_the_deferred_ones_are_absent_not_disabled(): void
+    public function exactly_eight_tabs_are_live_and_the_deferred_ones_are_absent_not_disabled(): void
     {
-        // Phase 2: Overview, Qualitative, Frequency, Impact, Insurance, and Scorecard are live.
+        // Phase 3: Overview, Qualitative, Frequency, Impact, Insurance, Scorecard, Variants, and Actions are live.
         $scenario = $this->makeScenario();
 
         $this->actingAs($this->actor)
             ->get(route('scenario.show', $scenario))
             ->assertInertia(fn ($page) => $page
                 ->where('tabs', function ($tabs) {
-                    $this->assertCount(6, $tabs);
+                    $this->assertCount(8, $tabs);
                     $this->assertSame(
-                        ['overview', 'qualitative', 'frequency', 'impact', 'insurance', 'scorecard'],
+                        ['overview', 'qualitative', 'frequency', 'impact', 'insurance', 'scorecard', 'variants', 'actions'],
                         collect($tabs)->pluck('key')->all()
                     );
                     $this->assertTrue(collect($tabs)->every(fn ($tab) => $tab['live'] === true));

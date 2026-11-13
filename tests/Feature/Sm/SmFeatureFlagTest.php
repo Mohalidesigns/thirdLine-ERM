@@ -152,6 +152,10 @@ class SmFeatureFlagTest extends TestCase
             'frequency' => ['PUT', '/risk/scenarios/{scenario}/frequency'],
             'impact' => ['PUT', '/risk/scenarios/{scenario}/impact'],
             'insurance' => ['PUT', '/risk/scenarios/{scenario}/insurance'],
+            'deck' => ['GET', '/risk/scenarios/{scenario}/deck'],
+            'variants' => ['PUT', '/risk/scenarios/{scenario}/variants'],
+            'actions index' => ['GET', '/risk/scenarios/actions'],
+            'actions store' => ['POST', '/risk/scenarios/{scenario}/actions'],
         ];
     }
 

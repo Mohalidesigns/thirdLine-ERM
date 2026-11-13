@@ -82,6 +82,9 @@ class SmTenancyIsolationTest extends SmTestCase
             'frequency' => ['PUT', 'scenario.frequency.update', ['drivers' => [['driver_type' => 'events', 'criterion' => 'Events', 'computation_role' => 'count', 'value' => 5]]]],
             'impact' => ['PUT', 'scenario.impact.update', ['types' => []]],
             'insurance' => ['PUT', 'scenario.insurance.update', ['coverages' => []]],
+            'deck' => ['GET', 'scenario.deck', []],
+            'variants' => ['PUT', 'scenario.variants.update', ['variants' => [['tier' => 'tier_1', 'name' => 'T1']]]],
+            'actions store' => ['POST', 'scenario.actions.store', ['kind' => 'immediate', 'risk_area' => 'R', 'action_plan' => 'A']],
         ];
     }
 
@@ -214,6 +217,8 @@ class SmTenancyIsolationTest extends SmTestCase
             \App\Models\Sm\ImpactType::class,
             \App\Models\Sm\ImpactCriterion::class,
             \App\Models\Sm\InsuranceCoverage::class,
+            \App\Models\Sm\ScenarioVariant::class,
+            \App\Models\Sm\ScenarioAction::class,
         ] as $class) {
             $this->assertContains(
                 \ThirdLine\Platform\Tenancy\BelongsToOrganization::class,
@@ -231,7 +236,7 @@ class SmTenancyIsolationTest extends SmTestCase
         // no migration, which is the only reason it exists in Phase 1 at all.
         $this->assertTrue(\Illuminate\Support\Facades\Schema::hasColumn('sm_scenarios', 'uuid'));
 
-        foreach (['sm_scenario_causes', 'sm_business_line_allocations', 'sm_scenario_signoffs', 'sm_scenario_notes'] as $table) {
+        foreach (['sm_scenario_causes', 'sm_business_line_allocations', 'sm_scenario_signoffs', 'sm_scenario_notes', 'sm_scorecards', 'sm_scorecard_components', 'sm_frequency_drivers', 'sm_impact_types', 'sm_impact_criteria', 'sm_insurance_coverages', 'sm_scenario_variants', 'sm_scenario_actions'] as $table) {
             $this->assertFalse(
                 \Illuminate\Support\Facades\Schema::hasColumn($table, 'uuid'),
                 "{$table} is a child line table and must not carry a uuid"

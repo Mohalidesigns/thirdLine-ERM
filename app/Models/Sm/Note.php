@@ -82,6 +82,7 @@ class Note extends Model
         'author_id',
         'author_name',
         'body',
+        'is_ai_generated',
     ];
 
     /** @return array<string, string> */
@@ -91,6 +92,7 @@ class Note extends Model
             'organization_id' => 'integer',
             'sm_scenario_id' => 'integer',
             'author_id' => 'integer',
+            'is_ai_generated' => 'boolean',
         ];
     }
 

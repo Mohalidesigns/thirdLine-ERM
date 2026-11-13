@@ -17,6 +17,8 @@ import ScorecardTab from './ScorecardTab';
 import FrequencyTab from './FrequencyTab';
 import ImpactTab from './ImpactTab';
 import InsuranceTab from './InsuranceTab';
+import VariantsTab from './VariantsTab';
+import ActionsTab from './ActionsTab';
 
 /**
  * The scenario workspace shell (spec 01).
@@ -82,6 +84,8 @@ export default function Workspace(props) {
         frequency,
         impact,
         insurance,
+        variants,
+        actions,
     } = props;
 
     const page = usePage();
@@ -515,7 +519,17 @@ export default function Workspace(props) {
                 actions={
                     // A screen-reader user can jump to the lifecycle controls as one
                     // unit (spec 01 §7).
-                    <div role="group" aria-label="Lifecycle actions" className="flex flex-wrap gap-2">
+                    <div role="group" aria-label="Lifecycle actions" className="flex flex-wrap items-center gap-2">
+                        {urls.deck && (
+                            <Link
+                                href={urls.deck}
+                                className="btn-secondary text-sm inline-flex items-center gap-1.5"
+                                title="Open Executive Presentation Deck"
+                            >
+                                <Icon name="presentation" className="h-4 w-4" />
+                                <span>Presentation Deck</span>
+                            </Link>
+                        )}
                         {transitionList.map((transition) => {
                             const blockedByGate = transition.to === 'designed' && gate && !gate.ready;
 
@@ -855,6 +869,22 @@ export default function Workspace(props) {
                         <InsuranceTab
                             scenario={scenario}
                             insurance={insurance}
+                            can={can}
+                            urls={urls}
+                            onDirtyChange={markDirty}
+                        />
+                    ) : tab === 'variants' ? (
+                        <VariantsTab
+                            scenario={scenario}
+                            variants={variants}
+                            can={can}
+                            urls={urls}
+                            onDirtyChange={markDirty}
+                        />
+                    ) : tab === 'actions' ? (
+                        <ActionsTab
+                            scenario={scenario}
+                            actions={actions}
                             can={can}
                             urls={urls}
                             onDirtyChange={markDirty}

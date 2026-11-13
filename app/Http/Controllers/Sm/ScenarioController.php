@@ -13,6 +13,7 @@ use App\Http\Requests\Sm\UpdateScenarioAllocationsRequest;
 use App\Http\Requests\Sm\UpdateScenarioCausesRequest;
 use App\Http\Requests\Sm\UpdateScenarioRequest;
 use App\Http\Requests\Sm\UpdateScorecardRequest;
+use App\Http\Requests\Sm\UpdateVariantsRequest;
 use App\Models\Risk;
 use App\Models\Sm\Scenario;
 use App\Presenters\GridPresenter;
@@ -24,6 +25,7 @@ use App\Services\Sm\CauseService;
 use App\Services\Sm\ScenarioQuantitativeService;
 use App\Services\Sm\ScenarioRefused;
 use App\Services\Sm\ScenarioService;
+use App\Services\Sm\ScenarioVariantService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,7 +35,7 @@ use Inertia\Response;
 
 /**
  * Scenario Modelling & Analysis — the read and edit surfaces (ADR 0027 §A1.11,
- * specs 00–04).
+ * specs 00–04, 06–13).
  *
  * THIN, per standard §1: a controller resolves, authorises and hands a Presenter or a
  * Service the job. `Inertia::render` takes the result; it does not compute it. Every
@@ -52,14 +54,15 @@ use Inertia\Response;
  */
 class ScenarioController extends Controller
 {
-    /** The six live tabs in Phase 2 (spec 01 §5.1, ADR 0027 Amendment 2). */
-    private const TABS = ['overview', 'qualitative', 'frequency', 'impact', 'insurance', 'scorecard'];
+    /** The eight live tabs in Phase 3 (specs 01, 10, 11; ADR 0027 Amendment 3). */
+    private const TABS = ['overview', 'qualitative', 'frequency', 'impact', 'insurance', 'scorecard', 'variants', 'actions'];
 
     public function __construct(
         private readonly ScenarioService $scenarios,
         private readonly CauseService $causes,
         private readonly AllocationService $allocations,
         private readonly ScenarioQuantitativeService $quantitativeService,
+        private readonly ScenarioVariantService $variantService,
     ) {}
 
     /**
@@ -299,6 +302,39 @@ class ScenarioController extends Controller
         }
 
         return back()->with('success', 'Insurance terms saved.');
+    }
+
+    /**
+     * Save the severe-but-plausible variant deck (spec 10, ADR 0027 Amendment 3 §A3.2).
+     */
+    public function updateVariants(UpdateVariantsRequest $request, Scenario $scenario): RedirectResponse
+    {
+        Gate::authorize('update', $scenario);
+
+        try {
+            $this->variantService->saveVariants(
+                $scenario,
+                $request->validated('variants'),
+                $request->user()
+            );
+        } catch (ScenarioRefused $e) {
+            return back()->with('error', $e->flash());
+        }
+
+        return back()->with('success', 'Scenario variants saved.');
+    }
+
+    /**
+     * Executive Presentation Deck View (spec 12, ADR 0027 Amendment 3 §A3.5).
+     */
+    public function deck(Request $request, Scenario $scenario, ScenarioWorkspacePresenter $presenter): Response
+    {
+        Gate::authorize('view', $scenario);
+
+        return Inertia::render('Sm/Scenarios/DeckView', $presenter->presentDeck(
+            $scenario,
+            $request->user()
+        ));
     }
 
     /**

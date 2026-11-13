@@ -193,6 +193,7 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'scenario.design' => 'Configure and calibrate quantitative scenario models (scorecard, frequency, impact, insurance).',
                 'scenario.validate' => 'Move a scenario through validation — return it for rework or mark it validated.',
                 'scenario.sign_off' => 'Record a sign-off against a scenario as one of its three sources.',
+                'scenario.manage_actions' => 'Create, edit, close and promote scenario remediation actions and immediate plans.',
                 // SEPARATE FROM `scenario.update` BECAUSE THEY ARE DIFFERENT
                 // AUTHORITIES: editing a scenario is first-line work, recording a
                 // dissent against somebody else's is second-line work. One
@@ -693,7 +694,7 @@ class RiskPermissionCatalog extends PermissionCatalog
             // scenario off. Spec 01 §9.6 flags the thinness as a governance
             // observation for the coordinator rather than an engineering defect.
             'scenario.view', 'scenario.create', 'scenario.update', 'scenario.design',
-            'scenario.validate', 'scenario.sign_off', 'scenario.note',
+            'scenario.validate', 'scenario.sign_off', 'scenario.manage_actions', 'scenario.note',
 
             // TPRM: the risk function runs the programme day to day. Two
             // grants are deliberately NOT here — `tprm.waiver.approve` and

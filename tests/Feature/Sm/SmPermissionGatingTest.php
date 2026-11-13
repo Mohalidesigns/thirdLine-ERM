@@ -25,9 +25,9 @@ use Spatie\Permission\Models\Role;
 class SmPermissionGatingTest extends SmTestCase
 {
     #[Test]
-    public function the_catalog_declares_exactly_seven_scenario_permissions(): void
+    public function the_catalog_declares_exactly_eight_scenario_permissions(): void
     {
-        // §A1.10: SEVEN scenario permissions (Phase 1 six + Phase 2 scenario.design).
+        // §A1.10: EIGHT scenario permissions (Phase 1 six + Phase 2 design + Phase 3 manage_actions).
         // Adding them later costs NO MIGRATION,
         // because deploy.sh runs RolesAndPermissionsSeeder whose syncCatalog() is additive.
         $this->assertSame(
@@ -38,16 +38,17 @@ class SmPermissionGatingTest extends SmTestCase
                 'scenario.design' => 'Configure and calibrate quantitative scenario models (scorecard, frequency, impact, insurance).',
                 'scenario.validate' => 'Move a scenario through validation — return it for rework or mark it validated.',
                 'scenario.sign_off' => 'Record a sign-off against a scenario as one of its three sources.',
+                'scenario.manage_actions' => 'Create, edit, close and promote scenario remediation actions and immediate plans.',
                 'scenario.note' => 'Add an assumption, dissent, challenge or workshop minute to the scenario record.',
             ],
             (new RiskPermissionCatalog)->modules()['Scenario modelling']
         );
 
         // The deferred ones must NOT be present, and `scenario.delete` was refused outright.
-        foreach (['scenario.manage_actions', 'scenario.run_export', 'scenario.manage_library', 'scenario.delete'] as $absent) {
+        foreach (['scenario.run_export', 'scenario.manage_library', 'scenario.delete'] as $absent) {
             $this->assertFalse(
                 (new RiskPermissionCatalog)->has($absent),
-                "{$absent} is not a Phase 1 or 2 permission"
+                "{$absent} is not an active permission"
             );
         }
     }
@@ -72,7 +73,7 @@ class SmPermissionGatingTest extends SmTestCase
     /** @return array<string, array{0: string, 1: list<string>}> */
     public static function roleGrantProvider(): array
     {
-        $all = ['scenario.view', 'scenario.create', 'scenario.update', 'scenario.design', 'scenario.validate', 'scenario.sign_off', 'scenario.note'];
+        $all = ['scenario.view', 'scenario.create', 'scenario.update', 'scenario.design', 'scenario.validate', 'scenario.sign_off', 'scenario.manage_actions', 'scenario.note'];
         $viewAndNote = ['scenario.view', 'scenario.note'];
 
         return [
@@ -150,6 +151,9 @@ class SmPermissionGatingTest extends SmTestCase
             'frequency needs design' => ['PUT', 'scenario.frequency.update', ['drivers' => [['driver_type' => 'events', 'criterion' => 'Events', 'computation_role' => 'count', 'value' => 5]]], 'scenario.design'],
             'impact needs design' => ['PUT', 'scenario.impact.update', ['types' => []], 'scenario.design'],
             'insurance needs design' => ['PUT', 'scenario.insurance.update', ['coverages' => []], 'scenario.design'],
+            'deck needs view' => ['GET', 'scenario.deck', [], 'scenario.view'],
+            'variants need update' => ['PUT', 'scenario.variants.update', ['variants' => [['tier' => 'tier_1', 'name' => 'T1']]], 'scenario.update'],
+            'actions store needs manage_actions' => ['POST', 'scenario.actions.store', ['kind' => 'immediate', 'risk_area' => 'R', 'action_plan' => 'A'], 'scenario.manage_actions'],
         ];
     }
 
@@ -185,9 +189,9 @@ class SmPermissionGatingTest extends SmTestCase
     }
 
     #[Test]
-    public function the_can_prop_carries_seven_flags_including_design(): void
+    public function the_can_prop_carries_eight_flags_including_design_and_manage_actions(): void
     {
-        // Phase 2 activates `scenario.design` (ADR 0027 Amendment 2), so `can` has seven keys.
+        // Phase 3 activates `scenario.manage_actions` (ADR 0027 Amendment 3), so `can` has eight keys.
         $scenario = $this->makeScenario();
 
         $this->actingAs($this->actor)
@@ -198,10 +202,11 @@ class SmPermissionGatingTest extends SmTestCase
                 $flags = collect($can)->all();
 
                 $this->assertSame(
-                    ['view', 'create', 'update', 'design', 'validate', 'sign_off', 'note'],
+                    ['view', 'create', 'update', 'design', 'validate', 'sign_off', 'note', 'manage_actions'],
                     array_keys($flags)
                 );
                 $this->assertArrayHasKey('design', $flags);
+                $this->assertArrayHasKey('manage_actions', $flags);
 
                 return true;
             }));

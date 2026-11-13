@@ -109,6 +109,11 @@ class ScenarioPolicy
         return $user->can('scenario.note') && $this->sameTenant($user, $scenario);
     }
 
+    public function manageActions(User $user, Scenario $scenario): bool
+    {
+        return $user->can('scenario.manage_actions') && $this->sameTenant($user, $scenario);
+    }
+
     /**
      * Tenancy, checked explicitly even though `BelongsToOrganization` already scopes
      * the query and `ResolveTenant` runs before `SubstituteBindings`.

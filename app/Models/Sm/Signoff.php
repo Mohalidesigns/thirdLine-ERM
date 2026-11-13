@@ -142,6 +142,8 @@ class Signoff extends Model
         'comment',
         'warnings_acknowledged',
         'signed_at',
+        'requested_at',
+        'requested_by',
     ];
 
     /**
@@ -161,6 +163,8 @@ class Signoff extends Model
             'user_id' => 'integer',
             'is_independent_challenge' => 'boolean',
             'signed_at' => 'datetime',
+            'requested_at' => 'datetime',
+            'requested_by' => 'integer',
             'warnings_acknowledged' => 'array',
         ];
     }
@@ -223,5 +227,11 @@ class Signoff extends Model
     public function signer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function requestedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'requested_by');
     }
 }

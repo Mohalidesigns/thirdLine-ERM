@@ -45,7 +45,7 @@ abstract class SmTestCase extends TestCase
      */
     public const ALL_PERMISSIONS = [
         'scenario.view', 'scenario.create', 'scenario.update', 'scenario.design',
-        'scenario.validate', 'scenario.sign_off', 'scenario.note',
+        'scenario.validate', 'scenario.sign_off', 'scenario.manage_actions', 'scenario.note',
     ];
 
     protected Organization $otherOrg;

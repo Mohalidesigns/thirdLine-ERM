@@ -825,3 +825,139 @@ Stores insurance recovery netting rows for each of the three severities: `typica
   - Calculation contract frozen matching decoded BIFF8 formulas and spike golden totals.
   - Invariants, authorization, and route shapes settled.
 - **Next steps:** Create `plans/scenario-modelling/PHASE2-GATE-CHECKLIST.md`, followed by UI screen specs and backend implementation.
+
+---
+
+## Amendment 3 (2026-11-13) — Phase 3 Column-Level Schema Freeze & Variant Decks / Actions Contract
+
+**Status:** Accepted · **Phase:** Scenario Modelling & Analysis, Phase 3 (Variant Decks & Actions) · **Author:** architect  
+**Requested by:** Mohammed, 2026-11-13 — "proceed"  
+**Consumers:** backend-engineer (migrations, models, services) · ui-designer (screen specs 10–13) · frontend-engineer (workspace tabs, deck view, action tracker) · qa-engineer · code-reviewer (Gate 2)
+
+---
+
+### A3.1 Boundary: Phase 3 Tables and Columns
+
+Phase 3 creates exactly two new tables and applies column additions deferred in Amendment 1 §A1.13:
+
+1. `sm_scenario_variants` — escalating severe-but-plausible scenario tiers (Ebola reference deck S1/S2/S3).
+2. `sm_scenario_actions` — gap remediation actions and immediate plan items with enterprise Issue promotion.
+3. Column additions to existing tables:
+   - `sm_scenarios.ai_generated`: boolean default `false`.
+   - `sm_scenario_notes.is_ai_generated`: boolean default `false`.
+   - `sm_scenario_signoffs.requested_at`: dateTime nullable.
+   - `sm_scenario_signoffs.requested_by`: foreignId users nullable constrained nullOnDelete.
+
+---
+
+### A3.2 Table Schema: `sm_scenario_variants`
+
+One row per escalating severity tier for a scenario theme (e.g., Tier 1 Contained Outbreak, Tier 2 Regional Transmission & BCP Activation, Tier 3 Nationwide Pandemic & Crisis Management).
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| `id` | `bigIncrements` | No | — | PK |
+| `organization_id` | `foreignId` | No | — | `constrained('organizations')->cascadeOnDelete()` |
+| `sm_scenario_id` | `foreignId` | No | — | `constrained('sm_scenarios')->cascadeOnDelete()` |
+| `tier` | `string(20)` | No | — | `tier_1`, `tier_2`, `tier_3` (matches Low/Medium/High severity scale) |
+| `name` | `string(150)` | No | — | Display label, e.g. "Scenario 1: Contained Outbreak" |
+| `narrative` | `text` | Yes | NULL | Narrative description of the variant conditions |
+| `is_cumulative` | `boolean` | No | `false` | True if actions/responses build on earlier tiers ("In addition to Scenario 1...") |
+| `triggers` | `json` | Yes | NULL | Array of bulleted trigger thresholds/conditions |
+| `operational_impacts` | `json` | Yes | NULL | Array of bulleted operational impacts |
+| `responses` | `json` | Yes | NULL | Array of bulleted response measures |
+| `response_owners` | `json` | Yes | NULL | Array of owning units / departments / roles |
+| `sort_order` | `unsignedTinyInteger` | No | `1` | 1..3 display order |
+| `timestamps` | `nullableTimestamps` | Yes | NULL | Standard §13 |
+
+**Keys & Indexes:**
+- Unique: `sm_variants_scenario_tier_unique (sm_scenario_id, tier)`
+- Index: `sm_variants_org_scenario_idx (organization_id, sm_scenario_id)`
+
+---
+
+### A3.3 Table Schema: `sm_scenario_actions`
+
+Stores both gap remediation actions (Possible Risk & Resolution Plan, Ebola deck slides 7–8) and immediate plan action items (Ebola deck slides 10–11).
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| `id` | `bigIncrements` | No | — | PK |
+| `organization_id` | `foreignId` | No | — | `constrained('organizations')->cascadeOnDelete()` |
+| `sm_scenario_id` | `foreignId` | No | — | `constrained('sm_scenarios')->cascadeOnDelete()` |
+| `kind` | `string(30)` | No | — | `gap_remediation` or `immediate` |
+| `time_horizon` | `string(50)` | Yes | NULL | Immediate plan horizon: `today`, `within_7_days`, `within_30_days`, `custom` |
+| `risk_area` | `string(200)` | No | — | Risk category or area (e.g. "Operational disruption", "Cybersecurity risk") |
+| `current_position` | `text` | Yes | NULL | Where we are / documented controls |
+| `identified_gap` | `text` | Yes | NULL | What we ought to have but don't have |
+| `action_plan` | `text` | No | — | Where we ought to be / action point |
+| `business_unit_id` | `foreignId` | Yes | NULL | `constrained('business_units')->nullOnDelete()` |
+| `department` | `string(200)` | Yes | NULL | Department / function text snapshot |
+| `owner_id` | `foreignId` | Yes | NULL | `constrained('users')->nullOnDelete()` |
+| `due_date` | `date` | Yes | NULL | Target completion date |
+| `status` | `string(30)` | No | `'not_started'` | `not_started`, `in_progress`, `completed`, `overdue` |
+| `completed_at` | `dateTime` | Yes | NULL | Stamp when marked completed |
+| `proof_of_closure` | `text` | Yes | NULL | Summary of evidence / verification note |
+| `issue_id` | `foreignId` | Yes | NULL | `constrained('issues')->nullOnDelete()` — enterprise issue link |
+| `sort_order` | `unsignedInteger` | No | `1` | Order within tab |
+| `timestamps` | `nullableTimestamps` | Yes | NULL | Standard §13 |
+
+**Keys & Indexes:**
+- Index: `sm_actions_org_status_idx (organization_id, status)`
+- Index: `sm_actions_scenario_kind_idx (sm_scenario_id, kind)`
+- Index: `sm_actions_issue_idx (issue_id)`
+
+---
+
+### A3.4 Enterprise Issue Promotion Contract
+
+When a scenario gap remediation or immediate action is promoted to enterprise tracking:
+1. An `Issue` row is created in `issues` with:
+   - `organization_id` matching the action's organization.
+   - `issue_reference` generated using the Issue module reference sequence.
+   - `title`: `{$action->risk_area}: ` + truncated `action_plan`.
+   - `description`: Scenario attribution, current position, identified gap, and action plan.
+   - `issue_source`: `'SCENARIO_ANALYSIS'`.
+   - `issue_category`: `'OPERATIONAL_RESILIENCE'`.
+   - `priority`: `'HIGH'`.
+   - `issue_status`: `'OPEN'`.
+   - `business_unit_id`: `$action->business_unit_id`.
+   - `department`: `$action->department`.
+   - `responsible_owner_id`: `$action->owner_id`.
+   - `remediation_due_date`: `$action->due_date`.
+   - `action_plan`: `$action->action_plan`.
+   - `created_by`: `$actor->id`.
+2. An initial `issue_remediation_actions` row is created linked to the issue.
+3. `sm_scenario_actions.issue_id` is updated with the new issue's ID.
+4. An audit trail event `scenario_action_promoted` is recorded.
+5. If the action was already promoted (`issue_id` NOT NULL), re-promotion is refused.
+
+---
+
+### A3.5 Authorization & Route Endpoints
+
+- **Permissions:**
+  - `scenario.view`: View variants, actions, deck view, action tracker.
+  - `scenario.update`: Edit scenario variants (`scenario.variants.update`).
+  - `scenario.manage_actions`: Create, edit, delete scenario actions and promote to enterprise Issue.
+- **Routes:**
+  - `GET /scenarios/actions` (`scenario.actions.index`) — Action Tracker across scenarios.
+  - `GET /scenarios/{scenario}/deck` (`scenario.deck`) — Executive Presentation Deck View.
+  - `PUT /scenarios/{scenario}/variants` (`scenario.variants.update`) — Save variants deck.
+  - `POST /scenarios/{scenario}/actions` (`scenario.actions.store`) — Create scenario action.
+  - `PUT /scenarios/{scenario}/actions/{action}` (`scenario.actions.update`) — Update scenario action.
+  - `DELETE /scenarios/{scenario}/actions/{action}` (`scenario.actions.destroy`) — Delete scenario action.
+  - `POST /scenarios/{scenario}/actions/{action}/promote` (`scenario.actions.promote`) — Promote to enterprise Issue.
+
+---
+
+## HANDOFF
+- **Role:** architect
+- **Task:** ADR 0027 Amendment 3 — Phase 3 Column-Level Schema Freeze & Variant Decks / Actions Contract
+- **Verdict:** Accepted and Frozen
+- **Deliverables:**
+  - 2 new tables (`sm_scenario_variants`, `sm_scenario_actions`) defined with exact columns, types, nullability, defaults, and foreign keys.
+  - Column additions to `sm_scenarios`, `sm_scenario_notes`, `sm_scenario_signoffs` frozen.
+  - Enterprise Issue promotion contract specified.
+  - Authorization, routes, and invariants settled.
+- **Next steps:** Create UI screen specs 10–13 and Phase 3 gate checklist.

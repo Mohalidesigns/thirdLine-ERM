@@ -127,3 +127,4 @@ Container `max-w-5xl`. Two cards:
 - **Read-only state:** When scenario `is_read_only` (status `signed_off`, `archived`, or `in_validation`), form controls are disabled with banner explanation.
 - **Validation:** 422 errors returned on `control_nature` or `components.{code}.efficiency_level` / `weighting_factor` (must be 1..5 when submitted).
 - **Transport failures:** Wired to `useSaveFailure` / `FailureBanner`.
+

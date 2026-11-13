@@ -245,4 +245,98 @@ class SmAuditTrailTest extends SmTestCase
         $row->action_type = 'tampered';
         $row->save();
     }
+
+    #[Test]
+    public function quantitative_edits_write_audit_trail_entries(): void
+    {
+        $scenario = $this->makeScenario(['status' => 'in_design']);
+
+        // 1. Scorecard
+        $this->actingAs($this->actor)->put(route('scenario.scorecard.update', $scenario), [
+            'control_nature' => 'mixed',
+            'components' => [
+                [
+                    'component_code' => 'control_environment',
+                    'efficiency_level' => 4,
+                    'weighting_factor' => 5,
+                ],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertTrue(
+            RiskAuditTrail::query()
+                ->where('entity_id', $scenario->id)
+                ->where('action_type', 'scorecard_updated')
+                ->exists()
+        );
+
+        // 2. Frequency
+        $this->actingAs($this->actor)->put(route('scenario.frequency.update', $scenario), [
+            'drivers' => [
+                [
+                    'driver_type' => 'events',
+                    'criterion' => 'Events',
+                    'computation_role' => 'count',
+                    'value' => 5,
+                ],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertTrue(
+            RiskAuditTrail::query()
+                ->where('entity_id', $scenario->id)
+                ->where('action_type', 'frequency_updated')
+                ->exists()
+        );
+
+        // 3. Impact
+        $this->actingAs($this->actor)->put(route('scenario.impact.update', $scenario), [
+            'types' => [
+                [
+                    'name' => 'Operational loss',
+                    'aggregation_template' => 'staff_turnover_interval',
+                    'eligible_to_transfer' => true,
+                    'criteria' => [
+                        [
+                            'label' => 'Staff count',
+                            'computation_role' => 'count',
+                            'typical_value' => 5,
+                            'serious_value' => 10,
+                            'extreme_value' => 20,
+                        ],
+                    ],
+                ],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertTrue(
+            RiskAuditTrail::query()
+                ->where('entity_id', $scenario->id)
+                ->where('action_type', 'impact_updated')
+                ->exists()
+        );
+
+        // 4. Insurance
+        $this->actingAs($this->actor)->put(route('scenario.insurance.update', $scenario), [
+            'coverages' => [
+                [
+                    'severity' => 'typical',
+                    'deductible_local' => 100,
+                    'limit_local' => 500,
+                    'deductible_group' => 1000,
+                    'limit_group' => 5000,
+                    'recovery_rate' => 0.9,
+                    'probability_of_cover' => 0.95,
+                    'insurer_default_haircut' => 0.02,
+                ],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertTrue(
+            RiskAuditTrail::query()
+                ->where('entity_id', $scenario->id)
+                ->where('action_type', 'insurance_updated')
+                ->exists()
+        );
+    }
 }

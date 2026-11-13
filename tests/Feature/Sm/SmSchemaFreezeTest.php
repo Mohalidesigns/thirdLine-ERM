@@ -3,9 +3,15 @@
 namespace Tests\Feature\Sm;
 
 use App\Models\Sm\BusinessLineAllocation;
+use App\Models\Sm\FrequencyDriver;
+use App\Models\Sm\ImpactCriterion;
+use App\Models\Sm\ImpactType;
+use App\Models\Sm\InsuranceCoverage;
 use App\Models\Sm\Note;
 use App\Models\Sm\Scenario;
 use App\Models\Sm\ScenarioCause;
+use App\Models\Sm\Scorecard;
+use App\Models\Sm\ScorecardComponent;
 use App\Models\Sm\Signoff;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -42,22 +48,27 @@ class SmSchemaFreezeTest extends TestCase
         BusinessLineAllocation::class => 'sm_business_line_allocations',
         Signoff::class => 'sm_scenario_signoffs',
         Note::class => 'sm_scenario_notes',
+        Scorecard::class => 'sm_scorecards',
+        ScorecardComponent::class => 'sm_scorecard_components',
+        FrequencyDriver::class => 'sm_frequency_drivers',
+        ImpactType::class => 'sm_impact_types',
+        ImpactCriterion::class => 'sm_impact_criteria',
+        InsuranceCoverage::class => 'sm_insurance_coverages',
     ];
 
     /** Columns Laravel manages and that are therefore never in `$fillable`. */
     private const NON_FILLABLE = ['id', 'uuid', 'created_at', 'updated_at', 'deleted_at'];
 
     /* ------------------------------------------------------------------ */
-    /*  §A1.1 — the table boundary */
+    /*  §A1.1 / §A2.1 — the table boundary */
     /* ------------------------------------------------------------------ */
 
     #[Test]
-    public function exactly_the_five_frozen_tables_exist_and_nothing_more(): void
+    public function exactly_the_eleven_frozen_tables_exist_and_nothing_more(): void
     {
-        // §A1.1: "Phase 1 creates exactly sm_scenarios, sm_scenario_causes,
-        // sm_business_line_allocations, sm_scenario_signoffs, sm_scenario_notes."
+        // §A1.1 / §A2.1: Phase 1 & 2 freeze creates exactly the eleven tables.
         // `sm_scenario_exposures` is REFUSED, not postponed — "a 1:1 child is a join with
-        // nothing on the far side" — and the nine Phase 2–3 tables are not frozen here.
+        // nothing on the far side" — and Phase 3+ tables remain deferred.
         $expected = array_values(self::MODELS);
         sort($expected);
 
@@ -80,15 +91,13 @@ class SmSchemaFreezeTest extends TestCase
     #[Test]
     public function none_of_the_deferred_tables_or_objects_exists(): void
     {
-        // §A1.13's deferred list. "A Phase 1 migration containing one of these is a scope breach
-        // and gate 2 should fail it."
+        // Phase 3 & 4 deferred list.
         foreach ([
-            'sm_frequency_drivers', 'sm_impact_types', 'sm_impact_criteria', 'sm_insurance_coverages',
-            'sm_scorecards', 'sm_scorecard_components', 'sm_scenario_variants', 'sm_variant_sections',
+            'sm_scenario_variants', 'sm_variant_sections',
             'sm_variant_owners', 'sm_scenario_actions', 'sm_scenario_risks', 'sm_signoff_warnings',
             'sm_settings',
         ] as $table) {
-            $this->assertFalse(Schema::hasTable($table), "{$table} is not a Phase 1 table (§A1.13)");
+            $this->assertFalse(Schema::hasTable($table), "{$table} is not a Phase 1 or 2 table");
         }
     }
 
@@ -182,6 +191,69 @@ class SmSchemaFreezeTest extends TestCase
         $this->assertColumns('sm_scenario_notes', [
             'id', 'organization_id', 'sm_scenario_id', 'kind', 'author_id', 'author_name',
             'body', 'created_at', 'updated_at',
+        ]);
+    }
+
+    #[Test]
+    public function sm_scorecards_has_exactly_the_frozen_columns(): void
+    {
+        $this->assertColumns('sm_scorecards', [
+            'id', 'organization_id', 'sm_scenario_id', 'control_nature',
+            'total_weight', 'total_weighted_score', 'global_score',
+            'created_by', 'updated_by', 'created_at', 'updated_at',
+        ]);
+    }
+
+    #[Test]
+    public function sm_scorecard_components_has_exactly_the_frozen_columns(): void
+    {
+        $this->assertColumns('sm_scorecard_components', [
+            'id', 'organization_id', 'sm_scorecard_id', 'component_code',
+            'efficiency_level', 'weighting_factor', 'score',
+            'level_score', 'adjusted_score', 'weighting_score', 'weighted_score',
+            'notes', 'sort_order', 'created_at', 'updated_at',
+        ]);
+    }
+
+    #[Test]
+    public function sm_frequency_drivers_has_exactly_the_frozen_columns(): void
+    {
+        $this->assertColumns('sm_frequency_drivers', [
+            'id', 'organization_id', 'sm_scenario_id', 'driver_type', 'criterion',
+            'computation_role', 'value', 'data_source', 'sm_scorecard_id',
+            'sort_order', 'created_at', 'updated_at',
+        ]);
+    }
+
+    #[Test]
+    public function sm_impact_types_has_exactly_the_frozen_columns(): void
+    {
+        $this->assertColumns('sm_impact_types', [
+            'id', 'organization_id', 'sm_scenario_id', 'name', 'aggregation_template',
+            'eligible_to_transfer', 'sort_order', 'typical_total', 'serious_total', 'extreme_total',
+            'created_at', 'updated_at',
+        ]);
+    }
+
+    #[Test]
+    public function sm_impact_criteria_has_exactly_the_frozen_columns(): void
+    {
+        $this->assertColumns('sm_impact_criteria', [
+            'id', 'organization_id', 'sm_impact_type_id', 'label', 'unit',
+            'computation_role', 'data_source', 'typical_value', 'serious_value', 'extreme_value',
+            'sort_order', 'created_at', 'updated_at',
+        ]);
+    }
+
+    #[Test]
+    public function sm_insurance_coverages_has_exactly_the_frozen_columns(): void
+    {
+        $this->assertColumns('sm_insurance_coverages', [
+            'id', 'organization_id', 'sm_scenario_id', 'severity',
+            'transferable_amount', 'deductible_local', 'limit_local', 'deductible_group', 'limit_group',
+            'recovery_rate', 'probability_of_cover', 'insurer_default_haircut',
+            'residual_amount', 'total_haircut', 'haircut_impact', 'gross_impact', 'net_impact',
+            'created_at', 'updated_at',
         ]);
     }
 
@@ -427,6 +499,33 @@ class SmSchemaFreezeTest extends TestCase
                 'sm_scenario_id' => 'sm_scenarios',
                 'author_id' => 'users',
             ],
+            'sm_scorecards' => [
+                'organization_id' => 'organizations',
+                'sm_scenario_id' => 'sm_scenarios',
+                'created_by' => 'users',
+                'updated_by' => 'users',
+            ],
+            'sm_scorecard_components' => [
+                'organization_id' => 'organizations',
+                'sm_scorecard_id' => 'sm_scorecards',
+            ],
+            'sm_frequency_drivers' => [
+                'organization_id' => 'organizations',
+                'sm_scenario_id' => 'sm_scenarios',
+                'sm_scorecard_id' => 'sm_scorecards',
+            ],
+            'sm_impact_types' => [
+                'organization_id' => 'organizations',
+                'sm_scenario_id' => 'sm_scenarios',
+            ],
+            'sm_impact_criteria' => [
+                'organization_id' => 'organizations',
+                'sm_impact_type_id' => 'sm_impact_types',
+            ],
+            'sm_insurance_coverages' => [
+                'organization_id' => 'organizations',
+                'sm_scenario_id' => 'sm_scenarios',
+            ],
         ];
 
         foreach ($expected as $table => $columns) {
@@ -496,7 +595,11 @@ class SmSchemaFreezeTest extends TestCase
         $this->assertTrue(in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive(Scenario::class), true));
         $this->assertTrue(Schema::hasColumn('sm_scenarios', 'deleted_at'));
 
-        foreach ([ScenarioCause::class, BusinessLineAllocation::class, Signoff::class, Note::class] as $class) {
+        foreach ([
+            ScenarioCause::class, BusinessLineAllocation::class, Signoff::class, Note::class,
+            Scorecard::class, ScorecardComponent::class, FrequencyDriver::class,
+            ImpactType::class, ImpactCriterion::class, InsuranceCoverage::class,
+        ] as $class) {
             $this->assertNotContains(
                 \Illuminate\Database\Eloquent\SoftDeletes::class,
                 class_uses_recursive($class),

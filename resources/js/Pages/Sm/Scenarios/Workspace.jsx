@@ -13,6 +13,10 @@ import { formatDay, formatLagosClock, lagosDay } from '@/Components/Sm/format';
 import useVisitFailures from '@/hooks/useVisitFailures';
 import OverviewTab from './OverviewTab';
 import QualitativeTab from './QualitativeTab';
+import ScorecardTab from './ScorecardTab';
+import FrequencyTab from './FrequencyTab';
+import ImpactTab from './ImpactTab';
+import InsuranceTab from './InsuranceTab';
 
 /**
  * The scenario workspace shell (spec 01).
@@ -74,6 +78,10 @@ export default function Workspace(props) {
         urls,
         values,
         qualitative,
+        scorecard,
+        frequency,
+        impact,
+        insurance,
     } = props;
 
     const page = usePage();
@@ -566,7 +574,7 @@ export default function Workspace(props) {
                     </div>
 
                     <a href="#scenario-panel" className="text-sm text-[var(--color-primary)] underline">
-                        Skip to {tab === 'qualitative' ? 'Qualitative' : 'Overview & Governance'}
+                        Skip to {tabs?.find((t) => t.active)?.label || 'Overview & Governance'}
                     </a>
                 </div>
 
@@ -817,6 +825,38 @@ export default function Workspace(props) {
                             notes={notes}
                             notesMeta={notesMeta}
                             saveRef={saveRef}
+                            onDirtyChange={markDirty}
+                        />
+                    ) : tab === 'scorecard' ? (
+                        <ScorecardTab
+                            scenario={scenario}
+                            scorecard={scorecard}
+                            can={can}
+                            urls={urls}
+                            onDirtyChange={markDirty}
+                        />
+                    ) : tab === 'frequency' ? (
+                        <FrequencyTab
+                            scenario={scenario}
+                            frequency={frequency}
+                            can={can}
+                            urls={urls}
+                            onDirtyChange={markDirty}
+                        />
+                    ) : tab === 'impact' ? (
+                        <ImpactTab
+                            scenario={scenario}
+                            impact={impact}
+                            can={can}
+                            urls={urls}
+                            onDirtyChange={markDirty}
+                        />
+                    ) : tab === 'insurance' ? (
+                        <InsuranceTab
+                            scenario={scenario}
+                            insurance={insurance}
+                            can={can}
+                            urls={urls}
                             onDirtyChange={markDirty}
                         />
                     ) : (

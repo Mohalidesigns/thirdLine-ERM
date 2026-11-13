@@ -44,7 +44,7 @@ abstract class SmTestCase extends TestCase
      * second copy of the list. Two copies of a permission list is how one drifts.
      */
     public const ALL_PERMISSIONS = [
-        'scenario.view', 'scenario.create', 'scenario.update',
+        'scenario.view', 'scenario.create', 'scenario.update', 'scenario.design',
         'scenario.validate', 'scenario.sign_off', 'scenario.note',
     ];
 
@@ -203,7 +203,28 @@ abstract class SmTestCase extends TestCase
         $this->selectCauses($scenario, ['people_inadequately_skilled' => null]);
         $this->allocate($scenario, [[0, '60.00'], [1, '40.00']]);
 
-        return $scenario->fresh(['causes', 'allocations']);
+        // Phase 2 quantitative completeness: λ > 0 and ≥1 impact type with computed totals
+        $scenario->frequencyDrivers()->create([
+            'organization_id' => $scenario->organization_id,
+            'driver_type' => 'historical_events',
+            'criterion' => 'Historical operational losses',
+            'computation_role' => 'count',
+            'value' => 1.0,
+            'sort_order' => 1,
+        ]);
+
+        $scenario->impactTypes()->create([
+            'organization_id' => $scenario->organization_id,
+            'name' => 'Operational loss',
+            'aggregation_template' => 'staff_turnover_interval',
+            'eligible_to_transfer' => false,
+            'typical_total' => '1000.00',
+            'serious_total' => '2000.00',
+            'extreme_total' => '5000.00',
+            'sort_order' => 1,
+        ]);
+
+        return $scenario->fresh(['causes', 'allocations', 'frequencyDrivers', 'impactTypes']);
     }
 
     /**

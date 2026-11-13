@@ -78,6 +78,10 @@ class SmTenancyIsolationTest extends SmTestCase
             'status' => ['POST', 'scenario.status', ['to' => 'in_design']],
             'signoffs' => ['POST', 'scenario.signoffs.store', ['signoffs' => [], 'review_due_on' => '2027-11-10']],
             'notes' => ['POST', 'scenario.notes.store', ['kind' => 'dissent', 'body' => 'A dissent on somebody else\'s scenario.']],
+            'scorecard' => ['PUT', 'scenario.scorecard.update', ['control_nature' => 'mixed', 'components' => [['component_code' => 'control_environment', 'efficiency_level' => 3, 'weighting_factor' => 3]]]],
+            'frequency' => ['PUT', 'scenario.frequency.update', ['drivers' => [['driver_type' => 'events', 'criterion' => 'Events', 'computation_role' => 'count', 'value' => 5]]]],
+            'impact' => ['PUT', 'scenario.impact.update', ['types' => []]],
+            'insurance' => ['PUT', 'scenario.insurance.update', ['coverages' => []]],
         ];
     }
 
@@ -204,6 +208,12 @@ class SmTenancyIsolationTest extends SmTestCase
             BusinessLineAllocation::class,
             Signoff::class,
             Note::class,
+            \App\Models\Sm\Scorecard::class,
+            \App\Models\Sm\ScorecardComponent::class,
+            \App\Models\Sm\FrequencyDriver::class,
+            \App\Models\Sm\ImpactType::class,
+            \App\Models\Sm\ImpactCriterion::class,
+            \App\Models\Sm\InsuranceCoverage::class,
         ] as $class) {
             $this->assertContains(
                 \ThirdLine\Platform\Tenancy\BelongsToOrganization::class,

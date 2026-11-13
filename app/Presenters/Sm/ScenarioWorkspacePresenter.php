@@ -4,15 +4,19 @@ namespace App\Presenters\Sm;
 
 use App\Models\BusinessUnit;
 use App\Models\FxRate;
+use App\Models\Sm\ImpactType;
 use App\Models\Sm\Note;
 use App\Models\Sm\Scenario;
 use App\Models\Sm\ScenarioCause;
+use App\Models\Sm\Scorecard;
+use App\Models\Sm\ScorecardComponent;
 use App\Models\Sm\Signoff;
 use App\Models\User;
 use App\Services\CurrencyService;
 use App\Services\Sm\AllocationService;
 use App\Services\Sm\CauseService;
 use App\Services\Sm\OpEventTypeCatalogue;
+use App\Services\Sm\ScenarioComputationService;
 use App\Services\Sm\ScenarioLifecycle;
 use App\Services\Sm\ScenarioSettings;
 use App\Services\Sm\SignoffWarnings;
@@ -71,10 +75,10 @@ class ScenarioWorkspacePresenter
         private readonly ScenarioLifecycle $lifecycle,
         private readonly CurrencyService $currencies,
         private readonly OpEventTypeCatalogue $opEvents,
+        private readonly ScenarioComputationService $computation,
     ) {}
 
     /**
-     * @param  'overview'|'qualitative'  $tab
      * @return array<string, mixed>
      */
     public function present(Scenario $scenario, User $user, string $tab, ?int $notesBefore = null): array
@@ -82,6 +86,7 @@ class ScenarioWorkspacePresenter
         $scenario->loadMissing([
             'taxonomyNode', 'businessUnit', 'risk', 'fxRateRecord', 'creator', 'updater',
             'causes', 'allocations.businessUnit', 'signoffs.signer',
+            'scorecard.components', 'frequencyDrivers', 'impactTypes.criteria', 'insuranceCoverages',
         ]);
 
         $payload = [
@@ -124,13 +129,26 @@ class ScenarioWorkspacePresenter
         $payload['notesMeta'] = ['shown' => count($notes), 'total' => $total];
         $payload['noteKinds'] = $this->noteKinds();
 
+        $payload['values'] = null;
+        $payload['qualitative'] = null;
+        $payload['scorecard'] = null;
+        $payload['frequency'] = null;
+        $payload['impact'] = null;
+        $payload['insurance'] = null;
+
         // Only the active tab's payload ships (spec 01 §4).
         if ($tab === 'qualitative') {
             $payload['qualitative'] = $this->qualitative($scenario);
-            $payload['values'] = null;
+        } elseif ($tab === 'scorecard') {
+            $payload['scorecard'] = $this->scorecard($scenario);
+        } elseif ($tab === 'frequency') {
+            $payload['frequency'] = $this->frequency($scenario);
+        } elseif ($tab === 'impact') {
+            $payload['impact'] = $this->impact($scenario);
+        } elseif ($tab === 'insurance') {
+            $payload['insurance'] = $this->insurance($scenario);
         } else {
             $payload['values'] = $this->values($scenario);
-            $payload['qualitative'] = null;
             $payload['businessUnits'] = $this->businessUnits((int) $scenario->organization_id);
             $payload['opEventTypes'] = $this->opEventTypes((int) $scenario->organization_id);
             $payload['natures'] = $this->options(Scenario::NATURES);
@@ -291,13 +309,7 @@ class ScenarioWorkspacePresenter
     /* ------------------------------------------------------------------ */
 
     /**
-     * Phase 1: TWO live entries, and the seven deferred tabs are ABSENT from the strip
-     * with their existence disclosed once in `roadmapNote` (spec 01 §5.1). Nine tabs of
-     * which two work is worse than two tabs and a sentence: seven disabled tabs are seven
-     * dead tab stops on every visit, absent tabs cannot be deep-linked so no
-     * `?tab=frequency` URL exists to render empty, and standard §5's discipline applies to
-     * CAPABILITY as well as to numbers — a strip of greyed-out tabs implies a quantitative
-     * module the product does not have.
+     * Phase 2: SIX live entries (Overview, Qualitative, Frequency, Impact, Insurance, Scorecard).
      *
      * TABS ARE LINKS, NOT BUTTONS, so a validator can send a colleague "the qualitative
      * tab of SM-2026-014" and a tab switch is a navigation the unsaved-changes guard
@@ -320,19 +332,39 @@ class ScenarioWorkspacePresenter
                 'url' => route('scenario.show', ['scenario' => $scenario, 'tab' => 'qualitative']),
                 'live' => true,
             ],
+            [
+                'key' => 'frequency',
+                'label' => 'Frequency',
+                'url' => route('scenario.show', ['scenario' => $scenario, 'tab' => 'frequency']),
+                'live' => true,
+            ],
+            [
+                'key' => 'impact',
+                'label' => 'Impact',
+                'url' => route('scenario.show', ['scenario' => $scenario, 'tab' => 'impact']),
+                'live' => true,
+            ],
+            [
+                'key' => 'insurance',
+                'label' => 'Insurance',
+                'url' => route('scenario.show', ['scenario' => $scenario, 'tab' => 'insurance']),
+                'live' => true,
+            ],
+            [
+                'key' => 'scorecard',
+                'label' => 'Scorecard',
+                'url' => route('scenario.show', ['scenario' => $scenario, 'tab' => 'scorecard']),
+                'live' => true,
+            ],
         ];
     }
 
     /**
-     * Six booleans, and NO `design` (§A1.10 defers `scenario.design` to Phase 2).
+     * Permissions for UI affordances (spec 01 §3, ADR 0027 Amendment 2 §A2.7).
      *
      * `can` decides whether an EDITING AFFORDANCE renders. It never decides which
      * lifecycle buttons appear — `transitions` does, because the server has already
      * filtered that list by permission and by status (spec 01 §3).
-     *
-     * `update` is additionally false when the scenario is read-only, so a
-     * `scenario.update` holder looking at an `in_validation` record gets the read-only
-     * presentation with no Save button rather than a control that flashes a refusal.
      *
      * @return array<string, bool>
      */
@@ -342,6 +374,7 @@ class ScenarioWorkspacePresenter
             'view' => $user->can('view', $scenario),
             'create' => $user->can('scenario.create'),
             'update' => $user->can('update', $scenario) && ! $scenario->isReadOnly(),
+            'design' => $user->can('scenario.design') && ! $scenario->isReadOnly(),
             'validate' => $user->can('transition', $scenario),
             'sign_off' => $user->can('signOff', $scenario),
             // Spec 01 §5.5: notes close at `archived` ONLY — a note is commentary on a
@@ -351,7 +384,7 @@ class ScenarioWorkspacePresenter
     }
 
     /**
-     * Mirrors §A1.11's route table exactly (spec 01 §4).
+     * Mirrors the route table exactly (spec 01 §4, ADR 0027 Amendment 2 §A2.7).
      *
      * @return array<string, string|null>
      */
@@ -362,6 +395,10 @@ class ScenarioWorkspacePresenter
             'scenario' => route('scenario.update', $scenario),
             'causes' => route('scenario.causes.update', $scenario),
             'allocations' => route('scenario.allocations.update', $scenario),
+            'scorecard' => route('scenario.scorecard.update', $scenario),
+            'frequency' => route('scenario.frequency.update', $scenario),
+            'impact' => route('scenario.impact.update', $scenario),
+            'insurance' => route('scenario.insurance.update', $scenario),
             'status' => route('scenario.status', $scenario),
             'signoffs' => route('scenario.signoffs.store', $scenario),
             'notes' => route('scenario.notes.store', $scenario),
@@ -904,6 +941,298 @@ class ScenarioWorkspacePresenter
         }
 
         return ['value' => $value, 'unset_label' => $unsetLabel, 'options' => $out];
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Phase 2 Quantitative Tabs (Scorecard, Frequency, Impact, Insurance) */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function scorecard(Scenario $scenario): array
+    {
+        $scorecard = $scenario->scorecard;
+        $controlNature = $scorecard?->control_nature ?? 'mixed';
+
+        $components = [];
+        $existing = $scorecard ? $scorecard->components->keyBy('component_code') : collect();
+
+        $sort = 1;
+        foreach (ScorecardComponent::COMPONENTS as $code => $name) {
+            $row = $existing->get($code);
+            $eff = $row?->efficiency_level ?? 0;
+            $weight = $row?->weighting_factor ?? 0;
+            $score = $row?->score ?? 0;
+            $levelScore = $row ? (string) $row->level_score : '0.00';
+            $adjScore = $row ? (string) $row->adjusted_score : '0.00';
+            $wtdScore = $row ? (string) $row->weighted_score : '0.0000';
+
+            $components[] = [
+                'component_code' => $code,
+                'component_name' => $name,
+                'efficiency_level' => (int) $eff,
+                'weighting_factor' => (int) $weight,
+                'score' => (int) $score,
+                'level_score' => $levelScore,
+                'adjusted_score' => $adjScore,
+                'weighting_score' => (int) $weight,
+                'weighted_score' => $wtdScore,
+                'notes' => $row?->notes,
+                'sort_order' => $sort++,
+            ];
+        }
+
+        $natureOptions = [];
+        foreach (Scorecard::CONTROL_NATURES as $val => $data) {
+            $natureOptions[] = [
+                'value' => $val,
+                'label' => $data['label'],
+                'deduction' => sprintf('-%d%%', abs((int) ($data['deduction'] * 100))),
+            ];
+        }
+
+        $globalScoreFormatted = $scorecard?->global_score !== null
+            ? sprintf('%.2f%%', ((float) $scorecard->global_score) * 100)
+            : null;
+
+        return [
+            'id' => $scorecard?->id,
+            'control_nature' => $controlNature,
+            'nature_options' => $natureOptions,
+            'components' => $components,
+            'level_options' => [
+                ['value' => 0, 'label' => '— Please select —'],
+                ['value' => 1, 'label' => '1. Very low (0.20)'],
+                ['value' => 2, 'label' => '2. Low (0.40)'],
+                ['value' => 3, 'label' => '3. Medium (0.55)'],
+                ['value' => 4, 'label' => '4. High (0.70)'],
+                ['value' => 5, 'label' => '5. Very high (0.90)'],
+            ],
+            'weight_options' => [
+                ['value' => 0, 'label' => '— Please select —'],
+                ['value' => 1, 'label' => '1. Very low (1)'],
+                ['value' => 2, 'label' => '2. Low (2)'],
+                ['value' => 3, 'label' => '3. Medium (3)'],
+                ['value' => 4, 'label' => '4. High (4)'],
+                ['value' => 5, 'label' => '5. Very high (5)'],
+            ],
+            'total_weight' => $scorecard?->total_weight,
+            'total_weighted_score' => $scorecard?->total_weighted_score !== null ? (string) $scorecard->total_weighted_score : null,
+            'global_score' => $scorecard?->global_score !== null ? (string) $scorecard->global_score : null,
+            'global_score_formatted' => $globalScoreFormatted,
+            'is_read_only' => $scenario->isReadOnly(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function frequency(Scenario $scenario): array
+    {
+        $drivers = $scenario->frequencyDrivers;
+        $scorecard = $scenario->scorecard;
+        $scorecardScore = $scorecard?->global_score !== null ? (float) $scorecard->global_score : null;
+
+        $driverRows = [];
+        if ($drivers && $drivers->isNotEmpty()) {
+            foreach ($drivers as $d) {
+                $driverRows[] = [
+                    'id' => $d->id,
+                    'driver_type' => $d->driver_type,
+                    'criterion' => $d->criterion,
+                    'computation_role' => $d->computation_role,
+                    'value' => (string) $d->value,
+                    'data_source' => $d->data_source,
+                    'sm_scorecard_id' => $d->sm_scorecard_id,
+                    'is_linked_to_scorecard' => $d->computation_role === 'control_score_complement',
+                    'sort_order' => $d->sort_order,
+                ];
+            }
+        } else {
+            $driverRows = [
+                [
+                    'id' => null,
+                    'driver_type' => 'exposed_staff_count',
+                    'criterion' => 'Exposed Staff count',
+                    'computation_role' => 'count',
+                    'value' => '0',
+                    'data_source' => 'HR information',
+                    'sm_scorecard_id' => null,
+                    'is_linked_to_scorecard' => false,
+                    'sort_order' => 1,
+                ],
+                [
+                    'id' => null,
+                    'driver_type' => 'retention_plan_efficiency',
+                    'criterion' => 'Retention plan efficiency',
+                    'computation_role' => 'control_score_complement',
+                    'value' => $scorecardScore !== null ? (string) $scorecardScore : '',
+                    'data_source' => 'Scorecard',
+                    'sm_scorecard_id' => $scorecard?->id,
+                    'is_linked_to_scorecard' => true,
+                    'sort_order' => 2,
+                ],
+                [
+                    'id' => null,
+                    'driver_type' => 'competition_pressure_prob',
+                    'criterion' => 'Competition pressure probability',
+                    'computation_role' => 'probability',
+                    'value' => '',
+                    'data_source' => 'Expert judgement',
+                    'sm_scorecard_id' => null,
+                    'is_linked_to_scorecard' => false,
+                    'sort_order' => 3,
+                ],
+            ];
+        }
+
+        $calc = $this->computation->computeFrequency(
+            collect($driverRows)->map(fn ($r) => [
+                'computation_role' => $r['computation_role'],
+                'value' => (float) $r['value'],
+                'sm_scorecard_id' => $r['sm_scorecard_id'],
+                'use_scorecard' => $r['is_linked_to_scorecard'] ?? false,
+            ])->all(),
+            $scorecardScore
+        );
+
+        return [
+            'drivers' => $driverRows,
+            'scorecard_global_score' => $scorecardScore !== null ? (string) $scorecardScore : null,
+            'total_frequency' => sprintf('%.4f', $calc['total_frequency']),
+            'interval_years' => sprintf('%.8f', $calc['interval_years']),
+            'interval_display' => $calc['interval_display'],
+            'is_read_only' => $scenario->isReadOnly(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function impact(Scenario $scenario): array
+    {
+        $types = $scenario->impactTypes;
+
+        $typeRows = [];
+        $sumTyp = 0.0;
+        $sumSer = 0.0;
+        $sumExt = 0.0;
+
+        if ($types) {
+            foreach ($types as $t) {
+                $criteria = [];
+                foreach ($t->criteria as $c) {
+                    $criteria[] = [
+                        'id' => $c->id,
+                        'label' => $c->label,
+                        'unit' => $c->unit,
+                        'computation_role' => $c->computation_role,
+                        'data_source' => $c->data_source,
+                        'typical_value' => (string) $c->typical_value,
+                        'serious_value' => (string) $c->serious_value,
+                        'extreme_value' => (string) $c->extreme_value,
+                        'sort_order' => $c->sort_order,
+                    ];
+                }
+
+                $typ = (float) $t->typical_total;
+                $ser = (float) $t->serious_total;
+                $ext = (float) $t->extreme_total;
+                $sumTyp += $typ;
+                $sumSer += $ser;
+                $sumExt += $ext;
+
+                $typeRows[] = [
+                    'id' => $t->id,
+                    'name' => $t->name,
+                    'aggregation_template' => $t->aggregation_template,
+                    'eligible_to_transfer' => (bool) $t->eligible_to_transfer,
+                    'sort_order' => $t->sort_order,
+                    'totals' => [
+                        'typical' => (string) $t->typical_total,
+                        'serious' => (string) $t->serious_total,
+                        'extreme' => (string) $t->extreme_total,
+                    ],
+                    'criteria' => $criteria,
+                ];
+            }
+        }
+
+        $templates = [];
+        foreach (ImpactType::TEMPLATES as $val => $data) {
+            $templates[] = [
+                'value' => $val,
+                'label' => $data['label'],
+                'description' => $data['description'],
+            ];
+        }
+
+        $freqCalc = $this->computation->computeFrequency(
+            $scenario->frequencyDrivers->map(fn ($d) => [
+                'computation_role' => $d->computation_role,
+                'value' => (float) $d->value,
+                'sm_scorecard_id' => $d->sm_scorecard_id,
+            ])->all(),
+            $scenario->scorecard ? (float) $scenario->scorecard->global_score : null
+        );
+
+        return [
+            'currency' => (string) $scenario->currency,
+            'frequency_interval' => sprintf('%.8f', $freqCalc['interval_years']),
+            'templates' => $templates,
+            'types' => $typeRows,
+            'gross_impact' => [
+                'typical' => sprintf('%.2f', $sumTyp),
+                'serious' => sprintf('%.2f', $sumSer),
+                'extreme' => sprintf('%.2f', $sumExt),
+            ],
+            'is_read_only' => $scenario->isReadOnly(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function insurance(Scenario $scenario): array
+    {
+        $coverages = $scenario->insuranceCoverages ? $scenario->insuranceCoverages->keyBy('severity') : collect();
+        $severities = ['typical', 'serious', 'extreme'];
+
+        $coverageRows = [];
+        $isUninsured = true;
+
+        foreach ($severities as $sev) {
+            $cov = $coverages->get($sev);
+            $trans = (float) ($cov?->transferable_amount ?? 0.0);
+            if ($trans > 0.0) {
+                $isUninsured = false;
+            }
+
+            $coverageRows[$sev] = [
+                'transferable_amount' => (string) ($cov?->transferable_amount ?? '0.00'),
+                'deductible_local' => (string) ($cov?->deductible_local ?? '0.00'),
+                'limit_local' => (string) ($cov?->limit_local ?? '0.00'),
+                'deductible_group' => (string) ($cov?->deductible_group ?? '0.00'),
+                'limit_group' => (string) ($cov?->limit_group ?? '0.00'),
+                'recovery_rate' => (string) ($cov?->recovery_rate ?? '1.0000'),
+                'probability_of_cover' => (string) ($cov?->probability_of_cover ?? '1.0000'),
+                'insurer_default_haircut' => (string) ($cov?->insurer_default_haircut ?? '0.0000'),
+                'residual_amount' => (string) ($cov?->residual_amount ?? '0.00'),
+                'total_haircut' => (string) ($cov?->total_haircut ?? '0.0000'),
+                'haircut_impact' => (string) ($cov?->haircut_impact ?? '0.00'),
+                'gross_impact' => (string) ($cov?->gross_impact ?? '0.00'),
+                'net_impact' => (string) ($cov?->net_impact ?? '0.00'),
+            ];
+        }
+
+        return [
+            'currency' => (string) $scenario->currency,
+            'severities' => $severities,
+            'coverages' => $coverageRows,
+            'is_uninsured' => $isUninsured,
+            'is_read_only' => $scenario->isReadOnly(),
+        ];
     }
 
     /* ------------------------------------------------------------------ */

@@ -164,3 +164,4 @@ Container `max-w-6xl`.
 - **Empty state:** Option to "Load standard impact templates" (Hiring/training & Litigation) matching workbook.
 - **Validation:** 422 errors returned on missing criteria or non-numeric values.
 - **Read-only state:** Disabled inputs and badges when scenario is locked.
+

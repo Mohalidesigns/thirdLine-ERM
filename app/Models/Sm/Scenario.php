@@ -597,6 +597,30 @@ class Scenario extends Model
         return $this->hasMany(Note::class, 'sm_scenario_id');
     }
 
+    /** @return \Illuminate\Database\Eloquent\Relations\HasOne<Scorecard, $this> */
+    public function scorecard(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Scorecard::class, 'sm_scenario_id');
+    }
+
+    /** @return HasMany<FrequencyDriver, $this> */
+    public function frequencyDrivers(): HasMany
+    {
+        return $this->hasMany(FrequencyDriver::class, 'sm_scenario_id')->orderBy('sort_order');
+    }
+
+    /** @return HasMany<ImpactType, $this> */
+    public function impactTypes(): HasMany
+    {
+        return $this->hasMany(ImpactType::class, 'sm_scenario_id')->orderBy('sort_order');
+    }
+
+    /** @return HasMany<InsuranceCoverage, $this> */
+    public function insuranceCoverages(): HasMany
+    {
+        return $this->hasMany(InsuranceCoverage::class, 'sm_scenario_id');
+    }
+
     /**
      * The CURRENT sign-off per source — the latest row by `signed_at` (§A1.6).
      *

@@ -3003,6 +3003,19 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         Route::put('{scenario}/allocations', [SmScenarioController::class, 'updateAllocations'])
             ->middleware('permission:scenario.update')->name('allocations.update');
 
+        // Phase 2 quantitative routes — gated by permission:scenario.design (ADR 0027 Amendment 2 §A2.7)
+        Route::put('{scenario}/scorecard', [SmScenarioController::class, 'updateScorecard'])
+            ->middleware('permission:scenario.design')->name('scorecard.update');
+
+        Route::put('{scenario}/frequency', [SmScenarioController::class, 'updateFrequency'])
+            ->middleware('permission:scenario.design')->name('frequency.update');
+
+        Route::put('{scenario}/impact', [SmScenarioController::class, 'updateImpact'])
+            ->middleware('permission:scenario.design')->name('impact.update');
+
+        Route::put('{scenario}/insurance', [SmScenarioController::class, 'updateInsurance'])
+            ->middleware('permission:scenario.design')->name('insurance.update');
+
         // EVERY lifecycle transition rides this one route, including `draft → in_design`
         // (spec 01 §3). `scenario.design` does not exist in Phase 1 — §A1.10 defers it to
         // Phase 2, because nothing here is quantitative and `scenario.update` covers the

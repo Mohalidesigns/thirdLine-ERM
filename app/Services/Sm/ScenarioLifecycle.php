@@ -153,6 +153,22 @@ class ScenarioLifecycle
             $missing[] = ['tab' => $item['tab'], 'field' => $item['field'], 'label' => $item['label']];
         }
 
+        if ($this->computeLambda($scenario) <= 0.0) {
+            $missing[] = [
+                'tab' => 'frequency',
+                'field' => 'frequency',
+                'label' => 'Frequency',
+            ];
+        }
+
+        if (! $this->hasComputedImpact($scenario)) {
+            $missing[] = [
+                'tab' => 'impact',
+                'field' => 'impact',
+                'label' => 'Impact',
+            ];
+        }
+
         return ['ready' => $missing === [], 'missing' => $missing];
     }
 
@@ -284,6 +300,10 @@ class ScenarioLifecycle
             ));
         }
 
+        if ($to === 'designed') {
+            $this->assertDesignComplete($scenario);
+        }
+
         // §A1.8's second transition guard, as corrected by C1.2. A flash, not a 403
         // and not a 422: the user is allowed to try, and the reason is about the
         // RECORD rather than about what they posted. Checked BEFORE the transaction
@@ -329,6 +349,55 @@ class ScenarioLifecycle
 
             return $scenario;
         });
+    }
+
+    /**
+     * Quantitative completeness guard for in_design -> designed transition (ADR 0027 Amendment 2 §A2.7).
+     *
+     * Refuses with a FLASH (ScenarioRefused) if:
+     * 1. Frequency drivers do not yield expected annual frequency λ > 0.
+     * 2. No impact type exists with computed totals.
+     *
+     * @throws ScenarioRefused
+     */
+    public function assertDesignComplete(Scenario $scenario): void
+    {
+        if ($this->computeLambda($scenario) <= 0.0) {
+            throw new ScenarioRefused('A scenario can\'t be moved to designed without frequency drivers yielding an expected annual frequency (λ) greater than zero.');
+        }
+
+        if (! $this->hasComputedImpact($scenario)) {
+            throw new ScenarioRefused('A scenario can\'t be moved to designed without at least one impact type with computed totals.');
+        }
+    }
+
+    public function computeLambda(Scenario $scenario): float
+    {
+        $drivers = $scenario->frequencyDrivers()->get()->map(fn ($d) => [
+            'computation_role' => $d->computation_role,
+            'value' => $d->value,
+            'sm_scorecard_id' => $d->sm_scorecard_id,
+        ])->all();
+
+        $scorecard = $scenario->scorecard()->first();
+        $scorecardScore = $scorecard?->global_score !== null
+            ? (float) $scorecard->global_score
+            : null;
+
+        $result = app(ScenarioComputationService::class)->computeFrequency($drivers, $scorecardScore);
+
+        return (float) $result['total_frequency'];
+    }
+
+    public function hasComputedImpact(Scenario $scenario): bool
+    {
+        return $scenario->impactTypes()
+            ->where(function ($query) {
+                $query->whereNotNull('typical_total')
+                    ->orWhereNotNull('serious_total')
+                    ->orWhereNotNull('extreme_total');
+            })
+            ->exists();
     }
 
     /**

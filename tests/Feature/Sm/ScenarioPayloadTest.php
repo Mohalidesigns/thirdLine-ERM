@@ -287,7 +287,7 @@ class ScenarioPayloadTest extends SmTestCase
         // the Inertia payload (the channel the user actually sees), never with
         // `assertSessionHas()`, which reads the post-request session and would always miss it.
         $this->actingAs($this->actor)
-            ->get(route('scenario.show', ['scenario' => $scenario, 'tab' => 'frequency']))
+            ->get(route('scenario.show', ['scenario' => $scenario, 'tab' => 'stress']))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->where('tab', 'overview')
@@ -306,19 +306,20 @@ class ScenarioPayloadTest extends SmTestCase
     }
 
     #[Test]
-    public function exactly_two_tabs_are_live_and_the_seven_deferred_ones_are_absent_not_disabled(): void
+    public function exactly_six_tabs_are_live_and_the_deferred_ones_are_absent_not_disabled(): void
     {
-        // Spec 01 §5.1's decision: "Nine tabs of which two work is worse than two tabs and a
-        // sentence." Absent tabs cannot be deep-linked, so no `?tab=frequency` URL exists to
-        // render empty — and standard §5 applies to CAPABILITY as well as to numbers.
+        // Phase 2: Overview, Qualitative, Frequency, Impact, Insurance, and Scorecard are live.
         $scenario = $this->makeScenario();
 
         $this->actingAs($this->actor)
             ->get(route('scenario.show', $scenario))
             ->assertInertia(fn ($page) => $page
                 ->where('tabs', function ($tabs) {
-                    $this->assertCount(2, $tabs);
-                    $this->assertSame(['overview', 'qualitative'], collect($tabs)->pluck('key')->all());
+                    $this->assertCount(6, $tabs);
+                    $this->assertSame(
+                        ['overview', 'qualitative', 'frequency', 'impact', 'insurance', 'scorecard'],
+                        collect($tabs)->pluck('key')->all()
+                    );
                     $this->assertTrue(collect($tabs)->every(fn ($tab) => $tab['live'] === true));
 
                     return true;

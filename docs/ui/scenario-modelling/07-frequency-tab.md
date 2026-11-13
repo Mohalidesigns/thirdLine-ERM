@@ -113,3 +113,4 @@ Container `max-w-5xl`. Two cards:
 - **Empty state:** When no frequency drivers exist, prompts with "Add default frequency drivers" to seed the standard 3-driver structure.
 - **Validation:** 422 errors returned on `drivers.{i}.value` (must be numeric $>0$; probabilities must be $\le 1.0$).
 - **Read-only state:** Disabled inputs with read-only badges when scenario is frozen/validated.
+

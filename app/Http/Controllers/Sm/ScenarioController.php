@@ -6,9 +6,13 @@ use App\Grids\GridRegistry;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sm\SearchRisksRequest;
 use App\Http\Requests\Sm\StoreScenarioRequest;
+use App\Http\Requests\Sm\UpdateFrequencyRequest;
+use App\Http\Requests\Sm\UpdateImpactRequest;
+use App\Http\Requests\Sm\UpdateInsuranceRequest;
 use App\Http\Requests\Sm\UpdateScenarioAllocationsRequest;
 use App\Http\Requests\Sm\UpdateScenarioCausesRequest;
 use App\Http\Requests\Sm\UpdateScenarioRequest;
+use App\Http\Requests\Sm\UpdateScorecardRequest;
 use App\Models\Risk;
 use App\Models\Sm\Scenario;
 use App\Presenters\GridPresenter;
@@ -17,6 +21,7 @@ use App\Presenters\Sm\ScenarioIndexPresenter;
 use App\Presenters\Sm\ScenarioWorkspacePresenter;
 use App\Services\Sm\AllocationService;
 use App\Services\Sm\CauseService;
+use App\Services\Sm\ScenarioQuantitativeService;
 use App\Services\Sm\ScenarioRefused;
 use App\Services\Sm\ScenarioService;
 use Illuminate\Http\JsonResponse;
@@ -47,13 +52,14 @@ use Inertia\Response;
  */
 class ScenarioController extends Controller
 {
-    /** The two live tabs. The seven deferred ones are ABSENT from the strip (spec 01 §5.1). */
-    private const TABS = ['overview', 'qualitative'];
+    /** The six live tabs in Phase 2 (spec 01 §5.1, ADR 0027 Amendment 2). */
+    private const TABS = ['overview', 'qualitative', 'frequency', 'impact', 'insurance', 'scorecard'];
 
     public function __construct(
         private readonly ScenarioService $scenarios,
         private readonly CauseService $causes,
         private readonly AllocationService $allocations,
+        private readonly ScenarioQuantitativeService $quantitativeService,
     ) {}
 
     /**
@@ -237,6 +243,62 @@ class ScenarioController extends Controller
         }
 
         return back()->with('success', 'Saved.');
+    }
+
+    /**
+     * Update COSO Control Scorecard (spec 06, ADR 0027 Amendment 2 §A2.2).
+     */
+    public function updateScorecard(UpdateScorecardRequest $request, Scenario $scenario): RedirectResponse
+    {
+        try {
+            $this->quantitativeService->updateScorecard($scenario, $request->validated(), $request->user());
+        } catch (ScenarioRefused $e) {
+            return back()->with('error', $e->flash());
+        }
+
+        return back()->with('success', 'Scorecard saved.');
+    }
+
+    /**
+     * Update Frequency Drivers (spec 07, ADR 0027 Amendment 2 §A2.3).
+     */
+    public function updateFrequency(UpdateFrequencyRequest $request, Scenario $scenario): RedirectResponse
+    {
+        try {
+            $this->quantitativeService->updateFrequency($scenario, $request->validated()['drivers'], $request->user());
+        } catch (ScenarioRefused $e) {
+            return back()->with('error', $e->flash());
+        }
+
+        return back()->with('success', 'Frequency drivers saved.');
+    }
+
+    /**
+     * Update Impact Categories and Criteria (spec 08, ADR 0027 Amendment 2 §A2.4).
+     */
+    public function updateImpact(UpdateImpactRequest $request, Scenario $scenario): RedirectResponse
+    {
+        try {
+            $this->quantitativeService->updateImpact($scenario, $request->validated()['types'] ?? [], $request->user());
+        } catch (ScenarioRefused $e) {
+            return back()->with('error', $e->flash());
+        }
+
+        return back()->with('success', 'Impact assessment saved.');
+    }
+
+    /**
+     * Update Insurance Netting Terms (spec 09, ADR 0027 Amendment 2 §A2.5).
+     */
+    public function updateInsurance(UpdateInsuranceRequest $request, Scenario $scenario): RedirectResponse
+    {
+        try {
+            $this->quantitativeService->updateInsurance($scenario, $request->validated()['coverages'], $request->user());
+        } catch (ScenarioRefused $e) {
+            return back()->with('error', $e->flash());
+        }
+
+        return back()->with('success', 'Insurance terms saved.');
     }
 
     /**

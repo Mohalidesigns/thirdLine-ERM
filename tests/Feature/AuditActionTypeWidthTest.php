@@ -58,6 +58,7 @@ class AuditActionTypeWidthTest extends TestCase
         // ERM/Risk sub-module, and that trail is what the register, RCSA and the KRI cycle
         // already write through. `sm_scenario` is the morph alias, inside ENTITY_TYPE_MAX.
         'status_changed', 'signoff_recorded', 'note_added', 'allocation_changed',
+        'scorecard_updated', 'frequency_updated', 'impact_updated', 'insurance_updated',
     ];
 
     #[Test]

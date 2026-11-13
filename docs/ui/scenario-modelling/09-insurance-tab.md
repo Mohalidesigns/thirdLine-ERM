@@ -131,3 +131,4 @@ Container `max-w-6xl`.
 - **Tiered calculation explanation:** Tooltips explain the 5-branch local and group policy attachment formula decoded from the workbook.
 - **Validation:** 422 errors returned on negative limits, deductibles exceeding limits, or percentages $> 100\%$.
 - **Read-only state:** Disabled inputs with read-only badge when scenario is locked.
+

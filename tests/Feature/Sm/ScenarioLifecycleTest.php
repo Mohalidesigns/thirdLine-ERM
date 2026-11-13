@@ -328,6 +328,57 @@ class ScenarioLifecycleTest extends SmTestCase
     }
 
     #[Test]
+    public function the_designed_gate_refuses_a_scenario_with_no_frequency_with_a_flash(): void
+    {
+        $scenario = $this->makeDesignedReadyScenario();
+        $scenario->frequencyDrivers()->delete();
+
+        $gate = app(ScenarioLifecycle::class)->gate($scenario);
+        $this->assertFalse($gate['ready']);
+        $this->assertContains('frequency', array_column($gate['missing'], 'field'));
+
+        $this->actingAs($this->actor)
+            ->post(route('scenario.status', $scenario), ['to' => 'designed'])
+            ->assertSessionHas('error', "A scenario can't be moved to designed without frequency drivers yielding an expected annual frequency (λ) greater than zero.");
+
+        $this->assertSame('in_design', $scenario->fresh()->status);
+    }
+
+    #[Test]
+    public function the_designed_gate_refuses_a_scenario_with_no_impact_totals_with_a_flash(): void
+    {
+        $scenario = $this->makeDesignedReadyScenario();
+        $scenario->impactTypes()->delete();
+
+        $gate = app(ScenarioLifecycle::class)->gate($scenario);
+        $this->assertFalse($gate['ready']);
+        $this->assertContains('impact', array_column($gate['missing'], 'field'));
+
+        $this->actingAs($this->actor)
+            ->post(route('scenario.status', $scenario), ['to' => 'designed'])
+            ->assertSessionHas('error', "A scenario can't be moved to designed without at least one impact type with computed totals.");
+
+        $this->assertSame('in_design', $scenario->fresh()->status);
+    }
+
+    #[Test]
+    public function the_designed_gate_accepts_a_scenario_with_both_frequency_and_impact(): void
+    {
+        $scenario = $this->makeDesignedReadyScenario();
+
+        $gate = app(ScenarioLifecycle::class)->gate($scenario);
+        $this->assertTrue($gate['ready']);
+        $this->assertSame([], $gate['missing']);
+
+        $this->actingAs($this->actor)
+            ->post(route('scenario.status', $scenario), ['to' => 'designed'])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success');
+
+        $this->assertSame('designed', $scenario->fresh()->status);
+    }
+
+    #[Test]
     public function the_gate_is_null_for_a_status_that_has_nothing_to_be_ready_for(): void
     {
         $lifecycle = app(ScenarioLifecycle::class);

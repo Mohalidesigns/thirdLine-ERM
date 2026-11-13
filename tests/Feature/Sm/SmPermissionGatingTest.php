@@ -25,19 +25,17 @@ use Spatie\Permission\Models\Role;
 class SmPermissionGatingTest extends SmTestCase
 {
     #[Test]
-    public function the_catalog_declares_exactly_six_scenario_permissions(): void
+    public function the_catalog_declares_exactly_seven_scenario_permissions(): void
     {
-        // §A1.10: SIX, not the nine plan §4.1 proposed. Declaring a Phase 2–5 permission now
-        // would grant authority over routes that do not exist, on a role-assignment screen an
-        // administrator reads as available — and
-        // PermissionCatalogCoversRoutesTest::every_permission_in_the_catalog_is_held_by_some_role
-        // fails on a declared permission no role holds. Adding them later costs NO MIGRATION,
+        // §A1.10: SEVEN scenario permissions (Phase 1 six + Phase 2 scenario.design).
+        // Adding them later costs NO MIGRATION,
         // because deploy.sh runs RolesAndPermissionsSeeder whose syncCatalog() is additive.
         $this->assertSame(
             [
                 'scenario.view' => 'See operational-risk scenarios, their causes, allocations and sign-offs.',
                 'scenario.create' => 'Design a new scenario and give it a reference.',
                 'scenario.update' => "Change a scenario's identity, qualitative report, causes and business-line allocation.",
+                'scenario.design' => 'Configure and calibrate quantitative scenario models (scorecard, frequency, impact, insurance).',
                 'scenario.validate' => 'Move a scenario through validation — return it for rework or mark it validated.',
                 'scenario.sign_off' => 'Record a sign-off against a scenario as one of its three sources.',
                 'scenario.note' => 'Add an assumption, dissent, challenge or workshop minute to the scenario record.',
@@ -46,10 +44,10 @@ class SmPermissionGatingTest extends SmTestCase
         );
 
         // The deferred ones must NOT be present, and `scenario.delete` was refused outright.
-        foreach (['scenario.design', 'scenario.manage_actions', 'scenario.run_export', 'scenario.manage_library', 'scenario.delete'] as $absent) {
+        foreach (['scenario.manage_actions', 'scenario.run_export', 'scenario.manage_library', 'scenario.delete'] as $absent) {
             $this->assertFalse(
                 (new RiskPermissionCatalog)->has($absent),
-                "{$absent} is not a Phase 1 permission"
+                "{$absent} is not a Phase 1 or 2 permission"
             );
         }
     }
@@ -74,7 +72,7 @@ class SmPermissionGatingTest extends SmTestCase
     /** @return array<string, array{0: string, 1: list<string>}> */
     public static function roleGrantProvider(): array
     {
-        $all = ['scenario.view', 'scenario.create', 'scenario.update', 'scenario.validate', 'scenario.sign_off', 'scenario.note'];
+        $all = ['scenario.view', 'scenario.create', 'scenario.update', 'scenario.design', 'scenario.validate', 'scenario.sign_off', 'scenario.note'];
         $viewAndNote = ['scenario.view', 'scenario.note'];
 
         return [
@@ -148,6 +146,10 @@ class SmPermissionGatingTest extends SmTestCase
             'status needs validate' => ['POST', 'scenario.status', ['to' => 'in_design'], 'scenario.validate'],
             'signoffs need sign_off' => ['POST', 'scenario.signoffs.store', ['signoffs' => [], 'review_due_on' => '2027-11-10'], 'scenario.sign_off'],
             'notes need note' => ['POST', 'scenario.notes.store', ['kind' => 'assumption', 'body' => 'A note.'], 'scenario.note'],
+            'scorecard needs design' => ['PUT', 'scenario.scorecard.update', ['control_nature' => 'mixed', 'components' => [['component_code' => 'control_environment', 'efficiency_level' => 3, 'weighting_factor' => 3]]], 'scenario.design'],
+            'frequency needs design' => ['PUT', 'scenario.frequency.update', ['drivers' => [['driver_type' => 'events', 'criterion' => 'Events', 'computation_role' => 'count', 'value' => 5]]], 'scenario.design'],
+            'impact needs design' => ['PUT', 'scenario.impact.update', ['types' => []], 'scenario.design'],
+            'insurance needs design' => ['PUT', 'scenario.insurance.update', ['coverages' => []], 'scenario.design'],
         ];
     }
 
@@ -183,11 +185,9 @@ class SmPermissionGatingTest extends SmTestCase
     }
 
     #[Test]
-    public function the_can_prop_carries_six_flags_and_no_design(): void
+    public function the_can_prop_carries_seven_flags_including_design(): void
     {
-        // §A1.10 defers `scenario.design` to Phase 2, so `can` has six keys and a seventh would
-        // be a permission the catalog does not declare — which RouteAuthorizationTest and
-        // PermissionCatalogCoversRoutesTest both exist to catch.
+        // Phase 2 activates `scenario.design` (ADR 0027 Amendment 2), so `can` has seven keys.
         $scenario = $this->makeScenario();
 
         $this->actingAs($this->actor)
@@ -198,10 +198,10 @@ class SmPermissionGatingTest extends SmTestCase
                 $flags = collect($can)->all();
 
                 $this->assertSame(
-                    ['view', 'create', 'update', 'validate', 'sign_off', 'note'],
+                    ['view', 'create', 'update', 'design', 'validate', 'sign_off', 'note'],
                     array_keys($flags)
                 );
-                $this->assertArrayNotHasKey('design', $flags);
+                $this->assertArrayHasKey('design', $flags);
 
                 return true;
             }));

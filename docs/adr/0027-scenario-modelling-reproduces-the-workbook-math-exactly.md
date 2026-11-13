@@ -581,3 +581,247 @@ Ratified, verified against the code: `routes/web.php:2974-2975`, `GET risk-searc
 
 **Correction 2 freezes four things and changes no schema:** C1.5 re-keyed to the acting user when `user_id` is null (F-1 blocker — the `SignoffRulesTest.php:287` pass-through preserved, three tests required); a reachability-based status guard on `storeSignoffs` covering the `review_due_on` write (F-2, explicitly **not** `refuseIfReadOnly()`); a sanctioned, four-conditioned, fail-closed `risk_audit_trail` read for the "Previously signed off" marker, with the ADR 0026 exception recorded and its durable fix named (D-1/F-3); and `scenario.risk-search` ratified as the twelfth Phase 1 route (D-3).
 **Consumers:** backend-engineer (three code changes, no migration) · qa-engineer (the three C2.1 tests, a frozen-status sign-off refusal, and a marker test covering validated-but-never-signed-off) · ui-designer (no spec change — the marker copy stands as written in spec 01 §2) · code-reviewer (gate 2 re-run; the C1.5 actor-fallback and the reachability guard are the two veto items to re-check).
+
+---
+
+## Amendment 2 (2026-11-13) — Phase 2 Column-Level Schema Freeze & Quantitative Computation Contract
+
+**Status:** Accepted · **Phase:** Scenario Modelling & Analysis, Phase 2 (Quantitative Engine) · **Author:** architect  
+**Requested by:** Mohammed, 2026-11-13 — "Proceed with phase 2"  
+**Consumers:** backend-engineer (migrations, models, `ScenarioComputationService`) · ui-designer (screen specs 06–09) · frontend-engineer (workspace tabs) · qa-engineer (golden-value characterisation fixtures) · code-reviewer (Gate 2)
+
+---
+
+### A2.1 Boundary: Six Phase 2 Tables
+
+Phase 2 creates exactly six tables, fulfilling plan §4.2 and Amendment 1 §A1.1/§A1.13:
+1. `sm_scorecards` — control environment nature, total weights and computed global score.
+2. `sm_scorecard_components` — COSO 5 components (efficiency level 1–5, weighting 1–5, scores).
+3. `sm_frequency_drivers` — driver rows (count, scorecard complement, probability, data source).
+4. `sm_impact_types` — impact categories (name, aggregation template, transferable flag, subtotals).
+5. `sm_impact_criteria` — criteria rows per impact type (role, unit, typical/serious/extreme values).
+6. `sm_insurance_coverages` — per-severity risk-transfer netting rows (transferable, deductibles, limits, haircuts, net impact).
+
+**Refused in Phase 2:**
+- Variant deck tables (`sm_scenario_variants`, `sm_variant_sections`, `sm_variant_owners`, `sm_scenario_actions`) remain Phase 3.
+- Quantification bridge tables and `QuantificationScenario` export remain Phase 4.
+- Any computed summary column on `sm_scenarios` (reaffirming Amendment 1 §A1.13: computed figures live strictly on the Phase 2 child tables).
+
+---
+
+### A2.2 `sm_scorecards` & `sm_scorecard_components`
+
+One scorecard per scenario (1:1), holding the control environment nature and aggregate score.
+
+#### `sm_scorecards`
+| # | Column | Type | Null | Default | Description |
+|---|---|---|---|---|---|
+| 1 | `id` | `id()` | no | auto | Primary key |
+| 2 | `organization_id` | `foreignId()->constrained()->cascadeOnDelete()` | no | — | Tenant isolation |
+| 3 | `sm_scenario_id` | `foreignId()->constrained('sm_scenarios')->cascadeOnDelete()` | no | — | 1:1 with scenario |
+| 4 | `control_nature` | `string(20)` | no | `'mixed'` | `mainly_manual` \| `mixed` \| `mainly_automated` |
+| 5 | `total_weight` | `unsignedSmallInteger` | yes | NULL | Sum of component weights ($\Sigma K$) |
+| 6 | `total_weighted_score` | `decimal(12,4)` | yes | NULL | Sum of component weighted scores ($\Sigma L$) |
+| 7 | `global_score` | `decimal(12,8)` | yes | NULL | $\Sigma L / \Sigma K$ (0.0 to 1.0) |
+| 8 | `created_by` | `foreignId()->constrained('users')->nullOnDelete()` | yes | NULL | Creator |
+| 9 | `updated_by` | `foreignId()->constrained('users')->nullOnDelete()` | yes | NULL | Last editor |
+| 10 | `created_at`, `updated_at` | `timestamps()` | yes | NULL | Standard audit timestamps |
+
+**Indexes:** unique `sm_scorecards_scenario_unique (sm_scenario_id)`; index `sm_scorecards_org_scenario_idx (organization_id, sm_scenario_id)`.
+
+#### `sm_scorecard_components`
+| # | Column | Type | Null | Default | Description |
+|---|---|---|---|---|---|
+| 1 | `id` | `id()` | no | auto | Primary key |
+| 2 | `organization_id` | `foreignId()->constrained()->cascadeOnDelete()` | no | — | Tenant isolation |
+| 3 | `sm_scorecard_id` | `foreignId()->constrained('sm_scorecards')->cascadeOnDelete()` | no | — | Owning scorecard |
+| 4 | `component_code` | `string(40)` | no | — | One of the 5 COSO codes (§A2.6) |
+| 5 | `efficiency_level` | `unsignedTinyInteger` | no | `0` | 0 (unset) or 1..5 |
+| 6 | `weighting_factor` | `unsignedTinyInteger` | no | `0` | 0 (unset) or 1..5 |
+| 7 | `score` | `unsignedTinyInteger` | no | `0` | Matches `efficiency_level` (0..5) |
+| 8 | `level_score` | `decimal(5,2)` | no | `0.00` | Non-linear table score `{1:0.20, 2:0.40, 3:0.55, 4:0.70, 5:0.90}` |
+| 9 | `adjusted_score` | `decimal(5,2)` | no | `0.00` | `level_score - deduction` (`manual`: -0.10, `mixed`: -0.05, `automated`: 0.00) |
+| 10 | `weighting_score` | `unsignedTinyInteger` | no | `0` | Matches `weighting_factor` (0..5) |
+| 11 | `weighted_score` | `decimal(8,4)` | no | `0.0000` | `adjusted_score * weighting_score` |
+| 12 | `notes` | `text` | yes | NULL | Component evidence / notes |
+| 13 | `sort_order` | `unsignedSmallInteger` | no | `0` | Order (1..5) |
+| 14 | `created_at`, `updated_at` | `timestamps()` | yes | NULL | Timestamps |
+
+**Indexes:** unique `sm_sc_components_scorecard_code_unique (sm_scorecard_id, component_code)`; index `sm_sc_components_org_scorecard_idx (organization_id, sm_scorecard_id)`.
+
+---
+
+### A2.3 `sm_frequency_drivers`
+
+Stores input rows feeding the expected annual frequency calculation.
+
+| # | Column | Type | Null | Default | Description |
+|---|---|---|---|---|---|
+| 1 | `id` | `id()` | no | auto | Primary key |
+| 2 | `organization_id` | `foreignId()->constrained()->cascadeOnDelete()` | no | — | Tenant isolation |
+| 3 | `sm_scenario_id` | `foreignId()->constrained('sm_scenarios')->cascadeOnDelete()` | no | — | Owning scenario |
+| 4 | `driver_type` | `string(50)` | no | — | Driver semantic key (§A2.6) |
+| 5 | `criterion` | `string(250)` | no | — | Descriptive label (e.g. "Exposed Staff count") |
+| 6 | `computation_role` | `string(30)` | no | — | `count` \| `control_score_complement` \| `probability` |
+| 7 | `value` | `decimal(18,8)` | no | `0.00000000` | Numerical driver value |
+| 8 | `data_source` | `string(100)` | no | `'expert_judgement'` | Provenance text (HR info, Scorecard, etc.) |
+| 9 | `sm_scorecard_id` | `foreignId()->constrained('sm_scorecards')->nullOnDelete()` | yes | NULL | Optional scorecard link |
+| 10 | `sort_order` | `unsignedSmallInteger` | no | `0` | Display order |
+| 11 | `created_at`, `updated_at` | `timestamps()` | yes | NULL | Timestamps |
+
+**Indexes:** index `sm_freq_drivers_org_scenario_idx (organization_id, sm_scenario_id)`.
+
+---
+
+### A2.4 `sm_impact_types` & `sm_impact_criteria`
+
+Hierarchical impact decomposition. Each scenario has 1..N impact types, each containing 1..N criteria across Typical, Serious, and Extreme severities.
+
+#### `sm_impact_types`
+| # | Column | Type | Null | Default | Description |
+|---|---|---|---|---|---|
+| 1 | `id` | `id()` | no | auto | Primary key |
+| 2 | `organization_id` | `foreignId()->constrained()->cascadeOnDelete()` | no | — | Tenant isolation |
+| 3 | `sm_scenario_id` | `foreignId()->constrained('sm_scenarios')->cascadeOnDelete()` | no | — | Owning scenario |
+| 4 | `name` | `string(250)` | no | — | Impact category name |
+| 5 | `aggregation_template` | `string(50)` | no | `'staff_turnover_interval'` | `staff_turnover_interval` \| `litigation_probability` (§A2.6) |
+| 6 | `eligible_to_transfer` | `boolean` | no | `false` | Transferable to insurance |
+| 7 | `sort_order` | `unsignedSmallInteger` | no | `0` | Display order |
+| 8 | `typical_total` | `decimal(18,8)` | no | `0.00000000` | Computed Typical subtotal |
+| 9 | `serious_total` | `decimal(18,8)` | no | `0.00000000` | Computed Serious subtotal |
+| 10 | `extreme_total` | `decimal(18,8)` | no | `0.00000000` | Computed Extreme subtotal |
+| 11 | `created_at`, `updated_at` | `timestamps()` | yes | NULL | Timestamps |
+
+**Indexes:** index `sm_impact_types_org_scenario_idx (organization_id, sm_scenario_id)`.
+
+#### `sm_impact_criteria`
+| # | Column | Type | Null | Default | Description |
+|---|---|---|---|---|---|
+| 1 | `id` | `id()` | no | auto | Primary key |
+| 2 | `organization_id` | `foreignId()->constrained()->cascadeOnDelete()` | no | — | Tenant isolation |
+| 3 | `sm_impact_type_id` | `foreignId()->constrained('sm_impact_types')->cascadeOnDelete()` | no | — | Parent impact type |
+| 4 | `label` | `string(250)` | no | — | Criterion label (e.g. "Monthly gross salary") |
+| 5 | `unit` | `string(50)` | yes | NULL | Unit label (e.g. "count", "months", "NGN", "%") |
+| 6 | `computation_role` | `string(30)` | no | — | `count` \| `unit_amount` \| `duration` \| `probability` \| `flat_fee` |
+| 7 | `data_source` | `string(100)` | yes | NULL | Provenance source string |
+| 8 | `typical_value` | `decimal(18,8)` | no | `0.00000000` | Typical input value |
+| 9 | `serious_value` | `decimal(18,8)` | no | `0.00000000` | Serious input value |
+| 10 | `extreme_value` | `decimal(18,8)` | no | `0.00000000` | Extreme input value |
+| 11 | `sort_order` | `unsignedSmallInteger` | no | `0` | Order within type |
+| 12 | `created_at`, `updated_at` | `timestamps()` | yes | NULL | Timestamps |
+
+**Indexes:** index `sm_impact_crit_org_type_idx (organization_id, sm_impact_type_id)`.
+
+---
+
+### A2.5 `sm_insurance_coverages`
+
+Stores insurance recovery netting rows for each of the three severities: `typical`, `serious`, and `extreme`.
+
+| # | Column | Type | Null | Default | Description |
+|---|---|---|---|---|---|
+| 1 | `id` | `id()` | no | auto | Primary key |
+| 2 | `organization_id` | `foreignId()->constrained()->cascadeOnDelete()` | no | — | Tenant isolation |
+| 3 | `sm_scenario_id` | `foreignId()->constrained('sm_scenarios')->cascadeOnDelete()` | no | — | Owning scenario |
+| 4 | `severity` | `string(20)` | no | — | `typical` \| `serious` \| `extreme` |
+| 5 | `transferable_amount` | `decimal(18,8)` | no | `0.00000000` | Sum of transferable impact types |
+| 6 | `deductible_local` | `decimal(18,8)` | no | `0.00000000` | Local policy deductible |
+| 7 | `limit_local` | `decimal(18,8)` | no | `0.00000000` | Local policy limit |
+| 8 | `deductible_group` | `decimal(18,8)` | no | `0.00000000` | Group policy deductible |
+| 9 | `limit_group` | `decimal(18,8)` | no | `0.00000000` | Group policy limit |
+| 10 | `recovery_rate` | `decimal(5,4)` | no | `1.0000` | Expected recovery (0.0 to 1.0) |
+| 11 | `probability_of_cover` | `decimal(5,4)` | no | `1.0000` | Probability policy responds (0.0 to 1.0) |
+| 12 | `insurer_default_haircut`| `decimal(5,4)` | no | `0.0000` | Insurer default risk haircut (0.0 to 1.0) |
+| 13 | `residual_amount` | `decimal(18,8)` | no | `0.00000000` | Tiered retained amount |
+| 14 | `total_haircut` | `decimal(5,4)` | no | `0.0000` | $1 - (\text{recovery} \times P) + \text{haircut}$ |
+| 15 | `haircut_impact` | `decimal(18,8)` | no | `0.00000000` | $(\text{transferable} - \text{residual}) \times \text{total\_haircut}$ |
+| 16 | `gross_impact` | `decimal(18,8)` | no | `0.00000000` | Total gross impact for this severity |
+| 17 | `net_impact` | `decimal(18,8)` | no | `0.00000000` | $\text{residual} + \text{haircut\_impact} + \text{gross} - \text{transferable}$ |
+| 18 | `created_at`, `updated_at` | `timestamps()` | yes | NULL | Timestamps |
+
+**Indexes:** unique `sm_ins_coverages_scenario_sev_unique (sm_scenario_id, severity)`; index `sm_ins_coverages_org_scenario_idx (organization_id, sm_scenario_id)`.
+
+---
+
+### A2.6 Vocabularies & Calculation Specification
+
+#### 1. Scorecard Vocabularies & Formulas
+- `Scorecard::CONTROL_NATURES`: `mainly_manual` (Mainly manual), `mixed` (Mixed manual and automated), `mainly_automated` (Mainly automated).
+- `ScorecardComponent::COMPONENTS`:
+  1. `control_environment` (I. Control environment)
+  2. `risk_assessment` (II. Risk assessment)
+  3. `control_activities` (III. Control activities)
+  4. `information_communication` (IV. Information & communication)
+  5. `monitoring` (V. Monitoring)
+- Non-linear Level Scores:
+  $$H_i = \{1: 0.20, 2: 0.40, 3: 0.55, 4: 0.70, 5: 0.90\}[G_i]$$
+  (0 or unset yields $0.00$).
+- Environmental Nature Deduction:
+  - `mainly_manual`: $-0.10$
+  - `mixed`: $-0.05$
+  - `mainly_automated`: $0.00$
+- $I_i = \max(0, H_i - \text{deduction})$
+- $L_i = I_i \times K_i$ (where $K_i$ is `weighting_factor` $1..5$)
+- Global Score:
+  $$\text{Global} = \frac{\sum L_i}{\sum K_i}$$
+  Golden verification: K=22, L=15.2 $\rightarrow$ Global Score = `0.6909090909090909`.
+
+#### 2. Frequency Formulas
+- Frequency driver computation roles: `count`, `control_score_complement`, `probability`.
+- Expected Annual Frequency ($\lambda$):
+  $$\lambda = \text{Count} \times (1 - \text{ScorecardScore}) \times \text{Probability}$$
+  Golden verification: $55 \times (1 - 0.6909090909090909) \times 0.95 = 16.15$ events/year.
+- Frequency Interval:
+  $$\text{Interval} = \frac{1}{\lambda} \text{ years}$$
+  Golden verification: $1 / 16.15 = 0.061919504643962855$ years.
+
+#### 3. Impact Templates & Gross Total
+- `ImpactType::TEMPLATES`:
+  1. `staff_turnover_interval`: $\text{count} \times \text{amount} \times \text{duration} \times \text{interval}$  
+     Golden: Typical = `14775676.78018576`, Serious = `22163515.17027864`, Extreme = `44327030.34055728`.
+  2. `litigation_probability`: $(\text{count} \times \text{amount} + \text{flat\_fee}) \times \text{probability}$  
+     Golden: Typical = `348283.975`, Serious = `696567.95`, Extreme = `1044851.925`.
+- Gross Impact per severity:
+  $$\text{Gross}(\text{sev}) = \sum \text{TypeTotal}(\text{sev})$$
+  Golden: Typical = `15123960.75518576`, Serious = `22860083.120278638`, Extreme = `45371882.265557274`.
+
+#### 4. Insurance Netting & Net Impact
+- $\text{Transferable}(\text{sev}) = \sum_{\text{eligible}} \text{TypeTotal}(\text{sev})$.
+- Tiered Residual $t = \text{Transferable}(\text{sev})$:
+  - If $t < \text{dedL} \rightarrow t$
+  - Else if $t < \text{limL} \rightarrow \text{dedL}$
+  - Else if $t < \text{dedG} \rightarrow t - \text{limL} + \text{dedL}$
+  - Else if $t < \text{limG} \rightarrow \text{dedG} - \text{limL} + \text{dedL}$
+  - Else $\rightarrow t - \text{limG} + \text{dedG} - \text{limL} + \text{dedL}$
+- Haircut:
+  $$\text{TotalHaircut} = 1 - (\text{recovery\_rate} \times \text{probability\_of\_cover}) + \text{default\_haircut}$$
+  $$\text{HaircutImpact} = (\text{Transferable} - \text{Residual}) \times \text{TotalHaircut}$$
+- Net Impact:
+  $$\text{Net} = \text{Residual} + \text{HaircutImpact} + \text{Gross} - \text{Transferable}$$
+  Golden (uninsured case, transferable = 0): Net equals Gross exactly across all severities.
+
+---
+
+### A2.7 Authorization, Routes & Lifecycle
+
+- **Permission:** `scenario.design` (already declared in `RiskPermissionCatalog`).
+- **Routes:** 
+  - `POST /scenarios/{scenario}/scorecard` (`scenario.scorecard.update`)
+  - `POST /scenarios/{scenario}/frequency` (`scenario.frequency.update`)
+  - `POST /scenarios/{scenario}/impact` (`scenario.impact.update`)
+  - `POST /scenarios/{scenario}/insurance` (`scenario.insurance.update`)
+- **Lifecycle Invariants:**
+  - Quantitative edits are refused with flash error when scenario is read-only (`status` is `signed_off`, `archived`, or `in_validation`).
+  - At `in_design -> designed` transition: frequency ($\lambda > 0$) and impact (at least 1 impact type with computed totals) must be present.
+
+---
+
+## HANDOFF
+- **Role:** architect
+- **Task:** ADR 0027 Amendment 2 — Phase 2 Column-Level Schema Freeze & Quantitative Contract
+- **Verdict:** Accepted and Frozen
+- **Deliverables:**
+  - 6 tables defined with exact columns, types, nullability, defaults, and foreign keys.
+  - Calculation contract frozen matching decoded BIFF8 formulas and spike golden totals.
+  - Invariants, authorization, and route shapes settled.
+- **Next steps:** Create `plans/scenario-modelling/PHASE2-GATE-CHECKLIST.md`, followed by UI screen specs and backend implementation.

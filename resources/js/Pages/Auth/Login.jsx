@@ -12,8 +12,14 @@ const inputClass = 'w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm
  * on the Blade Command Centre until Phase 5 ports it.
  */
 export default function Login({ status, canResetPassword, ssoAvailable }) {
-    const { errors, flash, old } = usePage().props;
+    const { errors, flash, old, branding } = usePage().props;
     const [showPassword, setShowPassword] = useState(false);
+
+    // This panel is the dark brand navy, so the inverted mark comes first. With
+    // no branding shared the panel keeps the icon and name it has always drawn.
+    const brandLogo = branding?.logo_inverted || branding?.logo || null;
+    const brandName = branding?.product_name || '';
+    const brandTagline = branding?.tagline || '';
 
     const banners = [
         status && ['green', status],
@@ -43,13 +49,23 @@ export default function Login({ status, canResetPassword, ssoAvailable }) {
                         }}
                     />
                     <div className="relative flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg bg-[var(--color-accent)] flex items-center justify-center shadow-md">
-                            <span className="material-symbols-outlined text-[var(--color-primary)]" style={{ fontSize: 28 }}>verified_user</span>
-                        </div>
-                        <div>
-                            <h1 className="text-xl font-bold leading-tight">Atheris ERM</h1>
-                            <p className="text-xs text-white/70">GRC Suite</p>
-                        </div>
+                        {brandLogo ? (
+                            <img
+                                src={brandLogo}
+                                alt={brandName || 'Logo'}
+                                className="h-12 w-auto max-w-[240px] object-contain"
+                            />
+                        ) : (
+                            <>
+                                <div className="w-12 h-12 rounded-lg bg-[var(--color-accent)] flex items-center justify-center shadow-md">
+                                    <span className="material-symbols-outlined text-[var(--color-primary)]" style={{ fontSize: 28 }}>verified_user</span>
+                                </div>
+                                <div>
+                                    {brandName && <h1 className="text-xl font-bold leading-tight">{brandName}</h1>}
+                                    {brandTagline && <p className="text-xs text-white/70">{brandTagline}</p>}
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <div className="relative mt-16 lg:mt-0">
@@ -68,7 +84,9 @@ export default function Login({ status, canResetPassword, ssoAvailable }) {
                     </div>
 
                     <div className="relative mt-12 lg:mt-0">
-                        <p className="text-xs text-white/50">&copy; {new Date().getFullYear()} Atheris ERM GRC Suite. All rights reserved.</p>
+                        <p className="text-xs text-white/50">
+                            &copy; {new Date().getFullYear()} {[brandName, brandTagline].filter(Boolean).join(' ')}. All rights reserved.
+                        </p>
                     </div>
                 </div>
 

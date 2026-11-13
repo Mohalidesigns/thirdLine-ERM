@@ -6,7 +6,14 @@ import Icon from '../Components/Icon';
  * login redirects carry success / error / warning) render above the card.
  */
 export default function GuestLayout({ title, subtitle, icon = 'verified_user', status, children, wide = false }) {
-    const { flash } = usePage().props;
+    const { flash, branding } = usePage().props;
+
+    // The same contract AuthenticatedLayout has: the hosting product shares its
+    // own mark and name, and an absent one falls back to the generic icon this
+    // shell already drew. The gradient behind it is dark, so the inverted mark
+    // is preferred.
+    const brandLogo = branding?.logo_inverted || branding?.logo || null;
+    const brandName = branding?.product_name || null;
 
     const banners = [
         status && { tone: 'green', text: status },
@@ -29,10 +36,18 @@ export default function GuestLayout({ title, subtitle, icon = 'verified_user', s
         >
             <div className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-white/20 backdrop-blur-sm mb-4">
-                        <Icon name={icon} className="text-white w-10 h-10" />
-                    </div>
-                    <h1 className="text-white text-3xl font-bold">Atheris ERM</h1>
+                    {brandLogo ? (
+                        <img
+                            src={brandLogo}
+                            alt={brandName || 'Logo'}
+                            className="h-14 w-auto max-w-[260px] mx-auto object-contain mb-4"
+                        />
+                    ) : (
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-white/20 backdrop-blur-sm mb-4">
+                            <Icon name={icon} className="text-white w-10 h-10" />
+                        </div>
+                    )}
+                    {brandName && <h1 className="text-white text-3xl font-bold">{brandName}</h1>}
                     <p className="text-white/70 text-sm mt-2">{subtitle || 'Enterprise Risk & Compliance Management'}</p>
                 </div>
 

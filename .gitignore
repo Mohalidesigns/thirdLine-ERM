@@ -65,3 +65,9 @@ Thumbs.db
 /.qwen/*
 !/.qwen/agents/
 !/.qwen/settings.json
+
+# Playwright MCP server output — the accessibility snapshots and screenshots a
+# Qwen session writes while verifying a screen in a real browser. The server is
+# declared in .qwen/settings.json, so this is that tooling's artifact directory
+# rather than anything the product serves.
+/.playwright-mcp/

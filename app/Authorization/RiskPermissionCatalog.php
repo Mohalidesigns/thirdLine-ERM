@@ -159,6 +159,50 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'quantification.approve_icaap' => 'Approve an ICAAP assessment — the capital adequacy position the board is told.',
             ],
 
+            // Scenario Modelling & Analysis (ADR 0027 §A1.10). Placed AFTER
+            // Quantification because Sm is the module that FEEDS it (plan §2) —
+            // a signed-off scenario's frequency and severities become the
+            // Quantification bridge's Poisson lambda and lognormal anchors (D5),
+            // so the reader of a role-assignment screen meets the producer before
+            // the consumer.
+            //
+            // SIX, NOT THE NINE PLAN §4.1 PROPOSED. Declaring a Phase 2–5
+            // permission now would grant authority over routes that do not exist,
+            // on a screen an administrator reads as available — and
+            // PermissionCatalogCoversRoutesTest::every_permission_in_the_catalog_is_held_by_some_role
+            // fails on a declared permission no role holds. Adding them later costs
+            // NO MIGRATION: scripts/deploy.sh runs RolesAndPermissionsSeeder, whose
+            // syncCatalog() is additive, so a release that declares a permission
+            // grants it on deploy. That is why declaring early buys nothing.
+            //
+            //   scenario.design        → Phase 2 (nothing in Phase 1 is
+            //                             quantitative; scenario.update covers
+            //                             the qualitative tabs)
+            //   scenario.manage_actions → Phase 3
+            //   scenario.run_export,
+            //   scenario.manage_library → Phase 5
+            //
+            // `scenario.delete` IS REFUSED OUTRIGHT, not deferred: soft delete goes
+            // through the policy's `delete` ability under `scenario.update`.
+            // `loss_event.delete` exists only because a loss event is a regulatory
+            // record with its own destruction rules.
+            'Scenario modelling' => [
+                'scenario.view' => 'See operational-risk scenarios, their causes, allocations and sign-offs.',
+                'scenario.create' => 'Design a new scenario and give it a reference.',
+                'scenario.update' => 'Change a scenario\'s identity, qualitative report, causes and business-line allocation.',
+                'scenario.design' => 'Configure and calibrate quantitative scenario models (scorecard, frequency, impact, insurance).',
+                'scenario.validate' => 'Move a scenario through validation — return it for rework or mark it validated.',
+                'scenario.sign_off' => 'Record a sign-off against a scenario as one of its three sources.',
+                'scenario.manage_actions' => 'Create, edit, close and promote scenario remediation actions and immediate plans.',
+                // SEPARATE FROM `scenario.update` BECAUSE THEY ARE DIFFERENT
+                // AUTHORITIES: editing a scenario is first-line work, recording a
+                // dissent against somebody else's is second-line work. One
+                // permission for both lets the designer write the dissent log — the
+                // trail D4 exists to keep. Standard §2 makes exactly this argument
+                // for admin.metadata / admin.scoring / admin.configuration.
+                'scenario.note' => 'Add an assumption, dissent, challenge or workshop minute to the scenario record.',
+            ],
+
             'Reports' => [
                 'report.view' => 'See generated reports.',
                 'report.generate' => 'Generate a report.',
@@ -636,6 +680,22 @@ class RiskPermissionCatalog extends PermissionCatalog
             'approval.view', 'approval.act',
             'dashboard.manage',
 
+            // Scenario Modelling (ADR 0027 §A1.10): ALL SIX. The Head of
+            // Operational Risk designs, validates and signs the scenario set, and
+            // `chief-risk-officer` inherits every one of them by spreading
+            // $riskManager below, so no extra line is needed there.
+            //
+            // Note what this produces and what §A1.10 records about it: one person
+            // holding all six can create a scenario, edit it, mark it designed,
+            // validate it and sign it off. The only STRUCTURAL check is spec 01
+            // §5.6.3's requirement that at least one sign-off row carry
+            // `is_independent_challenge`, plus Correction 1 §C1.5 — an author cannot
+            // be their own independent challenge, so an author cannot sign their own
+            // scenario off. Spec 01 §9.6 flags the thinness as a governance
+            // observation for the coordinator rather than an engineering defect.
+            'scenario.view', 'scenario.create', 'scenario.update', 'scenario.design',
+            'scenario.validate', 'scenario.sign_off', 'scenario.manage_actions', 'scenario.note',
+
             // TPRM: the risk function runs the programme day to day. Two
             // grants are deliberately NOT here — `tprm.waiver.approve` and
             // `tprm.finding.accept_risk` — because both are decisions to carry
@@ -714,6 +774,14 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'control_test.view',
                 'approval.view',
 
+                // Scenario Modelling (§A1.10): view and note ONLY. The first-line
+                // owner contributes causes and dissent about their unit and does not
+                // sign the scenario off — the same separation the catalog already
+                // enforces between `rcsa_assessment.approve` and `.review`. Note
+                // what that makes visible first: a risk owner can open a scenario
+                // they cannot edit and record a dissent against it.
+                'scenario.view', 'scenario.note',
+
                 // Blueprint §13's Department BC Champion: owns the unit's BIA,
                 // plan and call tree, closes its readiness tasks, sees its own
                 // calendar. Approving its own BIA is NOT here, for the same
@@ -765,6 +833,14 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'measure.view', 'measure.record',
                 'fx_rate.view',
                 'regulatory.view',
+
+                // Scenario Modelling (§A1.10): view and note ONLY. The catalog's own
+                // words for the ORM Analyst are "challenges every line, decides
+                // nothing", so `scenario.validate` and `scenario.sign_off` are not
+                // here. `scenario.sign_off` was REFUSED for this role explicitly:
+                // independent challenge is a FLAG ON A SIGN-OFF ROW (§A1.6), not a
+                // reason to let the analyst sign the record they are challenging.
+                'scenario.view', 'scenario.note',
 
                 // Reads the continuity estate to build the board pack and
                 // evaluates exercises as an observer. Decides nothing.
@@ -860,6 +936,11 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'measure.view',
                 'fx_rate.view',
                 'approval.view',
+
+                // Scenario Modelling (§A1.10): view and note only. Compliance reads
+                // the scenario record and can put a dissent on it; it does not design
+                // scenarios and does not sign them.
+                'scenario.view', 'scenario.note',
             ],
 
             'board-member' => [
@@ -880,6 +961,12 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'measure.view',
                 'fx_rate.view',
                 'analysis.view',
+                // Scenario Modelling (§A1.10): VIEW ONLY. The board reads what was
+                // signed off; it does not design, validate, sign or annotate. Note
+                // this is narrower than every other role — `scenario.note` is
+                // withheld too, because a board minute is not a dissent against the
+                // design and the notes log is that trail.
+                'scenario.view',
             ],
 
             'loss-event-manager' => [

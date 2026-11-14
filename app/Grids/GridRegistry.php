@@ -40,6 +40,12 @@ class GridRegistry
         'tprm_contracts' => Definitions\TprmContractsGrid::class,
         'tprm_obligations' => Definitions\TprmObligationsGrid::class,
         'tprm_ai_usage_events' => Definitions\TprmAiUsageEventsGrid::class,
+        // Scenario Modelling & Analysis (ADR 0027, spec 00). Registered here rather than
+        // by a provider because Sm has no service provider (§A1.11, ADR 0007 deviation 2)
+        // — and `can:view-grid,grid` on the `risk.grids.{grid}` route group resolves the
+        // definition's own `permission()` through this map, so the grid's CSV/XLSX export
+        // is gated by `scenario.view` with no new route.
+        'scenarios' => Definitions\ScenariosGrid::class,
     ];
 
     public static function resolve(string $name): GridDefinition

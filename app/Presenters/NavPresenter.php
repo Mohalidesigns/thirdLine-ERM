@@ -65,7 +65,11 @@ class NavPresenter
     }
 
     /**
-     * The 22 module sections.
+     * The 25 module sections.
+     *
+     * This said "22" while `NavigationPermissionGateTest` already asserted 24 — a number
+     * that was wrong twice, and the reason spec 05 §4 asks that it be corrected in the same
+     * change that moves it rather than left for the next person to trust.
      *
      * `prefixes` are URL path prefixes used only for "which section is open"
      * highlighting; `feature` names a config('features.*') flag whose routes
@@ -318,6 +322,49 @@ class NavPresenter
                     // The route name stays `correlation` so bookmarks keep
                     // working; the page measures shared-control overlap.
                     ['label' => 'Shared Controls', 'route' => 'risk.analysis.correlation', 'permission' => 'analysis.view'],
+                ],
+            ],
+            /*
+             * Scenario Modelling & Analysis (ADR 0027 §A1.11, spec 05). Verbatim from the
+             * freeze: key, label, icon, prefixes, items, permissions and flag.
+             *
+             * PLACED IMMEDIATELY BEFORE `quantification` because Sm is UPSTREAM of it, not a
+             * replacement (plan §2) — a signed-off scenario's frequency and severities become
+             * the quantification bridge's Poisson lambda and lognormal anchors (D5), so a user
+             * reading the menu top to bottom meets scenario design before capital
+             * quantification. Both sit after Risk Analysis because both are analysis-of-record
+             * rather than register entry.
+             *
+             * `prefixes` is the URL prefix `/risk/scenarios`, NOT the route-name prefix: it is
+             * what makes the sidebar highlight and auto-expand on every page of the module,
+             * including a workspace deep link like `/risk/scenarios/42?tab=qualitative`.
+             *
+             * TWO ITEMS BECAUSE PHASE 1 HAS TWO SCREENS. The dashboard, action tracker and
+             * library items arrive with their own phases and their own permissions; they are
+             * not declared now because PermissionCatalogCoversRoutesTest fails on a declared
+             * permission no role holds, and an administrator reading a role-assignment screen
+             * reads an entry as available authority.
+             *
+             * `Scenarios` MUST BE FIRST. On the collapsed icon rail a section renders as one
+             * anchor to `items[0]` (AuthenticatedLayout.jsx:118-131), so were "New Scenario"
+             * declared first, every collapsed-sidebar user clicking the module icon would land
+             * in a create form.
+             *
+             * `key` MUST STAY `scenario_modelling`: the panel id derives from it, and changing
+             * it orphans the section header's `aria-controls`.
+             *
+             * Per §A1.10's grants, risk-manager and chief-risk-officer see both items;
+             * risk-analyst, risk-owner, compliance-officer and board-member see Scenarios ONLY.
+             * That is the module's separation of duties becoming visible for the first time: an
+             * analyst — "challenges every line, decides nothing" — can open a scenario and add a
+             * dissent but cannot create or edit one.
+             */
+            [
+                'key' => 'scenario_modelling', 'label' => 'Scenario Modelling', 'icon' => 'timeline',
+                'prefixes' => ['/risk/scenarios'],
+                'items' => [
+                    ['label' => 'Scenarios', 'route' => 'scenario.index', 'permission' => 'scenario.view', 'feature' => 'scenario_modelling'],
+                    ['label' => 'New Scenario', 'route' => 'scenario.create', 'permission' => 'scenario.create', 'feature' => 'scenario_modelling'],
                 ],
             ],
             [

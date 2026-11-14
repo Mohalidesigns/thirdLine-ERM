@@ -191,5 +191,27 @@ class DatabaseSeeder extends Seeder
         /* ------------------------------------------------------------------ */
 
         $this->call(\Database\Seeders\Bcms\BcmsDemoSeeder::class);
+
+        /* ------------------------------------------------------------------ */
+        /*  17. Scenario Modelling reference data (ADR 0027 §A1.9). */
+        /* */
+        /*      The Basel OP1–OP17 event-type tree, as `risk_taxonomies` nodes */
+        /*      under framework 'Basel III' — ONE PARENT plus 17 children PER */
+        /*      TENANT, because `risk_taxonomies.organization_id` is NOT NULL */
+        /*      and BCMS's system-row mechanism is therefore unavailable here. */
+        /* */
+        /*      Needs an organisation to exist and nothing else. Placed last */
+        /*      because it is the newest module and depends on nothing above */
+        /*      it. Idempotent on (organization_id, framework, name), and it */
+        /*      never touches `is_active` — re-running must not resurrect a */
+        /*      node a tenant retired. */
+        /* */
+        /*      COSO COMPONENTS ARE DELIBERATELY NOT SEEDED: D3 names them but */
+        /*      they belong to `sm_scorecards` (Phase 2) and no Phase 1 screen */
+        /*      reads them. A seeder that writes data no screen reads is data a */
+        /*      customer did not ask for. */
+        /* ------------------------------------------------------------------ */
+
+        $this->call(\Database\Seeders\Sm\SmReferenceSeeder::class);
     }
 }

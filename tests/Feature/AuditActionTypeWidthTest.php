@@ -53,6 +53,13 @@ class AuditActionTypeWidthTest extends TestCase
         'holiday_added', 'holiday_removed',
         'return_opened', 'return_submitted', 'return_reopened',
         'value_changed', 'line_discarded',
+        // ADR 0027 §A1.11, the Scenario Modelling module. Audit goes through
+        // AuditTrailService into `risk_audit_trail`, NOT a new `sm_audit_logs`: Sm is an
+        // ERM/Risk sub-module, and that trail is what the register, RCSA and the KRI cycle
+        // already write through. `sm_scenario` is the morph alias, inside ENTITY_TYPE_MAX.
+        'status_changed', 'signoff_recorded', 'note_added', 'allocation_changed',
+        'scorecard_updated', 'frequency_updated', 'impact_updated', 'insurance_updated',
+        'variants_updated', 'scenario_action_created', 'scenario_action_updated', 'scenario_action_deleted', 'scenario_action_promoted',
     ];
 
     #[Test]

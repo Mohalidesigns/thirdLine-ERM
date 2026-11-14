@@ -276,3 +276,7 @@ Schedule::command('bcms:vendor-attestation-recompute')->dailyAt('06:15')->withou
 // full and skip itself rather than queue behind it.
 Schedule::command('bcms:sync-directory')->dailyAt('02:30')->withoutOverlapping()->onOneServer();
 Schedule::command('bcms:sync-directory --delta')->cron('7,22,37,52 * * * *')->withoutOverlapping()->onOneServer();
+
+Artisan::command('sm:create-demo-scenario {--org=1}', function () {
+    $this->call(App\Console\Commands\CreateDemoScenarioCommand::class, ['--org' => $this->option('org')]);
+})->purpose('Creates a realistic end-to-end operational risk scenario modelled across all 8 tabs');

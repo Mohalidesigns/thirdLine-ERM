@@ -678,4 +678,13 @@ class Scenario extends Model
 
         return $current;
     }
+
+    /**
+     * Accessor alias for `$this->name` to support callers and presenters
+     * expecting `title` (e.g. deck/presentation views).
+     */
+    public function getTitleAttribute(): string
+    {
+        return (string) ($this->attributes['name'] ?? '');
+    }
 }

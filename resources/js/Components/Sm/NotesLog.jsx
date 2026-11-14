@@ -48,7 +48,7 @@ export default function NotesLog({
     const summaryRef = useRef(null);
 
     const chosen = noteKinds?.find((entry) => entry.value === kind);
-    const errorKeys = Object.keys(errors).filter((key) => key === 'kind' || key === 'body');
+    const errorKeys = Object.keys(errors).filter((key) => (key === 'kind' || key === 'body') && Boolean(errors[key]));
 
     useEffect(() => {
         if (errorKeys.length > 0) {

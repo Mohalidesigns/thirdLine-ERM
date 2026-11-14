@@ -295,10 +295,13 @@ return [
     |
     */
 
-    'roadmap_note' => 'This workspace will gain Frequency, Impact, Insurance, Scorecard, Variants and Actions sections in later releases. '
-        .'Quantitative entry is not available yet: this scenario carries governance and qualitative analysis only.',
+    /*
+    | All quantitative and remediation sections (Frequency, Impact, Insurance,
+    | Scorecard, Variants, Actions) are now implemented and active.
+    */
+    'roadmap_note' => null,
 
-    'roadmap_note_index' => 'Quantitative sections (frequency, impact, insurance) arrive in a later release.',
+    'roadmap_note_index' => null,
 
     /*
     |--------------------------------------------------------------------------

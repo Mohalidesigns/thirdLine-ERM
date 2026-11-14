@@ -636,7 +636,7 @@ export default function OverviewTab({
                     // The notes log has its OWN write path (`POST urls.notes`), so
                     // its 422 keys are `kind` and `body` and never collide with a
                     // governance key — `UpdateScenarioRequest` has neither.
-                    errors={{ kind: errors.kind, body: errors.body }}
+                    errors={errors.kind || errors.body ? { kind: errors.kind, body: errors.body } : {}}
                     earlierUrl={urls.notesEarlier}
                     onReload={(payload, after, earlier) => {
                         if (earlier) {

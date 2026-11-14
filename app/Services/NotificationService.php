@@ -35,6 +35,31 @@ class NotificationService
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        // Deliver via email if target user has an active account with email
+        if ($userId) {
+            try {
+                $recipient = \App\Models\User::find($userId);
+                if ($recipient && $recipient->email && $recipient->is_active) {
+                    $fullUrl = $actionUrl ? url($actionUrl) : null;
+                    \Illuminate\Support\Facades\Mail::to($recipient->email)->send(
+                        new \App\Mail\GenericNotificationMail(
+                            recipient: $recipient,
+                            notificationSubject: $subject,
+                            notificationBody: $body,
+                            actionUrl: $fullUrl,
+                            priority: $priority,
+                            category: $category
+                        )
+                    );
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Notification email failed: '.$e->getMessage(), [
+                    'user_id' => $userId,
+                    'subject' => $subject,
+                ]);
+            }
+        }
     }
 
     /**

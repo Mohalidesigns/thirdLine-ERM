@@ -44,6 +44,7 @@ class NewPasswordController extends Controller
             'password' => Hash::make($validated['password']),
             'password_changed_at' => now(),
             'must_change_password' => false,
+            'email_verified_at' => $user->email_verified_at ?? now(),
         ]);
 
         cache()->forget('password_reset_'.$validated['email']);

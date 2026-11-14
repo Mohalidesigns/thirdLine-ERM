@@ -98,8 +98,21 @@ class UserManagementController extends Controller
         // Assign roles
         $user->syncRoles($validated['roles']);
 
+        // Generate verification / password setup token and shoot invitation email
+        $token = Str::random(64);
+        cache()->put('password_reset_'.$user->email, $token, now()->addHours(48));
+        $verificationUrl = route('password.reset', ['token' => $token]).'?email='.urlencode($user->email);
+
+        try {
+            \Illuminate\Support\Facades\Mail::to($user->email)->send(
+                new \App\Mail\UserInvitationMail($user, $tempPassword, $verificationUrl)
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('User invitation email failed: '.$e->getMessage(), ['email' => $user->email]);
+        }
+
         return redirect()->route('admin.users.show', $user)
-            ->with('success', 'User created successfully. Temporary password: '.$tempPassword);
+            ->with('success', 'User created successfully and verification email sent. Temporary password: '.$tempPassword);
     }
 
     /**
@@ -233,7 +246,19 @@ class UserManagementController extends Controller
             'locked_until' => null,
         ]);
 
+        $token = Str::random(64);
+        cache()->put('password_reset_'.$user->email, $token, now()->addHours(24));
+        $resetUrl = route('password.reset', ['token' => $token]).'?email='.urlencode($user->email);
+
+        try {
+            \Illuminate\Support\Facades\Mail::to($user->email)->send(
+                new \App\Mail\UserPasswordResetNoticeMail($user, $tempPassword, $resetUrl)
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Password reset notice email failed: '.$e->getMessage(), ['email' => $user->email]);
+        }
+
         return redirect()->route('admin.users.show', $user)
-            ->with('success', 'Password reset. New temporary password: '.$tempPassword);
+            ->with('success', 'Password reset. Temporary password sent to user: '.$tempPassword);
     }
 }

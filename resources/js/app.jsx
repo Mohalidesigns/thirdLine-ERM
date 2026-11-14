@@ -8,13 +8,22 @@ import LicenseNotice from './Components/LicenseNotice';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Atheris ERM';
 
+// The vendor portal shows the client's name, never the platform's, so its
+// titles carry no suffix. `title` receives only a string; resolve() sees the
+// component name first, and a vendor session never navigates into staff pages.
+let inPortal = false;
+
 createInertiaApp({
-    title: (title) => (title ? `${title} - ${appName}` : appName),
-    resolve: (name) =>
-        resolvePageComponent(
+    title: (title) =>
+        inPortal ? (title || '') : title ? `${title} - ${appName}` : appName,
+    resolve: (name) => {
+        inPortal = name.startsWith('TprmPortal/');
+
+        return resolvePageComponent(
             `./Pages/${name}.jsx`,
             import.meta.glob('./Pages/**/*.jsx'),
-        ),
+        );
+    },
     setup({ el, App, props }) {
         const root = createRoot(el);
 

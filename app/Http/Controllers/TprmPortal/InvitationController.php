@@ -52,7 +52,8 @@ class InvitationController extends Controller
             'email' => $invitation->email,
             'vendor' => $invitation->thirdParty?->legal_name,
             'client' => Organization::query()->find($invitation->organization_id)?->name,
-            'expires_at' => $invitation->expires_at->toDayDateTimeString(),
+            // Zone-labelled: the app runs in UTC and the vendor may not.
+            'expires_at' => $invitation->expires_at->toDayDateTimeString().' '.$invitation->expires_at->format('T'),
         ]);
     }
 

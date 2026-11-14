@@ -93,7 +93,6 @@ class MfaController extends Controller
         }
 
         return Inertia::render('TprmPortal/Auth/MfaChallenge', [
-            'email' => $user->email,
             'method' => $user->mfa_method,
             // Masked. The vendor needs to recognise the address; anybody
             // shoulder-surfing the screen does not need to read it.

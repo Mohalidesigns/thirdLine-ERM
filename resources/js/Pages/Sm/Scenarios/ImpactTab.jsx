@@ -37,7 +37,9 @@ function formatCurrency(amount, currency = 'NGN') {
 
 export default function ImpactTab({ scenario, impact, can, urls, onDirtyChange }) {
     const editable = Boolean(can?.design) && !impact?.is_read_only;
-    const saveFailure = useSaveFailure('impact');
+    const saveFailure = useSaveFailure({
+        copySummary: () => (types || []).map((t) => t.name).join('\n'),
+    });
 
     const currency = impact?.currency || scenario?.currency || 'NGN';
     const freqInterval = parseFloat(impact?.frequency_interval || 0.0);
@@ -173,7 +175,7 @@ export default function ImpactTab({ scenario, impact, can, urls, onDirtyChange }
         if (!editable || saving) return;
 
         setSaving(true);
-        saveFailure.clear();
+        saveFailure.begin();
 
         const payload = {
             types: types.map((t) => ({
@@ -197,19 +199,20 @@ export default function ImpactTab({ scenario, impact, can, urls, onDirtyChange }
         router.put(targetUrl, payload, {
             preserveScroll: true,
             onSuccess: () => {
+                saveFailure.succeeded();
                 setIsDirty(false);
                 setSaving(false);
             },
-            onError: (errs) => {
+            onError: () => {
+                saveFailure.succeeded();
                 setSaving(false);
-                saveFailure.report(errs);
             },
         });
     };
 
     return (
         <section aria-labelledby="impact-heading" className="space-y-6 max-w-6xl">
-            <RegionSaveFailure failure={saveFailure.failure} onDismiss={saveFailure.clear} />
+            <RegionSaveFailure saveFailure={saveFailure} onResend={handleSave} />
 
             {/* Gross Impact Summary Header */}
             <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 shadow-sm text-slate-100">

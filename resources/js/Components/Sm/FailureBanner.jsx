@@ -63,33 +63,47 @@ export default function FailureBanner({ failure, onRetry, retryLabel, onDismiss,
  *        it in its own `role="status"` — a clipboard write with no confirmation
  *        is indistinguishable from one that failed.
  */
-export function RegionSaveFailure({ saveFailure, onResend, onAnnounce }) {
-    if (!saveFailure.failure) {
-        return null;
+export function RegionSaveFailure({ saveFailure, onResend, onAnnounce, failure, onDismiss }) {
+    if (saveFailure) {
+        if (!saveFailure.failure) {
+            return null;
+        }
+
+        const copy = async () => {
+            const result = await saveFailure.copyEntries?.();
+
+            if (result) {
+                onAnnounce?.(result);
+            }
+        };
+
+        const copyOnly = saveFailure.copyOffered && !saveFailure.canResend;
+
+        return (
+            <FailureBanner
+                failure={saveFailure.failure}
+                onRetry={saveFailure.canResend ? onResend : copyOnly ? copy : undefined}
+                retryLabel={copyOnly ? 'Copy my entries' : undefined}
+                onDismiss={saveFailure.clearFailure || saveFailure.dismiss}
+            >
+                {saveFailure.copyOffered && saveFailure.canResend && (
+                    <button type="button" onClick={copy} className="text-sm font-medium text-[#1A365D] underline">
+                        Copy my entries
+                    </button>
+                )}
+            </FailureBanner>
+        );
     }
 
-    const copy = async () => {
-        const result = await saveFailure.copyEntries();
+    if (failure) {
+        return (
+            <FailureBanner
+                failure={failure}
+                onRetry={onResend}
+                onDismiss={onDismiss}
+            />
+        );
+    }
 
-        if (result) {
-            onAnnounce?.(result);
-        }
-    };
-
-    const copyOnly = saveFailure.copyOffered && !saveFailure.canResend;
-
-    return (
-        <FailureBanner
-            failure={saveFailure.failure}
-            onRetry={saveFailure.canResend ? onResend : copyOnly ? copy : undefined}
-            retryLabel={copyOnly ? 'Copy my entries' : undefined}
-            onDismiss={saveFailure.clearFailure}
-        >
-            {saveFailure.copyOffered && saveFailure.canResend && (
-                <button type="button" onClick={copy} className="text-sm font-medium text-[#1A365D] underline">
-                    Copy my entries
-                </button>
-            )}
-        </FailureBanner>
-    );
+    return null;
 }

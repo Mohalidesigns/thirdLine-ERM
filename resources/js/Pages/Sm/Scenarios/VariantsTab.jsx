@@ -5,7 +5,9 @@ import useSaveFailure from '@/Components/Sm/useSaveFailure';
 
 export default function VariantsTab({ scenario, variants, can, urls, onDirtyChange }) {
     const editable = Boolean(can?.update);
-    const saveFailure = useSaveFailure('variants');
+    const saveFailure = useSaveFailure({
+        copySummary: () => (items || []).map((i) => `${i.name}: ${i.narrative}`).join('\n'),
+    });
 
     const [items, setItems] = useState(variants?.items || []);
     const [saving, setSaving] = useState(false);
@@ -72,7 +74,7 @@ export default function VariantsTab({ scenario, variants, can, urls, onDirtyChan
         if (!editable || saving) return;
 
         setSaving(true);
-        saveFailure.clear();
+        saveFailure.begin();
 
         const payload = {
             variants: items.map((item) => ({
@@ -90,12 +92,13 @@ export default function VariantsTab({ scenario, variants, can, urls, onDirtyChan
         router.put(urls.variants, payload, {
             preserveScroll: true,
             onSuccess: () => {
+                saveFailure.succeeded();
                 setSaving(false);
                 setIsDirty(false);
             },
-            onError: (errs) => {
+            onError: () => {
+                saveFailure.succeeded();
                 setSaving(false);
-                saveFailure.record(errs);
             },
         });
     };
@@ -135,7 +138,7 @@ export default function VariantsTab({ scenario, variants, can, urls, onDirtyChan
                 </div>
             </div>
 
-            <RegionSaveFailure failure={saveFailure.failure} onDismiss={saveFailure.clear} />
+            <RegionSaveFailure saveFailure={saveFailure} onResend={handleSave} />
 
             <div className="space-y-6">
                 {items.map((item, index) => {

@@ -5,7 +5,9 @@ import useSaveFailure from '@/Components/Sm/useSaveFailure';
 
 export default function ScorecardTab({ scenario, scorecard, can, urls, onDirtyChange }) {
     const editable = Boolean(can?.design);
-    const saveFailure = useSaveFailure('scorecard');
+    const saveFailure = useSaveFailure({
+        copySummary: () => `Scorecard: ${scorecard?.control_nature || 'mixed'}`,
+    });
 
     const [nature, setNature] = useState(scorecard?.control_nature || 'mixed');
     const [components, setComponents] = useState(scorecard?.components || []);
@@ -43,7 +45,7 @@ export default function ScorecardTab({ scenario, scorecard, can, urls, onDirtyCh
         if (!editable || saving) return;
 
         setSaving(true);
-        saveFailure.clear();
+        saveFailure.begin();
 
         const payload = {
             control_nature: nature,
@@ -58,10 +60,12 @@ export default function ScorecardTab({ scenario, scorecard, can, urls, onDirtyCh
         router.put(urls.scorecard, payload, {
             preserveScroll: true,
             onSuccess: () => {
+                saveFailure.succeeded();
                 setIsDirty(false);
                 setSaving(false);
             },
             onError: () => {
+                saveFailure.succeeded();
                 setSaving(false);
             },
         });
@@ -69,7 +73,7 @@ export default function ScorecardTab({ scenario, scorecard, can, urls, onDirtyCh
 
     return (
         <div className="space-y-6 max-w-5xl">
-            <RegionSaveFailure failure={saveFailure.failure} onDismiss={saveFailure.clear} />
+            <RegionSaveFailure saveFailure={saveFailure} onResend={handleSave} />
 
             {/* Card 1: Control Environment Nature */}
             <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">

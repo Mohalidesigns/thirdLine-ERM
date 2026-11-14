@@ -11,7 +11,9 @@ import useSaveFailure from '@/Components/Sm/useSaveFailure';
  */
 export default function FrequencyTab({ scenario, frequency, can, urls, onDirtyChange }) {
     const editable = Boolean(can?.design) && !frequency?.is_read_only;
-    const saveFailure = useSaveFailure('frequency');
+    const saveFailure = useSaveFailure({
+        copySummary: () => drivers.map((d) => `${d.criterion}: ${d.value}`).join('\n'),
+    });
 
     const scorecardScore = frequency?.scorecard_global_score !== null && frequency?.scorecard_global_score !== undefined
         ? parseFloat(frequency.scorecard_global_score)
@@ -65,7 +67,7 @@ export default function FrequencyTab({ scenario, frequency, can, urls, onDirtyCh
         if (!editable || saving) return;
 
         setSaving(true);
-        saveFailure.clear();
+        saveFailure.begin();
 
         const payload = {
             drivers: drivers.map((d) => ({
@@ -83,21 +85,22 @@ export default function FrequencyTab({ scenario, frequency, can, urls, onDirtyCh
         router.put(targetUrl, payload, {
             preserveScroll: true,
             onSuccess: () => {
+                saveFailure.succeeded();
                 setIsDirty(false);
                 setSaving(false);
             },
-            onError: (errs) => {
+            onError: () => {
+                saveFailure.succeeded();
                 setSaving(false);
-                saveFailure.report(errs);
             },
         });
     };
 
-    const scorecardTabUrl = `${window.location.pathname}?tab=scorecard`;
+    const scorecardTabUrl = typeof window !== 'undefined' ? `${window.location.pathname}?tab=scorecard` : '?tab=scorecard';
 
     return (
         <section aria-labelledby="frequency-heading" className="space-y-6 max-w-5xl">
-            <RegionSaveFailure failure={saveFailure.failure} onDismiss={saveFailure.clear} />
+            <RegionSaveFailure saveFailure={saveFailure} onResend={handleSave} />
 
             {/* Frequency Summary Banner */}
             <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 shadow-sm text-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-6">

@@ -27,7 +27,9 @@ function formatPercent(decimal) {
  */
 export default function InsuranceTab({ scenario, insurance, can, urls, onDirtyChange }) {
     const editable = Boolean(can?.design) && !insurance?.is_read_only;
-    const saveFailure = useSaveFailure('insurance');
+    const saveFailure = useSaveFailure({
+        copySummary: () => severities.map((s) => `${s}: ${coverages[s]?.limit_local || '0'}`).join('\n'),
+    });
 
     const currency = insurance?.currency || scenario?.currency || 'NGN';
     const severities = insurance?.severities || ['typical', 'serious', 'extreme'];
@@ -64,7 +66,7 @@ export default function InsuranceTab({ scenario, insurance, can, urls, onDirtyCh
         if (!editable || saving) return;
 
         setSaving(true);
-        saveFailure.clear();
+        saveFailure.begin();
 
         const payload = {
             coverages: {},
@@ -88,19 +90,20 @@ export default function InsuranceTab({ scenario, insurance, can, urls, onDirtyCh
         router.put(targetUrl, payload, {
             preserveScroll: true,
             onSuccess: () => {
+                saveFailure.succeeded();
                 setIsDirty(false);
                 setSaving(false);
             },
-            onError: (errs) => {
+            onError: () => {
+                saveFailure.succeeded();
                 setSaving(false);
-                saveFailure.report(errs);
             },
         });
     };
 
     return (
         <section aria-labelledby="insurance-heading" className="space-y-6 max-w-6xl">
-            <RegionSaveFailure failure={saveFailure.failure} onDismiss={saveFailure.clear} />
+            <RegionSaveFailure saveFailure={saveFailure} onResend={handleSave} />
 
             {/* Net vs Gross Impact Header */}
             <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 shadow-sm text-slate-100">

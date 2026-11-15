@@ -33,6 +33,7 @@ final class Ported
         // Phase 0
         'my.index',
         'admin.license',
+        'admin.activity-log',
         // Phase 1
         'login',
         'password.request',

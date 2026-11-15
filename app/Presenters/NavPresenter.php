@@ -477,6 +477,7 @@ class NavPresenter
                 'label' => 'Platform',
                 'items' => [
                     ['label' => 'License', 'route' => 'admin.license', 'permission' => 'license.manage'],
+                    ['label' => 'Activity Log', 'route' => 'admin.activity-log', 'permission' => 'admin.activity_log'],
                 ],
             ],
         ];

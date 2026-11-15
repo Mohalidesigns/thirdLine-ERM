@@ -104,6 +104,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 \App\Http\Middleware\HandleInertiaRequests::class,
                 \ThirdLine\Platform\Http\Middleware\SetSecurityHeaders::class,
                 \ThirdLine\Platform\Licensing\Middleware\LicenseHeartbeat::class,
+                // Terminate-time activity audit-log write for state-changing HTTP actions.
+                \App\Http\Middleware\LogRequestActivity::class,
             ],
         );
 

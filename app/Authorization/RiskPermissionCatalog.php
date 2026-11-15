@@ -399,6 +399,7 @@ class RiskPermissionCatalog extends PermissionCatalog
                 // A job payload IS the record it operates on, so the queue
                 // dashboard shows loss events and findings, not just throughput.
                 'admin.queues' => 'See the job queue dashboard, whose payloads contain the records being processed.',
+                'admin.activity_log' => 'See the application activity audit log.',
             ],
 
             'Third-party risk (TPRM)' => [

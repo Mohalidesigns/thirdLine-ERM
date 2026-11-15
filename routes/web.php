@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\ApiTokenController;
 use App\Http\Controllers\Admin\ConfigurationBuilderController;
 use App\Http\Controllers\Admin\ConfigurationBundleController;
@@ -361,6 +362,11 @@ Route::prefix('admin')->middleware(['auth'])->group(function () {
 
         Route::post('settings/license/generate-fingerprint', [LicenseController::class, 'generateFingerprint'])->name('admin.license.generate-fingerprint');
         Route::post('settings/license/deactivate', [LicenseController::class, 'deactivate'])->name('admin.license.deactivate');
+    });
+
+    // Application activity audit log.
+    Route::middleware('permission:admin.activity_log')->group(function () {
+        Route::get('activity-log', [ActivityLogController::class, 'index'])->name('admin.activity-log');
     });
 
     /* ------------------------------------------------------------------ */

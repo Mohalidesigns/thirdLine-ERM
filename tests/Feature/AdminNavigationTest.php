@@ -54,6 +54,7 @@ class AdminNavigationTest extends TestCase
         'job.view' => 'admin.jobs.index',
         // Platform (migration Phase 0)
         'license.manage' => 'admin.license',
+        'admin.activity_log' => 'admin.activity-log',
     ];
 
     /**

@@ -96,5 +96,19 @@ class EventServiceProvider extends ServiceProvider
         \App\Events\Bcms\ExerciseOccurrenceScheduled::class => [
             \App\Listeners\Bcms\MaterialiseReminderLadder::class,
         ],
+
+        // Authentication activity logging.
+        \Illuminate\Auth\Events\Login::class => [
+            [\App\Listeners\LogAuthActivity::class, 'handleLogin'],
+        ],
+        \Illuminate\Auth\Events\Logout::class => [
+            [\App\Listeners\LogAuthActivity::class, 'handleLogout'],
+        ],
+        \Illuminate\Auth\Events\Failed::class => [
+            [\App\Listeners\LogAuthActivity::class, 'handleFailed'],
+        ],
+        \Illuminate\Auth\Events\PasswordReset::class => [
+            [\App\Listeners\LogAuthActivity::class, 'handlePasswordReset'],
+        ],
     ];
 }

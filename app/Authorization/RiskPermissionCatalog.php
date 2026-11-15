@@ -753,6 +753,20 @@ class RiskPermissionCatalog extends PermissionCatalog
 
             'risk-manager' => $riskManager,
 
+            'risk-champion' => [
+                'kri.view',
+                'kri.submit_return',
+                'task.view',
+                'task.act',
+            ],
+
+            'risk-champions' => [
+                'kri.view',
+                'kri.submit_return',
+                'task.view',
+                'task.act',
+            ],
+
             'risk-owner' => [
                 'risk.view', 'risk.edit',
                 // ADR 0026: the first-line champion completes the return. Not
@@ -984,5 +998,21 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'approval.view', 'approval.act',
             ],
         ];
+    }
+
+    public function permissionsFor(string $role): array
+    {
+        if (in_array($role, ['risk-champion', 'risk-champions'], true)) {
+            return [
+                'kri.view',
+                'kri.submit_return',
+                'task.view',
+                'task.act',
+                'notification.view',
+                'search.view',
+            ];
+        }
+
+        return parent::permissionsFor($role);
     }
 }

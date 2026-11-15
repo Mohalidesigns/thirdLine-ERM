@@ -6,6 +6,8 @@ const ROLE_COLOURS = {
     'chief-risk-officer': 'bg-purple-50 border-purple-200 text-purple-900',
     'risk-manager': 'bg-blue-50 border-blue-200 text-blue-900',
     'risk-owner': 'bg-cyan-50 border-cyan-200 text-cyan-900',
+    'risk-champion': 'bg-emerald-50 border-emerald-200 text-emerald-900',
+    'risk-champions': 'bg-emerald-50 border-emerald-200 text-emerald-900',
     'risk-analyst': 'bg-indigo-50 border-indigo-200 text-indigo-900',
     'compliance-officer': 'bg-green-50 border-green-200 text-green-900',
     'board-member': 'bg-yellow-50 border-yellow-200 text-yellow-900',

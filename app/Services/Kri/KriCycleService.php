@@ -455,7 +455,9 @@ class KriCycleService
                 'kri_cycle_run_id' => $run->id,
                 'status' => KriReturnStatus::Draft->value,
                 'requested_on' => $day->toDateString(),
-                'due_on' => $this->calendar->addWorkingDays($day, KriWorkingCalendar::DUE_WORKING_DAYS, (int) $unit->organization_id)->toDateString(),
+                'due_on' => config('risk.kri_due_window', 'month') === 'working_days'
+                    ? $this->calendar->addWorkingDays($day, KriWorkingCalendar::DUE_WORKING_DAYS, (int) $unit->organization_id)->toDateString()
+                    : $day->endOfMonth()->toDateString(),
                 'opened_at' => now(),
             ]);
         } catch (UniqueConstraintViolationException $e) {
@@ -516,6 +518,59 @@ class KriCycleService
         return KriReturnNotice::query()
             ->where('kri_return_id', $return->id)
             ->where('kind', KriReturnNotice::KIND_REQUEST)
+            ->first();
+    }
+
+    /**
+     * Ensure a department's return is open for the reporting month if KRIs are due.
+     * Used by "Complete my KRIs" so champions who have not recorded their part
+     * can always access and fill their return during the month.
+     */
+    public function ensureDepartmentReturn(BusinessUnit $unit, ?Period $period = null, ?CarbonImmutable $day = null): ?KriReturn
+    {
+        $day ??= KriWorkingCalendar::today();
+        $period ??= $this->reportingPeriodFor($day, (int) $unit->organization_id);
+
+        $existing = KriReturn::query()
+            ->where('business_unit_id', $unit->id)
+            ->where('period_id', $period->id)
+            ->first();
+
+        if ($existing !== null) {
+            $existing->setRelation('period', $period);
+            $this->syncLines($existing);
+
+            return $existing;
+        }
+
+        $due = $this->dueKrisFor($unit, $period);
+
+        if ($due->isEmpty()) {
+            return null;
+        }
+
+        $run = $this->startRun(
+            (int) $unit->organization_id,
+            $period,
+            $day,
+            force: false,
+            trigger: 'on_demand',
+            triggeredBy: null,
+        );
+
+        $outcome = $this->openReturn($unit, $period, $day, $run, $due);
+
+        $run->forceFill([
+            'status' => KriCycleRun::STATUS_COMPLETED,
+            'finished_at' => now(),
+            'departments_due' => BusinessUnit::query()->where('is_active', true)->count(),
+            'returns_opened' => (int) $run->getOriginal('returns_opened') + ($outcome['opened'] ? 1 : 0),
+            'requests_queued' => (int) $run->getOriginal('requests_queued') + ($outcome['request_queued'] ? 1 : 0),
+        ])->save();
+
+        return KriReturn::query()
+            ->where('business_unit_id', $unit->id)
+            ->where('period_id', $period->id)
             ->first();
     }
 }

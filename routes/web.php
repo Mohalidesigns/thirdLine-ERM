@@ -171,6 +171,10 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     $user = auth()->user();
 
+    if ($user !== null && $user->hasRole(['risk-champion', 'risk-champions']) && ! $user->hasRole(['super-admin', 'risk-manager', 'chief-risk-officer'])) {
+        return redirect()->route('risk.kri.dashboard');
+    }
+
     if ($user === null || $user->can('risk.view')) {
         return redirect('/risk/dashboard');
     }

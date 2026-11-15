@@ -192,6 +192,29 @@ class NavigationPermissionGateTest extends TestCase
                 ->where('navigation.sections', fn ($sections) => collect($sections)->pluck('key')->contains('ai_intelligence')));
     }
 
+    #[Test]
+    public function risk_champion_sees_only_kri_monitoring_and_workflows_tasks_with_no_primary_documents_or_admin(): void
+    {
+        $this->bootDomainFixtures();
+        $catalog = new \App\Authorization\RiskPermissionCatalog;
+        $role = \Spatie\Permission\Models\Role::findOrCreate('risk-champion', 'web');
+        $role->syncPermissions(
+            collect($catalog->permissionsFor('risk-champion'))
+                ->map(fn (string $name) => Permission::findOrCreate($name, 'web'))
+                ->all()
+        );
+        $this->actor->assignRole($role);
+
+        $nav = app(NavPresenter::class)->for($this->actor);
+
+        $this->assertSame([], $nav['primary'], 'No Command Centre, My Responsibilities, Business HQ, or Dashboards');
+        $this->assertSame(['kri_monitoring', 'workflows'], array_column($nav['sections'], 'key'), 'Only KRI Monitoring and Workflows');
+        $this->assertNull($nav['admin'], 'No Administration tabs');
+
+        $workflows = collect($nav['sections'])->firstWhere('key', 'workflows');
+        $this->assertSame(['risk.my-tasks.index'], array_column($workflows['items'], 'route'), 'Workflows only shows My Tasks');
+    }
+
     /**
      * @return list<string>
      */

@@ -6,6 +6,7 @@ use App\Contracts\DirectoryProfiles;
 use App\Enums\KriContactRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Kri\StoreKriDepartmentContactRequest;
+use App\Mail\RiskChampionAssigned;
 use App\Models\BusinessUnit;
 use App\Models\KriDepartmentContact;
 use App\Models\User;
@@ -16,6 +17,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use ThirdLine\Platform\Tenancy\TenantContext;
 
@@ -110,6 +113,10 @@ class KriDepartmentContactController extends Controller
             return $contact;
         });
 
+        if ($contact->wasRecentlyCreated && $contact->role === KriContactRole::RiskChampion) {
+            $this->notifyRiskChampionAdded($contact);
+        }
+
         return back()->with('success', $contact->wasRecentlyCreated ? 'Contact added.' : 'That person already holds this role.');
     }
 
@@ -167,5 +174,23 @@ class KriDepartmentContactController extends Controller
             'account_enabled' => $profile->accountEnabled,
             'last_synced_at' => $profile->lastSyncedAt?->toIso8601String(),
         ];
+    }
+
+    protected function notifyRiskChampionAdded(KriDepartmentContact $contact): void
+    {
+        $contact->loadMissing(['user', 'businessUnit', 'assignedBy']);
+        $user = $contact->user;
+
+        if ($user && $user->is_active && ! empty($user->email)) {
+            try {
+                Mail::to($user->email)->send(new RiskChampionAssigned($contact));
+            } catch (\Throwable $e) {
+                Log::warning("Risk champion notification email failed: {$e->getMessage()}", [
+                    'contact_id' => $contact->id,
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                ]);
+            }
+        }
     }
 }

@@ -3,10 +3,12 @@
 namespace Tests\Feature\Kri;
 
 use App\Enums\KriContactRole;
+use App\Mail\RiskChampionAssigned;
 use App\Models\KriDepartmentContact;
 use App\Models\OrganizationHoliday;
 use App\Models\RiskAuditTrail;
 use App\Models\User;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use ThirdLine\Platform\Tenancy\TenantContext;
@@ -59,6 +61,32 @@ class KriContactsAndHolidaysTest extends KriCycleTestCase
         $this->assertSame('risk_champion', $audit->field_changed);
         $this->assertSame("user:{$person->id}", $audit->new_value, 'the append-only trail holds the id only (NDPA register section 12)');
         $this->assertSame($this->manager->id, (int) $audit->changed_by);
+    }
+
+    #[Test]
+    public function adding_a_risk_champion_sends_an_email_notification_to_the_user(): void
+    {
+        Mail::fake();
+
+        $person = $this->makeStaff('Amina Champion', ['kri.submit_return']);
+
+        $this->addContact(['business_unit_id' => $this->unit->id, 'user_id' => $person->id, 'role' => 'risk_champion'])->assertRedirect();
+
+        Mail::assertSent(RiskChampionAssigned::class, function ($mail) use ($person) {
+            return $mail->hasTo($person->email);
+        });
+    }
+
+    #[Test]
+    public function adding_a_non_champion_contact_does_not_send_champion_notification(): void
+    {
+        Mail::fake();
+
+        $person = $this->makeStaff('Chuka Lead');
+
+        $this->addContact(['business_unit_id' => $this->unit->id, 'user_id' => $person->id, 'role' => 'team_lead'])->assertRedirect();
+
+        Mail::assertNotSent(RiskChampionAssigned::class);
     }
 
     #[Test]

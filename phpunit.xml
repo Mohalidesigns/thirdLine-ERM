@@ -38,6 +38,7 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
+        <env name="KRI_DUE_WINDOW" value="working_days"/>
         <!--
             A real MySQL-protocol server, not SQLite in memory — and the SAME
             settings serve both engines CI runs: MariaDB 10.4 (the bank's

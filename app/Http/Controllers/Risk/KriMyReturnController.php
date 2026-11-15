@@ -12,6 +12,7 @@ use App\Models\BusinessUnit;
 use App\Models\KriReturn;
 use App\Models\Period;
 use App\Presenters\Kri\KriReturnPresenter;
+use App\Services\Kri\KriCycleService;
 use App\Services\Kri\KriReturnService;
 use App\Support\Kri\KriDepartmentScope;
 use Illuminate\Http\Request;
@@ -25,7 +26,7 @@ use Inertia\Inertia;
  */
 class KriMyReturnController extends Controller
 {
-    public function show(Request $request, KriReturnPresenter $presenter, KriReturnService $service, KriDepartmentScope $scope, ?int $department = null, ?int $period = null)
+    public function show(Request $request, KriReturnPresenter $presenter, KriReturnService $service, KriDepartmentScope $scope, KriCycleService $cycleService, ?int $department = null, ?int $period = null)
     {
         $user = $request->user();
         $championUnits = $scope->championUnitIdsFor($user);
@@ -66,6 +67,10 @@ class KriMyReturnController extends Controller
                 ->sortBy(fn (KriReturn $r) => $r->period?->end_date?->toDateString())
                 ->first()
                 ?? $returns->sortByDesc(fn (KriReturn $r) => $r->period?->end_date?->toDateString())->first();
+        }
+
+        if ($return === null && $unit !== null) {
+            $return = $cycleService->ensureDepartmentReturn($unit, $period !== null ? Period::query()->find($period) : null);
         }
 
         if ($return === null) {

@@ -528,13 +528,23 @@ class NavPresenter
         $this->legacyRcsa = app(RcsaCutover::class)->legacyState($user->organization_id);
         $this->kriChampion = null;
 
-        $primary = array_values(array_filter(
+        $isChampionOnly = $user->hasRole(['risk-champion', 'risk-champions'])
+            && ! $user->hasRole([
+                'super-admin', 'chief-risk-officer', 'risk-manager', 'risk-owner',
+                'risk-analyst', 'compliance-officer', 'loss-event-manager', 'issue-manager',
+            ]);
+
+        $primary = $isChampionOnly ? [] : array_values(array_filter(
             array_map(fn (array $item) => $this->resolve($item, $user), self::primary())
         ));
 
         $sections = [];
 
         foreach (self::sections() as $section) {
+            if ($isChampionOnly && ! in_array($section['key'], ['kri_monitoring', 'workflows'], true)) {
+                continue;
+            }
+
             if (isset($section['feature']) && ! $this->featureEnabled($section['feature'])) {
                 continue;
             }
@@ -558,13 +568,15 @@ class NavPresenter
 
         $groups = [];
 
-        foreach (self::adminGroups() as $group) {
-            $items = array_values(array_filter(
-                array_map(fn (array $item) => $this->resolve($item, $user), $group['items'])
-            ));
+        if (! $isChampionOnly) {
+            foreach (self::adminGroups() as $group) {
+                $items = array_values(array_filter(
+                    array_map(fn (array $item) => $this->resolve($item, $user), $group['items'])
+                ));
 
-            if ($items !== []) {
-                $groups[] = ['label' => $group['label'], 'items' => $items];
+                if ($items !== []) {
+                    $groups[] = ['label' => $group['label'], 'items' => $items];
+                }
             }
         }
 

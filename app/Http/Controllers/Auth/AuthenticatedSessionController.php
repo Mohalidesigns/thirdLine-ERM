@@ -134,6 +134,10 @@ class AuthenticatedSessionController extends Controller
                 ->with('warning', 'You must change your password before proceeding.');
         }
 
+        if ($user->hasRole(['risk-champion', 'risk-champions']) && ! $user->hasRole(['super-admin', 'risk-manager', 'chief-risk-officer'])) {
+            return redirect()->intended(route('risk.kri.dashboard'));
+        }
+
         return redirect()->intended('/risk/dashboard');
     }
 

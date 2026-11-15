@@ -291,6 +291,17 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->with('error', 'That page had been open too long and the security token expired. Please sign in again.');
         });
 
+        $exceptions->render(function (HttpException $e, Request $request) {
+            if ($e->getStatusCode() === 403 && $request->route()?->getName() === 'risk.dashboard') {
+                $user = $request->user();
+                if ($user && $user->hasRole(['risk-champion', 'risk-champions']) && ! $user->hasRole(['super-admin', 'risk-manager', 'chief-risk-officer'])) {
+                    return redirect()->route('risk.kri.dashboard');
+                }
+            }
+
+            return null;
+        });
+
         /*
          * A throttled request on the unauthenticated exercise check-in
          * surface must not dead-end either (BCMS Phase 9, Gate 1 defect,

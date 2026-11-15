@@ -267,10 +267,13 @@ class KriReturnPresenter
             'period' => $this->periodOpt($selected),
             'periods' => $periods->map(fn (Period $p) => $this->periodOpt($p))->values()->all(),
             'summary' => $this->summary($selected, $user),
-            'cycleOpened' => $selected !== null && KriCycleRun::query()
-                ->where('period_id', $selected->id)
-                ->where('status', KriCycleRun::STATUS_COMPLETED)
-                ->exists(),
+            'cycleOpened' => $selected !== null && (
+                KriCycleRun::query()
+                    ->where('period_id', $selected->id)
+                    ->where('status', KriCycleRun::STATUS_COMPLETED)
+                    ->exists()
+                || KriReturn::query()->where('period_id', $selected->id)->exists()
+            ),
             'drillDownUrl' => route('risk.kri.returns.index', $selected === null ? [] : ['period' => $selected->id]),
             'canRemind' => $user->can('kri.send_reminder'),
             'scopeNote' => $this->scope->describe($user),

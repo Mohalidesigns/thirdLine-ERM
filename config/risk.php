@@ -89,4 +89,17 @@ return [
 
     'regulatory_reportable_threshold_ngn' => 10_000_000,
 
+    /*
+    |--------------------------------------------------------------------------
+    | KRI Return Due Window
+    |--------------------------------------------------------------------------
+    |
+    | Defines how long a monthly KRI return remains open for recording:
+    |   'month'        - Return remains open for recording for the entire month
+    |                    (due on the last calendar day of the month).
+    |   'working_days' - Return is due 5 working days after opening.
+    |
+    */
+    'kri_due_window' => env('KRI_DUE_WINDOW', 'month'),
+
 ];

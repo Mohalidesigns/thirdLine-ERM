@@ -60,6 +60,7 @@ class UpdateAssessmentLineRequest extends FormRequest
             // assessor could never un-answer a question they got wrong.
             'inherent_likelihood' => ['nullable', 'integer', Rule::in($likelihood)],
             'inherent_impact' => ['nullable', 'integer', Rule::in($impact)],
+            'existing_control' => ['nullable', 'string', 'max:5000'],
             'control_effectiveness' => ['nullable', 'string', Rule::in($controlLabels)],
 
             'residual_likelihood' => ['nullable', 'integer', Rule::in($likelihood)],

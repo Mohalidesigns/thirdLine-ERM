@@ -373,11 +373,11 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                                 </th>
                                 <th className="w-8" />
                                 <th>Risk No.</th>
-                                <th>Business Unit</th>
                                 <th>Process</th>
-                                <th>Potential Risk</th>
+                                <th>Risk</th>
+                                <th>Control</th>
+                                <th>Business Unit</th>
                                 <th>Category</th>
-                                <th>Controls</th>
                                 <th>Status</th>
                                 <th>Last updated</th>
                                 <th className="text-right">Actions</th>
@@ -431,7 +431,6 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                                                 {risk.risk_no}
                                             </span>
                                         </td>
-                                        <td className="cell-muted">{risk.business_unit ?? '—'}</td>
                                         <td className="cell-muted">
                                             {risk.process ?? '—'}
                                             {risk.sub_process && (
@@ -443,18 +442,19 @@ export default function Index({ risks, filters = {}, options = {}, can = {} }) {
                                                 {risk.potential_risk}
                                             </p>
                                         </td>
-                                        <td>
-                                            {risk.risk_category ? (
-                                                <span className={`badge ${CATEGORY_TONE}`}>{risk.risk_category}</span>
-                                            ) : (
-                                                <span className="text-xs text-gray-400">—</span>
-                                            )}
-                                        </td>
                                         <td className="cell-muted">
                                             {risk.controls_count > 0 ? (
                                                 risk.controls_count
                                             ) : (
                                                 <span className="text-xs text-amber-600">None</span>
+                                            )}
+                                        </td>
+                                        <td className="cell-muted">{risk.business_unit ?? '—'}</td>
+                                        <td>
+                                            {risk.risk_category ? (
+                                                <span className={`badge ${CATEGORY_TONE}`}>{risk.risk_category}</span>
+                                            ) : (
+                                                <span className="text-xs text-gray-400">—</span>
                                             )}
                                         </td>
                                         <td>

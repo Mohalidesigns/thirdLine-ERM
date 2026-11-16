@@ -23,6 +23,10 @@ use App\Models\Entity;
 use App\Models\FxRate;
 use App\Models\GraphObject;
 use App\Models\IcaapAssessment;
+use App\Models\Incident;
+use App\Models\IncidentAction;
+use App\Models\IncidentNotification;
+use App\Models\IncidentTimelineEntry;
 use App\Models\Issue;
 use App\Models\IssueRemediationAction;
 use App\Models\JobRun;
@@ -35,6 +39,7 @@ use App\Models\KriReturnLine;
 use App\Models\KriReturnNotice;
 use App\Models\LossEvent;
 use App\Models\LossEventRca;
+use App\Models\LossEventReturn;
 use App\Models\Measure;
 use App\Models\MeasureBreach;
 use App\Models\MeasureThreshold;
@@ -171,6 +176,10 @@ class MorphTypes
             // table of its own, so `objects` is the subject.
             'graph_object' => GraphObject::class,
             'icaap_assessment' => IcaapAssessment::class,
+            'incident' => Incident::class,
+            'incident_action' => IncidentAction::class,
+            'incident_notification' => IncidentNotification::class,
+            'incident_timeline_entry' => IncidentTimelineEntry::class,
             'issue' => Issue::class,
             'job_run' => JobRun::class,
             'issue_remediation_action' => IssueRemediationAction::class,
@@ -192,6 +201,7 @@ class MorphTypes
             'license_store' => LicenseStore::class,
             'loss_event' => LossEvent::class,
             'loss_event_rca' => LossEventRca::class,
+            'loss_event_return' => LossEventReturn::class,
             // WP-04. The measure engine is audited and approvable — a period
             // close, a breach acknowledgement and a threshold re-baselining all
             // write to the audit trail or the approval queue, and both resolve

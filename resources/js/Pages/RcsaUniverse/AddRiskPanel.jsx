@@ -607,7 +607,7 @@ export default function AddRiskPanel({ open, onClose, options, editing = null })
                                 </p>
                             </Field>
 
-                            <Field label="Potential Risk" error={err('potential_risk')} required>
+                            <Field label="Risk" error={err('potential_risk')} required>
                                 <textarea
                                     ref={potentialRiskRef}
                                     rows={3}

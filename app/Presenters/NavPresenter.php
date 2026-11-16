@@ -274,6 +274,7 @@ class NavPresenter
                     ['label' => 'Dashboard', 'route' => 'risk.loss-events.dashboard', 'permission' => 'loss_event.view'],
                     ['label' => 'Event Register', 'route' => 'risk.loss-events.index', 'permission' => 'loss_event.view'],
                     ['label' => 'New Event', 'route' => 'risk.loss-events.create', 'permission' => 'loss_event.create'],
+                    ['label' => 'Monthly Loss Returns', 'route' => 'risk.loss-events.returns.index', 'permission' => 'loss_event.view'],
                     ['label' => 'Near Misses', 'route' => 'risk.loss-events.near-misses', 'permission' => 'loss_event.view'],
                     ['label' => 'Approvals', 'route' => 'risk.loss-events.approvals', 'permission' => 'loss_event.approve'],
                     ['label' => 'Root Cause', 'route' => 'risk.loss-events.rca', 'permission' => 'loss_event.view'],
@@ -281,13 +282,10 @@ class NavPresenter
                 ],
             ],
             [
-                'key' => 'issues', 'label' => 'Issues & Findings', 'icon' => 'bug_report', 'prefixes' => ['/risk/issues'],
+                'key' => 'incidents', 'label' => 'Incident Register', 'icon' => 'notification_important', 'prefixes' => ['/risk/incidents'],
                 'items' => [
-                    ['label' => 'Dashboard', 'route' => 'risk.issues.dashboard', 'permission' => 'issue.view'],
-                    ['label' => 'Issues Register', 'route' => 'risk.issues.index', 'permission' => 'issue.view'],
-                    ['label' => 'New Issue', 'route' => 'risk.issues.create', 'permission' => 'issue.create'],
-                    ['label' => 'Ageing Report', 'route' => 'risk.issues.ageing', 'permission' => 'issue.view'],
-                    ['label' => 'Closure', 'route' => 'risk.issues.closure', 'permission' => 'issue.close'],
+                    ['label' => 'Incident Register', 'route' => 'risk.incidents.index', 'permission' => 'incident.view'],
+                    ['label' => 'Report Incident', 'route' => 'risk.incidents.create', 'permission' => 'incident.create'],
                 ],
             ],
             [
@@ -541,7 +539,7 @@ class NavPresenter
         $sections = [];
 
         foreach (self::sections() as $section) {
-            if ($isChampionOnly && ! in_array($section['key'], ['kri_monitoring', 'workflows'], true)) {
+            if ($isChampionOnly && ! in_array($section['key'], ['kri_monitoring', 'workflows', 'rcsa', 'loss_events'], true)) {
                 continue;
             }
 

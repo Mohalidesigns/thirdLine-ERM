@@ -1167,11 +1167,12 @@ export default function Workspace({
                                             </th>
                                             <th className="w-28">Likelihood</th>
                                             <th className="w-28">Impact</th>
-                                            <th className="w-20">Inherent</th>
+                                            <th className="w-24">Inherent Risk</th>
+                                            <th className="w-48">Controls</th>
                                             <th className="w-32">
                                                 Control effectiveness
                                             </th>
-                                            <th className="w-20">Residual</th>
+                                            <th className="w-24">Residual Risk</th>
                                             <th className="w-28">Treatment</th>
                                             <th className="w-24">Last cycle</th>
                                         </tr>
@@ -1322,6 +1323,36 @@ export default function Workspace({
                                                             }
                                                             level={
                                                                 line.inherent_level
+                                                            }
+                                                        />
+                                                    </td>
+
+                                                    {/* Champions can enter the control for each risk */}
+                                                    <td className="min-w-[160px]">
+                                                        <input
+                                                            type="text"
+                                                            aria-label={`Controls for ${line.risk_no}`}
+                                                            className="form-input w-full text-xs"
+                                                            placeholder="Enter controls..."
+                                                            disabled={
+                                                                !canEditLine(line)
+                                                            }
+                                                            value={
+                                                                line.existing_control ?? ""
+                                                            }
+                                                            data-cell={`${rowIndex}:existing_control`}
+                                                            onKeyDown={(e) =>
+                                                                onCellKeyDown(
+                                                                    e,
+                                                                    rowIndex,
+                                                                    "existing_control",
+                                                                )
+                                                            }
+                                                            onChange={(e) =>
+                                                                save(line, {
+                                                                    existing_control:
+                                                                        e.target.value,
+                                                                })
                                                             }
                                                         />
                                                     </td>

@@ -9,6 +9,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import FailureBanner from '@/Components/Kri/FailureBanner';
 import Glyph from '@/Components/Kri/Glyph';
 import InfoStrip from '@/Components/Kri/InfoStrip';
+import AddDepartmentModal from '@/Components/Kri/AddDepartmentModal';
 import useVisitFailures from '@/hooks/useVisitFailures';
 import { formatDay } from '@/lib/kri-format';
 
@@ -277,6 +278,7 @@ export default function Contacts({ departments = [], roles = [] }) {
     const [onlyNoChampion, setOnlyNoChampion] = useState(false);
     const [onlyFlagged, setOnlyFlagged] = useState(false);
     const [openIds, setOpenIds] = useRemember([], 'kri-contacts-open');
+    const [showAddDeptModal, setShowAddDeptModal] = useState(false);
     const [adding, setAdding] = useState(null);
     const [removing, setRemoving] = useState(null);
     const [removeBusy, setRemoveBusy] = useState(false);
@@ -357,9 +359,19 @@ export default function Contacts({ departments = [], roles = [] }) {
             <Head title="Department KRI Contacts" />
 
             <PageHeader
-                title="Department KRI Contacts"
-                subtitle="Who receives each department's monthly KRI request and its reminders"
+                title="Department KRI Contacts &amp; Settings"
+                subtitle={`Manage departments (${departments.length} existing) and assign monthly KRI champions & contacts`}
                 breadcrumbs={[{ label: 'KRI Monitoring', href: route('risk.kri.index') }, { label: 'Department Contacts' }]}
+                actions={
+                    <button
+                        type="button"
+                        onClick={() => setShowAddDeptModal(true)}
+                        className="btn-primary inline-flex items-center gap-1.5 text-sm"
+                    >
+                        <span className="material-symbols-outlined text-base">add_business</span>
+                        Add Department
+                    </button>
+                }
             />
 
             <InfoStrip className="mb-4">
@@ -433,6 +445,11 @@ export default function Contacts({ departments = [], roles = [] }) {
                 processing={removeBusy}
                 onCancel={() => setRemoving(null)}
                 onConfirm={remove}
+            />
+            <AddDepartmentModal
+                isOpen={showAddDeptModal}
+                onClose={() => setShowAddDeptModal(false)}
+                existingDepartments={departments}
             />
         </AuthenticatedLayout>
     );

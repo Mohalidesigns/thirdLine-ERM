@@ -140,6 +140,8 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'loss_event.edit' => 'Change a recorded loss event.',
                 'loss_event.approve' => 'Approve a loss event through its workflow.',
                 'loss_event.cbn_notify' => 'File a loss event notification with the Central Bank of Nigeria.',
+                'loss_event.submit_return' => 'Complete and submit your department\'s monthly loss return or nil declaration.',
+                'loss_event.send_reminder' => 'Send reminders to departments about unsubmitted monthly loss returns.',
                 'loss_event.delete' => 'Remove a loss event.',
             ],
 
@@ -150,6 +152,16 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'issue.escalate' => 'Escalate an issue to a higher level of oversight.',
                 'issue.close' => 'Close an issue, asserting it is resolved.',
                 'issue.delete' => 'Remove an issue.',
+            ],
+
+            'Incidents' => [
+                'incident.view' => 'See the incident register and individual incidents.',
+                'incident.create' => 'Report a new incident.',
+                'incident.edit' => 'Update incident details and containment.',
+                'incident.triage' => 'Triage, assess severity and assign investigators to an incident.',
+                'incident.close' => 'Close an incident once remedial actions and loss derivation are settled.',
+                'incident.notify' => 'Manage regulatory notifications and obligations for an incident.',
+                'incident.delete' => 'Remove an incident record.',
             ],
 
             'Quantification' => [
@@ -675,6 +687,7 @@ class RiskPermissionCatalog extends PermissionCatalog
             'import.view', 'import.create', 'import.process',
             'kri.acknowledge_breach',
             'period.view', 'period.close',
+            'incident.view', 'incident.create', 'incident.edit', 'incident.triage', 'incident.close', 'incident.notify',
             'threshold.view', 'threshold.manage', 'threshold.rebaseline_approve',
             'measure.view', 'measure.manage', 'measure.record',
             'fx_rate.view', 'fx_rate.manage',
@@ -758,6 +771,15 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'kri.submit_return',
                 'task.view',
                 'task.act',
+                'rcsa.view',
+                'rcsa.submit',
+                'rcsa_cycle.view',
+                'rcsa_assessment.view',
+                'rcsa_assessment.complete',
+                'rcsa_assessment.submit',
+                'loss_event.view',
+                'loss_event.create',
+                'loss_event.submit_return',
             ],
 
             'risk-champions' => [
@@ -765,10 +787,20 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'kri.submit_return',
                 'task.view',
                 'task.act',
+                'rcsa.view',
+                'rcsa.submit',
+                'rcsa_cycle.view',
+                'rcsa_assessment.view',
+                'rcsa_assessment.complete',
+                'rcsa_assessment.submit',
+                'loss_event.view',
+                'loss_event.create',
+                'loss_event.submit_return',
             ],
 
             'risk-owner' => [
                 'risk.view', 'risk.edit',
+                'incident.view', 'incident.create',
                 // ADR 0026: the first-line champion completes the return. Not
                 // kri.view / kri.edit: a champion does not edit definitions.
                 'kri.submit_return',
@@ -819,6 +851,7 @@ class RiskPermissionCatalog extends PermissionCatalog
 
             'risk-analyst' => [
                 'risk.view',
+                'incident.view', 'incident.create',
                 'assessment.view', 'assessment.create',
                 'kri.view', 'kri.record_measurement', 'kri.all_departments',
                 'report.view', 'report.generate',
@@ -871,7 +904,8 @@ class RiskPermissionCatalog extends PermissionCatalog
 
             'chief-risk-officer' => [
                 ...$riskManager,
-                'loss_event.view', 'loss_event.create', 'loss_event.edit', 'loss_event.approve', 'loss_event.cbn_notify', 'loss_event.delete',
+                'incident.delete',
+                'loss_event.view', 'loss_event.create', 'loss_event.edit', 'loss_event.approve', 'loss_event.cbn_notify', 'loss_event.submit_return', 'loss_event.send_reminder', 'loss_event.delete',
                 'issue.view', 'issue.create', 'issue.edit', 'issue.escalate', 'issue.close', 'issue.delete',
                 'quantification.view', 'quantification.create', 'quantification.run_simulation', 'quantification.approve_icaap',
                 'regulatory.file',
@@ -904,6 +938,7 @@ class RiskPermissionCatalog extends PermissionCatalog
 
             'compliance-officer' => [
                 'risk.view',
+                'incident.view', 'incident.create', 'incident.notify',
                 'loss_event.view',
                 'issue.view', 'issue.create',
                 'report.view',
@@ -985,7 +1020,8 @@ class RiskPermissionCatalog extends PermissionCatalog
             ],
 
             'loss-event-manager' => [
-                'loss_event.view', 'loss_event.create', 'loss_event.edit', 'loss_event.approve', 'loss_event.cbn_notify', 'loss_event.delete',
+                'loss_event.view', 'loss_event.create', 'loss_event.edit', 'loss_event.approve', 'loss_event.cbn_notify', 'loss_event.submit_return', 'loss_event.send_reminder', 'loss_event.delete',
+                'incident.view', 'incident.create',
                 'issue.view', 'issue.create',
                 'analysis.view',
                 'approval.view', 'approval.act',
@@ -993,6 +1029,7 @@ class RiskPermissionCatalog extends PermissionCatalog
 
             'issue-manager' => [
                 'issue.view', 'issue.create', 'issue.edit', 'issue.escalate', 'issue.close', 'issue.delete',
+                'incident.view', 'incident.create', 'incident.edit', 'incident.close',
                 'loss_event.view',
                 'analysis.view',
                 'approval.view', 'approval.act',
@@ -1010,6 +1047,15 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'task.act',
                 'notification.view',
                 'search.view',
+                'rcsa.view',
+                'rcsa.submit',
+                'rcsa_cycle.view',
+                'rcsa_assessment.view',
+                'rcsa_assessment.complete',
+                'rcsa_assessment.submit',
+                'loss_event.view',
+                'loss_event.create',
+                'loss_event.submit_return',
             ];
         }
 

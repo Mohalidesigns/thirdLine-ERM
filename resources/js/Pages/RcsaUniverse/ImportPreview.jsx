@@ -198,7 +198,7 @@ export default function ImportPreview({ batch, rows, filters = {}, columns = [] 
                                 <th className="w-16">Row</th>
                                 <th className="w-24">Status</th>
                                 <th>Business Unit</th>
-                                <th>Potential Risk</th>
+                                <th>Risk</th>
                                 <th>Category</th>
                                 <th>Existing Control</th>
                                 <th>What is wrong</th>

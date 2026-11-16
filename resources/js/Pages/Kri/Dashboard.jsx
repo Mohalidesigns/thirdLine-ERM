@@ -50,6 +50,10 @@ export default function Dashboard({
         color: SLICE_COLORS[slice.label] ?? '#6B7280',
     }));
 
+    const visibleTrafficLights = trafficLights.filter((kri) =>
+        ['red', 'amber', 'yellow'].includes(kri.status?.toLowerCase())
+    );
+
     return (
         <AuthenticatedLayout title="KRI Dashboard">
             <Head title="KRI Dashboard" />
@@ -80,25 +84,21 @@ export default function Dashboard({
 
             <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                    <h3 className="text-sm font-semibold text-[#1A365D]">KRI Traffic Light Overview</h3>
+                    <h3 className="text-sm font-semibold text-[#1A365D]">KRI Traffic Light Overview (Amber &amp; Red)</h3>
                     <div className="flex items-center gap-4 text-xs text-gray-500">
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /> Within Tolerance</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-500 inline-block" /> Warning</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" /> Breach</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-500 inline-block" /> Warning (Amber)</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" /> Breach (Red)</span>
                     </div>
                 </div>
 
-                {trafficLights.length === 0 ? (
+                {visibleTrafficLights.length === 0 ? (
                     <div className="text-center py-8 text-gray-400">
-                        <span className="material-symbols-outlined text-3xl mb-2 block">speed</span>
-                        No KRIs configured.{' '}
-                        {canCreate && (
-                            <Link href={route('risk.kri.create')} className="text-[#1A365D] hover:underline">Create your first KRI</Link>
-                        )}
+                        <span className="material-symbols-outlined text-3xl mb-2 block">verified</span>
+                        No indicators currently in warning (amber) or breach (red) status.
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-                        {trafficLights.map((kri) => (
+                        {visibleTrafficLights.map((kri) => (
                             <Link key={kri.id} href={kri.url} className={`block p-3 rounded-lg border transition-all hover:shadow-md ${tone(kri.status).tile}`}>
                                 <div className="flex items-center justify-between mb-2">
                                     <span className={`w-3 h-3 rounded-full ${tone(kri.status).dot}`} />

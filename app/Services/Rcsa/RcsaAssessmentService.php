@@ -147,6 +147,7 @@ class RcsaAssessmentService
             $assessed = Arr::only($input, [
                 'inherent_likelihood',
                 'inherent_impact',
+                'existing_control',
                 'control_effectiveness',
                 'residual_likelihood',
                 'residual_impact',

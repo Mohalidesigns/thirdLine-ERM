@@ -86,6 +86,7 @@ use App\Http\Controllers\Risk\GlobalSearchController;
 use App\Http\Controllers\Risk\GridController;
 use App\Http\Controllers\Risk\HolidayController;
 use App\Http\Controllers\Risk\HqController;
+use App\Http\Controllers\Risk\IncidentController;
 use App\Http\Controllers\Risk\IssueController;
 use App\Http\Controllers\Risk\JobProgressController;
 use App\Http\Controllers\Risk\KriController;
@@ -94,6 +95,7 @@ use App\Http\Controllers\Risk\KriDepartmentController;
 use App\Http\Controllers\Risk\KriMyReturnController;
 use App\Http\Controllers\Risk\KriReturnController;
 use App\Http\Controllers\Risk\LossEventController;
+use App\Http\Controllers\Risk\LossEventReturnController;
 use App\Http\Controllers\Risk\MyResponsibilitiesController;
 use App\Http\Controllers\Risk\MyTaskController;
 use App\Http\Controllers\Risk\PeriodController;
@@ -673,6 +675,8 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     // ADR 0026 section 15 - the departmental KRI cycle. EVERY literal `kri/...`
     // route sits before `kri/{kri}`, as dashboard, thresholds and breaches do:
     // `my-return` would otherwise bind as a KRI id.
+    Route::post('kri/departments', [KriDepartmentController::class, 'store'])
+        ->middleware('permission:kri.view')->name('risk.kri.departments.store');
     Route::get('kri/departments/unassigned', [KriDepartmentController::class, 'unassigned'])
         ->middleware('permission:kri.view')->name('risk.kri.departments.unassigned');
     Route::get('kri/departments/{department}', [KriDepartmentController::class, 'show'])
@@ -755,6 +759,13 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         ->middleware('permission:loss_event.view')->name('risk.loss-events.rca');
     Route::get('loss-events/reports', [LossEventController::class, 'reports'])
         ->middleware('permission:loss_event.view')->name('risk.loss-events.reports');
+
+    Route::get('loss-events/returns', [LossEventReturnController::class, 'index'])
+        ->middleware('permission:loss_event.view')->name('risk.loss-events.returns.index');
+    Route::post('loss-events/returns/{return}/submit', [LossEventReturnController::class, 'submit'])
+        ->middleware('permission:loss_event.view')->name('risk.loss-events.returns.submit');
+    Route::post('loss-events/returns/remind', [LossEventReturnController::class, 'sendReminders'])
+        ->middleware('permission:loss_event.view')->name('risk.loss-events.returns.remind');
 
     // Regulatory and management extracts (ExportController) — declared before
     // the {lossEvent} routes so the literal "reports" segment wins.
@@ -845,6 +856,46 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         ->middleware('permission:issue.edit')->name('risk.issues.update');
     Route::delete('issues/{issue}', [IssueController::class, 'destroy'])
         ->middleware('permission:issue.delete')->name('risk.issues.destroy');
+
+    /* ------------------------------------------------------------------ */
+    /*  Incident Register */
+    /* ------------------------------------------------------------------ */
+    Route::get('incidents', [IncidentController::class, 'index'])
+        ->middleware('permission:incident.view')->name('risk.incidents.index');
+    Route::get('incidents/create', [IncidentController::class, 'create'])
+        ->middleware('permission:incident.create')->name('risk.incidents.create');
+    Route::post('incidents', [IncidentController::class, 'store'])
+        ->middleware('permission:incident.create')->name('risk.incidents.store');
+    Route::get('incidents/{incident}', [IncidentController::class, 'show'])
+        ->middleware('permission:incident.view')->name('risk.incidents.show');
+    Route::match(['put', 'patch'], 'incidents/{incident}', [IncidentController::class, 'update'])
+        ->middleware('permission:incident.edit')->name('risk.incidents.update');
+
+    Route::post('incidents/{incident}/triage', [IncidentController::class, 'triage'])
+        ->middleware('permission:incident.triage')->name('risk.incidents.triage');
+    Route::post('incidents/{incident}/progress', [IncidentController::class, 'progress'])
+        ->middleware('permission:incident.edit')->name('risk.incidents.progress');
+    Route::post('incidents/{incident}/loss', [IncidentController::class, 'recordLoss'])
+        ->middleware('permission:incident.edit')->name('risk.incidents.loss');
+    Route::post('incidents/{incident}/close', [IncidentController::class, 'close'])
+        ->middleware('permission:incident.close')->name('risk.incidents.close');
+    Route::post('incidents/{incident}/reopen', [IncidentController::class, 'reopen'])
+        ->middleware('permission:incident.close')->name('risk.incidents.reopen');
+
+    Route::post('incidents/{incident}/actions', [IncidentController::class, 'storeAction'])
+        ->middleware('permission:incident.edit')->name('risk.incidents.actions.store');
+    Route::match(['put', 'patch'], 'incidents/{incident}/actions/{action}', [IncidentController::class, 'updateAction'])
+        ->middleware('permission:incident.edit')->name('risk.incidents.actions.update');
+
+    Route::post('incidents/{incident}/controls', [IncidentController::class, 'linkControls'])
+        ->middleware('permission:incident.edit')->name('risk.incidents.controls.link');
+
+    Route::post('incidents/{incident}/notifications/refresh', [IncidentController::class, 'refreshNotifications'])
+        ->middleware('permission:incident.notify')->name('risk.incidents.notifications.refresh');
+    Route::post('incidents/{incident}/notifications/{notification}', [IncidentController::class, 'recordNotification'])
+        ->middleware('permission:incident.notify')->name('risk.incidents.notifications.record');
+    Route::post('incidents/{incident}/notifications/{notification}/waive', [IncidentController::class, 'waiveNotification'])
+        ->middleware('permission:incident.notify')->name('risk.incidents.notifications.waive');
 
     /* ------------------------------------------------------------------ */
     /*  Unified document / evidence repository */

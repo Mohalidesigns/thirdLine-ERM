@@ -66,12 +66,9 @@ class KriController extends Controller
 
         $kris = $this->kris->trafficLights();
 
-        return Inertia::render('Kri/Dashboard', [
-            'kpis' => $this->kris->kpis($kris),
-            'statusDistribution' => $this->kris->statusDistribution($kris),
-            'breachTrend' => $this->kris->breachTrend(),
-            'breaching' => $this->kris->breaching($kris),
-            'trafficLights' => $kris->map(fn (KeyRiskIndicator $kri) => [
+        $filteredTrafficLights = $kris
+            ->filter(fn (KeyRiskIndicator $kri) => in_array($kri->current_status, ['red', 'amber', 'yellow'], true))
+            ->map(fn (KeyRiskIndicator $kri) => [
                 'id' => $kri->id,
                 'code' => $kri->kri_code,
                 'name' => $kri->name,
@@ -80,7 +77,14 @@ class KriController extends Controller
                 'unit' => $kri->unit_of_measure,
                 'trend' => $kri->trend_direction,
                 'url' => route('risk.kri.show', $kri),
-            ])->all(),
+            ])->values()->all();
+
+        return Inertia::render('Kri/Dashboard', [
+            'kpis' => $this->kris->kpis($kris),
+            'statusDistribution' => $this->kris->statusDistribution($kris),
+            'breachTrend' => $this->kris->breachTrend(),
+            'breaching' => $this->kris->breaching($kris),
+            'trafficLights' => $filteredTrafficLights,
             'canCreate' => Gate::allows('create', KeyRiskIndicator::class),
             // ADR 0026 section 16. A closure, so a partial reload with
             // `only: ['returnsCard']` and `?period=` re-computes just this.
@@ -367,6 +371,7 @@ class KriController extends Controller
                     'currentValue' => $kri->current_value === null ? null : (float) $kri->current_value,
                     'direction' => $kri->threshold_direction === 'lower_worse' ? 'lower_is_worse' : 'higher_is_worse',
                     'green_threshold' => $kri->green_threshold,
+                    'amber_threshold' => $kri->amber_threshold,
                     'red_threshold' => $kri->red_threshold,
                     'riskCode' => $kri->risk?->risk_code,
                 ])->all(),

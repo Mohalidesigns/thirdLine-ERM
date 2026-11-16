@@ -58,7 +58,7 @@ export default function Thresholds({ kris = {}, canManage = false }) {
             <form id="kri-thresholds-form" onSubmit={submit}>
                 <PageHeader
                     title="KRI Threshold Management"
-                    subtitle="Set the green and red boundaries every indicator is read against"
+                    subtitle="Set the green, amber and red boundaries every indicator is read against"
                     breadcrumbs={[{ label: 'KRI Monitoring', href: route('risk.kri.index') }, { label: 'Thresholds' }]}
                     actions={
                         canManage && (
@@ -71,7 +71,7 @@ export default function Thresholds({ kris = {}, canManage = false }) {
                 />
 
                 <p className="text-xs text-gray-500 mb-4 max-w-3xl">
-                    Amber is the band between the two boundaries, so it has no number of its own. Which side of each
+                    Amber is the warning band between the green and red boundaries. Which side of each
                     boundary is bad depends on the indicator's direction, shown per row. Saving writes a new
                     effective-dated band set, so a breach recorded last month keeps reading against last month's limits.
                 </p>
@@ -90,6 +90,9 @@ export default function Thresholds({ kris = {}, canManage = false }) {
                                     <th className="bg-green-50">
                                         <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-500" /> Green boundary</span>
                                     </th>
+                                    <th className="bg-amber-50">
+                                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-yellow-500" /> Amber boundary</span>
+                                    </th>
                                     <th className="bg-red-50">
                                         <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Red boundary</span>
                                     </th>
@@ -99,7 +102,7 @@ export default function Thresholds({ kris = {}, canManage = false }) {
                             <tbody>
                                 {rows.length === 0 && (
                                     <tr>
-                                        <td colSpan={7} className="text-center py-12">
+                                        <td colSpan={8} className="text-center py-12">
                                             <span className="material-symbols-outlined text-4xl text-gray-300 mb-2 block">tune</span>
                                             <p className="text-sm text-gray-500">
                                                 No KRIs configured.{' '}
@@ -134,6 +137,18 @@ export default function Thresholds({ kris = {}, canManage = false }) {
                                                 className="form-input w-full px-2 py-1 text-sm text-center border-green-300 focus:ring-1 focus:ring-green-400"
                                             />
                                             <InputError message={errors[`kris.${index}.green_threshold`]} className="mt-1" />
+                                        </td>
+                                        <td className="bg-amber-50/50 text-center">
+                                            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-amber-100/70 border border-amber-300 text-amber-800 text-xs font-semibold">
+                                                <span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" />
+                                                {data.kris[index]?.green_threshold && data.kris[index]?.red_threshold ? (
+                                                    kri.direction === 'lower_is_worse'
+                                                        ? `${data.kris[index].red_threshold} – ${data.kris[index].green_threshold}`
+                                                        : `${data.kris[index].green_threshold} – ${data.kris[index].red_threshold}`
+                                                ) : (
+                                                    kri.amber_threshold ?? '—'
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="bg-red-50/50">
                                             <input

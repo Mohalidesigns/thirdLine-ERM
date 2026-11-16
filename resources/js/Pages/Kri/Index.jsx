@@ -7,6 +7,7 @@ import PageHeader from '@thirdline/ui/Components/PageHeader';
 import tryRoute from '@thirdline/ui/lib/tryRoute';
 import Glyph from '@/Components/Kri/Glyph';
 import InfoStrip from '@/Components/Kri/InfoStrip';
+import AddDepartmentModal from '@/Components/Kri/AddDepartmentModal';
 import { ReturnStatusBadge } from '@/Components/Kri/Badges';
 import { formatDayShort, plural } from '@/lib/kri-format';
 
@@ -164,6 +165,7 @@ function DepartmentsLayout({ period, departments, unassigned, scopeNote, flatUrl
     // parameters, and ADR 0026 section 15 renders the flat layout for any of them.
     const [search, setSearch] = useRemember('', 'kri-library-search');
     const [sort, setSort] = useRemember('name', 'kri-library-sort');
+    const [showAddDeptModal, setShowAddDeptModal] = useState(false);
     const [announce, setAnnounce] = useState('');
     const timer = useRef(null);
 
@@ -215,6 +217,13 @@ function DepartmentsLayout({ period, departments, unassigned, scopeNote, flatUrl
                 subtitle={departments.length > 0 ? `${departments.length} ${plural(departments.length, 'department')} · ${total} ${plural(total, 'indicator')}` : undefined}
                 actions={
                     <>
+                        <button
+                            type="button"
+                            onClick={() => setShowAddDeptModal(true)}
+                            className="btn-secondary text-sm inline-flex items-center gap-1.5"
+                        >
+                            <span className="material-symbols-outlined text-base">add_business</span> Add Department
+                        </button>
                         {permissions.includes('kri.create') && createUrl && (
                             <a href={createUrl} className="btn-primary text-sm inline-flex items-center gap-2">
                                 <Glyph name="add_circle" /> New KRI
@@ -303,6 +312,11 @@ function DepartmentsLayout({ period, departments, unassigned, scopeNote, flatUrl
                     </ul>
                 </>
             )}
+            <AddDepartmentModal
+                isOpen={showAddDeptModal}
+                onClose={() => setShowAddDeptModal(false)}
+                existingDepartments={departments}
+            />
         </AuthenticatedLayout>
     );
 }

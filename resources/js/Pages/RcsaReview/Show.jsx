@@ -254,11 +254,11 @@ export default function Show({
                             <tr>
                                 <th>Risk</th>
                                 <th>Process</th>
-                                <th className="text-right">L</th>
-                                <th className="text-right">I</th>
-                                <th className="text-right">Inherent</th>
+                                <th className="text-right">Likelihood</th>
+                                <th className="text-right">Impact</th>
+                                <th className="text-right">Inherent Risk</th>
                                 <th>Control</th>
-                                <th className="text-right">Residual</th>
+                                <th className="text-right">Residual Risk</th>
                                 <th>Appetite</th>
                                 <th>Plans</th>
                                 <th>ORM</th>
@@ -528,7 +528,7 @@ function ChallengePanel({ line, assessment }) {
                 </FormField>
 
                 <div className="grid grid-cols-3 gap-2">
-                    <FormField label="Suggested L">
+                    <FormField label="Suggested Likelihood">
                         <input
                             type="number"
                             min="1"
@@ -543,7 +543,7 @@ function ChallengePanel({ line, assessment }) {
                             }
                         />
                     </FormField>
-                    <FormField label="Suggested I">
+                    <FormField label="Suggested Impact">
                         <input
                             type="number"
                             min="1"

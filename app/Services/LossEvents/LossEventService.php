@@ -101,6 +101,12 @@ class LossEventService
 
             AuditTrailService::record($lossEvent, 'create');
 
+            try {
+                app(LossEventReturnService::class)->recordLossEventCreated($lossEvent);
+            } catch (\Throwable) {
+                // Return tracking must not fail the core loss event record
+            }
+
             return $lossEvent;
         });
     }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function DataTable({ columns, data, emptyMessage = 'No records found', emptyAction, striped = false }) {
+export default function DataTable({ columns, data, emptyMessage = 'No records found', emptyAction, striped = false, onRowClick }) {
     const [sortField, setSortField] = useState(null);
     const [sortDir, setSortDir] = useState('asc');
 
@@ -56,7 +56,13 @@ export default function DataTable({ columns, data, emptyMessage = 'No records fo
                 </thead>
                 <tbody>
                     {sortedData.length > 0 ? sortedData.map((row, rowIdx) => (
-                        <tr key={row.id || rowIdx} className={striped && rowIdx % 2 === 1 ? 'bg-gray-50/50' : ''}>
+                        <tr
+                            key={row.id || rowIdx}
+                            onClick={() => onRowClick?.(row)}
+                            className={`${striped && rowIdx % 2 === 1 ? 'bg-gray-50/50' : ''} ${
+                                onRowClick ? 'cursor-pointer hover:bg-blue-50/50 transition-colors' : ''
+                            }`}
+                        >
                             {columns.map((col, colIdx) => (
                                 <td key={colIdx}>
                                     {col.render ? col.render(row) : (col.accessor ? col.accessor(row) : row[col.field])}

@@ -157,10 +157,10 @@ function Line({ line, index, categories, assessableRisks, onChange, onRemove, re
                 computes them on save, and a second copy here could disagree
                 with what gets stored. */}
             <div className="flex items-center gap-3 mb-4 text-xs">
-                <span className="text-gray-500">Inherent</span>
+                <span className="text-gray-500">Inherent Risk</span>
                 <span className={`badge ${scoreTone(inherent)}`}>{inherent}</span>
                 <span className="material-symbols-outlined text-gray-300 text-sm">arrow_forward</span>
-                <span className="text-gray-500">Residual</span>
+                <span className="text-gray-500">Residual Risk</span>
                 <span className={`badge ${scoreTone(residual)}`}>{residual}</span>
                 {residual > inherent && (
                     <span className="text-amber-600">Residual is above inherent — is that intended?</span>

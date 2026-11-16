@@ -30,6 +30,7 @@ Schedule::command('regulatory:check-deadlines')->twiceDaily(8, 16);
 // otherwise both run the cycle (harmless, the rows are the idempotency) and
 // both raise the watchdog's alert (not harmless: every holder told twice).
 Schedule::command('kri:open-cycle')->dailyAt('07:00')->timezone('Africa/Lagos')->withoutOverlapping(60)->onOneServer();
+Schedule::command('loss:open-returns')->dailyAt('07:00')->timezone('Africa/Lagos')->withoutOverlapping(60)->onOneServer();
 Schedule::command('kri:cycle-watchdog')->dailyAt('10:00')->timezone('Africa/Lagos')->withoutOverlapping(60)->onOneServer();
 
 // RCSA v2 P5 (§9.3). After the other overdue sweeps, so a morning's digest

@@ -155,18 +155,21 @@ export default function GuidedStep({
                 <Computed label="Inherent risk" score={line.inherent_score} level={line.inherent_level} />
             </Section>
 
-            {/* Step 5 — control effectiveness */}
-            <Section number={5} title="How well do the existing controls work?">
-                {line.existing_control ? (
-                    <div className="mb-3 whitespace-pre-line rounded-md bg-gray-50 p-3 text-sm text-gray-700">
-                        {line.existing_control}
-                    </div>
-                ) : (
-                    <p className="mb-3 text-sm text-amber-700">
-                        No control is recorded against this risk. Rate what is actually in place — if nothing is, that
-                        is "Not Achieved".
-                    </p>
-                )}
+            {/* Step 5 — controls & control effectiveness */}
+            <Section number={5} title="Controls & Control Effectiveness">
+                <div className="mb-3">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Controls:
+                    </label>
+                    <textarea
+                        rows={2}
+                        className="form-textarea w-full text-sm"
+                        disabled={!editable}
+                        placeholder="Enter or update the controls for this risk..."
+                        value={line.existing_control ?? ''}
+                        onChange={(e) => onChange({ existing_control: e.target.value })}
+                    />
+                </div>
 
                 <select aria-label="Control effectiveness"
                     className="form-select md:w-1/2"

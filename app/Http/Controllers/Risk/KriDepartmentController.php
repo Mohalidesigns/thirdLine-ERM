@@ -12,6 +12,7 @@ use App\Support\Kri\KriDepartmentScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
+use ThirdLine\Platform\Tenancy\TenantContext;
 
 /**
  * One department's KRIs (ADR 0026 section 15): `Kri/Department`, for a business
@@ -27,6 +28,44 @@ class KriDepartmentController extends Controller
         private readonly KriLibraryPresenter $library,
         private readonly KriDepartmentScope $scope,
     ) {}
+
+    public function store(Request $request)
+    {
+        Gate::authorize('viewAny', KeyRiskIndicator::class);
+
+        $orgId = TenantContext::organizationId();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'code' => ['nullable', 'string', 'max:50'],
+            'parent_id' => ['nullable', 'integer', 'exists:business_units,id'],
+            'description' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $code = trim((string) ($validated['code'] ?? ''));
+        if ($code === '') {
+            $baseCode = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $validated['name']), 0, 4));
+            if (strlen($baseCode) < 2) {
+                $baseCode = 'DEP';
+            }
+            $count = BusinessUnit::withoutGlobalScopes()
+                ->where('organization_id', $orgId)
+                ->where('code', 'like', "{$baseCode}%")
+                ->count();
+            $code = $count > 0 ? "{$baseCode}-" . str_pad($count + 1, 2, '0', STR_PAD_LEFT) : $baseCode;
+        }
+
+        $unit = BusinessUnit::create([
+            'organization_id' => $orgId,
+            'name' => $validated['name'],
+            'code' => $code,
+            'parent_id' => $validated['parent_id'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'is_active' => true,
+        ]);
+
+        return back()->with('success', "Department '{$unit->name}' ({$unit->code}) created and added to KRI Library successfully.");
+    }
 
     public function show(Request $request, BusinessUnit $department, GridPresenter $grids)
     {

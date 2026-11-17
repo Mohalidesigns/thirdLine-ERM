@@ -22,11 +22,11 @@ export default function LegacyNotice({ notice, closedMessage = null }) {
     return (
         <div role="note" aria-label="Legacy RCSA" className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
             <p>
-                This is the register-based RCSA kept for audit history. Cycle-based RCSA is under RCSA → Cycles / RCSA Dashboard.
+                This is the register-based RCSA kept for audit history. Cycle-based RCSA is under RCSA → Dashboard / Cycles.
                 {notice.v2Url && (
                     <>
                         {' '}
-                        <Link href={notice.v2Url} className="font-medium underline">Open the RCSA Dashboard</Link>
+                        <Link href={notice.v2Url} className="font-medium underline">Open the cycle-based RCSA Dashboard</Link>
                     </>
                 )}
             </p>

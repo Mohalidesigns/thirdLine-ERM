@@ -219,6 +219,28 @@ class WidgetTypeResolversTest extends TestCase
         $this->assertSame([], $lec['data']['points']);
     }
 
+    #[Test]
+    public function the_lec_ignores_the_runs_stored_maximum_which_is_not_a_percentile(): void
+    {
+        $run = \App\Models\SimulationRun::create([
+            'organization_id' => $this->organization->id,
+            'simulation_reference' => 'SIM-2026-901',
+            'status' => 'completed',
+            'completed_at' => now(),
+            'iterations' => 1000,
+            'initiated_by' => $this->actor->id,
+        ]);
+        \App\Models\SimulationResult::create([
+            'simulation_run_id' => $run->id,
+            'result_type' => 'aggregate',
+            'percentile_distribution' => ['p50' => 100, 'p99.9' => 900, 'max' => 5000],
+        ]);
+
+        $lec = $this->render('lec_curve', []);
+
+        $this->assertSame([100.0, 900.0], array_column($lec['data']['points'], 'loss'));
+    }
+
     /* ------------------------------------------------------------------ */
 
     private function render(string $type, array $attributes): array

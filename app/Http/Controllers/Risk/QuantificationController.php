@@ -285,7 +285,7 @@ class QuantificationController extends Controller
     {
         Gate::authorize('create', SimulationRun::class);
 
-        $validated = $request->validate($this->simulations->rules());
+        $validated = $request->validate($this->simulations->rules(), $this->simulations->messages());
 
         if (! $this->simulations->scenariosBelongToOrganization($validated['scenario_ids'])) {
             return back()->with('error', 'One or more selected scenarios are invalid.');

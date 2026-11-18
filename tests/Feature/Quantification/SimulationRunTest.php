@@ -239,6 +239,59 @@ class SimulationRunTest extends TestCase
         $this->assertEqualsWithDelta([100.0], $data['contribChartData']['values'], 0.001);
     }
 
+    #[Test]
+    public function a_run_with_no_scenarios_is_refused_in_words_an_operator_reads(): void
+    {
+        $this->actingAs($this->actor)
+            ->post(route('risk.quantification.run-simulation'), [
+                'name' => 'No scenarios',
+                'scenario_ids' => [],
+                'iterations' => 1_000,
+            ])
+            ->assertSessionHasErrors(['scenario_ids' => 'Select at least one scenario to simulate.']);
+
+        $this->assertSame(0, SimulationRun::count());
+    }
+
+    /**
+     * "Max Simulated Loss" is the worst simulated year, not p99.9.
+     *
+     * The tile showed p99.9 under that name, so it always equalled the VaR
+     * (99.9%) tile beside it. A run stored before the engine recorded its
+     * maximum has none to show: null, never the p99.9 stand-in.
+     */
+    #[Test]
+    public function max_simulated_loss_is_the_stored_maximum_and_never_p99_9(): void
+    {
+        $maxLossOf = function (array $distribution): mixed {
+            $run = $this->queuedRun([
+                'simulation_reference' => 'SIM-'.now()->year.'-'.str_pad((string) (SimulationRun::count() + 1), 3, '0', STR_PAD_LEFT),
+                'status' => 'completed',
+                'completed_at' => now(),
+            ]);
+
+            SimulationResult::create([
+                'simulation_run_id' => $run->id,
+                'result_type' => 'aggregate',
+                'percentile_distribution' => $distribution,
+            ]);
+
+            return $this->actingAs($this->actor)
+                ->get(route('risk.quantification.show-results', $run))
+                ->assertOk()
+                ->inertiaProps()['maxLoss'];
+        };
+
+        $this->assertEqualsWithDelta(
+            40_000_000.0,
+            $maxLossOf(['p99.9' => 3_000_000_000, 'max' => 4_000_000_000]),
+            0.001,
+            'Kobo in, naira out.'
+        );
+
+        $this->assertNull($maxLossOf(['p99.9' => 3_000_000_000]));
+    }
+
     /**
      * The observability columns WP-06 added are writable.
      *

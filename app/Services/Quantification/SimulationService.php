@@ -46,6 +46,20 @@ class SimulationService
     }
 
     /**
+     * Words for the one error an operator meets on the simulate screen; the
+     * default read "The scenario ids field is required."
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'scenario_ids.required' => 'Select at least one scenario to simulate.',
+            'scenario_ids.min' => 'Select at least one scenario to simulate.',
+        ];
+    }
+
+    /**
      * Every selected scenario belongs to this organisation.
      *
      * `exists:quantification_scenarios,id` on the request says the row exists;

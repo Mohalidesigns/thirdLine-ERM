@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { RegionSaveFailure } from '@/Components/Sm/FailureBanner';
 import useSaveFailure from '@/Components/Sm/useSaveFailure';
 
@@ -38,12 +38,20 @@ export default function InsuranceTab({ scenario, insurance, can, urls, onDirtyCh
     const [saving, setSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
 
+    // Validation errors for this tab. Before SM-2026-001 Bug 3 these were never rendered, so a
+    // refused save looked exactly like a successful one.
+    const pageErrors = usePage().props.errors || {};
+    const insuranceErrors = Object.entries(pageErrors).filter(([key]) => key.startsWith('coverages'));
+    const hasErrors = insuranceErrors.length > 0;
+
     useEffect(() => {
-        if (insurance?.coverages) {
+        // A refused save redirects back with the same server values; keep what the user typed.
+        if (insurance?.coverages && !hasErrors) {
             setCoverages(insurance.coverages);
             setIsDirty(false);
         }
-    }, [insurance]);
+    }, [insurance, hasErrors]);
+
 
     useEffect(() => {
         onDirtyChange?.(editable && isDirty);
@@ -68,22 +76,24 @@ export default function InsuranceTab({ scenario, insurance, can, urls, onDirtyCh
         setSaving(true);
         saveFailure.begin();
 
+        // UpdateInsuranceRequest expects a LIST of rows each naming its severity. This used to
+        // send an object keyed by severity, which validation refused on every save (Bug 3).
+        const pick = (v, fallback) => (v === undefined || v === null || v === '' ? fallback : v);
         const payload = {
-            coverages: {},
+            coverages: severities.map((sev) => {
+                const row = coverages[sev] || {};
+                return {
+                    severity: sev,
+                    deductible_local: pick(row.deductible_local, '0'),
+                    limit_local: pick(row.limit_local, '0'),
+                    deductible_group: pick(row.deductible_group, '0'),
+                    limit_group: pick(row.limit_group, '0'),
+                    recovery_rate: pick(row.recovery_rate, '1'),
+                    probability_of_cover: pick(row.probability_of_cover, '1'),
+                    insurer_default_haircut: pick(row.insurer_default_haircut, '0'),
+                };
+            }),
         };
-
-        severities.forEach((sev) => {
-            const row = coverages[sev] || {};
-            payload.coverages[sev] = {
-                deductible_local: row.deductible_local || '0.00',
-                limit_local: row.limit_local || '0.00',
-                deductible_group: row.deductible_group || '0.00',
-                limit_group: row.limit_group || '0.00',
-                recovery_rate: row.recovery_rate || '1.0000',
-                probability_of_cover: row.probability_of_cover || '1.0000',
-                insurer_default_haircut: row.insurer_default_haircut || '0.0000',
-            };
-        });
 
         const targetUrl = urls?.insurance || `/risk/scenarios/${scenario.id}/insurance`;
 
@@ -104,6 +114,19 @@ export default function InsuranceTab({ scenario, insurance, can, urls, onDirtyCh
     return (
         <section aria-labelledby="insurance-heading" className="space-y-6 max-w-6xl">
             <RegionSaveFailure saveFailure={saveFailure} onResend={handleSave} />
+
+            {hasErrors && (
+                <div role="alert" className="rounded-lg border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800">
+                    <p className="font-semibold">Insurance terms were not saved.</p>
+                    <ul className="mt-1 list-disc pl-5">
+                        {insuranceErrors.map(([key, message]) => {
+                            const m = key.match(/^coverages\.(\d+)\./);
+                            const sev = m ? severities[Number(m[1])] : null;
+                            return <li key={key}>{sev ? `${sev}: ` : ''}{message}</li>;
+                        })}
+                    </ul>
+                </div>
+            )}
 
             {/* Net vs Gross Impact Header */}
             <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 shadow-sm text-slate-100">

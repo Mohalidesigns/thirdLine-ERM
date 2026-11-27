@@ -1072,7 +1072,7 @@ class ScenarioWorkspacePresenter
                     'value' => (string) $d->value,
                     'data_source' => $d->data_source,
                     'sm_scorecard_id' => $d->sm_scorecard_id,
-                    'is_linked_to_scorecard' => $d->computation_role === 'control_score_complement',
+                    'is_linked_to_scorecard' => $d->isLinkedToScorecard(),
                     'sort_order' => $d->sort_order,
                 ];
             }
@@ -1163,9 +1163,11 @@ class ScenarioWorkspacePresenter
                     ];
                 }
 
-                $typ = (float) $t->typical_total;
-                $ser = (float) $t->serious_total;
-                $ext = (float) $t->extreme_total;
+                // Rounded to the cent ONCE, here; the tab total is the sum of these, so the
+                // subtotals on the cards add up to it exactly (Bug 4).
+                $typ = round((float) $t->typical_total, 2);
+                $ser = round((float) $t->serious_total, 2);
+                $ext = round((float) $t->extreme_total, 2);
                 $sumTyp += $typ;
                 $sumSer += $ser;
                 $sumExt += $ext;
@@ -1181,6 +1183,12 @@ class ScenarioWorkspacePresenter
                         'serious' => (string) $t->serious_total,
                         'extreme' => (string) $t->extreme_total,
                     ],
+                    // The keys ImpactTab's category card renders (Bug 4: it read these while
+                    // only `totals` was sent, so every subtotal showed 0). Same stored figures
+                    // the tab total sums, so the subtotals add up to it.
+                    'typical_total' => sprintf('%.2f', $typ),
+                    'serious_total' => sprintf('%.2f', $ser),
+                    'extreme_total' => sprintf('%.2f', $ext),
                     'criteria' => $criteria,
                 ];
             }
@@ -1200,6 +1208,7 @@ class ScenarioWorkspacePresenter
                 'computation_role' => $d->computation_role,
                 'value' => (float) $d->value,
                 'sm_scorecard_id' => $d->sm_scorecard_id,
+                'use_scorecard' => $d->isLinkedToScorecard(),
             ])->all(),
             $scenario->scorecard ? (float) $scenario->scorecard->global_score : null
         );

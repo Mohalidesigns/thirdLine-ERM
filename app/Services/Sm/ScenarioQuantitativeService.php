@@ -2,6 +2,7 @@
 
 namespace App\Services\Sm;
 
+use App\Models\Sm\FrequencyDriver;
 use App\Models\Sm\Scenario;
 use App\Models\Sm\Scorecard;
 use App\Models\User;
@@ -100,9 +101,21 @@ class ScenarioQuantitativeService
 
         DB::transaction(function () use ($scenario, $drivers, $beforeCount) {
             $scenario->frequencyDrivers()->delete();
+            $scorecardId = $scenario->scorecard()->value('id');
 
             $sortOrder = 1;
             foreach ($drivers as $d) {
+                // The link toggle (Bug 5). Absent → keep whatever the row's own fields say.
+                if ($d['computation_role'] === 'control_score_complement' && array_key_exists('use_scorecard', $d)) {
+                    $linked = (bool) $d['use_scorecard'];
+                    $d['sm_scorecard_id'] = $linked ? $scorecardId : null;
+                    if ($linked) {
+                        $d['data_source'] = FrequencyDriver::DEFAULT_DATA_SOURCES['scorecard'];
+                    } elseif (($d['data_source'] ?? null) === FrequencyDriver::DEFAULT_DATA_SOURCES['scorecard']) {
+                        $d['data_source'] = 'Manual assessment';
+                    }
+                }
+
                 $scenario->frequencyDrivers()->create([
                     'organization_id' => $scenario->organization_id,
                     'driver_type' => $d['driver_type'],

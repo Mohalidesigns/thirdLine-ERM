@@ -62,6 +62,20 @@ class FrequencyDriver extends Model
         return $this->belongsTo(Scenario::class, 'sm_scenario_id');
     }
 
+    /**
+     * Whether this control driver takes its efficiency from the scenario's scorecard rather
+     * than its own manual value. A link is stored as `sm_scorecard_id`; before a scorecard
+     * exists the only record of the choice is `data_source = 'Scorecard'`, which the
+     * workspace's link toggle sets (production defect SM-2026-001, Bug 5: the toggle used to
+     * be dropped by validation, so every save silently became "manual" in the engine while
+     * the screen kept showing "linked").
+     */
+    public function isLinkedToScorecard(): bool
+    {
+        return $this->computation_role === 'control_score_complement'
+            && ($this->sm_scorecard_id !== null || $this->data_source === self::DEFAULT_DATA_SOURCES['scorecard']);
+    }
+
     public function scorecard(): BelongsTo
     {
         return $this->belongsTo(Scorecard::class, 'sm_scorecard_id');

@@ -33,6 +33,7 @@ class UpdateFrequencyRequest extends FormRequest
             'drivers.*.computation_role' => ['required', 'string', Rule::in(array_keys(FrequencyDriver::COMPUTATION_ROLES))],
             'drivers.*.value' => ['required', 'numeric', 'min:0', 'max:9999999999.99999999'],
             'drivers.*.data_source' => ['nullable', 'string', 'max:100'],
+            'drivers.*.use_scorecard' => ['sometimes', 'boolean'],
             'drivers.*.sm_scorecard_id' => [
                 'nullable',
                 Rule::exists('sm_scorecards', 'id')

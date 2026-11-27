@@ -138,6 +138,59 @@ class ScenarioProductionDefectsTest extends SmTestCase
             });
     }
 
+    // ── Bug 2 ────────────────────────────────────────────────────────────────
+
+    #[Test]
+    public function the_per_event_template_is_offered_saved_and_independent_of_frequency(): void
+    {
+        $scenario = $this->makeScenario(['status' => 'in_design']);
+
+        $this->actingAs($this->actor)->put(route('scenario.impact.update', $scenario), ['types' => [[
+            'name' => 'Staff turnover',
+            'aggregation_template' => 'count_amount_duration',
+            'eligible_to_transfer' => false,
+            'criteria' => [
+                ['label' => 'Leavers', 'unit' => 'count', 'computation_role' => 'count',
+                    'typical_value' => 2, 'serious_value' => 5, 'extreme_value' => 12],
+                ['label' => 'Monthly salary', 'unit' => 'NGN', 'computation_role' => 'unit_amount',
+                    'typical_value' => 15000000, 'serious_value' => 15000000, 'extreme_value' => 15000000],
+                ['label' => 'Months', 'unit' => 'months', 'computation_role' => 'duration',
+                    'typical_value' => 1, 'serious_value' => 2, 'extreme_value' => 3],
+            ],
+        ]]])->assertSessionHasNoErrors();
+
+        // Changing λ re-runs the engine; the per-event figures must not move.
+        $this->putDrivers($scenario, useScorecard: false, controlValue: 0.3553)->assertSessionHasNoErrors();
+
+        $type = $scenario->impactTypes()->first();
+        $this->assertEqualsWithDelta(30000000, (float) $type->typical_total, 0.001);
+        $this->assertEqualsWithDelta(150000000, (float) $type->serious_total, 0.001);
+        $this->assertEqualsWithDelta(540000000, (float) $type->extreme_total, 0.001);
+
+        $this->actingAs($this->actor)
+            ->get(route('scenario.show', ['scenario' => $scenario, 'tab' => 'impact']))
+            ->assertInertia(function ($page) {
+                $values = array_column($page->toArray()['props']['impact']['templates'], 'value');
+                $this->assertContains('count_amount_duration', $values);
+                $this->assertContains('staff_turnover_interval', $values);
+            });
+    }
+
+    #[Test]
+    public function an_unknown_impact_template_is_refused_and_saves_nothing(): void
+    {
+        $scenario = $this->makeScenario(['status' => 'in_design']);
+        $before = $scenario->impactTypes()->count();
+
+        $this->actingAs($this->actor)->put(route('scenario.impact.update', $scenario), ['types' => [[
+            'name' => 'Bogus', 'aggregation_template' => 'count_amount_duration_x', 'eligible_to_transfer' => false,
+            'criteria' => [['label' => 'n', 'unit' => 'count', 'computation_role' => 'count',
+                'typical_value' => 1, 'serious_value' => 1, 'extreme_value' => 1]],
+        ]]])->assertSessionHasErrors('types.0.aggregation_template');
+
+        $this->assertSame($before, $scenario->impactTypes()->count());
+    }
+
     // ── Bug 5 (the manual control score) ─────────────────────────────────────
 
     #[Test]
@@ -232,6 +285,65 @@ class ScenarioProductionDefectsTest extends SmTestCase
         $row = $scenario->frequencyDrivers()->where('computation_role', 'control_score_complement')->first();
         $this->assertNotNull($row->sm_scorecard_id);
         $this->assertEqualsWithDelta(0.3, (float) $row->value, 0.000001);
+    }
+
+    // ── Bug 5 (driver labels and presets) ────────────────────────────────────
+
+    #[Test]
+    public function every_preset_keeps_the_three_roles_and_a_new_scenario_still_gets_the_people_labels(): void
+    {
+        $presets = (array) config('sm.frequency_driver_presets');
+        $this->assertSame(['people', 'process_site', 'technology_cyber', 'external_event', 'fraud'], array_keys($presets));
+        foreach ($presets as $key => $preset) {
+            $this->assertCount(3, $preset['drivers'], $key);
+            $this->assertSame('Scorecard', $preset['drivers'][1]['data_source'], "{$key}: control driver links by default");
+        }
+
+        $scenario = $this->makeScenario(['status' => 'in_design']);
+
+        $this->actingAs($this->actor)
+            ->get(route('scenario.show', ['scenario' => $scenario, 'tab' => 'frequency']))
+            ->assertInertia(function ($page) {
+                $freq = $page->toArray()['props']['frequency'];
+                $this->assertSame(
+                    ['Exposed Staff count', 'Retention plan efficiency', 'Competition pressure probability'],
+                    array_column($freq['drivers'], 'criterion'),
+                );
+                $this->assertSame(
+                    ['exposed_staff_count', 'retention_plan_efficiency', 'competition_pressure_prob'],
+                    array_column($freq['drivers'], 'driver_type'),
+                );
+                $this->assertCount(5, $freq['presets']);
+            });
+    }
+
+    #[Test]
+    public function an_edited_driver_label_persists_and_does_not_change_lambda(): void
+    {
+        $scenario = $this->makeScenario(['status' => 'in_design']);
+        $this->putDrivers($scenario, useScorecard: false, controlValue: 0.3553)->assertSessionHasNoErrors();
+        $before = $scenario->frequencyDrivers()->orderBy('sort_order')->get();
+
+        $this->actingAs($this->actor)->put(route('scenario.frequency.update', $scenario), [
+            'drivers' => [
+                ['driver_type' => 'exposed_staff_count', 'criterion' => 'Exposed staff or locations', 'computation_role' => 'count',
+                    'value' => 400, 'data_source' => 'HR information', 'use_scorecard' => false],
+                ['driver_type' => 'retention_plan_efficiency', 'criterion' => 'Preparedness and response control efficiency',
+                    'computation_role' => 'control_score_complement', 'value' => 0.3553,
+                    'data_source' => 'Manual assessment', 'use_scorecard' => false],
+                ['driver_type' => 'competition_pressure_prob', 'criterion' => 'Annual probability of an outbreak affecting each unit',
+                    'computation_role' => 'probability', 'value' => 0.001, 'data_source' => 'WHO outbreak data', 'use_scorecard' => false],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $after = $scenario->frequencyDrivers()->orderBy('sort_order')->get();
+        $this->assertSame(array_column($before->toArray(), 'driver_type'), array_column($after->toArray(), 'driver_type'));
+        $this->assertSame('Annual probability of an outbreak affecting each unit', $after[2]->criterion);
+        $this->assertSame('WHO outbreak data', $after[2]->data_source);
+
+        $this->actingAs($this->actor)
+            ->get(route('scenario.show', ['scenario' => $scenario, 'tab' => 'frequency']))
+            ->assertInertia(fn ($page) => $page->where('frequency.total_frequency', '0.2579'));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

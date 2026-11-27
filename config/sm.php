@@ -283,6 +283,64 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Frequency driver presets (production defect SM-2026-001, Bug 5)
+    |--------------------------------------------------------------------------
+    |
+    | Starting labels for the three frequency drivers. A preset fills in only each driver's
+    | label (`criterion`) and provenance (`data_source`); the user can edit both afterwards.
+    | The driver keys (`driver_type`) and roles never change, so the formula
+    | Count × (1 − ControlScore) × Probability and existing rows are untouched. Each preset
+    | lists drivers in role order: count, control_score_complement, probability.
+    | `people` is the original workbook set and stays the default for a scenario with no
+    | drivers saved.
+    |
+    */
+
+    'frequency_driver_presets' => [
+        'people' => [
+            'label' => 'People (staff turnover, key-person loss)',
+            'drivers' => [
+                ['criterion' => 'Exposed Staff count', 'data_source' => 'HR information'],
+                ['criterion' => 'Retention plan efficiency', 'data_source' => 'Scorecard'],
+                ['criterion' => 'Competition pressure probability', 'data_source' => 'Expert judgement'],
+            ],
+        ],
+        'process_site' => [
+            'label' => 'Process & site disruption',
+            'drivers' => [
+                ['criterion' => 'Critical sites or processes exposed', 'data_source' => 'Business impact analysis'],
+                ['criterion' => 'Business continuity control efficiency', 'data_source' => 'Scorecard'],
+                ['criterion' => 'Annual probability of disruption per site or process', 'data_source' => 'Internal loss data'],
+            ],
+        ],
+        'technology_cyber' => [
+            'label' => 'Technology & cyber',
+            'drivers' => [
+                ['criterion' => 'Critical systems or applications exposed', 'data_source' => 'IT asset inventory'],
+                ['criterion' => 'Cyber and IT control efficiency', 'data_source' => 'Scorecard'],
+                ['criterion' => 'Annual probability of a successful attack or outage per system', 'data_source' => 'Threat intelligence'],
+            ],
+        ],
+        'external_event' => [
+            'label' => 'External event (pandemic, natural disaster, civil unrest)',
+            'drivers' => [
+                ['criterion' => 'Exposed staff or locations', 'data_source' => 'HR information'],
+                ['criterion' => 'Preparedness and response control efficiency', 'data_source' => 'Scorecard'],
+                ['criterion' => 'Annual probability of the event affecting each exposed unit', 'data_source' => 'External data'],
+            ],
+        ],
+        'fraud' => [
+            'label' => 'Fraud (internal or external)',
+            'drivers' => [
+                ['criterion' => 'Accounts, transactions or staff exposed', 'data_source' => 'Internal loss data'],
+                ['criterion' => 'Fraud prevention and detection control efficiency', 'data_source' => 'Scorecard'],
+                ['criterion' => 'Annual probability of a fraud event per exposed unit', 'data_source' => 'Internal loss data'],
+            ],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | The deferred-sections disclosure
     |--------------------------------------------------------------------------
     |

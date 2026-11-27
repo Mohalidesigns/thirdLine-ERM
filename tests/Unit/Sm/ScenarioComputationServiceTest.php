@@ -361,4 +361,47 @@ class ScenarioComputationServiceTest extends TestCase
         $this->assertEqualsWithDelta(200000000.0, $type['serious_total'], 0.000001);  // 5 * 20m * 2
         $this->assertEqualsWithDelta(900000000.0, $type['extreme_total'], 0.000001);  // 12 * 25m * 3
     }
+
+    /**
+     * Production defect SM-2026-001 (Bug 2): severity is a per-event loss. The workbook's
+     * `staff_turnover_interval` multiplies it by 1/λ (pinned by ADR 0027 D1); the
+     * `count_amount_duration` template is the per-event variant D1's consequences call for.
+     */
+    #[Test]
+    public function per_event_template_is_count_times_amount_times_duration_per_column(): void
+    {
+        $type = $this->service->computeImpact([$this->perEventType()], 3.571)['types'][0];
+
+        $this->assertEqualsWithDelta(30000000.0, $type['typical_total'], 0.000001);   // 2 × 15m × 1
+        $this->assertEqualsWithDelta(150000000.0, $type['serious_total'], 0.000001);  // 5 × 15m × 2
+        $this->assertEqualsWithDelta(540000000.0, $type['extreme_total'], 0.000001);  // 12 × 15m × 3
+    }
+
+    #[Test]
+    public function per_event_template_does_not_change_when_lambda_changes(): void
+    {
+        $a = $this->service->computeImpact([$this->perEventType()], 1 / 0.28)['types'][0];
+        $b = $this->service->computeImpact([$this->perEventType()], 1 / 2.5)['types'][0];
+
+        foreach (['typical_total', 'serious_total', 'extreme_total'] as $key) {
+            $this->assertSame($a[$key], $b[$key], $key);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function perEventType(): array
+    {
+        return [
+            'name' => 'Staff turnover',
+            'aggregation_template' => 'count_amount_duration',
+            'eligible_to_transfer' => false,
+            'criteria' => [
+                ['computation_role' => 'count', 'typical_value' => 2, 'serious_value' => 5, 'extreme_value' => 12],
+                ['computation_role' => 'unit_amount', 'typical_value' => 15000000, 'serious_value' => 15000000, 'extreme_value' => 15000000],
+                ['computation_role' => 'duration', 'typical_value' => 1, 'serious_value' => 2, 'extreme_value' => 3],
+            ],
+        ];
+    }
 }

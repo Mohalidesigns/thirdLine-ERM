@@ -151,6 +151,8 @@ class ScenarioComputationService
     /**
      * Compute Gross Impact for each severity per impact type and aggregate totals (Spike §3).
      *
+     * Per-event (count_amount_duration, ADR 0027 Amendment 4):
+     *   type_total(sev) = count(sev) * amount(sev) * duration(sev)
      * Template 1 (staff_turnover_interval):
      *   type_total(sev) = count * salary * months(sev) * frequency_interval
      * Template 2 (litigation_probability):
@@ -195,7 +197,11 @@ class ScenarioComputationService
             // golden figures are unchanged by reading per column.
             $col = fn (string $role, string $sev): float => $this->criterionValue($criteria, $role, $sev);
 
-            if ($template === 'staff_turnover_interval') {
+            if ($template === 'count_amount_duration') {
+                foreach ($severities as $sev) {
+                    $typeTotals[$sev] = $col('count', $sev) * $col('unit_amount', $sev) * $col('duration', $sev);
+                }
+            } elseif ($template === 'staff_turnover_interval') {
                 foreach ($severities as $sev) {
                     $typeTotals[$sev] = $col('count', $sev) * $col('unit_amount', $sev) * $col('duration', $sev) * $frequencyInterval;
                 }

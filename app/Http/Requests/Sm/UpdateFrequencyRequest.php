@@ -55,4 +55,18 @@ class UpdateFrequencyRequest extends FormRequest
             }
         });
     }
+
+    /**
+     * Readable names for the Frequency tab's error banner.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'drivers.*.criterion' => 'driver label',
+            'drivers.*.value' => 'driver value',
+            'drivers.*.data_source' => 'driver source',
+        ];
+    }
 }

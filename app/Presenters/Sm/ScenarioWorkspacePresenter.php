@@ -1077,14 +1077,16 @@ class ScenarioWorkspacePresenter
                 ];
             }
         } else {
+            // No drivers saved yet: the `people` preset, i.e. the original workbook labels.
+            $preset = (array) config('sm.frequency_driver_presets.people.drivers');
             $driverRows = [
                 [
                     'id' => null,
                     'driver_type' => 'exposed_staff_count',
-                    'criterion' => 'Exposed Staff count',
+                    'criterion' => $preset[0]['criterion'],
                     'computation_role' => 'count',
                     'value' => '0',
-                    'data_source' => 'HR information',
+                    'data_source' => $preset[0]['data_source'],
                     'sm_scorecard_id' => null,
                     'is_linked_to_scorecard' => false,
                     'sort_order' => 1,
@@ -1092,10 +1094,10 @@ class ScenarioWorkspacePresenter
                 [
                     'id' => null,
                     'driver_type' => 'retention_plan_efficiency',
-                    'criterion' => 'Retention plan efficiency',
+                    'criterion' => $preset[1]['criterion'],
                     'computation_role' => 'control_score_complement',
                     'value' => $scorecardScore !== null ? (string) $scorecardScore : '',
-                    'data_source' => 'Scorecard',
+                    'data_source' => $preset[1]['data_source'],
                     'sm_scorecard_id' => $scorecard?->id,
                     'is_linked_to_scorecard' => true,
                     'sort_order' => 2,
@@ -1103,10 +1105,10 @@ class ScenarioWorkspacePresenter
                 [
                     'id' => null,
                     'driver_type' => 'competition_pressure_prob',
-                    'criterion' => 'Competition pressure probability',
+                    'criterion' => $preset[2]['criterion'],
                     'computation_role' => 'probability',
                     'value' => '',
-                    'data_source' => 'Expert judgement',
+                    'data_source' => $preset[2]['data_source'],
                     'sm_scorecard_id' => null,
                     'is_linked_to_scorecard' => false,
                     'sort_order' => 3,
@@ -1126,6 +1128,9 @@ class ScenarioWorkspacePresenter
 
         return [
             'drivers' => $driverRows,
+            'presets' => collect((array) config('sm.frequency_driver_presets'))
+                ->map(fn (array $p, string $key) => ['value' => $key, 'label' => $p['label'], 'drivers' => $p['drivers']])
+                ->values()->all(),
             'scorecard_global_score' => $scorecardScore !== null ? (string) $scorecardScore : null,
             'total_frequency' => sprintf('%.4f', $calc['total_frequency']),
             'interval_years' => sprintf('%.8f', $calc['interval_years']),

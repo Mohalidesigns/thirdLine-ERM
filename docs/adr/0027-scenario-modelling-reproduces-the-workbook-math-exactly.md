@@ -961,3 +961,38 @@ When a scenario gap remediation or immediate action is promoted to enterprise tr
   - Enterprise Issue promotion contract specified.
   - Authorization, routes, and invariants settled.
 - **Next steps:** Create UI screen specs 10–13 and Phase 3 gate checklist.
+
+---
+
+## Amendment 4 (2026-11-27) — the per-event impact template (production defect SM-2026-001, Bug 2)
+
+**Context.** Building SM-2026-001 on production, the owner found that `staff_turnover_interval`
+multiplies severity by the frequency interval `1/λ`. Severity is a per-event loss, and frequency is
+applied separately, so any later `λ × severity` (expected annual loss) counts frequency twice, and
+the impact moves whenever the Frequency tab changes. D1 pinned this factor on purpose, and the
+Consequences section already set out the remedy: *"If a customer later needs the 'clean' variant,
+it is a new template under D2, never a silent change to the pinned one."* The customer, the owner,
+has now asked for it.
+
+**Decision.**
+- **A4.1** — Add the aggregation template `count_amount_duration`, labelled *"Per-event cost
+  (Count × Amount × Duration)"*:
+  `type_total(sev) = count(sev) × unit_amount(sev) × duration(sev)`, with no interval factor.
+  Every role reads the severity column being computed (the Bug 1 fix, same date).
+- **A4.2** — `staff_turnover_interval` is **unchanged**. Its formula and the golden figures
+  E85/F85/G85 still hold. Only its label changes, to *"Workbook staff turnover (Count × Salary ×
+  Months × Frequency interval 1/λ)"*, so the frequency factor is visible where users choose the
+  template.
+- **A4.3** — New impact categories created from the Impact tab default to `count_amount_duration`.
+  The column default on `sm_impact_types.aggregation_template` stays `'staff_turnover_interval'`.
+  **No migration and no schema change.** The column is `string(50)`, and the vocabulary is
+  `ImpactType::TEMPLATES`, which `UpdateImpactRequest` validates against.
+- **A4.4** — Existing categories are not switched automatically. Changing a scenario's figures is
+  a modelling decision for its owner, and a signed-off or validated scenario must keep the numbers
+  it was signed on.
+
+*Refused:* removing `1/λ` from `staff_turnover_interval`. It would silently revalue every scenario
+built on it and overturn D1's golden tests. That is exactly the change D1 forbids.
+
+**Tests.** `ScenarioComputationServiceTest::per_event_template_*` (per-column math, invariant under
+λ) and `ScenarioProductionDefectsTest::the_per_event_template_is_offered_saved_and_independent_of_frequency`.

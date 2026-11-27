@@ -3,11 +3,17 @@ import { router } from '@inertiajs/react';
 import { RegionSaveFailure } from '@/Components/Sm/FailureBanner';
 import useSaveFailure from '@/Components/Sm/useSaveFailure';
 
+// Fallback only: the server's `impact.templates` (ImpactType::TEMPLATES) is the source.
 const DEFAULT_TEMPLATES = [
     {
+        value: 'count_amount_duration',
+        label: 'Per-event cost (Count × Amount × Duration)',
+        description: 'Loss of a single event, per severity column. Frequency is not applied.',
+    },
+    {
         value: 'staff_turnover_interval',
-        label: 'Staff Turnover (Count × Salary × Months × Frequency Interval)',
-        description: 'Multiplies monthly cost by duration and the annual frequency interval factor.',
+        label: 'Workbook staff turnover (Count × Salary × Months × Frequency interval 1/λ)',
+        description: 'The original workbook formula; multiplies by 1/λ, so it changes with frequency.',
     },
     {
         value: 'litigation_probability',
@@ -42,6 +48,7 @@ export default function ImpactTab({ scenario, impact, can, urls, onDirtyChange }
     });
 
     const currency = impact?.currency || scenario?.currency || 'NGN';
+    const templates = impact?.templates?.length ? impact.templates : DEFAULT_TEMPLATES;
     const freqInterval = parseFloat(impact?.frequency_interval || 0.0);
 
     const [types, setTypes] = useState(impact?.types || []);
@@ -121,14 +128,14 @@ export default function ImpactTab({ scenario, impact, can, urls, onDirtyChange }
             {
                 id: null,
                 name: 'New Impact Category',
-                aggregation_template: 'staff_turnover_interval',
+                aggregation_template: 'count_amount_duration',
                 eligible_to_transfer: false,
                 sort_order: prev.length + 1,
                 criteria: [
                     {
                         id: null,
-                        label: 'Staff Count',
-                        unit: 'people',
+                        label: 'Count (people, items or events)',
+                        unit: 'count',
                         computation_role: 'count',
                         data_source: 'HR records',
                         typical_value: '10',
@@ -138,7 +145,7 @@ export default function ImpactTab({ scenario, impact, can, urls, onDirtyChange }
                     },
                     {
                         id: null,
-                        label: 'Monthly Cost',
+                        label: 'Unit amount (e.g. monthly cost)',
                         unit: currency,
                         computation_role: 'unit_amount',
                         data_source: 'Finance',
@@ -149,7 +156,7 @@ export default function ImpactTab({ scenario, impact, can, urls, onDirtyChange }
                     },
                     {
                         id: null,
-                        label: 'Months Duration',
+                        label: 'Duration (months)',
                         unit: 'months',
                         computation_role: 'duration',
                         data_source: 'HR records',
@@ -304,7 +311,7 @@ export default function ImpactTab({ scenario, impact, can, urls, onDirtyChange }
                                                 onChange={(e) => handleTypeChange(tIdx, 'aggregation_template', e.target.value)}
                                                 className="text-xs border border-slate-300 rounded px-2 py-1 bg-white font-medium text-slate-800 focus:ring-1 focus:ring-indigo-500"
                                             >
-                                                {DEFAULT_TEMPLATES.map((tmpl) => (
+                                                {templates.map((tmpl) => (
                                                     <option key={tmpl.value} value={tmpl.value}>
                                                         {tmpl.label}
                                                     </option>
@@ -312,7 +319,7 @@ export default function ImpactTab({ scenario, impact, can, urls, onDirtyChange }
                                             </select>
                                         ) : (
                                             <span className="font-semibold text-slate-800">
-                                                {DEFAULT_TEMPLATES.find((x) => x.value === t.aggregation_template)?.label || t.aggregation_template}
+                                                {templates.find((x) => x.value === t.aggregation_template)?.label || t.aggregation_template}
                                             </span>
                                         )}
                                     </div>

@@ -27,10 +27,20 @@ class ImpactType extends Model
 
     protected $table = 'sm_impact_types';
 
+    /**
+     * `count_amount_duration` is the per-event variant ADR 0027 D1's consequences reserve for
+     * (Amendment 4): severity is the loss of ONE event, frequency is applied separately.
+     * `staff_turnover_interval` stays the workbook's formula, × 1/λ included, so scenarios
+     * built on it keep their figures; its label now says it carries frequency.
+     */
     public const TEMPLATES = [
+        'count_amount_duration' => [
+            'label' => 'Per-event cost (Count × Amount × Duration)',
+            'description' => 'Loss of a single event: count × unit amount × duration, per severity column. Frequency is not applied.',
+        ],
         'staff_turnover_interval' => [
-            'label' => 'Staff Turnover (Count × Salary × Duration × Interval)',
-            'description' => 'Multiplies head count, monthly salary, duration in months, and frequency interval factor.',
+            'label' => 'Workbook staff turnover (Count × Salary × Months × Frequency interval 1/λ)',
+            'description' => 'The original workbook formula. Multiplies by the frequency interval (1/λ), so the result is not a per-event loss and changes whenever frequency changes.',
         ],
         'litigation_probability' => [
             'label' => 'Litigation / Legal Action ((Count × Unit Amount + Fees) × Probability)',

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { RegionSaveFailure } from '@/Components/Sm/FailureBanner';
 import useSaveFailure from '@/Components/Sm/useSaveFailure';
 
@@ -23,16 +23,44 @@ export default function FrequencyTab({ scenario, frequency, can, urls, onDirtyCh
     const [saving, setSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
 
+    const pageErrors = usePage().props.errors || {};
+    const driverErrors = Object.entries(pageErrors).filter(([key]) => key.startsWith('drivers'));
+    const hasErrors = driverErrors.length > 0;
+
     useEffect(() => {
-        if (frequency?.drivers) {
+        // A refused save redirects back with the same server values; keep what the user typed.
+        if (frequency?.drivers && !hasErrors) {
             setDrivers(frequency.drivers);
             setIsDirty(false);
         }
-    }, [frequency]);
+    }, [frequency, hasErrors]);
 
     useEffect(() => {
         onDirtyChange?.(editable && isDirty);
     }, [isDirty, editable, onDirtyChange]);
+
+    const presets = frequency?.presets || [];
+    const [presetKey, setPresetKey] = useState('');
+
+    // A preset only fills in labels and sources (SM-2026-001, Bug 5). Values, driver keys,
+    // roles and the scorecard link are left as they are, so λ does not move.
+    const ROLE_ORDER = ['count', 'control_score_complement', 'probability'];
+    const applyPreset = (key) => {
+        const preset = presets.find((p) => p.value === key);
+        if (!editable || !preset) return;
+        setDrivers((prev) => prev.map((d) => {
+            const template = preset.drivers[ROLE_ORDER.indexOf(d.computation_role)];
+            if (!template) return d;
+            const keepSource = d.computation_role === 'control_score_complement';
+            return {
+                ...d,
+                criterion: template.criterion,
+                data_source: keepSource ? d.data_source : template.data_source,
+            };
+        }));
+        setPresetKey(key);
+        setIsDirty(true);
+    };
 
     const handleDriverChange = (index, field, val) => {
         if (!editable) return;
@@ -102,6 +130,15 @@ export default function FrequencyTab({ scenario, frequency, can, urls, onDirtyCh
         <section aria-labelledby="frequency-heading" className="space-y-6 max-w-5xl">
             <RegionSaveFailure saveFailure={saveFailure} onResend={handleSave} />
 
+            {hasErrors && (
+                <div role="alert" className="rounded-lg border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800">
+                    <p className="font-semibold">Frequency drivers were not saved.</p>
+                    <ul className="mt-1 list-disc pl-5">
+                        {driverErrors.map(([key, message]) => <li key={key}>{message}</li>)}
+                    </ul>
+                </div>
+            )}
+
             {/* Frequency Summary Banner */}
             <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 shadow-sm text-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                 <div>
@@ -142,6 +179,26 @@ export default function FrequencyTab({ scenario, frequency, can, urls, onDirtyCh
                     </div>
 
                     {editable && (
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        {presets.length > 0 && (
+                            <label className="flex items-center gap-2 text-xs text-slate-600">
+                                <span className="font-medium">Driver labels</span>
+                                <select
+                                    value={presetKey}
+                                    onChange={(e) => applyPreset(e.target.value)}
+                                    className="text-xs border border-slate-300 rounded px-2 py-1 bg-white font-medium text-slate-800 focus:ring-1 focus:ring-indigo-500"
+                                    aria-describedby="driver-preset-help"
+                                >
+                                    <option value="" disabled>Start from a preset…</option>
+                                    {presets.map((p) => (
+                                        <option key={p.value} value={p.value}>{p.label}</option>
+                                    ))}
+                                </select>
+                                <span id="driver-preset-help" className="sr-only">
+                                    Fills in the driver labels and sources only. Values are not changed.
+                                </span>
+                            </label>
+                        )}
                         <button
                             type="button"
                             onClick={handleSave}
@@ -154,6 +211,7 @@ export default function FrequencyTab({ scenario, frequency, can, urls, onDirtyCh
                         >
                             {saving ? 'Saving...' : 'Save Frequency'}
                         </button>
+                        </div>
                     )}
                 </div>
 
@@ -174,8 +232,18 @@ export default function FrequencyTab({ scenario, frequency, can, urls, onDirtyCh
                                 return (
                                     <tr key={d.driver_type || idx} className="hover:bg-slate-50/60 transition-colors">
                                         <td className="px-5 py-3.5">
-                                            <div className="font-semibold text-slate-900">{d.criterion}</div>
-                                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">{d.driver_type}</div>
+                                            {editable ? (
+                                                <input
+                                                    type="text"
+                                                    value={d.criterion || ''}
+                                                    maxLength={250}
+                                                    onChange={(e) => handleDriverChange(idx, 'criterion', e.target.value)}
+                                                    aria-label={`Label for the ${d.computation_role.replaceAll('_', ' ')} driver`}
+                                                    className="w-full min-w-[14rem] border border-slate-300 rounded px-2 py-1 text-xs font-semibold text-slate-900 focus:ring-1 focus:ring-indigo-500"
+                                                />
+                                            ) : (
+                                                <div className="font-semibold text-slate-900">{d.criterion}</div>
+                                            )}
                                         </td>
 
                                         <td className="px-4 py-3.5">

@@ -33,4 +33,23 @@ class UpdateInsuranceRequest extends FormRequest
             'coverages.*.insurer_default_haircut' => ['required', 'numeric', 'between:0,1'],
         ];
     }
+
+    /**
+     * Readable names for the Insurance tab's error banner (it prefixes the severity itself).
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'coverages.*.severity' => 'severity',
+            'coverages.*.deductible_local' => 'local retention / deductible',
+            'coverages.*.limit_local' => 'local policy limit',
+            'coverages.*.deductible_group' => 'group umbrella deductible',
+            'coverages.*.limit_group' => 'group umbrella limit',
+            'coverages.*.recovery_rate' => 'recovery rate',
+            'coverages.*.probability_of_cover' => 'probability of coverage',
+            'coverages.*.insurer_default_haircut' => 'insurer default haircut',
+        ];
+    }
 }

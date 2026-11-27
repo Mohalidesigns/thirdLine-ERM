@@ -290,4 +290,75 @@ class ScenarioComputationServiceTest extends TestCase
         // lambda = 10 * (1 - 0.0) * 1 = 10.0
         $this->assertEqualsWithDelta(10.0, $result['total_frequency'], 0.000001);
     }
+
+    /**
+     * Production defect SM-2026-001 (Bug 1): count, unit_amount and flat_fee were read from
+     * the TYPICAL column for all three severities. Every role must read the column being
+     * computed. The golden fixtures above carry identical count/amount values in every
+     * column, which is why they never caught it.
+     */
+    #[Test]
+    public function litigation_template_reads_every_role_from_the_severity_column_being_computed(): void
+    {
+        $types = [[
+            'name' => 'Litigation',
+            'aggregation_template' => 'litigation_probability',
+            'eligible_to_transfer' => false,
+            'criteria' => [
+                ['computation_role' => 'count', 'typical_value' => 2, 'serious_value' => 5, 'extreme_value' => 12],
+                ['computation_role' => 'unit_amount', 'typical_value' => 15000000, 'serious_value' => 30000000, 'extreme_value' => 45000000],
+                ['computation_role' => 'probability', 'typical_value' => 1, 'serious_value' => 1, 'extreme_value' => 1],
+            ],
+        ]];
+
+        $type = $this->service->computeImpact($types, 3.571)['types'][0];
+
+        $this->assertEqualsWithDelta(30000000.0, $type['typical_total'], 0.000001);
+        $this->assertEqualsWithDelta(150000000.0, $type['serious_total'], 0.000001);
+        $this->assertEqualsWithDelta(540000000.0, $type['extreme_total'], 0.000001);
+    }
+
+    #[Test]
+    public function litigation_flat_fee_and_probability_vary_by_column_independently(): void
+    {
+        $types = [[
+            'name' => 'Litigation',
+            'aggregation_template' => 'litigation_probability',
+            'eligible_to_transfer' => false,
+            'criteria' => [
+                ['computation_role' => 'count', 'typical_value' => 2, 'serious_value' => 5, 'extreme_value' => 12],
+                ['computation_role' => 'unit_amount', 'typical_value' => 15000000, 'serious_value' => 30000000, 'extreme_value' => 45000000],
+                ['computation_role' => 'flat_fee', 'typical_value' => 1000000, 'serious_value' => 2000000, 'extreme_value' => 3000000],
+                ['computation_role' => 'probability', 'typical_value' => 1, 'serious_value' => 0.5, 'extreme_value' => 1],
+            ],
+        ]];
+
+        $type = $this->service->computeImpact($types, 1.0)['types'][0];
+
+        $this->assertEqualsWithDelta(31000000.0, $type['typical_total'], 0.000001);   // (2*15m + 1m) * 1
+        $this->assertEqualsWithDelta(76000000.0, $type['serious_total'], 0.000001);   // (5*30m + 2m) * 0.5
+        $this->assertEqualsWithDelta(543000000.0, $type['extreme_total'], 0.000001);  // (12*45m + 3m) * 1
+    }
+
+    #[Test]
+    public function staff_turnover_template_reads_count_and_salary_from_the_severity_column_being_computed(): void
+    {
+        $types = [[
+            'name' => 'Staff turnover',
+            'aggregation_template' => 'staff_turnover_interval',
+            'eligible_to_transfer' => false,
+            'criteria' => [
+                ['computation_role' => 'count', 'typical_value' => 2, 'serious_value' => 5, 'extreme_value' => 12],
+                ['computation_role' => 'unit_amount', 'typical_value' => 15000000, 'serious_value' => 20000000, 'extreme_value' => 25000000],
+                ['computation_role' => 'duration', 'typical_value' => 1, 'serious_value' => 2, 'extreme_value' => 3],
+            ],
+        ]];
+
+        // Interval pinned at 1.0 so this test isolates the column read from the interval factor.
+        $type = $this->service->computeImpact($types, 1.0)['types'][0];
+
+        $this->assertEqualsWithDelta(30000000.0, $type['typical_total'], 0.000001);   // 2 * 15m * 1
+        $this->assertEqualsWithDelta(200000000.0, $type['serious_total'], 0.000001);  // 5 * 20m * 2
+        $this->assertEqualsWithDelta(900000000.0, $type['extreme_total'], 0.000001);  // 12 * 25m * 3
+    }
 }

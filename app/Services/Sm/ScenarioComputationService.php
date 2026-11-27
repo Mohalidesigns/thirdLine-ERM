@@ -189,51 +189,20 @@ class ScenarioComputationService
             $severities = ['typical', 'serious', 'extreme'];
             $typeTotals = ['typical' => 0.0, 'serious' => 0.0, 'extreme' => 0.0];
 
+            // Every role reads the column being computed (production defect SM-2026-001,
+            // Bug 1: count, unit_amount and flat_fee used to read `typical_value` for all three
+            // severities). The workbook carries the same count/amount in each column, so its
+            // golden figures are unchanged by reading per column.
+            $col = fn (string $role, string $sev): float => $this->criterionValue($criteria, $role, $sev);
+
             if ($template === 'staff_turnover_interval') {
-                $count = 0.0;
-                $salary = 0.0;
-                $months = ['typical' => 0.0, 'serious' => 0.0, 'extreme' => 0.0];
-
-                foreach ($criteria as $crit) {
-                    $role = $crit['computation_role'] ?? '';
-                    if ($role === 'count') {
-                        $count = (float) $crit['typical_value'];
-                    } elseif ($role === 'unit_amount') {
-                        $salary = (float) $crit['typical_value'];
-                    } elseif ($role === 'duration') {
-                        foreach ($severities as $sev) {
-                            $months[$sev] = (float) ($crit["{$sev}_value"] ?? 0.0);
-                        }
-                    }
-                }
-
                 foreach ($severities as $sev) {
-                    $typeTotals[$sev] = $count * $salary * $months[$sev] * $frequencyInterval;
+                    $typeTotals[$sev] = $col('count', $sev) * $col('unit_amount', $sev) * $col('duration', $sev) * $frequencyInterval;
                 }
             } elseif ($template === 'litigation_probability') {
-                $count = 0.0;
-                $compensation = 0.0;
-                $flatFee = 0.0;
-                $prob = ['typical' => 0.0, 'serious' => 0.0, 'extreme' => 0.0];
-
-                foreach ($criteria as $crit) {
-                    $role = $crit['computation_role'] ?? '';
-                    if ($role === 'count') {
-                        $count = (float) $crit['typical_value'];
-                    } elseif ($role === 'unit_amount') {
-                        $compensation = (float) $crit['typical_value'];
-                    } elseif ($role === 'flat_fee') {
-                        $flatFee = (float) $crit['typical_value'];
-                    } elseif ($role === 'probability') {
-                        foreach ($severities as $sev) {
-                            $prob[$sev] = (float) ($crit["{$sev}_value"] ?? 0.0);
-                        }
-                    }
-                }
-
-                $baseCost = ($count * $compensation) + $flatFee;
                 foreach ($severities as $sev) {
-                    $typeTotals[$sev] = $baseCost * $prob[$sev];
+                    $baseCost = ($col('count', $sev) * $col('unit_amount', $sev)) + $col('flat_fee', $sev);
+                    $typeTotals[$sev] = $baseCost * $col('probability', $sev);
                 }
             }
 
@@ -259,6 +228,24 @@ class ScenarioComputationService
             'gross_impact' => $grossTotals,
             'transferable_amount' => $transferableTotals,
         ];
+    }
+
+    /**
+     * The value of the LAST criterion carrying `$role` in the `$severity` column — last-wins
+     * matches the loop this replaced, so a category with two rows of one role behaves as before.
+     *
+     * @param  array<int, array<string, mixed>>  $criteria
+     */
+    private function criterionValue(array $criteria, string $role, string $severity): float
+    {
+        $value = 0.0;
+        foreach ($criteria as $crit) {
+            if (($crit['computation_role'] ?? '') === $role) {
+                $value = (float) ($crit["{$severity}_value"] ?? 0.0);
+            }
+        }
+
+        return $value;
     }
 
     /**
@@ -408,6 +395,7 @@ class ScenarioComputationService
                 'computation_role' => $d->computation_role,
                 'value' => (float) $d->value,
                 'sm_scorecard_id' => $d->sm_scorecard_id,
+                'use_scorecard' => $d->isLinkedToScorecard(),
             ])->all();
 
             $freqResult = $this->computeFrequency($driversData, $globalScore);

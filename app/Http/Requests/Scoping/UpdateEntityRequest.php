@@ -52,6 +52,13 @@ class UpdateEntityRequest extends StoreEntityRequest
         ];
     }
 
+    protected function allowsDeprecatedProcessEntityType(): bool
+    {
+        $entity = $this->entity();
+
+        return $entity !== null && $entity->entityType?->code === 'PROCESS';
+    }
+
     private function entity(): ?Entity
     {
         $entity = $this->route('scoping');

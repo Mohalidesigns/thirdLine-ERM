@@ -17,10 +17,12 @@ use App\Models\KeyRiskIndicator;
 use App\Models\LossEvent;
 use App\Models\NearMiss;
 use App\Models\ObjectType;
+use App\Models\ProcessGroup;
 use App\Models\QuantificationScenario;
 use App\Models\Risk;
 use App\Models\RiskAppetite;
 use App\Models\RiskCategory;
+use App\Models\RiskLibraryItem;
 use App\Models\TreatmentPlan;
 use App\Support\Graph\ObjectSourceMap;
 use App\Support\MorphTypes;
@@ -62,6 +64,11 @@ class ObjectIdentityTest extends TestCase
             // accepted and discarded. This test caught the omission the moment
             // the model joined the source map, which is what it is for.
             EmergingRisk::class,
+            // ADR 0028 Phase 1: Master Risk Library definitions join the graph
+            // as reference objects.
+            RiskLibraryItem::class,
+            // ADR 0028 Phase 2: Process Groups join the graph as org-node objects.
+            ProcessGroup::class,
         ];
     }
 

@@ -49,6 +49,7 @@ use App\Models\ObjectType;
 use App\Models\Organization;
 use App\Models\OrganizationHoliday;
 use App\Models\Period;
+use App\Models\ProcessGroup;
 use App\Models\QuantificationScenario;
 use App\Models\Questionnaire;
 use App\Models\Rcsa\RcsaActionPlan;
@@ -63,6 +64,8 @@ use App\Models\Risk;
 use App\Models\RiskAppetite;
 use App\Models\RiskAssessment;
 use App\Models\RiskCategory;
+use App\Models\RiskLibraryItem;
+use App\Models\RiskLibraryItemVersion;
 use App\Models\SimulationRun;
 use App\Models\Sm\Scenario as SmScenario;
 use App\Models\Tprm\Document;
@@ -220,6 +223,7 @@ class MorphTypes
             'object_type' => ObjectType::class,
             'organization' => Organization::class,
             'period' => Period::class,
+            'process_group' => ProcessGroup::class,
             'quantification_scenario' => QuantificationScenario::class,
             'questionnaire' => Questionnaire::class,
             // RCSA v2 (P7). The aliases are what `risk_audit_trail.entity_type`
@@ -238,6 +242,8 @@ class MorphTypes
             'risk_appetite' => RiskAppetite::class,
             'risk_assessment' => RiskAssessment::class,
             'risk_category' => RiskCategory::class,
+            'risk_library_item' => RiskLibraryItem::class,
+            'risk_library_item_version' => RiskLibraryItemVersion::class,
             'simulation_run' => SimulationRun::class,
             /*
              * Scenario Modelling & Analysis (ADR 0027 §A1.11). `enforceMorphMap()`

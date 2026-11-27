@@ -32,8 +32,8 @@ class NavigationPermissionGateTest extends TestCase
      * `quantification` because Sm is upstream of Quantification (ADR 0027 §A1.11, spec 05 §1).
      */
     private const SECTIONS = [
-        'scoping', 'risk_register', 'rcsa', 'tprm', 'bcms', 'assessments', 'controls', 'treatment_plans', 'risk_appetite',
-        'approvals', 'kri_monitoring', 'reporting_periods', 'loss_events', 'issues', 'campaigns', 'workflows',
+        'scoping', 'processes', 'risk_register', 'rcsa', 'tprm', 'bcms', 'assessments', 'controls', 'treatment_plans', 'risk_appetite',
+        'approvals', 'kri_monitoring', 'reporting_periods', 'loss_events', 'incidents', 'campaigns', 'workflows',
         'analysis', 'scenario_modelling', 'quantification', 'regulatory', 'imports', 'documents', 'reports', 'emerging',
         'ai_intelligence',
     ];
@@ -106,8 +106,10 @@ class NavigationPermissionGateTest extends TestCase
         $this->assertSame([], $duplicates, 'Routes linked from more than one section: '.json_encode($duplicates));
         // 133 + the three ADR 0026 KRI-cycle entries (Complete my KRIs, Department
         // Contacts, Holidays) + the two ADR 0027 Scenario Modelling entries (Scenarios,
-        // New Scenario). Neither new route may appear in any other section.
-        $this->assertCount(138, $counts, 'The 25 sections link 138 distinct routes; the count moved, so a section changed shape.');
+        // New Scenario), less the two the Issues→Incident Register swap (359602f) removed,
+        // plus the four ADR 0028 entries (Process Dashboard, Process Catalogue, Process
+        // Groups, Risk Library). Neither new route may appear in any other section.
+        $this->assertCount(140, $counts, 'The 26 sections link 140 distinct routes; the count moved, so a section changed shape.');
     }
 
     #[Test]
@@ -208,7 +210,7 @@ class NavigationPermissionGateTest extends TestCase
         $nav = app(NavPresenter::class)->for($this->actor);
 
         $this->assertSame([], $nav['primary'], 'No Command Centre, My Responsibilities, Business HQ, or Dashboards');
-        $this->assertSame(['kri_monitoring', 'workflows'], array_column($nav['sections'], 'key'), 'Only KRI Monitoring and Workflows');
+        $this->assertSame(['rcsa', 'kri_monitoring', 'loss_events', 'workflows'], array_column($nav['sections'], 'key'), 'Only RCSA, KRI Monitoring, Loss Events and Workflows (2026_11_16_010000 grants RCSA and loss-event permissions to risk champions)');
         $this->assertNull($nav['admin'], 'No Administration tabs');
 
         $workflows = collect($nav['sections'])->firstWhere('key', 'workflows');

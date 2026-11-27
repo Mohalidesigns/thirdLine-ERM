@@ -2,6 +2,7 @@
 
 namespace App\Services\Scoping;
 
+use App\Models\BusinessProcess;
 use App\Models\Entity;
 use App\Models\EntityType;
 use App\Models\Issue;
@@ -178,22 +179,69 @@ class EntityService
             ")->first();
 
         $risks = $entity->risks()
-            ->with(['category', 'riskOwner'])
+            ->with([
+                'category:id,name',
+                'riskOwner:id,name',
+                'libraryItem:id,code,current_version,status',
+                'process:id,code,name',
+            ])
             ->orderByDesc('inherent_score')
             ->limit(20)
             ->get()
-            // data_get(): Risk, Issue and KeyRiskIndicator belong to later
-            // Phase 3 modules and do not declare their columns or relation
-            // types yet; reading through the accessor keeps this file honest
-            // without touching theirs.
-            ->map(fn (Risk $risk) => [
-                'id' => $risk->getKey(),
-                'code' => data_get($risk, 'risk_code'),
-                'title' => data_get($risk, 'title'),
-                'category' => data_get($risk, 'category.name'),
-                'rating' => data_get($risk, 'inherent_rating'),
-                'owner' => data_get($risk, 'riskOwner.name'),
-                'url' => route('risk.register.show', $risk),
+            ->map(function (Risk $risk): array {
+                $hasPendingUpdate = $risk->hasPendingLibraryUpdate();
+
+                return [
+                    'id' => $risk->getKey(),
+                    'code' => data_get($risk, 'risk_code'),
+                    'title' => data_get($risk, 'title'),
+                    'category' => data_get($risk, 'category.name'),
+                    'rating' => data_get($risk, 'inherent_rating'),
+                    'owner' => data_get($risk, 'riskOwner.name'),
+                    'library_item_id' => $risk->library_item_id,
+                    'library_version' => $risk->library_version,
+                    'library_code' => $risk->libraryItem?->code,
+                    'has_pending_library_update' => $hasPendingUpdate,
+                    'library_has_update' => $hasPendingUpdate,
+                    'library_is_retired' => $risk->libraryItem?->isRetired() ?? false,
+                    'process_name' => $risk->process?->name,
+                    'url' => route('risk.register.show', $risk),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $processes = $entity->businessProcesses()
+            ->with([
+                'processGroup:id,code,name',
+                'businessUnit:id,name',
+                'owner:id,name',
+                'parent:id,code,name',
+            ])
+            ->withCount(['subProcesses', 'risks'])
+            ->orderBy('business_processes.name')
+            ->get()
+            ->map(static fn (BusinessProcess $process): array => [
+                'id' => $process->id,
+                'code' => $process->code,
+                'apqc_code' => $process->apqc_code,
+                'name' => $process->name,
+                'is_sub_process' => $process->parent_id !== null,
+                'parent_id' => $process->parent_id,
+                'parent_name' => $process->parent?->name,
+                'process_group_id' => $process->process_group_id,
+                'process_group_name' => $process->processGroup?->name,
+                'business_unit_id' => $process->business_unit_id,
+                'business_unit_name' => $process->businessUnit?->name,
+                'owner_id' => $process->owner_id,
+                'owner_name' => $process->owner?->name,
+                'criticality' => $process->criticality,
+                'is_active' => (bool) $process->is_active,
+                'sub_processes_count' => (int) ($process->sub_processes_count ?? 0),
+                'risks_count' => (int) ($process->risks_count ?? 0),
+                'linked_risks_count' => (int) ($process->risks_count ?? 0),
+                'is_primary' => (bool) ($process->pivot?->is_primary ?? false),
+                'show_url' => route('risk.processes.show', $process),
             ])
             ->values()
             ->all();
@@ -269,6 +317,7 @@ class EntityService
                 'low' => (int) ($stats->low ?? 0),
             ],
             'risks' => $risks,
+            'processes' => $processes,
             'issues' => $issues,
             'kris' => $kris,
             'subEntities' => $subEntities->map(fn (Entity $sub) => [
@@ -332,8 +381,17 @@ class EntityService
      */
     public function formOptions(User $user, ?Entity $except = null): array
     {
+        $isLegacyProcessEntity = $except !== null && $except->entityType?->code === 'PROCESS';
+
         $entityTypes = EntityType::query()
-            ->where('is_active', true)
+            ->where(function (Builder $query) use ($isLegacyProcessEntity, $except): void {
+                $query->where('is_active', true)
+                    ->where('code', '!=', 'PROCESS');
+
+                if ($isLegacyProcessEntity && $except !== null) {
+                    $query->orWhere('id', $except->entity_type_id);
+                }
+            })
             ->orderBy('sort_order')
             ->get();
 

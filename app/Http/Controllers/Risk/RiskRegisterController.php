@@ -9,12 +9,15 @@ use App\Http\Requests\Register\MapControlRequest;
 use App\Http\Requests\Register\StoreRiskRequest;
 use App\Http\Requests\Register\UpdateRiskAttributesRequest;
 use App\Http\Requests\Register\UpdateRiskRequest;
+use App\Http\Requests\RiskLibrary\ReviewLibraryUpdateRequest;
 use App\Models\Period;
 use App\Models\Risk;
 use App\Presenters\FormSchemaPresenter;
 use App\Presenters\GridPresenter;
+use App\Presenters\RiskLibraryPresenter;
 use App\Repositories\RiskRepository;
 use App\Services\Register\RiskRegisterService;
+use App\Services\RiskLibraryService;
 use App\Support\Authorization\GraphScope;
 use App\Support\Periods\PeriodContext;
 use Illuminate\Http\Request;
@@ -34,6 +37,8 @@ class RiskRegisterController extends Controller
     public function __construct(
         private readonly RiskRegisterService $risks,
         private readonly FormSchemaPresenter $schemas,
+        private readonly RiskLibraryPresenter $libraryPresenter,
+        private readonly RiskLibraryService $libraryService,
     ) {}
 
     /* ------------------------------------------------------------------ */
@@ -253,6 +258,7 @@ class RiskRegisterController extends Controller
         return Inertia::render('Register/Show', array_merge(
             $this->risks->detail($register),
             [
+                'libraryContext' => $this->libraryPresenter->libraryContextForRisk($register),
                 'configured' => $this->schemas->configuredOnly($this->schemas->form('Risk', $register)),
                 'configuredDetail' => $this->schemas->detail($register, 'Risk', omit: self::DETAIL_OMIT, hideEmpty: true),
                 'can' => [
@@ -368,5 +374,36 @@ class RiskRegisterController extends Controller
                     ? "Control {$control->control_code} mapped successfully."
                     : "{$control->control_code} is already mapped to this risk.",
             );
+    }
+
+    /**
+     * Explicitly accept or dismiss a pending Risk Library definition update
+     * on a Risk instance (ADR 0028 Decision 4.2).
+     */
+    public function reviewLibraryUpdate(ReviewLibraryUpdateRequest $request, Risk $register)
+    {
+        if ($register->library_item_id === null || $register->libraryItem === null) {
+            return redirect()
+                ->route('risk.register.show', $register)
+                ->with('error', 'This risk is not linked to a Risk Library definition.');
+        }
+
+        $decision = (string) $request->validated('decision');
+        $currentVersion = $register->libraryItem->current_version;
+
+        if ($decision === 'accept') {
+            $this->libraryService->acceptLibraryUpdate($register, $request->user());
+
+            return redirect()
+                ->route('risk.register.show', $register)
+                ->with('success', "Updated definition to v{$currentVersion}; assessment scores preserved.");
+        }
+
+        $instanceVersion = $register->library_version;
+        $this->libraryService->dismissLibraryUpdate($register, $request->user());
+
+        return redirect()
+            ->route('risk.register.show', $register)
+            ->with('success', "Kept v{$instanceVersion}; you will be notified again if v".($currentVersion + 1).' is published.');
     }
 }

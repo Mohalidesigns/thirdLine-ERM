@@ -1,5 +1,5 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AppLayout';
 import DynamicDetail from '@thirdline/ui/Components/DynamicDetail';
 import DynamicForm from '@thirdline/ui/Components/DynamicForm';
@@ -72,12 +72,38 @@ export default function Show({
     kris = [],
     auditTrail = [],
     availableControls = [],
+    libraryContext = null,
     configured = null,
     configuredDetail = null,
     can = {},
 }) {
     const [tab, setTab] = useState('overview');
     const [mapping, setMapping] = useState(false);
+    const [diffExpanded, setDiffExpanded] = useState(false);
+    const diffHeadingRef = useRef(null);
+
+    // Standard §9: two-submit-button form (Accept Update vs Keep Current) stores
+    // the clicked decision in a ref and injects it via transform(), never setData() before post().
+    const libraryDecisionRef = useRef('accept');
+    const libraryUpdateForm = useForm({});
+
+    const submitLibraryDecision = (decision) => {
+        libraryDecisionRef.current = decision;
+        libraryUpdateForm.transform(() => ({ decision: libraryDecisionRef.current }));
+        libraryUpdateForm.post(route('risk.register.library-update', risk.id), {
+            preserveScroll: true,
+        });
+    };
+
+    const toggleDiffPanel = () => {
+        setDiffExpanded((prev) => {
+            const next = !prev;
+            if (next) {
+                setTimeout(() => diffHeadingRef.current?.focus(), 20);
+            }
+            return next;
+        });
+    };
 
     const mapForm = useForm({ control_id: '', control_weight: '', mapping_rationale: '', is_key_control: false });
     const attributesForm = useForm({ configured_attributes: seedConfigured(configured) });
@@ -132,6 +158,178 @@ export default function Show({
                     </>
                 }
             />
+
+            {/* Master Risk Library provenance pill (ADR 0028) */}
+            {libraryContext && (
+                <div className="flex flex-wrap items-center gap-2 -mt-2 mb-4">
+                    <Link
+                        href={libraryContext.show_url}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-[#1A365D] border border-blue-200 hover:bg-blue-100 transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-sm">menu_book</span>
+                        <span>
+                            Library: <strong className="font-mono">{libraryContext.code}</strong>
+                            {libraryContext.instance_version ? ` (v${libraryContext.instance_version})` : ''}
+                        </span>
+                    </Link>
+                    {libraryContext.status === 'retired' && (
+                        <span
+                            title="This master risk definition has been retired in the Risk Library. This risk instance remains active and assessable."
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200"
+                        >
+                            <span className="material-symbols-outlined text-sm">inventory_2</span>
+                            Retired in Library
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {/* Pending Risk Library update banner (ADR 0028 Decision 4.2, Standard §9) */}
+            {libraryContext?.has_pending_update && (
+                <section
+                    role="region"
+                    aria-label="Risk library update available"
+                    className="border-l-4 border-[#D4AF37] bg-amber-50/70 border border-amber-200 rounded-r-xl p-4 mb-6"
+                >
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="space-y-1 min-w-0 flex-1">
+                            <h2 className="text-sm font-semibold text-amber-900 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-lg">update</span>
+                                Library updated (v{libraryContext.instance_version} → v{libraryContext.current_version}) — review changes
+                            </h2>
+                            {libraryContext.diff && (
+                                <p className="text-xs text-amber-900/90">
+                                    Updated by <strong>{libraryContext.diff.updated_by}</strong> on{' '}
+                                    {shortDate(libraryContext.diff.updated_at)}
+                                    {libraryContext.diff.change_summary
+                                        ? ` · "${libraryContext.diff.change_summary}"`
+                                        : ''}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            <button
+                                type="button"
+                                onClick={toggleDiffPanel}
+                                aria-expanded={diffExpanded}
+                                className="btn-secondary text-xs inline-flex items-center gap-1"
+                            >
+                                <span className="material-symbols-outlined text-sm">
+                                    {diffExpanded ? 'expand_less' : 'difference'}
+                                </span>
+                                {diffExpanded ? 'Hide Changes' : 'Review Changes'}
+                            </button>
+
+                            {can.update ? (
+                                <form
+                                    onSubmit={(e) => {
+                                        e.preventDefault();
+                                        submitLibraryDecision(libraryDecisionRef.current);
+                                    }}
+                                    className="inline-flex flex-wrap items-center gap-2"
+                                >
+                                    <button
+                                        type="button"
+                                        disabled={libraryUpdateForm.processing}
+                                        onClick={() => submitLibraryDecision('accept')}
+                                        className="btn-primary text-xs disabled:opacity-50"
+                                    >
+                                        {libraryUpdateForm.processing && libraryDecisionRef.current === 'accept'
+                                            ? 'Updating…'
+                                            : `Accept Update (v${libraryContext.current_version})`}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={libraryUpdateForm.processing}
+                                        onClick={() => submitLibraryDecision('dismiss')}
+                                        className="btn-secondary text-xs disabled:opacity-50"
+                                    >
+                                        {libraryUpdateForm.processing && libraryDecisionRef.current === 'dismiss'
+                                            ? 'Saving…'
+                                            : `Keep Current (v${libraryContext.instance_version})`}
+                                    </button>
+                                </form>
+                            ) : (
+                                <span className="text-xs text-amber-900 font-medium">
+                                    Library v{libraryContext.current_version} is available — ask the Risk Owner to review.
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    {diffExpanded && libraryContext.diff && (
+                        <div className="mt-4 pt-4 border-t border-amber-200/80 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <h3
+                                    ref={diffHeadingRef}
+                                    tabIndex={-1}
+                                    className="text-xs font-semibold text-amber-900 uppercase tracking-wide focus:outline-none"
+                                >
+                                    Field-by-Field Changes (v{libraryContext.diff.from_version} → v{libraryContext.diff.to_version})
+                                </h3>
+                                <p className="text-xs text-amber-900/90">
+                                    Accepting updates definition fields only. Your inherent/residual scores, owner,
+                                    controls, treatments, and review dates will not change.
+                                </p>
+                            </div>
+
+                            {(libraryContext.diff.fields ?? []).length === 0 ? (
+                                <p className="text-xs text-amber-900">
+                                    No copied statement fields changed between v{libraryContext.diff.from_version} and v
+                                    {libraryContext.diff.to_version}.
+                                </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {libraryContext.diff.fields.map((entry) => (
+                                        <div key={entry.field} className="space-y-1">
+                                            <p className="text-xs font-semibold text-gray-800">{entry.label}</p>
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                                <div className="rounded-lg border border-red-200 bg-white p-3">
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-800 mb-1.5">
+                                                        − Previous (v{libraryContext.diff.from_version})
+                                                    </span>
+                                                    {Array.isArray(entry.before) ? (
+                                                        entry.before.length === 0 ? (
+                                                            <p className="text-xs text-gray-400 italic">None</p>
+                                                        ) : (
+                                                            <ul className="list-disc pl-4 space-y-0.5 text-xs text-gray-800">
+                                                                {entry.before.map((v, i) => <li key={i}>{v}</li>)}
+                                                            </ul>
+                                                        )
+                                                    ) : (
+                                                        <p className="text-xs text-gray-800 whitespace-pre-line">
+                                                            {entry.before || '—'}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <div className="rounded-lg border border-green-200 bg-white p-3">
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-[#2D7D46] mb-1.5">
+                                                        + Updated (v{libraryContext.diff.to_version})
+                                                    </span>
+                                                    {Array.isArray(entry.after) ? (
+                                                        entry.after.length === 0 ? (
+                                                            <p className="text-xs text-gray-400 italic">None</p>
+                                                        ) : (
+                                                            <ul className="list-disc pl-4 space-y-0.5 text-xs text-gray-800">
+                                                                {entry.after.map((v, i) => <li key={i}>{v}</li>)}
+                                                            </ul>
+                                                        )
+                                                    ) : (
+                                                        <p className="text-xs text-gray-800 whitespace-pre-line">
+                                                            {entry.after || '—'}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </section>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <KpiCard
@@ -463,6 +661,29 @@ export default function Show({
                                 actionHref={newControl}
                             />
                         )}
+
+                        {(libraryContext?.suggested_controls ?? []).length > 0 && (
+                            <details className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <summary className="text-xs font-semibold text-[#1A365D] cursor-pointer">
+                                    Reference Controls from Library {libraryContext.code} ({libraryContext.suggested_controls.length})
+                                </summary>
+                                <p className="text-xs text-gray-500 mt-1 mb-3">
+                                    Reference prompts from the master Risk Library — map or create controls explicitly above.
+                                </p>
+                                <ul className="space-y-1.5">
+                                    {libraryContext.suggested_controls.map((c, idx) => (
+                                        <li key={idx} className="text-xs text-gray-700 flex items-center justify-between gap-2">
+                                            <span>{c.title}</span>
+                                            {c.control_type && (
+                                                <span className="px-2 py-0.5 rounded-full bg-white border border-gray-200 text-[11px] text-gray-600">
+                                                    {ucfirst(c.control_type)}
+                                                </span>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </details>
+                        )}
                     </>
                 )}
 
@@ -578,6 +799,29 @@ export default function Show({
                                 actionLabel={newKri ? 'Create First KRI' : null}
                                 actionHref={newKri}
                             />
+                        )}
+
+                        {(libraryContext?.suggested_kris ?? []).length > 0 && (
+                            <details className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <summary className="text-xs font-semibold text-[#1A365D] cursor-pointer">
+                                    Reference KRIs from Library {libraryContext.code} ({libraryContext.suggested_kris.length})
+                                </summary>
+                                <p className="text-xs text-gray-500 mt-1 mb-3">
+                                    Reference prompts from the master Risk Library — create or link KRIs explicitly above.
+                                </p>
+                                <ul className="space-y-1.5">
+                                    {libraryContext.suggested_kris.map((k, idx) => (
+                                        <li key={idx} className="text-xs text-gray-700 flex items-center justify-between gap-2">
+                                            <span>{k.name}</span>
+                                            {k.metric_unit && (
+                                                <span className="px-2 py-0.5 rounded-full bg-white border border-gray-200 font-mono text-[11px] text-gray-600">
+                                                    {k.metric_unit}
+                                                </span>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </details>
                         )}
                     </>
                 )}

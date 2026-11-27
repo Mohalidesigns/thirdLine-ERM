@@ -5,13 +5,24 @@ namespace App\Http\Controllers\Risk;
 use App\Grids\GridRegistry;
 use App\Http\Controllers\Concerns\PersistsConfiguredAttributes;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Process\StoreProcessRequest;
+use App\Http\Requests\Scoping\AttachLibraryRisksToEntityRequest;
+use App\Http\Requests\Scoping\AttachProcessToEntityRequest;
 use App\Http\Requests\Scoping\StoreEntityRequest;
 use App\Http\Requests\Scoping\UpdateEntityRequest;
+use App\Models\BusinessProcess;
 use App\Models\Entity;
 use App\Models\EntityType;
+use App\Models\Risk;
+use App\Policies\EntityPolicy;
 use App\Presenters\FormSchemaPresenter;
 use App\Presenters\GridPresenter;
+use App\Presenters\ProcessPresenter;
+use App\Services\ProcessService;
+use App\Services\RiskLibraryService;
 use App\Services\Scoping\EntityService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -28,6 +39,9 @@ class ScopingController extends Controller
     public function __construct(
         private readonly EntityService $entities,
         private readonly FormSchemaPresenter $schemas,
+        private readonly ProcessPresenter $processPresenter,
+        private readonly ProcessService $processes,
+        private readonly RiskLibraryService $riskLibrary,
     ) {}
 
     /* ------------------------------------------------------------------ */
@@ -118,18 +132,142 @@ class ScopingController extends Controller
         Gate::authorize('view', $scoping);
 
         $user = $request->user();
+        $canViewProcesses = $user->can('process.view');
+        $canCreateProcess = $user->can('process.create');
+        $canUpdateProcess = $user->can('process.update');
+        $canCreateRisk = $user->can('create', Risk::class);
+
+        $processOptions = ($canViewProcesses || $canCreateProcess) && $user->organization !== null
+            ? $this->processPresenter->formOptions(
+                $user->organization,
+                null,
+                ['default_entity_id' => $scoping->id]
+            )['options']
+            : null;
 
         return Inertia::render('Scoping/Show', array_merge(
             $this->entities->detail($scoping),
             [
                 'configured' => $this->schemas->detail($scoping, $scoping->resolveObjectTypeCode(), hideEmpty: true),
+                'processOptions' => $processOptions,
                 'can' => [
                     'update' => $user->can('update', $scoping),
                     'delete' => $user->can('delete', $scoping),
                     'create' => $user->can('create', Entity::class),
+                    'attachRiskFromLibrary' => $canCreateRisk,
+                    'createRisk' => $canCreateRisk,
+                    'viewLibrary' => $user->can('risk_library.view'),
+                    'viewProcesses' => $canViewProcesses,
+                    'createProcess' => $canCreateProcess,
+                    'updateProcess' => $canUpdateProcess,
+                    'attachProcess' => $canUpdateProcess,
                 ],
             ],
         ));
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Entity Risks (Add from Risk Library) & Processes Tab (ADR 0028 P3) */
+    /* ------------------------------------------------------------------ */
+
+    public function attachLibraryRisks(AttachLibraryRisksToEntityRequest $request, Entity $scoping): JsonResponse|RedirectResponse
+    {
+        $validated = $request->validated();
+
+        $result = $this->riskLibrary->attachManyToEntity(
+            $scoping,
+            array_map('intval', $validated['library_item_ids']),
+            [
+                'process_id' => $validated['process_id'] ?? null,
+                'risk_owner_id' => $validated['risk_owner_id'] ?? null,
+                'business_unit_id' => $validated['business_unit_id'] ?? null,
+            ],
+            $request->user(),
+        );
+
+        $message = $result['skipped_count'] > 0
+            ? "Attached {$result['created_count']} risk(s) from the Risk Library ({$result['skipped_count']} already attached, skipped)."
+            : "Attached {$result['created_count']} risk(s) from the Risk Library.";
+
+        if ($request->wantsJson() && ! $request->header('X-Inertia')) {
+            return response()->json($result + ['message' => $message], 201);
+        }
+
+        return redirect()
+            ->route('risk.scoping.show', ['scoping' => $scoping, 'tab' => 'risks'])
+            ->with('success', $message);
+    }
+
+    public function attachableProcesses(Request $request, Entity $scoping): JsonResponse
+    {
+        Gate::authorize('viewAny', BusinessProcess::class);
+        abort_unless(EntityPolicy::withinReach($request->user(), $scoping), 403);
+
+        return response()->json($this->processPresenter->attachableForEntity($scoping, $request));
+    }
+
+    public function attachProcess(AttachProcessToEntityRequest $request, Entity $scoping): JsonResponse|RedirectResponse
+    {
+        $processIds = $request->resolvedProcessIds();
+        $processes = BusinessProcess::query()
+            ->where('organization_id', $scoping->organization_id)
+            ->whereIn('id', $processIds)
+            ->get();
+
+        foreach ($processes as $process) {
+            $this->processes->attachToEntity($scoping, $process, $request->user());
+        }
+
+        $count = $processes->count();
+        $message = $count === 1
+            ? "Attached process {$processes->first()->code} — {$processes->first()->name} to {$scoping->name}."
+            : "Attached {$count} process(es) to {$scoping->name}.";
+
+        if ($request->wantsJson() && ! $request->header('X-Inertia')) {
+            return response()->json(['attached_count' => $count, 'message' => $message], 201);
+        }
+
+        return redirect()
+            ->route('risk.scoping.show', ['scoping' => $scoping, 'tab' => 'processes'])
+            ->with('success', $message);
+    }
+
+    public function storeProcess(StoreProcessRequest $request, Entity $scoping): JsonResponse|RedirectResponse
+    {
+        abort_unless(EntityPolicy::withinReach($request->user(), $scoping), 403);
+
+        $process = $this->processes->create(
+            array_merge($request->validated(), ['entity_id' => $scoping->id]),
+            $request->user(),
+        );
+
+        $message = "Created and attached process {$process->code} — {$process->name} to {$scoping->name}.";
+
+        if ($request->wantsJson() && ! $request->header('X-Inertia')) {
+            return response()->json(['id' => $process->id, 'code' => $process->code, 'message' => $message], 201);
+        }
+
+        return redirect()
+            ->route('risk.scoping.show', ['scoping' => $scoping, 'tab' => 'processes'])
+            ->with('success', $message);
+    }
+
+    public function detachProcess(Request $request, Entity $scoping, BusinessProcess $process): JsonResponse|RedirectResponse
+    {
+        Gate::authorize('update', $process);
+        abort_unless(EntityPolicy::withinReach($request->user(), $scoping), 403);
+
+        $this->processes->detachFromEntity($scoping, $process, $request->user());
+
+        $message = "Detached process {$process->code} — {$process->name} from {$scoping->name}.";
+
+        if ($request->wantsJson() && ! $request->header('X-Inertia')) {
+            return response()->json(['message' => $message]);
+        }
+
+        return redirect()
+            ->route('risk.scoping.show', ['scoping' => $scoping, 'tab' => 'processes'])
+            ->with('success', $message);
     }
 
     /* ------------------------------------------------------------------ */
@@ -195,7 +333,18 @@ class ScopingController extends Controller
         $out = [];
         $byCode = [];
 
-        foreach (EntityType::query()->where('is_active', true)->get() as $type) {
+        $types = EntityType::query()
+            ->where(function ($query) use ($record): void {
+                $query->where('is_active', true)
+                    ->where('code', '!=', 'PROCESS');
+
+                if ($record !== null && $record->entity_type_id !== null) {
+                    $query->orWhere('id', $record->entity_type_id);
+                }
+            })
+            ->get();
+
+        foreach ($types as $type) {
             $code = StoreEntityRequest::objectTypeCodeFor($type);
 
             $byCode[$code] ??= $this->schemas->configuredOnly($this->schemas->form($code, $record));

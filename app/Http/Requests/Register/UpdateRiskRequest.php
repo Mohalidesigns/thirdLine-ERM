@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Register;
 
+use App\Enums\BaselEventTypeL1;
+use App\Enums\BaselEventTypeL2;
 use App\Http\Requests\Concerns\ValidatesConfiguredAttributes;
 use App\Models\Risk;
 use Illuminate\Foundation\Http\FormRequest;
@@ -36,13 +38,32 @@ class UpdateRiskRequest extends FormRequest
             'title' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string', 'max:5000'],
             'category_id' => ['required', Rule::exists('risk_categories', 'id')->where('organization_id', $orgId)],
-            'business_unit_id' => ['required', Rule::exists('business_units', 'id')->where('organization_id', $orgId)],
+            'entity_id' => ['nullable', Rule::exists('entities', 'id')->where('organization_id', $orgId)],
+            'business_unit_id' => ['nullable', 'required_without:entity_id', Rule::exists('business_units', 'id')->where('organization_id', $orgId)],
             'process_id' => ['nullable', Rule::exists('business_processes', 'id')->where('organization_id', $orgId)],
             'risk_owner_id' => ['required', Rule::exists('users', 'id')->where('organization_id', $orgId)],
             'risk_steward_id' => ['nullable', Rule::exists('users', 'id')->where('organization_id', $orgId)],
             'identified_by' => ['nullable', Rule::exists('users', 'id')->where('organization_id', $orgId)],
             'date_identified' => ['nullable', 'date'],
             'risk_source' => ['nullable', 'string', 'max:100'],
+            'basel_l1_event_type' => ['nullable', Rule::in(BaselEventTypeL1::values())],
+            'basel_l2_event_type' => [
+                'nullable',
+                Rule::in(BaselEventTypeL2::values()),
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+                    $l1 = $this->input('basel_l1_event_type');
+                    $enum = BaselEventTypeL2::tryFrom((string) $value);
+                    if ($enum === null || $l1 === null || $enum->l1()->value !== $l1) {
+                        $fail('The selected Basel Level 2 event type does not belong to the chosen Level 1 event type.');
+                    }
+                },
+            ],
+            'consequences' => ['nullable', 'array'],
+            'consequences.*.consequence' => ['required_with:consequences', 'string', 'max:500'],
+            'consequences.*.impact_domain' => ['nullable', 'string', 'max:64'],
             'status' => ['required', Rule::in(['active', 'dormant', 'closed', 'retired'])],
             'inherent_likelihood' => ['required', 'integer', 'min:1', 'max:5'],
             'impact_financial' => ['required', 'integer', 'min:1', 'max:5'],

@@ -43,11 +43,17 @@ class Risk extends Model
         'title',
         'description',
         'category_id',
+        'library_item_id',
+        'library_version',
+        'library_synced_at',
+        'library_update_dismissed_version',
         'business_unit_id',
         'process_id',
         'risk_owner_id',
         'risk_steward_id',
         'risk_source',
+        'basel_l1_event_type',
+        'basel_l2_event_type',
         'risk_type',
         'inherent_likelihood',
         'inherent_impact',
@@ -77,10 +83,14 @@ class Risk extends Model
         'status',
         'tags',
         'metadata',
+        'consequences',
         'created_by',
     ];
 
     protected $casts = [
+        'library_version' => 'integer',
+        'library_synced_at' => 'datetime',
+        'library_update_dismissed_version' => 'integer',
         'inherent_likelihood' => 'integer',
         'inherent_impact' => 'integer',
         'inherent_score' => 'integer',
@@ -91,6 +101,7 @@ class Risk extends Model
         'regulatory_mapping' => 'array',
         'tags' => 'array',
         'metadata' => 'array',
+        'consequences' => 'array',
         'control_effectiveness_pct' => 'decimal:2',
         'financial_exposure_ngn' => 'decimal:2',
         'date_identified' => 'date',
@@ -169,6 +180,53 @@ class Risk extends Model
     public function category(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(RiskCategory::class, 'category_id');
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<RiskLibraryItem, $this> */
+    public function libraryItem(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(RiskLibraryItem::class, 'library_item_id');
+    }
+
+    /**
+     * Whether the linked master Risk Library item has published a newer version
+     * that this instance has neither accepted nor dismissed (ADR 0028 §4.1).
+     */
+    public function hasPendingLibraryUpdate(): bool
+    {
+        if ($this->library_item_id === null || $this->library_version === null) {
+            return false;
+        }
+
+        $item = $this->relationLoaded('libraryItem')
+            ? $this->libraryItem
+            : $this->libraryItem()->first();
+
+        if ($item === null) {
+            return false;
+        }
+
+        if ($item->current_version <= $this->library_version) {
+            return false;
+        }
+
+        return $this->library_update_dismissed_version !== $item->current_version;
+    }
+
+    /**
+     * Whether the linked master Risk Library item has been retired.
+     */
+    public function isLibraryRetired(): bool
+    {
+        if ($this->library_item_id === null) {
+            return false;
+        }
+
+        $item = $this->relationLoaded('libraryItem')
+            ? $this->libraryItem
+            : $this->libraryItem()->first();
+
+        return $item !== null && $item->isRetired();
     }
 
     /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<BusinessUnit, $this> */

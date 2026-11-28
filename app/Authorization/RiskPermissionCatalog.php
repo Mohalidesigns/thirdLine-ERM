@@ -44,6 +44,13 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'risk.admin' => 'Administer the register itself, beyond editing individual risks.',
             ],
 
+            'Risk Library' => [
+                'risk_library.view' => 'See the master risk library, its version history and which entities carry each risk.',
+                'risk_library.create' => 'Add a new master risk definition to the risk library.',
+                'risk_library.update' => 'Edit a risk library definition, creating a new version for instances to review.',
+                'risk_library.retire' => 'Retire or reactivate a risk library definition. Existing risk instances remain intact.',
+            ],
+
             'Assessments' => [
                 'assessment.view' => 'See risk assessments and their scores.',
                 'assessment.create' => 'Start a new assessment of a risk.',
@@ -345,6 +352,13 @@ class RiskPermissionCatalog extends PermissionCatalog
                 'entity.create' => 'Add an entity.',
                 'entity.edit' => 'Change an entity.',
                 'entity.delete' => 'Remove an entity.',
+            ],
+
+            'Processes' => [
+                'process.view' => 'See the process catalogue, process groups and process dashboard.',
+                'process.create' => 'Add a business process or sub-process to the process catalogue.',
+                'process.update' => 'Edit a business process, its owner, criticality or entity attachments.',
+                'process_group.manage' => 'Create, edit and deactivate process groups.',
             ],
 
             'Workflow' => [
@@ -659,6 +673,7 @@ class RiskPermissionCatalog extends PermissionCatalog
     {
         $riskManager = [
             'risk.view', 'risk.create', 'risk.edit', 'risk.delete', 'risk.approve', 'risk.admin',
+            'risk_library.view', 'risk_library.create', 'risk_library.update', 'risk_library.retire',
             'assessment.view', 'assessment.create', 'assessment.submit', 'assessment.approve', 'assessment.reject',
             'control.view', 'control.create', 'control.edit', 'control.delete',
             'treatment.view', 'treatment.create', 'treatment.edit', 'treatment.approve', 'treatment.delete',
@@ -668,6 +683,7 @@ class RiskPermissionCatalog extends PermissionCatalog
             'appetite.view', 'appetite.manage', 'appetite.approve',
             'report.view', 'report.generate', 'report.export',
             'entity.view', 'entity.create', 'entity.edit', 'entity.delete',
+            'process.view', 'process.create', 'process.update', 'process_group.manage',
             'rcsa.view', 'rcsa.submit',
             'rcsa_universe.view', 'rcsa_universe.create', 'rcsa_universe.update',
             'rcsa_universe.delete', 'rcsa_universe.publish', 'rcsa_universe.import',
@@ -800,6 +816,8 @@ class RiskPermissionCatalog extends PermissionCatalog
 
             'risk-owner' => [
                 'risk.view', 'risk.edit',
+                'risk_library.view',
+                'process.view', 'process.create', 'process.update',
                 'incident.view', 'incident.create',
                 // ADR 0026: the first-line champion completes the return. Not
                 // kri.view / kri.edit: a champion does not edit definitions.
@@ -851,6 +869,8 @@ class RiskPermissionCatalog extends PermissionCatalog
 
             'risk-analyst' => [
                 'risk.view',
+                'risk_library.view', 'risk_library.create', 'risk_library.update',
+                'process.view', 'process.create', 'process.update',
                 'incident.view', 'incident.create',
                 'assessment.view', 'assessment.create',
                 'kri.view', 'kri.record_measurement', 'kri.all_departments',
@@ -938,6 +958,8 @@ class RiskPermissionCatalog extends PermissionCatalog
 
             'compliance-officer' => [
                 'risk.view',
+                'risk_library.view',
+                'process.view',
                 'incident.view', 'incident.create', 'incident.notify',
                 'loss_event.view',
                 'issue.view', 'issue.create',
@@ -995,6 +1017,8 @@ class RiskPermissionCatalog extends PermissionCatalog
 
             'board-member' => [
                 'risk.view',
+                'risk_library.view',
+                'process.view',
                 'report.view',
                 // Read-only. TRD §6.16 makes the third-party programme board
                 // reportable at the top two tiers, so the board needs the

@@ -6,6 +6,7 @@ use App\Models\Concerns\HasObjectIdentity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
@@ -204,6 +205,13 @@ class Entity extends Model
     public function keyRiskIndicators(): HasMany
     {
         return $this->hasMany(KeyRiskIndicator::class);
+    }
+
+    /** @return BelongsToMany<BusinessProcess, $this> */
+    public function businessProcesses(): BelongsToMany
+    {
+        return $this->belongsToMany(BusinessProcess::class, 'entity_business_process', 'entity_id', 'business_process_id')
+            ->withPivot(['organization_id', 'is_primary', 'attached_by', 'attached_at', 'created_at']);
     }
 
     /* ------------------------------------------------------------------ */

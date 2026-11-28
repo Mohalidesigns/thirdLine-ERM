@@ -56,11 +56,19 @@ class EntityPolicy
      */
     public static function withinReach(User $user, Entity $entity): bool
     {
+        return self::withinResolvedReach($user, self::subtreePathFor($user), $entity);
+    }
+
+    /**
+     * withinReach() with the caller's subtree path already resolved. Resolving it
+     * costs a query (GraphScope::rootPathFor), so a caller checking many entities
+     * resolves it once with subtreePathFor() and passes it here for each.
+     */
+    public static function withinResolvedReach(User $user, ?string $rootPath, Entity $entity): bool
+    {
         if ((int) $entity->organization_id !== (int) $user->organization_id) {
             return false;
         }
-
-        $rootPath = self::subtreePathFor($user);
 
         if ($rootPath === null) {
             return true;

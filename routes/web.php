@@ -58,6 +58,8 @@ use App\Http\Controllers\Bcms\SupplierResilienceController as BcmsSupplierResili
 use App\Http\Controllers\Bcms\TrainingController as BcmsTrainingController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ProcessController;
+use App\Http\Controllers\ProcessGroupController;
 use App\Http\Controllers\Rcsa\ActionPlanController as RcsaActionPlanController;
 use App\Http\Controllers\Rcsa\AssessmentController as RcsaAssessmentController;
 use App\Http\Controllers\Rcsa\AuditController as RcsaAuditController;
@@ -112,6 +114,7 @@ use App\Http\Controllers\Risk\ThresholdController;
 use App\Http\Controllers\Risk\TreatmentPlanController;
 use App\Http\Controllers\Risk\WidgetController;
 use App\Http\Controllers\Risk\WorkflowController;
+use App\Http\Controllers\RiskLibraryController;
 use App\Http\Controllers\Sm\ScenarioActionController as SmScenarioActionController;
 use App\Http\Controllers\Sm\ScenarioController as SmScenarioController;
 use App\Http\Controllers\Sm\ScenarioGovernanceController as SmScenarioGovernanceController;
@@ -518,6 +521,16 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
         ->middleware('permission:entity.edit')->name('risk.scoping.update');
     Route::delete('scoping/{scoping}', [ScopingController::class, 'destroy'])
         ->middleware('permission:entity.delete')->name('risk.scoping.destroy');
+    Route::post('scoping/{scoping}/risks/attach-from-library', [ScopingController::class, 'attachLibraryRisks'])
+        ->middleware('permission:risk.create')->name('risk.scoping.attach-library-risks');
+    Route::get('scoping/{scoping}/processes/attachable', [ScopingController::class, 'attachableProcesses'])
+        ->middleware('permission:process.view')->name('risk.scoping.attachable-processes');
+    Route::post('scoping/{scoping}/processes/attach', [ScopingController::class, 'attachProcess'])
+        ->middleware('permission:process.update')->name('risk.scoping.attach-process');
+    Route::post('scoping/{scoping}/processes', [ScopingController::class, 'storeProcess'])
+        ->middleware('permission:process.create')->name('risk.scoping.store-process');
+    Route::delete('scoping/{scoping}/processes/{process}', [ScopingController::class, 'detachProcess'])
+        ->middleware('permission:process.update')->name('risk.scoping.detach-process');
 
     /* ------------------------------------------------------------------ */
     /*  Risk Register */
@@ -544,6 +557,81 @@ Route::prefix('risk')->middleware(['auth'])->group(function () {
     // same attribute definitions.
     Route::patch('register/{register}/attributes', [RiskRegisterController::class, 'updateAttributes'])
         ->middleware('permission:risk.edit')->name('risk.register.attributes');
+    Route::post('register/{register}/library-update', [RiskRegisterController::class, 'reviewLibraryUpdate'])
+        ->middleware('permission:risk.edit')->name('risk.register.library-update');
+
+    /* ------------------------------------------------------------------ */
+    /*  Risk Library (ADR 0028 Phase 1 — no DELETE route) */
+    /* ------------------------------------------------------------------ */
+    Route::get('library', [RiskLibraryController::class, 'index'])
+        ->middleware('permission:risk_library.view')->name('risk.library.index');
+    Route::get('library/create', [RiskLibraryController::class, 'create'])
+        ->middleware('permission:risk_library.create')->name('risk.library.create');
+    Route::post('library', [RiskLibraryController::class, 'store'])
+        ->middleware('permission:risk_library.create')->name('risk.library.store');
+    Route::get('library/duplicates', [RiskLibraryController::class, 'duplicates'])
+        ->middleware('permission:risk_library.view')->name('risk.library.duplicates');
+    Route::get('library/picker-options', [RiskLibraryController::class, 'pickerOptions'])
+        ->middleware('permission:risk_library.view')->name('risk.library.picker-options');
+    Route::get('library/export', [RiskLibraryController::class, 'export'])
+        ->middleware('permission:risk_library.view')->name('risk.library.export');
+    Route::get('library/export/csv', [RiskLibraryController::class, 'exportCsv'])
+        ->middleware('permission:risk_library.view')->name('risk.library.export.csv');
+    Route::get('library/export/pdf', [RiskLibraryController::class, 'exportPdf'])
+        ->middleware('permission:risk_library.view')->name('risk.library.export.pdf');
+    Route::post('library/bulk-apply/preview', [RiskLibraryController::class, 'previewBulkApply'])
+        ->middleware('permission:risk.create')->name('risk.library.bulk-apply.preview');
+    Route::post('library/bulk-apply', [RiskLibraryController::class, 'bulkApply'])
+        ->middleware('permission:risk.create')->name('risk.library.bulk-apply');
+    Route::get('library/{item}', [RiskLibraryController::class, 'show'])
+        ->middleware('permission:risk_library.view')->name('risk.library.show');
+    Route::get('library/{item}/edit', [RiskLibraryController::class, 'edit'])
+        ->middleware('permission:risk_library.update')->name('risk.library.edit');
+    Route::match(['put', 'patch'], 'library/{item}', [RiskLibraryController::class, 'update'])
+        ->middleware('permission:risk_library.update')->name('risk.library.update');
+    Route::post('library/{item}/retire', [RiskLibraryController::class, 'retire'])
+        ->middleware('permission:risk_library.retire')->name('risk.library.retire');
+    Route::post('library/{item}/reactivate', [RiskLibraryController::class, 'reactivate'])
+        ->middleware('permission:risk_library.retire')->name('risk.library.reactivate');
+    Route::get('library/{item}/export-pdf', [RiskLibraryController::class, 'exportItemPdf'])
+        ->middleware('permission:risk_library.view')->name('risk.library.export-item');
+
+    /* ------------------------------------------------------------------ */
+    /*  Process Module & Process Groups (ADR 0028 Phase 2) */
+    /* ------------------------------------------------------------------ */
+    Route::get('processes/dashboard', [ProcessController::class, 'dashboard'])
+        ->middleware('permission:process.view')->name('risk.processes.dashboard');
+    Route::get('processes', [ProcessController::class, 'index'])
+        ->middleware('permission:process.view')->name('risk.processes.index');
+    Route::get('processes/create', [ProcessController::class, 'create'])
+        ->middleware('permission:process.create')->name('risk.processes.create');
+    Route::post('processes', [ProcessController::class, 'store'])
+        ->middleware('permission:process.create')->name('risk.processes.store');
+    Route::get('processes/export', [ProcessController::class, 'export'])
+        ->middleware('permission:process.view')->name('risk.processes.export');
+    Route::get('processes/export/csv', [ProcessController::class, 'exportCsv'])
+        ->middleware('permission:process.view')->name('risk.processes.export.csv');
+    Route::get('processes/export/pdf', [ProcessController::class, 'exportPdf'])
+        ->middleware('permission:process.view')->name('risk.processes.export.pdf');
+    Route::get('processes/{process}', [ProcessController::class, 'show'])
+        ->middleware('permission:process.view')->name('risk.processes.show');
+    Route::get('processes/{process}/edit', [ProcessController::class, 'edit'])
+        ->middleware('permission:process.update')->name('risk.processes.edit');
+    Route::match(['put', 'patch'], 'processes/{process}', [ProcessController::class, 'update'])
+        ->middleware('permission:process.update')->name('risk.processes.update');
+    Route::post('processes/{process}/toggle-active', [ProcessController::class, 'toggleActive'])
+        ->middleware('permission:process.update')->name('risk.processes.toggle-active');
+
+    Route::get('process-groups', [ProcessGroupController::class, 'index'])
+        ->middleware('permission:process.view')->name('risk.process-groups.index');
+    Route::post('process-groups', [ProcessGroupController::class, 'store'])
+        ->middleware('permission:process_group.manage')->name('risk.process-groups.store');
+    Route::match(['put', 'patch'], 'process-groups/{processGroup}', [ProcessGroupController::class, 'update'])
+        ->middleware('permission:process_group.manage')->name('risk.process-groups.update');
+    Route::post('process-groups/{processGroup}/deactivate', [ProcessGroupController::class, 'deactivate'])
+        ->middleware('permission:process_group.manage')->name('risk.process-groups.deactivate');
+    Route::post('process-groups/{processGroup}/toggle-active', [ProcessGroupController::class, 'toggleActive'])
+        ->middleware('permission:process_group.manage')->name('risk.process-groups.toggle-active');
 
     /* ------------------------------------------------------------------ */
     /*  Risk Assessments */

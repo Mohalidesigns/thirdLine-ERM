@@ -15,6 +15,9 @@ class GridRegistry
     protected static array $grids = [
         'controls' => Definitions\ControlsGrid::class,
         'risks' => Definitions\RisksGrid::class,
+        'risk_library' => Definitions\RiskLibraryGrid::class,
+        'processes' => Definitions\ProcessGrid::class,
+        'process_groups' => Definitions\ProcessGroupGrid::class,
         'treatments' => Definitions\TreatmentPlansGrid::class,
         'issues' => Definitions\IssuesGrid::class,
         'loss_events' => Definitions\LossEventsGrid::class,

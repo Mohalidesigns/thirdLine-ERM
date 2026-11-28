@@ -91,6 +91,8 @@ class ObjectTypeRegistry
                 ['Process', 'Branch', 'System', 'Project']),
             $t('Branch', 'Branch', 'Branches', 4, 'location_city', '#718096', 'BR',
                 ['Process', 'Asset']),
+            $t('ProcessGroup', 'Process Group', 'Process Groups', 3, 'schema', '#2C5282', 'PG',
+                ['Process']),
             $t('Process', 'Process', 'Processes', 4, 'sync_alt', '#ED8936', 'PRC',
                 ['Process', 'System', 'Asset']),
             $t('System', 'System', 'Systems', 4, 'computer', '#9F7AEA', 'SYS',
@@ -203,6 +205,7 @@ class ObjectTypeRegistry
 
         return [
             $t('RiskCategory', 'Risk Category', 'Risk Categories', 'category', 'RC'),
+            $t('RiskLibraryItem', 'Risk Library Item', 'Risk Library Items', 'menu_book', 'RL'),
             $t('Taxonomy', 'Taxonomy', 'Taxonomies', 'account_tree', 'TAX'),
             $t('Framework', 'Framework', 'Frameworks', 'library_books', 'FW'),
             $t('Requirement', 'Requirement', 'Requirements', 'rule', 'REQ'),
@@ -625,8 +628,10 @@ class ObjectTypeRegistry
             \App\Models\EmergingRisk::class => 'EmergingRisk',
             \App\Models\Entity::class => 'BusinessUnit',
             \App\Models\BusinessUnit::class => 'BusinessUnit',
+            \App\Models\ProcessGroup::class => 'ProcessGroup',
             \App\Models\BusinessProcess::class => 'Process',
             \App\Models\RiskCategory::class => 'RiskCategory',
+            \App\Models\RiskLibraryItem::class => 'RiskLibraryItem',
             \App\Models\QuantificationScenario::class => 'Scenario',
         ];
     }

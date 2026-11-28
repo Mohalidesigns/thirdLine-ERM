@@ -180,6 +180,15 @@ class ObjectSourceMap
                 'is_node' => true,
             ]),
 
+            \App\Models\ProcessGroup::class => self::spec('process_groups', 'ProcessGroup', 'PG', [
+                'code' => 'code',
+                'name' => 'name',
+                'business_unit' => 'business_unit_id',
+                'owner' => 'owner_id',
+                'lifecycle_state' => 'status',
+                'is_node' => true,
+            ]),
+
             \App\Models\BusinessProcess::class => self::spec('business_processes', 'Process', 'PRC', [
                 'code' => 'code',
                 'owner' => 'owner_id',
@@ -192,6 +201,13 @@ class ObjectSourceMap
                 'code' => 'code',
                 'active_flag' => 'is_active',
                 'parent' => 'parent_id',
+            ]),
+
+            \App\Models\RiskLibraryItem::class => self::spec('risk_library_items', 'RiskLibraryItem', 'RL', [
+                'code' => 'code',
+                'name' => 'title',
+                'lifecycle_state' => 'status',
+                'is_node' => false,
             ]),
 
             \App\Models\QuantificationScenario::class => self::spec('quantification_scenarios', 'Scenario', 'SCN', [

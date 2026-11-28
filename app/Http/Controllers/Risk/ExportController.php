@@ -54,12 +54,12 @@ class ExportController extends Controller
 
         $risks = Risk::where('organization_id', $orgId)
             ->visibleTo()
-            ->with(['category', 'riskOwner', 'businessUnit'])
+            ->with(['category', 'riskOwner', 'businessUnit', 'libraryItem:id,code'])
             ->orderByDesc('inherent_score')
             ->get();
 
         $headers = [
-            'Risk Code', 'Title', 'Category', 'Risk Type', 'Status',
+            'Risk Code', 'Library Code', 'Library Version', 'Title', 'Category', 'Risk Type', 'Status',
             'Business Unit', 'Owner',
             'Inherent Likelihood', 'Inherent Impact', 'Inherent Score', 'Inherent Rating',
             'Residual Likelihood', 'Residual Impact', 'Residual Score', 'Residual Rating',
@@ -69,6 +69,8 @@ class ExportController extends Controller
 
         $rows = $risks->map(fn ($r) => [
             $r->risk_code,
+            $r->libraryItem?->code ?? '',
+            $r->library_version !== null ? 'v'.$r->library_version : '',
             $r->title,
             $r->category->name ?? '',
             $r->risk_type ?? '',

@@ -89,12 +89,21 @@ class NavPresenter
                     ['label' => 'Create Entity', 'route' => 'risk.scoping.create', 'permission' => 'entity.create'],
                 ],
             ],
+            [
+                'key' => 'processes', 'label' => 'Processes', 'icon' => 'schema', 'prefixes' => ['/risk/processes', '/risk/process-groups'],
+                'items' => [
+                    ['label' => 'Process Dashboard', 'route' => 'risk.processes.dashboard', 'permission' => 'process.view'],
+                    ['label' => 'Process Catalogue', 'route' => 'risk.processes.index', 'permission' => 'process.view'],
+                    ['label' => 'Process Groups', 'route' => 'risk.process-groups.index', 'permission' => 'process.view'],
+                ],
+            ],
 
             // ── Phase 2: Risk Identification & Assessment ──────────────
             [
-                'key' => 'risk_register', 'label' => 'Risk Register', 'icon' => 'assessment', 'prefixes' => ['/risk/register'],
+                'key' => 'risk_register', 'label' => 'Risk Register', 'icon' => 'assessment', 'prefixes' => ['/risk/register', '/risk/library'],
                 'items' => [
                     ['label' => 'Risk Register', 'route' => 'risk.register.index', 'permission' => 'risk.view'],
+                    ['label' => 'Risk Library', 'route' => 'risk.library.index', 'permission' => 'risk_library.view'],
                     ['label' => 'Create New Risk', 'route' => 'risk.register.create', 'permission' => 'risk.create'],
                 ],
             ],

@@ -31,7 +31,25 @@ class StoreEntityRequest extends FormRequest
         $orgId = TenantContext::organizationId();
 
         return [
-            'entity_type_id' => ['required', Rule::exists('entity_types', 'id')->where('organization_id', $orgId)->whereNull('deleted_at')],
+            'entity_type_id' => [
+                'required',
+                Rule::exists('entity_types', 'id')->where('organization_id', $orgId)->whereNull('deleted_at'),
+                function (string $attribute, mixed $value, \Closure $fail) use ($orgId): void {
+                    if ($this->allowsDeprecatedProcessEntityType()) {
+                        return;
+                    }
+
+                    $isProcessType = EntityType::query()
+                        ->where('organization_id', $orgId)
+                        ->whereKey($value)
+                        ->where('code', 'PROCESS')
+                        ->exists();
+
+                    if ($isProcessType) {
+                        $fail('The PROCESS entity type is deprecated. Please create business processes in the Process Module or from an entity\'s Processes tab.');
+                    }
+                },
+            ],
             'name' => ['required', 'string', 'max:255'],
             'parent_id' => ['nullable', Rule::exists('entities', 'id')->where('organization_id', $orgId)->whereNull('deleted_at')],
             'description' => ['nullable', 'string', 'max:20000'],
@@ -51,6 +69,15 @@ class StoreEntityRequest extends FormRequest
     public function attributes(): array
     {
         return $this->configuredAttributeLabels($this->objectTypeCode());
+    }
+
+    /**
+     * New entities may never use the deprecated PROCESS entity type (ADR 0028 Decision 3).
+     * Overridden by UpdateEntityRequest so existing legacy PROCESS entities remain editable.
+     */
+    protected function allowsDeprecatedProcessEntityType(): bool
+    {
+        return false;
     }
 
     /**

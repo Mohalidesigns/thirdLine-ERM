@@ -59,7 +59,8 @@ class ScopingSeeder extends Seeder
                 array_merge($td, [
                     'organization_id' => $orgId,
                     'uuid' => (string) Str::uuid(),
-                    'is_active' => true,
+                    // ADR 0028 Decision 3: PROCESS entity type is deprecated in favour of the Process Module.
+                    'is_active' => $td['code'] !== 'PROCESS',
                 ])
             );
         }

@@ -413,6 +413,12 @@ class MonteCarloService
             $totalPercentiles["p{$p}"] = round($this->quantile($totalLosses, $p));
         }
 
+        // The worst simulated year. The results page's "Max Simulated Loss" tile
+        // used to show p99.9 under that name — the same figure as the VaR (99.9%)
+        // tile beside it. Stored here rather than in a new column; every reader
+        // of this array picks levels by key, and the LEC drops a non-percentile.
+        $totalPercentiles['max'] = round(end($totalLosses) ?: 0);
+
         $totalVariance = 0;
         foreach ($totalLosses as $l) {
             $totalVariance += ($l - $totalExpected) ** 2;

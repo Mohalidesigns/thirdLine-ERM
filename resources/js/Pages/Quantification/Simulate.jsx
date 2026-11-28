@@ -48,7 +48,9 @@ export default function Simulate({ scenarios, defaults, iterationChoices, horizo
 
     const submit = (event) => {
         event.preventDefault();
-        post(route('risk.quantification.run-simulation'));
+        // A rejected run used to jump to the top of the page, leaving the
+        // scenario error — which sits just above this button — out of view.
+        post(route('risk.quantification.run-simulation'), { preserveScroll: true });
     };
 
     const createUrl = tryRoute('risk.quantification.create-scenario');
